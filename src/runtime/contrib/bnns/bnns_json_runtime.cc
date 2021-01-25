@@ -98,6 +98,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       << "The number of input constants must match the number of required.";
 
     SetupConstants(consts);
+    BindInputsAndOutputs();
+    AllocateIntermediateTensors();
     BuildEngine();
   }
 
@@ -105,7 +107,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     // Wrap external handler into BNNS tensor representation
     auto bind_ext_hdl_to_tensor = [this] (uint32_t eid) {
       const auto &ext_dlt = *data_entry_[eid];
-      auto &bnns_tensor = entry_out_mem_.at(eid);
+      auto &bnns_tensor = tensors_eid_[eid];
       bnns_tensor->set_data_hdl(ext_dlt.data);
     };
 
@@ -121,6 +123,47 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
   }
 
  private:
+  /** Make corresponding input/output tensor stubs */
+  void BindInputsAndOutputs() {
+    tensors_eid_.resize(data_entry_.size());
+    auto createTensor = [&](JSONGraphNodeEntry entry) {
+      auto node = nodes_[entry.id_];
+      auto dlshape = node.GetOpShape()[entry.index_];
+      auto dltype = node.GetOpDataType()[entry.index_];
+      void *data = nullptr;
+      if (data_entry_[entry.id_] != nullptr)
+        data = data_entry_[entry.id_]->data;
+      tensors_eid_[entry.id_] =
+          std::make_shared<BNNS::Tensor>(BNNS::Shape{dlshape.begin(), dlshape.end()},
+                                         convertToBNNS(dltype), data);
+    };
+
+    for (auto& id : input_nodes_) {
+      auto eid = JSONGraphNodeEntry(id, 0);
+      createTensor(eid);
+    }
+
+    for (auto entry : outputs_) {
+      createTensor(entry);
+    }
+  }
+
+  /** Allocate intermediate tensors */
+  void AllocateIntermediateTensors() {
+    for (int i = 0; i < nodes_.size(); ++i) {
+      auto eid = JSONGraphNodeEntry(i, 0);
+      if (tensors_eid_[eid.id_] != nullptr)
+        continue;
+      auto node = nodes_[i];
+      auto dlshape = node.GetOpShape()[0];
+      auto dltype = node.GetOpDataType()[0];
+      tensors_eid_[eid.id_] =
+          std::make_shared<BNNS::Tensor>(BNNS::Shape{dlshape.begin(), dlshape.end()},
+                                         convertToBNNS(dltype), nullptr);
+      tensors_eid_[eid.id_]->allocate_memory();
+    }
+  }
+
   // Build up the engine based on the input graph.
   void BuildEngine() {
     // Build subgraph engine.
@@ -152,20 +195,11 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     }
   }
 
-  // Bind a JSON graph node entry to a BNNS tensor.
-  std::shared_ptr<BNNS::Tensor> BindBNNSTensor(const JSONGraphNodeEntry& entry,
-                                               void *hdl = nullptr) {
+  // Get BNNS tensor.
+  std::shared_ptr<BNNS::Tensor> GetBNNSTensor(const JSONGraphNodeEntry& entry) {
     auto eid = EntryID(entry);
-    if (entry_out_mem_.count(eid) == 0) {
-      auto data_node = nodes_[entry.id_];
-      auto dlshape = data_node.GetOpShape()[entry.index_];
-      auto dltype = data_node.GetOpDataType()[entry.index_];
-
-      entry_out_mem_[eid] = std::make_shared<BNNS::Tensor>(
-          BNNS::Shape{dlshape.begin(), dlshape.end()},
-          convertToBNNS(dltype), hdl);
-    }
-    return entry_out_mem_[eid];
+    ICHECK(eid < tensors_eid_.size());
+    return tensors_eid_[eid];
   }
 
   void Conv2d(const size_t& nid, const bool has_relu = false, const bool has_bias = false) {
@@ -195,17 +229,10 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
         DH = std::stoi(str_dilation[0]),        // height kernel dilation
         DW = std::stoi(str_dilation[1]);        // width kernel dilation
 
-    auto weight_data_entry = data_entry_[EntryID(wgh_entry)];
-    ICHECK(weight_data_entry) << "Convolution weights tensor should be constant and "
-                                 "available on initialization stage. Looks like weights "
-                                 "are not result of constant expression.";
-
-    auto weight_ext_data_hdl = weight_data_entry->data;
-
     // Memory descriptions.
-    const auto &src_t = BindBNNSTensor(src_entry);
-    const auto &wgh_t = BindBNNSTensor(wgh_entry, weight_ext_data_hdl);
-    const auto &dst_t = BindBNNSTensor(dst_entry);
+    const auto &src_t = GetBNNSTensor(src_entry);
+    const auto &wgh_t = GetBNNSTensor(wgh_entry);
+    const auto &dst_t = GetBNNSTensor(dst_entry);
 
     auto src_view = TView::as_is(src_t).extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
     auto wgh_view = TView::as_is(wgh_t).with_layout(BNNSDataLayoutConvolutionWeightsOIHW);
@@ -214,13 +241,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
-      auto bias_data_entry = data_entry_[EntryID(bias_entry)];
-      ICHECK(bias_data_entry) << "Convolution bias tensor should be constant and "
-                                 "available on initialization stage. Looks like bias "
-                                 "is not result of constant expression.";
 
-      auto bias_data_hdl = bias_data_entry->data;
-      auto bias_t = BindBNNSTensor(bias_entry, bias_data_hdl);
+      auto bias_t = GetBNNSTensor(bias_entry);
       bias_view = TView::as_is(bias_t).squeeze().with_layout(BNNSDataLayoutVector);
     }
 
@@ -268,11 +290,10 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto weight_entry = node.GetInputs()[1];
     auto dst_entry = JSONGraphNodeEntry(nid, 0);
 
-    auto w_data = data_entry_[EntryID(weight_entry)]->data;
     // Memory descriptions.
-    auto src_t = BindBNNSTensor(src_entry);
-    auto wgh_t = BindBNNSTensor(weight_entry, w_data);
-    auto dst_t = BindBNNSTensor(dst_entry);
+    auto src_t = GetBNNSTensor(src_entry);
+    auto wgh_t = GetBNNSTensor(weight_entry);
+    auto dst_t = GetBNNSTensor(dst_entry);
 
     auto src_view = TView::as_is(src_t).extract_outer_dim().with_layout(BNNSDataLayoutVector);
     auto wgh_view = TView::as_is(wgh_t).with_layout(BNNSDataLayoutRowMajorMatrix);
@@ -281,8 +302,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     TView bias_view;
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
-      auto bias_data = data_entry_[EntryID(bias_entry)]->data;
-      auto bias_md = BindBNNSTensor(bias_entry, bias_data);
+      auto bias_md = GetBNNSTensor(bias_entry);
       bias_view = TView::as_is(bias_md).with_layout(BNNSDataLayoutVector);
     }
 
@@ -319,16 +339,10 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     bool a_is_weighted = data_entry_[EntryID(a_entry)] != nullptr;
     bool b_is_weighted = data_entry_[EntryID(b_entry)] != nullptr;
 
-    void* a_data = nullptr;
-    void* b_data = nullptr;
-    if (a_is_weighted)
-        a_data = data_entry_[EntryID(a_entry)]->data;
-    if (b_is_weighted)
-        b_data = data_entry_[EntryID(b_entry)]->data;
     // Memory descriptions.
-    auto a_t = BindBNNSTensor(a_entry, a_data);
-    auto b_t = BindBNNSTensor(b_entry, b_data);
-    auto dst_t = BindBNNSTensor(dst_entry);
+    auto a_t = GetBNNSTensor(a_entry);
+    auto b_t = GetBNNSTensor(b_entry);
+    auto dst_t = GetBNNSTensor(dst_entry);
 
     auto a_view = TView::as_is(a_t);
     auto b_view = TView::as_is(b_t);
@@ -391,12 +405,16 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     return { BNNSFlagsUseClientPtr, default_thread_config.internalConcurrency };
   }
 
+  /** Default threading config. Should be used if there are
+   *  no other threading specificator. */
   const ThreadingConfig default_thread_config = getDefaultThreadingConfig();
 
+  /** Collection of all primitives in topological order */
   std::vector<std::shared_ptr<BNNS::Primitive>> primitives_;
 
-  /* The entry ID to its corresponding output memory. */
-  std::unordered_map<uint32_t, std::shared_ptr<BNNS::Tensor>> entry_out_mem_;
+  /** Vector with BNNS tensors. Index of tensor matched with
+   *  corresponding EntryID from base JSONRuntimeBase. */
+  std::vector<TensorPtr> tensors_eid_;
 };
 
 runtime::Module BNNSJSONRuntimeCreate(String symbol_name, String graph_json,

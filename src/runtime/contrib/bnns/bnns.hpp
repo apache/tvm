@@ -72,14 +72,8 @@ class Tensor {
     };
     std::copy(shape.rbegin(), shape.rend(), std::begin(desc_.size));
 
-    if (hdl) {
-      desc_.data = hdl;
-      is_external_data = true;
-    } else {
-      const size_t buff_size = getSize(desc_) * getElementSize(desc_);
-      desc_.data = default_alloc(buff_size);
-      is_external_data = false;
-    }
+    desc_.data = hdl;
+    is_external_data = true;
   }
 
   ~Tensor() {
@@ -87,6 +81,16 @@ class Tensor {
       default_free(desc_.data);
       desc_.data = nullptr;
     }
+  }
+
+  void allocate_memory() {
+    if (desc_.data && !is_external_data) {
+      default_free(desc_.data);
+    }
+    const size_t buff_size = getSize(desc_) * getElementSize(desc_);
+    desc_.data = default_alloc(buff_size);
+    ICHECK(desc_.data);
+    is_external_data = false;
   }
 
   void* get_data_hdl() const { return desc_.data; }
@@ -254,7 +258,7 @@ class TView {
   }
 
   /** Check if view is empty and doesn't relay to any tensor */
-  operator bool() const { return view_desc_.data != nullptr; }
+  operator bool() const { return origin_ != nullptr; }
 
   /** Get BNNS descriptor for particular View. Batch and Party attributed are ignored. */
   const BNNSNDArrayDescriptor& get_bnns_view() const {
