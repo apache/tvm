@@ -364,10 +364,10 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             (db, di, do), extra_flops = pad_to_tensorcore(batch, in_channel, out_channel)
 
             if extra_flops > 2:
-                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s" % extra_flops)
+                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
                 return None
 
-            logger.info("conv2d pad_to_tensorcore, extra_flops %s" % extra_flops)
+            logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             # Pad batch size
             if db != 0:

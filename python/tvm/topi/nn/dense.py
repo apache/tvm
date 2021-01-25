@@ -102,4 +102,5 @@ def dense_legalize(attrs, inputs, types):
         The legalized expr
     """
     # not to change by default
+    #pylint: disable=unused-argument
     return None

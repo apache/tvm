@@ -18,14 +18,10 @@
 """Tensorcore alter op and legalize functions for cuda backend"""
 
 import logging
-import tvm
-from tvm import te
-from tvm import relay
-from tvm import autotvm
 import math
+from tvm import relay
 
 from .. import nn
-from ..utils import get_const_tuple
 
 logger = logging.getLogger("topi")
 
@@ -66,24 +62,22 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         K = K.value
         N = N.value
 
+        # The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
             or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
         ):
-            "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
             # no need to pad
             return None
-
-        # todo: 1. check the padding size 2. pad to 8*16*32/32*16*8 liuxin 2020/7/15
 
         (dm, dk, dn), extra_flops = pad_to_tensorcore(M, K, N)
 
         if extra_flops > 2:
-            logger.info("batch_matmul pad_to_tensorcore skipped, extra_flops %s" % extra_flops)
+            logger.info("batch_matmul pad_to_tensorcore skipped, extra_flops %s", extra_flops)
             return None
 
-        logger.info("batch_matmul pad_to_tensorcore, extra_flops %s" % extra_flops)
+        logger.info("batch_matmul pad_to_tensorcore, extra_flops %s", extra_flops)
         if dm or dk:
             x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk)))
         else:
@@ -142,22 +136,22 @@ def _dense_legalize(attrs, inputs, arg_types):
             # todo: deal with unfixed shape when compiling wdl model
             return None
 
+        # The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
             or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
         ):
-            "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
             # no need to pad
             return None
 
         (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N)
 
         if extra_flops_ratio > 2:
-            logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s" % extra_flops_ratio)
+            logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
             return None
 
-        logger.info("dense pad_to_tensorcore, extra_flops_ratio %s" % extra_flops_ratio)
+        logger.info("dense pad_to_tensorcore, extra_flops_ratio %s", extra_flops_ratio)
 
         if dm or dk:
             x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk)))
@@ -178,6 +172,7 @@ def _dense_legalize(attrs, inputs, arg_types):
 
 
 def pad_to_tensorcore(M, K, N):
+    """pad shape to enable tensorcore"""
     candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
 
     flops = M * K * N
