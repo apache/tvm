@@ -281,7 +281,22 @@ class PostNMSTopKRewrite(DFPatternCallback):
 
 
 def scatter_roi_align_result_pattern(levels, roi_align_results, num_scales):
-    """TODO"""
+    """Detect the Relay subgraph corresponding to the following PyTorch code
+
+    first_result = roi_align_results[0]
+    dtype, device = first_result.dtype, first_result.device
+    res = torch.zeros((levels.size(0), first_result.size(1),
+                       first_result.size(2), first_result.size(3)),
+                      dtype=dtype, device=device)
+    for level in range(len(roi_align_results)):
+        index = torch.where(levels == level)[0].view(-1, 1, 1, 1)
+        index = index.expand(index.size(0),
+                             roi_align_results[level].size(1),
+                             roi_align_results[level].size(2),
+                             roi_align_results[level].size(3))
+        res = res.scatter(0, index, roi_align_results[level])
+    return res
+    """
 
     def do_where(levels, _):
         idx_in_level = is_op("argwhere")(is_op("equal")(levels, is_constant()))
@@ -312,6 +327,8 @@ def scatter_roi_align_result_pattern(levels, roi_align_results, num_scales):
 
 
 class ScatterRewrite(DFPatternCallback):
+    """A callback to rewrite repeated scatters with a batched gather."""
+
     def __init__(self, num_scales):
         super().__init__()
         self.num_scales = num_scales
@@ -325,6 +342,19 @@ class ScatterRewrite(DFPatternCallback):
         )
 
     def convert_scatter_to_gather(self, levels, roi_align_results):
+        """Replace the detected scatter loop with the following PyTorch code
+
+        indices_per_level = []
+        for level in range(num_scales):
+            idx_in_level = torch.where(levels == level)[0]
+            indices_per_leve.append(idx_in_level)
+
+        stacked_features = torch.cat(roi_align_results, dim=0)
+        stacked_indices = torch.cat(indices_per_level, dim=0)
+        argsort_indices = torch.argort(stacked_indices)
+        return stacked_features[argsort_indices, :]
+        """
+
         # Collect inidices and concat them
         indices_per_level = []
         for i in range(self.num_scales):
@@ -344,6 +374,7 @@ class ScatterRewrite(DFPatternCallback):
 
         # Permute rows by argsorted indices
         permuted = op.take(roi_align_results_concat, argsort_indices, axis=0)
+
         return op.reshape(permuted, [0, -1, 1, 1])
 
     def callback(self, pre, post, node_map):
@@ -370,6 +401,10 @@ def rewrite_batched_nms_with_max_out_size(mod):
 
 
 def rewrite_scatter_to_gather(mod, num_scales):
-    """TODO"""
+    """Rewrite the input graph to replace a repeated scatter loop with
+    a batched gather. The scatter loop is used in torchvision MultiScaleRoIAlign
+    to merge roi_align results for all scales. The scatter is used to emulate
+    inplace updates.
+    """
     mod["main"] = rewrite(ScatterRewrite(num_scales), mod["main"])
     return mod
