@@ -399,10 +399,7 @@ class PyTorchOpConverter:
         begin = [0] * ndim
         dim = int(inputs[1])
         stride = int(inputs[4])
-        if isinstance(inputs[2], _expr.Call):
-            begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
-        else:
-            begin[dim] = int(inputs[2])
+        begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
 
         # Process begin
         if not isinstance(begin[dim], int):
@@ -551,7 +548,13 @@ class PyTorchOpConverter:
 
     def repeat(self, inputs, input_types):
         data = inputs[0]
-        reps = inputs[1]
+        reps = []
+        for r in inputs[1]:
+            if isinstance(r, int):
+                reps.append(r)
+            else:
+                reps.append(int(_infer_value(r, {}).asnumpy()))
+
         return _op.transform.tile(data, reps=reps)
 
     def repeat_interleave(self, inputs, input_types):
@@ -2070,6 +2073,22 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.scatter_add(data, index, src, axis=axis)
 
+    def cumsum(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        dtype = inputs[2]
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+
+        return _op.cumsum(data, axis=dim, dtype=dtype)
+
+    def masked_fill(self, inputs, input_types):
+        mask = inputs[1]
+        value = _op.cast(_wrap_const(inputs[2]), input_types[0])
+
+        return _op.where(mask, value, inputs[0])
+
     def is_floating_point(self, inputs, input_types):
         assert len(inputs) == 1
 
@@ -2278,6 +2297,8 @@ class PyTorchOpConverter:
             "aten::__not__": self.logical_not,
             "aten::hardswish_": self.hard_swish,
             "aten::hardswish": self.hard_swish,
+            "aten::cumsum": self.cumsum,
+            "aten::masked_fill": self.masked_fill,
         }
 
     def update_convert_map(self, custom_map):

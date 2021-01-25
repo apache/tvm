@@ -3452,6 +3452,32 @@ def test_hard_swish():
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
+def test_cumsum():
+    def test_fn(dim, dtype=None):
+        return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
+
+    inp = torch.randint(0, 100, (10000,), dtype=torch.int32)
+    verify_model(test_fn(0), [inp])
+    verify_model(test_fn(0), [inp.to(torch.int64)])
+    verify_model(test_fn(0, dtype=torch.int64), [inp.to(torch.int64)])
+
+    inp = torch.randn((100, 100), dtype=torch.float32)
+    verify_model(test_fn(dim=0, dtype=torch.float64), [inp])
+    verify_model(test_fn(dim=1), [inp])
+
+    inp = torch.randn((100, 100), dtype=torch.float32) > 0.5
+    verify_model(test_fn(dim=0, dtype=torch.int32), [inp])
+
+
+def test_masked_fill():
+    def test_fn(x, mask):
+        return torch.masked_fill(x, mask, 0.0)
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn, [inp, inp > 0.5])
+    verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3580,6 +3606,8 @@ if __name__ == "__main__":
     test_forward_scatter()
     test_numel()
     test_bincount()
+    test_cumsum()
+    test_masked_fill()
 
     # Model tests
     test_resnet18()
