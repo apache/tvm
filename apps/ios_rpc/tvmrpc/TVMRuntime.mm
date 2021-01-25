@@ -57,12 +57,12 @@ namespace tvm {
 namespace runtime{
 namespace detail{
 // Override logging mechanism
-static LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   throw tvm::runtime::InternalError(file, lineno, message);
 }
 
-static LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
-   NSLog(@"%s", stream_.str().c_str();
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+   NSLog(@"%s:%d: %s", file.c_str(), lineno, message.c_str());
    }
 }
 }

@@ -239,11 +239,11 @@ class LogMessage {
 #else
 // Custom implementations of LogFatal and LogMessage that allow the user to
 // override handling of the message. The user must implement LogFatalImpl and LogMessageImpl
-static void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
 class LogFatal {
  public:
   LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file, lineno, stream_.str()); }
+  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
   std::ostringstream& stream() { return stream_; }
 
  private:
@@ -252,16 +252,19 @@ class LogFatal {
   int lineno_;
 };
 
-static void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
 class LogMessage {
  public:
-  LogMessage(const std::string& file, int lineno) {
-    LogMessageImpl(file, lineno, stream_.str());
+  LogMessage(const std::string& file, int lineno):file_(file), lineno_(lineno) {
   }
-  ~LogMessage() { std::cerr << stream_.str() << std::endl; }
+  ~LogMessage() {
+    LogMessageImpl(file_, lineno_, stream_.str());
+  }
   std::ostringstream& stream() { return stream_; }
 
  private:
+  std::string file_;
+  int lineno_;
   std::ostringstream stream_;
 };
 #endif
