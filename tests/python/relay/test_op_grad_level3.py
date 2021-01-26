@@ -126,5 +126,12 @@ def test_gather_nd_grad():
     check_grad(fwd, inputs=[data_np, indices_np], test_inputs=[data_np])
 
 
+def test_reshape_like_grad():
+    data = relay.var("data", shape=(2, 3, 4), dtype="float32")
+    shape_like = relay.var("shape_like", shape=(6, 2, 2), dtype="float32")
+    fwd_func = relay.Function([data, shape_like], relay.reshape_like(data, shape_like))
+    check_grad(fwd_func)
+
+
 if __name__ == "__main__":
     pytest.main()

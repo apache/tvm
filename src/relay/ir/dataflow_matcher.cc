@@ -55,10 +55,11 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const LetPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
@@ -419,6 +420,14 @@ bool DFPatternMatcher::VisitDFPattern_(const IfPatternNode* op, const Expr& expr
     auto false_branch = if_node->false_branch;
     return VisitDFPattern(op->cond, cond) && VisitDFPattern(op->true_branch, true_branch) &&
            VisitDFPattern(op->false_branch, false_branch);
+  }
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const LetPatternNode* op, const Expr& expr) {
+  if (const auto* let_node = expr.as<LetNode>()) {
+    return VisitDFPattern(op->var, let_node->var) && VisitDFPattern(op->value, let_node->value) &&
+           VisitDFPattern(op->body, let_node->body);
   }
   return false;
 }
