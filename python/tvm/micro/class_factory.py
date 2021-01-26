@@ -46,15 +46,18 @@ class ClassFactory:
         self.init_kw = init_kw
 
     def override_kw(self, **kw_overrides):
+        print(f"MDW: override_kw got: {kw_overrides}")
         kwargs = self.init_kw
         if kw_overrides:
             kwargs = dict(kwargs)
             for k, v in kw_overrides.items():
                 kwargs[k] = v
 
+        print(f"MDW: Calling constructor for {self.cls} with {self.init_args} and {kwargs}")
         return self.__class__(self.cls, self.init_args, kwargs)
 
     def instantiate(self):
+        print(f"MDW: instantiate() called with init_args: {self.init_args} and init_kw: {self.init_kw}")
         return self.cls(*self.init_args, **self.init_kw)
 
     @property
