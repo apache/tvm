@@ -26,6 +26,8 @@
 
 // configurations for the dmlc log.
 #define TVM_LOG_DEBUG 0
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
+#define TVM_BACKTRACE_DISABLED 1
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container.h>

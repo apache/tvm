@@ -24,46 +24,8 @@
 
 // configurations for tvm logging.
 #define TVM_LOG_DEBUG 0
-
-namespace tvm {
-namespace runtime{
-namespace detail{
-// Override logging mechanism
-class LogMessage {
- public:
-  LogMessage(const std::string& file, int lineno) {
-    stream_ << file << ":" << lineno
-            << ": ";
-  }
-  ~LogMessage() {
-    std::cerr << stream_.str() << std::endl;
-  }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-};
-
-class LogFatal {
- public:
-  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION {
-    {
-    LogMessage(file, lineno) << stream_.str();
-    }
-    abort();
-  }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-  std::string file_;
-  int lineno_;
-};
-
-}
-}
-}  // namespace dmlc
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
+#define TVM_BACKTRACE_DISABLED 1
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -71,12 +33,27 @@ class LogFatal {
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <iostream>
+#include <string>
+
 #include "../../src/runtime/meta_data.h"
 #include "../../src/runtime/vulkan/vulkan_shader.h"
 #include "../../src/runtime/workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
+namespace detail {
+// Override logging mechanism
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  std::cerr << file << ":" << lineno << ": " << message << std::endl;
+  abort();
+}
+
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+  std::cerr << file << ":" << lineno << ": " << message << std::endl;
+}
+
+}  // namespace detail
 
 /*! \brief Thread local workspace */
 class WebGPUThreadEntry {
