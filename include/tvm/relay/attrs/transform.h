@@ -438,6 +438,16 @@ struct MatrixSetDiagAttrs : public tvm::AttrsNode<MatrixSetDiagAttrs> {
   }
 };  // struct MatrixSetDiagAttrs
 
+/*! \brief Attributes used in cumsum operator */
+struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
+  Integer axis;
+  DataType dtype;
+  TVM_DECLARE_ATTRS(CumsumAttrs, "relay.attrs.CumsumAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis to sum over").set_default(NullValue<Integer>());
+    TVM_ATTR_FIELD(dtype).describe("Output data type").set_default(NullValue<DataType>());
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

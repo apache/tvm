@@ -23,12 +23,7 @@ from tvm._ffi import get_global_func
 from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
-from ..utils import ceil_div
-
-
-def swap(arr, axis):
-    """ swap arr[axis] and arr[-1] """
-    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+from ..utils import ceil_div, swap
 
 
 def _schedule_sort(outs):

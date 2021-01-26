@@ -1361,3 +1361,24 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
         name="threefry_split.generic",
     )
     return strategy
+
+
+def wrap_compute_cumsum(topi_compute):
+    """Wrap cumsum topi compute"""
+
+    def _compute_cumsum(attrs, inputs, _):
+        return [topi_compute(inputs[0], attrs.axis, attrs.dtype)]
+
+    return _compute_cumsum
+
+
+@override_native_generic_func("cumsum_strategy")
+def cumsum_strategy(attrs, inputs, out_type, target):
+    """cumsum generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_cumsum(topi.cumsum),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumsum.generic",
+    )
+    return strategy
