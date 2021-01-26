@@ -2,8 +2,10 @@
 #
 # Base requirements needed to install tvm
 attrs
+cloudpickle
 decorator
 numpy
 psutil
 scipy~=1.4
 synr>=0.2.1
+tornado

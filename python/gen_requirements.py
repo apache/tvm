@@ -56,11 +56,13 @@ REQUIREMENTS_BY_PIECE = [
     # Base requirements needed to install tvm.
     ("core", ("Base requirements needed to install tvm", [
         "attrs",
+        "cloudpickle",
         "decorator",
         "numpy",
         "psutil",
         "scipy",
         "synr",
+        "tornado",
     ])),
 
     # Relay frontends.
@@ -148,6 +150,7 @@ CONSTRAINTS = [
   ("attrs", None),
   ("autodocsumm", None),
   ("black", "==20.8b1"),  # Want identical black to that used in ci.
+  ("cloudpickle", None),
   ("commonmark", ">=0.7.3"),  # From PR #213.
   ("coremltools", None),
   ("cpplint", "==1.5.4"),
@@ -174,6 +177,7 @@ CONSTRAINTS = [
   ("tflite", ">=2.1.0"), # At least the version tested in CI. Unclear why CI prefers this version.
   ("torch", ">=1.4.0"),  # At least the version tested in CI. Unclear why CI prefers this version.
   ("torchvision", ">=0.5.0"),  # At least the version tested in CI.
+  ("tornado", None),
 ]
 
 ################################################################################
