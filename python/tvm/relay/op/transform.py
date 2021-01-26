@@ -1345,7 +1345,9 @@ def cumsum(data, axis=None, dtype=None):
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
 
-    Examples:
+    Examples
+    --------
+    .. code-block:: python
         a = [[1,2,3], [4,5,6]]
 
         cumsum(a)  # if axis is not provided, cumsum is done over the flattened input.

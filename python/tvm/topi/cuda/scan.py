@@ -48,7 +48,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression.
+        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        prefix sum.
     """
 
     batch_size = prod(data.shape[:-1])
@@ -184,7 +185,8 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression.
+        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        prefix sum.
 
     Returns
     -------
@@ -335,7 +337,8 @@ def exclusive_scan(
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression.
+        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        prefix sum.
 
     Returns
     -------
@@ -438,7 +441,8 @@ def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add):
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression.
+        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        prefix sum.
 
     Returns
     -------
