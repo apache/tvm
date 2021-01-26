@@ -180,7 +180,7 @@ CONSTRAINTS = [
   ("torch", ">=1.4.0"),  # At least the version tested in CI. Unclear why CI prefers this version.
   ("torchvision", ">=0.5.0"),  # At least the version tested in CI.
   ("tornado", None),
-  ("xgboost", None),
+  ("xgboost", ">=1.1.0"),  # From #4953.
 ]
 
 ################################################################################
