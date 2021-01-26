@@ -385,9 +385,8 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             if do != 0:
                 new_out_channel = out_channel + do
                 new_attrs["channels"] = new_out_channel
-                out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
-            else:
-                out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+            out = relay.nn.conv2d(data, kernel, **new_attrs)
 
             if db != 0 or do != 0:
                 original_out_shape = [x.value for x in output_tensor.shape]

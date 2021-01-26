@@ -35,6 +35,7 @@ def run_opt_pass(expr, passes):
     return entry if isinstance(expr, relay.Function) else entry.body
 
 
+@tvm.testing.uses_gpu
 def test_legalize_conv2d(data_shape, kernel_shape, pad_shape, do_pad=True):
     """test legalize conv2d to enable tensorcore"""
     out_channel = kernel_shape[3]
@@ -97,6 +98,7 @@ def test_legalize_conv2d(data_shape, kernel_shape, pad_shape, do_pad=True):
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
 
 
+@tvm.testing.uses_gpu
 def test_legalize_dense(data_shape, kernel_shape, pad_shape, do_pad=True):
     """test legalize dense to enable tensorcore"""
     M, K = data_shape
@@ -146,6 +148,7 @@ def test_legalize_dense(data_shape, kernel_shape, pad_shape, do_pad=True):
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
 
 
+@tvm.testing.uses_gpu
 def test_legalize_batch_matmul(data_shape, kernel_shape, pad_shape, do_pad=True):
     """test legalize dense to enable tensorcore"""
     B, M, _ = data_shape
