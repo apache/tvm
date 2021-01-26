@@ -50,5 +50,3 @@ set_property(TARGET libbacktrace
   PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/lib/libbacktrace.a)
 # create include directory so cmake doesn't complain
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include)
-target_include_directories(libbacktrace
-  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include>)
