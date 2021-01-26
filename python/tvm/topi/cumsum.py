@@ -80,15 +80,16 @@ def cumsum(data, axis=None, dtype=None):
         data_buf = ib.buffer_ptr(data_buf)
         out_buf = ib.buffer_ptr(out_buf)
 
-        with ib.for_range(0, axis_mul_before, "i") as i:
-            with ib.for_range(0, axis_mul_after, "j") as j:
-                base_idx = i * cumsum_axis_len * axis_mul_after + j
-                out_buf[base_idx] = maybe_cast(data_buf[base_idx])
-                with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
-                    k = _k + 1
-                    cur_idx = base_idx + k * axis_mul_after
-                    prev_idx = base_idx + (k - 1) * axis_mul_after
-                    out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[cur_idx])
+        with ib.for_range(0, axis_mul_before * axis_mul_after, "fused", kind="parallel") as fused:
+            i = fused // axis_mul_after
+            j = fused % axis_mul_after
+            base_idx = i * cumsum_axis_len * axis_mul_after + j
+            out_buf[base_idx] = maybe_cast(data_buf[base_idx])
+            with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
+                k = _k + 1
+                cur_idx = base_idx + k * axis_mul_after
+                prev_idx = base_idx + (k - 1) * axis_mul_after
+                out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[cur_idx])
 
         return ib.get()
 
