@@ -198,7 +198,7 @@ def sigmoid_grad(orig, grad):
 @register_gradient("tanh")
 def tanh_grad(orig, grad):
     """Returns grad * (1 - tanh(x) * tanh(x))."""
-    return [grad * ones_like(orig) - orig * orig]
+    return [grad * (ones_like(orig) - orig * orig)]
 
 
 @register_gradient("nn.relu")
