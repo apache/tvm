@@ -21,7 +21,7 @@
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-from ..expr import TupleWrapper, const, Expr, Tuple, Constant
+from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -884,7 +884,7 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         The computed result.
     """
     strides = strides or [1]
-    if any([(isinstance(i, Expr) and not isinstance(i, Constant)) for i in (begin, end, strides)]):
+    if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
         if isinstance(end, (tuple, list)):
