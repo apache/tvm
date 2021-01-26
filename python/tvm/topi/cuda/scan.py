@@ -46,8 +46,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
     reduction: Buffer, optional
         (N-1)-D Buffer, to store the sum of each scan axis.
 
-    biop: string, optional
-        A string specifying which binary operator to use. Currently only "sum" is supported.
+    binop: function, optional
+        A binary associative op to use for scan. The function takes two TIR expressions
+        and produce a new TIR expression.
     """
 
     batch_size = prod(data.shape[:-1])
@@ -181,8 +182,9 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
     ex_scan_output : tvm.te.Tensor
         The output of exclusive scan on data
 
-    biop: string, optional
-        A string specifying which binary operator to use. Currently only "sum" is supported.
+    binop: function, optional
+        A binary associative op to use for scan. The function takes two TIR expressions
+        and produce a new TIR expression.
 
     Returns
     -------
@@ -271,8 +273,10 @@ def scan_thrust(
         Reductions are computed as part of the upsweep pass, so there is no extra cost.
         If False, reductions are ignored. It must be False when exclusive is False.
 
-    biop: string, optional
-        A string specifying which binary operator to use. Currently only "sum" is supported.
+    binop: function, optional
+        A binary associative op to use for scan. Since we need to lookup the corresponding
+        thrust function, arbitrariy callables are not supported. Currently only
+        tvm.tir.generic.add can be passed in.
 
     Returns
     -------
@@ -329,8 +333,9 @@ def exclusive_scan(
     output_dtype: string, optional
         The dtype of the output scan tensor. If not provided, the dtype of the input is used.
 
-    biop: string, optional
-        A string specifying which binary operator to use. Currently only "sum" is supported.
+    binop: function, optional
+        A binary associative op to use for scan. The function takes two TIR expressions
+        and produce a new TIR expression.
 
     Returns
     -------
@@ -431,8 +436,9 @@ def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add):
     output_dtype: string, optional
         The dtype of the output scan tensor. If not provided, the dtype of the input is used.
 
-    biop: string, optional
-        A string specifying which binary operator to use. Currently only "sum" is supported.
+    binop: function, optional
+        A binary associative op to use for scan. The function takes two TIR expressions
+        and produce a new TIR expression.
 
     Returns
     -------
