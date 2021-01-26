@@ -3,3 +3,4 @@
 # Requirements for XGBoost autotuning
 future
 torch>=1.4.0
+xgboost
