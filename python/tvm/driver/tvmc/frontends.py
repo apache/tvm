@@ -54,13 +54,15 @@ class Frontend(ABC):
         """File suffixes (extensions) used by this frontend"""
 
     @abstractmethod
-    def load(self, path):
+    def load(self, path, input_shape):
         """Load a model from a given path.
 
         Parameters
         ----------
         path: str
             Path to a file
+        input_shape: list
+            Shape of the input tensor
 
         Returns
         -------
@@ -99,9 +101,12 @@ class KerasFrontend(Frontend):
     def suffixes():
         return ["h5"]
 
-    def load(self, path):
+    def load(self, path, input_shape):
         # pylint: disable=C0103
         tf, keras = import_keras()
+
+        if input_shape:
+            raise TVMCException("--input-shape is not supported for {}".format(self.name()))
 
         # tvm build currently imports keras directly instead of tensorflow.keras
         try:
@@ -154,9 +159,12 @@ class OnnxFrontend(Frontend):
     def suffixes():
         return ["onnx"]
 
-    def load(self, path):
+    def load(self, path, input_shape):
         # pylint: disable=C0415
         import onnx
+
+        if input_shape:
+            raise TVMCException("--input-shape is not supported for {}".format(self.name()))
 
         # pylint: disable=E1101
         model = onnx.load(path)
@@ -175,10 +183,13 @@ class TensorflowFrontend(Frontend):
     def suffixes():
         return ["pb"]
 
-    def load(self, path):
+    def load(self, path, input_shape):
         # pylint: disable=C0415
         import tensorflow as tf
         import tvm.relay.testing.tf as tf_testing
+
+        if input_shape:
+            raise TVMCException("--input-shape is not supported for {}".format(self.name()))
 
         with tf.io.gfile.GFile(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -215,9 +226,12 @@ class TFLiteFrontend(Frontend):
     def suffixes():
         return ["tflite"]
 
-    def load(self, path):
+    def load(self, path, input_shape):
         # pylint: disable=C0415
         import tflite.Model as model
+
+        if input_shape:
+            raise TVMCException("--input-shape is not supported for {}".format(self.name()))
 
         with open(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -285,17 +299,17 @@ class PyTorchFrontend(Frontend):
         # Torch Script is a zip file, but can be named pth
         return ["pth", "zip"]
 
-    def load(self, path):
+    def load(self, path, input_shape):
         # pylint: disable=C0415
         import torch
 
+        if not input_shape:
+            raise TVMCException("--input-shape must be specified for {}".format(self.name()))
+
         traced_model = torch.jit.load(path)
-
-        inputs = list(traced_model.graph.inputs())[1:]
-        input_shapes = [inp.type().sizes() for inp in inputs]
-
         traced_model.eval()  # Switch to inference mode
-        input_shapes = [("input{}".format(idx), shape) for idx, shape in enumerate(shapes)]
+
+        input_shapes = [("input{}".format(idx), shape) for idx, shape in enumerate(input_shape)]
 
         logger.debug("parse Torch model and convert into Relay computation graph")
         return relay.frontend.from_pytorch(traced_model, input_shapes)
@@ -378,7 +392,7 @@ def guess_frontend(path):
     raise TVMCException("failed to infer the model format. Please specify --model-format")
 
 
-def load_model(path, model_format=None):
+def load_model(path, model_format=None, input_shape=None):
     """Load a model from a supported framework and convert it
     into an equivalent relay representation.
 
@@ -389,6 +403,8 @@ def load_model(path, model_format=None):
     model_format : str, optional
         The underlying framework used to create the model.
         If not specified, this will be inferred from the file type.
+    input shape : list, optional
+        The shape of input tensor for PyTorch models
 
     Returns
     -------
@@ -404,6 +420,6 @@ def load_model(path, model_format=None):
     else:
         frontend = guess_frontend(path)
 
-    mod, params = frontend.load(path)
+    mod, params = frontend.load(path, input_shape)
 
     return mod, params

@@ -60,6 +60,12 @@ def add_compile_parser(subparsers):
         help="comma separarated list of formats to export, e.g. 'asm,ll,relay' ",
     )
     parser.add_argument(
+        "--input-shape",
+        type=common.parse_input_shapes,
+        metavar="INPUT_SHAPE,[INPUT_SHAPE]...",
+        help="for PyTorch, e.g. '(1,3,224,224)'",
+    )
+    parser.add_argument(
         "--model-format",
         choices=frontends.get_frontend_names(),
         help="specify input model format",
@@ -108,6 +114,7 @@ def drive_compile(args):
         args.FILE,
         args.target,
         args.dump_code,
+        args.input_shape,
         None,
         args.model_format,
         args.tuning_records,
@@ -125,6 +132,7 @@ def compile_model(
     path,
     target,
     dump_code=None,
+    input_shape=None,
     target_host=None,
     model_format=None,
     tuning_records=None,
@@ -146,6 +154,8 @@ def compile_model(
     dump_code : list, optional
         Dump the generated code for the specified source types, on
         the requested target.
+    input_shape : list, optional
+        Shape of the input tensor for PyTorch models
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
@@ -172,7 +182,7 @@ def compile_model(
 
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format)
+    mod, params = frontends.load_model(path, model_format, input_shape)
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)

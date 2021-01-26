@@ -49,7 +49,12 @@ def add_tune_parser(subparsers):
         type=int,
         help="minimum number of trials before early stopping",
     )
-
+    parser.add_argument(
+        "--input-shape",
+        type=common.parse_input_shapes,
+        metavar="INPUT_SHAPE,[INPUT_SHAPE]...",
+        help="for PyTorch, e.g. '(1,3,224,224)'",
+    )
     # There is some extra processing required to define the actual default value
     # for --min-repeat-ms. This is done in `drive_tune`.
     parser.add_argument(
@@ -235,7 +240,7 @@ def drive_tune(args):
             )
 
     target = common.target_from_cli(args.target)
-    mod, params = frontends.load_model(args.FILE, args.model_format)
+    mod, params = frontends.load_model(args.FILE, args.model_format, args.input_shape)
 
     # min_repeat_ms should be:
     # a. the value provided by the user, if any, or

@@ -149,3 +149,31 @@ def test_tracker_host_port_from_cli__only_hostname__default_port_is_9090():
 
     assert expected_host == actual_host
     assert expected_port == actual_port
+
+
+def test_parse_input_shapes__no_numbers():
+    input_str = "(a,b,c,d)"
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_input_shapes(input_str)
+
+
+def test_parse_input_shapes__no_brackets():
+    input_str = "1, 3, 224, 224"
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_input_shapes(input_str)
+
+
+def test_parse_input_shapes__bad_input():
+    input_str = "[1, 3, 224, 224]"
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_input_shapes(input_str)
+
+
+def test_parse_input_shapes__turn_into_list():
+    input_str = "(1, 3, 224, 224),(1,4)"
+    output_str = tvmc.common.parse_input_shapes(input_str)
+
+    assert output_str == [[1, 3, 224, 224], [1, 4]]

@@ -179,4 +179,24 @@ def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("torch")
 
     with pytest.raises(RuntimeError) as e:
-        tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="pytorch")
+        tvmc.frontends.load_model(
+            tflite_mobilenet_v1_1_quant, model_format="pytorch", input_shape=[[1, 3, 224, 224]]
+        )
+
+
+def test_load_model__pytorch__no_inputs():
+    # some CI environments wont offer pytorch, so skip in case it is not present
+    pytest.importorskip("torch")
+
+    with pytest.raises(TVMCException):
+        tvmc.frontends.load_model("a_model.pth", model_format="pytorch", input_shape=None)
+
+
+def test_load_model__tflite__with_inputs():
+    # some CI environments wont offer pytorch, so skip in case it is not present
+    pytest.importorskip("tflite")
+
+    with pytest.raises(TVMCException):
+        tvmc.frontends.load_model(
+            "a_model.tflite", model_format="tflite", input_shape=[[1, 3, 224, 224]]
+        )

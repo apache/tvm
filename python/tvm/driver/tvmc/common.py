@@ -19,6 +19,8 @@ Common utility functions shared by TVMC modules.
 """
 import logging
 import os.path
+import re
+import argparse
 
 from urllib.parse import urlparse
 
@@ -136,3 +138,40 @@ def tracker_host_port_from_cli(rpc_tracker_str):
         logger.info("RPC tracker port: %s", rpc_port)
 
     return rpc_hostname, rpc_port
+
+
+def parse_input_shapes(xs):
+    """Turn the string from --input-shape into a list.
+
+    Parameters
+    ----------
+    xs : str
+        The input shapes, in a form "(1,2,3),(1,4),..."
+
+    Returns
+    -------
+    shapes : list
+        Input shapes as a list of lists
+    """
+
+    shapes = []
+    # Split up string into comma seperated sections ignoring commas in ()s
+    match = re.findall(r"(\(.*?\)|.+?),?", xs)
+    if match:
+        for inp in match:
+            # Test for and remove brackets
+            shape = re.match(r"\((.*)\)", inp)
+            if shape and shape.lastindex == 1:
+                # Remove white space and extract numbers
+                strshape = shape[1].replace(" ", "").split(",")
+                try:
+                    shapes.append([int(i) for i in strshape])
+                except ValueError:
+                    raise argparse.ArgumentTypeError(f"expected numbers in shape '{shape[1]}'")
+            else:
+                raise argparse.ArgumentTypeError(
+                    f"missing brackets around shape '{inp}', example '(1,2,3)'"
+                )
+    else:
+        raise argparse.ArgumentTypeError(f"unrecognized shapes '{xs}', example '(1,2,3),(1,4),...'")
+    return shapes
