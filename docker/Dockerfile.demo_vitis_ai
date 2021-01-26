@@ -18,7 +18,7 @@
 # CI docker VAI env
 FROM xilinx/vitis-ai:latest
 
-RUN apt-get update --fix-missing
+RUN apt-get update --fix-missing && apt-get install -y gpg-agent
 
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh

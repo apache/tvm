@@ -309,7 +309,7 @@ Edge hardware setup
    https://github.com/Xilinx/PYNQ/releases/tag/v2.5
 2. Follow Pynq instructions for setting up the board: `pynq
    setup <https://pynq.readthedocs.io/en/latest/getting_started.html>`__
-3. After connecting to the board, make sure to run as root. Execute
+3. After connecting to the board, make sure to run as root. **Execute**
    ``su``
 4. Set up DPU on Pynq by following the steps here: `DPU Pynq
    setup <https://github.com/Xilinx/DPU-PYNQ>`__
@@ -441,7 +441,7 @@ TVM.
    import tvm
    import tvm.relay as relay
    from tvm.contrib.target import vitis_ai
-   from tvm.contrib import util, graph_runtime
+   from tvm.contrib import utils, graph_runtime
    from tvm.relay.build_module import bind_params_by_name
    from tvm.relay.op.contrib.vitis_ai import annotation
 
@@ -541,7 +541,7 @@ TVM.
    import tvm
    import tvm.relay as relay
    from tvm.contrib.target import vitis_ai
-   from tvm.contrib import util, graph_runtime
+   from tvm.contrib import utils, graph_runtime
    from tvm.relay.build_module import bind_params_by_name
    from tvm.relay.op.contrib.vitis_ai import annotation
 
@@ -572,13 +572,9 @@ can be included.
 
 .. code:: python
 
-   from tvm.contrib import util
-
-   temp = util.tempdir()
-
    tvm_target = 'llvm'
    target='DPUCZDX8G-zcu104'
-   export_rt_mod_file = temp.relpath("vitis_ai.rtmod")
+   export_rt_mod_file = "vitis_ai.rtmod"
 
    with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target,
    						        'relay.ext.vitis_ai.options.export_runtime_module': export_rt_mod_file}):
@@ -604,9 +600,9 @@ Save the TVM lib module so that the Vitis-AI runtime module will also be exporte
 
 .. code:: python
 
-   from tvm.contrib import util
+   from tvm.contrib import utils
 
-   temp = util.tempdir()
+   temp = utils.tempdir()
    lib.export_library(temp.relpath("tvm_lib.so"))
 
 After quantizing and compiling the model for Vitis-AI acceleration using the
@@ -638,15 +634,31 @@ Edge steps
 ^^^^^^^^^^
 
 After setting up TVM with Vitis-AI on the edge device, you can now load
-the TVM runtime module into memory and feed inputs for inference.
+the TVM runtime module into memory and feed inputs for inference. A nearly
+complete runtiem script can be found underneath. Make sure to run the script
+as root (execute ``su`` in terminal to log into root).
+
+
+.. note::
+
+    You will see a warning about the 'cpu-tf' runtime not being found. This warning is
+    expected on the board and can be ignored. Note also that you **shouldn't** import the
+    PyXIR targets in the run script (``import pyxir.contrib.target.DPUCZDX8G``).
 
 .. code:: python
 
+   import pyxir
+   import tvm
+   from tvm.contrib import graph_runtime
+
    ctx = tvm.cpu()
+   
+   # input_name = ...
+   # input_data = ...
 
    # load the module into memory
    lib = tvm.runtime.load_module("tvm_dpu_arm.so")
 
    module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
-   module.set_input(name, data)
+   module.set_input(input_name, input_data)
    module.run()
