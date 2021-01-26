@@ -1523,12 +1523,6 @@ class PyTorchOpConverter:
             # Convert a and b into 3 dimensional tensors.
             a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
             b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
-            # Broadcast b to match batch size of a
-            new_b_shape = list(self.infer_shape_with_prelude(b))
-            new_a_shape = self.infer_shape_with_prelude(a)
-            if new_a_shape[0] > new_b_shape[0]:
-                new_b_shape[0] = new_a_shape[0]
-                b = _op.broadcast_to(b, new_b_shape)
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
