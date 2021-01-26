@@ -234,7 +234,7 @@ def micro(model="unknown", options=None):
     trans_table = {
         "host": [],
         "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
-        "nrf5340dk": ["-keys=arm_cpu", "-mcpu=cortex-m33"],
+        "nrf5340dk": ["-mcpu=cortex-m33"],
     }
     if model not in trans_table:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
