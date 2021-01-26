@@ -53,54 +53,132 @@ import sys
 # Maps named TVM piece (see description above) to a list of names of Python packages. Please use
 # alphabetical order for each package list, and do not add version constraints here!
 REQUIREMENTS_BY_PIECE = [
-    # Base requirements needed to install tvm with no extras.
-    ("core", [
+    # Base requirements needed to install tvm.
+    ("core", ("Base requirements needed to install tvm", [
         "attrs",
         "decorator",
         "numpy",
         "psutil",
         "scipy",
         "synr",
-    ]),
+    ])),
 
     # Relay frontends.
-    ("importer-caffe2", ["torch"]),
-    ("importer-coreml", ["coremltools"]),
-    ("importer-darknet", ["opencv-python"]),
-    ("importer-keras", ["tensorflow", "tensorflow-estimator"]),
-    ("importer-onnx", ["future", "onnx", "onnxruntime", "torch", "torchvision"]),
-    ("importer-pytorch", ["future", "torch", "torchvision"]),
-    ("importer-tensorflow", ["tensorflow", "tensorflow-estimator"]),
-    ("importer-tflite", ["tensorflow", "tensorflow-estimator", "tflite"]),
+    ("importer-caffe2", ("Requirements for the Caffe2 importer", [
+      "future",  # Hidden dependency of torch.
+      "torch",
+    ])),
+    ("importer-coreml", ("Requirements for the CoreML importer", ["coremltools"])),
+    ("importer-darknet", ("Requirements for the DarkNet importer", ["opencv-python"])),
+    ("importer-keras", ("Requirements for the Keras importer",
+                        ["tensorflow", "tensorflow-estimator"])),
+    ("importer-onnx", ("Requirements for the ONNX importer", [
+      "future",  # Hidden dependency of torch.
+      "onnx",
+      "onnxruntime",
+      "torch",
+      "torchvision",
+    ])),
+    ("importer-pytorch", ("Requirements for the PyTorch importer", [
+      "future",  # Hidden dependency of torch.
+      "torch",
+      "torchvision",
+    ])),
+    ("importer-tensorflow", ("Requirements for the TensorFlow importer",
+                             ["tensorflow", "tensorflow-estimator"])),
+    ("importer-tflite", ("Requirements for the TFLite importer",
+                         ["tensorflow", "tensorflow-estimator", "tflite"])),
 
-    ("tvmc", ["onnx", "onnxruntime", "tensorflow", "tflite", "torch", "torchvision"]),
+    ("tvmc", ("Requirements for the tvmc command-line tool", [
+      "future",  # Hidden dependency of torch.
+      "onnx",
+      "onnxruntime",
+      "tensorflow",
+      "tflite",
+      "torch",
+      "torchvision",
+    ])),
 
     # XGBoost, useful for autotuning on some targets.
-    ("xgboost", ["torch"]),
+    ("xgboost", ("Requirements for XGBoost autotuning", [
+      "future",  # Hidden dependency of torch.
+      "torch",
+    ])),
 
     # Development requirements
-    ("dev", ["matplotlib", "pillow"]),
+    ("dev", ("Requirements to develop TVM -- lint, docs, testing, etc.", [
+      "astroid",  # pylint requirement, listed so a hard constraint can be included.
+      "autodocsumm",
+      "black",
+      "commonmark",
+      "cpplint",
+      "docutils",
+      "image",
+      "matplotlib",
+      "pillow",
+      "pylint",
+      "sphinx",
+      "sphinx_autodoc_annotation",
+      "sphinx_gallery",
+      "sphinx_rtd_theme",
+    ])),
 ]
 
 # Maps a named Python package (which should appear in REQUIREMENTS_BY_PIECE above) to a
-# semver or pip version constraint. Semver constraints are translated into requirements.txt
+# semver or pip version constraint. Semver constraints are translated into requirements.txt-friendly
 # constraints.
+#
+# These constraints serve only to record technical reasons why a particular version can't be used.
+# They are the default install_requires used in setup.py. These can be further narrowed when making
+# releases to restrict dependencies to those tested in CI; however, this is not that process.
+#
+# TVM dependency policy:
+# 1. Each package specified in REQUIREMENTS_BY_PIECE must be included here.
+# 2. If, at the time of writing, it's expected that TVM tests pass against the latest-released
+#    version of a package, either None (preferred) or a minimum version should be specified here.
+#    The intent is that TVM should be tested against the most recent build of its dependencies.
+#    When a minimum version constraint is known to the developer, include the "why" in a comment.
+# 3. When a dependency needs to be held back, and such limitation coudl be fixed by an actionable
+#    change in the TVM repo, file a GitHub issue, add the constraint here, and include a comment
+#    linking to the issue. When the constraint cannot be resolved with a short-term project typical
+#    of a GitHub issue, describe the limitation in a comment here, linking as much as possible to
+#    the root cause. In general, TVM should avoid dependencies like that.
 CONSTRAINTS = [
-  ("onnx", ">=1.7.0"),
-  ("onnxruntime", ">=1.0.0"),
-  ("pillow", "<7"),
-  ("synr", ">=0.2.1"),
-  ("tensorflow", ">=2.1.0"),
-  ("tflite", ">=2.1.0"),
-  ("torch", "^1.7.0"),
-  ("torchvision", ">=0.5.0"),
+  ("astroid", "==2.3.3"),  # Want identical astroid to that used in ci-lint.
+  ("attrs", None),
+  ("autodocsumm", None),
+  ("black", "==20.8b1"),  # Want identical black to that used in ci.
+  ("commonmark", ">=0.7.3"),  # From PR #213.
+  ("coremltools", None),
+  ("cpplint", "==1.5.4"),
+  ("decorator", None),
+  ("docutils", ">=0.11"),
+  ("future", None),
+  ("image", None),
+  ("matplotlib", None),
+  ("numpy", None),
+  ("onnx", "==1.6.0"),  # From docker/install/ubuntu_install_onnx.sh
+  ("onnxruntime", "==1.0.0"),  # From docker/install/ubuntu_install_onnx.sh
+  ("opencv-python", None), # OpenCV version + suffix. CI tests against recent version.
+  ("pillow", None),
+  ("psutil", None),  # No policy specified, seems to support semver.
+  ("pylint", "==2.4.4"),  # Want identical pylint to that used in ci-lint.
+  ("scipy", "~=1.4"),  # Backwards incompatible minor releases, but CI tests against 1.4.1
+  ("sphinx", None),
+  ("sphinx_autodoc_annotation", None),
+  ("sphinx_gallery", None),
+  ("sphinx_rtd_theme", None),
+  ("synr", ">=0.2.1"),  # Requires bugfix commit ee0b12a61c08f01604475f36ff37d4cb110bdc27
+  ("tensorflow", ">=2.1.0"),  # At least the version tested in CI. Unclear why CI prefers this version.
+  ("tensorflow-estimator", None),   # Constrained by tensorflow dep.
+  ("tflite", ">=2.1.0"), # At least the version tested in CI. Unclear why CI prefers this version.
+  ("torch", ">=1.4.0"),  # At least the version tested in CI. Unclear why CI prefers this version.
+  ("torchvision", ">=0.5.0"),  # At least the version tested in CI.
 ]
 
 ################################################################################
 # End of configuration options.
 ################################################################################
-
-
 
 
 # Required keys in REQUIREMENTS_BY_PIECE.
@@ -110,7 +188,7 @@ REQUIRED_PIECES = ["core", "dev"]
 PIECE_REGEX = re.compile(r"^[a-z0-9][a-z0-9-]*", re.IGNORECASE)
 
 # Regex to match a constraint specification. Multiple constraints are not supported.
-CONSTRAINT_REGEX = re.compile(r"(?:\^|\<|(?:<=)|(?:==)|(?:>=)|\>)[^<>=\^,]+")
+CONSTRAINT_REGEX = re.compile(r"(?:\^|\<|(?:~=)|(?:<=)|(?:==)|(?:>=)|\>)[^<>=\^,]+")
 
 # Regex for parsing semantic versions. See
 # https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -129,10 +207,11 @@ def validate_requirements_by_piece():
 
   if not isinstance(REQUIREMENTS_BY_PIECE, (list, tuple)):
     problems.append(f"must be list or tuple, see {REQUIREMENTS_BY_PIECE!r}")
+    return problems
 
-  for piece, deps in REQUIREMENTS_BY_PIECE:
+  for piece, value in REQUIREMENTS_BY_PIECE:
     if not isinstance(piece, str):
-      problems.append(f"key {piece!r}: must be str, see {piece!r}")
+      problems.append(f"piece {piece!r}: must be str")
       continue
 
     if piece in unseen_required_pieces:
@@ -145,37 +224,48 @@ def validate_requirements_by_piece():
     seen_pieces.add(piece_lower)
 
     if not saw_core and piece != "core":
-      problems.append(f'must list "core" before {piece}')
+      problems.append(f'piece {piece}: must list after "core" (core must be first)')
     elif piece == "core":
       saw_core = True
 
     if saw_dev:
-      problems.append(f'must list "dev" last')
+      problems.append(f'piece {piece}: must list before "dev" (dev must be last)')
     elif piece == "dev":
       saw_dev = True
 
-    if not isinstance(deps, (list, tuple)):
-      problems.append(f'value for key "{piece}" should be list or tuple, see {deps!r}')
+    if not isinstance(value, (tuple, list)) or len(value) != 2:
+      problems.append(
+        f'piece {piece}: should be formatted like ("{piece}", ("<requirements.txt comment>", ["dep1", "dep2", ...])). got: {value!r}')
+      continue
+
+    description, deps = value
+
+    if not isinstance(description, str):
+      problems.append(f'piece {piece}: description should be a string, got {description!r}')
+
+    if not isinstance(deps, (list, tuple)) or any(not isinstance(d, str) for d in deps):
+      problems.append(f'piece {piece}: deps should be a list of strings, got {deps!r}')
       continue
 
     if list(sorted(deps)) != list(deps):
-      problems.append(f"deps for key {piece} must be sorted. Correct order:\n  {list(sorted(deps))!r}")
+      problems.append(f"piece {piece}: deps must be sorted. Correct order:\n  {list(sorted(deps))!r}")
 
     piece_deps = set()
     for d in deps:
       if CONSTRAINT_REGEX.search(d):
-        problems.append(f"for piece {piece}: dependency {d} should not specify a version. "
+        problems.append(f"piece {piece}: dependency {d} should not specify a version. "
                         "Add it to CONSTRAINTS instead.")
 
       if d.lower() in piece_deps:
-        problems.append(f'for piece {piece}: dependency {d} listed twice')
+        problems.append(f'piece {piece}: dependency {d} listed twice')
 
       piece_deps.add(d.lower())
 
-  extras_pieces = [k for (k, _) in REQUIREMENTS_BY_PIECE if k not in ("dev", "core")]
+  extras_pieces = [k for (k, _) in REQUIREMENTS_BY_PIECE if k not in ("dev", "core")
+                   if isinstance(k, str)]
   sorted_extras_pieces = list(sorted(extras_pieces))
   if sorted_extras_pieces != list(extras_pieces):
-    problems.append('pieces other than "core" and "dev" must appear in alphabetical order'
+    problems.append('pieces other than "core" and "dev" must appear in alphabetical order: '
                     f"{sorted_extras_pieces}")
 
   return problems
@@ -197,41 +287,41 @@ def parse_semver(package, constraint, problems):
   Returns
   -------
   List[str], int :
-      A 2-tuple. The first element is a list containing an entry for each component in the
+      A 3-tuple. The first element is a list containing an entry for each component in the
       semver string (components separated by "."). The second element is the index of the
-      component in the list which must not change to meet the semver constraint.
+      component in the list which must not change to meet the semver constraint. The third element
+      is an integer, the numeric value of the changing component (this can be non-trivial when
+      the patch is the changing part but pre-, post-release, or build metadta.
 
       See "Caret requirements" at https://python-poetry.org/docs/versions/.
   """
   m = SEMVER_REGEX.match(constraint[1:])
   if not m:
     problems.append(f"{package}: invalid semver constraint {constraint}")
-    return [], 0
+    return [], 0, 0
 
-  min_ver_parts = list(m.groups())
+  min_ver_parts = [
+      m.group('major'),
+      m.group('minor'),
+      m.group('patch') +
+      (f"-{m.group('prerelease')}" if m.group("prerelease") else '') +
+      (f"+{m.group('buildmetadata')}" if m.group("buildmetadata") else ''),
+  ]
 
-  # Remove the end
-  while min_ver_parts and min_ver_parts[-1] is None or not min_ver_parts[-1].strip():
-    min_ver_parts.pop()
-
-  for i, p in enumerate(min_ver_parts):
-    try:
-      x = int(p.strip())
-    except ValueError as p:
-      if i == len(parts) - 1 and i > 0:
-        # If a pre-release tag is specified (i.e. 1.2.0pre3), allow.
-        return min_ver_parts, i - 1
-
-      problems.append(
-        f"{package}: semver constraint with non-numeric leading component: {constraint}")
-      return [], 0
-
+  # Major/minor version handling is simple
+  for i, p in enumerate(min_ver_parts[:2]):
+    x = int(p.strip())
     if x:
-      return min_ver_parts, i
+      return min_ver_parts, i, x
 
-  else:
-    # All 0's
-    return min_ver_parts, 0
+  # For patch version, consult only the numeric patch
+  if m.group('patch'):
+    patch_int = int(m.group('patch'))
+    if patch_int or min_ver_parts[2] != m.group('patch'):
+      return min_ver_parts, 2, patch_int
+
+  # All 0's
+  return min_ver_parts, 0, 0
 
 
 def validate_constraints():
@@ -242,16 +332,20 @@ def validate_constraints():
 
   seen_packages = set()
   all_deps = set()
-  for _, deps in REQUIREMENTS_BY_PIECE:
+  for _, (_, deps) in REQUIREMENTS_BY_PIECE:
     for d in deps:
       all_deps.add(d.lower())
 
   for package, constraint in CONSTRAINTS:
     if package in seen_packages:
       problems.append(f"{package}: specified twice")
+    seen_packages.add(package)
 
     if package.lower() not in all_deps:
       problems.append(f"{package}: not specified in REQUIREMENTS_BY_PIECE")
+
+    if constraint is None:  # None is just a placeholder that allows for comments.
+      continue
 
     if not CONSTRAINT_REGEX.match(constraint):
       problems.append(f'{package}: constraint "{constraint}" does not look like a valid constraint')
@@ -298,19 +392,13 @@ def validate_or_raise():
 
 def semver_to_requirements(piece, dep, constraint, joined_deps):
   problems = []
-  min_ver_parts, fixed_index = parse_semver(dep, constraint, problems)
-  assert not problems
-
-  # i is now the index of the version component which must not change.
-  try:
-    fixed_part = int(min_ver_parts[fixed_index])
-  except ValueError:
-    problems.append(
-      f"piece {piece}: dependency {dep} has semver constraint with non-integer leading parts: {ver}")
-    return
+  min_ver_parts, fixed_index, fixed_part = parse_semver(dep, constraint, problems)
+  text_problems = "\n" + "\n".join(f" * {p}" for p in problems)
+  assert not problems, (
+    f"should not happen: validated semver {constraint} parses with problems:{text_problems}")
 
   max_ver_parts = (min_ver_parts[:fixed_index] +
-                   [str(int(min_ver_parts[fixed_index]) + 1)] +
+                   [str(fixed_part + 1)] +
                    ["0" for _ in min_ver_parts[fixed_index + 1:]])
   joined_deps.append(f'{dep}>={".".join(min_ver_parts)},<{".".join(max_ver_parts)}')
 
@@ -330,7 +418,7 @@ def join_requirements():
 
   to_return = collections.OrderedDict()
   all_deps = set()
-  for piece, deps in REQUIREMENTS_BY_PIECE:
+  for piece, (description, deps) in REQUIREMENTS_BY_PIECE:
     joined_deps = []
     for d in deps:
       constraint = constraints_map.get(d.lower())
@@ -339,7 +427,6 @@ def join_requirements():
         continue
 
       if constraint[0] == "^":
-        # Translate semver to requirements:
         semver_to_requirements(piece, d, constraint, joined_deps)
       else:
         joined_deps.append(f"{d}{constraint}")
@@ -347,22 +434,14 @@ def join_requirements():
     if piece != "dev":
       all_deps.update(joined_deps)
 
-    to_return[piece] = joined_deps
+    to_return[piece] = (description, joined_deps)
 
-  to_return["all"] = all_deps
+  to_return["all-prod"] = ("Combined dependencies for all TVM pieces, excluding dev", list(sorted(all_deps)))
 
   return to_return
 
 
-def parse_args():
-  parser = argparse.ArgumentParser()
-  parser.add_argument("--lint", action="store_true",
-                      help="Just lint dependencies, don't generate anything")
-  return parser.parse_args()
-
-
-def main():
-  args = parse_args()
+def join_and_write_requirements(args):
   try:
     joined_deps = join_requirements()
   except ValidationError as e:
@@ -381,10 +460,25 @@ def main():
           file=sys.stderr)
     sys.exit(2)
 
-  for piece, deps in joined_deps.items():
+  for piece, (description, deps) in joined_deps.items():
     with open(os.path.join(output_dir, f"{piece}.txt"), "w") as f:
+      f.write(f"# AUTOGENERATED by python/gen_requirements.py{os.linesep}"
+              f"#{os.linesep}"
+              f"# {description}{os.linesep}")
       for d in deps:
         f.write(f"{d}{os.linesep}")
+
+
+def parse_args():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--lint", action="store_true",
+                      help="Just lint dependencies, don't generate anything")
+  return parser.parse_args()
+
+
+def main():
+  args = parse_args()
+  join_and_write_requirements(args)
 
 
 if __name__ == "__main__":
