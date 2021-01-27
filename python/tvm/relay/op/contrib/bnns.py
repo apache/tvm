@@ -76,10 +76,10 @@ def _register_external_op_helper(op_name, supported=True):
     """The helper function to indicate that a given operator can be supported
     by BNNS.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     op_name : Str
-        The name of operator that will be registered.
+        The name of supported operator that will be registered.
 
     Returns
     -------
@@ -97,11 +97,8 @@ def _register_external_op_helper(op_name, supported=True):
 _register_external_op_helper("nn.batch_matmul")
 
 
-# TODO [apeskov]:
-#   1. enlarge list of supported types on
-#   2. clarify meaning of "" value
 def dtype_is_supported(dtype):
-    return dtype == "float32" or dtype == ""
+    return dtype in ("", "float32")
 
 
 @tvm.ir.register_op_attr("nn.conv2d", "target.bnns")
@@ -203,7 +200,7 @@ def make_dense_bias_gelu_pattern():
 
 
 def check_dense(extract):
-    """Check conv pattern is supported by ACL."""
+    """Check conv pattern is supported by BNNS."""
     call = extract
     while call.op.name != "nn.dense":
         call = call.args[0]
