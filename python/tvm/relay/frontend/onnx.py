@@ -2230,6 +2230,7 @@ class Loop(OnnxOpConverter):
                 rank = len(infer_shape(scan)) - 1
                 new_scan = new_scan_outputs[i]
                 expand_scan = _op.expand_dims(new_scan, axis=0)
+                # For non scalar outputs we need to broadcast the initial value.
                 if rank > 0:
                     new_scan_shape = _op.shape_of(new_scan, dtype=iter_dtype)
                     scan_broadcast = _op.concatenate(

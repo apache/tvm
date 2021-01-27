@@ -3767,7 +3767,7 @@ def verify_tensor_loop():
 def test_loop():
     # Test a loop that exits once a condition is met.
     verify_cond_loop()
-    # Test a loop that exits after a fixed number of iterations.
+    # Test a loop that exits after a fixed number of iterations with scalar outputs.
     verify_count_loop()
     # Test a loop that uses an array output.
     verify_tensor_loop()
