@@ -2082,6 +2082,11 @@ class PyTorchOpConverter:
         value = _op.cast(_wrap_const(inputs[2]), input_types[0])
         return _op.where(mask, value, inputs[0])
 
+    def masked_select(self, inputs, input_types):
+        mask = inputs[1]
+        indices = self.nonzero([mask], input_types, is_numpy_style=True)
+        return _op.adv_index([inputs[0]] + [indices[i] for i in range(indices.size)])
+
     def sort(self, inputs, input_types):
         data = inputs[0]
         dim = inputs[1]
@@ -2311,6 +2316,7 @@ class PyTorchOpConverter:
             "aten::hardswish": self.hard_swish,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
+            "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
         }
