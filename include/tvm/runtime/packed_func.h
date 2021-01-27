@@ -625,7 +625,7 @@ class TVMMovableArgValueWithContext_ {
     } catch (dmlc::Error& e) {
       LOG(FATAL) << "In function " << (optional_name_ == nullptr ? "<anonymous>" : *optional_name_)
                  << ": error while converting argument " << arg_index_ << ": " << e.what();
-      throw "";  // never reached, LOG(FATAL) throws, but this silences a warning.
+      throw;  // never reached, LOG(FATAL) throws, but this silences a warning.
     }
   }
 
