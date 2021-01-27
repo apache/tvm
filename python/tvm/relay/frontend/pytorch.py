@@ -2093,11 +2093,7 @@ class PyTorchOpConverter:
         is_descending = inputs[2]
         # pytorch sort returns both sorted indices and values
         indices = _op.argsort(data, dim, not is_descending)
-        shape = self.infer_shape(data)
-        if len(shape) == 1:
-            return _op.take(data, indices, dim), indices
-        # TOOD(masahi): Is there a better way?
-        return _op.sort(data, dim, not is_descending), indices
+        return _op.gather(data, dim, indices), indices
 
     def argsort(self, inputs, input_types):
         data = inputs[0]
