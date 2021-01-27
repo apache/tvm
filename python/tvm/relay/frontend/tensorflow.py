@@ -939,7 +939,7 @@ def _sparse_tensor_dense_matmul():
         # Case 1: A , B , adjoint_a=False, adjoint_b=False  --> A * B
         # Case 2: A , B , adjoint_a=True,   adjoint_b=False  --> A.T * B
         # Case 3: A , B , adjoint_a=False, adjoint_b=True    --> A * B.T
-        # Case 4: A , B , adjoint_a=True,   adjoint_b=True    --> (A.T * B.T).T
+        # Case 4: A , B , adjoint_a=True,   adjoint_b=True    --> A.T * B.T
         #
         # Topi implementation for sparse_dense(matmul) has 2 possible input
         # combination where first input(A) is always dense
@@ -949,15 +949,19 @@ def _sparse_tensor_dense_matmul():
         #
         # The mapping would be as below:
         # TF Case 1: A , B , adjoint_a=False, adjoint_b=False
+        #           --> In TF: A * B   --> In Topi: A * B.T.T
         #           --> sparse_dense(transpose(B), A, sparse_lhs=True)
         #
         # TF Case 2: A , B , adjoint_a=True, adjoint_b=False
+        #           --> In TF: A.T * B   --> In Topi: A.T * B.T.T
         #           --> sparse_dense(transpose(B), transpose(A), sparse_lhs=True)
         #
         # TF Case 3: A , B , adjoint_a=False, adjoint_b=True
+        #           --> In TF: A * B.T   --> In Topi: A * B
         #           --> sparse_dense(B, A, sparse_lhs=True)
         #
         # TF Case 4: A , B , adjoint_a=True, adjoint_b=True
+        #           --> In TF: A.T * B.T   --> In Topi: (B * A.T).T
         #           --> transpose(sparse_dense(B, transpose(A), sparse_lhs=False))
 
         # By default, in tensorflow the first input ,i.e., data is sparse
@@ -976,6 +980,7 @@ def _sparse_tensor_dense_matmul():
         # TF Case 4:
         # attr.get("adjoint_a") and attr.get("adjoint_b"):
         else:
+            sparse_lhs = False
             weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
