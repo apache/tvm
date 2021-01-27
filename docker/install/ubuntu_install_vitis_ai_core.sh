@@ -22,8 +22,9 @@ set -o pipefail
 
 # install libraries for building Vitis-AI on ubuntu
 apt-get update && apt-get install -y --no-install-recommends \
-    graphviz\
-    gnupg2
+    graphviz \
+    gnupg2 \
+    gpg-agent
 
 apt-get update && apt-get install -y gcc-aarch64-linux-gnu
 
