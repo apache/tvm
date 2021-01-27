@@ -54,8 +54,8 @@ ci_arm = "tlcpack/ci-arm:v0.01"
 // <--- End of regex-scanned config.
 
 // tvm libraries
-tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
-tvm_lib = "build/libtvm.so, " + tvm_runtime + ", standalone_crt/**"
+tvm_runtime = "build/libtvm_runtime.so, build/config.cmake, standalone_crt/**"
+tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
                "build/libvta_tsim.so, " +
