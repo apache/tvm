@@ -20,6 +20,7 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
+import tvm
 from tvm.ir import IRModule
 from tvm.relay import transform, build_module
 from tvm.runtime.ndarray import cpu
@@ -448,3 +449,71 @@ def get_calibration_data(mod, data):
         calib_data[gvar] = value
 
     return calib_data
+
+
+def pipeline_graph(expr, indexs):
+    """Split Graph Into A Group Of Subgraph
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+    indexs : Array[int]
+
+    Returns
+    -------
+    ret : Array[tvm.relay.IRModule]
+    """
+
+    def run_opt_pass(expr, opt_pass):
+        """Exectue a relay pass"""
+        assert isinstance(opt_pass, tvm.transform.Pass)
+        mod = tvm.IRModule.from_expr(expr)
+        mod = tvm.relay.transform.InferType()(mod)
+        mod = opt_pass(mod)
+        entry = mod["main"]
+        return entry if isinstance(expr, tvm.relay.Function) else entry.body
+
+    def _operator_idx_inc(expr, operator_current_idx):
+        """Increase operator index"""
+        if not isinstance(expr, tvm.relay.expr.Constant):
+            operator_current_idx = operator_current_idx + 1
+
+        return operator_current_idx
+
+    def _recursion(anf, operator_indx, pipeline_mods, indexs):
+        """Do the split work"""
+        if isinstance(anf, tvm.relay.Function):
+            return tvm.relay.Function(
+                anf.params,
+                _recursion(anf.body, operator_indx, pipeline_mods, indexs),
+                anf.ret_type,
+                anf.type_params,
+                anf.attrs,
+            )
+        if isinstance(anf, tvm.relay.expr.Let):
+            value = anf.value
+            operator_indx = _operator_idx_inc(value, operator_indx)
+            if isinstance(value, tvm.relay.expr.Call):
+                if isinstance(value.op, tvm.ir.Op):
+                    if indexs and operator_indx == indexs[0]:
+                        indexs.pop(0)
+                        ann = _recursion(anf.body, operator_indx, pipeline_mods, indexs)
+                        ann = run_opt_pass(ann, transform.ToGraphNormalForm())
+                        mod = tvm.IRModule.from_expr(ann)
+                        pipeline_mods.insert(0, mod)
+                        return tvm.relay.expr.Let(anf.var, value, anf.var)
+            return tvm.relay.expr.Let(
+                anf.var, value, _recursion(anf.body, operator_indx, pipeline_mods, indexs)
+            )
+        else:
+            return anf
+
+    pipeline_mods = []
+    operator_indx = 0
+    anf = run_opt_pass(expr, transform.SimplifyInference())
+    anf = run_opt_pass(anf, transform.ToANormalForm())
+    anf = run_opt_pass(anf, transform.InferType())
+    ann = _recursion(anf, operator_indx, pipeline_mods, indexs)
+    ann = run_opt_pass(ann.body, transform.ToGraphNormalForm())
+    mod = tvm.IRModule.from_expr(ann)
+    pipeline_mods.insert(0, mod)
+    return pipeline_mods
