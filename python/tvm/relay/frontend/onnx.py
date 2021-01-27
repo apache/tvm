@@ -2232,7 +2232,9 @@ class Loop(OnnxOpConverter):
                 expand_scan = _op.expand_dims(new_scan, axis=0)
                 if rank > 0:
                     new_scan_shape = _op.shape_of(new_scan, dtype=iter_dtype)
-                    scan_broadcast = _op.concatenate([_op.reshape(loop_count, [1]), new_scan_shape], axis=0)
+                    scan_broadcast = _op.concatenate(
+                        [_op.reshape(loop_count, [1]), new_scan_shape], axis=0
+                    )
                     scan = _op.broadcast_to(scan, scan_broadcast)
                 combined_scan = _op.concatenate([scan, expand_scan], axis=0)
                 combined_scan_outputs.append(combined_scan)
