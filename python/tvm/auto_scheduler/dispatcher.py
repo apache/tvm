@@ -163,7 +163,7 @@ class ApplyHistoryBest(DispatchContext):
         entry: Dict[str, Any]
             The entry in best_records with target key and workload hash.
         workload_hash: str
-            The workload hash.
+            The workload hash decoded from workload_key.
         workload_args: Tuple[Any, ...]
             The hashable tuple of workload args decoded from workload_key.
         """
