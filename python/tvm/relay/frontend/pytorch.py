@@ -515,13 +515,13 @@ class PyTorchOpConverter:
         data = inputs[0]
         dim = int(inputs[1])
         index = _wrap_const(inputs[2])
-        return _op.transform.take(data, index, axis=dim)
+        return _op.transform.take(data, index, axis=dim, mode="wrap")
 
     def take(self, inputs, input_types):
         data = inputs[0]
         indices = _op.cast(inputs[1], "int32")
 
-        return _op.transform.take(data, indices=indices)
+        return _op.transform.take(data, indices=indices, mode="wrap")
 
     def topk(self, inputs, input_types):
         data = inputs[0]
