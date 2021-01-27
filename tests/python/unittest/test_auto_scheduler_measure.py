@@ -202,35 +202,36 @@ def test_recover_measure_input():
 
 
 def test_workload_dis_factor():
-    calc = auto_scheduler.measure_record.calc_workload_dis_factor
+    calc = auto_scheduler.utils.calc_workload_dis_factor
+    decode = auto_scheduler.utils.decode_workload_key
 
     # Identical
     target_wkl_key = json.dumps(
         ["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"]
     )
-    assert calc(target_wkl_key, target_wkl_key) == 1
+    assert calc(decode(target_wkl_key), decode(target_wkl_key)) == 1
 
     # Compatible with a factor
     wkl_key = json.dumps(["func1", [1, 3, 112, 112], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
-    assert calc(target_wkl_key, wkl_key) == 8 * 2 * 2
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == 8 * 2 * 2
 
     # Incompatible argument with zeros
     wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [1, 1], [1, 1], "float32"])
-    assert calc(target_wkl_key, wkl_key) == float("inf")
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
     wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [0, 0], "float32"])
-    assert calc(target_wkl_key, wkl_key) == float("inf")
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
 
     # Incompatible non-integter argument
     wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "int8"])
-    assert calc(target_wkl_key, wkl_key) == float("inf")
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
 
     # Incompatible function
     wkl_key = json.dumps(["func2", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
-    assert calc(target_wkl_key, wkl_key) == float("inf")
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
 
     # Incompatible due to non-dividable factor
     wkl_key = json.dumps(["func1", [8, 3, 223, 223], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
-    assert calc(target_wkl_key, wkl_key) == float("inf")
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
 
 
 def test_measure_local_builder_runner():
@@ -322,6 +323,7 @@ if __name__ == "__main__":
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
     test_recover_measure_input()
+    test_workload_dis_factor()
     test_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
     test_measure_target_host()
