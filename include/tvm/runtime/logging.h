@@ -173,10 +173,15 @@ class InternalError : public Error {
         time_(time),
         backtrace_(backtrace) {
     std::ostringstream s;
+    // XXX: Do not change this format, otherwise all error handling in python will break (because it
+    // parses the message to reconstruct the error type).
+    // TODO(tkonolige): Convert errors to Objects, so we can avoid the mess of formatting/parsing
+    // error messages correctly.
     s << "[" << std::put_time(std::localtime(&time), "%H:%M:%S") << "] " << file << ":" << lineno
-      << ": " << std::endl
-      << backtrace << std::endl
-      << message << std::endl;
+      << ": " << message << std::endl;
+    if (backtrace.size() > 0) {
+      s << backtrace << std::endl;
+    }
     full_message_ = s.str();
   }
   /*! \return The file in which the error occurred. */

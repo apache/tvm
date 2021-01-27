@@ -45,7 +45,7 @@ std::string DemangleName(const char* name) {
   int status = 0;
   size_t length = std::string::npos;
   std::unique_ptr<char, void (*)(void* __ptr)> demangled_name = {
-      abi::__cxa_demangle(name, 0, &length, &status), &std::free};
+      abi::__cxa_demangle(name, nullptr, &length, &status), &std::free};
   if (demangled_name && status == 0 && length > 0) {
     return demangled_name.get();
   } else {
@@ -109,7 +109,9 @@ std::string Backtrace() {
   BacktraceInfo bt;
   bt.max_size = 100;
   if (_backtrace_state == nullptr) {
-    _backtrace_state = backtrace_create_state(NULL, 1, BacktraceErrorCallback, &bt);
+    // TVM is loaded as a shared library into python, so we cannot supply an
+    // executable path to libbacktrace.
+    _backtrace_state = backtrace_create_state(nullptr, 1, BacktraceErrorCallback, &bt);
   }
   backtrace_full(_backtrace_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
 
