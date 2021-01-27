@@ -180,13 +180,18 @@ class TView {
   };
 
   /** Squeeze all dims equal 1 */
-  TView squeeze() const {
+  TView squeeze(size_t min_rank = 1) const {
     auto rank = Tensor::getRank(view_desc_);
     size_t squeezed_shape[BNNS_MAX_TENSOR_DIMENSION] = {};
     size_t squeezed_rank = 0;
     for (int i = 0; i < rank; i++)
       if (view_desc_.size[i] != 1)
         squeezed_shape[squeezed_rank++] = view_desc_.size[i];
+
+    if (min_rank > squeezed_rank) {
+      std::fill(squeezed_shape + squeezed_rank, squeezed_shape + min_rank, 1);
+      squeezed_rank = min_rank;
+    }
 
     TView res = *this;
     std::copy(squeezed_shape, squeezed_shape + squeezed_rank, res.view_desc_.size);

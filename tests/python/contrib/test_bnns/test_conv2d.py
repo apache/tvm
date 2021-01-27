@@ -241,5 +241,60 @@ def test_conv2d_with_oc1():
         verify(outputs, atol=0.002, rtol=0.007, config=config)
 
 
+def test_conv2d_with_scalar_bias():
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    np.random.seed(0)
+    dtype = "float32"
+    shape = [3, 5, 5]
+    kernel = [3, 3]
+    pad = [1, 1]
+    oc = 1
+
+    for batch in [1, 2]:
+        i_shape = (batch, *shape)
+        ic = shape[0]
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(0, 127, i_shape).astype(dtype)),
+        }
+        params = {}
+
+        a = relay.var("a", shape=i_shape, dtype=dtype)
+        weight_shape = [oc, ic, *kernel]
+        w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
+        weights = relay.const(w, dtype)
+        func = relay.nn.conv2d(
+            a,
+            weights,
+            kernel_size=kernel,
+            padding=pad,
+            groups=1,
+            channels=oc,
+            out_dtype=dtype,
+        )
+        params["w"] = w
+
+        b = tvm.nd.array(np.random.uniform(-10, 10, [1, oc, 1, 1]).astype(dtype))   # <= Check with 1, 1, 1, 1 version of bias
+
+        bias = relay.const(b, dtype)
+        func = relay.add(func, bias)
+        params["b"] = b
+
+        outputs = []
+        for bnns in [False, True]:
+            outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
+
+        config = {
+            "batch": batch,
+            "shape": shape,
+            "kernel size": kernel,
+            "padding": pad,
+            "out channels": oc,
+        }
+        verify(outputs, atol=0.002, rtol=0.007, config=config)
+
+
 if __name__ == "__main__":
     test_conv2d()
