@@ -3491,6 +3491,36 @@ def test_transformer():
     verify_model(model.eval(), input_data=[src, tgt])
 
 
+def test_argsort():
+    def test_fn(dim, descending):
+        return lambda x: torch.argsort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
+def test_sort():
+    def test_fn(dim, descending):
+        return lambda x: torch.sort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
 if __name__ == "__main__":
     # # some structural tests
     # test_forward_traced_function()
@@ -3546,7 +3576,7 @@ if __name__ == "__main__":
     # test_forward_transpose()
     # test_forward_size()
     # test_forward_view()
-    test_forward_select()
+    # test_forward_select()
     # test_forward_take()
     # test_forward_topk()
     # test_forward_where()
@@ -3622,6 +3652,8 @@ if __name__ == "__main__":
     # test_cumsum()
     # test_masked_fill()
     # test_transformer()
+    test_sort()
+    test_argsort()
 
     # # Model tests
     # test_resnet18()

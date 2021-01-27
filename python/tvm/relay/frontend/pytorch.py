@@ -2080,8 +2080,25 @@ class PyTorchOpConverter:
     def masked_fill(self, inputs, input_types):
         mask = inputs[1]
         value = _op.cast(_wrap_const(inputs[2]), input_types[0])
-
         return _op.where(mask, value, inputs[0])
+
+    def sort(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        is_descending = inputs[2]
+        # pytorch sort returns both sorted indices and values
+        indices = _op.argsort(data, dim, not is_descending)
+        shape = self.infer_shape(data)
+        if len(shape) == 1:
+            return _op.take(data, indices, dim), indices
+        # TOOD(masahi): Is there a better way?
+        return _op.sort(data, dim, not is_descending), indices
+
+    def argsort(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        is_descending = inputs[2]
+        return _op.argsort(data, dim, not is_descending)
 
     def is_floating_point(self, inputs, input_types):
         assert len(inputs) == 1
@@ -2293,6 +2310,8 @@ class PyTorchOpConverter:
             "aten::hardswish": self.hard_swish,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
+            "aten::argsort": self.argsort,
+            "aten::sort": self.sort,
         }
 
     def update_convert_map(self, custom_map):
