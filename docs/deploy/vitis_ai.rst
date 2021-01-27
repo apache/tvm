@@ -524,6 +524,8 @@ model in TVM with Vitis-AI at the edge. The first couple of steps will
 have to be run on the host machine and take care of quantization and
 compilation for deployment at the edge.
 
+A complete ResNet 18 example can be found `here <https://github.com/Xilinx/pyxir/tree/master/examples/tvm>`__.
+
 Host steps
 ^^^^^^^^^^
 
@@ -549,12 +551,42 @@ After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
 target and partition the graph.
 
+.. note::
+
+    We recommend switching DPU convolutions' data layouts to NHWC and CPU comvolutions'
+    data layouts to NCHW for best DPU and CPU performance. You can use the ConvertLayout
+    transformation pass two times to achieve this as demonstrated in the code block
+    underneath.
+
 .. code:: python
 
    mod["main"] = bind_params_by_name(mod["main"], params)
+   
+   # For edge DPU we recommend switching the convolutions'data layout
+   #    to NHWC for best performance. Therefore, we first convert the layouts
+   #    of all convolutions to NHWC before partitioning. Afterwards, we can
+   #    convert any remaining convolutions (to be executed on CPU) back to NCHW.
+   desired_layouts = {'nn.conv2d': ['NHWC', 'default']}
+   seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+                                   relay.transform.ConvertLayout(desired_layouts),
+                                   relay.transform.FoldConstant()])
+   with tvm.transform.PassContext(opt_level=3):
+       mod = seq(mod)
+            
+   # Annotate and partition the Relay expression for the given target
    mod = annotation(mod, params, target)
    mod = relay.transform.MergeCompilerRegions()(mod)
    mod = relay.transform.PartitionGraph()(mod)
+   
+   # After partitioning we recommend transforming the remaining convolutions
+   #    (that will be executed on CPU, if any) back to NCHW data layout
+   #    for best CPU performance
+   desired_layouts = {'nn.conv2d': ['NCHW', 'default']}
+   seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+                                   relay.transform.ConvertLayout(desired_layouts),
+                                   relay.transform.FoldConstant()])
+   with tvm.transform.PassContext(opt_level=3):
+       mod = seq(mod)
 
 Now, we can build the TVM runtime library for executing the model. The
 TVM target is 'llvm' as the operations that can't be handled by the DPU
