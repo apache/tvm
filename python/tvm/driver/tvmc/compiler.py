@@ -35,6 +35,21 @@ from .main import register_parser
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
+#turn data:32x3x224x224 to {'data':[32,3,224,224]}
+def parse_shape(inputs):
+    d = {} #final dictionary 
+    inputs = inputs.split(",") #multiple data inputs
+    for string in inputs:
+        string = string.split(":") #seperate name from ints
+        shapelist = []
+        string[1] = string[1].split("x") #make list
+        for x in string[1]:
+            x = int(x) #make int list
+            if x < 0: #negative ints dynamic
+                x = relay.Any()
+            shapelist.append(x)
+        d[string[0]] = shapelist
+    return d
 
 @register_parser
 def add_compile_parser(subparsers):
@@ -87,6 +102,12 @@ def add_compile_parser(subparsers):
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
+    parser.add_argument(
+        "--shapes",
+        help="",
+        type=parse_shape,
+        default=None,
+    )
 
 
 def drive_compile(args):
@@ -112,6 +133,7 @@ def drive_compile(args):
         args.model_format,
         args.tuning_records,
         args.desired_layout,
+        args.shapes,
     )
 
     if dumps:
@@ -129,6 +151,7 @@ def compile_model(
     model_format=None,
     tuning_records=None,
     alter_layout=None,
+    shape_dict=None
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -158,6 +181,9 @@ def compile_model(
         The layout to convert the graph to. Note, the convert layout
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
+    shape_dict: dict, optional
+        A mapping between input names and their shape. This is useful
+        to override the default values in a model if needed.
 
     Returns
     -------
@@ -172,7 +198,7 @@ def compile_model(
 
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format)
+    mod, params = frontends.load_model(path, model_format, shape_dict)
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
