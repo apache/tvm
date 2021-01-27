@@ -52,7 +52,7 @@ class Workspace:
 
 
 # Required C runtime libraries, in link order.
-CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
+CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common", "memory"]
 
 
 TVM_ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
