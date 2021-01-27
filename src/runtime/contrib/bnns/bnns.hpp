@@ -366,6 +366,7 @@ static std::tuple<std::vector<BNNSLayerParametersConvolution>, TView, TView> spl
       const TView &b_view,
       const TView &dst_view) {
   size_t batch = src_view.get_batch_size();
+  size_t oc = dst_view.get_bnns_view().size[2];
   size_t groups = orig_conv_param.groups;
 
   BNNS::TView src_view_new;
@@ -374,7 +375,9 @@ static std::tuple<std::vector<BNNSLayerParametersConvolution>, TView, TView> spl
   BNNS::TView dst_view_new;
 
   // TODO(apeskov): Add split by batch dim. Meanwhile we just disable it...
-  if (batch > 1 || (groups > 1 && groups % num != 0)) {
+  if (batch > 1 ||
+      oc % num != 0 ||
+      (groups > 1 && groups % num != 0)) {
     return {{orig_conv_param}, src_view, dst_view};
   }
 
