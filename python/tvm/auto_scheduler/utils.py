@@ -19,6 +19,7 @@
 """ Common utilities for auto_scheduler. """
 
 from typing import Hashable
+import json
 import multiprocessing
 import multiprocessing.pool
 import queue
@@ -40,6 +41,32 @@ from tvm.tir import expr
 from tvm.tir.transform import Simplify
 from tvm.ir.transform import Sequential
 from ..te import Tensor, placeholder
+
+
+def decode_workload_key(workload_key):
+    """Decode the workload key from a string to the name and arguments. The wokrload key
+    is expected to be a list of "[func_name/hash, args ...]" in a JSON string. If not,
+    then simply return the workload key as the name without arguments.
+
+    Parameters
+    ----------
+    workload_key: str
+        The workload key in string. Format: "[func_name/hash, args ...]".
+
+    Returns
+    -------
+    name: str
+        The workload function name or the DAG hash.
+    args: Optional[List[Any]]
+        The arguments of the workload, or None if the workload key format is not decodeable.
+    """
+    try:
+        key_list = json.loads(workload_key)
+        if isinstance(key_list, list) and len(key_list) >= 1:
+            return key_list[0], key_list[1:]
+    except json.decoder.JSONDecodeError:
+        pass
+    return workload_key, None
 
 
 def get_func_name(func):

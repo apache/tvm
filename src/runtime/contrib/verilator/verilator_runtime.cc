@@ -22,6 +22,7 @@
  * \brief A simple JSON runtime for Verilator.
  */
 
+#include <dlfcn.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
@@ -29,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "../../library_module.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "verilator_device.h"
@@ -38,8 +40,39 @@ namespace tvm {
 namespace runtime {
 namespace contrib {
 
+typedef VerilatorHandle (*VerilatorAllocFunc)();
+typedef void (*VerilatorResetFunc)(VerilatorHandle, int);
+typedef void (*VerilatorAddFunc)(VerilatorHandle, int*, int*, int*, int, int);
+
 using namespace tvm::runtime;
 using namespace tvm::runtime::json;
+
+class VerilatorLibrary : public Library {
+ public:
+  ~VerilatorLibrary() {
+    if (lib_handle_) Unload();
+  }
+  void Init(const std::string& name) { Load(name); }
+
+  void* GetSymbol(const char* name) final { return GetSymbol_(name); }
+
+ private:
+  // Library handle
+  void* lib_handle_{nullptr};
+  // load the library
+  void Load(const std::string& name) {
+    lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
+    ICHECK(lib_handle_ != nullptr)
+        << "Failed to load dynamic shared library " << name << " " << dlerror();
+  }
+
+  void* GetSymbol_(const char* name) { return dlsym(lib_handle_, name); }
+
+  void Unload() {
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+  }
+};
 
 class VerilatorJSONRuntime : public JSONRuntimeBase {
  public:
@@ -49,8 +82,25 @@ class VerilatorJSONRuntime : public JSONRuntimeBase {
 
   const char* type_key() const { return "verilator_json"; }
 
+  void LoadLibrary(const std::string& lib_name) {
+    lib_ = new VerilatorLibrary();
+    lib_->Init(lib_name);
+  }
+
   void Init(const Array<NDArray>& consts) override {
-    BuildEngine();
+    // get symbols
+    auto alloc_func = reinterpret_cast<VerilatorAllocFunc>(lib_->GetSymbol("VerilatorAlloc"));
+    ICHECK(alloc_func != nullptr);
+    auto reset_func = reinterpret_cast<VerilatorResetFunc>(lib_->GetSymbol("VerilatorReset"));
+    ICHECK(reset_func != nullptr);
+    vadd_func_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
+    ICHECK(vadd_func_ != nullptr);
+
+    // alloc device
+    device_ = (*alloc_func)();
+
+    // reset for 10 cycles
+    (*reset_func)(device_, 10);
 
     CHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
@@ -80,7 +130,7 @@ class VerilatorJSONRuntime : public JSONRuntimeBase {
         if ("add" == op_name) {
           auto entry = node.GetInputs()[0];
           auto shape = nodes_[entry.id_].GetOpShape()[entry.index_];
-          verilator_add(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
+          (*vadd_func_)(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -89,19 +139,18 @@ class VerilatorJSONRuntime : public JSONRuntimeBase {
   }
 
  private:
-  void BuildEngine() {
-    device_ = VerilatorAlloc();
-    // reset for 10 cycles
-    VerilatorReset(device_, 10);
-  }
-
-  /* The verilator handle. */
+  /* The verilator device handle. */
   VerilatorHandle device_{nullptr};
+  /* The verilator library handle. */
+  VerilatorLibrary* lib_{nullptr};
+  /* The verilator add function handle */
+  VerilatorAddFunc vadd_func_{nullptr};
 };
 
-runtime::Module VerilatorJSONRuntimeCreate(String symbol_name, String graph_json,
+runtime::Module VerilatorJSONRuntimeCreate(String lib_name, String symbol_name, String graph_json,
                                            const Array<String>& const_names) {
   auto n = make_object<VerilatorJSONRuntime>(symbol_name, graph_json, const_names);
+  n->LoadLibrary(lib_name);
   return runtime::Module(n);
 }
 

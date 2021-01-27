@@ -1320,3 +1320,52 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+
+def cumsum(data, axis=None, dtype=None):
+    """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
+    a given axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    Returns
+    -------
+    result : relay.Expr
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+
+    Examples
+    --------
+    .. code-block:: python
+        a = [[1,2,3], [4,5,6]]
+
+        cumsum(a)  # if axis is not provided, cumsum is done over the flattened input.
+        -> [ 1,  3,  6, 10, 15, 21]
+
+        cumsum(a, dtype="float32")
+        -> [  1.,   3.,   6.,  10.,  15.,  21.]
+
+        cumsum(a, axis=0)  # sum over rows for each of the 3 columns
+        -> [[1, 2, 3],
+            [5, 7, 9]]
+
+        cumsum(a, axis=1)
+        -> [[ 1,  3,  6],
+            [ 4,  9, 15]]
+
+        a = [1, 0, 1, 0, 1, 1, 0]  # a is a boolean array
+        cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
+        -> [1, 1, 2, 2, 3, 4, 4]
+    """
+    return _make.cumsum(data, axis, dtype)
