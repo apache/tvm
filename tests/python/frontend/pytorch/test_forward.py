@@ -1147,7 +1147,7 @@ def test_forward_view():
 @tvm.testing.uses_gpu
 def test_forward_select():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
+    input_shape = [5, 3, 10, 10]
 
     class Select1(Module):
         def forward(self, *args):
@@ -1166,6 +1166,9 @@ def test_forward_select():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Select1().float().eval(), input_data=input_data)
+
+    # test negative indexing
+    verify_model(lambda x: x[-1], input_data=input_data)
 
     x = torch.randn(3, 4)
     indices = torch.tensor([0, 2])
@@ -2653,6 +2656,8 @@ def test_forward_take():
     verify_model(Take1().float().eval(), input_data=input_data)
     indices = torch.tensor([[0, 0], [1, 0]])
     verify_model(Take2().float().eval(), input_data=[input_data, indices])
+    indices = torch.tensor([0, -1])
+    verify_model(Take2().float().eval(), input_data=[input_data, indices])
 
 
 @tvm.testing.uses_gpu
@@ -3452,6 +3457,93 @@ def test_hard_swish():
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
+def test_cumsum():
+    def test_fn(dim, dtype=None):
+        return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
+
+    inp = torch.randint(0, 100, (10000,), dtype=torch.int32)
+    verify_model(test_fn(0), [inp])
+    verify_model(test_fn(0), [inp.to(torch.int64)])
+    verify_model(test_fn(0, dtype=torch.int64), [inp.to(torch.int64)])
+
+    inp = torch.randn((100, 100), dtype=torch.float32)
+    verify_model(test_fn(dim=0, dtype=torch.float64), [inp])
+    verify_model(test_fn(dim=1), [inp])
+
+    inp = torch.randn((100, 100), dtype=torch.float32) > 0.5
+    verify_model(test_fn(dim=0, dtype=torch.int32), [inp])
+
+
+def test_masked_fill():
+    def test_fn(x, mask):
+        return torch.masked_fill(x, mask, 0.0)
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn, [inp, inp > 0.5])
+    verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
+
+
+def test_transformer():
+    model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
+    model = model.eval()
+    src = torch.rand((10, 32, 256))
+    tgt = torch.rand((20, 32, 256))
+    verify_model(model.eval(), input_data=[src, tgt])
+
+
+def test_argsort():
+    def test_fn(dim, descending):
+        return lambda x: torch.argsort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
+def test_sort():
+    def test_fn(dim, descending):
+        return lambda x: torch.sort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
+def test_logical_and():
+    def test_fn(x, y):
+        return torch.logical_and(x, y)
+
+    a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
+    b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)
+    verify_model(test_fn, [a, b])
+
+    a = torch.tensor([True, False, True])
+    b = torch.tensor([True, False, False])
+    verify_model(test_fn, [a, b])
+
+
+def test_masked_select():
+    def test_fn(x, mask):
+        return torch.masked_select(x, mask)
+
+    for shape in [(10,), (3, 4), (16, 32, 64)]:
+        x = torch.randn(*shape)
+        mask = x.ge(0.5)
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3580,6 +3672,13 @@ if __name__ == "__main__":
     test_forward_scatter()
     test_numel()
     test_bincount()
+    test_cumsum()
+    test_masked_fill()
+    test_transformer()
+    test_sort()
+    test_argsort()
+    test_logical_and()
+    test_masked_select()
 
     # Model tests
     test_resnet18()
