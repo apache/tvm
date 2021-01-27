@@ -243,6 +243,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
             ZephyrFlasher,
             (self._board,),
             dict(
+                board=self._board,
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
                 subprocess_env=self._subprocess_env.default_overrides,
