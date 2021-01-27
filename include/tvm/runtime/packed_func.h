@@ -408,20 +408,47 @@ struct ObjectTypeChecker {
    */
   static bool Check(const Object* ptr) {
     using ContainerType = typename T::ContainerType;
-    if (ptr == nullptr) {
-      if (T::_type_is_nullable) {
-        return true;
-      }
-    }
-    if (ptr->IsInstance<ContainerType>()) {
-      return true;
-    }
-    return false;
+    if (ptr == nullptr) return T::_type_is_nullable;
+    return ptr->IsInstance<ContainerType>();
   }
   static std::string TypeName() {
     using ContainerType = typename T::ContainerType;
     return ContainerType::_type_key;
   }
+};
+
+// Additional overloads for PackedFunc checking.
+template <typename T>
+struct ObjectTypeChecker<Array<T>> {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    if (ptr == nullptr) {
+      return NullOpt;
+    }
+    if (!ptr->IsInstance<ArrayNode>()) {
+      return String(ptr->GetTypeKey());
+    }
+    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
+    for (size_t i = 0; i < n->size(); i++) {
+      const ObjectRef& p = (*n)[i];
+      Optional<String> check_subtype = ObjectTypeChecker<T>::CheckAndGetMismatch(p.get());
+      if (check_subtype.defined()) {
+        return String("Array[index " + std::to_string(i) + ": " + check_subtype.value() + "]");
+      }
+    }
+    return NullOpt;
+  }
+  static bool Check(const Object* ptr) {
+    if (ptr == nullptr) return true;
+    if (!ptr->IsInstance<ArrayNode>()) return false;
+    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
+    for (const ObjectRef& p : *n) {
+      if (!ObjectTypeChecker<T>::Check(p.get())) {
+        return false;
+      }
+    }
+    return true;
+  }
+  static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
 };
 
 /*!

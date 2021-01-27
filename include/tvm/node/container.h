@@ -1447,35 +1447,6 @@ inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
 namespace tvm {
 namespace runtime {
 // Additional overloads for PackedFunc checking.
-template <typename T>
-struct ObjectTypeChecker<Array<T>> {
-  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
-    if (ptr == nullptr) return NullOpt;
-    if (!ptr->IsInstance<ArrayNode>()) return String(ptr->GetTypeKey());
-    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
-    for (size_t i = 0; i < n->size(); i++) {
-      const ObjectRef& p = (*n)[i];
-      Optional<String> check_subtype = ObjectTypeChecker<T>::CheckAndGetMismatch(p.get());
-      if (check_subtype.defined()) {
-        return String("Array[index " + std::to_string(i) + ": " + check_subtype.value() + "]");
-      }
-    }
-    return NullOpt;
-  }
-  static bool Check(const Object* ptr) {
-    if (ptr == nullptr) return true;
-    if (!ptr->IsInstance<ArrayNode>()) return false;
-    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
-    for (const ObjectRef& p : *n) {
-      if (!ObjectTypeChecker<T>::Check(p.get())) {
-        return false;
-      }
-    }
-    return true;
-  }
-  static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
-};
-
 template <typename K, typename V>
 struct ObjectTypeChecker<Map<K, V>> {
   static Optional<String> CheckAndGetMismatch(const Object* ptr) {
