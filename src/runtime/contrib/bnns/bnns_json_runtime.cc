@@ -34,7 +34,7 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
-#include "bnns.hpp"
+#include "bnns_wrp.h"
 
 namespace tvm {
 namespace runtime {
