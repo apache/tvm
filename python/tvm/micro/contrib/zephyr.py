@@ -241,8 +241,8 @@ class ZephyrCompiler(tvm.micro.Compiler):
     def flasher_factory(self):
         return compiler.FlasherFactory(
             ZephyrFlasher,
+            (self._board,),
             dict(
-                board=self._board,
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
                 subprocess_env=self._subprocess_env.default_overrides,
@@ -301,7 +301,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         flash_args=None,
         debug_rpc_session=None,
         serial_timeouts=None,
-        west_cmd="west",
+        west_cmd=None,
     ):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
