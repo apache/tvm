@@ -16,6 +16,7 @@
 # under the License.
 
 """ Test measurement and log serialization. """
+import json
 
 import multiprocessing
 import tvm
@@ -198,6 +199,38 @@ def test_recover_measure_input():
 
         correct_inp = auto_scheduler.measure.recover_measure_input(raw_inp, rebuild_state=True)
         assert str(correct_inp.state) == str(inp.state)
+
+
+def test_workload_dis_factor():
+    calc = auto_scheduler.measure_record.calc_workload_dis_factor
+
+    # Identical
+    target_wkl_key = json.dumps(
+        ["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"]
+    )
+    assert calc(target_wkl_key, target_wkl_key) == 1
+
+    # Compatible with a factor
+    wkl_key = json.dumps(["func1", [1, 3, 112, 112], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(target_wkl_key, wkl_key) == 8 * 2 * 2
+
+    # Incompatible argument with zeros
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [1, 1], [1, 1], "float32"])
+    assert calc(target_wkl_key, wkl_key) == float("inf")
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [0, 0], "float32"])
+    assert calc(target_wkl_key, wkl_key) == float("inf")
+
+    # Incompatible non-integter argument
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "int8"])
+    assert calc(target_wkl_key, wkl_key) == float("inf")
+
+    # Incompatible function
+    wkl_key = json.dumps(["func2", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(target_wkl_key, wkl_key) == float("inf")
+
+    # Incompatible due to non-dividable factor
+    wkl_key = json.dumps(["func1", [8, 3, 223, 223], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(target_wkl_key, wkl_key) == float("inf")
 
 
 def test_measure_local_builder_runner():

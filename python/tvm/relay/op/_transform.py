@@ -103,7 +103,7 @@ def compute_scatter_add(attrs, inputs, output_type):
 
 _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 
-# scatter
+# scatter_nd
 @_reg.register_compute("scatter_nd")
 def compute_scatter_nd(attrs, inputs, output_type):
     """Compute definition of scatter_nd"""
@@ -111,6 +111,16 @@ def compute_scatter_nd(attrs, inputs, output_type):
 
 
 _reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
+
+# cumsum
+@_reg.register_compute("cumsum")
+def compute_cumsum(attrs, inputs, output_type):
+    """Compute definition of cumsum"""
+    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype)]
+
+
+_reg.register_strategy("cumsum", strategy.cumsum_strategy)
+_reg.register_shape_func("cumsum", False, elemwise_shape_func)
 
 #####################
 #  Shape functions  #

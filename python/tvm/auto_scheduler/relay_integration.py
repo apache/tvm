@@ -22,7 +22,6 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
-import json
 import logging
 import threading
 
@@ -281,7 +280,7 @@ def auto_schedule_topi(outs):
         logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
 
-    key = register_workload_tensors(dag.hash_key(), io_tensors)
+    key = register_workload_tensors(dag.workload_key(), io_tensors)
     target = tvm.target.Target.current()
 
     env = TracingEnvironment.current
@@ -310,9 +309,8 @@ def auto_schedule_topi(outs):
                 return None
 
             # rewrite the layout and update the context for the new dag
-            dag = ComputeDAG(outs)
             new_dag = dag.rewrite_layout_from_state(state)
-            new_key = json.dumps((new_dag.hash_key(),))
+            new_key = new_dag.workload_key()
             if new_key != key:
                 dispatch_ctx.update(target, new_key, state)
     else:
