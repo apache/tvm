@@ -3521,6 +3521,19 @@ def test_sort():
     verify_model(test_fn(1, False), [inp])
 
 
+def test_logical_and():
+    def test_fn(x, y):
+        return torch.logical_and(x, y)
+
+    a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
+    b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)
+    verify_model(test_fn, [a, b])
+
+    a = torch.tensor([True, False, True])
+    b = torch.tensor([True, False, False])
+    verify_model(test_fn, [a, b])
+
+
 if __name__ == "__main__":
     # # some structural tests
     # test_forward_traced_function()
@@ -3652,8 +3665,9 @@ if __name__ == "__main__":
     # test_cumsum()
     # test_masked_fill()
     # test_transformer()
-    test_sort()
-    test_argsort()
+    # test_sort()
+    # test_argsort()
+    test_logical_and()
 
     # # Model tests
     # test_resnet18()
