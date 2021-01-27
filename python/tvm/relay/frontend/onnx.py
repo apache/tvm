@@ -961,6 +961,18 @@ class LpPool(OnnxOpConverter):
         return _op.power(out, reci_p)
 
 
+class GlobalLpPool(OnnxOpConverter):
+    """Operator converter for GlobalLpPool."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        in_shape = infer_shape(inputs[0])
+        assert len(in_shape) >= 4, "input shape support NCHW or NCDHW"
+        attr["kernel_shape"] = in_shape[2:]
+
+        return LpPool._impl_v1(inputs, attr, params)
+
+
 class Mul(Elemwise):
     """Operator converter for Multiply."""
 
@@ -3578,6 +3590,7 @@ def _get_convert_map(opset):
         # defs/nn
         "AveragePool": AveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
+        "GlobalLpPool": GlobalLpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
