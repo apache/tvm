@@ -154,7 +154,7 @@ runtime::Module VerilatorJSONRuntimeCreate(String lib_name, String symbol_name, 
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.VerilatorJSONRuntimeCreate")
+TVM_REGISTER_GLOBAL("runtime.verilator_runtime_create")
     .set_body_typed(VerilatorJSONRuntimeCreate);
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_verilator_json")
