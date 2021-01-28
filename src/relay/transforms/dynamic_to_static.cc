@@ -32,13 +32,35 @@
 namespace tvm {
 namespace relay {
 
+Expr PrepareInput(const Expr& expr) {
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::FoldConstant()(mod);
+  mod = transform::InferType()(mod);
+  mod = transform::FoldConstant()(mod);
+  mod = transform::InferType()(mod);
+  if (expr.as<FunctionNode>()) {
+    return mod->Lookup("main");
+  } else {
+    return mod->Lookup("main").as<FunctionNode>()->body;
+  }
+}
+
+std::vector<Expr> PrepareArgs(const CallNode* call_node) {
+   std::vector<Expr> args;
+   for (auto arg : call_node->args) {
+     args.emplace_back(PrepareInput(arg));
+   }
+   return args;
+}
+
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
   DynamicToStaticMutator() {
     op_map_ = {
         {Op::Get("dyn.reshape"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* shape = args[1].as<ConstantNode>()) {
              ICHECK_EQ(shape->data->ndim, 1);
              return MakeReshape(call_node->args[0], ToVector(shape->data));
            }
@@ -46,7 +68,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.tile"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* reps = args[1].as<ConstantNode>()) {
              ICHECK_EQ(reps->data->ndim, 1);
              return MakeTile(call_node->args[0], ToVector(reps->data));
            }
@@ -54,7 +77,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.topk"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* k = args[1].as<ConstantNode>()) {
              const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
              ICHECK(param);
              return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)),
@@ -64,7 +88,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.broadcast_to"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* shape = args[1].as<ConstantNode>()) {
              ICHECK_EQ(shape->data->ndim, 1);
              return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
            }
@@ -72,7 +97,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.zeros"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* shape = args[0].as<ConstantNode>()) {
              const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
              ICHECK(param);
              return MakeZeros(ToVector(shape->data), param->dtype);
@@ -81,7 +107,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.ones"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* shape = args[0].as<ConstantNode>()) {
              const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
              ICHECK(param);
              return MakeOnes(ToVector(shape->data), param->dtype);
@@ -90,7 +117,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.one_hot"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* depth = call_node->args[3].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* depth = args[3].as<ConstantNode>()) {
              const OneHotAttrs* param = call_node->attrs.as<OneHotAttrs>();
              ICHECK(param);
              return MakeOneHot(call_node->args[0], call_node->args[1], call_node->args[2],
@@ -101,7 +129,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.image.resize"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* size = call_node->args[1].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* size = args[1].as<ConstantNode>()) {
              const ResizeAttrs* param = call_node->attrs.as<ResizeAttrs>();
              ICHECK(param);
              auto size_int = ToVector(size->data);
@@ -116,7 +145,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.full"),
          [](const CallNode* call_node) {
-           if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* shape = args[1].as<ConstantNode>()) {
              ICHECK_EQ(shape->data->ndim, 1);
              const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
              ICHECK(param);
@@ -126,8 +156,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.nn.upsampling"),
          [](const CallNode* call_node) {
-           const ConstantNode* scale_h = call_node->args[1].as<ConstantNode>();
-           const ConstantNode* scale_w = call_node->args[2].as<ConstantNode>();
+           auto args = PrepareArgs(call_node);
+           const ConstantNode* scale_h = args[1].as<ConstantNode>();
+           const ConstantNode* scale_w = args[2].as<ConstantNode>();
            if (scale_h && scale_w) {
              ICHECK_EQ(scale_h->data->ndim, 0);
              ICHECK_EQ(scale_w->data->ndim, 0);
@@ -141,9 +172,10 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.nn.upsampling3d"),
          [](const CallNode* call_node) {
-           const ConstantNode* scale_d = call_node->args[1].as<ConstantNode>();
-           const ConstantNode* scale_h = call_node->args[2].as<ConstantNode>();
-           const ConstantNode* scale_w = call_node->args[3].as<ConstantNode>();
+           auto args = PrepareArgs(call_node);
+           const ConstantNode* scale_d = args[1].as<ConstantNode>();
+           const ConstantNode* scale_h = args[2].as<ConstantNode>();
+           const ConstantNode* scale_w = args[3].as<ConstantNode>();
            if (scale_d && scale_h && scale_w) {
              ICHECK_EQ(scale_d->data->ndim, 0);
              ICHECK_EQ(scale_h->data->ndim, 0);
@@ -160,8 +192,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.nn.pad"),
          [](const CallNode* call_node) {
-           const ConstantNode* pad_width = call_node->args[1].as<ConstantNode>();
-           const ConstantNode* pad_fill = call_node->args[2].as<ConstantNode>();
+           auto args = PrepareArgs(call_node);
+           const ConstantNode* pad_width = args[1].as<ConstantNode>();
+           const ConstantNode* pad_fill = args[2].as<ConstantNode>();
            if (pad_width && pad_fill) {
              ICHECK_EQ(pad_fill->data->ndim, 0);   // pad_val is 1d
              ICHECK_EQ(pad_width->data->ndim, 2);  // pad_width is 2d
@@ -175,9 +208,10 @@ class DynamicToStaticMutator : public MixedModeMutator {
          }},
         {Op::Get("dyn.strided_slice"),
          [](const CallNode* call_node) {
-           const ConstantNode* begin = call_node->args[1].as<ConstantNode>();
-           const ConstantNode* end = call_node->args[2].as<ConstantNode>();
-           const ConstantNode* stride = call_node->args[3].as<ConstantNode>();
+           auto args = PrepareArgs(call_node);
+           const ConstantNode* begin = args[1].as<ConstantNode>();
+           const ConstantNode* end = args[2].as<ConstantNode>();
+           const ConstantNode* stride = args[3].as<ConstantNode>();
            if (begin && end && stride) {
              ICHECK_EQ(begin->data->ndim, 1);
              ICHECK_EQ(end->data->ndim, 1);
@@ -222,6 +256,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
     }
     return post;
   }
+
   std::unordered_map<Expr, std::function<Expr(const CallNode*)>, ObjectPtrHash, ObjectPtrEqual>
       op_map_;
 };
@@ -229,27 +264,15 @@ class DynamicToStaticMutator : public MixedModeMutator {
 Expr DynamicToStatic(Function f, IRModule m) {
   Expr pre = f;
   Expr expr = f;
-  auto fold_const = transform::FoldConstant();
-  auto infer_type = transform::InferType();
   DynamicToStaticMutator mutator;
   Map<BaseFunc, GlobalVar> vars;
   for (auto kv : m->functions) {
     vars.Set(kv.second, kv.first);
   }
   const auto gv = vars[f];
-  // Put a limit on the while loop
-  // Primarily used to prevent accidental infinite lops in development
-  const int loop_limit = 1000;
-  int i = 0;
-  do {
-    pre = expr;
-    // TODO(mbrookhart): Is it possible to run these passes JUST on the current function?
-    m = infer_type(m);
-    m = fold_const(m);
-    expr = mutator.Mutate(m->functions[gv]);
-    m->Update(gv, Downcast<BaseFunc>(expr));
-    i += 1;
-  } while (!StructuralEqual()(pre, expr) && i < loop_limit);
+  pre = expr;
+  expr = mutator.Mutate(m->functions[gv]);
+  expr = PrepareInput(expr);
   return expr;
 }
 
