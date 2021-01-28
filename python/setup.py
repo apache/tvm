@@ -175,12 +175,11 @@ def get_package_data_files():
 # tool.
 sys.path.insert(0, os.path.dirname(__file__))
 import gen_requirements
+
 sys.path.pop(0)
 
 requirements = gen_requirements.join_requirements()
-extras_require = {k: v
-                  for k, v in requirements.items()
-                  if k not in ("all", "core")}
+extras_require = {k: v for k, v in requirements.items() if k not in ("all", "core")}
 
 setup(
     name="tvm",

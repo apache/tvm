@@ -54,7 +54,7 @@ PROBLEM_REQUIREMENTS = [
     ("wrong-description-type", (None, ["foo"])),  # wrong description type
     ("bad-value", None),  # value field is not a 2-tuple
     ("bad-value-2", ("", ["foo"], 34)),  # value field is not a 2-tuple
-    ("invalid", ("", ["qux"])), # duplicate invalid entry, all items valid.
+    ("invalid", ("", ["qux"])),  # duplicate invalid entry, all items valid.
     ("extras-foo", ("", ["bar", "baz"])),  # ordinary extras entry.
     ("invalid", ("", ["baz", None, 123])),  # valid extra name, invalid deps.
     ("unsorted", ("", ["qux", "bar", "foo"])),  # deps out of order
@@ -67,35 +67,40 @@ PROBLEM_REQUIREMENTS = [
 
 def test_validate_requirements():
     with patch(gen_requirements, REQUIREMENTS_BY_PIECE=None):
-        assert (gen_requirements.validate_requirements_by_piece() ==
-                ["must be list or tuple, see None"])
+        assert gen_requirements.validate_requirements_by_piece() == [
+            "must be list or tuple, see None"
+        ]
 
     with patch(gen_requirements, REQUIREMENTS_BY_PIECE=PROBLEM_REQUIREMENTS):
         problems = gen_requirements.validate_requirements_by_piece()
         assert problems == [
-          'piece extras-pre-core: must list after "core" (core must be first)',
-          "piece extras-pre-core: deps should be a list of strings, got ['foo', 123]",
-          'piece 456: must be str',
-          'piece wrong-description-type: description should be a string, got None',
-          ('piece bad-value: should be formatted like ("bad-value", ("<requirements.txt '
-           'comment>", ["dep1", "dep2", ...])). got: None'),
-          ('piece bad-value-2: should be formatted like ("bad-value-2", '
-           '("<requirements.txt comment>", ["dep1", "dep2", ...])). got: (\'\', '
-           '[\'foo\'], 34)'),
-          'piece invalid: listed twice',
-          "piece invalid: deps should be a list of strings, got ['baz', None, 123]",
-          "piece unsorted: deps must be sorted. Correct order:\n  ['bar', 'foo', 'qux']",
-          "piece versioned_dep: deps must be sorted. Correct order:\n  ['bar>4', 'baz==1.2', 'buz<3', 'foo==^2.0']",
-          "piece versioned_dep: dependency baz==1.2 should not specify a version. Add it to CONSTRAINTS instead.",
-          "piece versioned_dep: dependency foo==^2.0 should not specify a version. Add it to CONSTRAINTS instead.",
-          "piece versioned_dep: dependency buz<3 should not specify a version. Add it to CONSTRAINTS instead.",
-          "piece versioned_dep: dependency bar>4 should not specify a version. Add it to CONSTRAINTS instead.",
-          "piece duplicate_dep: dependency buz listed twice",
-          'piece extras-post-dev: must list before "dev" (dev must be last)',
-          'pieces other than "core" and "dev" must appear in alphabetical order: '
-          "['bad-value', 'bad-value-2', 'duplicate_dep', 'extras-foo', 'extras-post-dev', "
-          "'extras-pre-core', 'invalid', 'invalid', 'unsorted', 'versioned_dep', "
-          "'wrong-description-type']",
+            'piece extras-pre-core: must list after "core" (core must be first)',
+            "piece extras-pre-core: deps should be a list of strings, got ['foo', 123]",
+            "piece 456: must be str",
+            "piece wrong-description-type: description should be a string, got None",
+            (
+                'piece bad-value: should be formatted like ("bad-value", ("<requirements.txt '
+                'comment>", ["dep1", "dep2", ...])). got: None'
+            ),
+            (
+                'piece bad-value-2: should be formatted like ("bad-value-2", '
+                '("<requirements.txt comment>", ["dep1", "dep2", ...])). got: (\'\', '
+                "['foo'], 34)"
+            ),
+            "piece invalid: listed twice",
+            "piece invalid: deps should be a list of strings, got ['baz', None, 123]",
+            "piece unsorted: deps must be sorted. Correct order:\n  ['bar', 'foo', 'qux']",
+            "piece versioned_dep: deps must be sorted. Correct order:\n  ['bar>4', 'baz==1.2', 'buz<3', 'foo==^2.0']",
+            "piece versioned_dep: dependency baz==1.2 should not specify a version. Add it to CONSTRAINTS instead.",
+            "piece versioned_dep: dependency foo==^2.0 should not specify a version. Add it to CONSTRAINTS instead.",
+            "piece versioned_dep: dependency buz<3 should not specify a version. Add it to CONSTRAINTS instead.",
+            "piece versioned_dep: dependency bar>4 should not specify a version. Add it to CONSTRAINTS instead.",
+            "piece duplicate_dep: dependency buz listed twice",
+            'piece extras-post-dev: must list before "dev" (dev must be last)',
+            'pieces other than "core" and "dev" must appear in alphabetical order: '
+            "['bad-value', 'bad-value-2', 'duplicate_dep', 'extras-foo', 'extras-post-dev', "
+            "'extras-pre-core', 'invalid', 'invalid', 'unsorted', 'versioned_dep', "
+            "'wrong-description-type']",
         ]
 
 
@@ -108,26 +113,34 @@ TEST_REQUIREMENTS_BY_PIECE = (
 
 
 def test_validate_constraints():
-    with patch(gen_requirements,
-               REQUIREMENTS_BY_PIECE=TEST_REQUIREMENTS_BY_PIECE,
-               CONSTRAINTS=(('unlisted', '~=3'),
-                            ('double-specified', '<2'),
-                            ('double-specified', '==3',),
-                            ('bad-constraint', '1.2.0'),
-                            ('bad-semver-constraint', "i don't match the regex :P"),
-                            ('alpha-semver-constraint', '^foo.bar.23'))):
+    with patch(
+        gen_requirements,
+        REQUIREMENTS_BY_PIECE=TEST_REQUIREMENTS_BY_PIECE,
+        CONSTRAINTS=(
+            ("unlisted", "~=3"),
+            ("double-specified", "<2"),
+            (
+                "double-specified",
+                "==3",
+            ),
+            ("bad-constraint", "1.2.0"),
+            ("bad-semver-constraint", "i don't match the regex :P"),
+            ("alpha-semver-constraint", "^foo.bar.23"),
+        ),
+    ):
         problems = gen_requirements.validate_constraints()
-        assert problems == ["unlisted: not specified in REQUIREMENTS_BY_PIECE",
-                            "double-specified: not specified in REQUIREMENTS_BY_PIECE",
-                            "double-specified: specified twice",
-                            "double-specified: not specified in REQUIREMENTS_BY_PIECE",
-                            "bad-constraint: not specified in REQUIREMENTS_BY_PIECE",
-                            'bad-constraint: constraint "1.2.0" does not look like a valid constraint',
-                            'bad-semver-constraint: not specified in REQUIREMENTS_BY_PIECE',
-                            'bad-semver-constraint: constraint "i don\'t match the regex :P" does not look like a valid constraint',
-                            'alpha-semver-constraint: not specified in REQUIREMENTS_BY_PIECE',
-                            'alpha-semver-constraint: invalid semver constraint ^foo.bar.23',
-                            "CONSTRAINTS entries should be in this sorted order: ['alpha-semver-constraint', 'bad-constraint', 'bad-semver-constraint', 'double-specified', 'double-specified', 'unlisted']"
+        assert problems == [
+            "unlisted: not specified in REQUIREMENTS_BY_PIECE",
+            "double-specified: not specified in REQUIREMENTS_BY_PIECE",
+            "double-specified: specified twice",
+            "double-specified: not specified in REQUIREMENTS_BY_PIECE",
+            "bad-constraint: not specified in REQUIREMENTS_BY_PIECE",
+            'bad-constraint: constraint "1.2.0" does not look like a valid constraint',
+            "bad-semver-constraint: not specified in REQUIREMENTS_BY_PIECE",
+            'bad-semver-constraint: constraint "i don\'t match the regex :P" does not look like a valid constraint',
+            "alpha-semver-constraint: not specified in REQUIREMENTS_BY_PIECE",
+            "alpha-semver-constraint: invalid semver constraint ^foo.bar.23",
+            "CONSTRAINTS entries should be in this sorted order: ['alpha-semver-constraint', 'bad-constraint', 'bad-semver-constraint', 'double-specified', 'double-specified', 'unlisted']",
         ]
 
 
@@ -144,41 +157,64 @@ TEST_CONSTRAINTS = (
 
 
 def test_join_requirements():
-    with patch(gen_requirements, REQUIREMENTS_BY_PIECE=TEST_REQUIREMENTS_BY_PIECE,
-               CONSTRAINTS=TEST_CONSTRAINTS):
+    with patch(
+        gen_requirements,
+        REQUIREMENTS_BY_PIECE=TEST_REQUIREMENTS_BY_PIECE,
+        CONSTRAINTS=TEST_CONSTRAINTS,
+    ):
         requirements = gen_requirements.join_requirements()
-        assert requirements == collections.OrderedDict([
-          ('core', ("core tvm requirements", ['bar==1.0', 'foo', 'non-constrained'])),
-          ('extra-one', ('requirements for one feature', ['baz>2.3', 'qux~=1.2.4'])),
-          ('extra-two', ('requirements for two feature',
-                         ['buz>=1.3.0,<2.0.0', 'qux~=1.2.4',
-                          'semver-minor>=0.2.2-patch2.post3+buildmeta,<0.3.0',
-                          'semver-patch>=0.0.2+bm,<0.0.3'])),
-          ('dev', ('requirements for dev', ['buz>=1.3.0,<2.0.0', 'oof==0.3.4', 'rab'])),
-          ('all-prod', ('Combined dependencies for all TVM pieces, excluding dev',
-                        ['bar==1.0', 'baz>2.3', 'buz>=1.3.0,<2.0.0', 'foo', 'non-constrained',
-                         'qux~=1.2.4',
-                         'semver-minor>=0.2.2-patch2.post3+buildmeta,<0.3.0',
-                         'semver-patch>=0.0.2+bm,<0.0.3']))])
+        assert requirements == collections.OrderedDict(
+            [
+                ("core", ("core tvm requirements", ["bar==1.0", "foo", "non-constrained"])),
+                ("extra-one", ("requirements for one feature", ["baz>2.3", "qux~=1.2.4"])),
+                (
+                    "extra-two",
+                    (
+                        "requirements for two feature",
+                        [
+                            "buz>=1.3.0,<2.0.0",
+                            "qux~=1.2.4",
+                            "semver-minor>=0.2.2-patch2.post3+buildmeta,<0.3.0",
+                            "semver-patch>=0.0.2+bm,<0.0.3",
+                        ],
+                    ),
+                ),
+                ("dev", ("requirements for dev", ["buz>=1.3.0,<2.0.0", "oof==0.3.4", "rab"])),
+                (
+                    "all-prod",
+                    (
+                        "Combined dependencies for all TVM pieces, excluding dev",
+                        [
+                            "bar==1.0",
+                            "baz>2.3",
+                            "buz>=1.3.0,<2.0.0",
+                            "foo",
+                            "non-constrained",
+                            "qux~=1.2.4",
+                            "semver-minor>=0.2.2-patch2.post3+buildmeta,<0.3.0",
+                            "semver-patch>=0.0.2+bm,<0.0.3",
+                        ],
+                    ),
+                ),
+            ]
+        )
 
 
 def test_semver():
-  problems = []
+    problems = []
 
-  assert gen_requirements.parse_semver("C", "^1.2.0", problems) == (["1", "2", "0"], 0, 1)
-  assert problems == []
+    assert gen_requirements.parse_semver("C", "^1.2.0", problems) == (["1", "2", "0"], 0, 1)
+    assert problems == []
 
-  assert gen_requirements.parse_semver("C", "^0.2.0", problems) == (["0", "2", "0"], 1, 2)
-  assert problems == []
+    assert gen_requirements.parse_semver("C", "^0.2.0", problems) == (["0", "2", "0"], 1, 2)
+    assert problems == []
 
-  assert gen_requirements.parse_semver("C", "^0.0.0", problems) == (["0", "0", "0"], 0, 0)
-  assert problems == []
+    assert gen_requirements.parse_semver("C", "^0.0.0", problems) == (["0", "0", "0"], 0, 0)
+    assert problems == []
 
-  assert gen_requirements.parse_semver("C", "^0.a.0", problems) == ([], 0, 0)
-  assert problems == ["C: invalid semver constraint ^0.a.0"]
-
-
+    assert gen_requirements.parse_semver("C", "^0.a.0", problems) == ([], 0, 0)
+    assert problems == ["C: invalid semver constraint ^0.a.0"]
 
 
 if __name__ == "__main__":
-  sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
