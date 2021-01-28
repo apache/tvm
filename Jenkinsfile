@@ -54,7 +54,7 @@ ci_arm = "tlcpack/ci-arm:v0.01"
 // <--- End of regex-scanned config.
 
 // tvm libraries
-tvm_runtime = "build/libtvm_runtime.so, build/config.cmake, build/standalone_crt/**"
+tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
@@ -144,7 +144,7 @@ def make(docker_type, path, make_flag) {
 def pack_lib(name, libs) {
   sh """
      echo "Packing ${libs} into ${name}"
-     echo ${libs} | python tests/scripts/print_md5sum.py
+     echo ${libs} | xargs md5sum
      """
   stash includes: libs, name: name
 }
@@ -155,7 +155,7 @@ def unpack_lib(name, libs) {
   unstash name
   sh """
      echo "Unpacked ${libs} from ${name}"
-     echo ${libs} | python tests/scripts/print_md5sum.py
+     echo ${libs} | xargs md5sum
      """
 }
 
@@ -248,6 +248,8 @@ stage('Unit Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_python_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_build.sh build standalone_crt"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
@@ -262,6 +264,8 @@ stage('Unit Test') {
         unpack_lib('i386', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_python_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_i386.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_build.sh build standalone_crt"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
@@ -276,6 +280,8 @@ stage('Unit Test') {
         unpack_lib('arm', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_python_setup.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_arm.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_build.sh build standalone_crt"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
           // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }
