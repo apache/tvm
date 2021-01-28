@@ -158,14 +158,14 @@ class OnnxFrontend(Frontend):
     def suffixes():
         return ["onnx"]
 
-    def load(self, path, shape_dict = None):
+    def load(self, path, shape_dict=None):
         # pylint: disable=C0415
         import onnx
 
         # pylint: disable=E1101
         model = onnx.load(path)
 
-        return relay.frontend.from_onnx(model, shape = shape_dict)
+        return relay.frontend.from_onnx(model, shape=shape_dict)
 
 
 class TensorflowFrontend(Frontend):
@@ -393,7 +393,7 @@ def guess_frontend(path):
     raise TVMCException("failed to infer the model format. Please specify --model-format")
 
 
-def load_model(path, model_format=None, shape_dict = None):
+def load_model(path, model_format=None, shape_dict=None):
     """Load a model from a supported framework and convert it
     into an equivalent relay representation.
 

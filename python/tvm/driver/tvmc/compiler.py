@@ -35,21 +35,41 @@ from .main import register_parser
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
-#turn data:32x3x224x224 to {'data':[32,3,224,224]}
+
 def parse_shape(inputs):
-    d = {} #final dictionary 
-    inputs = inputs.split(",") #multiple data inputs
+    """Parse an input shape dictionary string to a usable dictionary.
+
+    Parameters
+    ----------
+    inputs: str
+        A string of the form "name:num1xnum2x...xnumN,name2:num1xnum2xnum3" that indicates
+        the desired shape for specific model inputs.
+
+    Returns
+    -------
+    shape_dict: dict
+        A dictionary mapping input names to their shape for use in relay frontend converters.
+    """
+    d = {}
+    # Break apart each specific input string
+    inputs = inputs.split(",")
     for string in inputs:
-        string = string.split(":") #seperate name from ints
+        # Split name from shape string.
+        string = string.split(":")
         shapelist = []
-        string[1] = string[1].split("x") #make list
+        # Separate each dimension in the shape.
+        string[1] = string[1].split("x")
+        # Parse each dimension into an integer.
         for x in string[1]:
-            x = int(x) #make int list
-            if x < 0: #negative ints dynamic
+            x = int(x)
+            # Negative numbers are converted to dynamic axes.
+            if x < 0:
                 x = relay.Any()
             shapelist.append(x)
+        # Assign dictionary key value pair.
         d[string[0]] = shapelist
     return d
+
 
 @register_parser
 def add_compile_parser(subparsers):
@@ -105,7 +125,7 @@ def add_compile_parser(subparsers):
     parser.add_argument(
         "--shapes",
         help="specify non-generic shapes for model to run, format is"
-        "name:num1xnum2xnum3,name2:num1xnum2xnum3",
+        "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
         type=parse_shape,
         default=None,
     )
@@ -120,7 +140,7 @@ def drive_compile(args):
         Arguments from command line parser.
 
     Returns
-    --------
+    -------
     int
         Zero if successfully completed
 
@@ -152,7 +172,7 @@ def compile_model(
     model_format=None,
     tuning_records=None,
     alter_layout=None,
-    shape_dict=None
+    shape_dict=None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
