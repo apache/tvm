@@ -144,7 +144,7 @@ def make(docker_type, path, make_flag) {
 def pack_lib(name, libs) {
   sh """
      echo "Packing ${libs} into ${name}"
-     echo ${libs} | xargs md5sum
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
      """
   stash includes: libs, name: name
 }
@@ -155,7 +155,7 @@ def unpack_lib(name, libs) {
   unstash name
   sh """
      echo "Unpacked ${libs} from ${name}"
-     echo ${libs} | xargs md5sum
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
      """
 }
 
