@@ -104,7 +104,8 @@ def add_compile_parser(subparsers):
     parser.add_argument("FILE", help="path to the input model file")
     parser.add_argument(
         "--shapes",
-        help="",
+        help="specify non-generic shapes for model to run, format is"
+        "name:num1xnum2xnum3,name2:num1xnum2xnum3",
         type=parse_shape,
         default=None,
     )
