@@ -2,5 +2,5 @@
 #
 # Requirements for the PyTorch importer
 future
-torch>=1.4.0
-torchvision>=0.5.0
+torch
+torchvision

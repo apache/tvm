@@ -2,10 +2,10 @@
 #
 # Requirements for the tvmc command-line tool
 future
-onnx==1.6.0
-onnxruntime==1.0.0
-tensorflow>=2.1.0
-tflite>=2.1.0
-torch>=1.4.0
-torchvision>=0.5.0
-xgboost
+onnx
+onnxruntime
+tensorflow
+tflite
+torch
+torchvision
+xgboost>=1.1.0

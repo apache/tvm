@@ -2,7 +2,7 @@
 #
 # Requirements for the ONNX importer
 future
-onnx==1.6.0
-onnxruntime==1.0.0
-torch>=1.4.0
-torchvision>=0.5.0
+onnx
+onnxruntime
+torch
+torchvision

@@ -133,54 +133,47 @@ REQUIREMENTS_BY_PIECE = [
 # constraints.
 #
 # These constraints serve only to record technical reasons why a particular version can't be used.
-# They are the default install_requires used in setup.py. These can be further narrowed when making
-# releases to restrict dependencies to those tested in CI; however, this is not that process.
+# They are the default install_requires used in setup.py. These can be further narrowed to restrict
+# dependencies to those tested or used in CI; however, that process is not done here.
 #
-# TVM dependency policy:
+# Policy for constraints listed here:
 # 1. Each package specified in REQUIREMENTS_BY_PIECE must be included here.
-# 2. If, at the time of writing, it's expected that TVM tests pass against the latest-released
-#    version of a package, either None (preferred) or a minimum version should be specified here.
-#    The intent is that TVM should be tested against the most recent build of its dependencies.
-#    When a minimum version constraint is known to the developer, include the "why" in a comment.
-# 3. When a dependency needs to be held back, and such limitation coudl be fixed by an actionable
-#    change in the TVM repo, file a GitHub issue, add the constraint here, and include a comment
-#    linking to the issue. When the constraint cannot be resolved with a short-term project typical
-#    of a GitHub issue, describe the limitation in a comment here, linking as much as possible to
-#    the root cause. In general, TVM should avoid dependencies like that.
+# 2. If TVM will functionally break against an old version of a dependency, specify a >= relation
+#    here. Include a comment linking to context or explaining why the constraint is in place.
 CONSTRAINTS = [
-  ("astroid", "==2.3.3"),  # Want identical astroid to that used in ci-lint.
+  ("astroid", None),
   ("attrs", None),
   ("autodocsumm", None),
-  ("black", "==20.8b1"),  # Want identical black to that used in ci.
+  ("black", None),
   ("cloudpickle", None),
   ("commonmark", ">=0.7.3"),  # From PR #213.
   ("coremltools", None),
-  ("cpplint", "==1.5.4"),
+  ("cpplint", None),
   ("decorator", None),
-  ("docutils", ">=0.11"),
+  ("docutils", None),
   ("future", None),
   ("image", None),
   ("matplotlib", None),
   ("numpy", None),
-  ("onnx", "==1.6.0"),  # From docker/install/ubuntu_install_onnx.sh
-  ("onnxruntime", "==1.0.0"),  # From docker/install/ubuntu_install_onnx.sh
-  ("opencv-python", None), # OpenCV version + suffix. CI tests against recent version.
+  ("onnx", None),
+  ("onnxruntime", None),
+  ("opencv-python", None),
   ("pillow", None),
-  ("psutil", None),  # No policy specified, seems to support semver.
-  ("pylint", "==2.4.4"),  # Want identical pylint to that used in ci-lint.
-  ("scipy", "~=1.4"),  # Backwards incompatible minor releases, but CI tests against 1.4.1
+  ("psutil", None),
+  ("pylint", None),
+  ("scipy", None),
   ("sphinx", None),
   ("sphinx_autodoc_annotation", None),
   ("sphinx_gallery", None),
   ("sphinx_rtd_theme", None),
   ("synr", ">=0.2.1"),  # Requires bugfix commit ee0b12a61c08f01604475f36ff37d4cb110bdc27
-  ("tensorflow", ">=2.1.0"),  # At least the version tested in CI. Unclear why CI prefers this version.
-  ("tensorflow-estimator", None),   # Constrained by tensorflow dep.
-  ("tflite", ">=2.1.0"), # At least the version tested in CI. Unclear why CI prefers this version.
-  ("torch", ">=1.4.0"),  # At least the version tested in CI. Unclear why CI prefers this version.
-  ("torchvision", ">=0.5.0"),  # At least the version tested in CI.
+  ("tensorflow", None),
+  ("tensorflow-estimator", None),
+  ("tflite", None),
+  ("torch", None),
+  ("torchvision", None),
   ("tornado", None),
-  ("xgboost", ">=1.1.0"),  # From #4953.
+  ("xgboost", ">=1.1.0"),  # From PR #4953.
 ]
 
 ################################################################################

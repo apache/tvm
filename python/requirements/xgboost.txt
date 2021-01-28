@@ -2,5 +2,5 @@
 #
 # Requirements for XGBoost autotuning
 future
-torch>=1.4.0
-xgboost
+torch
+xgboost>=1.1.0

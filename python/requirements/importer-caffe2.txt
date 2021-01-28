@@ -2,4 +2,4 @@
 #
 # Requirements for the Caffe2 importer
 future
-torch>=1.4.0
+torch

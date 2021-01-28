@@ -6,6 +6,6 @@ cloudpickle
 decorator
 numpy
 psutil
-scipy~=1.4
+scipy
 synr>=0.2.1
 tornado
