@@ -24,14 +24,13 @@ ExternalProject_Add(project_libbacktrace
   GIT_REPOSITORY https://github.com/ianlancetaylor/libbacktrace.git
   GIT_TAG ${TAG}
   CONFIGURE_COMMAND "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/src/project_libbacktrace/configure"
-                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
+                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace" --with-pic
   INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
   BUILD_COMMAND make
   INSTALL_COMMAND make install
   BUILD_BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/lib/libbacktrace.a"
                    "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include/backtrace.h"
   # disable the builtin update because it rebuilds on every build
-  UPDATE_DISCONNECTED ON
   UPDATE_COMMAND ""
   # libbacktrace has a bug on macOS with shared libraries.
   PATCH_COMMAND git apply ${CMAKE_CURRENT_LIST_DIR}/libbacktrace_macos.patch
