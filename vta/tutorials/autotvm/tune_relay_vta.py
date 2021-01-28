@@ -215,6 +215,7 @@ tuning_option = {
             port=tracker_port,
             number=5,
             timeout=60,
+            code_loader=vta.code_loader(),
             # check_correctness=True, # TODO: re-enable when check_correctness works again.
         ),
     ),
