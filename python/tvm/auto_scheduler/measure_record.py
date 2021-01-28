@@ -27,7 +27,7 @@ import numpy as np
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import MeasureErrorNo, MeasureCallback
-from .utils import decode_workload_key
+from .utils import calc_workload_dis_factor, decode_workload_key
 from . import _ffi_api
 
 logger = logging.getLogger("auto_scheduler")
@@ -128,65 +128,6 @@ class RecordReader(Object):
                 break
             self.check_workload_key([ret[0]])
             yield ret[0], ret[1]  # (input, result)
-
-
-def calc_workload_dis_factor(target_workload_key, workload_key):
-    """Calculate the distance factor of the workload to the target workload.
-    If two workloads are not compatible at all (i.e., different compute DAG or function),
-    then the distance factor is "inf". Otherwise, we calculate the factor by traversing
-    the workload arguments, which are the arguments of the compute function,
-    or the output shapes for the ComputeDAG. The factor is calculated by the following rules:
-
-    1. For non-zero integer values: `product(target_arg / candidate_arg)`.
-    2. For non-integer or zero values: "inf" if not equal else 1.
-
-    As a result, factor=1 is the optimal when two workloads are identical.
-
-    Parameters
-    ----------
-    target_workload_key: str
-        The target workload key in JSON string.
-
-    workload_key: str
-        The candidate workload key in JSON string.
-
-    Returns
-    -------
-    dis_f: float
-        The distance factor.
-    """
-
-    def flatten_list(inp):
-        ret = []
-        for elt in inp:
-            if isinstance(elt, list):
-                ret += flatten_list(elt)
-            else:
-                ret.append(elt)
-        return ret
-
-    target_key, target_args = decode_workload_key(target_workload_key)
-    target_args = flatten_list(target_args) if target_args is not None else []
-    key, args = decode_workload_key(workload_key)
-    args = flatten_list(args) if args is not None else []
-
-    # Not even the same func/DAG.
-    if key != target_key or len(target_args) != len(args):
-        return float("inf")
-
-    dis_f = 1
-    for target_arg, arg in zip(target_args, args):
-        if isinstance(target_arg, int):
-            if target_arg == 0 or arg == 0:
-                if target_arg != arg:
-                    return float("inf")
-            elif target_arg % arg != 0:
-                return float("inf")
-            else:
-                dis_f *= target_arg / arg
-        elif target_arg != arg:
-            return float("inf")
-    return dis_f
 
 
 def load_record_from_string(record):
@@ -304,7 +245,9 @@ def load_best_record(filename, workload_key=None, target=None, include_compatibl
         cost = np.mean(costs)
 
         if workload_key is not None:
-            dis_f = calc_workload_dis_factor(workload_key, inp.task.workload_key)
+            dis_f = calc_workload_dis_factor(
+                decode_workload_key(workload_key), decode_workload_key(inp.task.workload_key)
+            )
             if dis_f == float("inf"):
                 continue
             if not include_compatible and dis_f != 1:

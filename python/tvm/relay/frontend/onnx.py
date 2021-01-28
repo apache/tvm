@@ -2227,8 +2227,17 @@ class Loop(OnnxOpConverter):
             # Add new scan outputs to tracking
             combined_scan_outputs = []
             for i, scan in enumerate(scan_outputs):
-                new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
-                combined_scan = _op.concatenate([scan, new_scan], axis=0)
+                rank = len(infer_shape(scan)) - 1
+                new_scan = new_scan_outputs[i]
+                expand_scan = _op.expand_dims(new_scan, axis=0)
+                # For non scalar outputs we need to broadcast the initial value.
+                if rank > 0:
+                    new_scan_shape = _op.shape_of(new_scan, dtype=iter_dtype)
+                    scan_broadcast = _op.concatenate(
+                        [_op.reshape(loop_count, [1]), new_scan_shape], axis=0
+                    )
+                    scan = _op.broadcast_to(scan, scan_broadcast)
+                combined_scan = _op.concatenate([scan, expand_scan], axis=0)
                 combined_scan_outputs.append(combined_scan)
 
             # Increment counter.

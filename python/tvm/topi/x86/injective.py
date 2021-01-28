@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
 from tvm import te
+from tvm.tir import IntImm
 from ..utils import is_empty_shape
 
 
@@ -100,18 +101,20 @@ def schedule_concatenate(outs):
     def vectorize(sch, tensor, vectorize_limit):
         """Internal vectorization function for concatenate."""
         inner_axis = s[tensor].op.axis[len(s[tensor].op.axis) - 1]
-        inner_length = tensor.shape[len(tensor.shape) - 1].value
-        if inner_length <= vectorize_limit:
-            sch[tensor].vectorize(inner_axis)
-        else:
-            split_factor = 1
-            for i in range(vectorize_limit, 1, -1):
-                if inner_length % i == 0:
-                    split_factor = i
-                    break
-            if split_factor > 1:
-                _, inner_i = sch[tensor].split(inner_axis, split_factor)
-                sch[tensor].vectorize(inner_i)
+        # Check that the tensor shape is static. Otherwise skip vectorization.
+        if isinstance(tensor.shape[len(tensor.shape) - 1], IntImm):
+            inner_length = tensor.shape[len(tensor.shape) - 1].value
+            if inner_length <= vectorize_limit:
+                sch[tensor].vectorize(inner_axis)
+            else:
+                split_factor = 1
+                for i in range(vectorize_limit, 1, -1):
+                    if inner_length % i == 0:
+                        split_factor = i
+                        break
+                if split_factor > 1:
+                    _, inner_i = sch[tensor].split(inner_axis, split_factor)
+                    sch[tensor].vectorize(inner_i)
 
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     x = outs[0]
