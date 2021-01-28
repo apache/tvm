@@ -163,6 +163,7 @@ def verify_with_ort_with_inputs(
                 ort_val = scipy.special.softmax(ort_val)
                 tvm_val = scipy.special.softmax(tvm_val)
             tvm.testing.assert_allclose(ort_val, tvm_val, rtol=rtol, atol=atol)
+            assert ort_val.dtype == tvm_val.dtype
 
 
 def verify_with_ort(
