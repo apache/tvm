@@ -786,6 +786,29 @@ def test_rewrite_func():
     assert sub_pattern.match(out)
 
 
+def test_rewrite_func_with_attr():
+    x = relay.var("x")
+    y = relay.var("y")
+    f = relay.Function([x, y], x + y).with_attr("Composite", "add")
+
+    a = relay.var("a")
+    b = relay.var("b")
+    c = relay.Call(f, [a, b])
+    c_abs = relay.abs(c)
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = wildcard().has_attr({"Composite": "add"})(wildcard(), wildcard())
+
+        def callback(self, pre, post, node_map):
+            return post.args[0] + post.args[1]
+
+    out = rewrite(TestRewrite(), c_abs)
+    inlined_add_pattern = is_op("abs")(is_op("add")(wildcard(), wildcard()))
+    assert inlined_add_pattern.match(out)
+
+
 def test_nested_rewrite():
     class PatternCallback(DFPatternCallback):
         def __init__(self, pattern):
