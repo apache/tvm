@@ -93,7 +93,7 @@ class Registry {
   template <typename FLambda>
   Registry& set_body_typed(FLambda f) {
     using FType = typename detail::function_signature<FLambda>::FType;
-    return set_body(TypedPackedFunc<FType>(std::move(f)).packed());
+    return set_body(TypedPackedFunc<FType>(std::move(f), name_).packed());
   }
   /*!
    * \brief set the body of the function to be the passed method pointer.
@@ -122,7 +122,7 @@ class Registry {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap, name_));
   }
 
   /*!
@@ -152,7 +152,7 @@ class Registry {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(const T, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(const T, Args...)>(fwrap, name_));
   }
 
   /*!
@@ -194,7 +194,7 @@ class Registry {
       // call method pointer
       return (target->*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap, name_));
   }
 
   /*!
@@ -236,7 +236,7 @@ class Registry {
       // call method pointer
       return (target->*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap, name_));
   }
 
   /*!
