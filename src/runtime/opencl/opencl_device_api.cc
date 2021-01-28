@@ -172,6 +172,7 @@ void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height,
 }
 
 void OpenCLWorkspace::FreeTexture(TVMContext ctx, void* ptr) {
+  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
   cl_mem mptr = static_cast<cl_mem>(ptr);
   OPENCL_CALL(clReleaseMemObject(mptr));
 }

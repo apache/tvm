@@ -100,21 +100,24 @@ class TexturePool::Pool {
       allocated_.pop_back();
     } else {
       int index = static_cast<int>(allocated_.size()) - 2;
-      for (; index > 0 && allocated_[index].data != data; --index) {
+      for (; index >= 0 && allocated_[index].data != data; --index) {
       }
-      ICHECK_GT(index, 0) << "Attempt to free texture that has not been allocated";
+      ICHECK_GE(index, 0) << "Attempt to free texture that has not been allocated";
       e = allocated_[index];
       allocated_.erase(allocated_.begin() + index);
     }
     free_list_.push_back(e);
   }
 
-  // Release all resources
+  // Release all resources immediately
   void Release(TVMContext ctx, DeviceAPI* device) {
-    ICHECK_EQ(allocated_.size(), 0) << "Request to free texture resources while still in use";
-    for (size_t i = 1; i < free_list_.size(); ++i) {
-      device->FreeTexture(ctx, free_list_[i].data);
+    for (auto& e : allocated_) {
+      device->FreeTexture(ctx, e.data);
     }
+    for (auto& e : free_list_) {
+      device->FreeTexture(ctx, e.data);
+    }
+    allocated_.clear();
     free_list_.clear();
   }
 
