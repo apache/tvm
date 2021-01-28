@@ -49,10 +49,15 @@ import os
 import re
 import textwrap
 import sys
+import typing
+
+
+RequirementsByPieceType = list[tuple[str, tuple[str, list[str]]]]
+
 
 # Maps named TVM piece (see description above) to a list of names of Python packages. Please use
 # alphabetical order for each package list, and do not add version constraints here!
-REQUIREMENTS_BY_PIECE = [
+REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
     # Base requirements needed to install tvm.
     (
         "core",
@@ -172,6 +177,8 @@ REQUIREMENTS_BY_PIECE = [
     ),
 ]
 
+ConstraintsType = list[tuple[str, typing.Union[None, str]]]
+
 # Maps a named Python package (which should appear in REQUIREMENTS_BY_PIECE above) to a
 # semver or pip version constraint. Semver constraints are translated into requirements.txt-friendly
 # constraints.
@@ -226,22 +233,29 @@ CONSTRAINTS = [
 
 
 # Required keys in REQUIREMENTS_BY_PIECE.
-REQUIRED_PIECES = ["core", "dev"]
+REQUIRED_PIECES: list[str] = ["core", "dev"]
 
 # Regex to validates piece names.
-PIECE_REGEX = re.compile(r"^[a-z0-9][a-z0-9-]*", re.IGNORECASE)
+PIECE_REGEX: re.Pattern = re.compile(r"^[a-z0-9][a-z0-9-]*", re.IGNORECASE)
 
 # Regex to match a constraint specification. Multiple constraints are not supported.
-CONSTRAINT_REGEX = re.compile(r"(?:\^|\<|(?:~=)|(?:<=)|(?:==)|(?:>=)|\>)[^<>=\^,]+")
+CONSTRAINT_REGEX: re.Pattern = re.compile(r"(?:\^|\<|(?:~=)|(?:<=)|(?:==)|(?:>=)|\>)[^<>=\^,]+")
 
 # Regex for parsing semantic versions. See
 # https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-SEMVER_REGEX = re.compile(
+SEMVER_REGEX: re.Pattern = re.compile(
     r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
 )
 
 
-def validate_requirements_by_piece():
+def validate_requirements_by_piece() -> list[str]:
+    """Validate REQUIREMENTS_BY_PIECE, returning a list of problems.
+
+    Returns
+    -------
+    list[str] :
+        A list of strings, each one describing a distinct problem with REQUIREMENTS_BY_PIECE.
+    """
     problems = []
 
     unseen_required_pieces = set(REQUIRED_PIECES)
@@ -325,7 +339,7 @@ def validate_requirements_by_piece():
     return problems
 
 
-def parse_semver(package, constraint, problems):
+def parse_semver(package: str, constraint: str, problems: list[str]) -> tuple[list[str], int, int]:
     """Parse a semantic versioning constraint of the form "^X.[.Y[.Z[...]]]]"
 
     Parameters
@@ -340,7 +354,7 @@ def parse_semver(package, constraint, problems):
 
     Returns
     -------
-    List[str], int :
+    tuple[list[str], int, int] :
         A 3-tuple. The first element is a list containing an entry for each component in the
         semver string (components separated by "."). The second element is the index of the
         component in the list which must not change to meet the semver constraint. The third element
@@ -378,7 +392,14 @@ def parse_semver(package, constraint, problems):
     return min_ver_parts, 0, 0
 
 
-def validate_constraints():
+def validate_constraints() -> list[str]:
+    """Validate CONSTRAINTS, returning a list of problems found.
+
+    Returns
+    -------
+    list[str] :
+        A list of strings, each one describing a distinct problem found in CONSTRAINTS.
+    """
     problems = []
 
     if not isinstance(CONSTRAINTS, (list, tuple)):
@@ -423,7 +444,21 @@ class ValidationError(Exception):
     """Raised when a validation error occurs."""
 
     @staticmethod
-    def format_problems(config, problems):
+    def format_problems(config: str, problems: list[str]) -> str:
+        """Format a list of problems with a global config variable into human-readable output.
+
+        Parameters
+        ----------
+        config : str
+            Name of the global configuration variable of concern. Prepended to the output.
+        problems: list[str]
+            A list of strings, each one a distinct problem with that config variable.
+
+        Returns
+        -------
+        str :
+            A human-readable string suitable for console, listing the problems as bullet points.
+        """
         formatted = []
         for p in problems:
             assert isinstance(p, str), f"problems element not a str: {p}"
@@ -437,7 +472,16 @@ class ValidationError(Exception):
 
         return "\n".join(formatted)
 
-    def __init__(self, config, problems):
+    def __init__(self, config: str, problems: list[str]):
+        """Describes an error that occurs validating one of the global config variables.
+
+        Parameters
+        ----------
+        config : str
+            Name of the global configuration variable of concern. Prepended to the output.
+        problems: list[str]
+            A list of strings, each one a distinct problem with that config variable.
+        """
         super(ValidationError, self).__init__(self.format_problems(config, problems))
         self.problems = problems
 
@@ -452,8 +496,20 @@ def validate_or_raise():
         raise ValidationError("CONSTRAINTS", problems)
 
 
-def semver_to_requirements(piece, dep, constraint, joined_deps):
-    problems = []
+def semver_to_requirements(dep: str, constraint: str, joined_deps: list[str]):
+    """Convert a SemVer-style constraint to a setuptools-compatible constraint.
+
+    Parameters
+    ----------
+    dep : str
+        Name of the PyPI package to depend on.
+    constraint : str
+        The SemVer constraint, of the form "^<semver constraint>"
+    joined_deps : list[str]
+        A list of strings, each a setuptools-compatible constraint which could be written to
+        a line in requirements.txt. The converted constraint is appended to this list.
+    """
+    problems: list[str] = []
     min_ver_parts, fixed_index, fixed_part = parse_semver(dep, constraint, problems)
     text_problems = "\n" + "\n".join(f" * {p}" for p in problems)
     assert (
@@ -468,7 +524,7 @@ def semver_to_requirements(piece, dep, constraint, joined_deps):
     joined_deps.append(f'{dep}>={".".join(min_ver_parts)},<{".".join(max_ver_parts)}')
 
 
-def join_requirements():
+def join_requirements() -> typing.Dict[str, tuple[str, list[str]]]:
     """Validate, then join REQUIRMENTS_BY_PIECE against CONSTRAINTS and return the result.
 
     Returns
@@ -491,7 +547,7 @@ def join_requirements():
                 continue
 
             if constraint[0] == "^":
-                semver_to_requirements(piece, d, constraint, joined_deps)
+                semver_to_requirements(d, constraint, joined_deps)
             else:
                 joined_deps.append(f"{d}{constraint}")
 
@@ -508,7 +564,7 @@ def join_requirements():
     return to_return
 
 
-def join_and_write_requirements(args):
+def join_and_write_requirements(args: argparse.Namespace):
     try:
         joined_deps = join_requirements()
     except ValidationError as e:
@@ -540,7 +596,7 @@ def join_and_write_requirements(args):
                 f.write(f"{d}{os.linesep}")
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--lint", action="store_true", help="Just lint dependencies, don't generate anything"
