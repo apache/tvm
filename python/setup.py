@@ -179,7 +179,9 @@ import gen_requirements
 sys.path.pop(0)
 
 requirements = gen_requirements.join_requirements()
-extras_require = {k: v for k, v in requirements.items() if k not in ("all", "core")}
+extras_require = {
+    piece: deps for piece, (_, deps) in requirements.items() if piece not in ("all", "core")
+}
 
 setup(
     name="tvm",
@@ -187,7 +189,7 @@ setup(
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
-    install_requires=requirements["core"],
+    install_requires=requirements["core"][1],
     extras_require=extras_require,
     packages=find_packages(),
     package_dir={"tvm": "tvm"},
