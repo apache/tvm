@@ -143,7 +143,7 @@ class VerilatorJSONRuntime : public JSONRuntimeBase {
   VerilatorHandle device_{nullptr};
   /* The verilator library handle. */
   VerilatorLibrary* lib_{nullptr};
-  /* The verilator add function handle */
+  /* The verilator vadd function handle. */
   VerilatorAddFunc vadd_func_{nullptr};
 };
 
