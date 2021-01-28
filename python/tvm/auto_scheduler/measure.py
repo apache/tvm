@@ -787,6 +787,11 @@ def _process_sparse_input(args):
                 assert len(t.op.input_tensors) == 1
                 block_tensor = t.op.input_tensors[0]
                 _process_inputs(block_tensor.op.input_tensors, M, N, "sparse_dense_bsr")
+            if t.op.tag == "sparse_conv2d_bsrmm":
+                N, OH = t.shape[0], t.shape[1]
+                assert len(t.op.input_tensors) == 1
+                block_tensor = t.op.input_tensors[0]
+                _process_inputs(block_tensor.op.input_tensors, N, OH, "sparse_dense_bsr")
             if sparse_prefix is not None:
                 return
             for x in t.op.input_tensors:
