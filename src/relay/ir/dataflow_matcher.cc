@@ -730,7 +730,8 @@ class PatternGrouper {
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
             // and the node is used by nodes outside of the group
-            if (memo.count(output->ref_) == 0) {
+            if (memo.count(output->ref_) == 0 &&
+                !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
               // Exit because nodes in this pattern's body are used outside the pattern
               // fusing it would be invalid
               return;

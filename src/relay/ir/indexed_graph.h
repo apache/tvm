@@ -27,6 +27,7 @@
 #include <tvm/relay/dataflow_pattern.h>
 
 #include <memory>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -74,6 +75,27 @@ class IndexedGraph {
     Node* dominator_parent_;
     /*! \brief The nodes this node dominates */
     std::vector<Node*> dominator_children_;
+
+    bool Dominates(const Node* other) {
+      std::stack<const Node*> stack;
+      std::unordered_set<const Node*> visited;
+      stack.push(this);
+      while (!stack.empty()) {
+        const Node* current = stack.top();
+        stack.pop();
+        for (auto node : current->dominator_children_) {
+          if (visited.count(node) == 0) {
+            if (other == node) {
+              return true;
+            } else {
+              stack.push(node);
+            }
+            visited.insert(node);
+          }
+        }
+      }
+      return false;
+    }
   };
   /*! \brief Construct the domination tree inside IndexedGraph */
   void PostDom() {
