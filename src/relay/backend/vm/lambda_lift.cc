@@ -192,7 +192,6 @@ class LambdaLifter : public ExprMutator {
       global = module_->GetGlobalVar(name);
     } else {
       // Add the lifted function to the module.
-      std::cout << AsText(lifted_func) << std::endl;
       module_->Add(global, lifted_func);
     }
 
