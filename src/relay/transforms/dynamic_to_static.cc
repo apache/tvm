@@ -33,7 +33,11 @@ namespace tvm {
 namespace relay {
 
 Expr PrepareInput(const Expr& expr) {
+  // TODO(mbrookhart): Rewrite this to use increment type inference
+  // when that feature is available
   auto mod = IRModule::FromExpr(expr);
+  // Perform FoldConstant->InferType twice due to nested control
+  // flow/dynamic rank issues in certain object models
   mod = transform::FoldConstant()(mod);
   mod = transform::InferType()(mod);
   mod = transform::FoldConstant()(mod);
@@ -46,11 +50,11 @@ Expr PrepareInput(const Expr& expr) {
 }
 
 std::vector<Expr> PrepareArgs(const CallNode* call_node) {
-   std::vector<Expr> args;
-   for (auto arg : call_node->args) {
-     args.emplace_back(PrepareInput(arg));
-   }
-   return args;
+  std::vector<Expr> args;
+  for (auto arg : call_node->args) {
+    args.emplace_back(PrepareInput(arg));
+  }
+  return args;
 }
 
 class DynamicToStaticMutator : public MixedModeMutator {
@@ -262,18 +266,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
 };
 
 Expr DynamicToStatic(Function f, IRModule m) {
-  Expr pre = f;
-  Expr expr = f;
-  DynamicToStaticMutator mutator;
-  Map<BaseFunc, GlobalVar> vars;
-  for (auto kv : m->functions) {
-    vars.Set(kv.second, kv.first);
-  }
-  const auto gv = vars[f];
-  pre = expr;
-  expr = mutator.Mutate(m->functions[gv]);
-  expr = PrepareInput(expr);
-  return expr;
+  Expr expr = DynamicToStaticMutator().Mutate(f);
+  return PrepareInput(expr);
 }
 
 namespace transform {
