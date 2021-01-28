@@ -232,11 +232,10 @@ def test_dynamic_to_static_zeros_ones():
 
             func = run_infer_type(relay.Function([x], y))
             func2 = run_opt_pass(
-                run_opt_pass(func, transform.DynamicToStatic()), transform.InferType()
+                run_opt_pass(func, transform.DynamicToStatic()), transform.InferType(),
             )
 
             zz = func2.body
-            assert isinstance(zz, relay.Constant)
             assert zz.checked_type == relay.ty.TensorType(shape, dtype)
 
             x_data = np.random.uniform(low=1, high=1, size=shape)
