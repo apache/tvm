@@ -159,9 +159,11 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
-      auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
-      if (op_map.count(op)) {
-        matches = MatchRetValue(attr_value, op_map[op]);
+      if (Op::HasAttrMap(attr_name)) {
+        auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
+        if (op_map.count(op)) {
+          matches = MatchRetValue(attr_value, op_map[op]);
+        }
       }
     }
   } else if (auto* op = expr.as<CallNode>()) {
