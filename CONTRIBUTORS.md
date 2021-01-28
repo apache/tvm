@@ -112,6 +112,7 @@ We do encourage everyone to work anything they are interested in.
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
+- [Trevor Morris](https://github.com/trevor-m): @trevor-m
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
