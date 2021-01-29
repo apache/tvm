@@ -150,10 +150,10 @@ def test_detection_models():
     after = mod["main"]
     assert not tvm.ir.structural_equal(after, before)
 
-    before = mod["main"]
-    mod = rewrite_scatter_to_gather(mod, 4)  # num_scales is 4 for maskrcnn_resnet50_fpn
-    after = mod["main"]
-    assert not tvm.ir.structural_equal(after, before)
+    # before = mod["main"]
+    # mod = rewrite_scatter_to_gather(mod, 4)  # num_scales is 4 for maskrcnn_resnet50_fpn
+    # after = mod["main"]
+    # assert not tvm.ir.structural_equal(after, before)
 
     tvm_res_after_rewrite = compile_and_run_vm(mod, params, data_np, "llvm")
 
