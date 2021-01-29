@@ -534,12 +534,12 @@ struct Tokenizer {
   Token HandleTrailingNegation(Token tok) {
     auto prev_token = this->tokens.back();
     int num_trailing_neg = 0;
-    for (; prev_token->token_type == TokenType::kMinus && !prev_token->data.defined();) {
+    while(prev_token->token_type == TokenType::kMinus && !prev_token->data.defined()) {
       ++num_trailing_neg;
       this->tokens.pop_back();
       if (this->tokens.size() == 0) break;
       prev_token = this->tokens.back();
-      CHECK(prev_token.defined());
+      ICHECK(prev_token.defined());
     }
     if (num_trailing_neg % 2 == 1) {
       return NegateNumToken(tok);
