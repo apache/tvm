@@ -556,9 +556,8 @@ struct Tokenizer {
       if (this->tokens.size() > 0) {
         auto prev_token = this->tokens.back();
         ICHECK(prev_token.defined());
-        if (prev_token->token_type == TokenType::kMinus && !prev_token->data.defined()) {
-          ICHECK(token->token_type == TokenType::kFloat || token->token_type == TokenType::kInteger)
-              << "Expects a number after -";
+        if (prev_token->token_type == TokenType::kMinus && !prev_token->data.defined() &&
+            (token->token_type == TokenType::kFloat || token->token_type == TokenType::kInteger)) {
           this->tokens.pop_back();
           this->tokens.push_back(NegateNumToken(token));
           continue;
