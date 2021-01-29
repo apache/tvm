@@ -110,14 +110,8 @@ class BuildModule(object):
 
         Returns
         -------
-        graph_json : str
-            The json string that can be accepted by graph runtime.
-
-        mod : tvm.Module
-            The module containing necessary libraries.
-
-        params : dict
-            The parameters of the final graph.
+        factory_module : tvm.relay.backend.graph_runtime_factory.GraphRuntimeFactoryModule
+            The runtime factory for the TVM graph runtime.
         """
         target = _update_target(target)
 
