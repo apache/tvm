@@ -985,8 +985,11 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
 
-  // Perform memory planning in order to coalesce/reduce allocations.
-  pass_seqs.push_back(transform::MemoryPlan());
+  // TODO(mbrookhart, jroesch, masahi): this pass is very slow, and is
+  // incomplete to provide memory resuse optimizations. Disable it until we can
+  // rewrite it in C++ and complete it.
+  // // Perform memory planning in order to coalesce/reduce allocations.
+  // pass_seqs.push_back(transform::MemoryPlan());
 
   // Compute away constant computation introduced by coalescing allocations.
   pass_seqs.push_back(transform::FoldConstant());
