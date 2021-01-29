@@ -27,12 +27,12 @@
 
 #include <Accelerate/Accelerate.h>
 
-#include <vector>
-#include <tuple>
-#include <memory>
 #include <algorithm>
 #include <functional>
+#include <memory>
 #include <numeric>
+#include <tuple>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -44,13 +44,9 @@ using Shape = std::vector<Dim>;
 using Dtype = BNNSDataType;
 using HDL = void*;
 
-void* default_alloc(size_t size) {
-  return malloc(size);
-}
+void* default_alloc(size_t size) { return malloc(size); }
 
-void default_free(void* ptr) {
-  free(ptr);
-}
+void default_free(void* ptr) { free(ptr); }
 
 /**
  * Main abstraction for tensor representation
@@ -66,14 +62,16 @@ class Tensor {
     auto rank = shape.size();
     ICHECK(rank < BNNS_MAX_TENSOR_DIMENSION);
 
-    desc_ = {
-        BNNSNDArrayFlags(0),
-        getPlainLayout(rank),
-        {}, {},   // shape and strides
-        hdl,      // data handler
-        dtype,    // data type
-        nullptr, dtype, 1.f, 0.f  // table_data (clustering case), is not used
-    };
+    desc_ = {BNNSNDArrayFlags(0),
+             getPlainLayout(rank),
+             {},       // shape
+             {},       // strides
+             hdl,      // data handler
+             dtype,    // data type
+             nullptr,  // table_data (clustering case), is not used
+             dtype,
+             1.f,
+             0.f};
     std::copy(shape.rbegin(), shape.rend(), std::begin(desc_.size));
 
     desc_.data = hdl;
@@ -99,7 +97,7 @@ class Tensor {
 
   void* get_data_hdl() const { return desc_.data; }
 
-  void set_data_hdl(void *hdl) {
+  void set_data_hdl(void* hdl) {
     if (desc_.data && !is_external_data) {
       default_free(desc_.data);
       desc_.data = nullptr;
@@ -116,13 +114,9 @@ class Tensor {
     return static_cast<BNNSDataLayout>((rank << 16) | 0x8001);
   }
 
-  static size_t getRank(BNNSDataLayout layout) {
-    return (layout & 0xF0000) >> 16;
-  }
+  static size_t getRank(BNNSDataLayout layout) { return (layout & 0xF0000) >> 16; }
 
-  static size_t getRank(BNNSNDArrayDescriptor desc) {
-    return getRank(desc.layout);
-  }
+  static size_t getRank(BNNSNDArrayDescriptor desc) { return getRank(desc.layout); }
 
   static size_t getSize(BNNSNDArrayDescriptor desc) {
     auto rank = getRank(desc);
@@ -130,12 +124,10 @@ class Tensor {
   }
 
   /** return size of element in bytes */
-  static size_t getElementSize(Dtype dtype) {
-    return (dtype & 0xFFFF) / 8;
-  }
+  static size_t getElementSize(Dtype dtype) { return (dtype & 0xFFFF) / 8; }
 
   /** return size of element in bytes */
-  static size_t getElementSize(const BNNSNDArrayDescriptor &desc) {
+  static size_t getElementSize(const BNNSNDArrayDescriptor& desc) {
     return getElementSize(desc.data_type);
   }
 
@@ -164,7 +156,7 @@ using TensorPtr = std::shared_ptr<Tensor>;
 class TView {
  public:
   /** Make view on provided tensor as is */
-  static TView as_is(const TensorPtr &origin) {
+  static TView as_is(const TensorPtr& origin) {
     TView res;
     res.origin_ = origin;
     res.view_desc_ = origin->get_desc();
@@ -176,8 +168,8 @@ class TView {
     auto rank = Tensor::getRank(view_desc_);
     TView res = *this;
     res.batch_size_ = view_desc_.size[rank - 1];
-    res.batch_stride_ = std::accumulate(view_desc_.size, view_desc_.size + rank - 1,
-                                        1, std::multiplies<>());
+    res.batch_stride_ =
+        std::accumulate(view_desc_.size, view_desc_.size + rank - 1, 1, std::multiplies<>());
     res.view_desc_.size[rank - 1] = 0;
     res.view_desc_.layout = Tensor::getPlainLayout(rank - 1);
     return res;
@@ -189,8 +181,7 @@ class TView {
     size_t squeezed_shape[BNNS_MAX_TENSOR_DIMENSION] = {};
     size_t squeezed_rank = 0;
     for (int i = 0; i < rank; i++)
-      if (view_desc_.size[i] != 1)
-        squeezed_shape[squeezed_rank++] = view_desc_.size[i];
+      if (view_desc_.size[i] != 1) squeezed_shape[squeezed_rank++] = view_desc_.size[i];
 
     if (min_rank > squeezed_rank) {
       std::fill(squeezed_shape + squeezed_rank, squeezed_shape + min_rank, 1);
@@ -270,9 +261,7 @@ class TView {
   operator bool() const { return origin_ != nullptr; }
 
   /** Get BNNS descriptor for particular View. Batch and Party attributed are ignored. */
-  const BNNSNDArrayDescriptor& get_bnns_view() const {
-    return view_desc_;
-  }
+  const BNNSNDArrayDescriptor& get_bnns_view() const { return view_desc_; }
 
  private:
   /** Original tensor object to view on */
@@ -295,19 +284,14 @@ class TView {
  */
 class Primitive {
  public:
-  Primitive(const std::vector<BNNSFilter> fs,
-            const TView& src,
-            const TView& dst)
+  Primitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& dst)
       : filters(fs), src_view(src), src2_view(), dst_view(dst) {}
 
-  Primitive(const std::vector<BNNSFilter> fs,
-            const TView& src,
-            const TView& src2,
-            const TView& dst)
+  Primitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& src2, const TView& dst)
       : filters(fs), src_view(src), src2_view(src2), dst_view(dst) {}
 
   ~Primitive() {
-    for (auto &filter : filters)
+    for (auto& filter : filters)
       if (filter) {
         BNNSFilterDestroy(filter);
         filter = nullptr;
@@ -323,12 +307,11 @@ class Primitive {
  private:
   static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
     auto prim = reinterpret_cast<Primitive*>(cdata);
-    const auto filter  = prim->filters[task_id];
+    const auto filter = prim->filters[task_id];
     const auto src_view = prim->src_view[task_id];
     const auto dst_view = prim->dst_view[task_id];
     TView src2_view;
-    if (prim->src2_view)
-      src2_view = prim->src2_view[task_id];
+    if (prim->src2_view) src2_view = prim->src2_view[task_id];
 
     size_t mb = src_view.get_batch_size();
 
@@ -337,14 +320,14 @@ class Primitive {
     //     BNNSFilterApply doesn't work for grouped convolution.
     //   * Group convolution doesn't support arbitrary stride for Batch dim.
     //     The tensor should be dense.
-    auto sts = (prim->src2_view)
-               ? BNNSFilterApplyTwoInputBatch(filter, mb,
-                                              src_view.get_data_hdl(), src_view.get_stride(),
-                                              src2_view.get_data_hdl(), src2_view.get_stride(),
-                                              dst_view.get_data_hdl(), dst_view.get_stride())
-               : BNNSFilterApplyBatch(filter, mb,
-                                      src_view.get_data_hdl(), src_view.get_stride(),
-                                      dst_view.get_data_hdl(), dst_view.get_stride());
+    auto sts =
+        (prim->src2_view)
+            ? BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(),
+                                           src_view.get_stride(), src2_view.get_data_hdl(),
+                                           src2_view.get_stride(), dst_view.get_data_hdl(),
+                                           dst_view.get_stride())
+            : BNNSFilterApplyBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
+                                   dst_view.get_data_hdl(), dst_view.get_stride());
     return sts;
   }
 
@@ -368,12 +351,8 @@ class Primitive {
  * @return collection of Convolution descriptors plus corresponding src/dst tensors view
  */
 static std::tuple<std::vector<BNNSLayerParametersConvolution>, TView, TView> split_to_n(
-      size_t num,
-      const BNNSLayerParametersConvolution& orig_conv_param,
-      const TView &src_view,
-      const TView &wgh_view,
-      const TView &b_view,
-      const TView &dst_view) {
+    size_t num, const BNNSLayerParametersConvolution& orig_conv_param, const TView& src_view,
+    const TView& wgh_view, const TView& b_view, const TView& dst_view) {
   size_t batch = src_view.get_batch_size();
   size_t oc = dst_view.get_bnns_view().size[2];
   size_t groups = orig_conv_param.groups;
@@ -384,9 +363,7 @@ static std::tuple<std::vector<BNNSLayerParametersConvolution>, TView, TView> spl
   BNNS::TView dst_view_new;
 
   // TODO(apeskov): Add split by batch dim. Meanwhile we just disable it...
-  if (batch > 1 ||
-      oc % num != 0 ||
-      (groups > 1 && groups % num != 0)) {
+  if (batch > 1 || oc % num != 0 || (groups > 1 && groups % num != 0)) {
     return {{orig_conv_param}, src_view, dst_view};
   }
 
@@ -404,14 +381,14 @@ static std::tuple<std::vector<BNNSLayerParametersConvolution>, TView, TView> spl
   dst_view_new = dst_view.party_split_n(num);
 
   std::vector<BNNSLayerParametersConvolution> res(num);
-  for (size_t i=0; i < num; i++) {
-    auto &cur = res[i];
+  for (size_t i = 0; i < num; i++) {
+    auto& cur = res[i];
     cur = orig_conv_param;
 
     cur.i_desc = src_view_new[i].get_bnns_view();
     cur.o_desc = dst_view_new[i].get_bnns_view();
     cur.w_desc = wgh_view_new[i].get_bnns_view();
-    cur.bias   = b_view_new[i].get_bnns_view();
+    cur.bias = b_view_new[i].get_bnns_view();
     cur.groups = groups;
   }
   return {res, src_view_new, dst_view_new};

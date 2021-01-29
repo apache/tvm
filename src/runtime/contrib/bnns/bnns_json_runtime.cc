@@ -22,18 +22,17 @@
  * \brief Simple JSON runtime for Apple BNNS primitives
  */
 
+#include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/c_backend_api.h>
 
 #include <cstddef>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
-
 #include "bnns_wrp.h"
 
 namespace tvm {
@@ -95,7 +94,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
   void Init(const Array<NDArray>& consts) override {
     ICHECK_EQ(consts.size(), const_idx_.size())
-      << "The number of input constants must match the number of required.";
+        << "The number of input constants must match the number of required.";
 
     SetupConstants(consts);
     BindInputsAndOutputs();
@@ -105,21 +104,18 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
   void Run() override {
     // Wrap external handler into BNNS tensor representation
-    auto bind_ext_hdl_to_tensor = [this] (uint32_t eid) {
-      const auto &ext_dlt = *data_entry_[eid];
-      auto &bnns_tensor = tensors_eid_[eid];
+    auto bind_ext_hdl_to_tensor = [this](uint32_t eid) {
+      const auto& ext_dlt = *data_entry_[eid];
+      auto& bnns_tensor = tensors_eid_[eid];
       bnns_tensor->set_data_hdl(ext_dlt.data);
     };
 
     // Bind all input/output external data object into internal abstractions
-    for (const auto &eid : input_var_eid_)
-      bind_ext_hdl_to_tensor(eid);
-    for (const auto &out_entity : outputs_)
-      bind_ext_hdl_to_tensor(EntryID(out_entity));
+    for (const auto& eid : input_var_eid_) bind_ext_hdl_to_tensor(eid);
+    for (const auto& out_entity : outputs_) bind_ext_hdl_to_tensor(EntryID(out_entity));
 
     // Invoke primitives in topological order
-    for (const auto &prim : primitives_)
-      prim->execute();
+    for (const auto& prim : primitives_) prim->execute();
   }
 
  private:
@@ -130,12 +126,10 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       auto node = nodes_[entry.id_];
       auto dlshape = node.GetOpShape()[entry.index_];
       auto dltype = node.GetOpDataType()[entry.index_];
-      void *data = nullptr;
-      if (data_entry_[entry.id_] != nullptr)
-        data = data_entry_[entry.id_]->data;
-      tensors_eid_[entry.id_] =
-          std::make_shared<BNNS::Tensor>(BNNS::Shape{dlshape.begin(), dlshape.end()},
-                                         convertToBNNS(dltype), data);
+      void* data = nullptr;
+      if (data_entry_[entry.id_] != nullptr) data = data_entry_[entry.id_]->data;
+      tensors_eid_[entry.id_] = std::make_shared<BNNS::Tensor>(
+          BNNS::Shape{dlshape.begin(), dlshape.end()}, convertToBNNS(dltype), data);
     };
 
     for (auto& id : input_nodes_) {
@@ -152,14 +146,12 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
   void AllocateIntermediateTensors() {
     for (int i = 0; i < nodes_.size(); ++i) {
       auto eid = JSONGraphNodeEntry(i, 0);
-      if (tensors_eid_[eid.id_] != nullptr)
-        continue;
+      if (tensors_eid_[eid.id_] != nullptr) continue;
       auto node = nodes_[i];
       auto dlshape = node.GetOpShape()[0];
       auto dltype = node.GetOpDataType()[0];
-      tensors_eid_[eid.id_] =
-          std::make_shared<BNNS::Tensor>(BNNS::Shape{dlshape.begin(), dlshape.end()},
-                                         convertToBNNS(dltype), nullptr);
+      tensors_eid_[eid.id_] = std::make_shared<BNNS::Tensor>(
+          BNNS::Shape{dlshape.begin(), dlshape.end()}, convertToBNNS(dltype), nullptr);
       tensors_eid_[eid.id_]->allocate_memory();
     }
   }
@@ -212,27 +204,26 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     auto dl_input_shape = nodes_[src_entry.id_].GetOpShape()[src_entry.index_];
     auto dl_weight_shape = nodes_[wgh_entry.id_].GetOpShape()[wgh_entry.index_];
-    BNNS::Shape input_shape {dl_input_shape.begin(), dl_input_shape.end()};
-    BNNS::Shape weight_shape {dl_weight_shape.begin(), dl_weight_shape.end()};
+    BNNS::Shape input_shape{dl_input_shape.begin(), dl_input_shape.end()};
+    BNNS::Shape weight_shape{dl_weight_shape.begin(), dl_weight_shape.end()};
     std::vector<std::string> str_strides = node.GetAttr<std::vector<std::string>>("strides");
     std::vector<std::string> str_dilation = node.GetAttr<std::vector<std::string>>("dilation");
     std::vector<std::string> str_padding = node.GetAttr<std::vector<std::string>>("padding");
     BNNS::Dim groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
 
-    BNNS::Dim
-        PH_L = std::stoi(str_padding[0]),       // height padding: left
-        PH_R = std::stoi(str_padding[2]),       // height padding: right
-        PW_L = std::stoi(str_padding[1]),       // width padding: left
-        PW_R = std::stoi(str_padding[3]),       // width padding: right
-        SH = std::stoi(str_strides[0]),         // height-wise stride
-        SW = std::stoi(str_strides[1]),         // weight-wise stride
-        DH = std::stoi(str_dilation[0]),        // height kernel dilation
-        DW = std::stoi(str_dilation[1]);        // width kernel dilation
+    BNNS::Dim PH_L = std::stoi(str_padding[0]),  // height padding: left
+        PH_R = std::stoi(str_padding[2]),        // height padding: right
+        PW_L = std::stoi(str_padding[1]),        // width padding: left
+        PW_R = std::stoi(str_padding[3]),        // width padding: right
+        SH = std::stoi(str_strides[0]),          // height-wise stride
+        SW = std::stoi(str_strides[1]),          // weight-wise stride
+        DH = std::stoi(str_dilation[0]),         // height kernel dilation
+        DW = std::stoi(str_dilation[1]);         // width kernel dilation
 
     // Memory descriptions.
-    const auto &src_t = GetBNNSTensor(src_entry);
-    const auto &wgh_t = GetBNNSTensor(wgh_entry);
-    const auto &dst_t = GetBNNSTensor(dst_entry);
+    const auto& src_t = GetBNNSTensor(src_entry);
+    const auto& wgh_t = GetBNNSTensor(wgh_entry);
+    const auto& dst_t = GetBNNSTensor(dst_entry);
 
     auto src_view = TView::as_is(src_t).extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
     auto wgh_view = TView::as_is(wgh_t).with_layout(BNNSDataLayoutConvolutionWeightsOIHW);
@@ -246,9 +237,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       bias_view = TView::as_is(bias_t).squeeze().with_layout(BNNSDataLayoutVector);
     }
 
-    BNNSActivation activation = { has_relu ?
-                                  BNNSActivationFunctionRectifiedLinear :
-                                  BNNSActivationFunctionIdentity };
+    BNNSActivation activation = {has_relu ? BNNSActivationFunctionRectifiedLinear
+                                          : BNNSActivationFunctionIdentity};
 
     BNNSLayerParametersConvolution conv_param = {
         src_view.get_bnns_view(),
@@ -256,20 +246,20 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
         dst_view.get_bnns_view(),
         bias_view.get_bnns_view(),
         activation,
-        SW, /* x_stride */
-        SH, /* y_stride */
-        DW, /* x_dilation_stride */
-        DH, /* y_dilation_stride */
-        0,  /* x_padding, explicit pads will be used */
-        0,  /* y_padding, explicit pads will be used */
-        groups, /* groups */
+        SW,                      /* x_stride */
+        SH,                      /* y_stride */
+        DW,                      /* x_dilation_stride */
+        DH,                      /* y_dilation_stride */
+        0,                       /* x_padding, explicit pads will be used */
+        0,                       /* y_padding, explicit pads will be used */
+        groups,                  /* groups */
         {PW_L, PW_R, PH_L, PH_R} /* explicit pad values */
     };
 
     size_t num_sub_prim = default_thread_config.externalConcurrency;
     std::vector<BNNSLayerParametersConvolution> params;
-    std::tie(params, src_view, dst_view) = split_to_n(num_sub_prim, conv_param,
-                                                      src_view, wgh_view, bias_view, dst_view);
+    std::tie(params, src_view, dst_view) =
+        split_to_n(num_sub_prim, conv_param, src_view, wgh_view, bias_view, dst_view);
 
     std::vector<BNNSFilter> filters(params.size(), nullptr);
     for (int i = 0; i < params.size(); i++) {
@@ -278,8 +268,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       ICHECK(filters[i]) << "BNNS primitive was not created. Unsupported attributes configuration";
     }
 
-    primitives_.emplace_back(
-        std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
+    primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
   }
 
   void Dense(const size_t& nid, const bool has_bias = false, const bool has_gelu = false) {
@@ -308,9 +297,9 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     BNNSActivation activation = {BNNSActivationFunctionIdentity};
     if (has_gelu) {
-        activation = {BNNSActivationFunctionGELUApproximation};
-        activation.alpha = std::sqrt(2.0 / M_PI);
-        activation.beta = 0.044715;
+      activation = {BNNSActivationFunctionGELUApproximation};
+      activation.alpha = std::sqrt(2.0 / M_PI);
+      activation.beta = 0.044715;
     }
 
     BNNSLayerParametersFullyConnected layerParameters = {
@@ -325,8 +314,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto filter = BNNSFilterCreateLayerFullyConnected(&layerParameters, &common_filter_param);
     ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
     std::vector<BNNSFilter> filters = {filter};
-    primitives_.emplace_back(
-        std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
+    primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
   }
 
   void MatMul(const size_t& nid) {
@@ -348,18 +336,16 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto b_view = TView::as_is(b_t);
     auto dst_view = TView::as_is(dst_t);
 
-    BNNSLayerParametersBroadcastMatMul layerParameters = {
-        1,  // alpha
-        0,  // beta
-        false,  // transA
-        true,   // transB
-        false,  // quadratic
-        a_is_weighted,
-        b_is_weighted,
-        a_view.get_bnns_view(),
-        b_view.get_bnns_view(),
-        dst_view.get_bnns_view()
-    };
+    BNNSLayerParametersBroadcastMatMul layerParameters = {1,      // alpha
+                                                          0,      // beta
+                                                          false,  // transA
+                                                          true,   // transB
+                                                          false,  // quadratic
+                                                          a_is_weighted,
+                                                          b_is_weighted,
+                                                          a_view.get_bnns_view(),
+                                                          b_view.get_bnns_view(),
+                                                          dst_view.get_bnns_view()};
 
     // BNNS limitation: MatMul use reverse dims values. However strides are calculated correctly
     //    based on BNNSNDArrayDescriptor::layout value.
@@ -371,18 +357,17 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto filter = BNNSFilterCreateLayerBroadcastMatMul(&layerParameters, &common_filter_param);
     ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
 
-    std::vector<BNNSFilter> filters {filter};
+    std::vector<BNNSFilter> filters{filter};
     if (a_is_weighted || b_is_weighted) {
       auto src_view = a_is_weighted ? b_view : a_view;
-      primitives_.emplace_back(
-          std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
+      primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
     } else {
       primitives_.emplace_back(
           std::make_shared<BNNS::Primitive>(filters, a_view, b_view, dst_view));
     }
   }
 
-  BNNS::Dtype convertToBNNS(const DLDataType &dl_dtype) {
+  BNNS::Dtype convertToBNNS(const DLDataType& dl_dtype) {
     if (dl_dtype.code == DLDataTypeCode::kDLFloat) {
       if (dl_dtype.bits == 32) return BNNSDataTypeFloat32;
       if (dl_dtype.bits == 16) return BNNSDataTypeFloat16;
@@ -404,7 +389,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
   BNNSFilterParameters getCommonFilterParams() {
     // NOTE: To force weights tensor copy on stage of filter create
     //       just change : BNNSFlagsUseClientPtr -> 0
-    return { BNNSFlagsUseClientPtr, default_thread_config.internalConcurrency };
+    return {BNNSFlagsUseClientPtr, default_thread_config.internalConcurrency};
   }
 
   /** Default threading config. Should be used if there are
@@ -425,8 +410,7 @@ runtime::Module BNNSJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.BNNSJSONRuntimeCreate")
-    .set_body_typed(BNNSJSONRuntimeCreate);
+TVM_REGISTER_GLOBAL("runtime.BNNSJSONRuntimeCreate").set_body_typed(BNNSJSONRuntimeCreate);
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_bnns_json")
     .set_body_typed(BNNSJSONRuntime::LoadFromBinary<BNNSJSONRuntime>);

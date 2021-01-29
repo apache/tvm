@@ -30,9 +30,8 @@
 #include <numeric>
 #include <sstream>
 
-#include "../../utils.h"
-
 #include "../../../../runtime/contrib/json/json_node.h"
+#include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
 namespace tvm {
@@ -42,7 +41,8 @@ namespace contrib {
 using namespace backend;
 
 /*!
- * \brief Retrieve the expected "root" op nested inside a fused call, such as conv2d in relu(add(conv2d))
+ * \brief Retrieve the expected "root" op nested inside a fused call, such as conv2d in
+ *        relu(add(conv2d))
  * \param call A Relay call node. Typically nn.relu when called the first time.
  * \param max_depth The maximum number of calls before the root op, counting from current_call.
  * \param root_name The name of expected "root" op in this fused call.
@@ -139,7 +139,6 @@ runtime::Module BNNSCompiler(const ObjectRef& ref) {
 
 TVM_REGISTER_GLOBAL("relay.ext.bnns").set_body_typed(BNNSCompiler);
 
-
 /**
  * \brief A helper to expand the params by adding ones which used by BNNS runtime
  * for a given expression. Same as default ConstantUpdater but skip constant from
@@ -149,7 +148,7 @@ struct BNNSConstantUpdater : public ConstantUpdater {
  public:
   BNNSConstantUpdater(const std::string& symbol,
                       std::unordered_map<std::string, runtime::NDArray>* params,
-                      const std::vector<std::string> &skip_mask)
+                      const std::vector<std::string>& skip_mask)
       : ConstantUpdater(symbol, params), skip_mask_(skip_mask) {}
   using ConstantUpdater::VisitExpr_;
 
@@ -171,13 +170,12 @@ struct BNNSConstantUpdater : public ConstantUpdater {
  private:
   bool isBNNSSpecificCompositeFunc(const FunctionNode* op) {
     auto comp = op->GetAttr<String>(attr::kComposite);
-    if (!comp)
-      return false;
+    if (!comp) return false;
 
     auto comp_name = comp.value();
 
     bool is_match = false;
-    for (const auto &mask : skip_mask_) {
+    for (const auto& mask : skip_mask_) {
       if (std::string(comp_name).substr(0, mask.size()) == mask) {
         is_match = true;
         break;
@@ -199,13 +197,11 @@ Map<String, runtime::NDArray> BNNSConstantUpdaterFunc(Expr expr, std::string sym
 
   // Convert to tvm::Map
   Map<String, runtime::NDArray> ret;
-  for (const auto& kvp : res)
-    ret.Set(kvp.first, kvp.second);
+  for (const auto& kvp : res) ret.Set(kvp.first, kvp.second);
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relay.ext.bnns.constant_updater")
-    .set_body_typed(BNNSConstantUpdaterFunc);
+TVM_REGISTER_GLOBAL("relay.ext.bnns.constant_updater").set_body_typed(BNNSConstantUpdaterFunc);
 
 }  // namespace contrib
 }  // namespace relay

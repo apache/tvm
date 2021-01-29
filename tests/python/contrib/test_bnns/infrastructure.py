@@ -46,10 +46,6 @@ class Device:
         The test configuration will be loaded once when the the class is created. If the configuration
         changes between tests, any changes will not be picked up.
 
-    Parameters
-    ----------
-    device : RPCSession
-        Allows tests to connect to and use remote device.
 
     Attributes
     ----------
@@ -310,12 +306,13 @@ def generate_trials(space, r_factor=3):
     ----------
     space: List[List[Any]]
         A list of different options with varying values to test.
-    r_factor: (optional) int
+    r_factor: Optional[int]
         The repeat factor.
 
     Returns
     -------
-    A list of trials specifying values for each option.
+    result: List[Tuple]
+        A list of trials specifying values for each option.
 
     """
     np.random.seed(0)
