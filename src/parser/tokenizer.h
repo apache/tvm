@@ -521,6 +521,12 @@ struct Tokenizer {
       }
 
       auto span = SpanFrom(line, col);
+
+      if (keyword == "inff") {
+        float inf = std::numeric_limits<float>::max();
+        return Token(span, TokenType::kFloat, tvm::FloatImm(DataType::Float(32), inf));
+      }
+
       return Token(span, token_type, tvm::String(ss.str()));
     } else {
       std::stringstream ss;
