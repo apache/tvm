@@ -919,6 +919,7 @@ def test_tokenize_inf():
 
     mod = relay.transform.AnnotateSpans()(mod)
 
+
 if __name__ == "__main__":
     import sys
 

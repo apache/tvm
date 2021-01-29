@@ -210,19 +210,6 @@ struct Tokenizer {
     }
   }
 
-  Token NegateNumToken(Token tok) {
-    if (tok->token_type == TokenType::kInteger) {
-      auto val = Downcast<tvm::Integer>(tok->data);
-      ICHECK(val.defined());
-      tok->data = tvm::Integer(-val->value);
-    } else if (tok->token_type == TokenType::kFloat) {
-      auto val = Downcast<tvm::FloatImm>(tok->data);
-      ICHECK(val.defined());
-      tok->data = tvm::FloatImm(DataType::Float(32), -val->value);
-    }
-    return tok;
-  }
-
   bool MatchString(const std::string& string) {
     int start = this->pos;
 
@@ -531,10 +518,38 @@ struct Tokenizer {
     }
   }
 
+  Token NegateNumToken(Token tok) {
+    if (tok->token_type == TokenType::kInteger) {
+      auto val = Downcast<tvm::Integer>(tok->data);
+      ICHECK(val.defined());
+      tok->data = tvm::Integer(-val->value);
+    } else if (tok->token_type == TokenType::kFloat) {
+      auto val = Downcast<tvm::FloatImm>(tok->data);
+      ICHECK(val.defined());
+      tok->data = tvm::FloatImm(DataType::Float(32), -val->value);
+    }
+    return tok;
+  }
+
+  Token HandleTrailingNegation(Token tok) {
+    auto prev_token = this->tokens.back();
+    int num_trailing_neg = 0;
+    for (; prev_token->token_type == TokenType::kMinus && !prev_token->data.defined();) {
+      ++num_trailing_neg;
+      this->tokens.pop_back();
+      if (this->tokens.size() == 0) break;
+      prev_token = this->tokens.back();
+      CHECK(prev_token.defined());
+    }
+    if (num_trailing_neg % 2 == 1) {
+      return NegateNumToken(tok);
+    }
+    return tok;
+  }
+
   void Tokenize() {
     DLOG(INFO) << "tvm::parser::Tokenize";
     while (this->More()) {
-      LOG(INFO) << "call tokenize once";
       auto token = TokenizeOnce();
       ICHECK(token.defined());
       if (this->tokens.size() > 0) {
@@ -542,18 +557,8 @@ struct Tokenizer {
         ICHECK(prev_token.defined());
         if (prev_token->token_type == TokenType::kMinus && !prev_token->data.defined() &&
             (token->token_type == TokenType::kFloat || token->token_type == TokenType::kInteger)) {
-          int num_trailing_neg = 0;
-          for (; prev_token->token_type == TokenType::kMinus && !prev_token->data.defined();) {
-	    ++num_trailing_neg;
-            this->tokens.pop_back();
-            if (this->tokens.size() == 0) break;
-            prev_token = this->tokens.back();
-            CHECK(prev_token.defined());
-          }
-          if (num_trailing_neg % 2 == 1) {
-            this->tokens.push_back(NegateNumToken(token));
-            continue;
-          }
+          this->tokens.push_back(HandleTrailingNegation(token));
+          continue;
         }
       }
       this->tokens.push_back(token);
