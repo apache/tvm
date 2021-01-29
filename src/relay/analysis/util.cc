@@ -141,6 +141,28 @@ class TypeVarEVisitor : private MixedModeVisitor {
     ExprVisitor::VisitExpr_(f);
   }
 
+  void VisitExpr_(const LetNode* op) final {
+    std::stack<const LetNode*> stack;
+    stack.push(op);
+    bool is_anormal = true;
+    while (is_anormal) {
+      const LetNode* current_op = stack.top();
+      VisitExpr(current_op->var);
+      VisitExpr(current_op->value);
+      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+        stack.push(new_op);
+      } else {
+        is_anormal = false;
+      }
+    }
+    while (stack.size()) {
+      const LetNode* current_op = stack.top();
+      stack.pop();
+      VisitExpr(current_op->body);
+      visit_counter_[current_op] += 1;
+    }
+  }
+
   void VisitExpr_(const ConstructorNode* cn) final {
     // for constructors, type vars will be bound in the module
     auto data = mod_->LookupTypeDef(cn->belong_to);

@@ -315,11 +315,29 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void VisitExpr_(const LetNode* op) final {
     // do not fuse through let.
-    this->Update(op->var, nullptr, kOpaque);
-    this->Update(op->value, nullptr, kOpaque);
-    this->Update(op->body, nullptr, kOpaque);
-    ExprVisitor::VisitExpr_(op);
-    this->AddNode(op);
+    std::stack<const LetNode*> stack;
+    stack.push(op);
+    bool is_anormal = true;
+    while (is_anormal) {
+      const LetNode* current_op = stack.top();
+      this->Update(current_op->var, nullptr, kOpaque);
+      this->Update(current_op->value, nullptr, kOpaque);
+      this->Update(current_op->body, nullptr, kOpaque);
+      VisitExpr(current_op->var);
+      VisitExpr(current_op->value);
+      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+        stack.push(new_op);
+      } else {
+        is_anormal = false;
+      }
+    }
+    while (stack.size()) {
+      const LetNode* current_op = stack.top();
+      stack.pop();
+      VisitExpr(current_op->body);
+      visit_counter_[current_op] += 1;
+      this->AddNode(current_op);
+    }
   }
 
   void VisitExpr_(const IfNode* op) final {
@@ -797,7 +815,7 @@ std::vector<GraphPartitioner::Group*> GraphPartitioner::Partition(
   return std::move(groups_);
 }
 
-class FuseMutator : private ExprMutator {
+class FuseMutator : private MixedModeMutator {
  public:
   // Run the transform
   Expr Transform(const Expr& body, int fuse_opt_level, size_t max_fuse_depth) {
@@ -853,7 +871,7 @@ class FuseMutator : private ExprMutator {
   }
 
   // Transform calls.
-  Expr VisitExpr_(const CallNode* call) {
+  Expr Rewrite_(const CallNode* call, const Expr& post) {
     if (call->op.as<OpNode>()) {
       static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
 
@@ -886,7 +904,7 @@ class FuseMutator : private ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TupleNode* tuple) {
+  Expr Rewrite_(const TupleNode* tuple, const Expr& post) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
     if (ret_group->root_ref == tuple) {
       return ExprMutator::VisitExpr_(tuple);
@@ -896,7 +914,7 @@ class FuseMutator : private ExprMutator {
     return Tuple(new_fields);
   }
 
-  Expr VisitExpr_(const TupleGetItemNode* tuple_get) {
+  Expr Rewrite_(const TupleGetItemNode* tuple_get, const Expr& post) {
     auto* ret_group = gmap_.at(tuple_get)->FindRoot();
     auto new_tuple = GetNewArguments({tuple_get->tuple}, ret_group)[0];
     auto new_node = TupleGetItem(new_tuple, tuple_get->index);
@@ -911,6 +929,40 @@ class FuseMutator : private ExprMutator {
     }
     // This is an intermediate node in the group
     return std::move(new_node);
+  }
+
+  Expr VisitExpr_(const LetNode* op) final {
+    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
+    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> new_values;
+    std::stack<const LetNode*> stack;
+    stack.push(op);
+    bool is_anormal = true;
+    while (is_anormal) {
+      const LetNode* current_op = stack.top();
+      Expr current_expr = GetRef<Expr>(current_op);
+      new_vars[current_expr] = Downcast<Var>(VisitExpr(current_op->var));
+      new_values[current_expr] = VisitExpr(current_op->value);
+      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+        stack.push(new_op);
+      } else {
+        is_anormal = false;
+      }
+    }
+    while (stack.size()) {
+      const LetNode* current_op = stack.top();
+      Expr current_expr = GetRef<Expr>(current_op);
+      stack.pop();
+      Var var = new_vars[current_expr];
+      Expr value = new_values[current_expr];
+      Expr body = VisitExpr(current_op->body);
+      if (var.same_as(current_op->var) && value.same_as(current_op->value) &&
+          body.same_as(current_op->body)) {
+        memo_[current_expr] = current_expr;
+      } else {
+        memo_[current_expr] = Let(var, value, body);
+      }
+    }
+    return memo_[GetRef<Expr>(op)];
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {

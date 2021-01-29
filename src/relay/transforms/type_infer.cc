@@ -341,26 +341,47 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   Type VisitExpr_(const OpNode* op) final { return op->op_type; }
 
   Type VisitExpr_(const LetNode* let) final {
-    // if the definition is a function literal, permit recursion
-    bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
-    Type let_type = IncompleteType(Kind::kType);
+    std::stack<const LetNode*> stack;
+    stack.push(let);
+    bool is_anormal = true;
+    while (is_anormal) {
+      const LetNode* current_op = stack.top();
+      const Expr current_expr = GetRef<Expr>(current_op);
+      // if the definition is a function literal, permit recursion
+      bool is_functional_literal = current_op->value.as<FunctionNode>() != nullptr;
+      Type let_type = IncompleteType(Kind::kType);
 
-    if (is_functional_literal) {
-      let_type = GetType(let->var);
-      type_map_[let->var].checked_type = let_type;
+      if (is_functional_literal) {
+        let_type = GetType(current_op->var);
+        type_map_[current_op->var].checked_type = let_type;
+      }
+
+      if (current_op->var->type_annotation.defined()) {
+        let_type = Unify(let_type, current_op->var->type_annotation, current_op->span);
+      }
+
+      Type vtype = GetType(current_op->value);
+      let_type = Unify(let_type, vtype, current_op->span);
+
+      ICHECK(is_functional_literal || !type_map_.count(current_op->var));
+      // NOTE: no scoping is necessary because var are unique in program
+      type_map_[current_op->var].checked_type = let_type;
+
+      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+        stack.push(new_op);
+      } else {
+        is_anormal = false;
+      }
+    }
+    while (stack.size()) {
+      const LetNode* current_op = stack.top();
+      Expr current_expr = GetRef<Expr>(current_op);
+      stack.pop();
+      memo_[current_expr] = GetType(current_op->body);
+      type_map_[current_expr].checked_type = memo_[current_expr];
     }
 
-    if (let->var->type_annotation.defined()) {
-      let_type = Unify(let_type, let->var->type_annotation, let->span);
-    }
-
-    Type vtype = GetType(let->value);
-    let_type = Unify(let_type, vtype, let->span);
-
-    ICHECK(is_functional_literal || !type_map_.count(let->var));
-    // NOTE: no scoping is necessary because var are unique in program
-    type_map_[let->var].checked_type = let_type;
-    return GetType(let->body);
+    return memo_[GetRef<Expr>(let)];
   }
 
   Type VisitExpr_(const IfNode* ite) final {
@@ -603,7 +624,35 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
 
   Expr Rewrite_(const CallNode* op, const Expr& post) final { return AttachCheckedType(op, post); }
 
-  Expr VisitExpr_(const LetNode* op) final { return AttachCheckedType(op); }
+  Expr VisitExpr_(const LetNode* op) final {
+    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
+    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> new_values;
+    std::stack<const LetNode*> stack;
+    stack.push(op);
+    bool is_anormal = true;
+    while (is_anormal) {
+      const LetNode* current_op = stack.top();
+      const Expr current_expr = GetRef<Expr>(current_op);
+      new_vars[current_expr] = Downcast<Var>(VisitExpr(current_op->var));
+      new_values[current_expr] = VisitExpr(current_op->value);
+      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+        stack.push(new_op);
+      } else {
+        is_anormal = false;
+      }
+    }
+    while (stack.size()) {
+      const LetNode* current_op = stack.top();
+      Expr current_expr = GetRef<Expr>(current_op);
+      stack.pop();
+      Var var = new_vars[current_expr];
+      Expr value = new_values[current_expr];
+      Expr body = VisitExpr(current_op->body);
+      memo_[current_expr] = AttachCheckedType(current_op, Let(var, value, body));
+    }
+
+    return memo_[GetRef<Expr>(op)];
+  }
 
   Expr VisitExpr_(const IfNode* op) final { return AttachCheckedType(op); }
 
@@ -750,6 +799,27 @@ struct AllCheckTypePopulated : MixedModeVisitor {
     }
     ICHECK(e->checked_type_.defined()) << "Expression: " << e;
     return ExprVisitor::VisitExpr(e);
+  }
+  void VisitExpr_(const LetNode* op) final {
+    std::stack<const LetNode*> stack;
+    stack.push(op);
+    bool is_anormal = true;
+    while (is_anormal) {
+      const LetNode* current_op = stack.top();
+      VisitExpr(current_op->var);
+      VisitExpr(current_op->value);
+      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+        stack.push(new_op);
+      } else {
+        is_anormal = false;
+      }
+    }
+    while (stack.size()) {
+      const LetNode* current_op = stack.top();
+      stack.pop();
+      VisitExpr(current_op->body);
+      visit_counter_[current_op] += 1;
+    }
   }
 };
 

@@ -27,6 +27,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 
+#include <stack>
+
 namespace tvm {
 namespace relay {
 
@@ -61,8 +63,30 @@ Expr DeDup(const Expr& e) {
     }
 
     Expr VisitExpr_(const LetNode* op) final {
-      Var v = Fresh(op->var);
-      return Let(v, VisitExpr(op->value), VisitExpr(op->body));
+      std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
+      std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> new_values;
+      std::stack<const LetNode*> stack;
+      stack.push(op);
+      bool is_anormal = true;
+      while (is_anormal) {
+        const LetNode* current_op = stack.top();
+        Expr current_expr = GetRef<Expr>(current_op);
+        new_vars[current_expr] = Fresh(current_op->var);
+        new_values[current_expr] = VisitExpr(current_op->value);
+        if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+          stack.push(new_op);
+        } else {
+          is_anormal = false;
+        }
+      }
+      while (stack.size()) {
+        const LetNode* current_op = stack.top();
+        Expr current_expr = GetRef<Expr>(current_op);
+        stack.pop();
+        memo_[current_expr] =
+            Let(new_vars[current_expr], new_values[current_expr], VisitExpr(current_op->body));
+      }
+      return memo_[GetRef<Expr>(op)];
     }
 
     Type VisitType(const Type& t) final { return t.defined() ? TypeMutator::VisitType(t) : t; }
@@ -99,7 +123,7 @@ Expr DeDup(const Expr& e) {
   ICHECK(WellFormed(ret));
   ICHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
   return ret;
-}
+}  // namespace relay
 
 TVM_REGISTER_GLOBAL("relay._transform.dedup").set_body_typed(DeDup);
 
