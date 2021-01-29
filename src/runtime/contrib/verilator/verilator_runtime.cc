@@ -143,7 +143,7 @@ class VerilatorJSONRuntime : public JSONRuntimeBase {
   VerilatorHandle device_{nullptr};
   /* The verilator library handle. */
   VerilatorLibrary* lib_{nullptr};
-  /* The verilator add function handle */
+  /* The verilator vadd function handle. */
   VerilatorAddFunc vadd_func_{nullptr};
 };
 
@@ -154,8 +154,7 @@ runtime::Module VerilatorJSONRuntimeCreate(String lib_name, String symbol_name, 
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.VerilatorJSONRuntimeCreate")
-    .set_body_typed(VerilatorJSONRuntimeCreate);
+TVM_REGISTER_GLOBAL("runtime.verilator_runtime_create").set_body_typed(VerilatorJSONRuntimeCreate);
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_verilator_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<VerilatorJSONRuntime>);
