@@ -534,7 +534,7 @@ struct Tokenizer {
   Token HandleTrailingNegation(Token tok) {
     auto prev_token = this->tokens.back();
     int num_trailing_neg = 0;
-    while(prev_token->token_type == TokenType::kMinus && !prev_token->data.defined()) {
+    while(prev_token->token_type == TokenType::kMinus) {
       ++num_trailing_neg;
       this->tokens.pop_back();
       if (this->tokens.size() == 0) break;
@@ -555,7 +555,7 @@ struct Tokenizer {
       if (this->tokens.size() > 0) {
         auto prev_token = this->tokens.back();
         ICHECK(prev_token.defined());
-        if (prev_token->token_type == TokenType::kMinus && !prev_token->data.defined() &&
+        if (prev_token->token_type == TokenType::kMinus &&
             (token->token_type == TokenType::kFloat || token->token_type == TokenType::kInteger)) {
           this->tokens.push_back(HandleTrailingNegation(token));
           continue;
