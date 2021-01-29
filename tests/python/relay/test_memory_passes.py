@@ -18,7 +18,6 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.relay import memory_alloc
 
 
 def check_memory_plan(func, check_fn):
