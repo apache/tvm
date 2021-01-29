@@ -43,11 +43,7 @@ def verify_compile_tflite_module(model, shape_dict=None):
     pytest.importorskip("tflite")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        model,
-        target="llvm",
-        dump_code="ll",
-        alter_layout="NCHW",
-        shape_dict=shape_dict
+        model, target="llvm", dump_code="ll", alter_layout="NCHW", shape_dict=shape_dict
     )
 
     # check for output types
@@ -64,6 +60,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     shape_string = "input:1x224x224x3"
     shape_dict = tvmc.compiler.parse_shape(shape_string)
     verify_compile_onnx_module(tflite_mobilenet_v1_1_quant, shape_dict)
+
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
 @pytest.mark.skipif(
