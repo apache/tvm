@@ -42,13 +42,13 @@
 
 #include "../backend/compile_engine.h"
 #include "let_list.h"
+#include "pattern_utils.h"
 
 using namespace tvm::runtime;
 
 namespace tvm {
 namespace relay {
 
-extern bool IsDynamic(const Type& ty);
 extern Expr ToTupleType(const Type& ty, const std::vector<Expr>& exprs);
 extern std::vector<Expr> FromTupleType(const Type& type, const Expr& expr);
 extern std::vector<TensorType> FlattenTupleType(const Type& type);
@@ -56,25 +56,15 @@ extern std::vector<TensorType> FlattenTupleType(const Type& type);
 using AnalysisResultMap =
     std::unordered_map<Expr, TVMContext, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 
-inline Constant MakeConstant(int64_t value) {
-  auto tensor = NDArray::Empty({}, {kDLInt, 64, 1}, {kDLCPU, 0});
-  reinterpret_cast<int64_t*>(tensor->data)[0] = value;
-  return std::move(Constant(tensor));
-}
-
 inline Constant MakeConstant(const std::vector<int64_t>& value) {
-  auto tensor = NDArray::Empty({static_cast<int>(value.size())}, {kDLInt, 64, 1}, {kDLCPU, 0});
-  for (size_t i = 0; i < value.size(); i++) {
-    reinterpret_cast<int64_t*>(tensor->data)[i] = value[i];
-  }
-  return std::move(Constant(tensor));
+  return MakeConstantTensor(DataType::Int(64), {static_cast<int64_t>(value.size())}, value);
 }
 
 inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dtype,
                         Array<IndexExpr> assert_shape) {
   auto f = runtime::Registry::Get("relay.op.memory._make.alloc_tensor");
   CHECK(f != nullptr) << "unable to find alloc_tensor op";
-  auto offset = MakeConstant(0);
+  auto offset = MakeConstantScalar(DataType::Int(64), 0);
   return (*f)(storage, offset, shape, dtype, assert_shape);
 }
 
@@ -118,13 +108,16 @@ class DialectRewriter : public ExprMutator {
   DialectRewriter(const Target& target_host, const AnalysisResultMap& context_analysis_map)
       : target_host_(target_host),
         context_analysis_map_(context_analysis_map),
-        scopes_{LetList()},
         device_copy_(runtime::Registry::Get("relay.op._make.device_copy")),
         invoke_tvm_(runtime::Registry::Get("relay.op.vm.invoke_tvm_op")),
         alloc_storage_(runtime::Registry::Get("relay.op.memory._make.alloc_storage")),
         shape_func_(runtime::Registry::Get("relay.op.vm.shape_func")),
         shape_of_(runtime::Registry::Get("relay.op.vm.shape_of")),
-        reshape_tensor_(runtime::Registry::Get("relay.op.vm.reshape_tensor")) {}
+        reshape_tensor_(runtime::Registry::Get("relay.op.vm.reshape_tensor")),
+        prod_(runtime::Registry::Get("relay.op._make.prod")),
+        divide_(runtime::Registry::Get("relay.op._make.divide")),
+        add_(runtime::Registry::Get("relay.op._make.add")),
+        multiply_(runtime::Registry::Get("relay.op._make.multiply")) {}
 
   // Get the context of an expression.
   TVMContext GetContext(const Expr& expr) const {
@@ -259,24 +252,16 @@ class DialectRewriter : public ExprMutator {
     if (align < 64) {
       align = 64;
     }
-    return MakeConstant(align);
+    return MakeConstantScalar(DataType::Int(64), align);
   }
 
   Expr ComputeStorageInRelay(const Expr& shape, const TensorType& type) const {
     auto dtype = DataType(type->dtype);
-    auto fp = runtime::Registry::Get("relay.op._make.prod");
-    CHECK(fp) << "cannot find operator prod from the registry";
-    auto fa = runtime::Registry::Get("relay.op._make.add");
-    CHECK(fa) << "cannot find operator add from the registry";
-    auto fd = runtime::Registry::Get("relay.op._make.divide");
-    CHECK(fd) << "cannot find operator devide from the registry";
-    auto fm = runtime::Registry::Get("relay.op._make.multiply");
-    CHECK(fm) << "cannot find operator multiply from the registry";
-    Expr els = (*fp)(shape, Array<Expr>(nullptr), false, false);
-    Expr num = MakeConstant(dtype.bits() * dtype.lanes());
-    Expr add = (*fa)(num, MakeConstant(7));
-    Expr div = MakeConstant(8);
-    Expr ret = (*fm)(els, (*fd)(add, div));
+    Expr els = (*prod_)(shape, Array<Expr>(nullptr), false, false);
+    Expr num = MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
+    Expr add = (*add_)(num, MakeConstantScalar(DataType::Int(64), 7));
+    Expr div = MakeConstantScalar(DataType::Int(64), 8);
+    Expr ret = (*multiply_)(els, (*divide_)(add, div));
     return std::move(ret);
   }
 
@@ -288,7 +273,7 @@ class DialectRewriter : public ExprMutator {
       size *= val->value;
     }
     size *= (type->dtype.bits() * type->dtype.lanes() + 7) / 8;
-    return std::move(MakeConstant(size));
+    return std::move(MakeConstantScalar(DataType::Int(64), size));
   }
 
   // Allocate a tensor with a statically known shape.
@@ -445,6 +430,10 @@ class DialectRewriter : public ExprMutator {
   const PackedFunc* shape_func_;
   const PackedFunc* shape_of_;
   const PackedFunc* reshape_tensor_;
+  const PackedFunc* prod_;
+  const PackedFunc* divide_;
+  const PackedFunc* add_;
+  const PackedFunc* multiply_;
 
   runtime::DataType compute_dtype_ = runtime::DataType::Int(64);
   TVMContext default_context_{kDLCPU, 0};
@@ -477,8 +466,6 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
         }
         auto ca = ContextAnalysis(mod, fallback_ctx);
 
-        // pass_ctx->diag_ctx = DiagnosticContext::Default(mod);
-
         auto glob_funcs = mod->functions;
         for (const auto& it : glob_funcs) {
           if (auto* func_node = it.second.as<FunctionNode>()) {
@@ -486,7 +473,6 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
             auto rewriter = DialectRewriter(target_host, ca);
             auto updated_func = rewriter.Rewrite(func);
 
-            // pass_ctx->diag_ctx.value().Render();
             mod->Update(it.first, updated_func);
           }
         }
