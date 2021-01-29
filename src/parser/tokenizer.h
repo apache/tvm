@@ -212,6 +212,19 @@ struct Tokenizer {
     }
   }
 
+  Token NegateNumToken(Token tok) {
+    if (tok->token_type == TokenType::kInteger) {
+      auto val = Downcast<tvm::Integer>(tok->data);
+      ICHECK(val.defined());
+      tok->data = tvm::Integer(-val->value);
+    } else if (tok->token_type == TokenType::kFloat) {
+      auto val = Downcast<tvm::FloatImm>(tok->data);
+      ICHECK(val.defined());
+      tok->data = tvm::FloatImm(DataType::Float(32), -val->value);
+    }
+    return tok;
+  }
+
   bool MatchString(const std::string& string) {
     int start = this->pos;
 
@@ -507,7 +520,9 @@ struct Tokenizer {
       auto it = KEYWORD_TABLE.find(keyword);
 
       TokenType token_type;
-      if (it != KEYWORD_TABLE.end()) {
+      if (keyword == "inff") {
+        return ParseNumber(true, true, keyword);
+      } else if (it != KEYWORD_TABLE.end()) {
         token_type = it->second;
 
         if (token_type == TokenType::kMatch) {
@@ -521,12 +536,6 @@ struct Tokenizer {
       }
 
       auto span = SpanFrom(line, col);
-
-      if (keyword == "inff") {
-        float inf = std::numeric_limits<float>::max();
-        return Token(span, TokenType::kFloat, tvm::FloatImm(DataType::Float(32), inf));
-      }
-
       return Token(span, token_type, tvm::String(ss.str()));
     } else {
       std::stringstream ss;
@@ -544,6 +553,17 @@ struct Tokenizer {
     while (this->More()) {
       auto token = TokenizeOnce();
       ICHECK(token.defined());
+      if (this->tokens.size() > 0) {
+        auto prev_token = this->tokens.back();
+        ICHECK(prev_token.defined());
+        if (prev_token->token_type == TokenType::kMinus && !prev_token->data.defined()) {
+          ICHECK(token->token_type == TokenType::kFloat || token->token_type == TokenType::kInteger)
+              << "Expects a number after -";
+          this->tokens.pop_back();
+          this->tokens.push_back(NegateNumToken(token));
+          continue;
+        }
+      }
       this->tokens.push_back(token);
     }
     this->tokens.push_back(NewToken(TokenType::kEndOfFile));

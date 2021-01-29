@@ -912,13 +912,12 @@ def test_load_prelude():
 
 def test_tokenize_inf():
     x = relay.var("x", shape=(3, 4), dtype="float32")
-    y = relay.clip(x, 0.5, np.inf)
+    y = relay.clip(x, -np.inf, np.inf)
 
     f = relay.Function([x], y)
     mod = tvm.IRModule.from_expr(f)
 
     mod = relay.transform.AnnotateSpans()(mod)
-
 
 if __name__ == "__main__":
     import sys
