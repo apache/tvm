@@ -22,13 +22,17 @@
  * \brief C++ wrappers and helpers to handle BNNS objects
  */
 
+#ifndef TVM_RUNTIME_CONTRIB_BNNS_BNNS_WRP_H_
+#define TVM_RUNTIME_CONTRIB_BNNS_BNNS_WRP_H_
+
+#include <Accelerate/Accelerate.h>
+
 #include <vector>
 #include <tuple>
 #include <memory>
 #include <algorithm>
+#include <functional>
 #include <numeric>
-
-#include <Accelerate/Accelerate.h>
 
 namespace tvm {
 namespace runtime {
@@ -68,7 +72,7 @@ class Tensor {
         {}, {},   // shape and strides
         hdl,      // data handler
         dtype,    // data type
-        nullptr, dtype, 1.f, 0.f // table_data (clustering case), is not used
+        nullptr, dtype, 1.f, 0.f  // table_data (clustering case), is not used
     };
     std::copy(shape.rbegin(), shape.rend(), std::begin(desc_.size));
 
@@ -177,7 +181,7 @@ class TView {
     res.view_desc_.size[rank - 1] = 0;
     res.view_desc_.layout = Tensor::getPlainLayout(rank - 1);
     return res;
-  };
+  }
 
   /** Squeeze all dims equal 1 */
   TView squeeze(size_t min_rank = 1) const {
@@ -198,7 +202,7 @@ class TView {
     std::fill(res.view_desc_.size + squeezed_rank, res.view_desc_.size + rank, 0);
     res.view_desc_.layout = Tensor::getPlainLayout(squeezed_rank);
     return res;
-  };
+  }
 
   /** Construct new TView with specified layout if it applicable */
   TView with_layout(BNNSDataLayout layout) const {
@@ -249,7 +253,7 @@ class TView {
   size_t get_stride() const { return batch_stride_; }
 
   /** Return party element by index */
-  TView operator [](size_t i) const {
+  TView operator[](size_t i) const {
     ICHECK_LT(i, party_size_);
 
     TView res = *this;
@@ -417,3 +421,4 @@ static std::tuple<std::vector<BNNSLayerParametersConvolution>, TView, TView> spl
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
+#endif  // TVM_RUNTIME_CONTRIB_BNNS_BNNS_WRP_H_

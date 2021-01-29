@@ -271,7 +271,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     std::tie(params, src_view, dst_view) = split_to_n(num_sub_prim, conv_param,
                                                       src_view, wgh_view, bias_view, dst_view);
 
-    std::vector<BNNSFilter> filters (params.size(), nullptr);
+    std::vector<BNNSFilter> filters(params.size(), nullptr);
     for (int i = 0; i < params.size(); i++) {
       auto common_filter_param = getCommonFilterParams();
       filters[i] = BNNSFilterCreateLayerConvolution(&params[i], &common_filter_param);
@@ -374,9 +374,11 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     std::vector<BNNSFilter> filters {filter};
     if (a_is_weighted || b_is_weighted) {
       auto src_view = a_is_weighted ? b_view : a_view;
-      primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
+      primitives_.emplace_back(
+          std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
     } else {
-      primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, a_view, b_view, dst_view));
+      primitives_.emplace_back(
+          std::make_shared<BNNS::Primitive>(filters, a_view, b_view, dst_view));
     }
   }
 
@@ -429,6 +431,6 @@ TVM_REGISTER_GLOBAL("runtime.BNNSJSONRuntimeCreate")
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_bnns_json")
     .set_body_typed(BNNSJSONRuntime::LoadFromBinary<BNNSJSONRuntime>);
 
-}
+}  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
