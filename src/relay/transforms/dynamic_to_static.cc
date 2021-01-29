@@ -52,7 +52,11 @@ Expr PrepareInput(const Expr& expr) {
 std::vector<Expr> PrepareArgs(const CallNode* call_node) {
   std::vector<Expr> args;
   for (auto arg : call_node->args) {
-    args.emplace_back(PrepareInput(arg));
+    if (arg.as<ConstantNode>()) {
+      args.emplace_back(arg);
+    } else {
+      args.emplace_back(PrepareInput(arg));
+    }
   }
   return args;
 }
