@@ -17,17 +17,11 @@
 """BNNS integration conv2d tests."""
 
 import numpy as np
-
+import pytest
 import tvm
 from tvm import relay
 
-from .infrastructure import Device
-from .infrastructure import (
-    skip_runtime_test,
-    build_and_run,
-    verify,
-    generate_trials,
-)
+from .infrastructure import skip_runtime_test, compare_inference_with_ref, generate_trials
 
 # TODO: Missed cases
 #   1. Bias as add with 3d const tensor. Lead to additional unsqueeze op between
@@ -38,27 +32,28 @@ from .infrastructure import (
 
 def _get_model(
     shape,
-    kernel_h,
-    kernel_w,
-    padding,
-    strides,
-    dilation,
-    groups,
-    dtype,
-    channels,
-    var_names,
+    kernel=(3, 3),
+    padding=(1, 1),
+    strides=(1, 1),
+    dilation=(1, 1),
+    groups=1,
+    dtype="float32",
+    channels=-1,  # -1 means same as input channels
     bias_type='none',
     activation_type='none',
 ):
     """Return a model and any parameters it may have"""
-    a = relay.var(next(var_names), shape=shape, dtype=dtype)
-    weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
+    if channels == -1:
+        channels = shape[1]
+
+    a = relay.var("a", shape=shape, dtype=dtype)
+    weight_shape = (channels, shape[1] // groups, *kernel)
     w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
     weights = relay.const(w, dtype)
     out = relay.nn.conv2d(
         a,
         weights,
-        kernel_size=(kernel_h, kernel_w),
+        kernel_size=kernel,
         dilation=dilation,
         strides=strides,
         padding=padding,
@@ -84,11 +79,8 @@ def _get_model(
     return out, params
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_conv2d():
-    if skip_runtime_test():
-        return
-
-    device = Device()
     np.random.seed(0)
 
     kernel_hs = [1, 2, 3, 5]
@@ -102,199 +94,61 @@ def test_conv2d():
     groups = [1, 2]
     bias_kind = ['none', 'add_3d', 'add_4d', 'bias.add']
     activation_kind = ['none', 'relu']
-    dtype = "float32"
     trials = generate_trials(
         [kernel_hs, kernel_ws, pad, strides, dilation, out_channels, input_shapes,
          groups, batches, bias_kind, activation_kind], 3
     )
 
     for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, group, batch, bias, activation in trials:
-        shape = (batch, *input_shapes)
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(np.random.uniform(0, 127, shape).astype(dtype)),
-        }
-
         func, params = _get_model(
-            shape,
-            kernel_h,
-            kernel_w,
-            pad,
-            stride,
-            dilation,
-            group,
-            dtype,
-            out_channels,
-            iter(inputs),
+            shape=(batch, *input_shapes),
+            kernel=(kernel_h, kernel_w),
+            padding=pad,
+            strides=stride,
+            dilation=dilation,
+            groups=group,
+            channels=out_channels,
             bias_type=bias,
             activation_type=activation,
         )
-        for bnns in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
-
-        config = {
-            "shape": shape,
-            "group": group,
-            "kernel size": (kernel_h, kernel_w),
-            "padding": pad,
-            "stride": stride,
-            "dilation": dilation,
-            "out channels": out_channels,
-            "bias": bias,
-            "activation": activation
-        }
-        verify(outputs, atol=0.002, rtol=0.007, config=config)
+        compare_inference_with_ref(func, params)
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_conv2d_dw():
     if skip_runtime_test():
         return
 
-    device = Device()
     np.random.seed(0)
-    dtype = "float32"
     shape = [4, 5, 5]
-    kernel = [3, 3]
-    pad = [1, 1]
 
     for batch in [1, 2]:
-        i_shape = (batch, *shape)
-        channels = shape[0]
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(np.random.uniform(0, 127, i_shape).astype(dtype)),
-        }
-
-        a = relay.var("a", shape=i_shape, dtype=dtype)
-        weight_shape = [channels, 1, *kernel]
-        w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
-        weights = relay.const(w, dtype)
-        func = relay.nn.conv2d(
-            a,
-            weights,
-            kernel_size=kernel,
-            padding=pad,
-            groups=channels,
-            channels=channels,
-            out_dtype=dtype,
+        mod, params = _get_model(
+            shape=(batch, *shape),
+            groups=shape[0]
         )
-        params = {"w": w}
-
-        for bnns in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
-
-        config = {
-            "batch": batch,
-            "shape": shape,
-            "kernel size": kernel,
-            "padding": pad,
-            "out channels": channels,
-        }
-        verify(outputs, atol=0.002, rtol=0.007, config=config)
+        compare_inference_with_ref(mod, params)
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_conv2d_with_oc1():
     if skip_runtime_test():
         return
 
-    device = Device()
     np.random.seed(0)
-    dtype = "float32"
     shape = [3, 5, 5]
-    kernel = [3, 3]
-    pad = [1, 1]
-    oc = 1  # <= test on conv with one output channel
 
     for batch in [1, 2]:
-        i_shape = (batch, *shape)
-        ic = shape[0]
-        inputs = {
-            "a": tvm.nd.array(np.random.uniform(0, 127, i_shape).astype(dtype)),
-        }
-
-        a = relay.var("a", shape=i_shape, dtype=dtype)
-        weight_shape = [oc, ic, *kernel]
-        w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
-        weights = relay.const(w, dtype)
-        func = relay.nn.conv2d(
-            a,
-            weights,
-            kernel_size=kernel,
-            padding=pad,
-            groups=1,
-            channels=oc,
-            out_dtype=dtype,
-        )
-        params = {"w": w}
-
-        outputs = []
-        for bnns in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
-
-        config = {
-            "batch": batch,
-            "shape": shape,
-            "kernel size": kernel,
-            "padding": pad,
-            "out channels": oc,
-        }
-        verify(outputs, atol=0.002, rtol=0.007, config=config)
-
-
-def test_conv2d_with_scalar_bias():
-    if skip_runtime_test():
-        return
-
-    device = Device()
-    np.random.seed(0)
-    dtype = "float32"
-    shape = [3, 5, 5]
-    kernel = [3, 3]
-    pad = [1, 1]
-    oc = 1
-
-    for batch in [1, 2]:
-        i_shape = (batch, *shape)
-        ic = shape[0]
-        inputs = {
-            "a": tvm.nd.array(np.random.uniform(0, 127, i_shape).astype(dtype)),
-        }
-        params = {}
-
-        a = relay.var("a", shape=i_shape, dtype=dtype)
-        weight_shape = [oc, ic, *kernel]
-        w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
-        weights = relay.const(w, dtype)
-        func = relay.nn.conv2d(
-            a,
-            weights,
-            kernel_size=kernel,
-            padding=pad,
-            groups=1,
-            channels=oc,
-            out_dtype=dtype,
-        )
-        params["w"] = w
-
-        b = tvm.nd.array(np.random.uniform(-10, 10, [1, oc, 1, 1]).astype(dtype))   # <= Check with 1, 1, 1, 1 version of bias
-
-        bias = relay.const(b, dtype)
-        func = relay.add(func, bias)
-        params["b"] = b
-
-        outputs = []
-        for bnns in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
-
-        config = {
-            "batch": batch,
-            "shape": shape,
-            "kernel size": kernel,
-            "padding": pad,
-            "out channels": oc,
-        }
-        verify(outputs, atol=0.002, rtol=0.007, config=config)
+        for bias in ["none", "add_4d"]:
+            mod, params = _get_model(
+                shape=(batch, *shape),
+                channels=1,
+                bias_type=bias
+            )
+            compare_inference_with_ref(mod, params)
 
 
 if __name__ == "__main__":
     test_conv2d()
+    test_conv2d_dw()
+    test_conv2d_with_oc1()

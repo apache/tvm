@@ -29,6 +29,7 @@ from tvm.contrib import graph_runtime
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.contrib import utils
 from tvm.autotvm.measure import request_remote
+from tvm.relay.analysis import analysis
 
 
 class Device:
@@ -265,6 +266,33 @@ def verify_codegen(
             f"Actual={codegen_str} \n"
             f"Expected={known_good_codegen_str}"
         )
+
+
+def compare_inference_with_ref(func, params, atol=0.002, rtol=0.007):
+    """Compare scoring results for compilation with and without BNNS.
+
+    Provided function will be compiled two times with and without BNNS.
+    The scoring results for both type of compilation will be compared
+    with provided atol and rtol. The input data will be automatically
+    generated based of shape and dtype info provided for var nodes.
+
+    """
+    # Generate input tensor values
+    inputs = {}
+    for free_param in analysis.free_vars(func):
+        name = free_param.name_hint
+        dtype = free_param.type_annotation.dtype
+        shape = [s.value for s in free_param.type_annotation.shape]
+        inputs[name] = tvm.nd.array(np.random.uniform(0, 127, shape).astype(dtype))
+
+    # Run for both type of compilation
+    device = Device()
+    outputs = []
+    for bnns in [False, True]:
+        outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
+
+    # Compare result tensors
+    verify(outputs, atol=atol, rtol=rtol)
 
 
 def generate_trials(space, r_factor=3):
