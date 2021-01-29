@@ -4225,9 +4225,6 @@ unsupported_onnx_tests = [
     "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
     "test_resize_upsample_sizes_nearest_floor_align_corners/",
     "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric/",
-    # ----
-    "test_reversesequence_batch/",
-    "test_reversesequence_time/",
     "test_rnn_seq_length/",
     "test_round/",
     "test_scan9_sum/",
@@ -4350,6 +4347,44 @@ def test_aten():
     verify_embedding_bag(32, 2, [3, 3])
 
 
+def verify_reverse_sequence(x, sequence_lens, batch_axis, time_axis):
+    node = onnx.helper.make_node(
+        "ReverseSequence",
+        inputs=["x", "sequence_lens"],
+        outputs=["y"],
+        time_axis=time_axis,
+        batch_axis=batch_axis,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "reverse_sequence_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
+            helper.make_tensor_value_info(
+                "sequence_lens", TensorProto.INT64, list(sequence_lens.shape)
+            ),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="reverse_sequence_test")
+    verify_with_ort_with_inputs(model, [x, sequence_lens], [x.shape])
+
+
+@tvm.testing.uses_gpu
+def test_reverse_sequence():
+    x = np.array(
+        [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]],
+        dtype=np.float32,
+    )
+    sequence_lens = np.array([1, 2, 3, 4], dtype=np.int64)
+    verify_reverse_sequence(x, sequence_lens, 0, 1)
+
+    sequence_lens = np.array([4, 3, 2, 1], dtype=np.int64)
+    verify_reverse_sequence(x, sequence_lens, 1, 0)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4430,3 +4465,4 @@ if __name__ == "__main__":
     test_cumsum()
     test_wrong_input()
     test_aten()
+    test_reverse_sequence()
