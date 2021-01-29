@@ -115,7 +115,7 @@ runtime::Module VerilatorCompiler(const ObjectRef& ref) {
 
   auto lib_name = cfg.value()->lib;
 
-  const auto* pf = runtime::Registry::Get("runtime.VerilatorJSONRuntimeCreate");
+  const auto* pf = runtime::Registry::Get("runtime.verilator_runtime_create");
   CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
   auto mod = (*pf)(lib_name, func_name, graph_json, params);
   return mod;
