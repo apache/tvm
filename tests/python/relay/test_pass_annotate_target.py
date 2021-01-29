@@ -837,13 +837,18 @@ def test_annotate_within_let():
         sum_expr = relay.annotation.compiler_end(relay.add(called_a_1, called_a_2), "default")
         annotate_sum = relay.annotation.compiler_begin(sum_expr, "default")
 
+        # s appears by itself and is its own annotated region
+        s_expr = relay.annotate_compiler_begin(s, "default")
+        annotate_s  = relay.annotate_compiler_end(s_expr, "default")
+
         f = relay.Function(
             [],
             relay.Let(
                 x,
                 annotate_const,
                 relay.Let(
-                    r, annotate_relu, relay.Let(a, annotate_abs, relay.Let(s, annotate_sum, s))
+                    r, annotate_relu, relay.Let(a, annotate_abs,
+                                                relay.Let(s, annotate_sum, annotate_s)),
                 ),
             ),
         )
