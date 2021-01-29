@@ -169,7 +169,7 @@ struct Tokenizer {
     }
   }
 
-  Token ParseNumber(bool is_float, std::string number) {
+  Token ParseNumber(bool is_pos, bool is_float, std::string number) {
     ICHECK(number.size() > 0) << "an empty string is an invalid number";
 
     try {
@@ -182,6 +182,7 @@ struct Tokenizer {
       if (number.size() > index) {
         throw std::invalid_argument("floating point");
       }
+      value = is_pos ? value : -value;
       token->data = tvm::Integer(value);
       return token;
     } catch (const std::invalid_argument& ia) {
@@ -205,9 +206,29 @@ struct Tokenizer {
       }
 
       double value = stod(literal_text);
+      value = is_pos ? value : -value;
       token->data = tvm::FloatImm(DataType::Float(width), value);
       return token;
     }
+  }
+
+  Token ParseNumber(bool is_pos) {
+    std::stringstream ss;
+    while (More() && IsNumeric(Peek())) {
+      ss << Next();
+    }
+
+    bool is_float = false;
+
+    // Remove trailing floating point prefix.
+    if (More() && Peek() == 'f') {
+      ss << Next();
+      while (More() && IsNumeric(Peek())) {
+        ss << Next();
+      }
+      is_float = true;
+    }
+    return ParseNumber(is_pos, is_float, ss.str());
   }
 
   bool MatchString(const std::string& string) {
@@ -247,7 +268,7 @@ struct Tokenizer {
     ICHECK_EQ(Peek(), ']');
     Next();
     // todo: add error handling around bad indices
-    auto index = ParseNumber(false, str_index.str()).ToNumber();
+    auto index = ParseNumber(true, false, str_index.str()).ToNumber();
     auto span = SpanFrom(line, column);
     return Token(span, TokenType::kMetaReference, MetaRef(type_key.str(), index));
   }
@@ -338,23 +359,28 @@ struct Tokenizer {
       auto token = NewToken(TokenType::kWhitespace);
       Next();
       return token;
+    } else if (next == '-') {
+      int negs = 0;
+      while (More() && Peek() == '-') {
+        Next();
+        negs++;
+      }
+      bool is_neg = negs % 2 == 1;
+      if (More() && IsDigit(Peek())) {
+        return ParseNumber(!is_neg);
+      } else if (More() && MatchString("inff")) {
+        return ParseNumber(!is_neg, true, "inff");
+      } else {
+        // If there isn't a number right after either,
+        // this is really slow for lexing, should replace
+        // with multi-token return or something.
+        pos = pos - (negs - 1);
+        return NewToken(TokenType::kMinus);
+      }
     } else if (IsDigit(next)) {
-      std::stringstream ss;
-      while (More() && IsNumeric(Peek())) {
-        ss << Next();
-      }
-
-      bool is_float = false;
-
-      // Remove trailing floating point prefix.
-      if (More() && Peek() == 'f') {
-        ss << Next();
-        while (More() && IsNumeric(Peek())) {
-          ss << Next();
-        }
-        is_float = true;
-      }
-      return ParseNumber(is_float, ss.str());
+      return ParseNumber(true);
+    } else if (MatchString("inff")) {
+      return ParseNumber(true, true, "inff");
     } else if (next == '.') {
       auto token = NewToken(TokenType::kPeriod);
       Next();
@@ -385,10 +411,6 @@ struct Tokenizer {
       return token;
     } else if (next == '+') {
       auto token = NewToken(TokenType::kPlus);
-      Next();
-      return token;
-    } else if (next == '-') {
-      auto token = NewToken(TokenType::kMinus);
       Next();
       return token;
     } else if (next == '*') {
@@ -446,7 +468,7 @@ struct Tokenizer {
 
       auto number_str = number.str();
       if (number_str.size()) {
-        auto num_tok = ParseNumber(false, number_str);
+        auto num_tok = ParseNumber(true, false, number_str);
         auto span = SpanFrom(token->span->line, token->span->column);
         token = Token(span, TokenType::kGraph, num_tok->data);
       }
@@ -490,9 +512,7 @@ struct Tokenizer {
       auto it = KEYWORD_TABLE.find(keyword);
 
       TokenType token_type;
-      if (keyword == "inff") {
-        return ParseNumber(true, keyword);
-      } else if (it != KEYWORD_TABLE.end()) {
+      if (it != KEYWORD_TABLE.end()) {
         token_type = it->second;
 
         if (token_type == TokenType::kMatch) {
@@ -518,49 +538,11 @@ struct Tokenizer {
     }
   }
 
-  Token NegateNumToken(Token tok) {
-    if (tok->token_type == TokenType::kInteger) {
-      auto val = Downcast<tvm::Integer>(tok->data);
-      ICHECK(val.defined());
-      tok->data = tvm::Integer(-val->value);
-    } else if (tok->token_type == TokenType::kFloat) {
-      auto val = Downcast<tvm::FloatImm>(tok->data);
-      ICHECK(val.defined());
-      tok->data = tvm::FloatImm(DataType::Float(32), -val->value);
-    }
-    return tok;
-  }
-
-  Token HandleTrailingNegation(Token tok) {
-    auto prev_token = this->tokens.back();
-    int num_trailing_neg = 0;
-    while (prev_token->token_type == TokenType::kMinus) {
-      ++num_trailing_neg;
-      this->tokens.pop_back();
-      if (this->tokens.size() == 0) break;
-      prev_token = this->tokens.back();
-      ICHECK(prev_token.defined());
-    }
-    if (num_trailing_neg % 2 == 1) {
-      return NegateNumToken(tok);
-    }
-    return tok;
-  }
-
   void Tokenize() {
     DLOG(INFO) << "tvm::parser::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
       ICHECK(token.defined());
-      if (this->tokens.size() > 0) {
-        auto prev_token = this->tokens.back();
-        ICHECK(prev_token.defined());
-        if (prev_token->token_type == TokenType::kMinus &&
-            (token->token_type == TokenType::kFloat || token->token_type == TokenType::kInteger)) {
-          this->tokens.push_back(HandleTrailingNegation(token));
-          continue;
-        }
-      }
       this->tokens.push_back(token);
     }
     this->tokens.push_back(NewToken(TokenType::kEndOfFile));
