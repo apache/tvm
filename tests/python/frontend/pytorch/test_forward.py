@@ -18,6 +18,7 @@
 """Unit tests for various models and operators"""
 from time import time
 import os
+import random
 import sys
 from scipy.stats import t as tdistr
 import numpy as np
@@ -3142,6 +3143,36 @@ def test_forward_index():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Index1().eval(), input_data=input_data)
+
+    input_data = torch.rand([3, 4, 2]).float()
+    targets = ["llvm", "cuda"]
+
+    index_inputs = []
+    index_inputs.append(torch.LongTensor(3, 4).random_(0, 2).bool())
+    index_inputs.append(
+        (
+            torch.LongTensor(
+                3,
+            )
+            .random_(0, 2)
+            .bool()
+        )
+    )
+
+    class Index2(Module):
+        def forward(self, *args):
+            return args[0][args[1]]
+
+    for index in index_inputs:
+        verify_trace_model(Index2().eval(), [input_data, index], targets)
+
+    mask_list = [bool(random.getrandbits(1)) for _ in range(input_data.shape[0])]
+
+    class Index3(Module):
+        def forward(self, *args):
+            return args[0][mask_list]
+
+    verify_trace_model(Index3().eval(), [input_data], targets)
 
 
 def test_logsumexp():

@@ -255,6 +255,8 @@ class PyTorchOpConverter:
     def make_elemwise(self, name):
         def elemwise(inputs, input_types):
             data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+            # if name == "subtract":
+            #     print("Subtract " , data0, data1)
             return get_relay_op(name)(data0, data1)
 
         return elemwise
@@ -1855,6 +1857,34 @@ class PyTorchOpConverter:
     def index(self, inputs, input_types):
         data = inputs[0]
         indices = inputs[1]
+        indices_infered = self.infer_type(indices[0])
+        if indices_infered.dtype == "bool":
+            len_data_shape = len(self.infer_shape(data))
+            len_indices_shape = len(self.infer_shape(indices[0]))
+            if len_indices_shape == 0:
+                return data
+
+            assert len_data_shape >= len_indices_shape
+
+            if len_data_shape > len_indices_shape:
+                shape_len_diff = len_data_shape - len_indices_shape
+                ones = _op.ones(shape_len_diff, dtype="int32")
+                new_indices_shape = _op.concatenate((_op.shape_of(indices[0]), ones), axis=0)
+                strided_shapes = _op.strided_slice(
+                    _op.shape_of(data), begin=[len_indices_shape], end=[-1], slice_mode="size"
+                )
+                result_shape = _op.concatenate((_expr.const([-1]), strided_shapes), axis=0)
+            else:
+                new_indices_shape = _op.shape_of(indices[0])
+                result_shape = _expr.const([-1])
+
+            new_indices = _op.cast_like(_op.reshape(indices[0], new_indices_shape), data)
+            inter_result = _op.reshape(_op.multiply(data, new_indices), (-1,))
+            reshaped_data = _op.reshape(data, (-1,))
+            result = _op.reshape(_op.take(reshaped_data, _op.argwhere(inter_result)), result_shape)
+
+            return result
+
         return _op.adv_index([data] + indices)
 
     def meshgrid(self, inputs, input_types):
