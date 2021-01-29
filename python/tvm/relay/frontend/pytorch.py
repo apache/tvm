@@ -255,8 +255,6 @@ class PyTorchOpConverter:
     def make_elemwise(self, name):
         def elemwise(inputs, input_types):
             data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
-            # if name == "subtract":
-            #     print("Subtract " , data0, data1)
             return get_relay_op(name)(data0, data1)
 
         return elemwise
