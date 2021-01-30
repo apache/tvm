@@ -206,7 +206,7 @@ class IRBuilder(object):
             value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, name="i", dtype="int32", kind="serial"):
+    def for_range(self, begin, end, test=None, name="i", dtype="int32", kind="serial"):
         """Create a for iteration scope.
 
         Parameters
