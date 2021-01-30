@@ -1451,7 +1451,7 @@ class ArgMax(OnnxOpConverter):
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
-        return AttrCvt("argmax")(inputs, attr)
+        return _op.cast(AttrCvt("argmax")(inputs, attr), "int64")
 
 
 class ArgMin(OnnxOpConverter):
@@ -1462,7 +1462,7 @@ class ArgMin(OnnxOpConverter):
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
-        return AttrCvt("argmin")(inputs, attr)
+        return _op.cast(AttrCvt("argmin")(inputs, attr), "int64")
 
 
 class Softmax(OnnxOpConverter):
@@ -2000,7 +2000,7 @@ class TopK(OnnxOpConverter):
         if largest == 0:
             raise ValueError("TVM only supports finding TopK largest elements")
 
-        return _op.topk(inputs[0], inputs[1], axis=axis)
+        return _op.topk(inputs[0], inputs[1], axis=axis, dtype="int64")
 
 
 class Range(OnnxOpConverter):

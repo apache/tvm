@@ -19,4 +19,3 @@
 # transformation passes
 from .transform import *
 from .recast import recast
-from . import memory_alloc
