@@ -36,41 +36,6 @@ from .main import register_parser
 logger = logging.getLogger("TVMC")
 
 
-def parse_shape(inputs):
-    """Parse an input shape dictionary string to a usable dictionary.
-
-    Parameters
-    ----------
-    inputs: str
-        A string of the form "name:num1xnum2x...xnumN,name2:num1xnum2xnum3" that indicates
-        the desired shape for specific model inputs.
-
-    Returns
-    -------
-    shape_dict: dict
-        A dictionary mapping input names to their shape for use in relay frontend converters.
-    """
-    d = {}
-    # Break apart each specific input string
-    inputs = inputs.split(",")
-    for string in inputs:
-        # Split name from shape string.
-        string = string.split(":")
-        shapelist = []
-        # Separate each dimension in the shape.
-        string[1] = string[1].split("x")
-        # Parse each dimension into an integer.
-        for x in string[1]:
-            x = int(x)
-            # Negative numbers are converted to dynamic axes.
-            if x < 0:
-                x = relay.Any()
-            shapelist.append(x)
-        # Assign dictionary key value pair.
-        d[string[0]] = shapelist
-    return d
-
-
 @register_parser
 def add_compile_parser(subparsers):
     """ Include parser for 'compile' subcommand """
@@ -126,7 +91,7 @@ def add_compile_parser(subparsers):
         "--shapes",
         help="specify non-generic shapes for model to run, format is"
         "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
-        type=parse_shape,
+        type=common.parse_shape_string,
         default=None,
     )
 

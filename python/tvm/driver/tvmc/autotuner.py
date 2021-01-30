@@ -210,6 +210,13 @@ def add_tune_parser(subparsers):
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
+    parser.add_argument(
+        "--shapes",
+        help="specify non-generic shapes for model to run, format is"
+        "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
+        type=common.parse_shape_string,
+        default=None,
+    )
 
 
 def drive_tune(args):
@@ -235,7 +242,7 @@ def drive_tune(args):
             )
 
     target = common.target_from_cli(args.target)
-    mod, params = frontends.load_model(args.FILE, args.model_format)
+    mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.shapes)
 
     # min_repeat_ms should be:
     # a. the value provided by the user, if any, or

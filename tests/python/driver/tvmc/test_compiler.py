@@ -58,8 +58,8 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
     # Check with manual shape override
     shape_string = "input:1x224x224x3"
-    shape_dict = tvmc.compiler.parse_shape(shape_string)
-    verify_compile_onnx_module(tflite_mobilenet_v1_1_quant, shape_dict)
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
@@ -141,7 +141,7 @@ def test_compile_onnx_module(onnx_resnet50):
     verify_compile_onnx_module(onnx_resnet50)
     # Test with manual shape dict
     shape_string = "data:1x3x200x200"
-    shape_dict = tvmc.compiler.parse_shape(shape_string)
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
     verify_compile_onnx_module(onnx_resnet50, shape_dict)
 
 

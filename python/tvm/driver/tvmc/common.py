@@ -17,8 +17,10 @@
 """
 Common utility functions shared by TVMC modules.
 """
+import re
 import logging
 import os.path
+import argparse
 
 from urllib.parse import urlparse
 
@@ -136,3 +138,46 @@ def tracker_host_port_from_cli(rpc_tracker_str):
         logger.info("RPC tracker port: %s", rpc_port)
 
     return rpc_hostname, rpc_port
+
+
+def parse_shape_string(inputs):
+    """Parse an input shape dictionary string to a usable dictionary.
+
+    Parameters
+    ----------
+    inputs: str
+        A string of the form "name:num1xnum2x...xnumN,name2:num1xnum2xnum3" that indicates
+        the desired shape for specific model inputs.
+
+    Returns
+    -------
+    shape_dict: dict
+        A dictionary mapping input names to their shape for use in relay frontend converters.
+    """
+    inputs = inputs.replace(" ", "")
+    # Check if the passed input is in the proper format.
+    valid_pattern = re.compile("(\w+:(\d+(x|X))*(\d)+)(,(\w+:(\d+(x|X))*(\d)+))*")
+    result = re.fullmatch(valid_pattern, inputs)
+    if result is None:
+        raise argparse.ArgumentTypeError(
+            "--shapes argument must be of the form 'input_name:dim1xdim2x...xdimN,input_name2:dim1xdim2"
+        )
+    d = {}
+    # Break apart each specific input string
+    inputs = inputs.split(",")
+    for string in inputs:
+        # Split name from shape string.
+        string = string.split(":")
+        shapelist = []
+        # Separate each dimension in the shape.
+        string[1] = string[1].lower().split("x")
+        # Parse each dimension into an integer.
+        for x in string[1]:
+            x = int(x)
+            # Negative numbers are converted to dynamic axes.
+            if x < 0:
+                x = relay.Any()
+            shapelist.append(x)
+        # Assign dictionary key value pair.
+        d[string[0]] = shapelist
+    return d

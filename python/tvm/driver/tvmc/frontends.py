@@ -296,21 +296,13 @@ class PyTorchFrontend(Frontend):
         import torch
 
         traced_model = torch.jit.load(path)
-
-        inputs = list(traced_model.graph.inputs())[1:]
-        input_shapes = [inp.type().sizes() for inp in inputs]
-
         traced_model.eval()  # Switch to inference mode
-        input_shapes = [("input{}".format(idx), shape) for idx, shape in enumerate(shapes)]
 
-        # Update input shapes with manual override and prevent duplication.
-        if shape_dict is not None:
-            input_shape_dict = {}
-            for name, shape in input_shapes:
-                input_shape_dict[name] = shape
-            input_shape_dict.update(shape_dict)
-            # Convert back to list for torch importer.
-            input_shapes = list(input_shape_dict.items())
+        if shape_dict is None:
+            raise TVMCException("--shapes must be specified for {}".format(self.name()))
+
+        # Convert shape dictionary to list for Pytorch frontend compatibility
+        input_shapes = list(shape_dict.items())
 
         logger.debug("parse Torch model and convert into Relay computation graph")
         return relay.frontend.from_pytorch(traced_model, input_shapes)

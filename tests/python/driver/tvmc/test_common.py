@@ -149,3 +149,27 @@ def test_tracker_host_port_from_cli__only_hostname__default_port_is_9090():
 
     assert expected_host == actual_host
     assert expected_port == actual_port
+
+
+def test_shape_parser():
+    # Check that a valid input is parsed correctly
+    shape_string = "input:10x10x10"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10]}
+    # Check that multiple valid input shapes are parse correctly
+    shape_string = "input:10x10x10,input2:20x20x20x20"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+    # Check that alternate syntax parses correctly
+    shape_string = "input:10X10X10, input2:20X20X20X20"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+
+    # Check that invalid pattern raises expected error.
+    shape_string = "input:ax10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with invalid separators raises error.
+    shape_string = "input:5,10 input2:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
