@@ -1214,8 +1214,6 @@ def test_pad_run():
             mod_pad = []
             mod_data = data
             for axis, (pad_x, pad_y) in enumerate(pad):
-                # if pad_x >= 0 and pad_y >= 0:
-                #     mod_pad.append((pad_x, pad_y))
                 indices = range(dshape[axis])
                 if pad_x < 0:
                     indices = indices[abs(pad_x) :]
