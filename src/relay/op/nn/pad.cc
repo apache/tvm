@@ -141,8 +141,6 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
     if (!data->shape[i].as<tir::AnyNode>()) {
       auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
-      ICHECK(topi::detail::GetConstInt(data->shape[i] + padding) >= 0)
-          << "Output shape post padding should be positive but got " << data->shape[i] + padding;
       oshape.push_back(data->shape[i] + padding);
     } else {
       oshape.push_back(data->shape[i]);
