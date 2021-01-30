@@ -832,6 +832,8 @@ class FuseMutator : private MixedModeMutator {
   }
 
  private:
+  using MixedModeMutator::VisitExpr_;
+
   /*! \brief Temporary information from each group. */
   struct GroupInfo {
    public:

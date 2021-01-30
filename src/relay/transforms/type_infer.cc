@@ -787,6 +787,7 @@ Expr TypeInferencer::Infer(GlobalVar var, Function function) {
 }
 
 struct AllCheckTypePopulated : MixedModeVisitor {
+  using MixedModeVisitor::VisitExpr_;
   void DispatchExprVisit(const Expr& e) {
     if (e.as<OpNode>()) {
       return;
