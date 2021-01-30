@@ -1175,14 +1175,12 @@ def test_pad_infer_type():
     n, c, h, w = 1, 2, 3, 4
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4)))
-    "pad_width=" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((3, 6, 9, 12), "float32")
 
     n, c, h, w = 4, 6, 3, 5
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(t, ((-1, -1), (2, -2), (0, -3), (4, 4)), pad_mode="reflect")
-    "pad_width=" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((2, 6, 0, 13), "float32")
 
