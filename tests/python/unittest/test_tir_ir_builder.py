@@ -239,10 +239,85 @@ def test_while_cpu():
     check_target("llvm")
 
 
+def test_while_gpu():
+    n = 1024
+    dtype = "float32"
+    A = te.placeholder((n,), name="A", dtype=dtype)
+    B = te.placeholder((n,), name="B", dtype=dtype)
+    idxd = tvm.tir.indexdiv
+
+    def searchsorted_ir(A, B, C):
+        ib = tvm.tir.ir_builder.create()
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        max_threads = 32
+        ib.scope_attr(bx, "thread_extent", idxd(n + max_threads - 1, max_threads))
+        ib.scope_attr(tx, "thread_extent", max_threads)
+        tid = bx * max_threads + tx
+
+        with ib.if_scope(tid < n):
+            lo = ib.allocate("int32", (1,), name="lo", scope="local")
+            hi = ib.allocate("int32", (1,), name="hi", scope="local")
+
+            lo[0] = 0
+            hi[0] = n - 1
+            v = Bptr[tid]
+            num_loop = int(np.log2(n)) + 1
+
+            with ib.for_range(0, num_loop, test=(lo[0] <= hi[0])) as _:
+                mid = tvm.tir.floordiv(lo[0] + hi[0], 2).astype("int32")
+                with ib.if_scope(Aptr[mid] < v):
+                    lo[0] = mid + 1
+                with ib.else_scope():
+                    with ib.if_scope(Aptr[mid] > v):
+                        hi[0] = mid - 1
+
+            Cptr[tid] = lo[0]
+
+        body = ib.get()
+
+        return body
+
+    C = te.extern(
+        A.shape,
+        [A, B],
+        lambda ins, outs: searchsorted_ir(ins[0], ins[1], outs[0]),
+        name="searchsorted_ir",
+        dtype="int32",
+    )
+    s = te.create_schedule(C.op)
+
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            return
+        # build and invoke the kernel.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["HoistIfThenElse"]):
+            func = tvm.build(s, [A, B, C], target)
+        ctx = tvm.context(target, 0)
+        # launch the kernel.
+        a_np = np.random.uniform(size=n).astype(A.dtype)
+        b_np = np.random.uniform(size=n).astype(B.dtype)
+        a_np = np.sort(a_np)
+        a = tvm.nd.array(a_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        func(a, b, c)
+        ref = np.searchsorted(a_np, b_np)
+        tvm.testing.assert_allclose(c.asnumpy(), ref)
+
+    check_target("cuda")
+    check_target("nvptx")
+
+
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
-    test_while_cpu()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    # test_while_cpu()
+    test_while_gpu()
