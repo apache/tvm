@@ -444,7 +444,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       auto& svec = attach_map_[op];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<ForNode>();
-      return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
+      return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body), op->test,
                  op->thread_binding, op->annotations);
     } else {
       return StmtExprMutator::VisitStmt_(op);

@@ -236,6 +236,7 @@ def LiftAllocToScopeBegin():
                         op.extent,
                         op.kind,
                         body,
+                        op.test,
                         op.thread_binding,
                         op.annotations,
                     )
@@ -321,7 +322,14 @@ def InjectCoProcSync():
                 op = stmt.body
                 assert isinstance(op, tvm.tir.For)
                 return tvm.tir.For(
-                    op.loop_var, op.min, 2, op.kind, op.body, op.thread_binding, op.annotations
+                    op.loop_var,
+                    op.min,
+                    2,
+                    op.kind,
+                    op.body,
+                    op.test,
+                    op.thread_binding,
+                    op.annotations,
                 )
             return None
 

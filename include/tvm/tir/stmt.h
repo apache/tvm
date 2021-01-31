@@ -802,6 +802,9 @@ class ForNode : public StmtNode {
   ForKind kind;
   /*! \brief The body of the for loop. */
   Stmt body;
+  /*! \brief The test condition of the for loop. */
+  Optional<PrimExpr> test;
+
   /*!
    * \brief Only valid when kind == ForKind::kThreadBinding
    * The context thread that this loop variable bounds to.
@@ -823,6 +826,7 @@ class ForNode : public StmtNode {
     v->Visit("extent", &extent);
     v->Visit("kind", &kind);
     v->Visit("body", &body);
+    v->Visit("test", &test);
     v->Visit("thread_binding", &thread_binding);
     v->Visit("annotations", &annotations);
     v->Visit("span", &span);
@@ -831,7 +835,8 @@ class ForNode : public StmtNode {
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
     return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
            equal(extent, other->extent) && equal(kind, other->kind) && equal(body, other->body) &&
-           equal(thread_binding, other->thread_binding) && equal(annotations, other->annotations);
+           equal(test, other->test) && equal(thread_binding, other->thread_binding) &&
+           equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -840,6 +845,7 @@ class ForNode : public StmtNode {
     hash_reduce(extent);
     hash_reduce(kind);
     hash_reduce(body);
+    hash_reduce(test);
     hash_reduce(thread_binding);
     hash_reduce(annotations);
   }
@@ -854,7 +860,7 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body, Optional<PrimExpr> test = NullOpt,
               Optional<IterVar> thread_binding = NullOpt,
               Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
 

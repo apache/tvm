@@ -129,7 +129,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // For
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-         Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
+         Optional<PrimExpr> test, Optional<IterVar> thread_binding,
+         Map<String, ObjectRef> annotations, Span span) {
   ICHECK(min.defined());
   ICHECK(extent.defined());
   ICHECK(min.dtype().is_scalar());
@@ -143,6 +144,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   node->extent = std::move(extent);
   node->kind = kind;
   node->body = std::move(body);
+  node->test = std::move(test);
   node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
   node->span = std::move(span);
@@ -150,9 +152,9 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
 }
 
 TVM_REGISTER_GLOBAL("tir.For").set_body_typed(
-    [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body,
+    [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body, Optional<PrimExpr> test,
        Optional<IterVar> thread_binding, Optional<Map<String, ObjectRef>> annotations, Span span) {
-      return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
+      return For(loop_var, min, extent, static_cast<ForKind>(kind), body, test, thread_binding,
                  annotations.value_or(Map<String, ObjectRef>()), span);
     });
 

@@ -125,7 +125,7 @@ class LoopUnroller : public StmtExprMutator {
     } else {
       if (auto_unroll) {
         if (op->kind != ForKind::kUnrolled) {
-          return For(op->loop_var, op->min, op->extent, ForKind::kUnrolled, op->body,
+          return For(op->loop_var, op->min, op->extent, ForKind::kUnrolled, op->body, op->test,
                      op->thread_binding, op->annotations);
         }
       }

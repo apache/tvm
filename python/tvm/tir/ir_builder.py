@@ -248,6 +248,9 @@ class IRBuilder(object):
         loop_var = _expr.Var(name, dtype=dtype)
         extent = end if begin == 0 else (end - begin)
 
+        if test is not None:
+            assert kind == "serial"
+
         def _exit_cb():
             if kind == "serial":
                 kind_id = _stmt.ForKind.SERIAL
@@ -259,7 +262,7 @@ class IRBuilder(object):
                 kind_id = _stmt.ForKind.UNROLLED
             else:
                 raise ValueError("Unknown kind")
-            self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq()))
+            self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq(), test))
 
         return WithScope(loop_var, _exit_cb)
 

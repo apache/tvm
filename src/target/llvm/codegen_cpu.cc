@@ -980,7 +980,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->kind == ForKind::kParallel) {
     if (parallel_env_.penv == nullptr) {
-      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body,
+      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body, op->test,
                                op->thread_binding, op->annotations),
                            0);
     } else {

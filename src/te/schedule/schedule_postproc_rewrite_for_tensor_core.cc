@@ -968,7 +968,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
           scaled_extent_value = ori_extent_value / scale_factor;
         }
         PrimExpr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
-        stmt = For(op->loop_var, op->min, scaled_extent, op->kind, op->body, op->thread_binding,
+        stmt = For(op->loop_var, op->min, scaled_extent, op->kind, op->body, op->test, op->thread_binding,
                    op->annotations);
       }
     }

@@ -277,7 +277,7 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = tir::Substitute(body, rmap);
         under_outer = false;
-        return For(parent->var, PrimExpr(0), extent * op->extent, op->kind, body,
+        return For(parent->var, PrimExpr(0), extent * op->extent, op->kind, body, op->test,
                    op->thread_binding, op->annotations);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
@@ -332,7 +332,7 @@ Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, 
           return AttrStmt(iter_var, "thread_extent", op->extent, body);
         } else {
           return For(op->loop_var, op->min, op->extent, IterVarTypeToForKind(attr->iter_type),
-                     op->body, op->thread_binding, op->annotations);
+                     op->body, op->test, op->thread_binding, op->annotations);
         }
       }
       return StmtMutator::VisitStmt_(op);
@@ -414,7 +414,7 @@ Stmt ApplyLoopOrder(const Stage& stage, const std::unordered_map<IterVar, Range>
         kind = IterVarTypeToForKind(stage->iter_var_attrs[target]->iter_type);
       }
       const Range& range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return For(target->var, range->min, range->extent, kind, body, op->thread_binding,
+      return For(target->var, range->min, range->extent, kind, body, op->test, op->thread_binding,
                  op->annotations);
     }
   };
