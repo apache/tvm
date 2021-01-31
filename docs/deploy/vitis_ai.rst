@@ -553,7 +553,7 @@ target and partition the graph.
 
 .. note::
 
-    We recommend switching DPU convolutions' data layouts to NHWC and CPU comvolutions'
+    We recommend converting DPU convolutions' data layouts to NHWC and CPU convolutions'
     data layouts to NCHW for best DPU and CPU performance. You can use the ConvertLayout
     transformation pass two times to achieve this as demonstrated in the code block
     underneath.
