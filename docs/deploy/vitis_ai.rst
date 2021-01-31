@@ -562,7 +562,7 @@ target and partition the graph.
 
    mod["main"] = bind_params_by_name(mod["main"], params)
    
-   # For edge DPU we recommend switching the convolutions'data layout
+   # For edge DPU we recommend converting the convolutions' data layout
    #    to NHWC for best performance. Therefore, we first convert the layouts
    #    of all convolutions to NHWC before partitioning. Afterwards, we can
    #    convert any remaining convolutions (to be executed on CPU) back to NCHW.
