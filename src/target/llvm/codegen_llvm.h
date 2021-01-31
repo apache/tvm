@@ -291,7 +291,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create serial for
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
-                       const Var& loop_var, const Stmt& body);
+                       const Var& loop_var, const Stmt& body, llvm::Value* test);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
   // The IRBuilder.
