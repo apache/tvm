@@ -891,7 +891,12 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
   stream << "for (";
   PrintType(op->loop_var.dtype(), stream);
-  stream << ' ' << vid << " = 0; " << vid << " < " << extent << "; ++" << vid << ") {\n";
+  stream << ' ' << vid << " = 0; " << vid << " < " << extent;
+  if (op->test) {
+    std::string test = PrintExpr(op->test.value());
+    stream << " && (" << test << ")";
+  }
+  stream << "; ++" << vid << ") {\n";
   int for_scope = BeginScope();
   PrintStmt(op->body);
   this->EndScope(for_scope);
