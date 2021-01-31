@@ -43,6 +43,9 @@ void StmtVisitor::VisitStmt_(const ForNode* op) {
   this->VisitExpr(op->min);
   this->VisitExpr(op->extent);
   this->VisitStmt(op->body);
+  if (op->test) {
+    this->VisitExpr(op->test.value());
+  }
 }
 
 void StmtVisitor::VisitStmt_(const AllocateNode* op) {
@@ -168,6 +171,11 @@ Stmt StmtMutator::VisitStmt_(const ForNode* op) {
   PrimExpr min = this->VisitExpr(op->min);
   PrimExpr extent = this->VisitExpr(op->extent);
   Stmt body = this->VisitStmt(op->body);
+  Optional<PrimExpr> test = NullOpt;
+  if (op->test) {
+    test = this->VisitExpr(op->test.value());
+  }
+
   if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
     return GetRef<Stmt>(op);
   } else {
@@ -175,6 +183,9 @@ Stmt StmtMutator::VisitStmt_(const ForNode* op) {
     n->min = std::move(min);
     n->extent = std::move(extent);
     n->body = std::move(body);
+    if (test) {
+      n->test = std::move(test);
+    }
     return Stmt(n);
   }
 }

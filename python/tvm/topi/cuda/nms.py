@@ -544,12 +544,10 @@ def nms_ir(
             with ib.if_scope(max_output_size > 0):
                 # No need to do more iteration if we have already reached max_output_size
                 # boxes
-                # TODO(masahi): Add TIR while loop to realize early exit from the outer loop
-                with ib.for_range(0, nkeep) as j:
+                with ib.for_range(0, nkeep, test=(num_valid_boxes_local[0] < max_output_size)) as j:
                     # Proceed to the inner loop if the box j is still valid
-                    with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
-                        with ib.if_scope(out_scores[i, j] > -1.0):
-                            nms_inner_loop(ib, j)
+                    with ib.if_scope(out_scores[i, j] > -1.0):
+                        nms_inner_loop(ib, j)
 
             with ib.else_scope():
                 with ib.for_range(0, nkeep) as j:
