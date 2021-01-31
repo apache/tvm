@@ -673,8 +673,16 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   loop_value->addIncoming(begin, pre_block);
   ICHECK(!var_map_.count(loop_var.get()));
   var_map_[loop_var.get()] = loop_value;
-  builder_->CreateCondBr(CreateLT(loop_var.dtype(), loop_value, end), for_body, for_end,
-                         md_very_likely_branch_);
+
+  llvm::Value* cond = nullptr;
+  llvm::Value* less_than = CreateLT(loop_var.dtype(), loop_value, end);
+  if (test) {
+    cond = builder_->CreateAnd(less_than, test);
+  } else {
+    cond = less_than;
+  }
+  builder_->CreateCondBr(cond, for_body, for_end, md_very_likely_branch_);
+
   builder_->SetInsertPoint(for_body);
   this->VisitStmt(body);
   var_map_.erase(loop_var.get());
