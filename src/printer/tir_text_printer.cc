@@ -486,7 +486,12 @@ inline const char* ForKind2String(ForKind t) {
 Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "
-      << Print(op->min + op->extent) << ")";
+      << Print(op->min + op->extent);
+  if (op->test) {
+    doc << ", (" << Print(op->test.value()) << "))";
+  } else {
+    doc << ")";
+  }
   if (op->kind != ForKind::kSerial) {
     doc << " " << Doc::StrLiteral(ForKind2String(op->kind));
   }

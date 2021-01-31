@@ -661,7 +661,7 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 }
 
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
-                                  const Var& loop_var, const Stmt& body, llvm::Value* test) {
+                                  const Var& loop_var, const Stmt& body, Optional<PrimExpr> test) {
   using llvm::BasicBlock;
   BasicBlock* pre_block = builder_->GetInsertBlock();
   BasicBlock* for_begin = BasicBlock::Create(*ctx_, "for_begin", function_);
@@ -674,12 +674,10 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   ICHECK(!var_map_.count(loop_var.get()));
   var_map_[loop_var.get()] = loop_value;
 
-  llvm::Value* cond = nullptr;
   llvm::Value* less_than = CreateLT(loop_var.dtype(), loop_value, end);
+  llvm::Value* cond = less_than;
   if (test) {
-    cond = builder_->CreateAnd(less_than, test);
-  } else {
-    cond = less_than;
+    cond = builder_->CreateAnd(less_than, MakeValue(test.value()));
   }
   builder_->CreateCondBr(cond, for_body, for_end, md_very_likely_branch_);
 
@@ -1332,13 +1330,9 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   } else {
     ICHECK(op->kind == ForKind::kSerial);
   }
-  llvm::Value* test = nullptr;
-  if (op->test) {
-    test = MakeValue(op->test.value());
-  }
   CreateSerialFor(MakeValue(op->min), MakeValue(op->extent),
                   llvm::ConstantInt::getSigned(GetLLVMType(op->extent), 1), op->loop_var, op->body,
-                  test);
+                  op->test);
 }
 
 void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
