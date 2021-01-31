@@ -179,21 +179,16 @@ def test_binary_search():
         hi = ib.allocate("int32", (1,), name="hi", scope="local")
 
         lo[0] = 0
-        hi[0] = n - 1
+        hi[0] = n
         v = Bptr[i]
         num_loop = int(np.log2(n)) + 1
 
-        with ib.for_range(0, num_loop, test=(lo[0] <= hi[0])) as _:
-            mid = tvm.tir.floordiv(lo[0] + hi[0], 2).astype("int32")
+        with ib.for_range(0, num_loop, test=(lo[0] < hi[0])) as _:
+            mid = lo[0] + tvm.tir.floordiv(hi[0] - lo[0], 2).astype("int32")
             with ib.if_scope(Aptr[mid] < v):
                 lo[0] = mid + 1
             with ib.else_scope():
-                with ib.if_scope(Aptr[mid] > v):
-                    hi[0] = mid - 1
-                with ib.else_scope():
-                    # force loop to terminate
-                    lo[0] = mid
-                    hi[0] = mid - 1
+                hi[0] = mid
 
         Cptr[i] = lo[0]
 
