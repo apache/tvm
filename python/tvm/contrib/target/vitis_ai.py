@@ -132,7 +132,7 @@ def vitis_ai_compiler(ref):
         layers = xgraph.get_layers()
 
         # Get the output tensor names using XGraph and output Relay ids
-        out_tensor_names = [1] * len(output_relay_ids)
+        out_tensor_names = ["unknown_name"] * len(output_relay_ids)
         for layer in layers:
             if not layer.internal:
                 for relay_id in layer.attrs["relay_id"]:

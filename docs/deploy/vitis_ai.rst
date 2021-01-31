@@ -304,15 +304,22 @@ Edge hardware setup
   This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but
   Petalinux based flows are also supported.
 
-1. Download the Pynq v2.5 image for your target (use Z1 or Z2 for
+1. Download the Pynq v2.6 image for your target (use Z1 or Z2 for
    Ultra96 target depending on board version) Link to image:
-   https://github.com/Xilinx/PYNQ/releases/tag/v2.5
+   https://github.com/Xilinx/PYNQ/releases/tag/v2.6.0
 2. Follow Pynq instructions for setting up the board: `pynq
    setup <https://pynq.readthedocs.io/en/latest/getting_started.html>`__
 3. After connecting to the board, make sure to run as root. **Execute**
    ``su``
-4. Set up DPU on Pynq by following the steps here: `DPU Pynq
-   setup <https://github.com/Xilinx/DPU-PYNQ>`__
+4. Set up DPU on Pynq:
+
+    .. code:: bash
+
+     git clone --branch v1.2.0 --recursive --shallow-submodules https://github.com/Xilinx/DPU-PYNQ.git
+     cd DPU-PYNQ/upgrade
+     make
+     pip3 install pynq-dpu==1.2.0
+
 5. Run the following command to download the DPU bitstream:
 
    .. code:: bash
@@ -343,7 +350,7 @@ interface between TVM and Vitis-AI tools.
    .. code:: bash
 
       apt-get install libhdf5-dev
-      pip3 install pydot h5py
+      pip3 install pydot==1.4.1 h5py==2.8.0
 
 2. Install PyXIR
 
@@ -362,16 +369,17 @@ interface between TVM and Vitis-AI tools.
       mkdir build
       cp cmake/config.cmake build
       cd build
+      echo set\(USE_LLVM OFF\) >> config.cmake
       echo set\(USE_VITIS_AI ON\) >> config.cmake
       cmake ..
-      make
+      make tvm_runtime -j$(nproc)
 
 4. Install TVM
 
    .. code:: bash
 
       cd tvm/python
-      pip3 install -e . --user
+      pip3 install -e .
 
 5. Check whether the setup was successful in the Python shell:
 
@@ -554,9 +562,14 @@ target and partition the graph.
 .. note::
 
     We recommend converting DPU convolutions' data layouts to NHWC and CPU convolutions'
-    data layouts to NCHW for best DPU and CPU performance. You can use the ConvertLayout
-    transformation pass two times to achieve this as demonstrated in the code block
-    underneath.
+    data layouts to NCHW for best DPU and out of the box CPU performance. You can use the
+    ConvertLayout transformation pass two times to achieve this as demonstrated in the code
+    block underneath. You can also leave the CPU convolution layouts in NHWC and tune ARM CPU
+    performance for this data layout to avoid the layout transformation overheads introduced by
+    executing DPU convolutions in NHWC and CPU convolutions in NCHW
+    (check out the `AutoScheduling <https://tvm.apache.org/docs/tutorials/index.html#autoscheduler-template-free-auto-scheduling>`__
+    and `AutoTuning <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html>`__
+    tutorials for this).
 
 .. code:: python
 
