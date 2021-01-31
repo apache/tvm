@@ -860,8 +860,8 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body, Optional<PrimExpr> test = NullOpt,
-              Optional<IterVar> thread_binding = NullOpt,
+  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+              Optional<PrimExpr> test = NullOpt, Optional<IterVar> thread_binding = NullOpt,
               Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
