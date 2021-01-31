@@ -190,6 +190,10 @@ def test_binary_search():
             with ib.else_scope():
                 with ib.if_scope(Aptr[mid] > v):
                     hi[0] = mid - 1
+                with ib.else_scope():
+                    # force loop to terminate
+                    lo[0] = mid
+                    hi[0] = mid - 1
 
         Cptr[i] = lo[0]
 
