@@ -142,6 +142,10 @@ class HoistCandidateSelector final : public StmtExprVisitor {
   HoistCandidateSelector() { InitRecorder(); }
 
   void VisitStmt_(const ForNode* op) final {
+    if (op->test) {
+      // Do not hoist if this is a while loop
+      return;
+    }
     // If already recording complete,
     // then stop tracing
     if (RecordingComplete()) {
