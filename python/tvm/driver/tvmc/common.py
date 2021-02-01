@@ -140,12 +140,12 @@ def tracker_host_port_from_cli(rpc_tracker_str):
     return rpc_hostname, rpc_port
 
 
-def parse_shape_string(inputs):
+def parse_shape_string(inputs_string):
     """Parse an input shape dictionary string to a usable dictionary.
 
     Parameters
     ----------
-    inputs: str
+    inputs_string: str
         A string of the form "name:num1xnum2x...xnumN,name2:num1xnum2xnum3" that indicates
         the desired shape for specific model inputs.
 
@@ -154,30 +154,32 @@ def parse_shape_string(inputs):
     shape_dict: dict
         A dictionary mapping input names to their shape for use in relay frontend converters.
     """
-    inputs = inputs.replace(" ", "")
+    # Simplify passed input string by removing spaces.
+    inputs_string = inputs_string.replace(" ", "")
     # Check if the passed input is in the proper format.
-    valid_pattern = re.compile("(\w+:(\d+(x|X))*(\d)+)(,(\w+:(\d+(x|X))*(\d)+))*")
-    result = re.fullmatch(valid_pattern, inputs)
+    valid_pattern = re.compile(
+        r"(\w+:(\-{0,1}\d+(x|X))*\-{0,1}(\d)+)(,(\w+:(\-{0,1}\d+(x|X))*\-{0,1}(\d)+))*"
+    )
+    result = re.fullmatch(valid_pattern, inputs_string)
     if result is None:
         raise argparse.ArgumentTypeError(
-            "--shapes argument must be of the form 'input_name:dim1xdim2x...xdimN,input_name2:dim1xdim2"
+            "--input-shapes argument must be of the form "
+            "input_name:dim1xdim2x...xdimN,input_name2:dim1xdim2"
         )
-    d = {}
+    shape_dict = {}
     # Break apart each specific input string
-    inputs = inputs.split(",")
-    for string in inputs:
+    inputs_list = inputs_string.split(",")
+    for shape_mapping in inputs_list:
         # Split name from shape string.
-        string = string.split(":")
-        shapelist = []
+        input_name, input_shape_string = shape_mapping.split(":")
         # Separate each dimension in the shape.
-        string[1] = string[1].lower().split("x")
+        input_shape_chars = input_shape_string.lower().split("x")
         # Parse each dimension into an integer.
-        for x in string[1]:
+        input_shape = []
+        for x in input_shape_chars:
             x = int(x)
             # Negative numbers are converted to dynamic axes.
-            if x < 0:
-                x = relay.Any()
-            shapelist.append(x)
+            input_shape.append(x if x >= 0 else relay.Any())
         # Assign dictionary key value pair.
-        d[string[0]] = shapelist
-    return d
+        shape_dict[input_name] = input_shape
+    return shape_dict

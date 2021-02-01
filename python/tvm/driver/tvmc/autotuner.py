@@ -211,7 +211,7 @@ def add_tune_parser(subparsers):
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
     parser.add_argument(
-        "--shapes",
+        "--input-shapes",
         help="specify non-generic shapes for model to run, format is"
         "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
         type=common.parse_shape_string,

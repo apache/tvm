@@ -21,6 +21,7 @@ from os import path
 import pytest
 
 import tvm
+from tvm import relay
 from tvm.driver import tvmc
 
 
@@ -164,6 +165,11 @@ def test_shape_parser():
     shape_string = "input:10X10X10, input2:20X20X20X20"
     shape_dict = tvmc.common.parse_shape_string(shape_string)
     assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+    # Check that negative dimensions parse to Any correctly.
+    shape_string = "input:-1x3x224x224"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    # Convert to strings to allow comparison with Any.
+    assert str(shape_dict) == "{'input': [?, 3, 224, 224]}"
 
     # Check that invalid pattern raises expected error.
     shape_string = "input:ax10"

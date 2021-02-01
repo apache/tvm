@@ -54,6 +54,8 @@ def verify_compile_tflite_module(model, shape_dict=None):
 
 
 def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer flute, so skip in case it is not present
+    pytest.importorskip("tflite")
     # Check default compilation.
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
     # Check with manual shape override

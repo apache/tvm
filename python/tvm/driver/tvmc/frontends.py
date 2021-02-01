@@ -62,7 +62,7 @@ class Frontend(ABC):
         path: str
             Path to a file
         shape_dict: dict, optional
-            A dictionary mapping input names to shapes.
+            Mapping from input names to their shapes.
 
         Returns
         -------
@@ -299,7 +299,7 @@ class PyTorchFrontend(Frontend):
         traced_model.eval()  # Switch to inference mode
 
         if shape_dict is None:
-            raise TVMCException("--shapes must be specified for {}".format(self.name()))
+            raise TVMCException("--input-shapes must be specified for %s" % self.name())
 
         # Convert shape dictionary to list for Pytorch frontend compatibility
         input_shapes = list(shape_dict.items())
@@ -397,7 +397,7 @@ def load_model(path, model_format=None, shape_dict=None):
         The underlying framework used to create the model.
         If not specified, this will be inferred from the file type.
     shape_dict : dict, optional
-        A mapping between input names and their desired shape.
+        Mapping from input names to their shapes.
 
     Returns
     -------

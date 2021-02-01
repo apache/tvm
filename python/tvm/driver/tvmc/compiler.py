@@ -88,7 +88,7 @@ def add_compile_parser(subparsers):
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
     parser.add_argument(
-        "--shapes",
+        "--input-shapes",
         help="specify non-generic shapes for model to run, format is"
         "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
         type=common.parse_shape_string,
@@ -168,8 +168,8 @@ def compile_model(
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
     shape_dict: dict, optional
-        A mapping between input names and their shape. This is useful
-        to override the default values in a model if needed.
+        A mapping from input names to their shape. When present,
+        the default shapes in the model will be overwritten.
 
     Returns
     -------
