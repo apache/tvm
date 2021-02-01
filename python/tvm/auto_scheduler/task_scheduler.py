@@ -311,7 +311,9 @@ class TaskScheduler:
         self.early_stopping_all = (
             1e20 if tune_option.early_stopping < 0 else tune_option.early_stopping
         )
-        self.early_stopping_task = 1e20 if per_task_early_stopping < 0 else per_task_early_stopping
+        self.early_stopping_task = (
+            1e20 if per_task_early_stopping is None else per_task_early_stopping
+        )
 
         self.measurer = ProgramMeasurer(
             tune_option.builder,
