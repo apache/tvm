@@ -42,7 +42,6 @@ List of available APIs:
 # pylint: disable=invalid-name
 
 import heapq
-import time
 import logging
 import socket
 import multiprocessing
@@ -116,6 +115,7 @@ class PriorityScheduler(Scheduler):
 
     def __init__(self, key):
         self._key = key
+        self._request_cnt = 0
         self._values = []
         self._requests = []
 
@@ -134,7 +134,8 @@ class PriorityScheduler(Scheduler):
         self._schedule()
 
     def request(self, user, priority, callback):
-        heapq.heappush(self._requests, (-priority, time.time(), callback))
+        heapq.heappush(self._requests, (-priority, self._request_cnt, callback))
+        self._request_cnt += 1
         self._schedule()
 
     def remove(self, value):
