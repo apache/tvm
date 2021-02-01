@@ -223,7 +223,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
           trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
       if (engine_and_context.device_buffers.empty()) {
         engine_and_context.device_buffers = builder.CreateDeviceBuffers(engine_and_context.engine);
-        builder.CleanUp();
         return;
       }
     }
