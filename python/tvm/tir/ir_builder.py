@@ -206,7 +206,7 @@ class IRBuilder(object):
             value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, test=None, name="i", dtype="int32", kind="serial"):
+    def for_range(self, begin, end, name="i", test=None, dtype="int32", kind="serial"):
         """Create a for iteration scope.
 
         Parameters
@@ -217,12 +217,12 @@ class IRBuilder(object):
         end : Expr
             The end iteration scope
 
-        test : Expr, optional
-            The additional termination condition.
-
         name : str, optional
             The name of iteration variable, if no input names,
             using typical index names i, j, k, then i_nidx
+
+        test : Expr, optional
+            The additional termination condition.
 
         dtype : str, optional
             The data type of iteration variable.
