@@ -802,7 +802,7 @@ class ForNode : public StmtNode {
   ForKind kind;
   /*! \brief The body of the for loop. */
   Stmt body;
-  /*! \brief The test condition of the for loop. */
+  /*! \brief The additional termination condition of the for loop. */
   Optional<PrimExpr> test;
 
   /*!

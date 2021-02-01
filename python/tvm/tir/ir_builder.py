@@ -217,6 +217,9 @@ class IRBuilder(object):
         end : Expr
             The end iteration scope
 
+        test : Expr, optional
+            The additional termination condition.
+
         name : str, optional
             The name of iteration variable, if no input names,
             using typical index names i, j, k, then i_nidx
@@ -249,7 +252,8 @@ class IRBuilder(object):
         extent = end if begin == 0 else (end - begin)
 
         if test is not None:
-            assert kind == "serial"
+            msg = "A general termination condition is only supported for a serial loop."
+            assert kind == "serial", msg
 
         def _exit_cb():
             if kind == "serial":
