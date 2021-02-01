@@ -169,6 +169,10 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       inputs_.erase(func_name);
       inputs_.emplace(func_name, func_args);
     });
+  } else if (name == "load_params") {
+    return TypedPackedFunc<void(const std::string&)>([this](const std::string& s) {
+        this->LoadParams(s);
+        });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -297,6 +301,10 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   for (size_t i = 0; i < packed_funcs_.size(); ++i) {
     ICHECK(packed_funcs_[i] != nullptr) << "Packed function " << i << " is not initialized";
   }
+}
+
+void VirtualMachine::LoadParams(const std::string& params) {
+  Map<String, NDArray> params = ::tvm::runtime::LoadParams(params);
 }
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs,

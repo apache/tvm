@@ -264,8 +264,4 @@ def save_tensors(params):
     """
     _save_tensors = tvm.get_global_func("tvm.relay._save_param_dict")
 
-    args = []
-    for k, v in params.items():
-        args.append(k)
-        args.append(tvm.nd.array(v))
-    return _save_tensors(*args)
+    return _save_tensors(params)

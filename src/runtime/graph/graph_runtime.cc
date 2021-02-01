@@ -22,6 +22,8 @@
  */
 #include "graph_runtime.h"
 
+#include "../file_utils.h"
+
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
@@ -191,36 +193,16 @@ void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
  * \param param_blob A binary blob of parameter.
  */
 void GraphRuntime::LoadParams(const std::string& param_blob) {
+  std::cout << "param blob " << param_blob << std::endl;
   dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
   this->LoadParams(&strm);
 }
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
-  uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
-  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
-
-  std::vector<std::string> names;
-  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
-  uint64_t sz;
-  strm->Read(&sz);
-  size_t size = static_cast<size_t>(sz);
-  ICHECK(size == names.size()) << "Invalid parameters file format";
-  for (size_t i = 0; i < size; ++i) {
-    int in_idx = GetInputIndex(names[i]);
-    if (in_idx < 0) {
-      NDArray temp;
-      temp.Load(strm);
-      continue;
-    }
-    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
-    ICHECK_LT(eid, data_entry_.size());
-
-    // The data_entry is allocated on device, NDArray.load always load the array into CPU.
-    NDArray temp;
-    temp.Load(strm);
-    data_entry_[eid].CopyFrom(temp);
+  Map<String, NDArray> params = ::tvm::runtime::LoadParams(strm);
+  for(auto& p : params) {
+    uint32_t eid = this->entry_id(input_nodes_[GetInputIndex(p.first)], 0);
+    data_entry_[eid].CopyFrom(p.second);
   }
 }
 
