@@ -66,13 +66,14 @@ Expr DeDup(const Expr& e) {
       std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
       auto pre_visit = [this, &new_vars](const LetNode* op) {
         Expr expr = GetRef<Expr>(op);
-        new_vars[expr] = Fresh(op->var);
+        new_vars[expr] = this->Fresh(op->var);
         // Rely on the Memoizer to cache pre-visit values
-        VisitExpr(op->value);
+        this->VisitExpr(op->value);
       };
       auto post_visit = [this, &new_vars](const LetNode* op) {
         Expr expr = GetRef<Expr>(op);
-        memo_[expr] = Let(new_vars[expr], VisitExpr(op->value), VisitExpr(op->body));
+        this->memo_[expr] =
+            Let(new_vars[expr], this->VisitExpr(op->value), this->VisitExpr(op->body));
       };
       ExpandANormalForm(op, pre_visit, post_visit);
       return memo_[GetRef<Expr>(op)];

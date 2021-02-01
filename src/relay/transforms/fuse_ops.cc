@@ -320,12 +320,12 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       this->Update(op->var, nullptr, kOpaque);
       this->Update(op->value, nullptr, kOpaque);
       this->Update(op->body, nullptr, kOpaque);
-      VisitExpr(op->var);
-      VisitExpr(op->value);
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
     };
     auto post_visit = [this](const LetNode* op) {
-      VisitExpr(op->body);
-      visit_counter_[op] += 1;
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
       this->AddNode(op);
     };
     ExpandANormalForm(op, pre_visit, post_visit);
@@ -932,15 +932,15 @@ class FuseMutator : private MixedModeMutator {
     };
     auto post_visit = [this](const LetNode* op) {
       // Rely on the Memoizer to cache pre-visit values
-      Var var = Downcast<Var>(VisitExpr(op->var));
-      Expr value = VisitExpr(op->value);
+      Var var = Downcast<Var>(this->VisitExpr(op->var));
+      Expr value = this->VisitExpr(op->value);
       // Visit body and cache the op
-      Expr body = VisitExpr(op->body);
+      Expr body = this->VisitExpr(op->body);
       auto expr = GetRef<Expr>(op);
       if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-        memo_[expr] = expr;
+        this->memo_[expr] = expr;
       } else {
-        memo_[expr] = Let(var, value, body);
+        this->memo_[expr] = Let(var, value, body);
       }
     };
     ExpandANormalForm(op, pre_visit, post_visit);

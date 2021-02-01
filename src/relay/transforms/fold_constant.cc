@@ -96,7 +96,7 @@ class ConstantFolder : public MixedModeMutator {
       // Rely on the Memoizer to cache pre-visit values
       Expr value = this->Mutate(op->value);
       if (value.as<ConstantNode>()) {
-        memo_[op->var] = value;
+        this->memo_[op->var] = value;
       } else {
         this->Mutate(op->var);
       }
@@ -106,14 +106,14 @@ class ConstantFolder : public MixedModeMutator {
       // Rely on the Memoizer to cache pre-visit values
       Expr value = this->Mutate(op->value);
       if (value.as<ConstantNode>()) {
-        memo_[expr] = this->Mutate(op->body);
+        this->memo_[expr] = this->Mutate(op->body);
       } else {
         Var var = Downcast<Var>(this->Mutate(op->var));
         Expr body = this->Mutate(op->body);
         if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-          memo_[expr] = expr;
+          this->memo_[expr] = expr;
         } else {
-          memo_[expr] = Let(var, value, body);
+          this->memo_[expr] = Let(var, value, body);
         }
       }
     };

@@ -347,25 +347,25 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       Type let_type = IncompleteType(Kind::kType);
 
       if (is_functional_literal) {
-        let_type = GetType(op->var);
-        type_map_[op->var].checked_type = let_type;
+        let_type = this->GetType(op->var);
+        this->type_map_[op->var].checked_type = let_type;
       }
 
       if (op->var->type_annotation.defined()) {
-        let_type = Unify(let_type, op->var->type_annotation, op->span);
+        let_type = this->Unify(let_type, op->var->type_annotation, op->span);
       }
 
-      Type vtype = GetType(op->value);
-      let_type = Unify(let_type, vtype, op->span);
+      Type vtype = this->GetType(op->value);
+      let_type = this->Unify(let_type, vtype, op->span);
 
-      ICHECK(is_functional_literal || !type_map_.count(op->var));
+      ICHECK(is_functional_literal || !this->type_map_.count(op->var));
       // NOTE: no scoping is necessary because var are unique in program
-      type_map_[op->var].checked_type = let_type;
+      this->type_map_[op->var].checked_type = let_type;
     };
     auto post_visit = [this](const LetNode* op) {
       Expr expr = GetRef<Expr>(op);
-      memo_[expr] = GetType(op->body);
-      type_map_[expr].checked_type = memo_[expr];
+      this->memo_[expr] = this->GetType(op->body);
+      this->type_map_[expr].checked_type = this->memo_[expr];
     };
     ExpandANormalForm(let, pre_visit, post_visit);
     return memo_[GetRef<Expr>(let)];
@@ -618,10 +618,10 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
     };
     auto post_visit = [this](const LetNode* op) {
       Expr expr = GetRef<Expr>(op);
-      Var var = Downcast<Var>(VisitExpr(op->var));
-      Expr value = VisitExpr(op->value);
-      Expr body = VisitExpr(op->body);
-      memo_[expr] = AttachCheckedType(op, Let(var, value, body));
+      Var var = Downcast<Var>(this->VisitExpr(op->var));
+      Expr value = this->VisitExpr(op->value);
+      Expr body = this->VisitExpr(op->body);
+      this->memo_[expr] = this->AttachCheckedType(op, Let(var, value, body));
     };
     ExpandANormalForm(op, pre_visit, post_visit);
     return memo_[GetRef<Expr>(op)];
