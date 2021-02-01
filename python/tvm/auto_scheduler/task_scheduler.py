@@ -284,7 +284,7 @@ class TaskScheduler:
         search_policy="default",
         search_policy_params=None,
         adapative_training=False,
-        early_stopping=None,
+        per_task_early_stopping=None,
     ):
         """Tune a batch of tasks together.
 
@@ -303,15 +303,15 @@ class TaskScheduler:
         adapative_training : bool = False
             Option used by XGBModel to reduce the model training frequency when there're
             too many logs.
-        early_stopping : Optional[int]
-            Stop the entire tuning early if getting no improvement after n measurements.
+        per_task_early_stopping : Optional[int]
+            Stop tuning a task early if getting no improvement after n measurements.
         """
         # init members
         self.tune_option = tune_option
-        self.early_stopping_task = (
+        self.early_stopping_all = (
             1e20 if tune_option.early_stopping < 0 else tune_option.early_stopping
         )
-        self.early_stopping_all = 1e20 if early_stopping < 0 else early_stopping
+        self.early_stopping_task = 1e20 if per_task_early_stopping < 0 else per_task_early_stopping
 
         self.measurer = ProgramMeasurer(
             tune_option.builder,
