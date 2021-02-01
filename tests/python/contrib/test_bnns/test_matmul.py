@@ -40,11 +40,11 @@ def _get_model(a_shape, b_shape, dtype, var_names, is_a_constant=False, is_b_con
     params = {}
     if is_b_constant is True:
         b = tvm.nd.array(np.random.uniform(-128, 127, b_shape).astype(dtype))
-        params['b'] = b
+        params["b"] = b
         b = relay.const(b, dtype)
     if is_a_constant is True:
         a = tvm.nd.array(np.random.uniform(-128, 127, a_shape).astype(dtype))
-        params['a'] = a
+        params["a"] = a
         a = relay.const(a, dtype)
     out = relay.nn.batch_matmul(a, b)
     return out, params
@@ -84,10 +84,12 @@ def test_matmul():
                 "b": tvm.nd.array(np.random.uniform(-128, 127, b_shape).astype(dtype)),
             }
             func, params = _get_model(
-                a_shape, b_shape, dtype,
+                a_shape,
+                b_shape,
+                dtype,
                 var_names=iter(inputs),
                 is_a_constant=is_a_constant,
-                is_b_constant=is_b_constant
+                is_b_constant=is_b_constant,
             )
             for enable_bnns in [False, True]:
                 outputs.append(
@@ -111,5 +113,3 @@ def test_matmul():
 
 if __name__ == "__main__":
     test_matmul()
-
-

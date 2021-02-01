@@ -129,7 +129,13 @@ def test_dense():
         outputs = []
         inputs = {"a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype))}
         func, params = _get_model(
-            shape, weight_shape, units, dtype, var_names=iter(inputs), has_bias=with_bias, has_gelu=with_gelu
+            shape,
+            weight_shape,
+            units,
+            dtype,
+            var_names=iter(inputs),
+            has_bias=with_bias,
+            has_gelu=with_gelu,
         )
         for bnns in [False, True]:
             outputs.append(
@@ -176,7 +182,9 @@ def test_codegen_dense():
 
         args = (shape, weight_shape, units, dtype)
 
-        func, params = _get_model(*args, var_names=iter(inputs), has_bias=with_bias, has_gelu=with_gelu)
+        func, params = _get_model(
+            *args, var_names=iter(inputs), has_bias=with_bias, has_gelu=with_gelu
+        )
         exp_codegen = _get_expected_codegen(*args, has_bias=with_bias, has_gelu=with_gelu)
         verify_codegen(func, exp_codegen, 1)
 

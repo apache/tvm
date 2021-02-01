@@ -37,10 +37,13 @@ def is_op_fused(func, op_name):
     is_fused = False
 
     def visit(op):
-        if isinstance(op, tvm.relay.function.Function) \
-                and op_name in op.attrs["PartitionedFromPattern"]:
+        if (
+            isinstance(op, tvm.relay.function.Function)
+            and op_name in op.attrs["PartitionedFromPattern"]
+        ):
             nonlocal is_fused
             is_fused = True
+
     tvm.relay.analysis.post_order_visit(func.body, visit)
     return is_fused
 
@@ -49,11 +52,7 @@ def test_pattern_conv2d_with_bias_add():
     for axis in (1, 2):
         a = relay.var("a", shape=(2, 7, 8, 8), dtype=fp32)
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype(fp32))
-        res = relay.nn.conv2d(
-            a, w,
-            kernel_size=(3, 3), padding=(1, 1),
-            channels=8, out_dtype=fp32
-        )
+        res = relay.nn.conv2d(a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype=fp32)
         b = relay.const(np.random.uniform(-10, 10, 8).astype(fp32))
         res = relay.nn.bias_add(res, b, axis=axis)
 
@@ -64,21 +63,12 @@ def test_pattern_conv2d_with_bias_add():
 
 
 def test_pattern_conv2d_with_add():
-    workloads = {
-        8: False,
-        (8, 1): False,
-        (8, 1, 1): True,
-        (1, 8, 1, 1): True
-    }
+    workloads = {8: False, (8, 1): False, (8, 1, 1): True, (1, 8, 1, 1): True}
 
     for b_shape, should_be_fused in workloads.items():
         a = relay.var("a", shape=(2, 7, 8, 8), dtype=fp32)
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype(fp32))
-        res = relay.nn.conv2d(
-            a, w,
-            kernel_size=(3, 3), padding=(1, 1),
-            channels=8, out_dtype=fp32
-        )
+        res = relay.nn.conv2d(a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype=fp32)
         b = relay.const(np.random.uniform(-10, 10, b_shape).astype(fp32))
         res = relay.add(res, b)
 
@@ -96,11 +86,7 @@ def test_pattern_conv2d_with_non_cons_weights():
         else:
             w = relay.var("w", shape=(8, 7, 3, 3), dtype=fp32)
 
-        res = relay.nn.conv2d(
-            a, w,
-            kernel_size=(3, 3), padding=(1, 1),
-            channels=8, out_dtype=fp32
-        )
+        res = relay.nn.conv2d(a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype=fp32)
 
         mod = partition(res)
         use_bnns = len(mod.get_global_vars()) == 2  # GlobalVar: "main" and "bnns_0"
@@ -111,11 +97,7 @@ def test_pattern_conv2d_with_non_cons_weights():
 def test_pattern_conv2d_with_non_cons_bias():
     a = relay.var("a", shape=[2, 7, 8, 8], dtype=fp32)
     w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype(fp32))
-    res = relay.nn.conv2d(
-        a, w,
-        kernel_size=(3, 3), padding=(1, 1),
-        channels=8, out_dtype=fp32
-    )
+    res = relay.nn.conv2d(a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype=fp32)
     b = relay.var("b", shape=[8], dtype=fp32)
     res = relay.nn.bias_add(res, b, axis=1)
 

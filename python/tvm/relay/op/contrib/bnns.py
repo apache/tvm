@@ -209,9 +209,21 @@ def check_dense(extract):
 
 @register_pattern_table("bnns")
 def pattern_table():
-    conv2d_bias_pat = ("bnns.conv2d_bias", make_conv_relu_pattern(with_bias=True, with_relu=False), check_conv)
-    conv2d_bias_relu_pat = ("bnns.conv2d_bias_relu", make_conv_relu_pattern(with_bias=True, with_relu=True), check_conv)
-    conv2d_relu_pat = ("bnns.conv2d_relu", make_conv_relu_pattern(with_bias=False, with_relu=True), check_conv)
+    conv2d_bias_pat = (
+        "bnns.conv2d_bias",
+        make_conv_relu_pattern(with_bias=True, with_relu=False),
+        check_conv,
+    )
+    conv2d_bias_relu_pat = (
+        "bnns.conv2d_bias_relu",
+        make_conv_relu_pattern(with_bias=True, with_relu=True),
+        check_conv,
+    )
+    conv2d_relu_pat = (
+        "bnns.conv2d_relu",
+        make_conv_relu_pattern(with_bias=False, with_relu=True),
+        check_conv,
+    )
     dense_bias_gelu = ("bnns.dense_bias_gelu", make_dense_bias_gelu_pattern(), check_dense)
     dense_bias = ("bnns.dense_bias", make_dense_bias_pattern(), check_dense)
     bnns_patterns = [

@@ -103,9 +103,7 @@ class Device:
         location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
         config_file = os.path.join(location, file_name)
         if not os.path.exists(config_file):
-            warnings.warn(
-                "Config file doesn't exist, resuming tests with default config."
-            )
+            warnings.warn("Config file doesn't exist, resuming tests with default config.")
             return
         with open(config_file, mode="r") as config:
             test_config = json.load(config)
@@ -198,9 +196,7 @@ def update_lib(lib, device, cross_compile):
 
 def extract_bnns_modules(module):
     """Get the BNNS module(s) from llvm module."""
-    return list(
-        filter(lambda mod: mod.type_key == "bnns_json", module.get_lib().imported_modules)
-    )
+    return list(filter(lambda mod: mod.type_key == "bnns_json", module.get_lib().imported_modules))
 
 
 def verify(answers, atol, rtol, verify_saturation=False, config=None):

@@ -34,14 +34,14 @@ INPUT_SHAPE = [1, 3, 224, 224]
 
 BASE_MODEL_URL = "https://github.com/onnx/models/raw/master/"
 MODEL_URL_COLLECTION = {
-    "BERT":            "text/machine_comprehension/bert-squad/model/bertsquad-10.onnx",
-    "MobileNet-v2":    "vision/classification/mobilenet/model/mobilenetv2-7.onnx",
-    "ResNet50-v1":     "vision/classification/resnet/model/resnet50-v1-7.onnx",
-    "ResNet50-v2":     "vision/classification/resnet/model/resnet50-v2-7.onnx",
+    "BERT": "text/machine_comprehension/bert-squad/model/bertsquad-10.onnx",
+    "MobileNet-v2": "vision/classification/mobilenet/model/mobilenetv2-7.onnx",
+    "ResNet50-v1": "vision/classification/resnet/model/resnet50-v1-7.onnx",
+    "ResNet50-v2": "vision/classification/resnet/model/resnet50-v2-7.onnx",
     "SqueezeNet-v1.1": "vision/classification/squeezenet/model/squeezenet1.1-7.onnx",
     "SqueezeNet-v1.0": "vision/classification/squeezenet/model/squeezenet1.0-7.onnx",
-    "Inception-v1":    "vision/classification/inception_and_googlenet/inception_v1/model/inception-v1-7.onnx",
-    "Inception-v2":    "vision/classification/inception_and_googlenet/inception_v2/model/inception-v2-7.onnx",
+    "Inception-v1": "vision/classification/inception_and_googlenet/inception_v1/model/inception-v1-7.onnx",
+    "Inception-v2": "vision/classification/inception_and_googlenet/inception_v2/model/inception-v2-7.onnx",
 }
 
 
@@ -58,7 +58,7 @@ def get_model_url(model_name):
 
 
 def get_name_from_url(url):
-    return url[url.rfind('/') + 1:].strip()
+    return url[url.rfind("/") + 1 :].strip()
 
 
 def find_of_download(model_name):
@@ -124,7 +124,10 @@ def process(model_name):
     res_bnns = run(model, TARGET, simplify=True, with_bnns=True)
 
     tvm.testing.assert_allclose(
-        res_llvm, res_bnns, atol=0.002, rtol=0.007,
+        res_llvm,
+        res_bnns,
+        atol=0.002,
+        rtol=0.007,
     )
 
 
