@@ -154,32 +154,24 @@ def parse_shape_string(inputs_string):
     shape_dict: dict
         A dictionary mapping input names to their shape for use in relay frontend converters.
     """
-    # Simplify passed input string by removing spaces.
-    inputs_string = inputs_string.replace(" ", "")
-    # Check if the passed input is in the proper format.
-    valid_pattern = re.compile(
-        r"(\w+:(\-{0,1}\d+(x|X))*\-{0,1}(\d)+)(,(\w+:(\-{0,1}\d+(x|X))*\-{0,1}(\d)+))*"
-    )
-    result = re.fullmatch(valid_pattern, inputs_string)
-    if result is None:
+
+    # Create a regex pattern that extracts each separate input mapping.
+    pattern = r"\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    input_mappings = re.findall(pattern, inputs_string)
+    if not input_mappings:
         raise argparse.ArgumentTypeError(
             "--input-shapes argument must be of the form "
-            "input_name:dim1xdim2x...xdimN,input_name2:dim1xdim2"
+            '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"'
         )
     shape_dict = {}
-    # Break apart each specific input string
-    inputs_list = inputs_string.split(",")
-    for shape_mapping in inputs_list:
-        # Split name from shape string.
-        input_name, input_shape_string = shape_mapping.split(":")
-        # Separate each dimension in the shape.
-        input_shape_chars = input_shape_string.lower().split("x")
-        # Parse each dimension into an integer.
-        input_shape = []
-        for x in input_shape_chars:
-            x = int(x)
-            # Negative numbers are converted to dynamic axes.
-            input_shape.append(x if x >= 0 else relay.Any())
-        # Assign dictionary key value pair.
-        shape_dict[input_name] = input_shape
+    for mapping in input_mappings:
+        # Remove whitespace.
+        mapping = mapping.replace(" ", "")
+        # Split mapping into name and shape.
+        name, shape_string = mapping.split(":")
+        # Convert shape string into a list of integers or Anys if negative.
+        shape = [int(x) if int(x) > 0 else relay.Any() for x in shape_string.strip("][").split(",")]
+        # Add parsed mapping to shape dictionary.
+        shape_dict[name] = shape
+
     return shape_dict

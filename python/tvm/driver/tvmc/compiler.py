@@ -89,8 +89,8 @@ def add_compile_parser(subparsers):
     parser.add_argument("FILE", help="path to the input model file")
     parser.add_argument(
         "--input-shapes",
-        help="specify non-generic shapes for model to run, format is"
-        "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
+        help="specify non-generic shapes for model to run, format is "
+        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
         type=common.parse_shape_string,
         default=None,
     )
@@ -119,7 +119,7 @@ def drive_compile(args):
         args.model_format,
         args.tuning_records,
         args.desired_layout,
-        args.shapes,
+        args.input_shapes,
     )
 
     if dumps:

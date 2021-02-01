@@ -54,12 +54,12 @@ def verify_compile_tflite_module(model, shape_dict=None):
 
 
 def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
-    # some CI environments wont offer flute, so skip in case it is not present
+    # some CI environments wont offer tflite, so skip in case it is not present
     pytest.importorskip("tflite")
     # Check default compilation.
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
     # Check with manual shape override
-    shape_string = "input:1x224x224x3"
+    shape_string = "input:[1,224,224,3]"
     shape_dict = tvmc.common.parse_shape_string(shape_string)
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
 
@@ -142,7 +142,7 @@ def test_compile_onnx_module(onnx_resnet50):
     # Test default compilation
     verify_compile_onnx_module(onnx_resnet50)
     # Test with manual shape dict
-    shape_string = "data:1x3x200x200"
+    shape_string = "data:[1,3,200,200]"
     shape_dict = tvmc.common.parse_shape_string(shape_string)
     verify_compile_onnx_module(onnx_resnet50, shape_dict)
 

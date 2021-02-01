@@ -212,8 +212,8 @@ def add_tune_parser(subparsers):
     parser.add_argument("FILE", help="path to the input model file")
     parser.add_argument(
         "--input-shapes",
-        help="specify non-generic shapes for model to run, format is"
-        "name:num1xnum2x...xnumN,name2:num1xnum2xnum3",
+        help="specify non-generic shapes for model to run, format is "
+        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
         type=common.parse_shape_string,
         default=None,
     )
@@ -242,7 +242,7 @@ def drive_tune(args):
             )
 
     target = common.target_from_cli(args.target)
-    mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.shapes)
+    mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
 
     # min_repeat_ms should be:
     # a. the value provided by the user, if any, or
