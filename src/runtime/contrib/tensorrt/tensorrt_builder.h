@@ -127,7 +127,7 @@ class TensorRTBuilder {
   nvinfer1::Weights GetDLTensorAsWeights(const DLTensor* dptr, DLDeviceType src_device);
 
   /*! \brief Convert an input to a Tensor if it is a Weight */
-  nvinfer1::ITensor* GetInputAsTensor(const TensorRTOpInput& input);  
+  nvinfer1::ITensor* GetInputAsTensor(const TensorRTOpInput& input);
 
   /*! \brief Allocate a GPU buffer for input or output DLTensor, only if the context is not GPU
    * already. Inputs that are already on the GPU can be passed directly to TensorRT and will not
