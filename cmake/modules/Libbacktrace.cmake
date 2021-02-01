@@ -36,11 +36,14 @@ ExternalProject_Add(project_libbacktrace
 
 # Only rebuild libbacktrace if this file changes
 # libbacktrace has a bug on macOS with shared libraries, so we patch it here
-ExternalProject_Add_Step(project_libbacktrace update-new
+ExternalProject_Add_Step(project_libbacktrace checkout
   DEPENDERS configure
+  DEPENDEES download
   DEPENDS "${CMAKE_CURRENT_LIST_DIR}/Libbacktrace.cmake" "${CMAKE_CURRENT_LIST_DIR}/libbacktrace_macos.patch"
-  COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/src/project_libbacktrace; git checkout -f ${TAG};
-          git apply ${CMAKE_CURRENT_LIST_DIR}/libbacktrace_macos.patch
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/src/project_libbacktrace
+  COMMAND git checkout -f ${TAG};
+  COMMAND git apply ${CMAKE_CURRENT_LIST_DIR}/libbacktrace_macos.patch
+  COMMENT "update and patch"
   )
 
 add_library(libbacktrace STATIC IMPORTED)
