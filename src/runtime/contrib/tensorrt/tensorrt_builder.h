@@ -117,7 +117,7 @@ class TensorRTBuilder {
    * \brief Create device buffers.
    * \param engine_and_context The pointer pointing at TensorRTEngineAndContext.
    */
-  void CreateDeviceBuffers(TensorRTEngineAndContext* engine_and_context);
+  std::vector<runtime::NDArray> CreateDeviceBuffers(nvinfer1::ICudaEngine* engine);
 
  private:
   /*! \brief Convert a DLTensor to a TensorRT weight. */

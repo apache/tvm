@@ -84,7 +84,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
     SetupConstants(consts);
-    if (GetCachedEnginesFromDisk()) return;
+    GetCachedEnginesFromDisk();
   }
 
   void LoadGlobalAttributes() {
@@ -181,8 +181,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) {
       TensorRTEngineAndContext& engine_and_context =
           trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
-      size_t binding_num = engine_and_context.engine->getNbBindings();
-      if (engine_and_context.device_buffers.size() == binding_num) {
+      if (!engine_and_context.device_buffers.empty()) {
         return;
       }
     }
@@ -222,8 +221,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) {
       TensorRTEngineAndContext& engine_and_context =
           trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
-      if (engine_and_context.device_buffers.size() == 0) {
-        builder.CreateDeviceBuffers(&engine_and_context);
+      if (engine_and_context.device_buffers.empty()) {
+        engine_and_context.device_buffers = builder.CreateDeviceBuffers(engine_and_context.engine);
+        builder.CleanUp();
         return;
       }
     }
