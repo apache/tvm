@@ -934,36 +934,25 @@ class FuseMutator : private MixedModeMutator {
   }
 
   Expr VisitExpr_(const LetNode* op) final {
-    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
-    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> new_values;
-    std::stack<const LetNode*> stack;
-    stack.push(op);
-    bool is_anormal = true;
-    while (is_anormal) {
-      const LetNode* current_op = stack.top();
-      Expr current_expr = GetRef<Expr>(current_op);
-      new_vars[current_expr] = Downcast<Var>(VisitExpr(current_op->var));
-      new_values[current_expr] = VisitExpr(current_op->value);
-      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
-        stack.push(new_op);
+    auto pre_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Var var = Downcast<Var>(VisitExpr(op->var));
+      Expr value = VisitExpr(op->value);
+      // Visit body and cache the op
+      Expr body = VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        memo_[expr] = expr;
       } else {
-        is_anormal = false;
+        memo_[expr] = Let(var, value, body);
       }
-    }
-    while (stack.size()) {
-      const LetNode* current_op = stack.top();
-      Expr current_expr = GetRef<Expr>(current_op);
-      stack.pop();
-      Var var = new_vars[current_expr];
-      Expr value = new_values[current_expr];
-      Expr body = VisitExpr(current_op->body);
-      if (var.same_as(current_op->var) && value.same_as(current_op->value) &&
-          body.same_as(current_op->body)) {
-        memo_[current_expr] = current_expr;
-      } else {
-        memo_[current_expr] = Let(var, value, body);
-      }
-    }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
     return memo_[GetRef<Expr>(op)];
   }
 

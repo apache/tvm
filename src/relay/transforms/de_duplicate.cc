@@ -64,28 +64,17 @@ Expr DeDup(const Expr& e) {
 
     Expr VisitExpr_(const LetNode* op) final {
       std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
-      std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> new_values;
-      std::stack<const LetNode*> stack;
-      stack.push(op);
-      bool is_anormal = true;
-      while (is_anormal) {
-        const LetNode* current_op = stack.top();
-        Expr current_expr = GetRef<Expr>(current_op);
-        new_vars[current_expr] = Fresh(current_op->var);
-        new_values[current_expr] = VisitExpr(current_op->value);
-        if (const LetNode* new_op = current_op->body.as<LetNode>()) {
-          stack.push(new_op);
-        } else {
-          is_anormal = false;
-        }
-      }
-      while (stack.size()) {
-        const LetNode* current_op = stack.top();
-        Expr current_expr = GetRef<Expr>(current_op);
-        stack.pop();
-        memo_[current_expr] =
-            Let(new_vars[current_expr], new_values[current_expr], VisitExpr(current_op->body));
-      }
+      auto pre_visit = [this, &new_vars](const LetNode* op) {
+        Expr expr = GetRef<Expr>(op);
+        new_vars[expr] = Fresh(op->var);
+        // Rely on the Memoizer to cache pre-visit values
+        VisitExpr(op->value);
+      };
+      auto post_visit = [this, &new_vars](const LetNode* op) {
+        Expr expr = GetRef<Expr>(op);
+        memo_[expr] = Let(new_vars[expr], VisitExpr(op->value), VisitExpr(op->body));
+      };
+      ExpandANormalForm(op, pre_visit, post_visit);
       return memo_[GetRef<Expr>(op)];
     }
 

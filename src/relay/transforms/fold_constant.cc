@@ -92,47 +92,32 @@ class ConstantFolder : public MixedModeMutator {
   using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
-    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
-    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> new_values;
-    std::stack<const LetNode*> stack;
-    stack.push(op);
-    bool is_anormal = true;
-    while (is_anormal) {
-      const LetNode* current_op = stack.top();
-      Expr current_expr = GetRef<Expr>(current_op);
-
-      Expr value = this->Mutate(current_op->value);
-      new_values[current_expr] = value;
+    auto pre_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->Mutate(op->value);
       if (value.as<ConstantNode>()) {
-        memo_[current_op->var] = value;
+        memo_[op->var] = value;
       } else {
-        new_vars[current_expr] = Downcast<Var>(this->Mutate(current_op->var));
+        this->Mutate(op->var);
       }
-
-      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
-        stack.push(new_op);
-      } else {
-        is_anormal = false;
-      }
-    }
-    while (stack.size()) {
-      const LetNode* current_op = stack.top();
-      Expr current_expr = GetRef<Expr>(current_op);
-      stack.pop();
-      Expr value = new_values[current_expr];
+    };
+    auto post_visit = [this](const LetNode* op) {
+      Expr expr = GetRef<Expr>(op);
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->Mutate(op->value);
       if (value.as<ConstantNode>()) {
-        memo_[current_expr] = this->Mutate(current_op->body);
+        memo_[expr] = this->Mutate(op->body);
       } else {
-        Var var = new_vars[current_expr];
-        Expr body = this->Mutate(current_op->body);
-        if (var.same_as(current_op->var) && value.same_as(current_op->value) &&
-            body.same_as(current_op->body)) {
-          memo_[current_expr] = current_expr;
+        Var var = Downcast<Var>(this->Mutate(op->var));
+        Expr body = this->Mutate(op->body);
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          memo_[expr] = expr;
         } else {
-          memo_[current_expr] = Let(var, value, body);
+          memo_[expr] = Let(var, value, body);
         }
       }
-    }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
     return memo_[GetRef<Expr>(op)];
   }
 
