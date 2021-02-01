@@ -119,15 +119,15 @@ class TensorRTBuilder {
    */
   std::vector<runtime::NDArray> CreateDeviceBuffers(nvinfer1::ICudaEngine* engine);
 
+  /*! \brief Clean up resources used to create engine. */
+  void CleanUp();
+
  private:
   /*! \brief Convert a DLTensor to a TensorRT weight. */
   nvinfer1::Weights GetDLTensorAsWeights(const DLTensor* dptr, DLDeviceType src_device);
 
   /*! \brief Convert an input to a Tensor if it is a Weight */
-  nvinfer1::ITensor* GetInputAsTensor(const TensorRTOpInput& input);
-
-  /*! \brief Clean up resources used to create engine. */
-  void CleanUp();
+  nvinfer1::ITensor* GetInputAsTensor(const TensorRTOpInput& input);  
 
   /*! \brief Allocate a GPU buffer for input or output DLTensor, only if the context is not GPU
    * already. Inputs that are already on the GPU can be passed directly to TensorRT and will not
