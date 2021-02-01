@@ -315,29 +315,20 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void VisitExpr_(const LetNode* op) final {
     // do not fuse through let.
-    std::stack<const LetNode*> stack;
-    stack.push(op);
-    bool is_anormal = true;
-    while (is_anormal) {
-      const LetNode* current_op = stack.top();
-      this->Update(current_op->var, nullptr, kOpaque);
-      this->Update(current_op->value, nullptr, kOpaque);
-      this->Update(current_op->body, nullptr, kOpaque);
-      VisitExpr(current_op->var);
-      VisitExpr(current_op->value);
-      if (const LetNode* new_op = current_op->body.as<LetNode>()) {
-        stack.push(new_op);
-      } else {
-        is_anormal = false;
-      }
-    }
-    while (stack.size()) {
-      const LetNode* current_op = stack.top();
-      stack.pop();
-      VisitExpr(current_op->body);
-      visit_counter_[current_op] += 1;
-      this->AddNode(current_op);
-    }
+    auto pre_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      this->Update(op->var, nullptr, kOpaque);
+      this->Update(op->value, nullptr, kOpaque);
+      this->Update(op->body, nullptr, kOpaque);
+      VisitExpr(op->var);
+      VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      VisitExpr(op->body);
+      visit_counter_[op] += 1;
+      this->AddNode(op);
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
   }
 
   void VisitExpr_(const IfNode* op) final {
