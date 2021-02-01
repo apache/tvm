@@ -23,7 +23,7 @@ import tvm
 from tvm import relay, te
 
 from .. import nn
-from ..utils import traverse_inline, get_const_tuple, prod, get_const_int
+from ..utils import traverse_inline, get_const_tuple, prod, get_const_int, ceil_div
 
 
 def sparse_dense(data, weight_data, weight_indices, weight_indptr, sparse_lhs=False):
@@ -162,9 +162,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     default_function_kernel1 for the multiply.
     """
 
-    def ceil_div(a, b):
-        return (a + (b - 1)) // b
-
     def gen_ir(data, w_data, w_indices, w_indptr, out):
         # pylint: disable=invalid-name
         # TODO(tkonolige): use tensorcores for block multiply
@@ -228,8 +225,8 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         )
 
         # zero block
-        with ib.for_range(0, bs_m, name="x", for_type="unroll") as x:
-            with ib.for_range(0, bs_n, name="y", for_type="unroll") as y:
+        with ib.for_range(0, bs_m, name="x", kind="unroll") as x:
+            with ib.for_range(0, bs_n, name="y", kind="unroll") as y:
                 block[x, y] = 0.0
         # compute into thread local storage using warp_size chunks
         with ib.for_range(0, rowlength_bo, name="bb") as bb:
@@ -240,26 +237,26 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
             # each thread has a row
             # TODO: ideally we could vectorize this
             with ib.for_range(0, rowlength_bi, name="bi") as bi:
-                with ib.for_range(0, bs_m, name="x", for_type="unroll") as x:
-                    with ib.for_range(0, bs_k, name="z", for_type="unroll") as z:
+                with ib.for_range(0, bs_m, name="x", kind="unroll") as x:
+                    with ib.for_range(0, bs_k, name="z", kind="unroll") as z:
                         # This memory acces should be out of bounds when
                         # m_index >= mb (which occurs when the dense matrix
                         # rows % 32 != 0), but it seems to work just fine...
                         data_cache[bi, x, z] = data_ptr[indices[bi] * bs_k + z, m_index * bs_m + x]
             # cache w_data
             elem_idx = bb * rowlength_bi + tx
-            with ib.for_range(0, bs_n, name="y", for_type="unroll") as y:
-                with ib.for_range(0, bs_k, name="z", for_type="unroll") as z:
+            with ib.for_range(0, bs_n, name="y", kind="unroll") as y:
+                with ib.for_range(0, bs_k, name="z", kind="unroll") as z:
                     w_data_cache[tx, y, z] = w_data_ptr[row_start + elem_idx, y, z]
             with ib.for_range(0, mi, name="i") as i:
                 # thread local block matmul
-                with ib.for_range(0, bs_m, name="x", for_type="unroll") as x:
-                    with ib.for_range(0, bs_n, name="y", for_type="unroll") as y:
-                        with ib.for_range(0, bs_k, name="z", for_type="unroll") as z:
+                with ib.for_range(0, bs_m, name="x", kind="unroll") as x:
+                    with ib.for_range(0, bs_n, name="y", kind="unroll") as y:
+                        with ib.for_range(0, bs_k, name="z", kind="unroll") as z:
                             block[x, y] += data_cache[i, x, z] * w_data_cache[i, y, z]
         # store results
-        with ib.for_range(0, bs_m, name="x", for_type="unroll") as x:
-            with ib.for_range(0, bs_n, name="y", for_type="unroll") as y:
+        with ib.for_range(0, bs_m, name="x", kind="unroll") as x:
+            with ib.for_range(0, bs_n, name="y", kind="unroll") as y:
                 with ib.if_scope(m_index < mb):
                     with ib.if_scope(n_index < nb):
                         # It doesn't seem like we would be getting coelesced
@@ -295,7 +292,14 @@ def is_valid_for_sparse_dense_padded(data, weight_data):
     """
     # pylint:disable=invalid-name
     warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
-    m = get_const_tuple(data.checked_type.shape)[1]
+    # If there are multiple alter_ops in a model, the first alteration does not
+    # run type inference for the subsequent ones. In this case, we don't have
+    # the shape information, so we run the inferencer manually.
+    try:
+        m = get_const_tuple(data.checked_type.shape)[1]
+    except ValueError:
+        data_infered = relay.transform.InferType()(tvm.IRModule.from_expr(data))["main"]
+        m = get_const_tuple(data_infered.ret_type.shape)[1]
     if len(weight_data.shape) == 1:
         bs_m = 1
     else:

@@ -73,7 +73,7 @@ def test_init_imm():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k, init=10.0), name="B")
+    B = te.compute((), lambda: te.sum(A[k], axis=k, init=10.0), name="B")
     # schedule
     s = te.create_schedule(B.op)
     # one line to build the function.
@@ -86,7 +86,7 @@ def test_init_imm():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), ctx)
         fsum(a, b)
         res = 10.0 + np.sum(a.asnumpy(), axis=0)
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -129,7 +129,7 @@ def test_rfactor():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name="B")
+    B = te.compute((), lambda: te.sum(A[k], axis=k), name="B")
     # schedule
     s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
@@ -145,7 +145,7 @@ def test_rfactor():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -191,11 +191,11 @@ def test_rfactor_factor_axis():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name="B")
+    B = te.compute((), lambda: te.sum(A[k], axis=k), name="B")
     # schedule
     s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
-    BF = s.rfactor(B, kf, 1)
+    BF = s.rfactor(B, kf, 0)
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
@@ -207,7 +207,7 @@ def test_rfactor_factor_axis():
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)

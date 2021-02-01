@@ -1123,7 +1123,7 @@ def wrap_compute_scatter(topi_compute):
     """Wrap scatter topi compute"""
 
     def _compute_scatter(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], axis=attrs.axis)]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis)]
 
     return _compute_scatter
 
@@ -1359,5 +1359,26 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
         wrap_compute_threefry_split(topi.random.threefry_split),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="threefry_split.generic",
+    )
+    return strategy
+
+
+def wrap_compute_cumsum(topi_compute):
+    """Wrap cumsum topi compute"""
+
+    def _compute_cumsum(attrs, inputs, _):
+        return [topi_compute(inputs[0], attrs.axis, attrs.dtype)]
+
+    return _compute_cumsum
+
+
+@override_native_generic_func("cumsum_strategy")
+def cumsum_strategy(attrs, inputs, out_type, target):
+    """cumsum generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_cumsum(topi.cumsum),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumsum.generic",
     )
     return strategy

@@ -147,6 +147,45 @@ def test_fold_concat():
     assert tvm.ir.structural_equal(zz, zexpected)
 
 
+def test_fold_if():
+    cond_data = np.array(1).astype("bool")
+    x_data = np.array([[1, 2, 3]]).astype("float32")
+
+    def before():
+        a = relay.const(cond_data)
+        x = relay.const(x_data)
+        y = relay.const(x_data)
+        iff = relay.If(a, x + y, x - y)
+        return relay.Function([], iff)
+
+    def expected():
+        y_data = x_data + x_data
+        y = relay.const(y_data)
+        return relay.Function([], y)
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zz, zexpected)
+
+    cond_data = np.array(0).astype("bool")
+
+    def before():
+        a = relay.const(cond_data)
+        x = relay.const(x_data)
+        y = relay.const(x_data)
+        iff = relay.If(a, x + y, x - y)
+        return relay.Function([], iff)
+
+    def expected():
+        y_data = x_data - x_data
+        y = relay.const(y_data)
+        return relay.Function([], y)
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zz, zexpected)
+
+
 def test_fold_shape_of():
     c_shape = (8, 9, 10)
 

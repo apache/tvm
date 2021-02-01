@@ -48,7 +48,7 @@ def matmul(lhs, rhs, transa=False, transb=False, dtype=None):
             "tvm.contrib.cublas.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         dtype=dtype,
-        name="C",
+        name="matmul_cublas",
     )
 
 
@@ -82,5 +82,5 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, dtype=None):
             "tvm.contrib.cublas.batch_matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         dtype=dtype,
-        name="C",
+        name="batch_matmul_cublas",
     )

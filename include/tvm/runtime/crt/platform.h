@@ -97,6 +97,25 @@ tvm_crt_error_t TVMPlatformTimerStart();
  */
 tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds);
 
+/*! \brief Fill a buffer with random data.
+ *
+ * Cryptographically-secure random data is NOT required. This function is intended for use
+ * cases such as filling autotuning input tensors and choosing the nonce used for microTVM RPC.
+ *
+ * This function does not need to be implemented for inference tasks. It is used only by
+ * AutoTVM and the RPC server. When not implemented, an internal weak-linked stub is provided.
+ *
+ * Please take care that across successive resets, this function returns different sequences of
+ * values. If e.g. the random number generator is seeded with the same value, it may make it
+ * difficult for a host to detect device resets during autotuning or host-driven inference.
+ *
+ * \param buffer Pointer to the 0th byte to write with random data. `num_bytes` of random data
+ * should be written here.
+ * \param num_bytes Number of bytes to write.
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

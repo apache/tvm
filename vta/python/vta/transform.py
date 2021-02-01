@@ -231,7 +231,13 @@ def LiftAllocToScopeBegin():
                     body = tvm.tir.AttrStmt(op.node, op.attr_key, op.value, body)
                 elif isinstance(op, tvm.tir.For):
                     body = tvm.tir.For(
-                        op.loop_var, op.min, op.extent, op.for_type, op.device_api, body
+                        op.loop_var,
+                        op.min,
+                        op.extent,
+                        op.kind,
+                        body,
+                        op.thread_binding,
+                        op.annotations,
                     )
                 else:
                     raise RuntimeError("unexpected op")
@@ -314,7 +320,9 @@ def InjectCoProcSync():
             if _match_pragma(stmt, "trim_loop"):
                 op = stmt.body
                 assert isinstance(op, tvm.tir.For)
-                return tvm.tir.For(op.loop_var, op.min, 2, op.for_type, op.device_api, op.body)
+                return tvm.tir.For(
+                    op.loop_var, op.min, 2, op.kind, op.body, op.thread_binding, op.annotations
+                )
             return None
 
         return f.with_body(

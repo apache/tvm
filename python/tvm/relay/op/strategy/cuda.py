@@ -783,10 +783,23 @@ def scatter_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_scatter(topi.cuda.scatter),
-        wrap_topi_schedule(topi.generic.schedule_extern),
+        wrap_topi_schedule(topi.cuda.schedule_scatter),
         name="scatter.cuda",
         plevel=10,
     )
+
+    rank = len(inputs[0].shape)
+
+    with SpecializedCondition(rank == 1):
+        if target.kind.name == "cuda" and get_global_func(
+            "tvm.contrib.thrust.stable_sort_by_key", allow_missing=True
+        ):
+            strategy.add_implementation(
+                wrap_compute_scatter(topi.cuda.scatter_via_sort),
+                wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
+                name="scatter_via_sort.cuda",
+                plevel=9,  # use the sequential version by default
+            )
     return strategy
 
 
@@ -981,5 +994,17 @@ def argwhere_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_argwhere(topi.cuda.argwhere),
         wrap_topi_schedule(topi.cuda.schedule_argwhere),
         name="argwhere.cuda",
+    )
+    return strategy
+
+
+@cumsum_strategy.register(["cuda", "gpu"])
+def cumsum_strategy_cuda(attrs, inputs, out_type, target):
+    """cumsum cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_cumsum(topi.cuda.cumsum),
+        wrap_topi_schedule(topi.cuda.schedule_scan),
+        name="cumsum.cuda",
     )
     return strategy

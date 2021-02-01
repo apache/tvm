@@ -120,6 +120,18 @@ class ConstantFolder : public MixedModeMutator {
     }
   }
 
+  Expr VisitExpr_(const IfNode* op) final {
+    auto new_cond = ExprMutator::VisitExpr(op->cond);
+    if (auto const_cond = new_cond.as<ConstantNode>()) {
+      if (reinterpret_cast<uint8_t*>(const_cond->data->data)[0]) {
+        return ExprMutator::VisitExpr(op->true_branch);
+      } else {
+        return ExprMutator::VisitExpr(op->false_branch);
+      }
+    }
+    return ExprMutator::VisitExpr_(op);
+  }
+
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     if (inside_primitive) {
       return GetRef<Expr>(call);

@@ -17,8 +17,6 @@
 # pylint: disable=import-self, invalid-name, unused-argument
 """Test torch vision fasterrcnn and maskrcnn models"""
 import numpy as np
-import torch
-import torchvision
 import cv2
 
 import tvm
@@ -26,9 +24,15 @@ import tvm
 import tvm.testing
 from tvm import relay
 from tvm.runtime.vm import VirtualMachine
-from tvm.relay.frontend.pytorch_utils import rewrite_nms_to_batched_nms
+from tvm.relay.frontend.pytorch_utils import (
+    rewrite_nms_to_batched_nms,
+    rewrite_batched_nms_with_max_out_size,
+    rewrite_scatter_to_gather,
+)
 from tvm.contrib.download import download
 
+import torch
+import torchvision
 
 in_size = 300
 
@@ -72,7 +76,7 @@ def generate_jit_model(index):
     ]
 
     model_func = model_funcs[index]
-    model = TraceWrapper(model_func(pretrained=True, rpn_pre_nms_top_n_test=200))
+    model = TraceWrapper(model_func(pretrained=True, rpn_pre_nms_top_n_test=1000))
 
     model.eval()
     inp = torch.Tensor(np.random.uniform(0.0, 250.0, size=(1, 3, in_size, in_size)))
@@ -138,6 +142,16 @@ def test_detection_models():
 
     before = mod["main"]
     mod = rewrite_nms_to_batched_nms(mod)
+    after = mod["main"]
+    assert not tvm.ir.structural_equal(after, before)
+
+    before = mod["main"]
+    mod = rewrite_batched_nms_with_max_out_size(mod)
+    after = mod["main"]
+    assert not tvm.ir.structural_equal(after, before)
+
+    before = mod["main"]
+    mod = rewrite_scatter_to_gather(mod, 4)  # num_scales is 4 for maskrcnn_resnet50_fpn
     after = mod["main"]
     assert not tvm.ir.structural_equal(after, before)
 

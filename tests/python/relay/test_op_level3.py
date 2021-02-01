@@ -1311,6 +1311,7 @@ def test_sparse_to_dense():
     # verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 
+@tvm.testing.uses_gpu
 def test_adv_index():
     def verify_adv_index(data_shape, index_shapes):
         dtype = "float32"
@@ -1340,6 +1341,40 @@ def test_adv_index():
         ],
     )
     verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
+
+
+@tvm.testing.parametrize_targets
+def test_cumsum(target, ctx):
+    def verify_cumsum(data_np, np_out, axis=None, out_dtype=None, rtol=1e-5, atol=1e-5):
+        inp = relay.var("data", relay.TensorType(data_np.shape, str(data_np.dtype)))
+
+        out = relay.op.cumsum(inp, axis, out_dtype)
+        func = relay.Function([inp], out)
+
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(data_np)
+            tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=rtol, atol=atol)
+
+    data = np.array([2, 3, 0])
+    verify_cumsum(data, np.cumsum(data))
+    verify_cumsum(data, np.cumsum(data), out_dtype="int64")
+
+    data = np.random.randn(10, 10)
+    verify_cumsum(data, np.cumsum(data))
+    verify_cumsum(data, np.cumsum(data, axis=0), axis=0)
+    verify_cumsum(data, np.cumsum(data, axis=1), axis=1)
+
+    data = np.random.randn(10, 5, 10).astype("float32")
+    verify_cumsum(data, np.cumsum(data), rtol=1e-4, atol=1e-4)
+    verify_cumsum(data, np.cumsum(data, axis=0), axis=0, rtol=1e-4, atol=1e-4)
+    verify_cumsum(data, np.cumsum(data, axis=1), axis=1, rtol=1e-4, atol=1e-4)
+    verify_cumsum(data, np.cumsum(data, axis=-1), axis=-1, rtol=1e-4, atol=1e-4)
+
+    data = np.random.rand(10) > 0.5
+    data = data.astype(np.int32)
+    verify_cumsum(data, np.cumsum(data, dtype=np.int32))
+    verify_cumsum(data, np.cumsum(data, dtype="int64"), out_dtype="int64")
 
 
 if __name__ == "__main__":
@@ -1379,3 +1414,4 @@ if __name__ == "__main__":
     test_sparse_to_dense()
     test_fixed_point_multiply()
     test_adv_index()
+    test_cumsum()

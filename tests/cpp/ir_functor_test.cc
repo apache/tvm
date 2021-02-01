@@ -72,7 +72,7 @@ TEST(IRF, ExprTransform) {
   try {
     f(z - 1, 2);
     LOG(FATAL) << "should fail";
-  } catch (dmlc::Error) {
+  } catch (dmlc::Error&) {
   }
 }
 

@@ -43,15 +43,15 @@ DEBUG = False
 TARGET = None
 
 
-def _make_sess_from_op(model, zephyr_board, op_name, sched, arg_bufs):
+def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target, target_host=target, name=op_name)
 
-    return _make_session(model, target, zephyr_board, mod)
+    return _make_session(model, target, zephyr_board, west_cmd, mod)
 
 
-def _make_session(model, target, zephyr_board, mod):
+def _make_session(model, target, zephyr_board, west_cmd, mod):
     test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}-{model}"
     prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
@@ -65,8 +65,9 @@ def _make_session(model, target, zephyr_board, mod):
     project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
     compiler = zephyr.ZephyrCompiler(
         project_dir=project_dir,
-        board="nucleo_f746zg" if "stm32f746" in str(target) else "qemu_x86",
+        board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
+        west_cmd=west_cmd,
     )
 
     opts = tvm.micro.default_options(f"{project_dir}/crt")
@@ -106,12 +107,12 @@ def _make_session(model, target, zephyr_board, mod):
     return tvm.micro.Session(**session_kw)
 
 
-def _make_add_sess(model, zephyr_board):
+def _make_add_sess(model, zephyr_board, west_cmd):
     A = tvm.te.placeholder((2,), dtype="int8")
     B = tvm.te.placeholder((1,), dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op(model, zephyr_board, "add", sched, [A, B, C])
+    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C])
 
 
 # The models that should pass this configuration. Maps a short, identifying platform string to
@@ -119,11 +120,12 @@ def _make_add_sess(model, zephyr_board):
 PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
+    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
 }
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
-def test_compile_runtime(platform):
+def test_compile_runtime(platform, west_cmd):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
@@ -141,11 +143,11 @@ def test_compile_runtime(platform):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.asnumpy() == np.array([6, 7])).all()
 
-    with _make_add_sess(model, zephyr_board) as sess:
+    with _make_add_sess(model, zephyr_board, west_cmd) as sess:
         test_basic_add(sess)
 
 
-def test_platform_timer(platform):
+def test_platform_timer(platform, west_cmd):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
@@ -168,11 +170,11 @@ def test_platform_timer(platform):
         assert result.mean > 0
         assert len(result.results) == 3
 
-    with _make_add_sess(model, zephyr_board) as sess:
+    with _make_add_sess(model, zephyr_board, west_cmd) as sess:
         test_basic_add(sess)
 
 
-def test_relay(platform):
+def test_relay(platform, west_cmd):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]
     shape = (10,)
@@ -188,7 +190,7 @@ def test_relay(platform):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(func, target=target)
 
-    with _make_session(model, target, zephyr_board, mod) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
         graph_mod = tvm.micro.create_local_graph_runtime(
             graph, session.get_system_lib(), session.context
         )
@@ -254,14 +256,14 @@ class CcompilerAnnotator(ExprMutator):
         return super().visit_call(call)
 
 
-def check_result(relay_mod, model, zephyr_board, map_inputs, out_shape, result):
+def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result):
     """Helper function to verify results"""
     TOL = 1e-5
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(relay_mod, target=target)
 
-    with _make_session(model, target, zephyr_board, mod) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
         rt_mod = tvm.micro.create_local_graph_runtime(
             graph, session.get_system_lib(), session.context
         )
@@ -280,7 +282,7 @@ def check_result(relay_mod, model, zephyr_board, map_inputs, out_shape, result):
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
 
 
-def test_byoc_utvm(platform):
+def test_byoc_utvm(platform, west_cmd):
     """This is a simple test case to check BYOC capabilities of uTVM"""
     model, zephyr_board = PLATFORMS[platform]
     x = relay.var("x", shape=(10, 10))
@@ -335,6 +337,7 @@ def test_byoc_utvm(platform):
         ),
         model=model,
         zephyr_board=zephyr_board,
+        west_cmd=west_cmd,
     )
 
 

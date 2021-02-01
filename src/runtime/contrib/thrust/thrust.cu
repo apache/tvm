@@ -25,6 +25,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/sort.h>
 #include <thrust/gather.h>
+#include <thrust/scan.h>
 
 #include <tvm/runtime/registry.h>
 #include <dlpack/dlpack.h>
@@ -261,6 +262,130 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     }
   } else {
     LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
+  }
+});
+
+template<typename InType, typename OutType>
+void thrust_scan(DLTensor* data,
+                 DLTensor* output,
+                 bool exclusive) {
+  thrust::device_ptr<InType> data_ptr(static_cast<InType *>(data->data));
+  thrust::device_ptr<OutType> output_ptr(static_cast<OutType *>(output->data));
+  const auto scan_size = data->shape[data->ndim - 1];
+
+  if (scan_size == 0) return;
+
+  size_t size = 1;
+  for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
+
+  const bool need_cast = std::is_same<InType, OutType>::value == false;
+
+  auto data_cast_ptr = thrust::make_transform_iterator(data_ptr, [] __host__ __device__(InType v) {
+    return static_cast<OutType>(v);
+  }); // NOLINT(*)
+
+  if (size == static_cast<size_t>(data->shape[data->ndim - 1])) {
+    if (exclusive && need_cast) {
+      thrust::exclusive_scan(data_cast_ptr, data_cast_ptr + scan_size, output_ptr);
+    } else if (exclusive && !need_cast) {
+      thrust::exclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    } else if (!exclusive && need_cast) {
+      thrust::inclusive_scan(data_cast_ptr, data_cast_ptr + scan_size, output_ptr);
+    } else {
+      thrust::inclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    }
+  } else {
+    // Use thrust segmented scan to compute scan on the inner most axis
+    // data->shape[0] * data->shape[1] * ... * data->shape[ndim - 2] scans are
+    // computed in parallel
+
+    // This is for constructing a sequence 0, 0, 0,...,1, 1, 1,...,2, 2, 2,...,
+    // without materializing the sequence vector
+    auto counting_iter = thrust::counting_iterator<size_t>(0);
+    // Without __host__ annotation, cub crashes
+    auto linear_index_to_scan_key = [scan_size] __host__ __device__(size_t i) {
+        return i / scan_size;
+    }; // NOLINT(*)
+    auto key_iter = thrust::make_transform_iterator(counting_iter, linear_index_to_scan_key);
+
+    if (exclusive && need_cast) {
+      thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_cast_ptr, output_ptr);
+    } else if (exclusive && !need_cast) {
+      thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    } else if (!exclusive && need_cast) {
+      thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_cast_ptr, output_ptr);
+    } else {
+      thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    }
+  }
+}
+
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ICHECK_EQ(args.num_args, 3);
+  DLTensor* data = args[0];
+  DLTensor* output = args[1];
+  bool exclusive = args[2];
+
+  auto in_dtype = DLDataType2String(data->dtype);
+  auto out_dtype = DLDataType2String(output->dtype);
+
+  if (in_dtype == "bool") {
+    if (out_dtype == "int32") {
+      thrust_scan<bool, int>(data, output, exclusive);
+    } else if (out_dtype == "int64") {
+      thrust_scan<bool, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<bool, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<bool, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32, and float64";
+    }
+  } else if (in_dtype == "int32") {
+    if (out_dtype == "int32") {
+      thrust_scan<int, int>(data, output, exclusive);
+    } else if (out_dtype == "int64") {
+      thrust_scan<int, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<int, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<int, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32, and float64";
+    }
+  } else if (in_dtype == "int64") {
+    if (out_dtype == "int64") {
+      thrust_scan<int64_t, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<int64_t, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<int64_t, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int64, float32, and float64";
+    }
+  } else if (in_dtype == "float32") {
+    if (out_dtype == "float32") {
+      thrust_scan<float, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<float, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are float32, and float64";
+    }
+  } else if (in_dtype == "float64") {
+    if (out_dtype == "float64") {
+      thrust_scan<double, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtype is float64";
+    }
+  } else {
+    LOG(FATAL) << "Unsupported input dtype: " << in_dtype
+               << ". Supported input dtypes are bool, int32, int64, float32, and float64";
   }
 });
 

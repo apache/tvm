@@ -1243,6 +1243,62 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   return ss.str();
 }
 
+String ComputeDAG::PrintDAG(bool simple_mode) const {
+  std::stringstream ss;
+
+  for (const auto& op : operator->()->ops) {
+    if (op->IsInstance<te::PlaceholderOpNode>()) {
+      ss << op->name << " = PLACEHOLDER ";
+      if (!simple_mode) {
+        ss << op.output(0)->shape;
+      }
+      ss << "\n";
+    } else if (auto pop = op.as<te::ComputeOpNode>()) {
+      for (size_t k = 0; k < pop->body.size(); ++k) {
+        ss << op->name << "(";
+        for (size_t i = 0; i < pop->axis.size(); i++) {
+          ss << pop->axis[i]->var->name_hint;
+          if (i != pop->axis.size() - 1) {
+            ss << ", ";
+          }
+        }
+        ss << ")";
+        if (pop->body.size() > 1) {
+          ss << ".v" << k;
+        }
+        if (auto preduce = pop->body[k].as<ReduceNode>()) {
+          ICHECK_LT(k, preduce->combiner->result.size());
+          PrimExpr combiner = preduce->combiner->result[k];
+          if (combiner->IsInstance<AddNode>()) {
+            ss << " += " << preduce->source[0] << "\n";
+          } else if (combiner->IsInstance<MaxNode>()) {
+            ss << " max= " << preduce->source[0] << "\n";
+          } else if (combiner->IsInstance<MinNode>()) {
+            ss << " min= " << preduce->source[0] << "\n";
+          } else if (combiner->IsInstance<SelectNode>()) {
+            const auto& select = combiner.as<SelectNode>();
+            ss << " select(" << select->condition << ", " << select->true_value << ", "
+               << select->false_value << ")= " << '(' << preduce->source[0] << ','
+               << preduce->source[1] << ")\n";
+          } else {
+            ss << "reduce" << combiner << "\n";
+          }
+        } else {
+          auto call = pop->body[k].as<CallNode>();
+          if (simple_mode && call) {
+            ss << " = " << call->op << "\n";
+          } else {
+            ss << " = " << pop->body[k] << "\n";
+          }
+        }
+      }
+    } else {
+      LOG(FATAL) << "Invalid op";
+    }
+  }
+  return String(ss.str());
+}
+
 State ComputeDAG::InferBound(const State& state) const {
   ICHECK(state->concrete) << "Only concrete state can be processed to get bound info.";
 
@@ -1383,51 +1439,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const ComputeDAGNode*>(ref.get());
-      std::stringstream ss;
-
-      for (const auto& op : node->ops) {
-        if (op->IsInstance<te::PlaceholderOpNode>()) {
-          ss << op->name << " = PLACEHOLDER " << op.output(0)->shape << "\n";
-        } else if (auto pop = op.as<te::ComputeOpNode>()) {
-          for (size_t k = 0; k < pop->body.size(); ++k) {
-            ss << op->name << "(";
-            for (size_t i = 0; i < pop->axis.size(); i++) {
-              ss << pop->axis[i]->var->name_hint;
-              if (i != pop->axis.size() - 1) {
-                ss << ", ";
-              }
-            }
-            ss << ")";
-            if (pop->body.size() > 1) {
-              ss << ".v" << k;
-            }
-            if (auto preduce = pop->body[k].as<ReduceNode>()) {
-              ICHECK_LT(k, preduce->combiner->result.size());
-              PrimExpr combiner = preduce->combiner->result[k];
-              if (combiner->IsInstance<AddNode>()) {
-                ss << " += " << preduce->source[0] << "\n";
-              } else if (combiner->IsInstance<MaxNode>()) {
-                ss << " max= " << preduce->source[0] << "\n";
-              } else if (combiner->IsInstance<MinNode>()) {
-                ss << " min= " << preduce->source[0] << "\n";
-              } else if (combiner->IsInstance<SelectNode>()) {
-                const auto& select = combiner.as<SelectNode>();
-                ss << " select(" << select->condition << ", " << select->true_value << ", "
-                   << select->false_value << ")= " << '(' << preduce->source[0] << ','
-                   << preduce->source[1] << ")\n";
-              } else {
-                ss << "reduce" << combiner << "\n";
-              }
-            } else {
-              ss << " = " << pop->body[k] << "\n";
-            }
-          }
-        } else {
-          LOG(FATAL) << "Invalid op";
-        }
-      }
-
-      p->stream << ss.str();
+      auto dag = GetRef<ComputeDAG>(node);
+      auto dag_str = dag.PrintDAG();
+      p->stream << dag_str;
     });
 
 Array<PrimExpr> GetShapeFromRewrittenLayout(String rewritten_layout, Array<String> axis_names) {
@@ -1474,6 +1488,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGPrintPythonCodeFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state) {
       return dag.PrintStepsAsPython(state->transform_steps);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGPrintDAG")
+    .set_body_typed([](const ComputeDAG& dag, bool simple_mode) {
+      return dag.PrintDAG(simple_mode);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGInferBoundFromState")
