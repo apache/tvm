@@ -69,13 +69,13 @@ RUNTIME_LIB_SRC_DIRS = [os.path.join(CRT_ROOT_DIR, n) for n in CRT_RUNTIME_LIB_N
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 
 
-_COMMON_CFLAGS = ["-Wall", "-Werror"]
+_COMMON_CFLAGS = ["-Wall", "-Werror", "-D_GNU_SOURCE"]
 
 
 _CRT_DEFAULT_OPTIONS = {
     "cflags": ["-std=c11"] + _COMMON_CFLAGS,
     "ccflags": ["-std=c++11"] + _COMMON_CFLAGS,
-    "ldflags": ["-std=c++11"],
+    "ldflags": ["-std=c++11"] + _COMMON_CFLAGS,
     "include_dirs": [
         f"{TVM_ROOT_DIR}/include",
         f"{TVM_ROOT_DIR}/3rdparty/dlpack/include",
