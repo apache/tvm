@@ -161,16 +161,16 @@ def parse_shape_string(inputs_string):
     if not input_mappings:
         raise argparse.ArgumentTypeError(
             "--input-shapes argument must be of the form "
-            "\"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]\""
+            '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"'
         )
     shape_dict = {}
     for mapping in input_mappings:
         # Remove whitespace.
         mapping = mapping.replace(" ", "")
         # Split mapping into name and shape.
-        name, shape_string = mapping.split(':')
+        name, shape_string = mapping.split(":")
         # Convert shape string into a list of integers or Anys if negative.
-        shape = [int(x) if int(x) > 0 else relay.Any() for x in shape_string.strip('][').split(',')]
+        shape = [int(x) if int(x) > 0 else relay.Any() for x in shape_string.strip("][").split(",")]
         # Add parsed mapping to shape dictionary.
         shape_dict[name] = shape
 
