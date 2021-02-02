@@ -212,6 +212,25 @@ struct Tokenizer {
     }
   }
 
+  Token ParseNumber(bool is_pos) {
+    std::stringstream ss;
+    while (More() && IsNumeric(Peek())) {
+      ss << Next();
+    }
+
+    bool is_float = false;
+
+    // Remove trailing floating point prefix.
+    if (More() && Peek() == 'f') {
+      ss << Next();
+      while (More() && IsNumeric(Peek())) {
+        ss << Next();
+      }
+      is_float = true;
+    }
+    return ParseNumber(is_pos, is_float, ss.str());
+  }
+
   bool MatchString(const std::string& string) {
     int start = this->pos;
 
@@ -340,38 +359,28 @@ struct Tokenizer {
       auto token = NewToken(TokenType::kWhitespace);
       Next();
       return token;
-    } else if (IsDigit(next) || next == '-') {
+    } else if (next == '-') {
       int negs = 0;
       while (More() && Peek() == '-') {
         Next();
         negs++;
       }
-      // If there isn't a number right after either,
-      // this is really slow for lexing, should replace
-      // with multi-token return or something.
-      if (negs && !IsDigit(Peek())) {
+      bool is_neg = negs % 2 == 1;
+      if (More() && IsDigit(Peek())) {
+        return ParseNumber(!is_neg);
+      } else if (More() && MatchString("inff")) {
+        return ParseNumber(!is_neg, true, "inff");
+      } else {
+        // If there isn't a number right after either,
+        // this is really slow for lexing, should replace
+        // with multi-token return or something.
         pos = pos - (negs - 1);
         return NewToken(TokenType::kMinus);
       }
-
-      bool is_neg = negs % 2 == 1;
-      std::stringstream ss;
-      while (More() && IsNumeric(Peek())) {
-        ss << Next();
-      }
-
-      bool is_float = false;
-
-      // Remove trailing floating point prefix.
-      if (More() && Peek() == 'f') {
-        ss << Next();
-        while (More() && IsNumeric(Peek())) {
-          ss << Next();
-        }
-        is_float = true;
-      }
-
-      return ParseNumber(!is_neg, is_float, ss.str());
+    } else if (IsDigit(next)) {
+      return ParseNumber(true);
+    } else if (MatchString("inff")) {
+      return ParseNumber(true, true, "inff");
     } else if (next == '.') {
       auto token = NewToken(TokenType::kPeriod);
       Next();
@@ -402,10 +411,6 @@ struct Tokenizer {
       return token;
     } else if (next == '+') {
       auto token = NewToken(TokenType::kPlus);
-      Next();
-      return token;
-    } else if (next == '-') {
-      auto token = NewToken(TokenType::kMinus);
       Next();
       return token;
     } else if (next == '*') {

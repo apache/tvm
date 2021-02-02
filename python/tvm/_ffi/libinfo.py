@@ -167,7 +167,6 @@ def find_include_path(name=None, search_path=None, optional=False):
     """
     ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     source_dir = os.path.join(ffi_dir, "..", "..", "..")
-    install_include_dir = os.path.join(ffi_dir, "..", "..", "..", "..")
 
     third_party_dir = os.path.join(source_dir, "3rdparty")
 
@@ -176,7 +175,6 @@ def find_include_path(name=None, search_path=None, optional=False):
     if os.environ.get("TVM_INCLUDE_PATH", None):
         header_path.append(os.environ["TVM_INCLUDE_PATH"])
 
-    header_path.append(install_include_dir)
     header_path.append(source_dir)
     header_path.append(third_party_dir)
 

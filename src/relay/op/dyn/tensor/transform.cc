@@ -400,6 +400,9 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (fill_value == nullptr) {
     return false;
   }
+  if (fill_shape == nullptr) {
+    return false;
+  }
 
   DataType out_dtype = param->dtype;
   if (out_dtype.bits() == 0) {

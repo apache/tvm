@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-wildcard-import
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -785,6 +786,29 @@ def test_rewrite_func():
     assert sub_pattern.match(out)
 
 
+def test_rewrite_func_with_attr():
+    x = relay.var("x")
+    y = relay.var("y")
+    f = relay.Function([x, y], x + y).with_attr("Composite", "add")
+
+    a = relay.var("a")
+    b = relay.var("b")
+    c = relay.Call(f, [a, b])
+    c_abs = relay.abs(c)
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = wildcard().has_attr({"Composite": "add"})(wildcard(), wildcard())
+
+        def callback(self, pre, post, node_map):
+            return post.args[0] + post.args[1]
+
+    out = rewrite(TestRewrite(), c_abs)
+    inlined_add_pattern = is_op("abs")(is_op("add")(wildcard(), wildcard()))
+    assert inlined_add_pattern.match(out)
+
+
 def test_nested_rewrite():
     class PatternCallback(DFPatternCallback):
         def __init__(self, pattern):
@@ -1465,6 +1489,76 @@ def test_partition_function():
     b2 = relay.var("b2")
     func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
         "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
+    )
+    expr2 = func2(x, w, b) + b
+    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+
+
+def test_rewrite_function_with_fuzzy_body():
+    """Allow Rewriting a function with a fuzzy body via dominator analysis"""
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], wildcard())
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = pattern
+
+        def callback(self, pre, post, node_map):
+            return x + w
+
+    out = rewrite(TestRewrite(), expr)
+    assert tvm.ir.structural_equal(x + w, x + w)
+
+
+@pytest.mark.skip(
+    """TODO(mbrookhart): The current partitioner can't properly handle 
+                       the partitioned inputs on the fuzzy body"""
+)
+def test_partition_function_with_fuzzy_body():
+    """
+    Allow Rewriting a function with a fuzzy body via dominator analysis
+    """
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], wildcard())
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    x2 = relay.var("x2")
+    w2 = relay.var("w2")
+    b2 = relay.var("b2")
+    func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
+        "PartitionedFromPattern", "FunctionCall_add_"
     )
     expr2 = func2(x, w, b) + b
     assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
