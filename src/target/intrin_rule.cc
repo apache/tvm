@@ -77,6 +77,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.ldexp").set_body(DispatchPureExtern
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt").set_body(DispatchPureExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.floor").set_body(DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.ceil").set_body(DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.round").set_body(DispatchPureExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.rsqrt")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       PrimExpr e = args[0];
