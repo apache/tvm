@@ -92,19 +92,33 @@ class ConstantFolder : public MixedModeMutator {
   using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
-    Expr value = this->Mutate(op->value);
-    if (value.as<ConstantNode>()) {
-      memo_[op->var] = value;
-      return this->Mutate(op->body);
-    } else {
-      Var var = Downcast<Var>(this->Mutate(op->var));
-      Expr body = this->Mutate(op->body);
-      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-        return GetRef<Expr>(op);
+    auto pre_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->Mutate(op->value);
+      if (value.as<ConstantNode>()) {
+        this->memo_[op->var] = value;
       } else {
-        return Let(var, value, body);
+        this->Mutate(op->var);
       }
-    }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      Expr expr = GetRef<Expr>(op);
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->Mutate(op->value);
+      if (value.as<ConstantNode>()) {
+        this->memo_[expr] = this->Mutate(op->body);
+      } else {
+        Var var = Downcast<Var>(this->Mutate(op->var));
+        Expr body = this->Mutate(op->body);
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          this->memo_[expr] = expr;
+        } else {
+          this->memo_[expr] = Let(var, value, body);
+        }
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
   }
 
   bool inside_primitive = false;
