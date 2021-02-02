@@ -23,12 +23,14 @@ to handle tensor processing. Particularly:
 """
 import math
 import tvm.ir
-from ...dataflow_pattern import wildcard, is_op, is_expr
+
 from .register import register_pattern_table, get_pattern_table
 
 from tvm.relay import transform
 from tvm.relay.expr import const
 from tvm.relay.build_module import bind_params_by_name
+
+from ...dataflow_pattern import wildcard, is_op, is_expr
 
 
 def partition_for_bnns(mod, params=None):
@@ -98,6 +100,7 @@ _register_external_op_helper("nn.batch_matmul")
 
 
 def dtype_is_supported(dtype):
+    """Check if data type is supported by BNNS backend"""
     return dtype in ("", "float32")
 
 
@@ -127,11 +130,11 @@ def bias_check(expr):
         return False
     if expr.op.name == "nn.bias_add":
         return attrs.axis == 1
-    elif expr.op.name == "add":
+    if expr.op.name == "add":
         b_shape = args[1].checked_type.shape
         if len(b_shape) == 4:
             return bool(b_shape[0] == 1 and b_shape[2] == 1 and b_shape[3] == 1)
-        elif len(b_shape) == 3:
+        if len(b_shape) == 3:
             return bool(b_shape[1] == 1 and b_shape[2] == 1)
 
     return False
@@ -153,6 +156,7 @@ def dense(expr):
 
 
 def make_conv_relu_pattern(with_bias=True, with_relu=True):
+    """Make pattern for bnns.conv2d primitive"""
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -176,6 +180,7 @@ def check_conv(extract):
 
 
 def make_dense_bias_pattern():
+    """Make pattern for bnns.dense primitive"""
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -184,6 +189,7 @@ def make_dense_bias_pattern():
 
 
 def make_dense_bias_gelu_pattern():
+    """Make pattern for bnns.dense primitive with fused bias and gelu activation"""
     dense_bias = make_dense_bias_pattern()
     const1 = is_expr(const(0.044715))
     const2 = is_expr(const(math.sqrt(2 / math.pi)))
@@ -209,6 +215,7 @@ def check_dense(extract):
 
 @register_pattern_table("bnns")
 def pattern_table():
+    """Get BNNS specific fusing patterns collection"""
     conv2d_bias_pat = (
         "bnns.conv2d_bias",
         make_conv_relu_pattern(with_bias=True, with_relu=False),
