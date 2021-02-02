@@ -3964,6 +3964,38 @@ def test_softplus():
     verify_softplus(input_data)
 
 
+def test_cumsum():
+    def verify_cumsum(indata, axis):
+        node = onnx.helper.make_node(
+            'CumSum',
+            inputs=['X', 'axis'],
+            outputs=['Y'],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "cumsum_test",
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape)),
+                helper.make_tensor_value_info("axis", TensorProto.INT32, [1]),
+                ],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="cumsum_test")
+
+        verify_with_ort_with_inputs(model, [indata, axis], dtype="float32", use_vm=True, opset=11)
+
+    data = np.array([1., 2., 3., 4., 5., 6.]).astype(np.float64).reshape((2, 3))
+    axis = np.int32(0)
+    verify_cumsum(data, axis)
+    axis = np.int32(1)
+    verify_cumsum(data, axis)
+    data = np.random.randn(1, 32, 32, 3).astype("float32")
+    axis = np.int32(1)
+    verify_cumsum(data, axis)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4040,3 +4072,4 @@ if __name__ == "__main__":
     test_size()
     test_maxunpool()
     test_softplus()
+    test_cumsum()
