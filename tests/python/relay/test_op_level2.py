@@ -1202,7 +1202,7 @@ def test_pad_infer_type():
 def test_pad_run():
     def _test_run(dtype):
         dshape_list = [(4, 10, 7, 7), (4, 6, 3, 5)]
-        pad_list = [((1, 1), (2, 2), (3, 3), (4, 4)), ((-1, -1), (2, -2), (0, -3), (4, 4))]
+        pad_list = [((1, 1), (2, 2), (3, 3), (4, 4)), ((-1, -1), (2, -2), (0, -2), (4, 4))]
 
         for dshape, pad in zip(dshape_list, pad_list):
             x = relay.var("x", shape=dshape)
