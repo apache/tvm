@@ -295,11 +295,11 @@ class PyTorchFrontend(Frontend):
         # pylint: disable=C0415
         import torch
 
-        traced_model = torch.jit.load(path)
-        traced_model.eval()  # Switch to inference mode
-
         if shape_dict is None:
             raise TVMCException("--input-shapes must be specified for %s" % self.name())
+
+        traced_model = torch.jit.load(path)
+        traced_model.eval()  # Switch to inference mode
 
         # Convert shape dictionary to list for Pytorch frontend compatibility
         input_shapes = list(shape_dict.items())
