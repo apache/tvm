@@ -346,6 +346,10 @@ TVM_DLL const Op& tvm_stack_make_array();
  */
 TVM_DLL const Op& tvm_call_packed();
 
+// This achieve the same of a packed call, but with an extern call
+// directly to the operator
+TVM_DLL const Op& tvm_call_unpacked();
+
 /*!
  * \brief See pesudo code
  *

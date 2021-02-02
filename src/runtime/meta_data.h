@@ -32,12 +32,44 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {
+
+/*!
+ * \brief Structure used by the AOT to fill the tvm_module_t structure
+ */
+class AOTMetadataNode : public Object {
+ public:
+  /*! \brief number of inputs of the main function */
+  int num_inputs = 1;
+  /*! \brief number of outputs of the main function */
+  int num_outputs = 1;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "AOTMetadataObj";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AOTMetadataNode, Object);
+};
+
+/*!
+ * \brief Managed reference to AOTMetadataNode.
+ */
+class AOTMetadata : public ObjectRef {
+ public:
+  TVM_DLL AOTMetadata(int num_inputs, int num_outputs) {
+    auto n = make_object<AOTMetadataNode>();
+    n->num_inputs = num_inputs;
+    n->num_outputs = num_outputs;
+    data_ = std::move(n);
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AOTMetadata, ObjectRef, AOTMetadataNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AOTMetadataNode);
+};
 
 /*!
  * \brief Create a metadata module object.

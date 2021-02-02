@@ -297,6 +297,7 @@ class BuiltinLower : public StmtExprMutator {
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
+
     // call_packed_lowered needs to do the type casting properly
     return Call(op->dtype, builtin::tvm_call_packed_lowered(), packed_args);
   }

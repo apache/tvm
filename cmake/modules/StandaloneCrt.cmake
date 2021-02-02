@@ -40,6 +40,7 @@ if(USE_MICRO)
          "3rdparty/dmlc-core/include *.h -> include"
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
          "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
+         "include/tvm/runtime/crt/aot *.h -> src/runtime/crt/aot"
          "src/runtime/crt Makefile -> ."
          "src/runtime/crt/include *.h -> include"
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
@@ -48,6 +49,7 @@ if(USE_MICRO)
          "src/runtime/crt/host crt_config.h -> template/host"
          "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
+         "src/runtime/crt/aot *.c -> src/runtime/crt/aot"
          "src/runtime/crt/utvm_rpc_common *.cc -> src/runtime/crt/utvm_rpc_common"
          "src/runtime/crt/utvm_rpc_server *.cc -> src/runtime/crt/utvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
@@ -135,6 +137,7 @@ if(USE_MICRO)
     file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*_test.cc)
     find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
     find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
+    set(aot_executor_src "${standalone_crt_base}/src/runtime/crt/aot/tvm_executor.c")
 
     # Create the `crttest` target if we can find GTest.  If not, we create dummy
     # targets that give the user an informative error message.
@@ -144,7 +147,9 @@ if(USE_MICRO)
         string(REPLACE ".cc" "" __execname ${__srcname})
         add_executable(${__execname} ${__srcpath})
         list(APPEND TEST_EXECS ${__execname})
-        target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
+        target_sources(${__execname} PRIVATE ${aot_executor_src})
+        target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
+        target_include_directories(${__execname} PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/src/runtime/crt/aot)
         target_compile_options(${__execname} PRIVATE -pthread)
         target_link_libraries(${__execname} ${cmake_crt_libraries} ${GTEST_LIB} pthread)
         set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)

@@ -29,6 +29,8 @@
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 
+#include "../../runtime/meta_data.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -38,7 +40,8 @@ namespace codegen {
  * \param target TVM target.
  */
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               tvm::Target target);
+                                               tvm::Target target,
+                                               runtime::AOTMetadata aot_metadata);
 
 }  // namespace codegen
 }  // namespace tvm

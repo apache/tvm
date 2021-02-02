@@ -73,7 +73,7 @@ def _populate_codegen_dir(mod, codegen_dir: str):
         dso_mod.save(file_name)
 
 
-def _build_memory_map(graph_json):
+def _build_memory_map(graph_str):
     """Build a simpler memory map from graph JSON.
 
     Parameters
@@ -86,10 +86,13 @@ def _build_memory_map(graph_json):
     list :
         A list with one entry per storage id describing that memory.
     """
-    graph = json.loads(graph_json)
+    memory_map = []
+    if graph_str.startswith("primfn"):
+        return memory_map
+
+    graph = json.loads(graph_str)
 
     seen_storage_ids = set()
-    memory_map = []
     for node_id, storage_id in enumerate(graph["attrs"]["storage_id"][1]):
         if storage_id in seen_storage_ids:
             continue
@@ -132,14 +135,25 @@ def export_model_library_format(mod: graph_executor_factory.GraphExecutorFactory
         Path to the .tar archive to generate.
     """
     tempdir = utils.tempdir()
+    is_aot = False
+    for v in mod.target.values():
+        if v.attrs.get("executor", "graph_runtime") == "aot":
+            is_aot = True
+            break
+
+    runtime = ["graph"]
+    if is_aot:
+        runtime = ["aot"]
+
     metadata = {
         "version": 1,
         "model_name": mod.libmod_name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
-        "memory": _build_memory_map(mod.graph_json),
+        "memory": _build_memory_map(mod.graph),
         "target": {int(k): str(v) for k, v in mod.target.items()},
-        "runtimes": ["graph"],
+        "runtimes": runtime,
     }
+
     with open(tempdir.relpath("metadata.json"), "w") as json_f:
         json.dump(metadata, json_f, indent=2, sort_keys=True)
 
@@ -156,10 +170,11 @@ def export_model_library_format(mod: graph_executor_factory.GraphExecutorFactory
     with open(tempdir.relpath("relay.txt"), "w") as f:
         f.write(str(mod.ir_mod))
 
-    graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
-    os.makedirs(graph_config_dir_path)
-    with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
-        f.write(mod.graph_json)
+    if not is_aot:
+        graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
+        os.makedirs(graph_config_dir_path)
+        with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
+            f.write(mod.graph)
 
     with tarfile.open(file_name, "w") as tar_f:
 

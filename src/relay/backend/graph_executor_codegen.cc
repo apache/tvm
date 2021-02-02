@@ -250,7 +250,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     size_t count = storage_device_map_.count(expr);
     ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
     auto storage_device_info = storage_device_map_[expr];
-    ICHECK_EQ(storage_device_info.size(), 2);
+    ICHECK_EQ(storage_device_info.size(), 3);
     // storage
     std::vector<int64_t> storage_info;
     for (auto& v : storage_device_info[0]) {
@@ -604,7 +604,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         Function func = args[0];
         this->output_ = this->codegen_->Codegen(func);
       });
-    } else if (name == "get_graph_json") {
+    } else if (name == "get_graph") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.graph_json; });
     } else if (name == "list_params_name") {

@@ -46,7 +46,7 @@ class GraphExecutorCodegen(object):
         self._mod = _build_module._GraphExecutorCodegen()
         self._init = self._mod["init"]
         self._codegen = self._mod["codegen"]
-        self._get_graph_json = self._mod["get_graph_json"]
+        self._get_graph_json = self._mod["get_graph"]
         self._list_params_name = self._mod["list_params_name"]
         self._get_param_by_name = self._mod["get_param_by_name"]
         self._get_irmodule = self._mod["get_irmodule"]

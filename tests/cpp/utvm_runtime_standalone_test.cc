@@ -85,7 +85,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();
   auto build_f = build_mod.GetFunction("build", false);
-  auto json_f = build_mod.GetFunction("get_graph_json", false);
+  auto json_f = build_mod.GetFunction("get_graph", false);
   auto mod_f = build_mod.GetFunction("get_module", false);
   Map<tvm::Integer, tvm::Target> targets;
 

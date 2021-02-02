@@ -155,7 +155,8 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
-    const Array<runtime::Module>& ext_modules, Target target);
+    const Array<runtime::Module>& ext_modules, Target target,
+    runtime::AOTMetadata aot_metadata = runtime::AOTMetadata());
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
@@ -175,8 +176,8 @@ runtime::Module DeviceSourceModuleCreate(
  * \param target the target the modules are compiled for.
  * \return The wrapped module.
  */
-runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               Target target);
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                               runtime::AOTMetadata aot_metadata);
 
 }  // namespace codegen
 }  // namespace tvm

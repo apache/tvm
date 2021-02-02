@@ -40,13 +40,21 @@ namespace codegen {
 
 CodeGenCHost::CodeGenCHost() { module_name_ = GetUniqueName("__tvm_module_ctx"); }
 
-void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str) {
+void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool is_aot_executor,
+                        std::string target_str) {
   emit_asserts_ = emit_asserts;
+  is_aot_executor_ = is_aot_executor;
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
-  decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
-  decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  if (is_aot_executor) {
+    decl_stream << "#include \"tvm_executor.h\"\n";
+    decl_stream << "#include \"dlpack/dlpack.h\"\n";
+  } else {
+    decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+    decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  }
+
   decl_stream << "#include <math.h>\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
@@ -211,21 +219,34 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
   this->stream << "}\n";
 }
 
-void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_args) {
+void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, PrimExpr values,
+                                 int num_args) {
   this->PrintIndent();
+  std::string stack_value = "stack_value";
+  if (const VarNode* stack_value_var = values.as<VarNode>()) {
+    stack_value = stack_value_var->name_hint;
+  }
   std::string ret_val = GetUniqueName("ret_val");
   std::string ret_type_code = GetUniqueName("ret_type_code");
   this->stream << "TVMValue " << ret_val << ";\n";
   this->PrintIndent();
   this->stream << "int " << ret_type_code << ";\n";
   this->PrintIndent();
-  this->stream << "if (TVMFuncCall(" << packed_func_name << ", "
-               << "(TVMValue*) stack_value"
-               << ", "
+
+  if (is_aot_executor_) {
+    this->stream << "if (" << packed_func_name << "( "
+                 << "(TVMValue*) " << stack_value;
+  } else {
+    this->stream << "if (TVMFuncCall(" << packed_func_name << ", "
+                 << "(TVMValue*) stack_value";
+  }
+  this->stream << ", "
                << "(int*) stack_tcode"
                << ", " << num_args << ", "
-               << "&" << ret_val << ", "
-               << "&" << ret_type_code << ") != 0) {\n";
+               << "&" << ret_val << ", ";
+  this->stream << "&" << ret_type_code;
+  this->stream << (is_aot_executor_ ? ", NULL" : "") << ") != 0) {\n";
+
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
   this->stream << "return -1;\n";
@@ -277,8 +298,11 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
       declared_globals_[packed_func_name] = unique_name;
       decl_stream << "static void* " << unique_name << " = NULL;\n";
     }
-    this->PrintGetFuncFromBackend(func_name, unique_name);
+    if (!is_aot_executor_) {
+      this->PrintGetFuncFromBackend(func_name, unique_name);
+    }
     this->PrintFuncCall(unique_name, num_args);
+
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
@@ -327,15 +351,19 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 }
 
 runtime::Module BuildCHost(IRModule mod, Target target) {
+  bool is_aot_executor = (target->GetAttr<String>("executor").value_or("graph_runtime") == "aot");
+
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
   CodeGenCHost cg;
-  cg.Init(output_ssa, emit_asserts, target->str());
+  cg.Init(output_ssa, emit_asserts, is_aot_executor, target->str());
 
   Map<String, LinkedParam> linked_params;
   bool found_linked_params = false;
   bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+  PrimFunc aot_executor_fn;
+
   for (auto kv : mod->functions) {
     if (could_have_linked_params &&
         kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
@@ -347,6 +375,17 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
       found_linked_params = true;
       continue;
     }
+    // Make sure that the executor function is the last one to be code generated so that all the
+    // symbols are available to tvm_run_func
+    if (is_aot_executor) {
+      auto fun_name = std::string(kv.first->name_hint);
+      const bool is_aot_executor_fn =
+          (fun_name.rfind(::tvm::runtime::symbol::tvm_run_func_prefix, 0) == 0);
+      if (is_aot_executor_fn) {
+        aot_executor_fn = Downcast<PrimFunc>(kv.second);
+        continue;
+      }
+    }
 
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
@@ -356,6 +395,12 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   if (could_have_linked_params) {
     ICHECK(found_linked_params) << "-link-params given but none found";
     cg.LinkParameters(linked_params);
+  }
+
+  if (is_aot_executor) {
+    ICHECK(aot_executor_fn.defined())
+        << "When using aot executor the executor function should be defined";
+    cg.AddFunction(aot_executor_fn);
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {

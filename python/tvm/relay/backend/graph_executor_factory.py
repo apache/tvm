@@ -41,17 +41,18 @@ class GraphExecutorFactoryModule:
         The parameters of module
     """
 
-    def __init__(self, ir_mod, target, graph_json_str, libmod, libmod_name, params):
+    def __init__(self, ir_mod, target, graph_str, libmod, libmod_name, params):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
         args = []
         for k, v in params.items():
             args.append(k)
             args.append(ndarray.array(v))
+
         self.ir_mod = ir_mod
         self.target = target
-        self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
-        self.graph_json = graph_json_str
+        self.module = fcreate(graph_str, libmod, libmod_name, *args)
+        self.graph = graph_str
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
@@ -66,8 +67,8 @@ class GraphExecutorFactoryModule:
     def get_params(self):
         return self.params
 
-    def get_json(self):
-        return self.graph_json
+    def get_graph(self):
+        return self.graph
 
     def get_lib(self):
         return self.lib
@@ -90,7 +91,7 @@ class GraphExecutorFactoryModule:
         if self.iter_cnt > 2:
             raise StopIteration
 
-        objs = [self.graph_json, self.lib, self.params]
+        objs = [self.graph, self.lib, self.params]
         obj = objs[self.iter_cnt]
         self.iter_cnt += 1
         return obj

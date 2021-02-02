@@ -199,7 +199,7 @@ def test_llvm_link_params():
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
             assert mod.get_function("TVMSystemLibEntryPoint") != None
 
-            graph = json.loads(lib.graph_json)
+            graph = json.loads(lib.graph)
             for p in lib.params:
                 _verify_linked_param(dtype, lib, mod, graph, p) or found_one
 
@@ -310,7 +310,7 @@ def test_c_link_params():
             lib_mod = tvm.runtime.load_module(lib_path)
 
             #            lib_mod = lib_factory['default']()
-            graph = json.loads(lib.graph_json)
+            graph = json.loads(lib.graph)
             for p in lib.params:
                 _verify_linked_param(dtype, lib, lib_mod, graph, p)
 

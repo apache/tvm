@@ -539,11 +539,11 @@ def test_debug_graph_executor():
     out = get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
-    # debug graph executor wrapper
-    debug_g_mod = debug_executor.GraphModuleDebug(
-        complied_graph_lib["debug_create"]("default", dev),
-        [dev],
-        complied_graph_lib.get_json(),
+    # debug graph runtime wrapper
+    debug_g_mod = debug_runtime.GraphModuleDebug(
+        complied_graph_lib["debug_create"]("default", ctx),
+        [ctx],
+        complied_graph_lib.get_graph(),
         None,
     )
     debug_g_mod.set_input("data", data)
