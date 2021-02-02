@@ -1560,34 +1560,26 @@ class Where(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        condition_shape = infer_shape(inputs[0])
-        x_shape = infer_shape(inputs[1])
-        y_shape = infer_shape(inputs[2])
+        condition_rank = len(infer_shape(inputs[0]))
+        x_rank = len(infer_shape(inputs[1]))
+        y_rank = len(infer_shape(inputs[2]))
+        ranks = [condition_rank, x_rank, y_rank]
 
-        # condition, x, and y can all be broadcasted.
-        # broadcast each of them to the longest shape.
-        # if two shapes have the same number of dimensions,
-        # try to choose the one that doesn't have "1" as
-        # a dimension.
-        shapes = [condition_shape, x_shape, y_shape]
-        shape_lens = [len(shape) for shape in shapes]
-        max_size = max(shape_lens)
-        max_size_idxs = [i for i, x in enumerate(shape_lens) if x == max_size]
-        broadcast_idx = max_size_idxs[0]
-        if len(max_size_idxs) > 1:
-            for idx in max_size_idxs:
-                if 1 not in shapes[idx]:
-                    broadcast_idx = idx
+        # If one rank is longer than others, then we can broadcast
+        # to that shape.
+        max_rank = max(ranks)
+        max_rank_idxs = [i for i, x in enumerate(ranks) if x == max_rank]
+        broadcast_shape = _op.shape_of(inputs[max_rank_idxs[0]])
+        # If two or more inputs have the same rank, compute the broadcast
+        # shape by taking the maximum value of each dimensions.
+        if len(max_rank_idxs) > 1:
+            for idx in max_rank_idxs:
+                broadcast_shape = _op.maximum(broadcast_shape, _op.shape_of(inputs[idx]))
 
-        broadcast_shape = shapes[broadcast_idx]
-
-        if condition_shape != broadcast_shape:
-            inputs[0] = _op.broadcast_to(inputs[0], broadcast_shape)
-        if x_shape != broadcast_shape:
-            inputs[1] = _op.broadcast_to(inputs[1], broadcast_shape)
-        if y_shape != broadcast_shape:
-            inputs[2] = _op.broadcast_to(inputs[2], broadcast_shape)
-        return _op.where(inputs[0], inputs[1], inputs[2])
+        condition = _op.broadcast_to(inputs[0], broadcast_shape)
+        x = _op.broadcast_to(inputs[1], broadcast_shape)
+        y = _op.broadcast_to(inputs[2], broadcast_shape)
+        return _op.where(condition, x, y)
 
 
 class Or(Elemwise):

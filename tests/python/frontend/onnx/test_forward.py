@@ -2120,7 +2120,7 @@ def verify_where(condition, x, y, dtype, outdata):
         outputs=[helper.make_tensor_value_info("out", dtype, list(outdata.shape))],
     )
     model = helper.make_model(graph, producer_name="where_test")
-    verify_with_ort_with_inputs(model, [condition, x, y], [outdata.shape])
+    verify_with_ort_with_inputs(model, [condition, x, y], [outdata.shape], use_vm=True)
 
 
 @tvm.testing.uses_gpu
