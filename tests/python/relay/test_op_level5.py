@@ -98,7 +98,7 @@ def test_resize3d_infer_type():
 
 
 @tvm.testing.parametrize_targets
-def test_resize3d(target, ctx):
+def test_resize3d():
     def verify_resize(dshape, scale, method, layout):
         if layout == "NDHWC":
             size = (dshape[1] * scale, dshape[2] * scale, dshape[3] * scale)
@@ -116,11 +116,12 @@ def test_resize3d(target, ctx):
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
-
-        for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(x_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+        
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["trilinear", "nearest_neighbor"]:
         for layout in ["NDHWC", "NCDHW"]:
