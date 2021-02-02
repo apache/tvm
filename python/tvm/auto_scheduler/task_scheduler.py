@@ -246,7 +246,7 @@ class TaskScheduler:
         # task_cts[i] saves how many times task i is tuned
         self.task_cts = [0 for _ in range(len(self.tasks))]
 
-        # task_best_cts[i] saves the round task i found the best latency
+        # task_best_cts[i] saves the round that task i found the best latency
         self.task_best_cts = [0 for _ in range(len(self.tasks))]
 
         # task_costs_history[i] saves the latency history of task i
