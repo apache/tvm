@@ -18,6 +18,7 @@
 
 set -e
 set -u
+set -x
 
 source tests/scripts/setup-pytest-env.sh
 
