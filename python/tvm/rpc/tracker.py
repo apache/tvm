@@ -112,7 +112,7 @@ class Scheduler(object):
 
 
 class PriorityScheduler(Scheduler):
-    """Priority based scheduler, FIFO"""
+    """Priority based scheduler, FIFO based on request order"""
 
     def __init__(self, key):
         self._key = key
