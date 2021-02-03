@@ -3613,12 +3613,14 @@ def from_tflite(model, shape_dict=None, dtype_dict=None):
     exp_tab = ExprTable()
     for model_input in model_inputs:
         model_input_name = get_tensor_name(subgraph, model_input)
-        try:
-            shape = get_tensor_shape(subgraph, model_input)
-            dtype = get_tensor_type(subgraph, model_input)
-        except:
+        if shape_dict:
             shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
+        else:
+            shape = get_tensor_shape(subgraph, model_input)
+        if dtype_dict:
             dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
+        else:
+            dtype = get_tensor_type(subgraph, model_input)
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model
