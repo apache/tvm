@@ -26,6 +26,7 @@
 
 #include <tvm/te/operation.h>
 
+#include <vector>
 namespace tvm {
 namespace topi {
 namespace detail {
