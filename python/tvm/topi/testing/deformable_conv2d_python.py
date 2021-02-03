@@ -19,6 +19,7 @@
 import itertools
 import numpy as np
 from tvm.topi.nn.utils import get_pad_tuple
+import math
 
 
 def deformable_conv2d_nchw_python(
@@ -80,14 +81,23 @@ def deformable_conv2d_nchw_python(
         dilation_h, dilation_w = dilation
 
     def _bilinear(n, c, h, w):
-        low_h, low_w = int(h), int(w)
-        high_h = min(low_h + 1, in_height - 1)
-        high_w = min(low_w + 1, in_width - 1)
+        low_h, low_w = math.floor(h), math.floor(w)
+        high_h, high_w = math.ceil(h), math.ceil(w)
         y_lerp = h - low_h
         x_lerp = w - low_w
+        if high_h >= in_height and high_w >= in_width:
+            bottom = (1 - x_lerp) * a_np[n, c, low_h, low_w]
+            top = 0
+        elif high_w >= in_width:
+            bottom = (1 - x_lerp) * a_np[n, c, low_h, low_w]
+            top = (1 - x_lerp) * a_np[n, c, high_h, low_w]
+        elif high_h >= in_height:
+            bottom = (1 - x_lerp) * a_np[n, c, low_h, low_w] + x_lerp * a_np[n, c, low_h, high_w]
+            top = 0
+        else:
+            bottom = (1 - x_lerp) * a_np[n, c, low_h, low_w] + x_lerp * a_np[n, c, low_h, high_w]
+            top = (1 - x_lerp) * a_np[n, c, high_h, low_w] + x_lerp * a_np[n, c, high_h, high_w]
 
-        bottom = (1 - x_lerp) * a_np[n, c, low_h, low_w] + x_lerp * a_np[n, c, low_h, high_w]
-        top = (1 - x_lerp) * a_np[n, c, high_h, low_w] + x_lerp * a_np[n, c, high_h, high_w]
         return (1 - y_lerp) * bottom + y_lerp * top
 
     a_deform = np.zeros((batch, in_channel, out_height, out_width, kernel_h, kernel_w), dtype=dtype)

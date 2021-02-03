@@ -62,31 +62,38 @@ inline bool is_empty_shape(const Array<PrimExpr>& x) {
  *
  * \return The interpolated value in the given index.
  */
+
 inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>& indices,
                                      const PrimExpr max_y, const PrimExpr max_x) {
+  auto batch_id = indices[0];
+  auto channel_id = indices[1];
   auto in_y = indices[2];
-  auto yf = tvm::floor(in_y);
-  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
-
-  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
-  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
-  auto y_lerp = in_y - yf;
+  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));  // low_h
+  auto y1 = tvm::cast(DataType::Int(32), tvm::ceil(in_y));   // high_h
 
   auto in_x = indices[3];
-  auto xf = tvm::floor(in_x);
-  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
+  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));  // low_w
+  auto x1 = tvm::cast(DataType::Int(32), tvm::ceil(in_x));   // high_w
+  auto x_lerp = in_x - x0;
+  auto y_lerp = in_y - y0;
 
-  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
-  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
-  auto x_lerp = in_x - xf;
-
-  auto A = input(indices[0], indices[1], y0, x0);
-  auto B = input(indices[0], indices[1], y0, x1);
-  auto C = input(indices[0], indices[1], y1, x0);
-  auto D = input(indices[0], indices[1], y1, x1);
-
-  return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
-         D * x_lerp * y_lerp;
+  auto bottom = (1 - x_lerp) * (input(batch_id, channel_id, y0, x0));
+  auto top = PrimExpr(0);
+  bottom += tvm::if_then_else(y1 > max_y && x1 > max_x, 0, 0);  // Just to maintain structure
+  top += tvm::if_then_else(y1 > max_y && x1 > max_x, 0, 0);
+  bottom += tvm::if_then_else(y1 <= max_y && x1 > max_x, 0, 0);
+  top += tvm::if_then_else(y1 <= max_y && x1 > max_x,
+                           (1 - x_lerp) * (input(batch_id, channel_id, y1, x0)), 0);
+  bottom +=
+      tvm::if_then_else(y1 > max_y && x1 <= max_x, x_lerp * input(batch_id, channel_id, y0, x1), 0);
+  top += tvm::if_then_else(y1 > max_y && x1 <= max_x, 0, 0);
+  bottom += tvm::if_then_else(y1 <= max_y && x1 <= max_x,
+                              x_lerp * input(batch_id, channel_id, y0, x1), 0);
+  top += tvm::if_then_else(y1 <= max_y && x1 <= max_x,
+                           (1 - x_lerp) * input(batch_id, channel_id, y1, x0) +
+                               x_lerp * input(batch_id, channel_id, y1, x1),
+                           0);
+  return (1 - y_lerp) * bottom + y_lerp * top;
 }
 
 /*!
@@ -101,29 +108,35 @@ inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>&
  */
 inline PrimExpr bilinear_sample_nhwc(const Tensor& input, const Array<PrimExpr>& indices,
                                      const PrimExpr max_y, const PrimExpr max_x) {
+  auto batch_id = indices[0];
+  auto channel_id = indices[3];
   auto in_y = indices[1];
-  auto yf = tvm::floor(in_y);
-  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
-
-  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
-  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
-  auto y_lerp = in_y - yf;
+  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));  // low_h
+  auto y1 = tvm::cast(DataType::Int(32), tvm::ceil(in_y));   // high_h
 
   auto in_x = indices[2];
-  auto xf = tvm::floor(in_x);
-  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
+  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));  // low_w
+  auto x1 = tvm::cast(DataType::Int(32), tvm::ceil(in_x));   // high_w
+  auto x_lerp = in_x - x0;
+  auto y_lerp = in_y - y0;
 
-  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
-  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
-  auto x_lerp = in_x - xf;
-
-  auto A = input(indices[0], y0, x0, indices[3]);
-  auto B = input(indices[0], y0, x1, indices[3]);
-  auto C = input(indices[0], y1, x0, indices[3]);
-  auto D = input(indices[0], y1, x1, indices[3]);
-
-  return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
-         D * x_lerp * y_lerp;
+  auto bottom = (1 - x_lerp) * (input(batch_id, y0, x0, channel_id));
+  auto top = PrimExpr(0);
+  bottom += tvm::if_then_else(y1 > max_y && x1 > max_x, 0, 0);  // Just to maintain structure
+  top += tvm::if_then_else(y1 > max_y && x1 > max_x, 0, 0);
+  bottom += tvm::if_then_else(y1 <= max_y && x1 > max_x, 0, 0);
+  top += tvm::if_then_else(y1 <= max_y && x1 > max_x,
+                           (1 - x_lerp) * (input(batch_id, y1, x0, channel_id)), 0);
+  bottom +=
+      tvm::if_then_else(y1 > max_y && x1 <= max_x, x_lerp * input(batch_id, y0, x1, channel_id), 0);
+  top += tvm::if_then_else(y1 > max_y && x1 <= max_x, 0, 0);
+  bottom += tvm::if_then_else(y1 <= max_y && x1 <= max_x,
+                              x_lerp * input(batch_id, y0, x1, channel_id), 0);
+  top += tvm::if_then_else(y1 <= max_y && x1 <= max_x,
+                           (1 - x_lerp) * input(batch_id, y1, x0, channel_id) +
+                               x_lerp * input(batch_id, y1, x1, channel_id),
+                           0);
+  return (1 - y_lerp) * bottom + y_lerp * top;
 }
 
 }  // namespace detail
