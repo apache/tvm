@@ -285,6 +285,7 @@ class SearchTask(Object):
         target_host=None,
         hardware_params=None,
         layout_rewrite_option=None,
+        task_inputs={},
     ):
         assert (
             func is not None or workload_key is not None
@@ -312,7 +313,7 @@ class SearchTask(Object):
             target_host,
             hardware_params,
             layout_rewrite_option,
-            {}
+            task_inputs
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -395,6 +396,8 @@ class SearchTask(Object):
         _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
 
     def __getstate__(self):
+        print("get state")
+
         return {
             "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
@@ -421,6 +424,8 @@ class SearchTask(Object):
         task_inputs = {}
         for data_name in state["task_inputs"]:
             task_inputs[data_name] = get_task_input_buffer(state["workload_key"], data_name)
+
+        print("set state")
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,

@@ -154,8 +154,6 @@ print(task.compute_dag)
 
 print(task.task_inputs)
 
-exit(0)
-
 ######################################################################
 # Write the custom sketch for sparse dense op
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -233,7 +231,7 @@ def apply_func(search_policy, state, stage_id):
 
 log_file = "sparse_dense.json"
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10,
+    num_measure_trials=2,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     verbose=2,
 )
