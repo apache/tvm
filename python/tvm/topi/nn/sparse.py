@@ -218,7 +218,8 @@ def _sparse_dense_sp_rhs_bsrmm(data, weight_data, weight_indices, weight_indptr)
     idxm = tvm.tir.indexmod
 
     bsrmm_block = te.compute(
-        (m, num_blocks, bs_r), _compute_block,
+        (m, num_blocks, bs_r),
+        _compute_block,
         tag="sparse_dense_sp_rhs_bsrmm_block",
         attrs={"FLOP": 2 * m * num_blocks * bs_r * k},
     )

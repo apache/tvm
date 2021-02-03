@@ -158,6 +158,7 @@ class TuningOptions(Object):
             measure_callbacks,
         )
 
+
 # The map stores special registered buffer for measurement
 #  This can be used for sparse workloads when we cannot use random tensors for measurment.
 global task_input_buffer_table
@@ -394,8 +395,7 @@ class SearchTask(Object):
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
     def add_task_input(self, input_name, input_data):
-        """
-        """
+        """"""
         register_task_input_buffer(self.workload_key, input_name, input_data)
         _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
 
@@ -407,7 +407,7 @@ class SearchTask(Object):
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
-            "task_inputs": [i[0] for i in self.measure_inputs.items()]
+            "task_inputs": [i[0] for i in self.measure_inputs.items()],
         }
 
     def __setstate__(self, state):

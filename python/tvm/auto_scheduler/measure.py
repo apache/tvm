@@ -768,13 +768,12 @@ def _process_sparse_input(args):
         density = 1.0
         for i in sparse_data.shape:
             density *= i
-        density /= (K * N)
+        density /= K * N
         density = density.value
-        sparse_prefix = "%s_%d_%d_%d_%d_%d_%.2f_" % (
-            prefix_init, M, N, K, BS_R, BS_C, density
-        )
+        sparse_prefix = "%s_%d_%d_%d_%d_%d_%.2f_" % (prefix_init, M, N, K, BS_R, BS_C, density)
 
     visited = set()
+
     def _traverse(t):
         # We cannot directly add tensors to the set, because the comparison of
         # two tensors with ndim=0 is ambiguous.
@@ -803,6 +802,7 @@ def _process_sparse_input(args):
         _traverse(arg)
 
     return sparse_prefix, sparse_data, sparse_indices, sparse_indptr
+
 
 def _timed_eval_func(
     inp_serialized,
@@ -848,17 +848,18 @@ def _timed_eval_func(
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
 
             # Check sparse op
-            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = \
-                _process_sparse_input(build_res.args)
+            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = _process_sparse_input(
+                build_res.args
+            )
             if sparse_prefix:
                 args = []
                 for arg in build_res.args:
                     if arg == sparse_data:
-                        args.append(task_inputs[sparse_prefix+"W_data"])
+                        args.append(task_inputs[sparse_prefix + "W_data"])
                     elif arg == sparse_indices:
-                        args.append(task_inputs[sparse_prefix+"W_indices"])
+                        args.append(task_inputs[sparse_prefix + "W_indices"])
                     elif arg == sparse_indptr:
-                        args.append(task_inputs[sparse_prefix+"W_indptr"])
+                        args.append(task_inputs[sparse_prefix + "W_indptr"])
                     else:
                         empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
                         random_fill(empty_array)
@@ -1058,23 +1059,26 @@ def _timed_rpc_run(
                 )
 
             # Check sparse op
-            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = \
-                _process_sparse_input(build_res.args)
+            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = _process_sparse_input(
+                build_res.args
+            )
             if sparse_prefix:
                 args = []
                 for arg in build_res.args:
                     if arg == sparse_data:
-                        args.append(task_inputs[sparse_prefix+"W_data"])
+                        args.append(task_inputs[sparse_prefix + "W_data"])
                     elif arg == sparse_indices:
-                        args.append(task_inputs[sparse_prefix+"W_indices"])
+                        args.append(task_inputs[sparse_prefix + "W_indices"])
                     elif arg == sparse_indptr:
-                        args.append(task_inputs[sparse_prefix+"W_indptr"])
+                        args.append(task_inputs[sparse_prefix + "W_indptr"])
                     else:
                         empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
                         random_fill(empty_array)
                         args.append(empty_array)
             else:
-                args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
+                args = [
+                    ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args
+                ]
                 for arg in args:
                     random_fill(arg)
             ctx.sync()
@@ -1257,4 +1261,3 @@ def rpc_runner_run(
         print("")
 
     return results
-

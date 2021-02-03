@@ -76,6 +76,7 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     assert s.indptr.shape == (M // BS_R + 1,)
     return s
 
+
 @auto_scheduler.register_workload
 def sparse_dense(M, N, K, w_data_shape, w_indices_shape, w_indptr_shape, dtype):
     X = te.placeholder(shape=(M, K), dtype=dtype)
@@ -84,13 +85,12 @@ def sparse_dense(M, N, K, w_data_shape, w_indices_shape, w_indptr_shape, dtype):
     W_indptr = te.placeholder(shape=w_indptr_shape, dtype="int32")
     B = te.placeholder(shape=(M, N), dtype=dtype)
 
-    out = topi.nn.sparse_dense(
-        topi.nn.relu(X), W_data, W_indices, W_indptr
-    )
+    out = topi.nn.sparse_dense(topi.nn.relu(X), W_data, W_indices, W_indptr)
     out = te.compute((M, N), lambda i, j: out[i, j] + B[i, j], name="BiasAdd")
     out = topi.nn.relu(out)
 
     return [X, W_data, W_indices, W_indptr, B, out]
+
 
 ######################################################################
 # Special step for sparse workload
@@ -132,14 +132,8 @@ target = tvm.target.Target("llvm")
 
 task = tvm.auto_scheduler.SearchTask(
     func=sparse_dense,
-    args=(
-        M, N, K,
-        W_sp_np.data.shape,
-        W_sp_np.indices.shape,
-        W_sp_np.indptr.shape,
-        "float32"
-    ),
-    target=target
+    args=(M, N, K, W_sp_np.data.shape, W_sp_np.indices.shape, W_sp_np.indptr.shape, "float32"),
+    target=target,
 )
 
 # Register the sparse data to special buffer
@@ -164,14 +158,17 @@ print(task.compute_dag)
 #   - apply function: describe how to generate the initial sketch. You can implement it using
 #     auto-scheduler provided loop state APIs.
 
+
 def meet_condition_func(search_policy, state, stage_id):
     state = auto_scheduler.loop_state.State(state, search_policy.search_task.compute_dag)
     if state.stages[stage_id].op.tag in [
-        "sparse_dense_sp_rhs_bsrmm", "sparse_dense_sp_rhs_bsrmm_block"
+        "sparse_dense_sp_rhs_bsrmm",
+        "sparse_dense_sp_rhs_bsrmm_block",
     ]:
         return auto_scheduler.PreloadCustomSketchRule.APPLY_AND_SKIP_REST
     else:
         return auto_scheduler.PreloadCustomSketchRule.PASS
+
 
 def apply_func(search_policy, state, stage_id):
     ret = []
@@ -214,6 +211,7 @@ def apply_func(search_policy, state, stage_id):
 
     return ret
 
+
 ######################################################################
 # Next, we set parameters for the auto-scheduler with the custom sketch plugged in.
 #
@@ -239,7 +237,7 @@ search_policy = auto_scheduler.SketchPolicy(
     program_cost_model=auto_scheduler.XGBModel(),
     init_search_callbacks=[
         auto_scheduler.PreloadCustomSketchRule(meet_condition_func, apply_func, "SparseDense")
-    ]
+    ],
 )
 
 ######################################################################
@@ -288,5 +286,8 @@ tvm.testing.assert_allclose(Y_np, Y_tvm.asnumpy(), atol=1e-4, rtol=1e-4)
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
 print(
     "Execution time of this operator: %.3f ms"
-    % (np.median(evaluator(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm).results) * 1000)
+    % (
+        np.median(evaluator(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm).results)
+        * 1000
+    )
 )

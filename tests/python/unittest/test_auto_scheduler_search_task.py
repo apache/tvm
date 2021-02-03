@@ -34,6 +34,7 @@ from test_auto_scheduler_common import (
 )
 import multiprocessing
 
+
 def test_search_task_add_task_input():
     auto_scheduler.search_task.task_input_buffer_table.clear()
     N = 64
@@ -109,6 +110,7 @@ def test_search_task_record():
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_inputs) == 0
 
+
 def test_recover_measure_input_with_task_input():
     auto_scheduler.search_task.task_input_buffer_table.clear()
     task = auto_scheduler.SearchTask(
@@ -171,6 +173,7 @@ def test_recover_measure_input_with_task_input():
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_inputs) == 0
+
 
 if __name__ == "__main__":
     test_search_task_add_task_input()
