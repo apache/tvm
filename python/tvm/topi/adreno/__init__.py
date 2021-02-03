@@ -15,17 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=wildcard-import
-"""Relay op strategies."""
-from __future__ import absolute_import as _abs
-
-from .generic import *
-from . import x86
-from . import adreno
-from . import arm_cpu
-from . import cuda
-from . import hls
-from . import mali
-from . import bifrost
-from . import rocm
-from . import intel_graphics
+# pylint: disable=redefined-builtin, wildcard-import
+"""Qualcomm Adreno GPU specific declaration and schedules."""
+from .conv2d import *

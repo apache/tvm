@@ -50,6 +50,7 @@ from . import nn
 from . import x86
 from . import cuda
 from . import gpu
+from . import adreno
 from . import arm_cpu
 from . import mali
 from . import bifrost
