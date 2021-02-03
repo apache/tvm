@@ -199,11 +199,14 @@ def schedule_dense_nopack(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
+
 def dense_pack(data, weight, bias=None, out_dtype=None):
     return dense_weight_transform(data, weight, bias, out_dtype)
 
+
 def schedule_dense_pack(outs):
     return schedule_dense_weight_transform(outs)
+
 
 @autotvm.register_topi_compute("dense_weight_transform.x86")
 def dense_weight_transform(cfg, data, weight, bias=None, out_dtype=None):
@@ -311,7 +314,7 @@ def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_mkl.x86")
 def schedule_dense_mkl(_, outs):
     """Create schedule for dense_mkl"""
-    #return generic.schedule_extern(outs)
+    # return generic.schedule_extern(outs)
     s = te.create_schedule([x.op for x in outs])
     te.schedule.AutoInlineInjective(s)
 
@@ -319,7 +322,7 @@ def schedule_dense_mkl(_, outs):
         if "broadcast" in op.tag or "injective" in op.tag or "elemwise" in op.tag:
             schedule_injective_from_existing(s, op.output(0))
 
-    #traverse_inline(s, outs[0].op, _callback)
+    # traverse_inline(s, outs[0].op, _callback)
     for out in outs:
         if "dense" not in out.op.name:
             schedule_injective_from_existing(s, out)

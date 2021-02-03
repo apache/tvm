@@ -49,18 +49,10 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
             packw_bn = cfg["tile_x"].size[-1]
             new_attrs["weight_layout"] = "NK%dn" % packw_bn
             new_attrs["out_dtype"] = out_dtype
-            new_weight = te.placeholder(
-                (N // packw_bn, K, packw_bn), dtype=weight_tensor.dtype,
-            )
+            new_weight = te.placeholder((N // packw_bn, K, packw_bn), dtype=weight_tensor.dtype,)
             # Relay dense doesn't have bias.
             new_workload = autotvm.task.args_to_workload(
-                [
-                    data_tensor,
-                    new_weight,
-                    None,
-                    out_dtype,
-                ],
-                topi_impl,
+                [data_tensor, new_weight, None, out_dtype,], topi_impl,
             )
             dispatch_ctx.update(target, new_workload, cfg)
             return relay.nn.contrib_dense_weight_transform(*inputs, **new_attrs)

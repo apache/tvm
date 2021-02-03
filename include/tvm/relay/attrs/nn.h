@@ -946,8 +946,8 @@ struct DenseWeightTransformAttrs : public tvm::AttrsNode<DenseWeightTransformAtt
 
   TVM_DECLARE_ATTRS(DenseWeightTransformAttrs, "relay.attrs.DenseAttrs") {
     TVM_ATTR_FIELD(weight_layout)
-	.set_default("NKn")
-	.describe("Dimension ordering of weight. Can be 'NKn', 'NK16n', etc.");
+        .set_default("NKn")
+        .describe("Dimension ordering of weight. Can be 'NKn', 'NK16n', etc.");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
