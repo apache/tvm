@@ -58,5 +58,44 @@ def test_simplify_reshape():
     assert tvm.ir.structural_equal(zz, after)
 
 
+def test_simplify_full_argwhere():
+    def verify(x_shape):
+        def before():
+            x = relay.const(1)
+            y = relay.full(x, x_shape, dtype="int64")
+            z = relay.argwhere(y)
+            return z
+
+        def expected():
+            x = relay.const(1)
+            full = relay.full(x, x_shape, dtype="int64")
+            start = relay.const(0)
+            end = relay.take(relay.shape_of(full, "int32"), relay.const(0), 0)
+            step = relay.const(1)
+            y = relay.arange(start, end, step, dtype="int32")
+            z = relay.reshape(y, [-1, 1])
+            return z
+
+        z = before()
+        zz = run_opt_pass(z, transform.SimplifyExpr())
+        after = run_opt_pass(expected(), transform.InferType())
+        assert tvm.ir.structural_equal(zz, after)
+
+        mod1 = tvm.IRModule.from_expr(z)
+        mod2 = tvm.IRModule.from_expr(zz)
+
+        with tvm.transform.PassContext(disabled_pass="SimplifyExpr"):
+            ex1 = relay.create_executor("vm", mod=mod1, ctx=tvm.cpu(), target="llvm")
+        ex2 = relay.create_executor("vm", mod=mod2, ctx=tvm.cpu(), target="llvm")
+
+        result1 = ex1.evaluate()()
+        result2 = ex2.evaluate()()
+
+        tvm.testing.assert_allclose(result1.asnumpy(), result2.asnumpy())
+
+    verify([128])
+    verify(relay.const([128], dtype="int64"))
+
 if __name__ == "__main__":
     test_simplify_reshape()
+    test_simplify_full_argwhere()

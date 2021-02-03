@@ -29,15 +29,28 @@
 #include <tvm/support/logging.h>
 
 #include "../op/tensor/transform.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
+
+class SimplifyPattern {
+ public:
+  virtual Expr callback(const Expr& pre, const Expr& post,
+                        const Map<DFPattern, Array<Expr>>& node_map) const = 0;
+
+  DFPattern pattern() const { return pattern_; }
+
+ protected:
+  /*! \brief Pattern for rewriting */
+  DFPattern pattern_;
+};
 
 /*!
  * \brief SimplifyReshape matches the pattern of consecutive reshape or reverse_reshape ops,
  *   and merges into one reshape op.
  */
-class SimplifyReshape {
+class SimplifyReshape : public SimplifyPattern {
  public:
   SimplifyReshape() {
     x_ = WildcardPattern(make_object<WildcardPatternNode>());
@@ -46,7 +59,8 @@ class SimplifyReshape {
     pattern_ = reshape1({reshape2({x_})});
   }
 
-  Expr callback(const Expr& pre, const Expr& post, const Map<DFPattern, Array<Expr>>& node_map) {
+  Expr callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
     auto x = node_map[x_][0];
     bool const_shape = true;
     Array<Integer> newshape;
@@ -63,13 +77,45 @@ class SimplifyReshape {
     return post;
   }
 
-  DFPattern pattern() const { return pattern_; }
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+};
+
+/*!
+ * \brief FullArgwhere finds full followed by argwhere and turns it into an Arange op
+ */
+class FullArgwhere : public SimplifyPattern {
+ public:
+  FullArgwhere() {
+    x_ = ConstantPattern(make_object<ConstantPatternNode>());
+    full_ = IsOp("full")({x_}) ||
+            IsOp("dyn.full")({x_, WildcardPattern(make_object<WildcardPatternNode>())});
+    pattern_ = IsOp("argwhere")({full_});
+  }
+
+  Expr callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    auto dtype = pre->checked_type_.as<TensorTypeNode>()->dtype;
+    auto shape = pre->checked_type_.as<TensorTypeNode>()->shape;
+    if (IsConstScalar(x) && shape.size() == 2) {
+      auto x_val = ToScalar(x.as<ConstantNode>()->data);
+      if (x_val > 0) {
+        Expr start = MakeConstantScalar(dtype, 0);
+        Expr end = MakeTake(MakeShapeOf(node_map[full_][0], dtype), start, Integer(0), "clip");
+        Expr step = MakeConstantScalar(dtype, 1);
+        return MakeReshape(MakeArange(start, end, step, dtype), {-1, 1});
+      }
+    }
+    return post;
+  }
 
  private:
   /*! \brief Pattern input */
   DFPattern x_;
-  /*! \brief Pattern for consecutive reshape or reverse_reshape ops */
-  DFPattern pattern_;
+  /*! \brief Full op */
+  DFPattern full_;
 };
 
 /*!
@@ -78,22 +124,24 @@ class SimplifyReshape {
 class ExprSimplifier {
  public:
   explicit ExprSimplifier(IRModule mod) : mod_(mod) {
-    auto reshape_func = [this](TVMArgs args, TVMRetValue* rv) {
+    CreateCallback(SimplifyReshape());
+    CreateCallback(FullArgwhere());
+  }
+  template <typename T>
+  void CreateCallback(const T& pattern) {
+    auto func = [pattern](TVMArgs args, TVMRetValue* rv) {
       Expr pre = args[0];
       Expr post = args[1];
       Map<DFPattern, Array<Expr>> node_map = args[2];
-      *rv = simplify_reshape_.callback(pre, post, node_map);
+      *rv = pattern.callback(pre, post, node_map);
     };
-    callbacks_.push_back(
-        DFPatternCallback(simplify_reshape_.pattern(), PackedFunc(reshape_func), true));
+    callbacks_.push_back(DFPatternCallback(pattern.pattern(), PackedFunc(func), true));
   }
 
   Expr Simplify(const Expr& expr) { return RewritePatterns(callbacks_, expr, mod_); }
 
  private:
   IRModule mod_;
-  /*! \brief Simplify reshape pattern */
-  SimplifyReshape simplify_reshape_;
   /*! \brief Callbacks for expr simplification */
   Array<DFPatternCallback> callbacks_;
 };
