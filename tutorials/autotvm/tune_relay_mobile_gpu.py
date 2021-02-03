@@ -121,6 +121,9 @@ def get_network(name, batch_size):
 
 
 #################################################################
+# .. _tutorials-autotvm-start-rpc-tracker:
+
+#################################################################
 # Start RPC Tracker
 # -----------------
 # TVM uses RPC session to communicate with ARM boards.
@@ -147,7 +150,7 @@ def get_network(name, batch_size):
 #   INFO:RPCTracker:bind to 0.0.0.0:9190
 
 #################################################################
-# Register devices to RPC Tracker
+# Register Devices to RPC Tracker
 # -----------------------------------
 # Now we can register our devices to the tracker. The first step is to
 # build the TVM runtime for the ARM devices.

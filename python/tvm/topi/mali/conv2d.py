@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali GPU"""
+import logging
 import tvm
 from tvm import te
 from tvm import relay
@@ -25,9 +26,12 @@ from tvm.autotvm.task.space import get_factors
 from ..utils import traverse_inline, get_const_int, get_const_tuple
 from .. import nn
 from ..nn.winograd_util import winograd_transform_matrices
+from ..nn.conv2d import conv2d_winograd_nhwc, _conv2d_winograd_nhwc_impl
 
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nchw
+
+logger = logging.getLogger("topi")
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.mali")
@@ -188,8 +192,12 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
 
 
 ##### WINOGRAD TEMPLATE #####
-def _pick_tile_size(data, kernel):
-    N, CI, H, W = get_const_tuple(data.shape)
+def _pick_tile_size(data, kernel, layout="NCHW"):
+    if layout == "NCHW":
+        N, CI, H, W = get_const_tuple(data.shape)
+    else:
+        assert layout == "NHWC"
+        N, H, W, CI = get_const_tuple(data.shape)
 
     if H % 4 == 0:
         return 4
@@ -467,20 +475,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
 
-    _, outs = relay.backend.compile_engine.select_implementation(
-        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
-    )
-    workload = autotvm.task.get_workload(outs)
-    if workload is None:
-        # The best implementation is not an AutoTVM template,
-        # we then assume it's not necessary to alter this op.
-        return None
-    cfg = dispatch_ctx.query(target, workload)
-    if cfg.is_fallback:  # if is fallback, clear query cache and return None
-        autotvm.task.clear_fallback_cache(target, workload)
-        return None
-
-    topi_tmpl = workload[0]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
     strides = attrs.get_int_tuple("strides")
@@ -491,6 +485,44 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
+    impl, outs = relay.backend.compile_engine.select_implementation(
+        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
+    )
+    workload = autotvm.task.get_workload(outs)
+    if workload is None:
+        # The best implementation is not an AutoTVM template.
+        # It may be from the auto-scheduler
+        if impl.name.find("winograd") != -1:
+            if dilation != (1, 1):
+                logger.warning("Does not support weight pre-transform for dilated convolution.")
+                return None
+
+            assert data_layout == "NHWC" and kernel_layout == "HWIO"
+            N, H, W, CI = get_const_tuple(data.shape)
+            KH, KW, _, CO = get_const_tuple(kernel.shape)
+
+            # Pre-compute weight transformation in winograd
+            tile_size = _pick_tile_size(tinfos[0], tinfos[1], layout="NHWC")
+
+            # HWIO -> OIHW
+            kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
+            # alpha, alpha, CO, CI
+            weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+                kernel_transform, tile_size=tile_size
+            )
+            new_attrs["tile_size"] = tile_size
+            new_attrs["channels"] = CO
+            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                inputs[0], weight, **new_attrs
+            )
+
+        return None
+    cfg = dispatch_ctx.query(target, workload)
+    if cfg.is_fallback:  # if is fallback, clear query cache and return None
+        autotvm.task.clear_fallback_cache(target, workload)
+        return None
+
+    topi_tmpl = workload[0]
     idxd = tvm.tir.indexdiv
 
     if topi_tmpl == "conv2d_nchw_spatial_pack.mali":
@@ -543,6 +575,19 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         )
     else:
         return None
+
+
+@conv2d_winograd_nhwc.register(["mali"])
+def conv2d_winograd_nhwc_mali(
+    data, weight, strides, padding, dilation, out_dtype, pre_computed=False
+):
+    """Conv2D Winograd in NHWC layout.
+    This is a clean version to be used by the auto-scheduler for mali.
+    """
+    tile_size = _pick_tile_size(data, weight, layout="NHWC")
+    return _conv2d_winograd_nhwc_impl(
+        data, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed
+    )
 
 
 ##### SCHECULE UTILITIES #####

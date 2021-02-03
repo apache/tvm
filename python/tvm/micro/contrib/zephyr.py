@@ -58,6 +58,10 @@ class SubprocessEnv(object):
         return subprocess.check_output(cmd, env=env, **kw)
 
 
+class ProjectNotFoundError(Exception):
+    """Raised when the project_dir supplied to ZephyrCompiler does not exist."""
+
+
 class FlashRunnerNotSupported(Exception):
     """Raised when the FLASH_RUNNER for a project isn't supported by this Zephyr adapter."""
 
@@ -95,6 +99,13 @@ class ZephyrCompiler(tvm.micro.Compiler):
             If given, additional environment variables present when invoking west, cmake, or make.
         """
         self._project_dir = project_dir
+        if not os.path.exists(project_dir):
+            # Raise this error instead of a potentially-more-cryptic compiler error due to a missing
+            # prj.conf.
+            raise ProjectNotFoundError(
+                f"project_dir supplied to ZephyrCompiler does not exist: {project_dir}"
+            )
+
         self._board = board
         if west_cmd is None:
             self._west_cmd = [sys.executable, "-mwest.app.main"]
@@ -180,7 +191,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         with open(os.path.join(output, "main.c"), "w"):
             pass
 
-        # expecetd not to exist after populate_tvm_libs
+        # expected not to exist after populate_tvm_libs
         build_dir = os.path.join(output, "__tvm_build")
         os.mkdir(build_dir)
         self._subprocess_env.run(
@@ -230,11 +241,12 @@ class ZephyrCompiler(tvm.micro.Compiler):
     def flasher_factory(self):
         return compiler.FlasherFactory(
             ZephyrFlasher,
-            (self._west_cmd,),
+            (self._board,),
             dict(
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
                 subprocess_env=self._subprocess_env.default_overrides,
+                west_cmd=self._west_cmd,
             ),
         )
 
@@ -280,7 +292,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
     def __init__(
         self,
-        west_cmd,
+        board,
         zephyr_base=None,
         project_dir=None,
         subprocess_env=None,
@@ -289,6 +301,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         flash_args=None,
         debug_rpc_session=None,
         serial_timeouts=None,
+        west_cmd=None,
     ):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
@@ -299,6 +312,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         finally:
             sys.path.pop(0)
 
+        self._board = board
         self._zephyr_base = zephyr_base
         self._project_dir = project_dir
         self._west_cmd = west_cmd
@@ -341,6 +355,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
     # kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
     BOARD_USB_FIND_KW = {
         "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
+        "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
     }
 
     def openocd_serial(self, cmake_entries):
@@ -376,7 +391,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             return flash_runner
 
         with open(cmake_entries["ZEPHYR_RUNNERS_YAML"]) as f:
-            doc = yaml.load(f)
+            doc = yaml.load(f, Loader=yaml.FullLoader)
         return doc["flash-runner"]
 
     def _get_device_args(self, cmake_entries):
@@ -402,6 +417,20 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         build_dir = os.path.dirname(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
         )
+
+        # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
+        # This is because readback protection is enabled by default when this device is flashed.
+        # Otherwise, flashing may fail with an error such as the following:
+        #  ERROR: The operation attempted is unavailable due to readback protection in
+        #  ERROR: your device. Please use --recover to unlock the device.
+        if (
+            self._board.startswith("nrf5340dk")
+            and self._get_flash_runner(cmake_entries) == "nrfjprog"
+        ):
+            recover_args = ["nrfjprog", "--recover"]
+            recover_args.extend(self._get_nrf_device_args())
+            self._subprocess_env.run(recover_args, cwd=build_dir)
+
         west_args = (
             self._west_cmd
             + ["flash", "--build-dir", build_dir, "--skip-rebuild"]

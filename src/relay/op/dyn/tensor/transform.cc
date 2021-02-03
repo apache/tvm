@@ -90,7 +90,6 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
 
 Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  attrs->reverse = false;
   static const Op& op = Op::Get("dyn.reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
 }
@@ -399,6 +398,9 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* fill_value = types[0].as<TensorTypeNode>();
   const auto* fill_shape = types[1].as<TensorTypeNode>();
   if (fill_value == nullptr) {
+    return false;
+  }
+  if (fill_shape == nullptr) {
     return false;
   }
 

@@ -245,6 +245,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
   std::vector<int> codes(arity);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   int idx = 0;
+  bool is_empty_output = false;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* dt_cell = args[i].as<ADTObj>()) {
       for (size_t fi = 0; fi < dt_cell->size; ++fi) {
@@ -254,12 +255,24 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
       }
     } else {
       auto nd_array = Downcast<NDArray>(args[i]);
+      // We can safely skip CallPacked if there is only one
+      // output and it is empty.
+      if (i == arg_count - 1 && output_size == 1) {
+        for (const auto& dim : nd_array.Shape()) {
+          if (!dim) {
+            is_empty_output = true;
+            break;
+          }
+        }
+      }
       setter(idx++, nd_array);
     }
   }
 
-  TVMRetValue rv;
-  func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+  if (!is_empty_output) {
+    TVMRetValue rv;
+    func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+  }
 }
 
 void VirtualMachine::LoadExecutable(const Executable* exec) {

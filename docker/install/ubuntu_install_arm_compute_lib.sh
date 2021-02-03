@@ -58,8 +58,8 @@ git clone "$repo_url" "$repo_dir"
 
 cd "$repo_dir"
 
-# pin version to v20.05
-git checkout 6a7771e
+# pin version to v20.11
+git checkout 49b8f90
 
 if [ "$architecture_type" != "aarch64" ]; then
   build_type="cross_compile"

@@ -88,7 +88,8 @@ class TypeSolver {
    * \param rhs The right operand
    * \param location The location at which the unification problem arose.
    */
-  Type Unify(const Type& lhs, const Type& rhs, const Span& span);
+  Type Unify(const Type& lhs, const Type& rhs, const Span& span, bool assign_lhs = true,
+             bool assign_rhs = true);
   /*!
    * \brief Report a diagnostic.
    * \param diag The diagnostic to report.

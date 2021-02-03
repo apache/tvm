@@ -64,6 +64,9 @@ scipy = "^1.4"
 python = "^3.6"
 tornado = "^6"
 typed_ast = "^1.4"
+pyyaml = "^5.4.1"
+pyserial = "^3.5"
+
 
 # AutoTVM
 xgboost = {version = "^1.1", optional = true}
@@ -117,13 +120,13 @@ importer-keras = ["tensorflow", "tensorflow-estimator"]
 importer-onnx = ["onnx", "onnxruntime", "torch", "torchvision", "future"]
 importer-pytorch = ["torch", "torchvision", "future"]
 importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
-importer-tflite = ["tlfite", "tensorflow", "tensorflow-estimator"]
+importer-tflite = ["tflite", "tensorflow", "tensorflow-estimator"]
 
 [tool.poetry.dev-dependencies]
 autodocsumm = "^0.1"
 black = "^19.10b0"
 sphinx = "^3.0"
-sphinx-gallery = "^0.4"
+sphinx-gallery = "^0.8"
 sphinx-rtd-theme = "^0.4"
 matplotlib = "^3.2"
 Image = "^1.5"

@@ -90,6 +90,22 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int max_vthread_extent = warp_size / 4;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
+  } else if (target->kind->device_type == kDLOpenCL) {
+    if (target->GetAttr<String>("device", "") == "mali") {
+      // We cannot use device API to get hardware attributes like CUDA,
+      // because like Mali target is normally on the remote machine.
+      int max_shared_memory_per_block = 32768;
+      int max_local_memory_per_block = INT32_MAX;  // skip the check on local memory
+      int max_threads_per_block = 256;
+      int warp_size = 1;
+      int max_vthread_extent = 1;
+      return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                            max_threads_per_block, max_vthread_extent, warp_size);
+    } else {
+      // add other opencl target
+      auto target_device = target->GetAttr<String>("device", "");
+      LOG(FATAL) << "No default hardware parameters for opencl target device: " << target_device;
+    }
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }
@@ -97,7 +113,8 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 }
 
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
-                       Target target_host, Optional<HardwareParams> hardware_params) {
+                       Target target_host, Optional<HardwareParams> hardware_params,
+                       LayoutRewriteOption layout_rewrite_option) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -109,6 +126,7 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
     node->hardware_params =
         HardwareParamsNode::GetDefaultHardwareParams(node->target, node->target_host);
   }
+  node->layout_rewrite_option = layout_rewrite_option;
   data_ = std::move(node);
 }
 
@@ -123,8 +141,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
-                       Target target_host, Optional<HardwareParams> hardware_params) {
-      return SearchTask(compute_dag, workload_key, target, target_host, hardware_params);
+                       Target target_host, Optional<HardwareParams> hardware_params,
+                       int layout_rewrite_option) {
+      return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
+                        LayoutRewriteOption(layout_rewrite_option));
     });
 
 }  // namespace auto_scheduler

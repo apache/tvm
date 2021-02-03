@@ -399,10 +399,7 @@ class PyTorchOpConverter:
         begin = [0] * ndim
         dim = int(inputs[1])
         stride = int(inputs[4])
-        if isinstance(inputs[2], _expr.Call):
-            begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
-        else:
-            begin[dim] = int(inputs[2])
+        begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
 
         # Process begin
         if not isinstance(begin[dim], int):
@@ -518,13 +515,13 @@ class PyTorchOpConverter:
         data = inputs[0]
         dim = int(inputs[1])
         index = _wrap_const(inputs[2])
-        return _op.transform.take(data, index, axis=dim)
+        return _op.transform.take(data, index, axis=dim, mode="wrap")
 
     def take(self, inputs, input_types):
         data = inputs[0]
         indices = _op.cast(inputs[1], "int32")
 
-        return _op.transform.take(data, indices=indices)
+        return _op.transform.take(data, indices=indices, mode="wrap")
 
     def topk(self, inputs, input_types):
         data = inputs[0]
@@ -551,7 +548,13 @@ class PyTorchOpConverter:
 
     def repeat(self, inputs, input_types):
         data = inputs[0]
-        reps = inputs[1]
+        reps = []
+        for r in inputs[1]:
+            if isinstance(r, int):
+                reps.append(r)
+            else:
+                reps.append(int(_infer_value(r, {}).asnumpy()))
+
         return _op.transform.tile(data, reps=reps)
 
     def repeat_interleave(self, inputs, input_types):
@@ -789,6 +792,15 @@ class PyTorchOpConverter:
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
+
+    def hard_swish(self, inputs, input_types):
+        data = inputs[0]
+        dtype = input_types[0]
+
+        def _relu6(input_tensor):
+            return _op.tensor.clip(input_tensor, 0.0, 6.0)
+
+        return data * _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
 
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
@@ -1511,12 +1523,6 @@ class PyTorchOpConverter:
             # Convert a and b into 3 dimensional tensors.
             a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
             b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
-            # Broadcast b to match batch size of a
-            new_b_shape = list(self.infer_shape_with_prelude(b))
-            new_a_shape = self.infer_shape_with_prelude(a)
-            if new_a_shape[0] > new_b_shape[0]:
-                new_b_shape[0] = new_a_shape[0]
-                b = _op.broadcast_to(b, new_b_shape)
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
@@ -1857,16 +1863,18 @@ class PyTorchOpConverter:
         scores = inputs[1]
         iou_threshold = inputs[2]
 
+        # TVM NMS assumes score > 0
+        scores = scores - _op.min(scores) + _op.const(1.0)
+
+        num_boxes = _op.shape_of(scores)
+        # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
+        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
+        indices = _op.expand_dims(indices, 0, 1)
+
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
-
-        # Prepare input data for get_valid_counts
         data = _op.concatenate([scores, boxes], -1)
         data = _op.expand_dims(data, 0, 1)
-        # Leverage get_valid_counts to sort the data and clear invalid boxes
-        ct, data, indices = get_relay_op("get_valid_counts")(
-            data, score_threshold=-1.0, id_index=-1, score_index=0
-        )
 
         # Perform Non-Maximum Suppression,
         # PyTorch NMS doesn't have parameter top_k and max_output_size
@@ -1874,7 +1882,7 @@ class PyTorchOpConverter:
         top_k = max_out_size = -1
         nms_ret = get_relay_op("non_max_suppression")(
             data=data,
-            valid_count=ct,
+            valid_count=num_boxes,
             indices=indices,
             max_output_size=max_out_size,
             iou_threshold=iou_threshold,
@@ -2059,9 +2067,55 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.scatter_add(data, index, src, axis=axis)
 
+    def cumsum(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        dtype = inputs[2]
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+
+        return _op.cumsum(data, axis=dim, dtype=dtype)
+
+    def masked_fill(self, inputs, input_types):
+        mask = inputs[1]
+        value = _op.cast(_wrap_const(inputs[2]), input_types[0])
+        return _op.where(mask, value, inputs[0])
+
+    def masked_select(self, inputs, input_types):
+        mask = inputs[1]
+        indices = self.nonzero([mask], input_types, is_numpy_style=True)
+        return _op.adv_index([inputs[0]] + [indices[i] for i in range(indices.size)])
+
+    def sort(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        is_descending = inputs[2]
+        # pytorch sort returns both sorted indices and values
+        indices = _op.argsort(data, dim, not is_descending)
+        return _op.gather(data, dim, indices), indices
+
+    def argsort(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        is_descending = inputs[2]
+        return _op.argsort(data, dim, not is_descending)
+
+    def is_floating_point(self, inputs, input_types):
+        assert len(inputs) == 1
+
+        if isinstance(inputs[0], _expr.Expr):
+            input_type = self.infer_type(inputs[0]).dtype
+        else:
+            input_type = input_types[0]
+
+        is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
+        return _expr.const(is_float)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
+            "aten::is_floating_point": self.is_floating_point,
             "aten::pixel_shuffle": self.pixel_shuffle,
             "aten::device": self.none,
             "prim::device": self.none,
@@ -2077,6 +2131,7 @@ class PyTorchOpConverter:
             "aten::div": self.make_elemwise("divide"),
             "aten::div_": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
+            "aten::floor_divide_": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
@@ -2093,6 +2148,7 @@ class PyTorchOpConverter:
             "aten::to": self.to,
             "aten::squeeze": self.squeeze,
             "aten::unsqueeze": self.unsqueeze,
+            "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
             "aten::split": self.split,
@@ -2238,6 +2294,7 @@ class PyTorchOpConverter:
             "torchvision::roi_align": self.roi_align,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
+            "aten::logical_and": self.logical_and,
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
@@ -2251,6 +2308,13 @@ class PyTorchOpConverter:
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
+            "aten::hardswish_": self.hard_swish,
+            "aten::hardswish": self.hard_swish,
+            "aten::cumsum": self.cumsum,
+            "aten::masked_fill": self.masked_fill,
+            "aten::masked_select": self.masked_select,
+            "aten::argsort": self.argsort,
+            "aten::sort": self.sort,
         }
 
     def update_convert_map(self, custom_map):

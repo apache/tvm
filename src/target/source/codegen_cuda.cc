@@ -84,7 +84,7 @@ std::string CodeGenCUDA::Finish() {
 
 void CodeGenCUDA::VisitStmt_(const tir::ForNode* op) {
   ICHECK(is_const_int(op->min, 0));
-  if (op->for_type == tir::ForType::Unrolled) {
+  if (op->kind == tir::ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
@@ -274,6 +274,7 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
   this->PrintIndent();
   this->PrintType(t, stream);
   stream << ' ' << sret << ";\n";
+  int ssa_scope = BeginScope();
   {
     // Unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
@@ -297,6 +298,7 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
       PrintVecElemStore(sret, t, i, value_temp.str());
     }
   }
+  EndScope(ssa_scope);
   os << sret;
 }
 
@@ -579,7 +581,11 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
-  std::string scope = alloc_storage_scope_.at(buffer);
+  auto it = alloc_storage_scope_.find(buffer);
+  ICHECK(it != alloc_storage_scope_.end())
+      << "Buffer " << op->buffer_var << " is missing an AttrStmt with a \"storage_scope\" key";
+
+  std::string scope = it->second;
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||

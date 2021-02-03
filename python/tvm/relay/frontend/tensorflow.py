@@ -933,25 +933,65 @@ def _sparse_tensor_dense_matmul():
         weight_sp = csr_matrix(
             (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
         )
-        weight_sp = csr_matrix(weight_sp.transpose())
+
+        # As per tensorflow implementation, we have 4 possible input combination
+        # and the first input(A) is always sparse and second input(B) is always dense.
+        # Case 1: A , B , adjoint_a=False, adjoint_b=False  --> A * B
+        # Case 2: A , B , adjoint_a=True,   adjoint_b=False  --> A.T * B
+        # Case 3: A , B , adjoint_a=False, adjoint_b=True    --> A * B.T
+        # Case 4: A , B , adjoint_a=True,   adjoint_b=True    --> A.T * B.T
+        #
+        # Topi implementation for sparse_dense(matmul) has 2 possible input
+        # combination where first input(A) is always dense
+        # and second input(B) is always sparse.
+        # Case 1: A , B, sparse_lhs = False  --> A * B.T
+        # Case 2: A , B, sparse_lhs = True    --> B * A.T
+        #
+        # The mapping would be as below:
+        # TF Case 1: A , B , adjoint_a=False, adjoint_b=False
+        #           --> In TF: A * B   --> In Topi: A * B.T.T
+        #           --> sparse_dense(transpose(B), A, sparse_lhs=True)
+        #
+        # TF Case 2: A , B , adjoint_a=True, adjoint_b=False
+        #           --> In TF: A.T * B   --> In Topi: A.T * B.T.T
+        #           --> sparse_dense(transpose(B), transpose(A), sparse_lhs=True)
+        #
+        # TF Case 3: A , B , adjoint_a=False, adjoint_b=True
+        #           --> In TF: A * B.T   --> In Topi: A * B
+        #           --> sparse_dense(B, A, sparse_lhs=True)
+        #
+        # TF Case 4: A , B , adjoint_a=True, adjoint_b=True
+        #           --> In TF: A.T * B.T   --> In Topi: (B * A.T).T
+        #           --> transpose(sparse_dense(B, transpose(A), sparse_lhs=False))
+
+        # By default, in tensorflow the first input ,i.e., data is sparse
+        sparse_lhs = True
+
+        # TF Case 1:
+        if not attr.get("adjoint_a") and not attr.get("adjoint_b"):
+            data = _op.transpose(data)
+        # TF Case 2:
+        elif attr.get("adjoint_a") and not attr.get("adjoint_b"):
+            data = _op.transpose(data)
+            weight_sp = csr_matrix(weight_sp.transpose())
+        # TF Case 3:
+        elif not attr.get("adjoint_a") and attr.get("adjoint_b"):
+            pass
+        # TF Case 4:
+        # attr.get("adjoint_a") and attr.get("adjoint_b"):
+        else:
+            sparse_lhs = False
+            weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
         weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
         weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
 
-        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
+        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs], sparse_lhs)
 
-        # If both are true means First input was dense and second was sparse
-        # TODO(ANSHUMAN87): Support other adjoint option too
-        if attr.get("adjoint_a") and attr.get("adjoint_b"):
+        if not sparse_lhs:
+            # TF Case 4
             ret = _op.transpose(ret)
-        else:
-            raise tvm.error.OpAttributeUnImplemented(
-                "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
-                " is supported, but adjoint_a={} and adjoint_b={} was supplied.".format(
-                    attr.get("adjoint_a"), attr.get("adjoint_b")
-                )
-            )
 
         return ret
 
@@ -1599,6 +1639,9 @@ def _stridedSlice():
         data_shape = get_const_tuple(in_type.checked_type.shape)
         data_dim = len(data_shape)
         stride_dim = len(stride)
+        if data_dim == 0 and isinstance(inputs[0], _expr.Constant):
+            new_data = inputs[0].data.asnumpy().reshape(1)
+            return _expr.const(new_data, inputs[0].data.dtype)
 
         # This is a special routine to handle strided_slice after shape_of.
         # We need this since in some cases we want to do strided_slice on
@@ -2337,6 +2380,7 @@ _convert_map = {
     "Identity": _identity(),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
+    "IsNan": AttrCvt("isnan"),
     "LeakyRelu": AttrCvt("leaky_relu"),
     "LeftShift": AttrCvt("left_shift"),
     "Less": _broadcast("less"),

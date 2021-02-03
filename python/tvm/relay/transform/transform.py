@@ -709,7 +709,7 @@ def PartitionGraph():
     return _ffi_api.PartitionGraph()
 
 
-def AnnotateTarget(targets):
+def AnnotateTarget(targets, include_non_call_ops=True):
     """Annotate ops in an experession with a provied compiler/target and then
     use it for codegen.
 
@@ -717,6 +717,9 @@ def AnnotateTarget(targets):
     ----------
     targets : str or List[str]
         The list of target compilers used for codegen.
+    include_non_call_ops : boolean
+        If True then non-call ops also will be annotated with targets
+        If False then non-call ops will not be processed
 
     Returns
     -------
@@ -726,7 +729,9 @@ def AnnotateTarget(targets):
     """
     if isinstance(targets, str):
         targets = [targets]
-    return _ffi_api.AnnotateTarget([tvm.runtime.container.String(t) for t in targets])
+    return _ffi_api.AnnotateTarget(
+        [tvm.runtime.container.String(t) for t in targets], include_non_call_ops
+    )
 
 
 def DynamicToStatic():

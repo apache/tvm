@@ -44,21 +44,29 @@ template <typename AttrType>
 bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   // types: [data, result]
-  ICHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2) << "the arity of concatenate is 2, not " << types.size();
   /* If we receive a tuple we can continue, if we receive
    * anything but an incomplete type we should signal an
    * error.
    */
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
-    throw Error(
-        ErrorBuilder() << "concatenate requires a tuple of tensors as the first argument, found "
-                       << PrettyPrint(types[0]));
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "concatenate requires a tuple of tensors as the first argument, found "
+        << PrettyPrint(types[0]));
+    return false;
   } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
     return false;
   }
 
   const auto* param = attrs.as<AttrType>();
+  if (param == nullptr) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "the call attributes are not defined");
+    return false;
+  }
+
   if (tensor_tuple->fields[0].as<IncompleteTypeNode>()) {
     return false;
   }
@@ -185,9 +193,11 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
  *
  * \param data_shape The input data shape.
  * \param attrs The attributes.
+ * \param reverse Whether to reverse the indices.
  * \return Output shape.
  */
-Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs);
+Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& attrs,
+                               bool reverse);
 
 }  // namespace relay
 }  // namespace tvm

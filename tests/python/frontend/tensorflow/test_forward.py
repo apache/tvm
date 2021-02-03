@@ -170,7 +170,8 @@ def run_tvm_graph(
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
         for e, i in zip(input_node, input_data):
-            m.set_input(e, tvm.nd.array(i))
+            if e != "":
+                m.set_input(e, tvm.nd.array(i))
 
         m.set_input(**params)
         # execute
@@ -192,8 +193,10 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     tensor = [sess.graph.get_tensor_by_name(output_name) for output_name in output_node]
 
     input_dict = {e: input_data[i] for i, e in enumerate(input_node)}
-
-    output_data = sess.run(tensor, input_dict)
+    if len(input_node) == 1 and input_node[0] == "":
+        output_data = sess.run(tensor)
+    else:
+        output_data = sess.run(tensor, input_dict)
     return output_data
 
 
@@ -1755,19 +1758,21 @@ def test_forward_batch_matmul():
 # ----------------------------------
 
 
-def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=False):
+def _test_sparse_dense_matmul(indices, values, A_inp_shape, B_inp_shape, dtype, flip=False):
     """ One iteration of sparse_dense_matmul """
 
-    # TODO(ANSHUMAN87): Support adjoint options too
-    for adjoint_a in [False]:
-        for adjoint_b in [False]:
+    for adjoint_a in [False, True]:
+        for adjoint_b in [False, True]:
+            A_shape = A_inp_shape[::-1] if adjoint_a else A_inp_shape
+            B_shape = B_inp_shape[::-1] if adjoint_b else B_inp_shape
+
             with tf.Graph().as_default():
                 A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
                 B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
 
                 if flip:
                     result = tf.sparse.sparse_dense_matmul(
-                        B, A_sp, adjoint_a=adjoint_a, adjoint_b=adjoint_b
+                        B, A_sp, adjoint_a=adjoint_b, adjoint_b=adjoint_a
                     )
                 else:
                     result = tf.sparse.sparse_dense_matmul(
@@ -1776,8 +1781,7 @@ def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=Fal
 
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
-                # TODO(ANSHUMAN87): There is an issue in cuda scheduling for csr, work in progress
-                compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+                compare_tf_with_tvm([B_np], [B.name], result.name)
 
 
 def test_forward_sparse_dense_matmul():
@@ -1794,9 +1798,11 @@ def test_forward_sparse_dense_matmul():
     #
     # ------------------------------------------------------------------
 
-    # TODO(ANSHUMAN87): False case for flip need to be supported
-    # _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [4, 3], "float32")
-    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 5], [4, 3], "float32", True)
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [4, 3], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [7, 9], [9, 5], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [4, 3], [3, 4], "float32", True)
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32", True)
     _test_sparse_dense_matmul(
         [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32", True
@@ -1826,8 +1832,12 @@ def _test_stridedslice(
     """ One iteration of a Stridedslice """
 
     tf.reset_default_graph()
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
     with tf.Graph().as_default():
-        in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+        if len(ip_shape) == 0:
+            in_data = tf.constant(np_data, dtype)
+        else:
+            in_data = tf.placeholder(dtype, ip_shape, name="in_data")
         tf.strided_slice(
             in_data,
             begin,
@@ -1840,56 +1850,58 @@ def _test_stridedslice(
             ellipsis_mask=ellipsis_mask,
             name="strided_slice",
         )
-        np_data = np.random.uniform(size=ip_shape).astype(dtype)
-
-        compare_tf_with_tvm(np_data, "in_data:0", "strided_slice:0")
+        if len(ip_shape) == 0:
+            compare_tf_with_tvm(None, "", "strided_slice:0")
+        else:
+            compare_tf_with_tvm(np_data, "in_data:0", "strided_slice:0")
 
 
 def test_forward_stridedslice():
     """test StridedSlice"""
 
-    _test_stridedslice((2), [1], [1], [1], "float32", shrink_axis_mask=1)
-    _test_stridedslice((2, 1), [0], [1], [1], "float32", shrink_axis_mask=1)
-    _test_stridedslice((2, 3, 4), [0], [1], [1], "float32", shrink_axis_mask=8)
-    _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], "float32")
-    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], "float32", ellipsis_mask=8)
-    _test_stridedslice((3, 4, 3), [1, 0], [4, 2], [2, 1], "float32", ellipsis_mask=2)
-    _test_stridedslice((3, 4, 5, 3), [1, 0], [4, 2], [2, 1], "float32", ellipsis_mask=2)
-    _test_stridedslice((3, 4, 5, 3), [1, 0, 1], [4, 2, 2], [2, 1, 1], "float32", ellipsis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 2], [2, 1, 1], "float32", new_axis_mask=5)
+    _test_stridedslice([], [0], [0], [1], "float32", new_axis_mask=1)
+    _test_stridedslice([2], [1], [1], [1], "float32", shrink_axis_mask=1)
+    _test_stridedslice([2, 1], [0], [1], [1], "float32", shrink_axis_mask=1)
+    _test_stridedslice([2, 3, 4], [0], [1], [1], "float32", shrink_axis_mask=8)
+    _test_stridedslice([3, 4, 3], [1, -1, 0], [4, -5, 3], [2, -1, 1], "float32")
+    _test_stridedslice([3, 4, 3], [1, 0], [4, 3], [2, 1], "float32", ellipsis_mask=8)
+    _test_stridedslice([3, 4, 3], [1, 0], [4, 2], [2, 1], "float32", ellipsis_mask=2)
+    _test_stridedslice([3, 4, 5, 3], [1, 0], [4, 2], [2, 1], "float32", ellipsis_mask=2)
+    _test_stridedslice([3, 4, 5, 3], [1, 0, 1], [4, 2, 2], [2, 1, 1], "float32", ellipsis_mask=2)
+    _test_stridedslice([3, 4, 3], [1, 1, 0], [4, 4, 2], [2, 1, 1], "float32", new_axis_mask=5)
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=4
+        [3, 4, 3], [1, 1, 1], [4, 4, 1], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=4
     )
     _test_stridedslice(
-        (6, 4, 5), [1, 1, 1], [6, 3, 4], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=5
+        [6, 4, 5], [1, 1, 1], [6, 3, 4], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=5
     )
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], "float32", ellipsis_mask=4, new_axis_mask=2
+        [3, 4, 3], [1, 1, 2], [4, 4, 3], [2, 1, 1], "float32", ellipsis_mask=4, new_axis_mask=2
     )
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=3
+        [3, 4, 3], [1, 1, 2], [4, 4, 3], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=3
     )
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=3
+        [3, 4, 3], [1, 1, 0], [4, 4, 1], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=3
     )
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=2
+        [3, 4, 3], [1, 1, 2], [4, 4, 3], [2, 1, 1], "float32", ellipsis_mask=2, new_axis_mask=2
     )
     _test_stridedslice((3, 4), [1, 0], [4, 4], [1, 1], "float32", shrink_axis_mask=2)
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], "float32", shrink_axis_mask=2, new_axis_mask=2
+        [3, 4, 3], [1, 1, 0], [4, 4, 3], [2, 1, 1], "float32", shrink_axis_mask=2, new_axis_mask=2
     )
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], "float32", shrink_axis_mask=1, new_axis_mask=2
+        [3, 4, 3], [1, 1, 0], [4, 4, 3], [2, 1, 1], "float32", shrink_axis_mask=1, new_axis_mask=2
     )
     _test_stridedslice(
-        (3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], "float32", shrink_axis_mask=2, new_axis_mask=1
+        [3, 4, 3], [1, 1, 0], [4, 4, 3], [2, 1, 1], "float32", shrink_axis_mask=2, new_axis_mask=1
     )
     _test_stridedslice(
-        (3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], "float32", shrink_axis_mask=5, new_axis_mask=1
+        [3, 4, 5, 4, 5, 6], [0, 0], [2, 3], [1, 1], "float32", shrink_axis_mask=5, new_axis_mask=1
     )
     _test_stridedslice(
-        (3, 4, 5, 4, 5, 6),
+        [3, 4, 5, 4, 5, 6],
         [0, 0, 1, 2, 1],
         [2, 3, 4, 5, 3],
         [1, 1, 2, 2, 1],
@@ -1901,7 +1913,7 @@ def test_forward_stridedslice():
         end_mask=8,
     )
     _test_stridedslice(
-        (3, 4, 5, 4, 5, 6),
+        [3, 4, 5, 4, 5, 6],
         [0, 0, 1, 2, 1],
         [2, 3, 4, 5, 3],
         [1, 1, 2, 2, 1],
@@ -1913,7 +1925,7 @@ def test_forward_stridedslice():
         end_mask=5,
     )
     _test_stridedslice(
-        (3, 4, 5, 4, 5, 6),
+        [3, 4, 5, 4, 5, 6],
         [0, 0, 1, 2, 1],
         [2, 3, 4, 5, 3],
         [1, 1, 2, 2, 1],
@@ -1925,7 +1937,7 @@ def test_forward_stridedslice():
         end_mask=5,
     )
     _test_stridedslice(
-        (3, 4, 5, 4, 5, 6),
+        [3, 4, 5, 4, 5, 6],
         [1, 2, 0, -3],
         [4, 5, 3, 3],
         [2, 2, 1, 1],
@@ -1937,7 +1949,7 @@ def test_forward_stridedslice():
         end_mask=8,
     )
     _test_stridedslice(
-        (1, 13, 13, 3, 2),
+        [1, 13, 13, 3, 2],
         [0, 0],
         [1, 1],
         [1, -1],
@@ -4166,6 +4178,10 @@ def test_forward_isinf():
 
 def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
+
+
+def test_forward_isnan():
+    _verify_infiniteness_ops(tf.is_nan, "isnan")
 
 
 def _test_spop_placeholder_without_shape_info():

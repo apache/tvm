@@ -40,6 +40,7 @@ from .sort import *
 from .scatter import *
 from .scatter_add import *
 from .argwhere import *
+from .cumsum import *
 from . import generic
 from . import nn
 from . import x86
@@ -54,6 +55,7 @@ from . import vision
 from . import image
 from . import sparse
 from . import hls
+from . import random
 
 # error reporting
 from .utils import InvalidShapeError

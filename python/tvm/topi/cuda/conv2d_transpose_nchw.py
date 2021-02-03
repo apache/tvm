@@ -179,7 +179,10 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
             ##### space definition begin #####
             n, f, y, x = s[conv].op.axis
             rc = s[conv].op.reduce_axis[0]
-            cfg.define_split("tile_n", cfg.axis(n), num_outputs=4)
+            # TODO(@kevinthesun): Support tuning/optimization for dynamic shape.
+            bs = pad_data.shape[0]
+            n_tuning_axis = n if isinstance(bs, tvm.tir.IntImm) else 1
+            cfg.define_split("tile_n", cfg.axis(n_tuning_axis), num_outputs=4)
             cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
             cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
             cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
@@ -194,6 +197,8 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
 
             if cfg.is_fallback:
                 N, F, Y, X = get_const_tuple(conv.shape)
+                if not isinstance(N, int):
+                    N = 1
                 _fallback_schedule(N, F, Y, X)
 
             ##### space definition end #####

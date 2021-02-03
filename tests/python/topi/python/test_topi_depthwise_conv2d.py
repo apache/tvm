@@ -23,6 +23,8 @@ import numpy as np
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.contrib.pickle_memoize import memoize
+from tvm.topi.nn.depthwise_conv2d import _get_workload
+from tvm.topi.x86.depthwise_conv2d import _fallback_schedule
 
 import tvm.testing
 
@@ -116,8 +118,8 @@ def depthwise_conv2d_with_workload_nchw(
     if dilation == 1:
         # here we transform the padding argument from 'str' to  'tuple' ,
         # because we need this to match the "workload" tuple to the records in TopHub
-        pad_h, pad_w, _, _ = get_pad_tuple(padding, (filter_height, filter_width))
-        padding_args = (pad_h, pad_w)
+        padt, padl, padb, padr = get_pad_tuple(padding, (filter_height, filter_width))
+        padding_args = (padt, padl, padb, padr)
     else:
         padding_args = padding
 
@@ -204,6 +206,23 @@ def depthwise_conv2d_with_workload_nchw(
                 scale_shift_scipy,
                 relu_scipy,
             ) = get_ref_data()
+
+            def verify_workload_padding():
+                _, _, out_height, out_width = get_const_tuple(depthwise_conv2d_scipy.shape)
+                wkl = _get_workload(
+                    Input, Filter, (stride_h, stride_w), padding_args, dilation, dtype
+                )
+
+                # check if tile_ow candidates are the factors of the right output weight.
+                with tvm.target.Target(device):
+                    cfg = autotvm.get_config()
+                    _fallback_schedule(cfg, wkl)
+                    ow_tile = np.prod(cfg["tile_ow"].size)
+
+                    tvm.testing.assert_allclose(ow_tile, out_width)
+
+            if "llvm" in device:
+                verify_workload_padding()
 
             input_tvm = tvm.nd.array(input_np, ctx)
             filter_tvm = tvm.nd.array(filter_np, ctx)

@@ -47,6 +47,7 @@ def make_search_policies(
     verbose,
     load_model_file=None,
     load_log_file=None,
+    adapative_training=False,
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -70,6 +71,9 @@ def make_search_policies(
     load_log_file: Optional[str]
         Load measurement records from this file. If it is not None, the status of the
         task scheduler, search policies and cost models will be restored according to this file.
+    adapative_training: bool = False
+        Option used by XGBModel to reduce the model training frequency when there're too
+        many logs.
 
     Returns
     -------
@@ -82,11 +86,16 @@ def make_search_policies(
     if isinstance(search_policy, str):
         policy_type, model_type = search_policy.split(".")
         if model_type == "xgb":
-            cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
-            if load_model_file:
+            cost_model = XGBModel(
+                num_warmup_sample=len(tasks) * num_measures_per_round,
+                model_file=load_model_file,
+                adapative_training=adapative_training,
+            )
+            if load_model_file and os.path.isfile(load_model_file):
                 logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
+                logger.info("TaskScheduler: Reload measured states and train the model...")
                 cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()
@@ -266,7 +275,13 @@ class TaskScheduler:
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-    def tune(self, tune_option, search_policy="default", search_policy_params=None):
+    def tune(
+        self,
+        tune_option,
+        search_policy="default",
+        search_policy_params=None,
+        adapative_training=False,
+    ):
         """Tune a batch of tasks together.
 
         Parameters
@@ -281,6 +296,9 @@ class TaskScheduler:
             "sketch.random" for SketchPolicy + RandomModel.
         search_policy_params : Optional[Dict[str, Any]]
             The parameters of the search policy
+        adapative_training : bool = False
+            Option used by XGBModel to reduce the model training frequency when there're
+            too many logs.
         """
         # init members
         self.tune_option = tune_option
@@ -315,6 +333,7 @@ class TaskScheduler:
             tune_option.verbose,
             self.load_model_file,
             self.load_log_file,
+            adapative_training,
         )
 
         # do a round robin first to warm up

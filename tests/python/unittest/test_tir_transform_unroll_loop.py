@@ -27,7 +27,7 @@ def test_unroll_loop():
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
     with ib.for_range(n, n + 2, name="i") as i:
-        with ib.for_range(0, 8, name="i", for_type="unroll") as j:
+        with ib.for_range(0, 8, name="i", kind="unroll") as j:
             Aptr[j + 1] = Aptr[i] + 1
 
     stmt = ib.get()
@@ -48,7 +48,7 @@ def test_unroll_loop():
     ):
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
         assert isinstance(ret, tvm.tir.For)
-        assert ret.for_type == tvm.tir.For.Unrolled
+        assert ret.kind == tvm.tir.ForKind.UNROLLED
 
     ib = tvm.tir.ir_builder.create()
     ib.scope_attr(tvm.tir.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
@@ -63,9 +63,9 @@ def test_unroll_loop():
     ):
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
         assert isinstance(ret[0], tvm.tir.For)
-        assert ret[0].for_type == tvm.tir.For.Unrolled
+        assert ret[0].kind == tvm.tir.ForKind.UNROLLED
         assert isinstance(ret[1], tvm.tir.For)
-        assert ret[1].for_type != tvm.tir.For.Unrolled
+        assert ret[1].kind != tvm.tir.ForKind.UNROLLED
 
 
 def test_unroll_fake_loop():

@@ -24,6 +24,7 @@
 
 #include "nn.h"
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/relay/attrs/image.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
@@ -295,6 +296,33 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.softmax").set_body_typed([](Expr data, in
 
 RELAY_REGISTER_OP("nn.softmax")
     .describe(R"code(Softmax layer.
+
+.. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+.. note::
+    This operator can be optimized away for inference.
+
+- **data**: The input data
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SoftmaxAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(1)
+    .add_type_rel("Identity", IdentityRel);
+
+// relay.fast_softmax
+TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.fast_softmax").set_body_typed([](Expr data, int axis) {
+  auto attrs = make_object<SoftmaxAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.fast_softmax");
+  return Call(op, {data}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("nn.fast_softmax")
+    .describe(R"code(Softmax layer.
+    Use approximation to compute exponent for faster speed.
 
 .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
 
@@ -690,10 +718,7 @@ Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 7>(MakeInstanceNorm, args, rv);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm").set_body_typed(MakeInstanceNorm);
 
 RELAY_REGISTER_OP("nn.instance_norm")
     .describe(R"code(Instance Normalization (Ulyanov and et al., 2016)
@@ -757,10 +782,7 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon, b
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm").set_body_typed(MakeLayerNorm);
 
 RELAY_REGISTER_OP("nn.layer_norm")
     .describe(R"code(
@@ -803,10 +825,7 @@ Expr MakeGroupNorm(Expr data, Expr gamma, Expr beta, int num_groups, int axis, d
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 8>(MakeGroupNorm, args, rv);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm").set_body_typed(MakeGroupNorm);
 
 RELAY_REGISTER_OP("nn.group_norm")
     .describe(R"code(
@@ -845,37 +864,49 @@ If the input has size k on axis 1, then both gamma and beta have shape (k,).
     .add_type_rel("GroupNorm", GroupNormRel);
 
 // relay.nn.batch_matmul
+TVM_REGISTER_NODE_TYPE(BatchMatmulAttrs);
+
 bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
   const auto* x = types[0].as<TensorTypeNode>();
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
-  ICHECK(x->shape.size() == 3 && y->shape.size() == 3);
+
+  const auto* param = attrs.as<BatchMatmulAttrs>();
+  Array<PrimExpr> y_shape;
+  if (param->auto_scheduler_rewritten_layout.size() == 0) {
+    y_shape = y->shape;
+  } else {
+    y_shape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
+                                                          {"b", "j", "k"});
+  }
+
+  ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
   bool is_dyn = false;
   Array<tvm::PrimExpr> oshape;
   for (size_t i = 0; i < 3; ++i) {
-    if (x->shape[i].as<tir::AnyNode>() != nullptr || y->shape[i].as<tir::AnyNode>() != nullptr) {
+    if (x->shape[i].as<tir::AnyNode>() != nullptr || y_shape[i].as<tir::AnyNode>() != nullptr) {
       is_dyn = true;
       oshape.push_back(Any());
     } else {
       if (i == 0) {
-        oshape.push_back(max(x->shape[i], y->shape[i]));
+        oshape.push_back(max(x->shape[i], y_shape[i]));
       } else {
         oshape.push_back(x->shape[i]);
       }
     }
   }
   if (!is_dyn) {
-    ICHECK(reporter->AssertEQ(x->shape[0], y->shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
-           reporter->AssertEQ(y->shape[0], 1))
+    ICHECK(reporter->AssertEQ(x->shape[0], y_shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
+           reporter->AssertEQ(y_shape[0], 1))
         << "BatchDot: batch dimensions don't match, "
-        << " x shape=" << x->shape << ", y shape=" << y->shape;
-    ICHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
+    ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
         << "BatchDot: shapes of x and y is inconsistent, "
-        << " x shape=" << x->shape << ", y shape=" << y->shape;
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
 
-    oshape.Set(2, y->shape[1]);
+    oshape.Set(2, y_shape[1]);
   }
 
   // assign output type
@@ -885,8 +916,9 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 // Positional relay function to create batch_matmul operator used by frontend FFI.
 Expr MakeBatchMatmul(Expr x, Expr y) {
+  auto attrs = make_object<BatchMatmulAttrs>();
   static const Op& op = Op::Get("nn.batch_matmul");
-  return Call(op, {x, y}, Attrs(), {});
+  return Call(op, {x, y}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul").set_body_typed(MakeBatchMatmul);

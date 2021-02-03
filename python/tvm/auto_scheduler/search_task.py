@@ -178,6 +178,13 @@ class SearchTask(Object):
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
+    layout_rewrite_option : Optional[LayoutRewriteOption]
+        The layout rewrite option used for measuring programs. If None, the default value will be
+        set depending on the specified target.
+        Auto_scheduler will find a better schedule for the specified layout rewrite option.
+        The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
+        op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
+        network.
 
     Examples
     --------
@@ -204,6 +211,7 @@ class SearchTask(Object):
         target=None,
         target_host=None,
         hardware_params=None,
+        layout_rewrite_option=None,
     ):
         assert (
             func is not None or workload_key is not None
@@ -220,13 +228,17 @@ class SearchTask(Object):
         if isinstance(target_host, str):
             target_host = Target(target_host)
 
-        self.dag = compute_dag
-        self.workload_key = workload_key
-        self.target = target
-        self.target_host = target_host
-        self.hardware_params = hardware_params
+        if layout_rewrite_option is None:
+            layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
+
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params
+            _ffi_api.SearchTask,
+            compute_dag,
+            workload_key,
+            target,
+            target_host,
+            hardware_params,
+            layout_rewrite_option,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -245,31 +257,34 @@ class SearchTask(Object):
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
 
-    def apply_best(self, log_file, layout_rewrite_option=None):
+    def apply_best(self, log_file, include_compatible=False, layout_rewrite_option=None):
         """Apply the history best from a log file and return the schedule.
 
         Parameters
         ----------
         log_file : str
            The name of the log file.
+        include_compatible: bool
+            When set to True, all compatible records in the log file will be considered.
         layout_rewrite_option : Optional[LayoutRewriteOption]
            The layout rewrite option.
+
 
         Returns
         -------
             A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
-        inp, _ = load_best_record(log_file, self.workload_key)
+        inp, _ = load_best_record(
+            log_file, self.workload_key, include_compatible=include_compatible
+        )
         if inp is None:
             raise RuntimeError(
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
             )
 
-        if layout_rewrite_option is None:
-            layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
-            if self.target.kind.name == "llvm":
-                layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
-        sch, args = self.compute_dag.apply_steps_from_state(inp.state, layout_rewrite_option)
+        sch, args = self.compute_dag.apply_steps_from_state(
+            inp.state, layout_rewrite_option or self.layout_rewrite_option
+        )
         return sch, args
 
     def print_best(self, log_file, print_mode="schedule"):
@@ -305,39 +320,35 @@ class SearchTask(Object):
 
     def __getstate__(self):
         return {
-            "dag": self.dag,
+            "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
             "target": self.target,
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
+            "layout_rewrite_option": self.layout_rewrite_option,
         }
 
     def __setstate__(self, state):
-        self.dag = state["dag"]
-        self.workload_key = state["workload_key"]
-
         # Register the workload if needed
         try:
-            workload = json.loads(self.workload_key)
+            workload = json.loads(state["workload_key"])
         except Exception:  # pylint: disable=broad-except
-            raise RuntimeError("Invalid workload key %s" % self.workload_key)
+            raise RuntimeError("Invalid workload key %s" % state["workload_key"])
 
         # The workload from a compute DAG does not have arguments and is not registered
         # by default so we register it here. If the workload has already been registered,
         # the later registration overrides the prvious one.
         if len(workload) == 1:
-            register_workload_tensors(workload[0], self.dag.tensors)
+            register_workload_tensors(workload[0], state["compute_dag"].tensors)
 
-        self.target = state["target"]
-        self.target_host = state["target_host"]
-        self.hardware_params = state["hardware_params"]
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
-            self.dag,
-            self.workload_key,
-            self.target,
-            self.target_host,
-            self.hardware_params,
+            state["compute_dag"],
+            state["workload_key"],
+            state["target"],
+            state["target_host"],
+            state["hardware_params"],
+            state["layout_rewrite_option"],
         )
 
 

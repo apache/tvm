@@ -208,6 +208,9 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       case 32:
         os << "int";
         break;
+      case 64:
+        os << "long";
+        break;
       case 1:
         os << "bool";
         break;

@@ -35,7 +35,7 @@ TEST(Op, GetAttr) {
   auto add = Op::Get("add");
   auto nick = Op::GetAttr<std::string>("nick_name");
 
-  ICHECK_EQ(nick[add], "plus");
+  CHECK_EQ(nick[add], "plus");
 }
 
 int main(int argc, char** argv) {

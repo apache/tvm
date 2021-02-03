@@ -318,14 +318,14 @@ class StorageFlattener : public StmtExprMutator {
     }
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
-        stmt = For(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
+        stmt = For(vars[i], 0, op->bounds[i]->extent, ForKind::kSerial, stmt);
       } else {
         PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         PrimExpr address = Call(DataType::Handle(), builtin::address_of(), {load});
         PrimExpr prefetch = Call(op->buffer->dtype, builtin::prefetch(), {address, 0, 3, 1});
         stmt = Evaluate(prefetch);
         PrimExpr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = For(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
+        stmt = For(vars[i], 0, extent, ForKind::kSerial, stmt);
       }
     }
     return stmt;

@@ -356,7 +356,7 @@ def register_gradient(op_name, fgradient=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, level)
 
 
-def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
+def register_shape_func(op_name, data_dependent, shape_func=None, level=10):
     """Register operator shape function for an op.
 
     Parameters
@@ -364,8 +364,10 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     op_name : str
         The name of the op.
 
-    data_dependant : bool
-        Whether the shape function depends on input data.
+    data_dependent : bool or list of bool
+        Whether the shape function depends on input data. If this is a list of bool,
+        the length of the list must be the same as the number of arguments of this op.
+        The list specifies per-input data dependence of the op.
 
     shape_func : function (attrs: Attrs, inputs: List[Tensor], out_ndims: List[IndexExpr])
                  -> shape_tensors: List<Tensor>
@@ -374,7 +376,9 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     level : int
         The priority level
     """
-    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
+    if not isinstance(data_dependent, list):
+        data_dependent = [data_dependent]
+    get(op_name).set_attr("TShapeDataDependent", data_dependent, level)
     return tvm.ir.register_op_attr(op_name, "FShapeFunc", shape_func, level)
 
 

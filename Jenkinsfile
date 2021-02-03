@@ -46,9 +46,9 @@
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.62"
 ci_gpu = "tlcpack/ci-gpu:v0.72"
-ci_cpu = "tlcpack/ci-cpu:v0.71"
+ci_cpu = "tlcpack/ci-cpu:v0.72-t0"
 ci_wasm = "tlcpack/ci-wasm:v0.70"
-ci_i386 = "tlcpack/ci-i386:v0.71"
+ci_i386 = "tlcpack/ci-i386:v0.72-t0"
 ci_qemu = "tlcpack/ci-qemu:v0.01"
 ci_arm = "tlcpack/ci-arm:v0.01"
 // <--- End of regex-scanned config.
@@ -80,7 +80,7 @@ def init_git() {
   checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
-      sh 'git submodule update --init'
+      sh 'git submodule update --init -f'
     }
   }
 }
@@ -89,7 +89,7 @@ def init_git_win() {
     checkout scm
     retry(5) {
         timeout(time: 2, unit: 'MINUTES') {
-            bat 'git submodule update --init'
+            bat 'git submodule update --init -f'
         }
     }
 }

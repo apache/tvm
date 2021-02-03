@@ -54,6 +54,9 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const LetPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
@@ -123,6 +126,13 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
         return val->data == rhs.operator std::string();
       }
       break;
+    case kTVMDataType:
+      if (auto* val = lhs.as<tir::StringImmNode>()) {
+        return rhs.operator std::string() == val->value;
+      } else if (auto* val = lhs.as<StringObj>()) {
+        return rhs.operator std::string() == val->data;
+      }
+      break;
     case kTVMObjectHandle:
       if (rhs.IsObjectRef<String>()) {
         if (auto* val = lhs.as<tir::StringImmNode>()) {
@@ -139,16 +149,21 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr) {
-  bool matches = false;
+  bool matches = VisitDFPattern(attr_pattern->pattern, expr);
+  if (!matches) {
+    return matches;
+  }
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
   if (const auto* op_node = expr.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
-      auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
-      if (op_map.count(op)) {
-        matches = MatchRetValue(attr_value, op_map[op]);
+      if (Op::HasAttrMap(attr_name)) {
+        auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
+        if (op_map.count(op)) {
+          matches = MatchRetValue(attr_value, op_map[op]);
+        }
       }
     }
   } else if (auto* op = expr.as<CallNode>()) {
@@ -157,7 +172,11 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     // and replace the whole thing with a Visitor-based approach
     ReflectionVTable* reflection = ReflectionVTable::Global();
     auto attrs_node = const_cast<BaseAttrsNode*>(op->attrs.get());
-    auto attr_names = reflection->ListAttrNames(attrs_node);
+    // attrs may be undefined on non-op calls so we check first
+    std::vector<std::string> attr_names;
+    if (attrs_node) {
+      attr_names = reflection->ListAttrNames(attrs_node);
+    }
     for (auto kv : attributes) {
       std::string attr = kv.first;
       if (matches && std::find(attr_names.begin(), attr_names.end(), attr) != attr_names.end()) {
@@ -178,7 +197,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       }
     }
   }
-  return matches && VisitDFPattern(attr_pattern->pattern, expr);
+  return matches;
 }
 
 Array<DFPattern> reverse(const Array<DFPattern>& args) {
@@ -264,10 +283,8 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
                is_expr_op(call_node->args[1], "divide"))) {
             bool out = false;
             for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
-              auto div = CallPattern(op->op, {arg_node->args[arg_id], op->args[1]}, op->attrs,
-                                     op->type_args);
-              auto mul = CallPattern(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div},
-                                     arg_node->attrs, arg_node->type_args);
+              auto div = CallPattern(op->op, {arg_node->args[arg_id], op->args[1]});
+              auto mul = CallPattern(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div});
               out = VisitDFPattern(mul, expr);
               if (out) {
                 return true;
@@ -286,10 +303,8 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
             if (is_pattern_op(arg_node, "divide") && is_expr_op(expr, "divide") &&
                 (is_expr_op(call_node->args[0], "multiply") ||
                  is_expr_op(call_node->args[1], "multiply"))) {
-              auto mul = CallPattern(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
-                                     op->attrs, op->type_args);
-              auto div = CallPattern(arg_node->op, {mul, arg_node->args[1]}, arg_node->attrs,
-                                     arg_node->type_args);
+              auto mul = CallPattern(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]});
+              auto div = CallPattern(arg_node->op, {mul, arg_node->args[1]});
               return VisitDFPattern(div, expr);
             }
           }
@@ -356,6 +371,26 @@ bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& ex
   return StructuralEqual()(op->expr, expr);
 }
 
+bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) {
+  bool matches = false;
+  if (const auto* func = expr.as<FunctionNode>()) {
+    matches = true;
+    size_t i = 0;
+    if (op->params.size() == func->params.size()) {
+      while (matches && i < op->params.size()) {
+        matches &= VisitDFPattern(op->params[i], func->params[i]);
+        ++i;
+      }
+    } else {
+      matches = false;
+    }
+    if (matches) {
+      matches &= VisitDFPattern(op->body, func->body);
+    }
+  }
+  return matches;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
@@ -378,6 +413,25 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
     }
   }
   return matches;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const IfPatternNode* op, const Expr& expr) {
+  if (const auto* if_node = expr.as<IfNode>()) {
+    auto cond = if_node->cond;
+    auto true_branch = if_node->true_branch;
+    auto false_branch = if_node->false_branch;
+    return VisitDFPattern(op->cond, cond) && VisitDFPattern(op->true_branch, true_branch) &&
+           VisitDFPattern(op->false_branch, false_branch);
+  }
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const LetPatternNode* op, const Expr& expr) {
+  if (const auto* let_node = expr.as<LetNode>()) {
+    return VisitDFPattern(op->var, let_node->var) && VisitDFPattern(op->value, let_node->value) &&
+           VisitDFPattern(op->body, let_node->body);
+  }
+  return false;
 }
 
 Expr InferType(const Expr& expr) {
@@ -601,8 +655,17 @@ class PatternGrouper {
     // Get fuzzy patterns
     std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> fuzzy_matches;
     for (auto node : pattern_graph_.topological_order_) {
+      // Don't treat fuzzy Dominator patterns input variables for partition
       if (auto op = node->ref_.as<DominatorPatternNode>()) {
         for (auto fuzzy_op : {op->parent, op->path}) {
+          for (auto match : node_map[fuzzy_op]) {
+            fuzzy_matches.insert(match);
+          }
+        }
+      }
+      // Don't treat Function params as input variables for partition
+      if (auto op = node->ref_.as<FunctionPatternNode>()) {
+        for (auto fuzzy_op : op->params) {
           for (auto match : node_map[fuzzy_op]) {
             fuzzy_matches.insert(match);
           }
@@ -669,7 +732,8 @@ class PatternGrouper {
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
             // and the node is used by nodes outside of the group
-            if (memo.count(output->ref_) == 0) {
+            if (memo.count(output->ref_) == 0 &&
+                !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
               // Exit because nodes in this pattern's body are used outside the pattern
               // fusing it would be invalid
               return;

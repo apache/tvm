@@ -139,10 +139,10 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 #define ICHECK_GE(x, y) ICHECK_BINARY_OP(_GE, >=, x, y)
 #define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
 #define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
-#define ICHECK_NOTNULL(x)                                                                        \
-  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                           \
-                        << tvm::kTVM_INTERNAL_ERROR_MESSAGE << __INDENT << "Check not null: " #x \
-                        << ' ',                                                                  \
+#define ICHECK_NOTNULL(x)                                                    \
+  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()       \
+                        << tvm::kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT \
+                        << "Check not null: " #x << ' ',                     \
    (x) : (x))  // NOLINT(*)
 
 /*! \brief The diagnostic level, controls the printing of the message. */

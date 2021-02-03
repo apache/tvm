@@ -25,8 +25,10 @@ import subprocess
 import textwrap
 
 import numpy as np
+import pytest
 
 import tvm
+import tvm.testing
 import tvm.relay
 import tvm.testing
 
@@ -49,7 +51,6 @@ def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
 def _make_session(workspace, mod):
     compiler = tvm.micro.DefaultCompiler(target=TARGET)
     opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
-
     micro_binary = tvm.micro.build_static_runtime(
         # the x86 compiler *expects* you to give the exact same dictionary for both
         # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
@@ -173,8 +174,27 @@ def test_std_math_functions():
         np.testing.assert_allclose(B_data.asnumpy(), np.array([7.389056, 20.085537]))
 
 
+@tvm.testing.requires_micro
+def test_platform_timer():
+    """Verify the platform timer can be used to time remote functions."""
+    import tvm.micro
+
+    workspace = tvm.micro.Workspace()
+    A = tvm.te.placeholder((2,), dtype="float32", name="A")
+    B = tvm.te.compute(A.shape, lambda i: tvm.te.exp(A[i]), name="B")
+    s = tvm.te.create_schedule(B.op)
+
+    with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
+        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        lib = sess.get_system_lib()
+        time_eval_f = lib.time_evaluator(
+            "myexpf", sess.context, number=2000, repeat=3, min_repeat_ms=40
+        )
+        result = time_eval_f(A_data, B_data)
+        assert result.mean > 0
+        assert len(result.results) == 3
+
+
 if __name__ == "__main__":
-    test_compile_runtime()
-    test_reset()
-    test_graph_runtime()
-    test_std_math_functions()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -96,17 +96,19 @@ def conv2d_cudnn(
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
-    cfg.add_flop(
-        groups
-        * 2
-        * N
-        * OH
-        * OW
-        * CO
-        * CI
-        * ((KH - 1) * dilation_h + 1)
-        * ((KW - 1) * dilation_w + 1)
-    )
+
+    if isinstance(N, int):
+        cfg.add_flop(
+            groups
+            * 2
+            * N
+            * OH
+            * OW
+            * CO
+            * CI
+            * ((KH - 1) * dilation_h + 1)
+            * ((KW - 1) * dilation_w + 1)
+        )
 
     if data.dtype == "int8" or kernel.dtype == "int8":
         if layout == "NCHW":

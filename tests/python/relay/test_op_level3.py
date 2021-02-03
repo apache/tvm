@@ -787,28 +787,58 @@ def test_repeat():
 
 @tvm.testing.uses_gpu
 def test_stack():
-    def verify_stack(dshapes, axis):
-        y = []
-        for shape in dshapes:
-            y.append(relay.var("input", relay.TensorType(shape, "float32")))
-        x = relay.Tuple(y)
-        z = relay.stack(x, axis=axis)
+    def produce_input_tuple(dshapes):
+        y = [relay.var("input", relay.TensorType(shape, "float32")) for shape in dshapes]
+        return relay.Tuple(y)
 
-        func = relay.Function(y, z)
-        x_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
-        ref_res = np.stack(x_data, axis=axis)
+    def ref_stack(inputs, axis):
+        return np.stack(inputs, axis=axis)
+
+    def verify_stack(input_expr, relay_args, ref_res, axis):
+        z = relay.stack(input_expr, axis=axis)
+        inp_vars = relay.analysis.free_vars(z)
+        func = relay.Function(inp_vars, z)
 
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(*x_data)
+                op_res = intrp.evaluate(func)(*relay_args)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    verify_stack([(2,), (2,), (2,)], -1)
-    verify_stack([(2,), (2,), (2,)], 0)
-    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
-    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
-    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4)
+    def verify_tup_lit_stack(dshapes, axis):
+        input_tuple = produce_input_tuple(dshapes)
+        input_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
+        ref_res = ref_stack(input_data, axis)
+        verify_stack(input_tuple, input_data, ref_res, axis)
+
+    def verify_list_lit_stack(dshapes, axis):
+        input_list = produce_input_tuple(dshapes).fields
+        input_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
+        ref_res = ref_stack(input_data, axis)
+        verify_stack(input_list, input_data, ref_res, axis)
+
+    def verify_tup_expr_stack(dshapes, axis):
+        input_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
+        ref_res = ref_stack(input_data, axis)
+
+        # expression that evaluates to a tuple
+        # but is not a tuple literal
+        x = relay.Var("x")
+        input_expr = relay.Let(x, relay.Tuple([relay.const(inp) for inp in input_data]), x)
+        verify_stack(input_expr, [], ref_res, axis)
+
+    dshape_axis_combos = [
+        ([(2,), (2,), (2,)], -1),
+        ([(2,), (2,), (2,)], 0),
+        ([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1),
+        ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1),
+        ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4),
+    ]
+
+    for dshapes, axis in dshape_axis_combos:
+        verify_tup_lit_stack(dshapes, axis)
+        verify_list_lit_stack(dshapes, axis)
+        verify_tup_expr_stack(dshapes, axis)
 
 
 @tvm.testing.uses_gpu
@@ -1281,6 +1311,7 @@ def test_sparse_to_dense():
     # verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 
+@tvm.testing.uses_gpu
 def test_adv_index():
     def verify_adv_index(data_shape, index_shapes):
         dtype = "float32"
@@ -1310,6 +1341,40 @@ def test_adv_index():
         ],
     )
     verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
+
+
+@tvm.testing.parametrize_targets
+def test_cumsum(target, ctx):
+    def verify_cumsum(data_np, np_out, axis=None, out_dtype=None, rtol=1e-5, atol=1e-5):
+        inp = relay.var("data", relay.TensorType(data_np.shape, str(data_np.dtype)))
+
+        out = relay.op.cumsum(inp, axis, out_dtype)
+        func = relay.Function([inp], out)
+
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(data_np)
+            tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=rtol, atol=atol)
+
+    data = np.array([2, 3, 0])
+    verify_cumsum(data, np.cumsum(data))
+    verify_cumsum(data, np.cumsum(data), out_dtype="int64")
+
+    data = np.random.randn(10, 10)
+    verify_cumsum(data, np.cumsum(data))
+    verify_cumsum(data, np.cumsum(data, axis=0), axis=0)
+    verify_cumsum(data, np.cumsum(data, axis=1), axis=1)
+
+    data = np.random.randn(10, 5, 10).astype("float32")
+    verify_cumsum(data, np.cumsum(data), rtol=1e-4, atol=1e-4)
+    verify_cumsum(data, np.cumsum(data, axis=0), axis=0, rtol=1e-4, atol=1e-4)
+    verify_cumsum(data, np.cumsum(data, axis=1), axis=1, rtol=1e-4, atol=1e-4)
+    verify_cumsum(data, np.cumsum(data, axis=-1), axis=-1, rtol=1e-4, atol=1e-4)
+
+    data = np.random.rand(10) > 0.5
+    data = data.astype(np.int32)
+    verify_cumsum(data, np.cumsum(data, dtype=np.int32))
+    verify_cumsum(data, np.cumsum(data, dtype="int64"), out_dtype="int64")
 
 
 if __name__ == "__main__":
@@ -1349,3 +1414,4 @@ if __name__ == "__main__":
     test_sparse_to_dense()
     test_fixed_point_multiply()
     test_adv_index()
+    test_cumsum()

@@ -22,6 +22,7 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
+#include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
@@ -68,29 +69,44 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
   return memory_manager->Free(memory_manager, ptr, ctx);
 }
 
-high_resolution_clock::time_point g_utvm_start_time;
+steady_clock::time_point g_utvm_start_time;
 int g_utvm_timer_running = 0;
 
-int TVMPlatformTimerStart() {
+tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     std::cerr << "timer already running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  g_utvm_start_time = high_resolution_clock::now();
+  g_utvm_start_time = std::chrono::steady_clock::now();
   g_utvm_timer_running = 1;
-  return 0;
+  return kTvmErrorNoError;
 }
 
-int TVMPlatformTimerStop(double* res_us) {
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     std::cerr << "timer not running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  auto utvm_stop_time = high_resolution_clock::now();
-  duration<double, std::micro> time_span(utvm_stop_time - g_utvm_start_time);
-  *res_us = time_span.count();
+  auto utvm_stop_time = std::chrono::steady_clock::now();
+  std::chrono::microseconds time_span =
+      std::chrono::duration_cast<std::chrono::microseconds>(utvm_stop_time - g_utvm_start_time);
+  *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
   g_utvm_timer_running = 0;
-  return 0;
+  return kTvmErrorNoError;
+}
+
+static_assert(RAND_MAX >= (1 << 8), "RAND_MAX is smaller than acceptable");
+unsigned int random_seed = 0;
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  if (random_seed == 0) {
+    random_seed = (unsigned int)time(NULL);
+  }
+  for (size_t i = 0; i < num_bytes; ++i) {
+    int random = rand_r(&random_seed);
+    buffer[i] = (uint8_t)random;
+  }
+
+  return kTvmErrorNoError;
 }
 }
 

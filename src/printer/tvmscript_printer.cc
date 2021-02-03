@@ -649,27 +649,30 @@ Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
   return doc;
 }
 
-inline const char* ForType2String(ForType t) {
+inline const char* ForKind2String(ForKind t) {
   switch (t) {
-    case ForType::Serial:
+    case ForKind::kSerial:
       return "serial";
-    case ForType::Parallel:
+    case ForKind::kParallel:
       return "parallel";
-    case ForType::Vectorized:
+    case ForKind::kVectorized:
       return "vectorized";
-    case ForType::Unrolled:
+    case ForKind::kUnrolled:
       return "unroll";
+    case ForKind::kThreadBinding:
+      LOG(FATAL) << "Loop ThreadBinding is reserved for future used and "
+                 << "not yet supported in TIR";
+      return "threadbinding";
   }
-  LOG(FATAL) << "Unknown ForType";
+  LOG(FATAL) << "Unknown ForKind";
   return "Unknown";
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   var_not_in_headers.insert(op->loop_var.get());
-  doc << "for " << Print(op->loop_var)
-      << " in tir." + std::string(ForType2String(op->for_type)) + "(" << Print(op->min) << ", "
-      << Print(op->min + op->extent)
+  doc << "for " << Print(op->loop_var) << " in tir." + std::string(ForKind2String(op->kind)) + "("
+      << Print(op->min) << ", " << Print(op->min + op->extent)
       << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   return doc;
 }

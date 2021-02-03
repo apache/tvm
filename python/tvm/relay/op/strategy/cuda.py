@@ -462,13 +462,23 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
 def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """deformable_conv2d cuda strategy"""
     layout = attrs.data_layout
-    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
-        name="deformable_conv2d_nchw.cuda",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
+            name="deformable_conv2d_nchw.cuda",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
+            naive_schedule,
+            name="deformable_conv2d_nhwc.cuda",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformable conv2d on CUDA" % layout)
     return strategy
 
 
@@ -668,9 +678,26 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
         if target.kind.name == "cuda":
             if nvcc.have_tensorcore(target=target):
                 if (
-                    (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
-                    or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0)
-                    or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0)
+                    (
+                        data.dtype in ["float16", "int8", "uint8"]
+                        and (
+                            (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
+                            or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0)
+                            or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0)
+                        )
+                    )
+                    or (
+                        data.dtype in ["int4", "uint4"]
+                        and i % 32 == 0
+                        and b % 8 == 0
+                        and o % 8 == 0
+                    )
+                    or (
+                        data.dtype in ["int1", "uint1"]
+                        and i % 128 == 0
+                        and b % 8 == 0
+                        and o % 8 == 0
+                    )
                 ):
                     strategy.add_implementation(
                         wrap_compute_dense(topi.cuda.dense_tensorcore),
@@ -705,6 +732,22 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             name="batch_matmul_cublas.cuda",
             plevel=15,
         )
+    if target.kind.name == "cuda" and nvcc.have_tensorcore(target=target):
+        x, y = inputs
+        _, M, K = get_const_tuple(x.shape)
+        _, N, K = get_const_tuple(y.shape)
+        if x.dtype in ["float16", "int8", "uint8"] and (
+            (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+            or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+            or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+        ):
+            strategy.add_implementation(
+                wrap_compute_batch_matmul(topi.cuda.batch_matmul_tensorcore),
+                wrap_topi_schedule(topi.cuda.schedule_batch_matmul_tensorcore),
+                name="batch_matmul_tensorcore.cuda",
+                plevel=20,
+            )
+
     return strategy
 
 
@@ -740,10 +783,23 @@ def scatter_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_scatter(topi.cuda.scatter),
-        wrap_topi_schedule(topi.generic.schedule_extern),
+        wrap_topi_schedule(topi.cuda.schedule_scatter),
         name="scatter.cuda",
         plevel=10,
     )
+
+    rank = len(inputs[0].shape)
+
+    with SpecializedCondition(rank == 1):
+        if target.kind.name == "cuda" and get_global_func(
+            "tvm.contrib.thrust.stable_sort_by_key", allow_missing=True
+        ):
+            strategy.add_implementation(
+                wrap_compute_scatter(topi.cuda.scatter_via_sort),
+                wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
+                name="scatter_via_sort.cuda",
+                plevel=9,  # use the sequential version by default
+            )
     return strategy
 
 
@@ -770,6 +826,26 @@ def scatter_nd_cuda(attrs, inputs, out_type, target):
         name="scatter_nd.cuda",
         plevel=10,
     )
+
+
+@sort_strategy.register(["cuda", "gpu"])
+def sort_strategy_cuda(attrs, inputs, out_type, target):
+    """sort cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.cuda.sort),
+        wrap_topi_schedule(topi.cuda.schedule_sort),
+        name="sort.cuda",
+    )
+    if target.kind.name == "cuda" and get_global_func(
+        "tvm.contrib.thrust.sort", allow_missing=True
+    ):
+        strategy.add_implementation(
+            wrap_compute_sort(topi.cuda.sort_thrust),
+            wrap_topi_schedule(topi.cuda.schedule_sort),
+            name="sort_thrust.cuda",
+            plevel=15,
+        )
     return strategy
 
 
@@ -918,5 +994,17 @@ def argwhere_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_argwhere(topi.cuda.argwhere),
         wrap_topi_schedule(topi.cuda.schedule_argwhere),
         name="argwhere.cuda",
+    )
+    return strategy
+
+
+@cumsum_strategy.register(["cuda", "gpu"])
+def cumsum_strategy_cuda(attrs, inputs, out_type, target):
+    """cumsum cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_cumsum(topi.cuda.cumsum),
+        wrap_topi_schedule(topi.cuda.schedule_scan),
+        name="cumsum.cuda",
     )
     return strategy

@@ -638,6 +638,12 @@ def test_forward_l2_normalize():
     mx_sym = mx.sym.L2Normalization(data, mode="channel")
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
 
+    mx_sym = mx.sym.L2Normalization(data, mode="instance")
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
+
+    mx_sym = mx.sym.L2Normalization(data, mode="spatial")
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
+
 
 @tvm.testing.uses_gpu
 def test_forward_logistic_regression_output():
@@ -2006,6 +2012,34 @@ def test_forward_npi_concatenate(data_shape1, data_shape2, axis, dtype, target, 
     tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
+@pytest.mark.parametrize(
+    "data_shape1, data_shape2, axis",
+    [
+        ((3,), (3,), 0),
+        ((3,), (3,), -1),
+        ((1, 3, 2), (1, 3, 2), 2),
+        ((1, 3, 3), (1, 3, 3), 1),
+        ((1, 3), (1, 3), 0),
+    ],
+)
+@pytest.mark.parametrize("dtype", ["float64", "float32", "int64", "int32"])
+@tvm.testing.parametrize_targets
+@pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
+def test_forward_npi_stack(data_shape1, data_shape2, axis, dtype, target, ctx, kind):
+    data_np1 = np.random.uniform(size=data_shape1).astype(dtype)
+    data_np2 = np.random.uniform(size=data_shape2).astype(dtype)
+    data1 = mx.sym.var("data1")
+    data2 = mx.sym.var("data2")
+    ref_res = mx.np.stack([mx.np.array(data_np1), mx.np.array(data_np2)], axis=axis)
+    mx_sym = mx.sym.np.stack([data1.as_np_ndarray(), data2.as_np_ndarray()], axis=axis)
+    mod, _ = relay.frontend.from_mxnet(
+        mx_sym, shape={"data1": data_shape1, "data2": data_shape2}, dtype=dtype
+    )
+    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+    op_res = intrp.evaluate()(data_np1, data_np2)
+    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+
 @pytest.mark.parametrize("data_shape", [(2, 2, 2), (2, 7, 2), (2, 2, 2, 1, 2, 3, 1), (1, 8)])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "int64", "int32", "bool"])
 @tvm.testing.parametrize_targets
@@ -2056,8 +2090,14 @@ def test_forward_npx_reshape(data_shape, out_shape, dtype, target, reverse, ctx,
 @tvm.testing.parametrize_targets
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
 def test_forward_npi_binary(data_shape, dtype, target, ctx, kind):
-    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.less]
-    mx_ops = [mx.sym.np.power, mx.sym.np.multiply, mx.sym.np.add, mx.sym.np.less]
+    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.subtract, mx.np.less]
+    mx_ops = [
+        mx.sym.np.power,
+        mx.sym.np.multiply,
+        mx.sym.np.add,
+        mx.sym.np.subtract,
+        mx.sym.np.less,
+    ]
     for i in range(len(ref_ops)):
         ref_op = ref_ops[i]
         mx_op = mx_ops[i]
@@ -2086,8 +2126,14 @@ def test_forward_npi_binary(data_shape, dtype, target, ctx, kind):
 @pytest.mark.parametrize("scalar", [1.0, 2.0, 3.0, 4.0])
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
 def test_forward_npi_binary_scalar(data_shape, dtype, scalar, target, ctx, kind):
-    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.true_divide]
-    mx_ops = [mx.sym.np.power, mx.sym.np.multiply, mx.sym.np.add, mx.sym.np.true_divide]
+    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.subtract, mx.np.true_divide]
+    mx_ops = [
+        mx.sym.np.power,
+        mx.sym.np.multiply,
+        mx.sym.np.add,
+        mx.sym.np.subtract,
+        mx.sym.np.true_divide,
+    ]
     for i in range(len(ref_ops)):
         ref_op = ref_ops[i]
         mx_op = mx_ops[i]

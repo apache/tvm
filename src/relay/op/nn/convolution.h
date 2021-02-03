@@ -356,8 +356,16 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
 
-    // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    if (param->auto_scheduler_rewritten_layout.size() == 0) {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    } else {
+      // If the layout is rewritten by auto-scheduler,
+      // we just forcly apply the layout provided by auto-scheduler and
+      // skip the normal inference logic.
+      {}  // do nothing
+    }
+
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -1209,6 +1217,18 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   oshape = trans_out_layout.BackwardShape(oshape);
   reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
+}
+
+template <typename AttrType>
+Array<Array<Layout> > DeformableConvInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const AttrType* params = attrs.as<AttrType>();
+
+  // Layout of {data, offet, kernel}, {out}
+  return Array<Array<Layout> >{
+      {params->data_layout, params->data_layout, params->kernel_layout},
+      {params->out_layout == "" ? params->data_layout : params->out_layout}};
 }
 
 template <typename T>
