@@ -152,8 +152,6 @@ task.add_task_input(prefix + "W_indptr", runtime.ndarray.array(W_sp_np.indptr))
 print("Computational DAG:")
 print(task.compute_dag)
 
-print(task.task_inputs)
-
 ######################################################################
 # Write the custom sketch for sparse dense op
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

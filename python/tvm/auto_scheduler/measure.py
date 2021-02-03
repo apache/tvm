@@ -1018,6 +1018,7 @@ def _timed_rpc_run(
     verbose,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
+    task_inputs = inp.task.task_inputs
     tic = time.time()
     error_no = 0
     error_msg = None
@@ -1063,11 +1064,11 @@ def _timed_rpc_run(
                 args = []
                 for arg in build_res.args:
                     if arg == sparse_data:
-                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_data"), ctx))
+                        args.append(task_inputs[sparse_prefix+"W_data"])
                     elif arg == sparse_indices:
-                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_indices"), ctx))
+                        args.append(task_inputs[sparse_prefix+"W_indices"])
                     elif arg == sparse_indptr:
-                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_indptr"), ctx))
+                        args.append(task_inputs[sparse_prefix+"W_indptr"])
                     else:
                         empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
                         random_fill(empty_array)

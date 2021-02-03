@@ -26,8 +26,8 @@
 #define TVM_AUTO_SCHEDULER_SEARCH_TASK_H_
 
 #include <tvm/auto_scheduler/compute_dag.h>
-#include <tvm/target/target.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
 namespace auto_scheduler {

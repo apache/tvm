@@ -258,6 +258,10 @@ class SearchTask(Object):
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
         op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
         network.
+    task_inputs : Dict[str, Tensor]
+        Some special Tensor used as inputs in program measuring. Usually we do not need to care
+        about it, but for special workloads like Sparse computation the Sparse Tensor input are
+        meaningful that we cannot use random input directly.
 
     Examples
     --------
@@ -313,7 +317,7 @@ class SearchTask(Object):
             target_host,
             hardware_params,
             layout_rewrite_option,
-            task_inputs
+            task_inputs,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -396,8 +400,6 @@ class SearchTask(Object):
         _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
 
     def __getstate__(self):
-        print("get state")
-
         return {
             "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
@@ -424,9 +426,6 @@ class SearchTask(Object):
         task_inputs = {}
         for data_name in state["task_inputs"]:
             task_inputs[data_name] = get_task_input_buffer(state["workload_key"], data_name)
-
-        print("set state")
-
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             state["compute_dag"],
