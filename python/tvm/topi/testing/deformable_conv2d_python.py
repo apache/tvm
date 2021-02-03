@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable convolution in python"""
 import itertools
+import math
 import numpy as np
 from tvm.topi.nn.utils import get_pad_tuple
-import math
 
 
 def deformable_conv2d_nchw_python(
