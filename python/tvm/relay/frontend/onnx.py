@@ -1082,14 +1082,18 @@ class CumSum(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
         dim = inputs[1]
-        dtype = inputs[2]
 
         if dim is not None:
             dim = int(infer_value(dim, params).asnumpy())
-        if inputs[2] is not None:
-            dtype = infer_type(inputs[2]).checked_type.dtype
 
-        return _op.cumsum(data, axis=dim, dtype=dtype)
+        exclusive = attr.get("exclusive", 0)
+        reverse = attr.get("reverse", 0)
+        if exclusive != 0:
+            raise NotImplementedError("Exclusive CumSum not yet supported.")
+        if reverse != 0:
+            raise NotImplementedError("Reverse CumSum not yet supported.")
+
+        return _op.cumsum(data, axis=dim)
 
 
 class Cast(OnnxOpConverter):
