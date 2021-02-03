@@ -1247,10 +1247,6 @@ def test_batch_to_space_nd():
 
 
 if __name__ == "__main__":
-    test_deformable_conv2d()
-    import sys
-
-    sys.exit()
     test_resize_infer_type()
     test_resize()
     test_resize3d_infer_type()
