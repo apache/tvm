@@ -188,9 +188,10 @@ def test_llvm_link_params():
         target = "llvm --runtime=c --system-lib --link-params"
         with tvm.transform.PassContext(opt_level=3):
             lib = tvm.relay.build(mod, target, params=param_init)
+            print("mod", lib.lib.get_source())
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
+            assert lib.lib.get_function("TVMSystemLibEntryPoint") != None
 
-            print("graph", lib.graph_json)
             graph = json.loads(lib.graph_json)
             for p in lib.params:
                 _verify_linked_param(dtype, lib, lib.lib, graph, p) or found_one
@@ -266,8 +267,8 @@ def test_c_link_params():
             lib = tvm.relay.build(mod, target, params=param_init)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            src = lib.lib.imported_modules[0].get_source()
-            lib.lib.save("test.c", "cc")
+            src = lib.lib.get_source()
+            lib.lib.save("test.c", "c")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
             param = lib.params["p0"].asnumpy().reshape(np.prod(KERNEL_SHAPE))
