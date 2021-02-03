@@ -922,7 +922,11 @@ def conv_shape_func(attrs, inputs, _):
 
     return [
         _conv_shape_func(
-            inputs[0], inputs[1], convert(strides), convert(padding), convert(dilation),
+            inputs[0],
+            inputs[1],
+            convert(strides),
+            convert(padding),
+            convert(dilation),
         )
     ]
 
