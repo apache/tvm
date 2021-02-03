@@ -3511,7 +3511,60 @@ def get_tensor_name(subgraph, tensor_idx):
     return subgraph.Tensors(tensor_idx).Name().decode("utf-8")
 
 
-def from_tflite(model, shape_dict, dtype_dict):
+def get_tensor_shape(subgraph, tensor_idx):
+    """Get the tensor shape.
+
+    Parameters
+    ----------
+    subgraph:
+        tflite.Subgraph.Subgraph
+
+    tensor:
+        tensor index in subgraph
+
+    Returns
+    -------
+        tensor shape
+    """
+    return tuple(subgraph.Tensors(tensor_idx).ShapeAsNumpy())
+
+
+def get_tensor_type(subgraph, tensor_idx):
+    """Get the tensor type.
+
+    Parameters
+    ----------
+    subgraph:
+        tflite.Subgraph.Subgraph
+
+    tensor:
+        tensor index in subgraph
+
+    Returns
+    -------
+        tensor type
+    """
+    from enum import Enum
+
+    class TensorType(Enum):
+        FLOAT32 = 0
+        FLOAT16 = 1
+        INT32 = 2
+        UINT8 = 3
+        INT64 = 4
+        STRING = 5
+        BOOL = 6
+        INT16 = 7
+        COMPLEX64 = 8
+        INT8 = 9
+        FLOAT64 = 10
+        COMPLEX128 = 11
+        UINT64 = 12
+
+    return TensorType(subgraph.Tensors(tensor_idx).Type()).name.lower()
+
+
+def from_tflite(model, shape_dict=None, dtype_dict=None):
     """Convert from tflite model into compatible relay Function.
 
     Parameters
@@ -3560,8 +3613,12 @@ def from_tflite(model, shape_dict, dtype_dict):
     exp_tab = ExprTable()
     for model_input in model_inputs:
         model_input_name = get_tensor_name(subgraph, model_input)
-        shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
-        dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
+        try:
+            shape = get_tensor_shape(subgraph, model_input)
+            dtype = get_tensor_type(subgraph, model_input)
+        except:
+            shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
+            dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model
