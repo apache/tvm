@@ -3548,6 +3548,7 @@ def get_tensor_type(subgraph, tensor_idx):
 
     class TensorType(Enum):
         """ Enum defined in tensorflow lite """
+
         FLOAT32 = 0
         FLOAT16 = 1
         INT32 = 2
