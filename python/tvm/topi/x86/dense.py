@@ -26,11 +26,12 @@ from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 
 from .utils import get_fp32_len
+from .injective import schedule_injective, schedule_injective_from_existing
 from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
 
-def _schedule_dense_pack_template(cfg, s, C):
+def _schedule_dense_weight_transform_template(cfg, s, C, O):
     A, packedB = s[C].op.input_tensors
 
     CC = s.cache_write(C, "global")
@@ -39,9 +40,10 @@ def _schedule_dense_pack_template(cfg, s, C):
 
     yt, yo, yi = cfg["tile_y"].apply(s, C, y)
     xt, xo, xi = cfg["tile_x"].apply(s, C, x)
-    s[C].reorder(yt, xt, yo, xo, yi, xi)
-    xyt = s[C].fuse(yt, xt)
-    s[C].parallel(xyt)
+    s[C].reorder(xt, yt, yo, xo, yi, xi)
+    xyt = s[C].fuse(xt, yt)
+    if C == O:
+        s[C].parallel(xyt)
     xyo = s[C].fuse(yo, xo)
     s[C].unroll(yi)
     s[C].vectorize(xi)
@@ -51,12 +53,27 @@ def _schedule_dense_pack_template(cfg, s, C):
     ko, ki = cfg["tile_k"].apply(s, CC, k)
     s[CC].reorder(ko, ki, y, x)
     s[CC].vectorize(x)
-    s[CC].unroll(y)
-    s[CC].unroll(ki)
 
-    z, y, x = s[packedB].op.axis
-    s[packedB].reorder(z, x, y)
-    s[packedB].parallel(z)
+    tile_inner = cfg["tile_inner"].size[-1]
+    if tile_inner > 1:
+        yo, yi = s[CC].split(y, tile_inner)
+        s[CC].reorder(ko, yo, ki, yi, x)
+        s[CC].unroll(yo)
+        s[CC].unroll(ki)
+        s[CC].unroll(yi)
+    else:
+        s[CC].unroll(ki)
+        s[CC].unroll(y)
+
+    if C != O:
+        y, x = s[O].op.axis
+        yt, yo, yi = cfg["tile_y"].apply(s, O, y)
+        xt, xo, xi = cfg["tile_x"].apply(s, O, x)
+        s[O].reorder(xt, yt, yo, xo, yi, xi)
+        xyt = s[O].fuse(xt, yt)
+        s[C].compute_at(s[O], xyt)
+        s[O].vectorize(xi)
+        s[O].parallel(xyt)
     return s
 
 
@@ -81,7 +98,7 @@ def _schedule_dense_nopack_template(cfg, s, C):
     return s
 
 
-def _default_dense_pack_config(cfg, M, N, K):
+def _default_dense_weight_transform_config(cfg, M, N, K):
     # Generate default schedule for dynamic shape.
     if isinstance(M, tvm.tir.Var):
         M = 16
@@ -116,6 +133,7 @@ def _default_dense_pack_config(cfg, M, N, K):
     cfg["tile_y"] = SplitEntity([MM // tiley_oi, tiley_oi, tiley_ii])
     cfg["tile_x"] = SplitEntity([NN // tilex_oi, tilex_oi, tilex_ii])
     cfg["tile_k"] = SplitEntity([K, 1])
+    cfg["tile_inner"] = SplitEntity([M // tiley_ii, tiley_ii])
 
 
 def _default_dense_nopack_config(cfg, M, N, K):
@@ -181,26 +199,43 @@ def schedule_dense_nopack(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
+def dense_pack(data, weight, bias=None, out_dtype=None):
+    return dense_weight_transform(data, weight, bias, out_dtype)
 
-@autotvm.register_topi_compute("dense_pack.x86")
-def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense with packing"""
+def schedule_dense_pack(outs):
+    return schedule_dense_weight_transform(outs)
+
+@autotvm.register_topi_compute("dense_weight_transform.x86")
+def dense_weight_transform(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense with transformed weight."""
     if out_dtype is None:
         out_dtype = data.dtype
     M, K = get_const_tuple(data.shape)  # batch, in_dim
-    N, _ = get_const_tuple(weight.shape)  # out_dim
+    if len(weight.shape) == 3:
+        N, _, packw_bn = get_const_tuple(weight.shape)  # out_dim
+        N = N * packw_bn
+    else:
+        N, _ = get_const_tuple(weight.shape)  # out_dim
     # create tuning space
     cfg.define_split("tile_y", M, num_outputs=3)
     cfg.define_split("tile_x", N, num_outputs=3)
     cfg.define_split("tile_k", K, num_outputs=2)
+    cfg.define_split("tile_inner", M, num_outputs=2, filter=lambda y: y.size[-1] <= 16)
     if cfg.is_fallback:
-        _default_dense_pack_config(cfg, M, N, K)
+        _default_dense_weight_transform_config(cfg, M, N, K)
 
-    packw_bn = cfg["tile_x"].size[-1]
-    packw_shape = (N // packw_bn, K, packw_bn)
-    packw = te.compute(
-        packw_shape, lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight"
-    )
+    if len(weight.shape) == 2:
+        packw_bn = cfg["tile_x"].size[-1]
+        packw_shape = (N // packw_bn, K, packw_bn)
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # Directly use modified data layout placeholder.
+            packw = tvm.te.placeholder(packw_shape, weight.dtype, name="packed_weight")
+        else:
+            packw = te.compute(
+                packw_shape, lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight"
+            )
+    else:
+        packw = weight
 
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
@@ -212,21 +247,21 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
             * packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
             axis=k,
         ),
-        tag="dense_pack",
+        tag="dense_weight_transform",
     )
     if bias is not None:
         C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
 
 
-@autotvm.register_topi_schedule("dense_pack.x86")
-def schedule_dense_pack(cfg, outs):
-    """Create the schedule for dense_pack"""
+@autotvm.register_topi_schedule("dense_weight_transform.x86")
+def schedule_dense_weight_transform(cfg, outs):
+    """Create the schedule for dense_weight_transform"""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "dense_pack" in op.tag:
-            _schedule_dense_pack_template(cfg, s, op.output(0))
+        if "dense_weight_transform" in op.tag:
+            _schedule_dense_weight_transform_template(cfg, s, op.output(0), outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -276,7 +311,19 @@ def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_mkl.x86")
 def schedule_dense_mkl(_, outs):
     """Create schedule for dense_mkl"""
-    return generic.schedule_extern(outs)
+    #return generic.schedule_extern(outs)
+    s = te.create_schedule([x.op for x in outs])
+    te.schedule.AutoInlineInjective(s)
+
+    def _callback(op):
+        if "broadcast" in op.tag or "injective" in op.tag or "elemwise" in op.tag:
+            schedule_injective_from_existing(s, op.output(0))
+
+    #traverse_inline(s, outs[0].op, _callback)
+    for out in outs:
+        if "dense" not in out.op.name:
+            schedule_injective_from_existing(s, out)
+    return s
 
 
 @autotvm.register_topi_compute("dense_mkldnn.x86")

@@ -731,6 +731,19 @@ def dense_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("dense_weight_transform_strategy")
+def dense_weight_transform_strategy(attrs, inputs, out_type, target):
+    """dense_weight_transform generic strategy"""
+    logger.warning("dense_weight_transform is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dense(topi.nn.dense_weight_transform),
+        wrap_topi_schedule(topi.generic.schedule_dense),
+        name="dense_weight_transform.generic",
+    )
+    return strategy
+
+
 # batch_matmul
 def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
     """wrap batch_matmul topi compute"""

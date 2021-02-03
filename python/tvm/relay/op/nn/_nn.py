@@ -77,6 +77,15 @@ def legalize_dense(attrs, inputs, types):
 reg.register_strategy("nn.dense", strategy.dense_strategy)
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+@reg.register_alter_op_layout("nn.dense")
+def alter_op_layout_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of dense"""
+    return topi.nn.dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+# dense_weight_transform
+reg.register_strategy("nn.contrib_dense_weight_transform", strategy.dense_weight_transform_strategy)
+reg.register_pattern("nn.contrib_dense_weight_transform", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
 
 # fifo_buffer
 @reg.register_compute("nn.fifo_buffer")

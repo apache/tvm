@@ -31,6 +31,8 @@
 
 #include <utility>
 
+#include "../op_common.h"
+
 namespace tvm {
 namespace relay {
 
@@ -86,6 +88,50 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
+}
+
+template <typename AttrType>
+bool DenseWeightTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                             const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr || weight == nullptr) return false;
+
+  const AttrType* param = attrs.as<AttrType>();
+  ICHECK(param != nullptr);
+
+  Array<tvm::PrimExpr> oshape = data->shape;
+  oshape.Set((oshape.size() - 1), weight->shape[0] * weight->shape[2]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+template <typename T>
+Array<Array<Layout> > DenseInferCorrectLayout(const Attrs& attrs,
+                                              const Array<Layout>& new_in_layouts,
+                                              const Array<Layout>& old_in_layouts,
+                                              const Array<tvm::relay::Type>& old_in_types) {
+  return Array<Array<Layout> >{
+      {"MK", "NK"},
+      {"MK"}};
+}
+
+template <typename T>
+Array<Array<Layout> > DensePackedInferCorrectLayout(const Attrs& attrs,
+                                                    const Array<Layout>& new_in_layouts,
+                                                    const Array<Layout>& old_in_layouts,
+                                                    const Array<tvm::relay::Type>& old_in_types) {
+  const T* params = attrs.as<T>();
+  return Array<Array<Layout> >{
+      {"MK", params->weight_layout},
+      {"MK"}};
 }
 
 }  // namespace relay
