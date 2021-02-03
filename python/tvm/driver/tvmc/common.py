@@ -146,7 +146,7 @@ def parse_shape_string(inputs_string):
     Parameters
     ----------
     inputs_string: str
-        A string of the form "input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]" that 
+        A string of the form "input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]" that
         indicates the desired shape for specific model inputs.
 
     Returns
