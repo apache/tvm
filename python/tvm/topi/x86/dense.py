@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
+# pylint: disable=no-value-for-parameter
 """x86 dense operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -26,7 +27,7 @@ from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 
 from .utils import get_fp32_len
-from .injective import schedule_injective, schedule_injective_from_existing
+from .injective import schedule_injective_from_existing
 from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
