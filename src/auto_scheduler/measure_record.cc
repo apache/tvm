@@ -169,6 +169,12 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
       writer->WriteArrayItem(std::string(""));
     }
     writer->WriteArrayItem(static_cast<int>(data.layout_rewrite_option));
+    writer->WriteArraySeperator();
+    writer->BeginArray(false);
+    for (const auto& i : data.task_inputs) {
+      writer->WriteArrayItem(std::string(i.first));
+    }
+    writer->EndArray();
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
@@ -200,6 +206,20 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
         reader->Read(&int_value);
         data->layout_rewrite_option = ::tvm::auto_scheduler::LayoutRewriteOption(int_value);
         s = reader->NextArrayItem();
+        if (s) {
+          std::vector<std::string> input_data_names;
+          const auto& func =
+              tvm::runtime::Registry::Get("auto_scheduler.search_task.get_task_input_buffer");
+          reader->BeginArray();
+          s = reader->NextArrayItem();
+          while (s) {
+            reader->Read(&str_value);
+            data->task_inputs.Set(str_value, (*func)(data->workload_key, str_value));
+            s = reader->NextArrayItem();
+          }
+          // Process the end of array
+          s = reader->NextArrayItem();
+        }
         ICHECK(!s);
       }
     }
@@ -444,5 +464,22 @@ TVM_REGISTER_GLOBAL("auto_scheduler.DeserializeMeasureInput").set_body_typed([](
   reader.Read(inp.get());
   return ObjectRef(inp);
 });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SerializeSearchTask")
+    .set_body_typed([](const SearchTask& search_task) {
+      std::ostringstream os;
+      dmlc::JSONWriter writer(&os);
+      writer.Write(*search_task.get());
+      return os.str();
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.DeserializeSearchTask").set_body_typed([](String json) {
+  std::istringstream ss(json);
+  dmlc::JSONReader reader(&ss);
+  auto search_task = make_object<SearchTaskNode>();
+  reader.Read(search_task.get());
+  return ObjectRef(search_task);
+});
+
 }  // namespace auto_scheduler
 }  // namespace tvm

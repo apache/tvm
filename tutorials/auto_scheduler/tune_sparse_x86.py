@@ -40,7 +40,7 @@ import itertools
 
 import numpy as np
 import tvm
-from tvm import te, auto_scheduler, topi
+from tvm import te, auto_scheduler, runtime, topi
 from tvm.auto_scheduler import _ffi_api
 from tvm.topi.utils import get_const_tuple
 
@@ -119,12 +119,6 @@ B_np = np.random.randn(M, N).astype("float32")
 Y_np = Y_np + B_np  # Bias add
 Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 
-# Register the sparse data to special buffer
-prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
-auto_scheduler.measure.register_special_buffer(prefix + "W_data", W_sp_np.data)
-auto_scheduler.measure.register_special_buffer(prefix + "W_indices", W_sp_np.indices)
-auto_scheduler.measure.register_special_buffer(prefix + "W_indptr", W_sp_np.indptr)
-
 ######################################################################
 # Create the search task
 # ^^^^^^^^^^^^^^^^^^^^^^
@@ -148,9 +142,19 @@ task = tvm.auto_scheduler.SearchTask(
     target=target
 )
 
+# Register the sparse data to special buffer
+prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
+task.add_task_input(prefix + "W_data", runtime.ndarray.array(W_sp_np.data))
+task.add_task_input(prefix + "W_indices", runtime.ndarray.array(W_sp_np.indices))
+task.add_task_input(prefix + "W_indptr", runtime.ndarray.array(W_sp_np.indptr))
+
 # Inspect the computational graph
 print("Computational DAG:")
 print(task.compute_dag)
+
+print(task.task_inputs)
+
+exit(0)
 
 ######################################################################
 # Write the custom sketch for sparse dense op

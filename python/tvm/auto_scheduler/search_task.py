@@ -18,6 +18,8 @@
 """ The definiton of SearchTask """
 
 import json
+import os
+import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -156,6 +158,77 @@ class TuningOptions(Object):
             measure_callbacks,
         )
 
+# The map stores special registered buffer for measurement
+#  This can be used for sparse workloads when we cannot use random tensors for measurment.
+global task_input_buffer_table
+# {
+#     "workload_key_0": {
+#         "task_input_0": Tensor(...),
+#         "task_input_1": Tensor(...)
+#     },
+#     "workload_key_1": {
+#         "task_input_2": Tensor(...),
+#         "task_input_3": Tensor(...)
+#     },
+#     ...
+# }
+task_input_buffer_table = {}
+
+
+def register_task_input_buffer(workload_key, input_name, input_data, overwrite=False):
+    """Register special buffer for measurement
+    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    """
+    global task_input_buffer_table
+
+    if not workload_key in task_input_buffer_table:
+        task_input_buffer_table[workload_key] = {}
+
+    input_table = task_input_buffer_table[workload_key]
+
+    if input_name in input_table.keys() and not overwrite:
+        return input_table[input_name]
+
+    input_table[input_name] = input_data
+
+    return input_data
+
+    # print("reg ", data)
+
+    # if os.path.isfile(tensor_name):
+    #     print("Load ", tensor_name)
+    #     if tensor_name.startswith("sparse_dense_bsr"):
+    #         if tensor_name.endswith("data"):
+    #             data = np.fromfile(tensor_name, dtype="float32", sep=" ")
+    #             name_split = tensor_name.split("_")
+    #             BS_R = int(name_split[6])
+    #             BS_C = int(name_split[7])
+    #             data = data.reshape((data.shape[0] // BS_R // BS_C, BS_R, BS_C))
+    #         else:
+    #             data = np.fromfile(tensor_name, dtype="int32", sep=" ")
+    # elif data is None:
+    #     return False
+
+    # task_input_buffer_table[tensor_name] = data
+
+    # if not os.path.isfile(tensor_name):
+    #     data.asnumpy().tofile(tensor_name, " ")
+
+    # return True
+
+
+@tvm._ffi.register_func("auto_scheduler.search_task.get_task_input_buffer")
+def get_task_input_buffer(workload_key, input_name):
+    """Get special buffer for measurement.
+    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    The buffers are registered by `register_task_input_buffer`.
+    """
+    global task_input_buffer_table
+
+    input_table = task_input_buffer_table.get(workload_key, None)
+
+    return input_table.get(input_name, None)
+
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
 class SearchTask(Object):
@@ -239,6 +312,7 @@ class SearchTask(Object):
             target_host,
             hardware_params,
             layout_rewrite_option,
+            {}
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -314,6 +388,12 @@ class SearchTask(Object):
             return func.imported_modules[0].get_source()
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
+    def add_task_input(self, input_name, input_data):
+        """
+        """
+        register_task_input_buffer(self.workload_key, input_name, input_data)
+        _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
+
     def __getstate__(self):
         return {
             "compute_dag": self.compute_dag,
@@ -322,6 +402,7 @@ class SearchTask(Object):
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
+            "task_inputs": [i[0] for i in self.measure_inputs.items()]
         }
 
     def __setstate__(self, state):
@@ -337,6 +418,10 @@ class SearchTask(Object):
         if len(workload) == 1:
             register_workload_tensors(workload[0], state["compute_dag"].tensors)
 
+        task_inputs = {}
+        for data_name in state["task_inputs"]:
+            task_inputs[data_name] = get_task_input_buffer(state["workload_key"], data_name)
+
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             state["compute_dag"],
@@ -345,6 +430,7 @@ class SearchTask(Object):
             state["target_host"],
             state["hardware_params"],
             state["layout_rewrite_option"],
+            task_inputs,
         )
 
 

@@ -1399,7 +1399,7 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
       Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
       task = SearchTask(ComputeDAG(tensors), workload_key, cur_inp->task->target,
                         cur_inp->task->target_host, cur_inp->task->hardware_params,
-                        cur_inp->task->layout_rewrite_option);
+                        cur_inp->task->layout_rewrite_option, cur_inp->task->task_inputs);
       task_id = task_cache.size();
 
       // compute min cost for each task
@@ -1468,7 +1468,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
           Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
           task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
                             inputs[i]->task->target_host, inputs[i]->task->hardware_params,
-                            inputs[i]->task->layout_rewrite_option);
+                            inputs[i]->task->layout_rewrite_option, {});
         } catch (std::exception& e) {
           // Cannot build ComputeDAG from workload key, the task may have not been registered in
           // this search round
