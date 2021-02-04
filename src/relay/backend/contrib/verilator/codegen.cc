@@ -78,10 +78,24 @@ class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
 
 /*! \brief Attributes to store the compiler options for Verilator */
 struct VerilatorOptionsNode : public tvm::AttrsNode<VerilatorOptionsNode> {
-  String lib;
+  String lib_path;
+  int reset_cycles;
+  bool profiler_enable;
+  int profiler_cycle_counter_id;
 
   TVM_DECLARE_ATTRS(VerilatorOptionsNode, "ext.attrs.VerilatorOptionsNode") {
-    TVM_ATTR_FIELD(lib).set_default("libverilator.so");
+    TVM_ATTR_FIELD(lib_path)
+      .describe("the design library path")
+      .set_default("libverilator.so");
+    TVM_ATTR_FIELD(reset_cycles)
+      .describe("the number of reset cycles")
+      .set_default(1);
+    TVM_ATTR_FIELD(profiler_enable)
+      .describe("enable profiler")
+      .set_default(false);
+    TVM_ATTR_FIELD(profiler_cycle_counter_id)
+      .describe("profiler cycle counter id")
+      .set_default(0);
   }
 };
 
@@ -95,8 +109,8 @@ TVM_REGISTER_NODE_TYPE(VerilatorOptionsNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.verilator.options", VerilatorOptions);
 
 /*!
- * \brief The external compiler/codegen tool. It takes a Relay expression/module and
- * compile it into a runtime module.
+ * \brief The Verilator codegen tool. It takes a Relay expression/module and
+ * compile it into a Verilator runtime module.
  */
 runtime::Module VerilatorBackend(const ObjectRef& ref) {
   CHECK(ref->IsInstance<FunctionNode>());
@@ -107,6 +121,9 @@ runtime::Module VerilatorBackend(const ObjectRef& ref) {
   std::string graph_json = serializer.GetJSON();
   auto params = serializer.GetParams();
 
+  // Create runtime object
+  auto n = make_object<runtime::contrib::VerilatorRuntime>(func_name, graph_json, params);
+
   // Get Verilator compiler options
   auto ctx = transform::PassContext::Current();
   auto cfg = ctx->GetConfig<VerilatorOptions>("relay.ext.verilator.options");
@@ -114,10 +131,14 @@ runtime::Module VerilatorBackend(const ObjectRef& ref) {
     cfg = AttrsWithDefaultValues<VerilatorOptions>();
   }
 
-  auto lib_name = cfg.value()->lib;
+  n->LoadLibrary(cfg.value()->lib_path);
+  n->SetResetCycles(cfg.value()->reset_cycles);
 
-  auto n = make_object<runtime::contrib::VerilatorRuntime>(func_name, graph_json, params);
-  n->LoadLibrary(lib_name);
+  if (cfg.value()->profiler_enable) {
+    n->EnableProfiler();
+    n->SetProfilerCycleCounterId(cfg.value()->profiler_cycle_counter_id);
+  }
+
   return runtime::Module(n);
 }
 

@@ -63,14 +63,26 @@ void VerilatorRuntime::LoadLibrary(const std::string& lib_name) {
   lib_->Init(lib_name);
 }
 
+void VerilatorRuntime::SetResetCycles(const int cycles) {
+  reset_cycles_ = cycles;
+}
+
+void VerilatorRuntime::EnableProfiler() {
+  prof_enable_ = true;
+}
+
+void VerilatorRuntime::SetProfilerCycleCounterId(const int id) {
+  prof_cycle_counter_id_ = id;
+}
+
 void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   // get symbols
   auto alloc_func = reinterpret_cast<VerilatorAllocFunc>(lib_->GetSymbol("VerilatorAlloc"));
   ICHECK(alloc_func != nullptr);
   auto reset_func = reinterpret_cast<VerilatorResetFunc>(lib_->GetSymbol("VerilatorReset"));
   ICHECK(reset_func != nullptr);
-  vadd_func_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
-  ICHECK(vadd_func_ != nullptr);
+  add_func_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
+  ICHECK(add_func_ != nullptr);
 
   // alloc device
   device_ = (*alloc_func)();
@@ -106,7 +118,7 @@ void VerilatorRuntime::Run() {
       if ("add" == op_name) {
         auto entry = node.GetInputs()[0];
         auto shape = nodes_[entry.id_].GetOpShape()[entry.index_];
-        (*vadd_func_)(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
+        (*add_func_)(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
       } else {
         LOG(FATAL) << "Unsupported op: " << op_name;
       }

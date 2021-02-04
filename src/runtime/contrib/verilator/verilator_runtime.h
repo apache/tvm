@@ -77,17 +77,29 @@ class VerilatorRuntime : public JSONRuntimeBase {
 
   void LoadLibrary(const std::string& lib_name);
 
+  void SetResetCycles(const int cycles);
+
+  void EnableProfiler();
+
+  void SetProfilerCycleCounterId(const int id);
+
   void Init(const Array<NDArray>& consts) override;
 
   void Run() override;
 
  private:
-  /* Device handle */
+  /* Device handle. */
   VerilatorHandle device_{nullptr};
-  /* Library handle */
+  /* Library handle. */
   VerilatorLibrary* lib_{nullptr};
-  /* Vadd */
-  VerilatorAddFunc vadd_func_{nullptr};
+  /* Add operator. */
+  VerilatorAddFunc add_func_{nullptr};
+  /* Number of reset cycles. */
+  int reset_cycles_{1};
+  /* Profiler status. */
+  bool prof_enable_{false};
+  /* Profiler cycle counter id. */
+  int prof_cycle_counter_id_{0};
 };
 
 }  // namespace contrib
