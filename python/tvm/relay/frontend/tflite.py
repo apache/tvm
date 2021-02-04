@@ -3542,7 +3542,7 @@ def get_tensor_type(subgraph, tensor_idx):
 
     Returns
     -------
-        tensor type
+        tensor type in string
     """
     from enum import Enum
 
