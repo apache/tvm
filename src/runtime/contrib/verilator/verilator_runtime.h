@@ -56,12 +56,14 @@ class VerilatorLibrary : public Library {
  public:
   ~VerilatorLibrary();
 
+  /*! \brief load library */
   void Load(const std::string& name);
 
+  /*! \brief get symbol from libray */
   void* GetSymbol(const char* name) final;
 
  private:
-  /* Library handle. */
+  /*! \brief the library handle */
   void* lib_handle_{nullptr};
 };
 
@@ -73,8 +75,10 @@ class VerilatorProfiler {
   /*! \brief clear the profiler */
   void Clear();
 
+  /*! \brief get profiler data */
   std::string AsJSON();
 
+  /*! \brief profiler constructor */
   static VerilatorProfiler* ThreadLocal();
 };
 
@@ -86,32 +90,40 @@ class VerilatorRuntime : public JSONRuntimeBase {
 
   const char* type_key() const { return "verilator"; }
 
+  /*! \brief load verilator library */
   void LoadLibrary(const std::string& lib_name);
 
+  /*! \brief set the number of reset cycles */
   void SetResetCycles(const int cycles);
 
+  /*! \brief enable profiler */
   void EnableProfiler();
 
+  /*! \brief set cycle counter register id */
   void SetProfilerCycleCounterId(const int id);
 
+  /*! \brief init verilator runtime */
   void Init(const Array<NDArray>& consts) override;
 
+  /*! \brief run verilator runtime */
   void Run() override;
 
  private:
-  /* Device handle. */
+  /*! \brief the verilator device */
   VerilatorHandle device_{nullptr};
-  /* Library handle. */
+  /*! \brief the verilator library */
   VerilatorLibrary* lib_{nullptr};
+  /*! \brief the verilator profiler */
   VerilatorProfiler* prof_{nullptr};
+  /*! \brief the verilator read function */
   VerilatorReadFunc read_{nullptr};
-  /* Add operator. */
+  /*! \brief the verilator add op function */
   VerilatorAddFunc add_op_{nullptr};
-  /* Number of reset cycles. */
+  /*! \brief the verilator reset cycles */
   int reset_cycles_{1};
-  /* Profiler status. */
+  /*! \brief the verilator profiler status */
   bool prof_enable_{false};
-  /* Profiler cycle counter id. */
+  /*! \brief the verilator profiler cycle counter id */
   int prof_cycle_counter_id_{0};
 };
 
