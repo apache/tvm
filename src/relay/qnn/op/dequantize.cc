@@ -59,8 +59,11 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  const auto* input_scale_type = types[1].as<TensorTypeNode>();
+  ICHECK(input_scale_type && (input_scale_type->dtype == DataType::Float(32) ||
+                              input_scale_type->dtype == DataType::Float(64)));
+  AssignType(types[1], input_scale_type->dtype, data->shape[axis], reporter);  // scale
+  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);        // zero point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type, output will always be float 32.
@@ -104,7 +107,8 @@ Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   }
 
   auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), expanded_input_zero_point);
-  auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), expanded_input_scale);
+  auto scaled_output =
+      Multiply(Cast(shift, DataType::Float(32)), Cast(expanded_input_scale, DataType::Float(32)));
   return scaled_output;
 }
 

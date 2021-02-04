@@ -409,7 +409,15 @@ def conv2d_transpose(
 
 
 def add(
-    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+    lhs,
+    rhs,
+    lhs_scale,
+    lhs_zero_point,
+    rhs_scale,
+    rhs_zero_point,
+    output_scale,
+    output_zero_point,
+    rounding="UPWARD",
 ):
     """Quantized addition with numpy-style broadcasting.
 
@@ -439,6 +447,9 @@ def add(
     output_zero_point: relay.Expr
        The zero point of output quantized expr.
 
+    rounding: str, optional
+       rounding mode of qnn add
+
     Returns
     -------
     result : relay.Expr
@@ -454,6 +465,7 @@ def add(
         rhs_zero_point,
         output_scale,
         output_zero_point,
+        rounding,
     )
 
 

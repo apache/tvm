@@ -64,21 +64,26 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // weight_zero_point
-  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));  // input_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));  // weight_zero_point
+  const auto* input_scale_type = types[4].as<TensorTypeNode>();
+  ICHECK(input_scale_type && IsScalarType(types[4], input_scale_type->dtype) &&
+         (input_scale_type->dtype == DataType::Float(32) ||
+          input_scale_type->dtype == DataType::Float(64)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {
     size_t axis = param->kernel_layout.operator std::string().find('O');
     ICHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
-    AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // weight_scale
+    const auto* kernel_scale_type = types[5].as<TensorTypeNode>();
+    AssignType(types[5], kernel_scale_type->dtype, weight->shape[axis], reporter);  // weight_scale
   } else {
     // Here, total number of output channels depend on depth multiplier.
     size_t o_axis = param->kernel_layout.operator std::string().find('O');
     size_t i_axis = param->kernel_layout.operator std::string().find('I');
     ICHECK(o_axis != std::string::npos || i_axis != std::string::npos)
         << "Kernel layout attribute is not defined";
-    AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
+    const auto* kernel_scale_type = types[5].as<TensorTypeNode>();
+    AssignType(types[5], kernel_scale_type->dtype, weight->shape[i_axis] * weight->shape[o_axis],
                reporter);  // weight_scale
   }
 

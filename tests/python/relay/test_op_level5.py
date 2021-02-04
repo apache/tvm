@@ -151,6 +151,9 @@ def test_crop_and_resize():
         func = relay.Function([img, bx, bx_idx], z)
 
         for target, ctx in tvm.testing.enabled_targets():
+            # LLVM11 on A100 has bug with nvptx backend, disable it.
+            if target.startswith("nvptx"):
+                continue
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(image_data, boxes, box_indices)

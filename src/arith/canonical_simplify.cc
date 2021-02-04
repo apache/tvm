@@ -544,7 +544,12 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   explicit Impl(Analyzer* parent) : Rewriter(parent) {}
 
   PrimExpr CanonicalSimplify(PrimExpr expr) {
-    expr = operator()(expr);
+    // same as kMaxFusedOps.
+    // avoid long compile time of tflite quantized model
+    constexpr static size_t kMaxPrimOps = 256;
+    if (tir::ExprComplexity().Eval(expr) < kMaxPrimOps) {
+      expr = operator()(expr);
+    }
     return expr;
   }
 

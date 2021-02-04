@@ -177,7 +177,7 @@ def qconfig(**kwargs):
         is None, which means will try to call all operartors' annotate rewrite
         function.
 
-    rounding: "UPWARD" or "TONEAREST"
+    rounding: "UPWARD" or "TONEAREST" or "TFLITE"
         Rounding direction for fixed point multiplications.
 
     partition_conversions: 'disabled', 'enabled', or 'fully_integral'

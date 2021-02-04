@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/expr_functor.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
@@ -54,6 +55,55 @@ namespace tir {
 struct ExprDeepEqual {
  public:
   TVM_DLL bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const;
+};
+
+#define PLUS_ONE(OP) \
+  void VisitExpr_(const OP* op) final { num_symbols_++; }
+
+#define PLUS_ONE_BINARY(OP)             \
+  void VisitExpr_(const OP* op) final { \
+    num_symbols_++;                     \
+    VisitExpr(op->a);                   \
+    VisitExpr(op->b);                   \
+  }
+
+/*!
+ * \brief Calculate the expresion complexity based on number of symbols it contains.
+ */
+class ExprComplexity : public ExprVisitor {
+ public:
+  TVM_DLL size_t Eval(const PrimExpr& expr) {
+    VisitExpr(expr);
+    return num_symbols_;
+  }
+
+  PLUS_ONE_BINARY(AddNode)
+  PLUS_ONE_BINARY(SubNode)
+  PLUS_ONE_BINARY(MulNode)
+  PLUS_ONE_BINARY(DivNode)
+  PLUS_ONE_BINARY(ModNode)
+  PLUS_ONE_BINARY(FloorDivNode)
+  PLUS_ONE_BINARY(FloorModNode)
+  PLUS_ONE_BINARY(MinNode)
+  PLUS_ONE_BINARY(MaxNode)
+  PLUS_ONE_BINARY(EQNode)
+  PLUS_ONE_BINARY(NENode)
+  PLUS_ONE_BINARY(LTNode)
+  PLUS_ONE_BINARY(LENode)
+  PLUS_ONE_BINARY(GTNode)
+  PLUS_ONE_BINARY(GENode)
+  PLUS_ONE_BINARY(AndNode)
+  PLUS_ONE_BINARY(OrNode)
+  PLUS_ONE(VarNode)
+  PLUS_ONE(FloatImmNode)
+  PLUS_ONE(IntImmNode)
+  void VisitExpr_(const NotNode* op) final {
+    num_symbols_++;
+    VisitExpr(op->a);
+  }
+
+ private:
+  size_t num_symbols_{0};
 };
 
 /*!

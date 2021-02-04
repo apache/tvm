@@ -133,7 +133,13 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
-  auto tensor = Cast(input_tensor, DataType::Int(32));
+  bool input_is_int32 = false;
+  if ((input_tensor.as<ConstantNode>() || input_tensor.as<CallNode>()) &&
+      input_tensor->checked_type_.defined()) {
+    auto tensor_type = input_tensor->checked_type().as<TensorTypeNode>();
+    if (tensor_type && tensor_type->dtype == DataType::Int(32)) input_is_int32 = true;
+  }
+  auto tensor = input_is_int32 ? input_tensor : Cast(input_tensor, DataType::Int(32));
   // 1) Subtract the input_zero_point
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
@@ -145,12 +151,25 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   // the whole tensor. For per-channel (aka per-axis), there is a vector of scales for the input
   // tensor. Depending on the quantization type, the fixed point multiplication routing is called.
   auto scaled_int32_t = tensor;
-  float output_scale_float = GetScalarFromConstant<float>(output_scale);
+  auto out_scale_dtype = GetDataTypeFromConstant(output_scale);
+  double output_scale_val = -1.0f;
+  if (out_scale_dtype == DataType::Float(64)) {
+    output_scale_val = GetScalarFromConstant<double>(output_scale);
+  } else if (out_scale_dtype == DataType::Float(32)) {
+    output_scale_val = GetScalarFromConstant<float>(output_scale);
+  }
+  ICHECK_GE(output_scale_val, 0.0f);
+
+  auto in_scale_dtype = GetDataTypeFromConstant(input_scale);
   if (IsConstScalar(input_scale)) {
     // This is per-tensor quantization. Single scale.
-    float input_scale_float = GetScalarFromConstant<float>(input_scale);
-    double double_multiplier =
-        static_cast<double>(input_scale_float) / static_cast<double>(output_scale_float);
+    double input_scale_val = -1.0f;
+    if (in_scale_dtype == DataType::Float(64)) {
+      input_scale_val = GetScalarFromConstant<double>(input_scale);
+    } else if (in_scale_dtype == DataType::Float(32)) {
+      input_scale_val = GetScalarFromConstant<float>(input_scale);
+    }
+    double double_multiplier = input_scale_val / output_scale_val;
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
       int32_t fixed_point_multiplier, shift;
@@ -162,19 +181,28 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       // the FixedPointMultiply operator
       scaled_int32_t =
           (is_upward_rounding
-               ? FixedPointMultiply(scaled_int32_t, fixed_point_multiplier, shift)
-               : FixedPointMultiplyToNearest(scaled_int32_t, double_multiplier, input_shape));
+               ? relay::FixedPointMultiply(scaled_int32_t, fixed_point_multiplier, shift)
+               : qnn::FixedPointMultiply(scaled_int32_t, double_multiplier, input_shape,
+                                         param->rounding));
     }
 
   } else {
     // This is per-channel (per=axis) quantization.
     std::vector<double> double_multipliers;
-    auto input_axis_scales = GetFloatVectorFromConstant(input_scale);
-    for (auto input_axis_scale : input_axis_scales) {
-      double multiplier =
-          static_cast<double>(input_axis_scale) / static_cast<double>(output_scale_float);
-      double_multipliers.push_back(multiplier);
+    if (in_scale_dtype == DataType::Float(64)) {
+      auto input_axis_scales = GetDoubleVectorFromConstant(input_scale);
+      for (auto input_axis_scale : input_axis_scales) {
+        double multiplier = input_axis_scale / output_scale_val;
+        double_multipliers.push_back(multiplier);
+      }
+    } else if (in_scale_dtype == DataType::Float(32)) {
+      auto input_axis_scales = GetFloatVectorFromConstant(input_scale);
+      for (auto input_axis_scale : input_axis_scales) {
+        double multiplier = input_axis_scale / output_scale_val;
+        double_multipliers.push_back(multiplier);
+      }
     }
+    ICHECK_GT(double_multipliers.size(), 0);
     int axis = param->axis;
     axis = (axis == -1) ? input_shape.size() - 1 : axis;
     scaled_int32_t = FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, input_shape,
@@ -239,9 +267,10 @@ Expr RequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto out_dtype = out_tensor_type->dtype;
 
   // Check rounding validity.
-  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
-      << "QNN requantize supports two rounding modes - UPWARD and "
-      << "TONEAREST";
+  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST" ||
+         param->rounding == "TFLITE")
+      << "QNN requantize supports 3 rounding modes - UPWARD, "
+      << "TONEAREST and TFLITE";
   return RequantizeLower(quantized_data, input_scale, input_zero_point, output_scale,
                          output_zero_point, param, input_shape, out_dtype);
 }
@@ -283,11 +312,17 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // input_scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // input_zero_pt
+  const auto* input_scale_type = types[1].as<TensorTypeNode>();
+  ICHECK(input_scale_type && (input_scale_type->dtype == DataType::Float(32) ||
+                              input_scale_type->dtype == DataType::Float(64)));
+  AssignType(types[1], input_scale_type->dtype, data->shape[axis], reporter);  // input_scale
+  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);        // input_zero_pt
   // For now, requantize output tensor is limited to full tensor uniform quantization.
-  ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
-  ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
+  const auto* output_scale_type = types[3].as<TensorTypeNode>();
+  ICHECK(output_scale_type && IsScalarType(types[3], output_scale_type->dtype) &&
+         (output_scale_type->dtype == DataType::Float(32) ||
+          output_scale_type->dtype == DataType::Float(64)));  // output_scale
+  ICHECK(IsScalarType(types[4], DataType::Int(32)));          // output_zero_point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type

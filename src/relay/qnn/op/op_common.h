@@ -184,12 +184,22 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Float(32)));  // lhs_scale
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // lhs_zero_point
-  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // rhs_scale
-  ICHECK(IsScalarType(types[5], DataType::Int(32)));    // rhs_zero_point
-  ICHECK(IsScalarType(types[6], DataType::Float(32)));  // output_scale
-  ICHECK(IsScalarType(types[7], DataType::Int(32)));    // output_zero_point
+
+  const auto* lhs_scale_type = types[2].as<TensorTypeNode>();
+  const auto* rhs_scale_type = types[4].as<TensorTypeNode>();
+  const auto* out_scale_type = types[6].as<TensorTypeNode>();
+  ICHECK(lhs_scale_type && IsScalarType(types[2], lhs_scale_type->dtype) &&
+         (lhs_scale_type->dtype == DataType::Float(32) ||
+          lhs_scale_type->dtype == DataType::Float(64)));  // lhs_scale
+  ICHECK(rhs_scale_type && IsScalarType(types[4], rhs_scale_type->dtype) &&
+         (rhs_scale_type->dtype == DataType::Float(32) ||
+          rhs_scale_type->dtype == DataType::Float(64)));  // rhs_scale
+  ICHECK(out_scale_type && IsScalarType(types[6], out_scale_type->dtype) &&
+         (out_scale_type->dtype == DataType::Float(32) ||
+          out_scale_type->dtype == DataType::Float(64)));  // output_scale
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));       // lhs_zero_point
+  ICHECK(IsScalarType(types[5], DataType::Int(32)));       // rhs_zero_point
+  ICHECK(IsScalarType(types[7], DataType::Int(32)));       // output_zero_point
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // BroadcastRel infer type function.
@@ -207,29 +217,33 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
  *
  * \param OpName the name of registry.
  */
+
+#define QNN_REGISTER_BINARY_OP_WITH_BODY(OpName, Body)                                     \
+  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName).set_body_typed(Body);                  \
+  RELAY_REGISTER_OP("qnn." OpName)                                                         \
+      .set_num_inputs(kNumQnnBinaryOpInputs)                                               \
+      .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")               \
+      .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")              \
+      .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                 \
+      .add_argument("lhs_zero_point", "Tensor", "The zero_point of the lhs tensor.")       \
+      .add_argument("rhs_scale", "Tensor", "The scale of the rhs tensor.")                 \
+      .add_argument("rhs_zero_point", "Tensor", "The zero_point of the rhs tensor.")       \
+      .add_argument("output_scale", "Tensor", "The scale of the output tensor.")           \
+      .add_argument("output_zero_point", "Tensor", "The zero_point of the output tensor.") \
+      .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                       \
+      .set_attr<TNonComputational>("TNonComputational", true)                              \
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
+
 #define QNN_REGISTER_BINARY_OP(OpName)                                                             \
-  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                                                \
-      .set_body_typed([](Expr lhs, Expr rhs, Expr lhs_scale, Expr lhs_zero_point, Expr rhs_scale,  \
-                         Expr rhs_zero_point, Expr output_scale, Expr output_zero_point) {         \
+  QNN_REGISTER_BINARY_OP_WITH_BODY(                                                                \
+      OpName, [](Expr lhs, Expr rhs, Expr lhs_scale, Expr lhs_zero_point, Expr rhs_scale,          \
+                 Expr rhs_zero_point, Expr output_scale, Expr output_zero_point) {                 \
         static const Op& op = Op::Get("qnn." OpName);                                              \
         return Call(op,                                                                            \
                     {lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, \
                      output_zero_point},                                                           \
                     Attrs(), {});                                                                  \
-      });                                                                                          \
-  RELAY_REGISTER_OP("qnn." OpName)                                                                 \
-      .set_num_inputs(kNumQnnBinaryOpInputs)                                                       \
-      .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")                       \
-      .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")                      \
-      .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                         \
-      .add_argument("lhs_zero_point", "Tensor", "The zero_point of the lhs tensor.")               \
-      .add_argument("rhs_scale", "Tensor", "The scale of the rhs tensor.")                         \
-      .add_argument("rhs_zero_point", "Tensor", "The zero_point of the rhs tensor.")               \
-      .add_argument("output_scale", "Tensor", "The scale of the output tensor.")                   \
-      .add_argument("output_zero_point", "Tensor", "The zero_point of the output tensor.")         \
-      .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                               \
-      .set_attr<TNonComputational>("TNonComputational", true)                                      \
-      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
+      })
 
 }  // namespace qnn
 }  // namespace relay

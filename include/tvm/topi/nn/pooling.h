@@ -149,27 +149,52 @@ inline Tensor pool_impl(const Tensor& x, const Array<PrimExpr>& kernel_size,
         "tensor", "pool_sum");
 
     // TVM compute for dividing the reduced window sum by kernel size.
-    return tvm::te::compute(
-        out_shape,
-        [&](const Array<Var>& output) {
-          Array<PrimExpr> indices;
-          for (const Var& var : output) indices.push_back(var);
-          if (count_include_pad) {
-            return div(pool_sum(indices), (kernel_height * kernel_width));
-          } else {
-            PrimExpr h_start = output[height_axis] * stride_height - pad_top;
-            PrimExpr w_start = output[width_axis] * stride_width - pad_left;
-
-            PrimExpr h_end = min(h_start + kernel_height, height);
-            PrimExpr w_end = min(w_start + kernel_width, width);
-            h_start = max(h_start, make_const(DataType::DataType::Int(32), 0));
-            w_start = max(w_start, make_const(DataType::DataType::Int(32), 0));
-            PrimExpr divide_factor = max((h_end - h_start) * (w_end - w_start),
-                                         make_const(DataType::DataType::Int(32), 1));
-            return div(pool_sum(indices), divide_factor);
-          }
-        },
-        "tensor", kElementWise);
+    if (x->dtype.code() == DataType::kInt || x->dtype.code() == DataType::kUInt) {
+      return tvm::te::compute(
+          out_shape,
+          [&](const Array<Var>& output) {
+            Array<PrimExpr> indices;
+            for (const Var& var : output) indices.push_back(var);
+            if (count_include_pad) {
+              PrimExpr kernel_size = kernel_height * kernel_width;
+              PrimExpr up_rounder = floordiv(kernel_size, 2);
+              return floordiv(pool_sum(indices) + up_rounder, kernel_size);
+            } else {
+              PrimExpr h_start = output[height_axis] * stride_height - pad_top;
+              PrimExpr w_start = output[width_axis] * stride_width - pad_left;
+              PrimExpr h_end = min(h_start + kernel_height, height);
+              PrimExpr w_end = min(w_start + kernel_width, width);
+              h_start = max(h_start, make_const(DataType::DataType::Int(32), 0));
+              w_start = max(w_start, make_const(DataType::DataType::Int(32), 0));
+              PrimExpr divide_factor = max((h_end - h_start) * (w_end - w_start),
+                                           make_const(DataType::DataType::Int(32), 1));
+              PrimExpr up_rounder = floordiv(divide_factor, 2);
+              return floordiv(pool_sum(indices) + up_rounder, divide_factor);
+            }
+          },
+          "tensor", kElementWise);
+    } else {
+      return tvm::te::compute(
+          out_shape,
+          [&](const Array<Var>& output) {
+            Array<PrimExpr> indices;
+            for (const Var& var : output) indices.push_back(var);
+            if (count_include_pad) {
+              return div(pool_sum(indices), (kernel_height * kernel_width));
+            } else {
+              PrimExpr h_start = output[height_axis] * stride_height - pad_top;
+              PrimExpr w_start = output[width_axis] * stride_width - pad_left;
+              PrimExpr h_end = min(h_start + kernel_height, height);
+              PrimExpr w_end = min(w_start + kernel_width, width);
+              h_start = max(h_start, make_const(DataType::DataType::Int(32), 0));
+              w_start = max(w_start, make_const(DataType::DataType::Int(32), 0));
+              PrimExpr divide_factor = max((h_end - h_start) * (w_end - w_start),
+                                           make_const(DataType::DataType::Int(32), 1));
+              return div(pool_sum(indices), divide_factor);
+            }
+          },
+          "tensor", kElementWise);
+    }
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;

@@ -73,6 +73,8 @@ def _get_expected_codegen(shape, dtype, op_name, qnn_params):
             "dtype": [[dtype]],
         },
     }
+    if dtype == "uint8":
+        node["attrs"]["rounding"] = [["UPWARD"]]
 
     return [*inputs, node]
 

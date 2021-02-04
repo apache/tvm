@@ -134,8 +134,8 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
-                                 const Array<IndexExpr>& input_shape);
+Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& input_shape,
+                        const std::string& rounding = "TONEAREST");
 
 /*
  * \brief Fixed point multiplication between integer tensor with floating point
@@ -224,6 +224,27 @@ static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
     vals.push_back(static_cast<float*>(n->data->data)[i]);
   }
   return vals;
+}
+
+static inline std::vector<double> GetDoubleVectorFromConstant(const Expr& expr) {
+  const auto* n = expr.as<ConstantNode>();
+  std::vector<double> vals;
+  ICHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  int64_t num_elems = 1;
+  auto shape = n->data.Shape();
+  for (size_t i = 0; i < shape.size(); i++) {
+    num_elems *= shape[i];
+  }
+  for (int64_t i = 0; i < num_elems; i++) {
+    vals.push_back(static_cast<double*>(n->data->data)[i]);
+  }
+  return vals;
+}
+
+static inline DataType GetDataTypeFromConstant(const Expr& expr) {
+  const auto* n = expr.as<ConstantNode>();
+  ICHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  return n->tensor_type()->dtype;
 }
 
 }  // namespace qnn

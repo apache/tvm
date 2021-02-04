@@ -118,7 +118,8 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
       std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
       data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
     } else {
-      data = qnn::FixedPointMultiplyToNearest(data, factor, data_shape);
+      ICHECK(cfg->rounding == "TONEAREST" || cfg->rounding == "TFLITE");
+      data = qnn::FixedPointMultiply(data, factor, data_shape, cfg->rounding);
     }
 
     return Cast(data, dtype);
@@ -177,8 +178,8 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
             qnn::GetFixedPointMultiplierShift(idom_scale_imm / odom_scale_imm);
         data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
       } else {
-        data = qnn::FixedPointMultiplyToNearest(data, idom_scale_imm / odom_scale_imm,
-                                                ref_call->type_as<TensorTypeNode>()->shape);
+        data = qnn::FixedPointMultiply(data, idom_scale_imm / odom_scale_imm,
+                                       ref_call->type_as<TensorTypeNode>()->shape, cfg->rounding);
       }
       data = Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype);
       return QRealizeIntExpr(data, dom_scale, n->dtype);

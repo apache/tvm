@@ -674,6 +674,21 @@ static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
 
+static inline Expr Greater(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("greater");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Equal(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("equal");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr LogicalAnd(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("logical_and");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
 Expr StopFusion(Expr data);
 
 Expr CastHint(Expr data, DataType dtype);

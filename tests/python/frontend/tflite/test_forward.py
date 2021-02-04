@@ -3826,11 +3826,9 @@ def test_forward_qnn_inception_v1_net():
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
     tvm_output = run_tvm_graph(tflite_model_buf, data, "input")
     tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions, rtol=0, atol=0)
 
 
 def test_forward_qnn_mobilenet_v1_net():
@@ -3843,18 +3841,13 @@ def test_forward_qnn_mobilenet_v1_net():
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
-    # Test image. Checking the labels because the requantize implementation is different between
-    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
-    # labels. Also, giving a real image, instead of random inputs.
     data = get_real_image(224, 224)
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tflite_predictions = np.squeeze(tflite_output).astype("int32")
     tvm_output = run_tvm_graph(tflite_model_buf, data, "input")
-    tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tvm_predictions = np.squeeze(tvm_output).astype("int32")
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions, rtol=0, atol=0)
 
 
 def test_forward_qnn_mobilenet_v2_net():
@@ -3867,18 +3860,13 @@ def test_forward_qnn_mobilenet_v2_net():
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
-    # Test image. Checking the labels because the requantize implementation is different between
-    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
-    # labels. Also, giving a real image, instead of random inputs.
     data = get_real_image(224, 224)
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tflite_predictions = np.squeeze(tflite_output).astype("int32")
     tvm_output = run_tvm_graph(tflite_model_buf, data, "input")
-    tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tvm_predictions = np.squeeze(tvm_output).astype("int32")
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions, rtol=0, atol=0)
 
 
 #######################################################################
@@ -3908,11 +3896,9 @@ def test_forward_qnn_mobilenet_v3_net():
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
     tvm_output = run_tvm_graph(tflite_model_buf, data, "input")
     tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions, rtol=0, atol=0)
 
 
 def test_forward_tflite2_qnn_resnet50():
@@ -4283,7 +4269,7 @@ if __name__ == "__main__":
     # End to End Sparse models
     test_forward_sparse_mobilenet_v1()
     test_forward_sparse_mobilenet_v2()
-
+    #
     # End to End quantized
     test_forward_qnn_inception_v1_net()
     test_forward_qnn_mobilenet_v1_net()
@@ -4292,7 +4278,7 @@ if __name__ == "__main__":
     # with Tflite 1.15.2
     test_forward_qnn_mobilenet_v3_net()
     test_forward_qnn_coco_ssd_mobilenet_v1()
-
+    #
     # TFLite 2.1.0 quantized tests
     test_forward_tflite2_qnn_resnet50()
     test_forward_tflite2_qnn_inception_v1()
