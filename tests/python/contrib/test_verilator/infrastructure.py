@@ -102,7 +102,7 @@ def compile_module(mod):
     if not os.path.isfile(lib):
         compile_hardware()
 
-    opts = {"lib_path": lib, "reset_cycles": 3}
+    opts = {"lib_path": lib}
 
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.verilator.options": opts}

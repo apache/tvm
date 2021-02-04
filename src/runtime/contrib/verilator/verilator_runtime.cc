@@ -100,10 +100,15 @@ void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   ICHECK(alloc != nullptr);
   auto reset = reinterpret_cast<VerilatorResetFunc>(lib_->GetSymbol("VerilatorReset"));
   ICHECK(reset != nullptr);
+  read_ = reinterpret_cast<VerilatorReadFunc>(lib_->GetSymbol("VerilatorRead"));
+  ICHECK(read_ != nullptr);
   add_op_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
 
   // alloc verilator device
   device_ = alloc();
+
+  // enable profiler
+  if (prof_enable_) prof_ = VerilatorProfiler::ThreadLocal();
 
   // reset verilator device
   reset(device_, reset_cycles_);
@@ -142,6 +147,10 @@ void VerilatorRuntime::Run() {
         LOG(FATAL) << "Unsupported op: " << op_name;
       }
     }
+  }
+  if (prof_enable_) {
+    int cycles = read_(device_, prof_cycle_counter_id_, 0);
+    prof_->cycle_counter += cycles;
   }
 }
 

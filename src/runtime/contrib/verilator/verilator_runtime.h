@@ -47,6 +47,7 @@ using namespace tvm::runtime::json;
 typedef VerilatorHandle (*VerilatorAllocFunc)();
 typedef void (*VerilatorResetFunc)(VerilatorHandle, int);
 typedef void (*VerilatorAddFunc)(VerilatorHandle, int*, int*, int*, int, int);
+typedef int (*VerilatorReadFunc)(VerilatorHandle, int, int);
 
 class VerilatorLibrary : public Library {
  public:
@@ -63,16 +64,15 @@ class VerilatorLibrary : public Library {
 
 class VerilatorProfiler {
  public:
+  /*! \brief the number of cycle counter */
+  uint32_t cycle_counter{0};
+
   /*! \brief clear the profiler */
   void Clear();
 
   std::string AsJSON();
 
   static VerilatorProfiler* ThreadLocal();
-
- private:
-  /*! \brief the number of cycle counter */
-  uint32_t cycle_counter{0};
 };
 
 class VerilatorRuntime : public JSONRuntimeBase {
@@ -100,6 +100,8 @@ class VerilatorRuntime : public JSONRuntimeBase {
   VerilatorHandle device_{nullptr};
   /* Library handle. */
   VerilatorLibrary* lib_{nullptr};
+  VerilatorProfiler* prof_{nullptr};
+  VerilatorReadFunc read_{nullptr};
   /* Add operator. */
   VerilatorAddFunc add_op_{nullptr};
   /* Number of reset cycles. */
