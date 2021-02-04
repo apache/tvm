@@ -20,8 +20,8 @@
 import json
 
 import os
-import numpy as np
 import logging
+import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object, ndarray
@@ -37,6 +37,7 @@ from .search_policy import SketchPolicy
 from .workload_registry import register_workload_tensors
 from . import _ffi_api
 
+# pylint: disable=invalid-name
 logger = logging.getLogger("auto_scheduler")
 
 
@@ -224,8 +225,9 @@ def register_task_input_buffer(workload_key, input_name, input_data, overwrite=F
 
         if input_name in input_table.keys():
             logger.warning(
-                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, " % (input_name)
-                + "set overwrite to True or this Tensor will not be registered"
+                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s",
+                input_name,
+                "set overwrite to True or this Tensor will not be registered",
             )
             return input_table[input_name]
 
