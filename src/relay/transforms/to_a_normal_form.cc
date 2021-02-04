@@ -62,24 +62,32 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
 
   for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
     DependencyGraph::Node* n = *it;
-    auto iit = n->parents.head;
+    auto parent_it = n->parents.head;
     Scope s;
-    if (iit == nullptr) {
+    if (parent_it == nullptr) {
       ICHECK(!global_scope_used);
       s = global_scope;
       global_scope_used = true;
     } else {
-      s = expr_scope.at(iit->value);
+      s = expr_scope.at(parent_it->value);
       const auto original_s = s;
-      iit = iit->next;
-      for (; iit != nullptr; iit = iit->next) {
-        s = LCA(s, expr_scope.at(iit->value));
+      bool crosses_scopes = false;
+      parent_it = parent_it->next;
+      for (; parent_it != nullptr; parent_it = parent_it->next) {
+        auto parent_scope = expr_scope.at(parent_it->value);
+        s = LCA(s, parent_scope);
+        if (parent_scope != original_s) {
+          crosses_scopes = true;  // n is used across multiple scopes
+        }
       }
-      if (s != original_s && node_to_expr.find(n) != node_to_expr.end()) {
+      if ((s != original_s || crosses_scopes) && node_to_expr.find(n) != node_to_expr.end()) {
         // filter out exprs whose scope do not matter
         Expr expr = node_to_expr[n];
         if (!expr.as<OpNode>()) {
-          lifted_exprs.insert(expr);
+          // only variables can be used across scope boundaries
+          if (s != original_s || (crosses_scopes && !expr.as<VarNode>())) {
+            lifted_exprs.insert(expr);
+          }
         }
       }
     }

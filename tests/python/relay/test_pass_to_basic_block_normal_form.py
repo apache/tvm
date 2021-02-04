@@ -407,6 +407,7 @@ def test_if():
           multiply(%v1, 1f /* ty=float32 */) /* ty=float32 */
         }
         """
+        # FIXME: BBNF requirements D1 & D2 imply these consts must be let bound
         one = relay.const(1, dtype="float32")
         two = relay.const(2, dtype="float32")
         v1 = relay.var("v1")
