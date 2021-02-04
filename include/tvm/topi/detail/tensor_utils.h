@@ -63,7 +63,6 @@ inline bool is_empty_shape(const Array<PrimExpr>& x) {
  *
  * \return The interpolated value in the given index.
  */
-
 inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>& indices,
                                      const PrimExpr max_y, const PrimExpr max_x) {
   auto batch_id = indices[0];
