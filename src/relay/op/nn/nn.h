@@ -113,23 +113,6 @@ bool DenseWeightTransformRel(const Array<Type>& types, int num_inputs, const Att
   return true;
 }
 
-template <typename T>
-Array<Array<Layout> > DenseInferCorrectLayout(const Attrs& attrs,
-                                              const Array<Layout>& new_in_layouts,
-                                              const Array<Layout>& old_in_layouts,
-                                              const Array<tvm::relay::Type>& old_in_types) {
-  return Array<Array<Layout> >{{"MK", "NK"}, {"MK"}};
-}
-
-template <typename T>
-Array<Array<Layout> > DensePackedInferCorrectLayout(const Attrs& attrs,
-                                                    const Array<Layout>& new_in_layouts,
-                                                    const Array<Layout>& old_in_layouts,
-                                                    const Array<tvm::relay::Type>& old_in_types) {
-  const T* params = attrs.as<T>();
-  return Array<Array<Layout> >{{"MK", params->weight_layout}, {"MK"}};
-}
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_NN_NN_H_

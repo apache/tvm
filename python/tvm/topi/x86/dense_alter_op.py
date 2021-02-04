@@ -30,7 +30,6 @@ from ..nn import dense_alter_layout
 def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
-    new_attrs = {}
     data_tensor, weight_tensor = tinfos
     out_dtype = out_type.dtype
     M, K = get_const_tuple(data_tensor.shape)
@@ -47,8 +46,7 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
             if cfg.is_fallback:
                 _default_dense_weight_transform_config(cfg, M, N, K)
             packw_bn = cfg["tile_x"].size[-1]
-            new_attrs["weight_layout"] = "NK%dn" % packw_bn
-            new_attrs["out_dtype"] = out_dtype
+            weight_layout = "NK%dn" % packw_bn
             new_weight = te.placeholder(
                 (N // packw_bn, K, packw_bn),
                 dtype=weight_tensor.dtype,
@@ -64,6 +62,9 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
                 topi_impl,
             )
             dispatch_ctx.update(target, new_workload, cfg)
-            return relay.nn.contrib_dense_weight_transform(*inputs, **new_attrs)
+            weight_transform = relay.layout_transform(inputs[1], "NK", weight_layout)
+            return relay.nn.contrib_dense_weight_transform(
+                inputs[0], weight_transform, None, out_dtype
+            )
 
     return None
