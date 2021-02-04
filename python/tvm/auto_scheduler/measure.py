@@ -724,8 +724,8 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
 
 def _prepare_input_map(args):
     """This function deals with special task inputs."""
-    # Lazy load topi
-    from tvm import topi
+    # pylint: disable=import-outside-toplevel
+    from tvm import topi  # lazily import to avoid recursive dependency
 
     # A dict that maps the input tensor arg to a buffer name
     tensor_input_map = {}
