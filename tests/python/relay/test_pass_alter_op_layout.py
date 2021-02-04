@@ -1262,7 +1262,7 @@ def test_alter_op_dense():
         target_layout = "NK16n"
         weight_transform = relay.layout_transform(weight, "NK", target_layout)
         y = relay.nn.contrib_dense_weight_transform(
-            x, weight_transform, weight_layout=target_layout, out_dtype="float32"
+            x, weight_transform, units=None, out_dtype="float32"
         )
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -1279,6 +1279,7 @@ def test_alter_op_dense():
 
 
 if __name__ == "__main__":
+    """
     test_alter_op()
     test_alter_return_none()
     test_alter_layout()
@@ -1299,4 +1300,5 @@ if __name__ == "__main__":
     test_alter_layout_nhwc_arm()
     test_alter_layout_nhwc_int8_aarch64()
     test_alter_op_with_global_var()
+    """
     test_alter_op_dense()
