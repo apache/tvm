@@ -18,8 +18,6 @@
 """ The definiton of SearchTask """
 
 import json
-import os
-import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -161,7 +159,6 @@ class TuningOptions(Object):
 
 # The map stores special registered buffer for measurement
 #  This can be used for sparse workloads when we cannot use random tensors for measurment.
-global task_input_buffer_table
 # {
 #     "workload_key_0": {
 #         "task_input_0": Tensor(...),
@@ -173,19 +170,18 @@ global task_input_buffer_table
 #     },
 #     ...
 # }
-task_input_buffer_table = {}
+TASK_INPUT_BUFFER_TABLE = {}
 
 
 def register_task_input_buffer(workload_key, input_name, input_data, overwrite=False):
     """Register special buffer for measurement
     This can be used for sparse workloads when we cannot use random tensors for measurment.
     """
-    global task_input_buffer_table
+    global TASK_INPUT_BUFFER_TABLE
 
-    if not workload_key in task_input_buffer_table:
-        task_input_buffer_table[workload_key] = {}
-
-    input_table = task_input_buffer_table[workload_key]
+    if not workload_key in TASK_INPUT_BUFFER_TABLE:
+        TASK_INPUT_BUFFER_TABLE[workload_key] = {}
+    input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
     if input_name in input_table.keys() and not overwrite:
         return input_table[input_name]
@@ -194,29 +190,6 @@ def register_task_input_buffer(workload_key, input_name, input_data, overwrite=F
 
     return input_data
 
-    # print("reg ", data)
-
-    # if os.path.isfile(tensor_name):
-    #     print("Load ", tensor_name)
-    #     if tensor_name.startswith("sparse_dense_bsr"):
-    #         if tensor_name.endswith("data"):
-    #             data = np.fromfile(tensor_name, dtype="float32", sep=" ")
-    #             name_split = tensor_name.split("_")
-    #             BS_R = int(name_split[6])
-    #             BS_C = int(name_split[7])
-    #             data = data.reshape((data.shape[0] // BS_R // BS_C, BS_R, BS_C))
-    #         else:
-    #             data = np.fromfile(tensor_name, dtype="int32", sep=" ")
-    # elif data is None:
-    #     return False
-
-    # task_input_buffer_table[tensor_name] = data
-
-    # if not os.path.isfile(tensor_name):
-    #     data.asnumpy().tofile(tensor_name, " ")
-
-    # return True
-
 
 @tvm._ffi.register_func("auto_scheduler.search_task.get_task_input_buffer")
 def get_task_input_buffer(workload_key, input_name):
@@ -224,9 +197,9 @@ def get_task_input_buffer(workload_key, input_name):
     This can be used for sparse workloads when we cannot use random tensors for measurment.
     The buffers are registered by `register_task_input_buffer`.
     """
-    global task_input_buffer_table
+    global TASK_INPUT_BUFFER_TABLE
 
-    input_table = task_input_buffer_table.get(workload_key, None)
+    input_table = TASK_INPUT_BUFFER_TABLE.get(workload_key, None)
 
     return input_table.get(input_name, None)
 
@@ -259,7 +232,7 @@ class SearchTask(Object):
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
         op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
         network.
-    task_inputs : Dict[str, Tensor]
+    task_inputs : Optional[Dict[str, Tensor]]
         Some special Tensor used as inputs in program measuring. Usually we do not need to care
         about it, but for special workloads like Sparse computation the Sparse Tensor input are
         meaningful that we cannot use random input directly.
@@ -290,7 +263,7 @@ class SearchTask(Object):
         target_host=None,
         hardware_params=None,
         layout_rewrite_option=None,
-        task_inputs={},
+        task_inputs=None,
     ):
         assert (
             func is not None or workload_key is not None
@@ -318,7 +291,7 @@ class SearchTask(Object):
             target_host,
             hardware_params,
             layout_rewrite_option,
-            task_inputs,
+            task_inputs or {},
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -395,7 +368,15 @@ class SearchTask(Object):
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
     def add_task_input(self, input_name, input_data):
-        """"""
+        """Add a input Tensor to this task.
+
+        Parameters
+        ----------
+        input_name : str
+            ...
+        input_data : Tensor
+            ...
+        """
         register_task_input_buffer(self.workload_key, input_name, input_data)
         _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
 

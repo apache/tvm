@@ -121,7 +121,7 @@ class SearchTaskNode : public Object {
   HardwareParams hardware_params;
   /*! \brief The layout rewrite option used for measuring programs. */
   LayoutRewriteOption layout_rewrite_option;
-  /*! \brief A map ... */
+  /*! \brief A map that stores some user defined input data used in program measuring. */
   Map<String, runtime::NDArray> task_inputs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -157,7 +157,12 @@ class SearchTask : public ObjectRef {
              Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option,
              Map<String, runtime::NDArray> task_inputs);
 
-  void AddTaskInput(String data_name, runtime::NDArray data);
+  /*!
+   * \brief Add a input Tensor to this task.
+   * \param input_name
+   * \param input_data
+   */
+  void AddTaskInput(String input_name, runtime::NDArray input_data);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };

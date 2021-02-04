@@ -45,7 +45,6 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
-from tvm.te import PlaceholderOp, ComputeOp
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -723,85 +722,22 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     return results
 
 
-def _process_sparse_input(args):
-    sparse_prefix = sparse_data = sparse_indices = sparse_indptr = None
+def _prepare_input_map(args):
+    """This function deals with special task inputs."""
+    # Lazy load topi
+    from tvm import topi
 
-    def _process_inputs(input_tensors, M, N, prefix_init):
-        nonlocal sparse_prefix
-        nonlocal sparse_data
-        nonlocal sparse_indices
-        nonlocal sparse_indptr
+    # A dict that maps the input tensor arg to a buffer name
+    tensor_input_map = {}
 
-        assert len(input_tensors) == 4
-        unsure_tensors = list(input_tensors)
-        # Get the Dense data
-        dense_data = None
-        for tensor in unsure_tensors:
-            if len(tensor.shape) == 2:
-                assert dense_data is None
-                dense_data = tensor
-                assert M == dense_data.shape[0]
-                K = dense_data.shape[1]
-        unsure_tensors.remove(dense_data)
+    # Case 0: Check sparse op
+    sparse_input_map = topi.nn.sparse.try_get_sparse_input(args)
+    tensor_input_map.update(sparse_input_map)
 
-        # Get the Sparse data
-        sparse_data = None
-        for tensor in unsure_tensors:
-            if len(tensor.shape) == 3:
-                assert sparse_data is None
-                sparse_data = tensor
-                block_size, BS_R, BS_C = sparse_data.shape
-        unsure_tensors.remove(sparse_data)
+    # Case 1: Check ...
+    # Process any other special buffers here and update them to tensor_input_map
 
-        # Get the Sparse indptr & indices
-        sparse_indices = None
-        for tensor in unsure_tensors:
-            assert len(tensor.shape) == 1
-            if tensor.shape[0] == block_size:
-                assert sparse_indices is None
-                sparse_indices = tensor
-        unsure_tensors.remove(sparse_indices)
-        assert len(unsure_tensors) == 1
-        sparse_indptr = unsure_tensors[0]
-
-        # Generate the sparse_prefix
-        density = 1.0
-        for i in sparse_data.shape:
-            density *= i
-        density /= K * N
-        density = density.value
-        sparse_prefix = "%s_%d_%d_%d_%d_%d_%.2f_" % (prefix_init, M, N, K, BS_R, BS_C, density)
-
-    visited = set()
-
-    def _traverse(t):
-        # We cannot directly add tensors to the set, because the comparison of
-        # two tensors with ndim=0 is ambiguous.
-        assert t.handle is not None
-        if t.handle.value in visited:
-            return
-        if isinstance(t.op, ComputeOp):
-            # TODO(jcf94): Currently only support to tune one sparse op
-            if t.op.tag == "sparse_dense_sp_rhs_bsrmm":
-                M, N = t.shape
-                assert len(t.op.input_tensors) == 1
-                block_tensor = t.op.input_tensors[0]
-                _process_inputs(block_tensor.op.input_tensors, M, N, "sparse_dense_bsr")
-            if t.op.tag == "sparse_conv2d_bsrmm":
-                N, OH = t.shape[0], t.shape[1]
-                assert len(t.op.input_tensors) == 1
-                block_tensor = t.op.input_tensors[0]
-                _process_inputs(block_tensor.op.input_tensors, N, OH, "sparse_dense_bsr")
-            if sparse_prefix is not None:
-                return
-            for x in t.op.input_tensors:
-                _traverse(x)
-        visited.add(t.handle.value)
-
-    for arg in args:
-        _traverse(arg)
-
-    return sparse_prefix, sparse_data, sparse_indices, sparse_indptr
+    return tensor_input_map
 
 
 def _timed_eval_func(
@@ -847,29 +783,22 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
 
-            # Check sparse op
-            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = _process_sparse_input(
-                build_res.args
-            )
-            if sparse_prefix:
-                args = []
-                for arg in build_res.args:
-                    if arg == sparse_data:
-                        args.append(task_inputs[sparse_prefix + "W_data"])
-                    elif arg == sparse_indices:
-                        args.append(task_inputs[sparse_prefix + "W_indices"])
-                    elif arg == sparse_indptr:
-                        args.append(task_inputs[sparse_prefix + "W_indptr"])
+            tensor_input_map = _prepare_input_map(build_res.args) if task_inputs else {}
+            args = []
+            for arg in build_res.args:
+                if arg in tensor_input_map:
+                    tensor_name = tensor_input_map[arg]
+                    if tensor_name in task_inputs:
+                        args.append(task_inputs[tensor_name])
                     else:
-                        empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
-                        random_fill(empty_array)
-                        args.append(empty_array)
-            else:
-                args = [
-                    ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args
-                ]
-                for arg in args:
-                    random_fill(arg)
+                        raise ValueError(
+                            "%s not found in task_inputs, " % (tensor_name)
+                            + "should provide with SearchTask.AddTaskInput()"
+                        )
+                else:
+                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
+                    random_fill(empty_array)
+                    args.append(empty_array)
             ctx.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
@@ -1051,36 +980,27 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
+            random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            assert (
+                random_fill
+            ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
-            # Check sparse op
-            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = _process_sparse_input(
-                build_res.args
-            )
-            if sparse_prefix:
-                args = []
-                for arg in build_res.args:
-                    if arg == sparse_data:
-                        args.append(task_inputs[sparse_prefix + "W_data"])
-                    elif arg == sparse_indices:
-                        args.append(task_inputs[sparse_prefix + "W_indices"])
-                    elif arg == sparse_indptr:
-                        args.append(task_inputs[sparse_prefix + "W_indptr"])
+            tensor_input_map = _prepare_input_map(build_res.args) if task_inputs else {}
+            args = []
+            for arg in build_res.args:
+                if arg in tensor_input_map:
+                    tensor_name = tensor_input_map[arg]
+                    if tensor_name in task_inputs:
+                        args.append(task_inputs[tensor_name])
                     else:
-                        empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
-                        random_fill(empty_array)
-                        args.append(empty_array)
-            else:
-                args = [
-                    ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args
-                ]
-                for arg in args:
-                    random_fill(arg)
+                        raise ValueError(
+                            "%s not found in task_inputs, " % (tensor_name)
+                            + "should provide with SearchTask.AddTaskInput()"
+                        )
+                else:
+                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
+                    random_fill(empty_array)
+                    args.append(empty_array)
             ctx.sync()
             costs = time_f(*args).results
 

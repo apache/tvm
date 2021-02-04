@@ -36,7 +36,7 @@ import multiprocessing
 
 
 def test_search_task_add_task_input():
-    auto_scheduler.search_task.task_input_buffer_table.clear()
+    auto_scheduler.search_task.TASK_INPUT_BUFFER_TABLE.clear()
     N = 64
     target = "llvm"
     task = auto_scheduler.SearchTask(
@@ -57,7 +57,7 @@ def test_search_task_add_task_input():
 
 
 def test_search_task_record():
-    auto_scheduler.search_task.task_input_buffer_table.clear()
+    auto_scheduler.search_task.TASK_INPUT_BUFFER_TABLE.clear()
     N = 64
     target = "llvm"
     task = auto_scheduler.SearchTask(
@@ -112,7 +112,7 @@ def test_search_task_record():
 
 
 def test_recover_measure_input_with_task_input():
-    auto_scheduler.search_task.task_input_buffer_table.clear()
+    auto_scheduler.search_task.TASK_INPUT_BUFFER_TABLE.clear()
     task = auto_scheduler.SearchTask(
         func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm"
     )
