@@ -50,20 +50,14 @@ typedef void (*VerilatorAddFunc)(VerilatorHandle, int*, int*, int*, int, int);
 
 class VerilatorLibrary : public Library {
  public:
-  ~VerilatorLibrary() {
-    if (lib_handle_) Unload();
-  }
-  void Init(const std::string& name) { Load(name); }
+  ~VerilatorLibrary();
 
-  void* GetSymbol(const char* name) final { return GetSymbol_(name); }
-
- private:
   void Load(const std::string& name);
 
-  void* GetSymbol_(const char* name);
+  void* GetSymbol(const char* name) final;
 
-  void Unload();
-
+ private:
+  /* Library handle. */
   void* lib_handle_{nullptr};
 };
 

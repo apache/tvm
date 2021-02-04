@@ -45,22 +45,25 @@ using namespace tvm::runtime;
 using namespace tvm::runtime::contrib;
 using namespace tvm::runtime::json;
 
+VerilatorLibrary::~VerilatorLibrary() {
+  if (lib_handle_) {
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+  }
+}
+
 void VerilatorLibrary::Load(const std::string& name) {
   lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
   ICHECK(lib_handle_ != nullptr)
       << "Failed to load dynamic shared library " << name << " " << dlerror();
 }
 
-void* VerilatorLibrary::GetSymbol_(const char* name) { return dlsym(lib_handle_, name); }
+void* VerilatorLibrary::GetSymbol(const char* name) { return dlsym(lib_handle_, name); }
 
-void VerilatorLibrary::Unload() {
-  dlclose(lib_handle_);
-  lib_handle_ = nullptr;
-}
 
 void VerilatorRuntime::LoadLibrary(const std::string& lib_name) {
   lib_ = new VerilatorLibrary();
-  lib_->Init(lib_name);
+  lib_->Load(lib_name);
 }
 
 void VerilatorRuntime::SetResetCycles(const int cycles) {
