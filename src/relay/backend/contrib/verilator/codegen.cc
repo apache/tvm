@@ -34,6 +34,7 @@
 #include <sstream>
 
 #include "../../../../runtime/contrib/json/json_node.h"
+#include "../../../../runtime/contrib/verilator/verilator_runtime.h"
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
@@ -76,28 +77,28 @@ class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
 };
 
 /*! \brief Attributes to store the compiler options for Verilator */
-struct VerilatorCompilerConfigNode : public tvm::AttrsNode<VerilatorCompilerConfigNode> {
+struct VerilatorOptionsNode : public tvm::AttrsNode<VerilatorOptionsNode> {
   String lib;
 
-  TVM_DECLARE_ATTRS(VerilatorCompilerConfigNode, "ext.attrs.VerilatorCompilerConfigNode") {
+  TVM_DECLARE_ATTRS(VerilatorOptionsNode, "ext.attrs.VerilatorOptionsNode") {
     TVM_ATTR_FIELD(lib).set_default("libverilator.so");
   }
 };
 
-class VerilatorCompilerConfig : public Attrs {
+class VerilatorOptions : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VerilatorCompilerConfig, Attrs,
-                                            VerilatorCompilerConfigNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VerilatorOptions, Attrs,
+                                            VerilatorOptionsNode);
 };
 
-TVM_REGISTER_NODE_TYPE(VerilatorCompilerConfigNode);
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.verilator.options", VerilatorCompilerConfig);
+TVM_REGISTER_NODE_TYPE(VerilatorOptionsNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.verilator.options", VerilatorOptions);
 
 /*!
  * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  */
-runtime::Module VerilatorCompiler(const ObjectRef& ref) {
+runtime::Module VerilatorBackend(const ObjectRef& ref) {
   CHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = GetExtSymbol(func);
@@ -108,20 +109,19 @@ runtime::Module VerilatorCompiler(const ObjectRef& ref) {
 
   // Get Verilator compiler options
   auto ctx = transform::PassContext::Current();
-  auto cfg = ctx->GetConfig<VerilatorCompilerConfig>("relay.ext.verilator.options");
+  auto cfg = ctx->GetConfig<VerilatorOptions>("relay.ext.verilator.options");
   if (!cfg.defined()) {
-    cfg = AttrsWithDefaultValues<VerilatorCompilerConfig>();
+    cfg = AttrsWithDefaultValues<VerilatorOptions>();
   }
 
   auto lib_name = cfg.value()->lib;
 
-  const auto* pf = runtime::Registry::Get("runtime.verilator_runtime_create");
-  CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
-  auto mod = (*pf)(lib_name, func_name, graph_json, params);
-  return mod;
+  auto n = make_object<runtime::contrib::VerilatorRuntime>(func_name, graph_json, params);
+  n->LoadLibrary(lib_name);
+  return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("relay.ext.verilator").set_body_typed(VerilatorCompiler);
+TVM_REGISTER_GLOBAL("relay.ext.verilator").set_body_typed(VerilatorBackend);
 
 }  // namespace contrib
 }  // namespace relay
