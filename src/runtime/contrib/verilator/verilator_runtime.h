@@ -61,6 +61,20 @@ class VerilatorLibrary : public Library {
   void* lib_handle_{nullptr};
 };
 
+class VerilatorProfiler {
+ public:
+  /*! \brief clear the profiler */
+  void Clear();
+
+  std::string AsJSON();
+
+  static VerilatorProfiler* ThreadLocal();
+
+ private:
+  /*! \brief the number of cycle counter */
+  uint32_t cycle_counter{0};
+};
+
 class VerilatorRuntime : public JSONRuntimeBase {
  public:
   VerilatorRuntime(const std::string& symbol_name, const std::string& graph_json,

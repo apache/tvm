@@ -60,6 +60,22 @@ void VerilatorLibrary::Load(const std::string& name) {
 
 void* VerilatorLibrary::GetSymbol(const char* name) { return dlsym(lib_handle_, name); }
 
+void VerilatorProfiler::Clear() {
+  cycle_counter = 0;
+}
+
+std::string VerilatorProfiler::AsJSON() {
+  std::ostringstream os;
+  os << "{\n"
+     << " \"cycle_counter\":" << cycle_counter << "\n"
+     <<"}\n";
+  return os.str();
+}
+
+VerilatorProfiler* VerilatorProfiler::ThreadLocal() {
+  static thread_local VerilatorProfiler inst;
+  return &inst;
+}
 
 void VerilatorRuntime::LoadLibrary(const std::string& lib_name) {
   lib_ = new VerilatorLibrary();
@@ -86,10 +102,10 @@ void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   ICHECK(reset != nullptr);
   add_op_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
 
-  // alloc device
+  // alloc verilator device
   device_ = alloc();
 
-  // reset for 10 cycles
+  // reset verilator device
   reset(device_, reset_cycles_);
 
   CHECK_EQ(consts.size(), const_idx_.size())
@@ -128,6 +144,16 @@ void VerilatorRuntime::Run() {
     }
   }
 }
+
+TVM_REGISTER_GLOBAL("verilator.profiler_clear")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    VerilatorProfiler::ThreadLocal()->Clear();
+  });
+
+TVM_REGISTER_GLOBAL("verilator.profiler_status")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = VerilatorProfiler::ThreadLocal()->AsJSON();
+  });
 
 }  // namespace contrib
 }  // namespace runtime
