@@ -19,8 +19,12 @@
 
 import json
 
+import os
+import numpy as np
+import logging
+
 import tvm._ffi
-from tvm.runtime import Object
+from tvm.runtime import Object, ndarray
 
 from tvm.driver.build_module import build
 from tvm.target import Target
@@ -32,6 +36,8 @@ from .cost_model import XGBModel
 from .search_policy import SketchPolicy
 from .workload_registry import register_workload_tensors
 from . import _ffi_api
+
+logger = logging.getLogger("auto_scheduler")
 
 
 @tvm._ffi.register_object("auto_scheduler.HardwareParams")
@@ -173,6 +179,32 @@ class TuningOptions(Object):
 TASK_INPUT_BUFFER_TABLE = {}
 
 
+def _try_load_buffer_from_file(buffer_name):
+    filelist = os.listdir()
+
+    for file in filelist:
+        if file.startswith(buffer_name) and file.count("."):
+            meta_info = file.split(".")[-1].split("_")
+            shape = [int(i) for i in meta_info[:-1]]
+            dtype = meta_info[-1]
+            buffer_data = np.fromfile(file, dtype=dtype, sep=" ")
+            buffer_data = buffer_data.reshape(shape)
+            return ndarray.array(buffer_data)
+
+    return None
+
+
+def _save_buffer_to_file(buffer_name, buffer_data):
+    np_data = buffer_data.asnumpy()
+
+    buffer_name += "."
+    for i in np_data.shape:
+        buffer_name += "%d_" % (i)
+    buffer_name += "%s" % (np_data.dtype)
+
+    np_data.tofile(buffer_name, " ")
+
+
 def register_task_input_buffer(workload_key, input_name, input_data, overwrite=False):
     """Register special buffer for measurement
     This can be used for sparse workloads when we cannot use random tensors for measurment.
@@ -183,11 +215,22 @@ def register_task_input_buffer(workload_key, input_name, input_data, overwrite=F
         TASK_INPUT_BUFFER_TABLE[workload_key] = {}
     input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
-    if input_name in input_table.keys() and not overwrite:
-        return input_table[input_name]
+    if not overwrite:
+        if not input_name in input_table.keys():
+            # Try to load buffer data from local file
+            tensor_from_file = _try_load_buffer_from_file(input_name)
+            if tensor_from_file:
+                input_table[input_name] = tensor_from_file
+
+        if input_name in input_table.keys():
+            logger.warning(
+                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, " % (input_name)
+                + "set overwrite to True or this Tensor will not be registered"
+            )
+            return input_table[input_name]
 
     input_table[input_name] = input_data
-
+    _save_buffer_to_file(input_name, input_data)
     return input_data
 
 
@@ -199,9 +242,23 @@ def get_task_input_buffer(workload_key, input_name):
     """
     global TASK_INPUT_BUFFER_TABLE
 
-    input_table = TASK_INPUT_BUFFER_TABLE.get(workload_key, None)
+    if not workload_key in TASK_INPUT_BUFFER_TABLE:
+        TASK_INPUT_BUFFER_TABLE[workload_key] = {}
+    input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
-    return input_table.get(input_name, None)
+    if not input_name in input_table.keys():
+        # Try to load buffer data from local file
+        tensor_from_file = _try_load_buffer_from_file(input_name)
+        if tensor_from_file:
+            input_table[input_name] = tensor_from_file
+
+    if input_name in input_table.keys():
+        return input_table[input_name]
+
+    raise ValueError(
+        "%s not found in TASK_INPUT_BUFFER_TABLE, " % (input_name)
+        + "should provide with SearchTask.AddTaskInput()"
+    )
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
@@ -388,7 +445,7 @@ class SearchTask(Object):
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
-            "task_inputs": [i[0] for i in self.measure_inputs.items()],
+            "task_inputs": [i[0] for i in self.task_inputs.items()],
         }
 
     def __setstate__(self, state):
