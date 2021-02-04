@@ -37,8 +37,6 @@ import shutil
 import tempfile
 import multiprocessing
 
-import numpy as np
-
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
