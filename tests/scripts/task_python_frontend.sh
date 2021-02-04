@@ -31,6 +31,8 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Rebuild cython
 make cython3
 
+exit 0
+
 echo "Running relay MXNet frontend test..."
 python3 -m pytest tests/python/frontend/mxnet
 

@@ -65,7 +65,7 @@ tvm_multilib = "build/libtvm.so, " +
 // command to start a docker container
 docker_run = 'docker/bash.sh'
 // timeout in minutes
-max_time = 120
+max_time = 240
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -327,7 +327,7 @@ stage('Integration Test') {
         init_git()
         unpack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_python_setup.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_python_setup.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
         }
       }
