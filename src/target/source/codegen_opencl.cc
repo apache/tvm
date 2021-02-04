@@ -315,11 +315,21 @@ void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
       auto it = allocation_size_.find(op->buffer_var.get());
       if (it != allocation_size_.end() && it->second == 1)
       {
-          need_texture_ssa_ = true;
+        need_texture_ssa_ = true;
       }
     }
   }
   CodeGenC::VisitStmt_(op);
+  need_texture_ssa_ = true;
+}
+
+void CodeGenOpenCL::VisitExpr_(const CastNode* op, std::ostream& os) {
+  if (auto call = op->value.as<CallNode>()) {
+    if (call->op.same_as(builtin::text2d_load())) {
+      need_texture_ssa_ = false;
+    }
+  }
+  CodeGenC::VisitExpr_(op, os);
   need_texture_ssa_ = true;
 }
 
