@@ -104,9 +104,7 @@ def compile_module(mod):
 
     opts = {"lib_path": lib}
 
-    with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.verilator.options": opts}
-    ):
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.verilator.options": opts}):
         exe = relay.vm.compile(mod, target="llvm", params=None)
         code, lib = exe.save()
         return runtime.vm.Executable.load_exec(code, lib)

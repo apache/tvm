@@ -84,25 +84,16 @@ struct VerilatorOptionsNode : public tvm::AttrsNode<VerilatorOptionsNode> {
   int profiler_cycle_counter_id;
 
   TVM_DECLARE_ATTRS(VerilatorOptionsNode, "ext.attrs.VerilatorOptionsNode") {
-    TVM_ATTR_FIELD(lib_path)
-      .describe("the design library path")
-      .set_default("libverilator.so");
-    TVM_ATTR_FIELD(reset_cycles)
-      .describe("the number of reset cycles")
-      .set_default(1);
-    TVM_ATTR_FIELD(profiler_enable)
-      .describe("enable profiler")
-      .set_default(false);
-    TVM_ATTR_FIELD(profiler_cycle_counter_id)
-      .describe("profiler cycle counter id")
-      .set_default(0);
+    TVM_ATTR_FIELD(lib_path).describe("the design library path").set_default("libverilator.so");
+    TVM_ATTR_FIELD(reset_cycles).describe("the number of reset cycles").set_default(1);
+    TVM_ATTR_FIELD(profiler_enable).describe("enable profiler").set_default(false);
+    TVM_ATTR_FIELD(profiler_cycle_counter_id).describe("profiler cycle counter id").set_default(0);
   }
 };
 
 class VerilatorOptions : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VerilatorOptions, Attrs,
-                                            VerilatorOptionsNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VerilatorOptions, Attrs, VerilatorOptionsNode);
 };
 
 TVM_REGISTER_NODE_TYPE(VerilatorOptionsNode);

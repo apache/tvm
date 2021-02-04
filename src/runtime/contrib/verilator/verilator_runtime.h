@@ -22,6 +22,9 @@
  * \brief A runtime for Verilator.
  */
 
+#ifndef TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_RUNTIME_H_
+#define TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_RUNTIME_H_
+
 #include <dlfcn.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
@@ -78,7 +81,7 @@ class VerilatorProfiler {
 class VerilatorRuntime : public JSONRuntimeBase {
  public:
   VerilatorRuntime(const std::string& symbol_name, const std::string& graph_json,
-                       const Array<String> const_names)
+                   const Array<String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
   const char* type_key() const { return "verilator"; }
@@ -115,3 +118,4 @@ class VerilatorRuntime : public JSONRuntimeBase {
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
+#endif  // TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_RUNTIME_H_

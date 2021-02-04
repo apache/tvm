@@ -22,6 +22,8 @@
  * \brief A runtime for Verilator.
  */
 
+#include "verilator_runtime.h"
+
 #include <dlfcn.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
@@ -35,7 +37,6 @@
 #include "../json/json_runtime.h"
 #include "verilator_device.h"
 #include "verilator_kernel.h"
-#include "verilator_runtime.h"
 
 namespace tvm {
 namespace runtime {
@@ -54,21 +55,19 @@ VerilatorLibrary::~VerilatorLibrary() {
 
 void VerilatorLibrary::Load(const std::string& name) {
   lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
-  ICHECK(lib_handle_ != nullptr)
-      << "Failed to load dynamic shared library " << name << " " << dlerror();
+  ICHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name << " "
+                                 << dlerror();
 }
 
 void* VerilatorLibrary::GetSymbol(const char* name) { return dlsym(lib_handle_, name); }
 
-void VerilatorProfiler::Clear() {
-  cycle_counter = 0;
-}
+void VerilatorProfiler::Clear() { cycle_counter = 0; }
 
 std::string VerilatorProfiler::AsJSON() {
   std::ostringstream os;
   os << "{\n"
      << " \"cycle_counter\":" << cycle_counter << "\n"
-     <<"}\n";
+     << "}\n";
   return os.str();
 }
 
@@ -82,17 +81,11 @@ void VerilatorRuntime::LoadLibrary(const std::string& lib_name) {
   lib_->Load(lib_name);
 }
 
-void VerilatorRuntime::SetResetCycles(const int cycles) {
-  reset_cycles_ = cycles;
-}
+void VerilatorRuntime::SetResetCycles(const int cycles) { reset_cycles_ = cycles; }
 
-void VerilatorRuntime::EnableProfiler() {
-  prof_enable_ = true;
-}
+void VerilatorRuntime::EnableProfiler() { prof_enable_ = true; }
 
-void VerilatorRuntime::SetProfilerCycleCounterId(const int id) {
-  prof_cycle_counter_id_ = id;
-}
+void VerilatorRuntime::SetProfilerCycleCounterId(const int id) { prof_cycle_counter_id_ = id; }
 
 void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   // get symbols
@@ -154,15 +147,13 @@ void VerilatorRuntime::Run() {
   }
 }
 
-TVM_REGISTER_GLOBAL("verilator.profiler_clear")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    VerilatorProfiler::ThreadLocal()->Clear();
-  });
+TVM_REGISTER_GLOBAL("verilator.profiler_clear").set_body([](TVMArgs args, TVMRetValue* rv) {
+  VerilatorProfiler::ThreadLocal()->Clear();
+});
 
-TVM_REGISTER_GLOBAL("verilator.profiler_status")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = VerilatorProfiler::ThreadLocal()->AsJSON();
-  });
+TVM_REGISTER_GLOBAL("verilator.profiler_status").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = VerilatorProfiler::ThreadLocal()->AsJSON();
+});
 
 }  // namespace contrib
 }  // namespace runtime
