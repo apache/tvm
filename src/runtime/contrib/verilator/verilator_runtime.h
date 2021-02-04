@@ -93,7 +93,7 @@ class VerilatorRuntime : public JSONRuntimeBase {
   /* Library handle. */
   VerilatorLibrary* lib_{nullptr};
   /* Add operator. */
-  VerilatorAddFunc add_func_{nullptr};
+  VerilatorAddFunc add_op_{nullptr};
   /* Number of reset cycles. */
   int reset_cycles_{1};
   /* Profiler status. */

@@ -77,18 +77,17 @@ void VerilatorRuntime::SetProfilerCycleCounterId(const int id) {
 
 void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   // get symbols
-  auto alloc_func = reinterpret_cast<VerilatorAllocFunc>(lib_->GetSymbol("VerilatorAlloc"));
-  ICHECK(alloc_func != nullptr);
-  auto reset_func = reinterpret_cast<VerilatorResetFunc>(lib_->GetSymbol("VerilatorReset"));
-  ICHECK(reset_func != nullptr);
-  add_func_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
-  ICHECK(add_func_ != nullptr);
+  auto alloc = reinterpret_cast<VerilatorAllocFunc>(lib_->GetSymbol("VerilatorAlloc"));
+  ICHECK(alloc != nullptr);
+  auto reset = reinterpret_cast<VerilatorResetFunc>(lib_->GetSymbol("VerilatorReset"));
+  ICHECK(reset != nullptr);
+  add_op_ = reinterpret_cast<VerilatorAddFunc>(lib_->GetSymbol("verilator_add"));
 
   // alloc device
-  device_ = (*alloc_func)();
+  device_ = alloc();
 
   // reset for 10 cycles
-  (*reset_func)(device_, 10);
+  reset(device_, reset_cycles_);
 
   CHECK_EQ(consts.size(), const_idx_.size())
       << "The number of input constants must match the number of required.";
@@ -118,7 +117,8 @@ void VerilatorRuntime::Run() {
       if ("add" == op_name) {
         auto entry = node.GetInputs()[0];
         auto shape = nodes_[entry.id_].GetOpShape()[entry.index_];
-        (*add_func_)(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
+        ICHECK(add_op_ != nullptr);
+        add_op_(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
       } else {
         LOG(FATAL) << "Unsupported op: " << op_name;
       }
