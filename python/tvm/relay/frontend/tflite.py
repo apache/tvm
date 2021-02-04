@@ -176,17 +176,45 @@ class OperatorConverter(object):
     def check_unsupported_ops(self):
         """Check unsupported TFLite ops in our converter."""
         unsupported_ops_set = set()
-
+        dynamic_range_ops_set = set()
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
             if op_code_str not in self.convert_map:
                 unsupported_ops_set.add(op_code_str)
+                continue
+
+            # Trying to exclude "dynamic range quantization" optimized ops as not supported in TVM
+            qnn_in_cnt = len(
+                [_.qnn_params for _ in self.get_input_tensors(op)[0:1] if _.qnn_params is not None]
+            )
+            qnn_weight_cnt = len(
+                [_.qnn_params for _ in self.get_input_tensors(op)[1:] if _.qnn_params is not None]
+            )
+            qnn_out_cnt = len(
+                [_.qnn_params for _ in self.get_output_tensors(op) if _.qnn_params is not None]
+            )
+
+            if qnn_in_cnt == 0 and qnn_out_cnt == 0 and qnn_weight_cnt > 0:
+                dynamic_range_ops_set.add(op_code_str)
+
+        raise_msg = ""
 
         if unsupported_ops_set:
-            msg = "The following operators are not supported in frontend " "TFLite: {}"
+            msg = "The following operators are not supported in frontend " "TFLite: {}\n"
             ops = str(list(unsupported_ops_set)).strip("[,]")
-            raise tvm.error.OpNotImplemented(msg.format(ops))
+            raise_msg += msg.format(ops)
+
+        if dynamic_range_ops_set:
+            msg = (
+                "The following operators are likely to have dynamic range quantization: {}. "
+                "If you are running an optimized graph, please turn off dynamic range quantization "
+                "or use full integer quantization"
+            )
+            raise_msg += msg.format(str(list(dynamic_range_ops_set)).strip("[,]"))
+
+        if len(raise_msg) > 0:
+            raise tvm.error.OpNotImplemented(raise_msg)
 
     def convert_op_to_relay(self):
         """Convert TFLite ops to relay ops"""
