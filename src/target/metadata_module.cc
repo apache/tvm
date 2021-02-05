@@ -75,7 +75,8 @@ runtime::Module CreateMetadataModule(
 
     // TODO(@manupa-arm) : we should be able to use csource_metadata
     // if the variables are empty when all the runtime modules implement get_func_names
-    if (arrays.empty() && DSOExportable(mod) && target->kind->name == "c") {
+    if (arrays.empty() && DSOExportable(mod) &&
+        (target->kind->name == "c" || target->kind->name == "llvm")) {
       csource_modules.push_back(mod);
     } else {
       binary_modules.push_back(mod);
@@ -88,8 +89,8 @@ runtime::Module CreateMetadataModule(
       csource_modules.push_back(target_module);
       target_module = CreateCSourceCrtMetadataModule(csource_modules, target);
     } else if (target->kind->name == "llvm") {
-      binary_modules.push_back(target_module);
-      target_module = CreateLLVMCrtMetadataModule(binary_modules, target);
+      csource_modules.push_back(target_module);
+      target_module = CreateLLVMCrtMetadataModule(csource_modules, target);
     }
   } else {
     if (!binary_modules.empty()) {
