@@ -212,8 +212,7 @@ def test_higher_order_nested():
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_unbound_cross_scope():
-  source = \
-    """
+    source = """
     #[version = "0.0.5"]
     def @main(%x: int, %y: int) {
         %0 = add(%x, %y);
@@ -225,13 +224,12 @@ def test_unbound_cross_scope():
         }
     }
     """
-  prog = tvm.parser.fromtext(source)["main"]
-  check_basic_block_normal_form(prog)
+    prog = tvm.parser.fromtext(source)["main"]
+    check_basic_block_normal_form(prog)
 
 
 def test_bound_cross_scope():
-  source = \
-    """
+    source = """
     #[version = "0.0.5"]
     def @main(%x: int, %y: int) {
         let %v0 = add(%x, %y);
@@ -243,8 +241,8 @@ def test_bound_cross_scope():
         }
     }
     """
-  prog = tvm.parser.fromtext(source)["main"]
-  check_basic_block_normal_form(prog)
+    prog = tvm.parser.fromtext(source)["main"]
+    check_basic_block_normal_form(prog)
 
 
 if __name__ == "__main__":

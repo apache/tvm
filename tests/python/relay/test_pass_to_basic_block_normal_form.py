@@ -491,8 +491,7 @@ def test_higher_order_nested():
 
 
 def test_lift_cross_scope():
-  source_pre = \
-    """
+    source_pre = """
     #[version = "0.0.5"]
     def @main(%x: int, %y: int) {
         %0 = add(%x, %y);
@@ -504,8 +503,7 @@ def test_lift_cross_scope():
         }
     }
     """
-  source_expected = \
-    """
+    source_expected = """
     #[version = "0.0.5"]
     def @main(%x: int, %y: int) {
         let %v0 = add(%x, %y);
@@ -517,11 +515,11 @@ def test_lift_cross_scope():
         }
     }
     """
-  pre = tvm.parser.fromtext(source_pre)["main"]
-  expected = tvm.parser.fromtext(source_expected)["main"]
-  result = run_opt_pass(pre, [transform.ToBasicBlockNormalForm(), transform.InferType()])
-  assert tvm.ir.structural_equal(result, expected)
-  check_basic_block_normal_form(result)
+    pre = tvm.parser.fromtext(source_pre)["main"]
+    expected = tvm.parser.fromtext(source_expected)["main"]
+    result = run_opt_pass(pre, [transform.ToBasicBlockNormalForm(), transform.InferType()])
+    assert tvm.ir.structural_equal(result, expected)
+    check_basic_block_normal_form(result)
 
 
 if __name__ == "__main__":
