@@ -646,14 +646,13 @@ def test_dynamic_reshape():
             mod["main"] = f
             if use_trt:
                 mod, _ = tensorrt.partition_for_tensorrt(mod, params={})
-                print(mod)
             if not skip_runtime_test():
                 with relay.build_config(opt_level=3):
                     relay_exec = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
 
                 for i, batch_size in enumerate(batches_to_test):
                     result_arr[i][use_trt] = relay_exec.evaluate()(x_data[:batch_size, ...])
-                    print(x_data[:batch_size, ...].shape, result_arr[i][use_trt].shape)
+                    # print(x_data[:batch_size, ...].shape, result_arr[i][use_trt].shape)
 
         if not skip_runtime_test():
             for i in range(len(batches_to_test)):
@@ -1265,4 +1264,5 @@ def test_maskrcnn_resnet50() -> None:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_dynamic_reshape()
+    # pytest.main([__file__])

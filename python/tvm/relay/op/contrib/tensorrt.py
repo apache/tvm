@@ -637,15 +637,15 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
             if int(new_shape[0]) < 0:
                 for shape_val, new_shape_val in zip(shape[1:], new_shape[1:]):
                     if not (
-                        isinstance(shape_val, int)
-                        and isinstance(new_shape_val, int)
+                        isinstance(shape_val, (int, tvm.tir.expr.IntImm))
+                        and isinstance(new_shape_val, (int, tvm.tir.expr.IntImm))
                         and int(shape_val) == int(new_shape_val)
                     ):
                         return False
             elif int(new_shape[0]) > 0:
                 if not (
-                    isinstance(shape[0], int)
-                    and isinstance(new_shape[0], int)
+                    isinstance(shape[0], (int, tvm.tir.expr.IntImm))
+                    and isinstance(new_shape[0], (int, tvm.tir.expr.IntImm))
                     and int(shape[0]) == int(new_shape[0])
                 ):
                     return False
