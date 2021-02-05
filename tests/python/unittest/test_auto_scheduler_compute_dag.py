@@ -121,7 +121,7 @@ def test_stage_order():
     )
 
     task2 = pickle.loads(pickle.dumps(task))
-    assert "test-key" in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
+    assert '["test-key"]' in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
     assert str(task.compute_dag.get_init_state()) == str(task2.compute_dag.get_init_state())
     assert len(task.compute_dag.get_init_state().stage_ops) == len(
         task2.compute_dag.get_init_state().stage_ops

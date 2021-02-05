@@ -31,25 +31,29 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
     else:
         pooled_size_h, pooled_size_w = pooled_size
 
-    def _bilinear(b, c, y, x):
+    def _bilinear(n, c, y, x):
         if y < -1 or y > height or x < -1 or x > width:
             return 0
-        y = max(y, 0.0)
-        x = max(x, 0.0)
-        y_low = int(y)
-        x_low = int(x)
 
-        y_high = min(y_low + 1, height - 1)
-        x_high = min(x_low + 1, width - 1)
+        y = min(max(y, 0), height - 1)
+        x = min(max(x, 0), width - 1)
 
-        ly = y - y_low
-        lx = x - x_low
-        return (
-            (1 - ly) * (1 - lx) * a_np[b, c, y_low, x_low]
-            + (1 - ly) * lx * a_np[b, c, y_low, x_high]
-            + ly * (1 - lx) * a_np[b, c, y_high, x_low]
-            + ly * lx * a_np[b, c, y_high, x_high]
-        )
+        y_low = int(math.floor(y))
+        x_low = int(math.floor(x))
+        y_high = y_low + 1
+        x_high = x_low + 1
+
+        wy_h = y - y_low
+        wx_h = x - x_low
+        wy_l = 1 - wy_h
+        wx_l = 1 - wx_h
+
+        val = 0
+        for wx, xp in zip((wx_l, wx_h), (x_low, x_high)):
+            for wy, yp in zip((wy_l, wy_h), (y_low, y_high)):
+                if 0 <= yp < height and 0 <= xp < width:
+                    val += wx * wy * a_np[n, c, yp, xp]
+        return val
 
     for i in range(num_roi):
         roi = rois_np[i]
