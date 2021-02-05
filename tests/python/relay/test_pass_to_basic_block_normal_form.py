@@ -490,5 +490,39 @@ def test_higher_order_nested():
     check_basic_block_normal_form(bblock)
 
 
+def test_lift_cross_scope():
+  source_pre = \
+    """
+    #[version = "0.0.5"]
+    def @main(%x: int, %y: int) {
+        %0 = add(%x, %y);
+        %1 = less(%0, 0);
+        if (%1) {
+            multiply(%0, %x)
+        } else {
+            multiply(%0, %y)
+        }
+    }
+    """
+  source_expected = \
+    """
+    #[version = "0.0.5"]
+    def @main(%x: int, %y: int) {
+        let %v0 = add(%x, %y);
+        %0 = less(%v0, 0);
+        if (%0) {
+            multiply(%v0, %x)
+        } else {
+            multiply(%v0, %y)
+        }
+    }
+    """
+  pre = tvm.parser.fromtext(source_pre)["main"]
+  expected = tvm.parser.fromtext(source_expected)["main"]
+  result = run_opt_pass(pre, [transform.ToBasicBlockNormalForm(), transform.InferType()])
+  assert tvm.ir.structural_equal(result, expected)
+  check_basic_block_normal_form(result)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

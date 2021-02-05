@@ -210,5 +210,42 @@ def test_higher_order_nested():
     check_basic_block_normal_form(top)
 
 
+@pytest.mark.xfail(raises=tvm.error.TVMError)
+def test_unbound_cross_scope():
+  source = \
+    """
+    #[version = "0.0.5"]
+    def @main(%x: int, %y: int) {
+        %0 = add(%x, %y);
+        %1 = less(%0, 0);
+        if (%1) {
+            multiply(%0, %x)
+        } else {
+            multiply(%0, %y)
+        }
+    }
+    """
+  prog = tvm.parser.fromtext(source)
+  check_basic_block_normal_form(prog)
+
+
+def test_bound_cross_scope():
+  source = \
+    """
+    #[version = "0.0.5"]
+    def @main(%x: int, %y: int) {
+        let %v0 = add(%x, %y);
+        %0 = less(%v0, 0);
+        if (%0) {
+            multiply(%v0, %x)
+        } else {
+            multiply(%v0, %y)
+        }
+    }
+    """
+  prog = tvm.parser.fromtext(source)["main"]
+  check_basic_block_normal_form(prog)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
