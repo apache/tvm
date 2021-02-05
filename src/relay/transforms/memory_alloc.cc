@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "../backend/compile_engine.h"
+#include "../op/vm/vm.h"
 #include "let_list.h"
 #include "pattern_utils.h"
 
@@ -109,7 +110,6 @@ class DialectRewriter : public ExprMutator {
       : target_host_(target_host),
         context_analysis_map_(context_analysis_map),
         device_copy_(runtime::Registry::Get("relay.op._make.device_copy")),
-        invoke_tvm_(runtime::Registry::Get("relay.op.vm.invoke_tvm_op")),
         alloc_storage_(runtime::Registry::Get("relay.op.memory._make.alloc_storage")),
         shape_func_(runtime::Registry::Get("relay.op.vm.shape_func")),
         shape_of_(runtime::Registry::Get("relay.op.vm.shape_of")),
@@ -209,7 +209,7 @@ class DialectRewriter : public ExprMutator {
           outs.push_back(out);
         }
         Tuple output(outs);
-        Expr invoke = (*invoke_tvm_)(cn->op, ins, output);
+        Expr invoke = InvokeTVMOp(cn->op, ins, output);
         scope.Push(invoke);
         return ToTupleType(ret_type,
                            std::vector<Expr>(output->fields.begin(), output->fields.end()));
@@ -393,7 +393,7 @@ class DialectRewriter : public ExprMutator {
     }
 
     Tuple tuple_outs(outs);
-    auto invoke = (*invoke_tvm_)(func, ins, tuple_outs);
+    auto invoke = InvokeTVMOp(func, ins, tuple_outs);
     scope->Push(invoke);
     return ToTupleType(ret_type,
                        std::vector<Expr>(tuple_outs->fields.begin(), tuple_outs->fields.end()));
@@ -425,7 +425,6 @@ class DialectRewriter : public ExprMutator {
 
   // Cache the following ops
   const PackedFunc* device_copy_;
-  const PackedFunc* invoke_tvm_;
   const PackedFunc* alloc_storage_;
   const PackedFunc* shape_func_;
   const PackedFunc* shape_of_;
