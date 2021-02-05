@@ -22,6 +22,8 @@
  * \brief Dialect operators for Relay VM.
  */
 
+#include "vm.h"
+
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/attrs/vm.h>
 #include <tvm/relay/expr.h>
@@ -162,10 +164,11 @@ bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs) {
-      return Call(Op::Get("vm.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
-    });
+Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs) {
+  return Call(Op::Get("vm.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op").set_body_typed(InvokeTVMOp);
 
 RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
