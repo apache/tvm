@@ -22,17 +22,6 @@
  * \brief Target tag registry
  */
 
-#define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock)\
-TVM_REGISTER_TARGET_TAG(Name)                            \
-    .set_config({                                        \
-        {"kind", String("cuda")},                        \
-        {"arch", String(Arch)},                          \
-        {"shared_memory_per_block", Integer(SharedMem)}, \
-        {"registers_per_block", Integer(RegPerBlock)},   \
-        {"max_threads_per_block", Integer(1024)},        \
-        {"thread_warp_size", Integer(32)},               \
-    });
-
 #include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
@@ -80,6 +69,17 @@ Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool overri
 }
 
 /**********  Register Target tags  ***********/
+
+#define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock)\
+TVM_REGISTER_TARGET_TAG(Name)                            \
+    .set_config({                                        \
+        {"kind", String("cuda")},                        \
+        {"arch", String(Arch)},                          \
+        {"shared_memory_per_block", Integer(SharedMem)}, \
+        {"registers_per_block", Integer(RegPerBlock)},   \
+        {"max_threads_per_block", Integer(1024)},        \
+        {"thread_warp_size", Integer(32)},               \
+    });
 
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
@@ -327,4 +327,6 @@ TVM_REGISTER_CUDA_TAG("nvidia/jetson-nano", "sm_53", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/jetson-tx2", "sm_62", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/jetson-tx1", "sm_53", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tegra-x1", "sm_53", 49152, 32768);
+
+#undef TVM_REGISTER_CUDA_TAG
 }  // namespace tvm
