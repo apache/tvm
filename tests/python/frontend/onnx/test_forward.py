@@ -2107,10 +2107,18 @@ def test_erf():
     verify_erf(x, z)
 
 
-def verify_where(condition, x, y, dtype, outdata):
-    node = helper.make_node("Where", inputs=["condition", "x", "y"], outputs=["out"])
+def verify_where(condition, x, y, dtype, outdata, dynamic=False):
+    node_list = []
+    where_inputs = ["condition", "x", "y"]
+    if dynamic:
+        shape_node = helper.make_node("Shape", ["x"], ["shape"])
+        reshape_node = helper.make_node("Reshape", ["x", "shape"], ["X"])
+        where_inputs[1] = "X"
+        node_list += [shape_node, reshape_node]
+    node = helper.make_node("Where", inputs=where_inputs, outputs=["out"])
+    node_list.append(node)
     graph = helper.make_graph(
-        [node],
+        node_list,
         "where_test",
         inputs=[
             helper.make_tensor_value_info("condition", TensorProto.BOOL, list(condition.shape)),
@@ -2156,6 +2164,7 @@ def test_where():
     y = np.array([[1], [7]], dtype=np.float32)
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata, dynamic=True)
 
 
 def verify_or(indata, dtype):
