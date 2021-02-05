@@ -615,7 +615,6 @@ def layout_transform_annotate_fn(expr):  # pylint: disable=unused-variable
 @_register_external_dynamic_check_func("reshape")
 def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if reshape is supported by TensorRT."""
-
     attrs, args = expr.attrs, expr.args
     if args[0].checked_type.dtype != "float32":
         logger.info("Only float32 inputs are supported for TensorRT.")
@@ -629,7 +628,6 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         if len(new_shape) == 0 or len(shape) == 0:
             logger.info("reshape: Can't reshape to or from scalar.")
             return False
-
         dynamic_reshape = any([isinstance(x, tvm.tir.expr.Any) for x in shape])
 
         if dynamic_reshape:
@@ -643,6 +641,7 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
                     ):
                         return False
             elif int(new_shape[0]) > 0:
+                # Currently we only allow dim[0] to be Any, so this branch will always be False
                 if not (
                     isinstance(shape[0], (int, tvm.tir.expr.IntImm))
                     and isinstance(new_shape[0], (int, tvm.tir.expr.IntImm))
