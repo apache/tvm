@@ -1152,7 +1152,7 @@ def _dense_pack_shape_func(data_shape, weight_shape):
 
 
 @reg.register_shape_func("nn.contrib_dense_pack", False)
-def dense_shape_func(attrs, inputs, _):
+def dense_pack_shape_func(attrs, inputs, _):
     """
     Shape function for dense_pack op.
     """
