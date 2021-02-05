@@ -37,7 +37,7 @@ function run_pytest() {
     shift
     for ffi_type in ${TVM_PYTEST_FFI_TYPES:-ctypes cython}; do
         TVM_FFI=${ffi_type} python3 -m pytest \
-           -o "junit_suite_name=${test_suite_name}-ctypes" \
+           -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "$@"
     done
