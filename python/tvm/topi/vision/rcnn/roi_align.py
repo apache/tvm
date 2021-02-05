@@ -60,8 +60,8 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
 
     def _bilinear(i, c, y, x):
         outside = tvm.tir.any(y < -1.0, x < -1.0, y > height, x > width)
-        y = tvm.te.max(y, 0.0)
-        x = tvm.te.max(x, 0.0)
+        y = tvm.te.min(tvm.te.max(y, 0.0), height - 1)
+        x = tvm.te.min(tvm.te.max(x, 0.0), width - 1)
         val = bilinear_sample_nchw(data, (i, c, y, x), height - 1, width - 1)
         return tvm.tir.if_then_else(outside, 0.0, val)
 

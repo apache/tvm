@@ -1928,6 +1928,32 @@ class PyTorchOpConverter:
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
 
+    def deform_conv2d(self, inputs, input_types):
+        data = inputs[0]
+        weight = inputs[1]
+        offset = inputs[2]
+        strides = (inputs[4], inputs[5])
+        padding = (inputs[6], inputs[7])
+        dilation = (inputs[8], inputs[9])
+        groups = inputs[10]
+        deformable_groups = inputs[11]
+        weight_shape = self.infer_shape(weight)
+        output_channels = weight_shape[0]
+        kernel_size = (weight_shape[2], weight_shape[3])
+
+        return _op.nn.deformable_conv2d(
+            data,
+            offset,
+            weight,
+            strides,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+            output_channels,
+            kernel_size,
+        )
+
     def unbind(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
@@ -2292,6 +2318,7 @@ class PyTorchOpConverter:
             "torchvision::nms": self.nms,
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
+            "torchvision::deform_conv2d": self.deform_conv2d,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
