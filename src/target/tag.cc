@@ -22,10 +22,10 @@
  * \brief Target tag registry
  */
 
+#include <tvm/ir/expr.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
-#include <tvm/ir/expr.h>
 
 #include "../node/attr_registry.h"
 
@@ -70,16 +70,16 @@ Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool overri
 
 /**********  Register Target tags  ***********/
 
-#define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock)\
-TVM_REGISTER_TARGET_TAG(Name)                            \
-    .set_config({                                        \
-        {"kind", String("cuda")},                        \
-        {"arch", String(Arch)},                          \
-        {"shared_memory_per_block", Integer(SharedMem)}, \
-        {"registers_per_block", Integer(RegPerBlock)},   \
-        {"max_threads_per_block", Integer(1024)},        \
-        {"thread_warp_size", Integer(32)},               \
-    });
+#define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
+  TVM_REGISTER_TARGET_TAG(Name)                                     \
+    .set_config({                                                 \
+        {"kind", String("cuda")},                                 \
+        {"arch", String(Arch)},                                   \
+        {"shared_memory_per_block", Integer(SharedMem)},          \
+        {"registers_per_block", Integer(RegPerBlock)},            \
+        {"max_threads_per_block", Integer(1024)},                 \
+        {"thread_warp_size", Integer(32)},                        \
+  });
 
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
