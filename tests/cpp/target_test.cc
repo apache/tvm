@@ -152,6 +152,12 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->GetAttr<Bool>("link-params"), false);
 }
 
+TEST(TargetKindRegistryListAllNames, Basic) {
+  Array<String> names = TargetKindRegEntry::ListAllNames();
+  ICHECK_EQ(names.empty(), false);
+  ICHECK_EQ(std::count(std::begin(names), std::end(names), "llvm"), 1);
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
