@@ -330,7 +330,8 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
         if cost_model_file is None:
             self.cost_model = RandomModel()
         else:
-            self.cost_model = XGBModel(num_warmup_sample=1, model_file=cost_model_file)
+            self.cost_model = XGBModel()
+            self.cost_model.load(cost_model_file)
 
         super(ApplyHistoryBestOrSample, self).__init__(
             records, n_lines=None, include_compatible=True
