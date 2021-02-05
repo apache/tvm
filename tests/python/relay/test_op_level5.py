@@ -837,11 +837,31 @@ def test_deformable_conv2d():
     test_infer_type(1, 4, 16, 4, 4, 1, "NHWC")
     test_infer_type(2, 4, 16, 4, 1, 2, "NHWC")
 
-    def test_run(batch, in_channel, size, out_channel, deformable_groups, groups):
+    def test_run(batch, in_channel, size, out_channel, deformable_groups, groups, layout):
         kernel_size = (3, 3)
-        data_shape = (batch, in_channel, size, size)
-        offset_shape = (batch, 2 * kernel_size[0] * kernel_size[1] * deformable_groups, size, size)
-        kernel_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+        if layout == "NCHW":
+            kernel_layout = "OIHW"
+            data_shape = (batch, in_channel, size, size)
+            kernel_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+            out_shape = (batch, out_channel, size, size)
+            offset_shape = (
+                batch,
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+                out_shape[2],
+                out_shape[3],
+            )
+        else:
+            kernel_layout = "HWIO"
+            data_shape = (batch, size, size, in_channel)
+            kernel_shape = (kernel_size[0], kernel_size[1], in_channel // groups, out_channel)
+            out_shape = (batch, size, size, out_channel)
+            offset_shape = (
+                batch,
+                out_shape[1],
+                out_shape[2],
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+            )
+
         dtype = "float32"
         data = relay.var("data", shape=data_shape, dtype=dtype)
         offset = relay.var("offset")
@@ -853,6 +873,8 @@ def test_deformable_conv2d():
             strides=(1, 1),
             padding=(1, 1),
             dilation=(1, 1),
+            data_layout=layout,
+            kernel_layout=kernel_layout,
             kernel_size=kernel_size,
             deformable_groups=deformable_groups,
             groups=groups,
@@ -862,25 +884,40 @@ def test_deformable_conv2d():
         data = np.random.uniform(size=data_shape).astype(dtype)
         offset = np.random.uniform(size=offset_shape).astype(dtype)
         kernel = np.random.uniform(size=kernel_shape).astype(dtype)
-        ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(
-            data,
-            offset,
-            kernel,
-            stride=(1, 1),
-            padding=(1, 1),
-            dilation=(1, 1),
-            deformable_groups=deformable_groups,
-            groups=groups,
-        )
-
+        if layout == "NCHW":
+            ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(
+                data,
+                offset,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
+        else:
+            ref_res = tvm.topi.testing.deformable_conv2d_nhwc_python(
+                data,
+                offset,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
         for target, ctx in tvm.testing.enabled_targets():
+            if target == "cuda" and layout == "NHWC":
+                continue  # Cannot run NHWC layout on cuda target, only on llvm
             for kind in ["graph", "debug"]:
                 intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res1 = intrp1.evaluate(func)(data, offset, kernel)
                 tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-    test_run(1, 4, 16, 4, 1, 1)
-    test_run(2, 4, 16, 4, 4, 1)
+    test_run(1, 4, 16, 4, 1, 1, "NCHW")
+    test_run(1, 4, 16, 4, 1, 1, "NHWC")
+    test_run(2, 4, 16, 4, 4, 1, "NCHW")
+    test_run(2, 4, 16, 4, 4, 1, "NHWC")
 
 
 @tvm.testing.uses_gpu
