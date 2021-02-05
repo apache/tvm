@@ -1171,13 +1171,18 @@ def test_flatten_infer_type():
 
 @tvm.testing.uses_gpu
 def test_pad_infer_type():
-    # entirely concrete case
+    # entirely concrete cases
     n, c, h, w = 1, 2, 3, 4
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4)))
-    "pad_width=" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((3, 6, 9, 12), "float32")
+
+    n, c, h, w = 4, 6, 3, 5
+    t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.nn.pad(t, ((-1, -1), (2, -2), (0, -3), (4, 4)), pad_mode="reflect")
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((2, 6, 0, 13), "float32")
 
     # some symbolic values
     n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
@@ -1186,20 +1191,42 @@ def test_pad_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
+    n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
+    t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.nn.pad(t, ((-1, -1), (-2, -2), (1, -3), (4, 4)))
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n + (-2), c + (-4), h + (-2), w + 8), "float32")
+
 
 @tvm.testing.uses_gpu
 def test_pad_run():
     def _test_run(dtype):
-        dshape = (4, 10, 7, 7)
-        x = relay.var("x", shape=dshape)
-        y = relay.nn.pad(x, ((1, 1), (2, 2), (3, 3), (4, 4)))
-        func = relay.Function([x], y)
-        data = np.random.uniform(size=dshape).astype(dtype)
-        ref_res = np.pad(data, ((1, 1), (2, 2), (3, 3), (4, 4)), "constant")
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        dshape_list = [(4, 10, 7, 7), (4, 6, 3, 5)]
+        pad_list = [((1, 1), (2, 2), (3, 3), (4, 4)), ((-1, -1), (2, -2), (0, -2), (4, 4))]
+
+        for dshape, pad in zip(dshape_list, pad_list):
+            x = relay.var("x", shape=dshape)
+            y = relay.nn.pad(x, pad)
+            func = relay.Function([x], y)
+            data = np.random.uniform(size=dshape).astype(dtype)
+            mod_pad = []
+            mod_data = data
+            for axis, (pad_x, pad_y) in enumerate(pad):
+                indices = range(dshape[axis])
+                if pad_x < 0:
+                    indices = indices[abs(pad_x) :]
+                    pad_x = 0
+                if pad_y < 0:
+                    indices = indices[:pad_y]
+                    pad_y = 0
+                mod_data = np.take(mod_data, indices, axis)
+                mod_pad.append((pad_x, pad_y))
+
+            ref_res = np.pad(mod_data, tuple(mod_pad), "constant")
+            for target, ctx in tvm.testing.enabled_targets():
+                intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
     _test_run("int32")
