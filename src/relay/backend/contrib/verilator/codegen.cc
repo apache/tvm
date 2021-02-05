@@ -76,7 +76,7 @@ class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
   }
 };
 
-/*! \brief Attributes to store the compiler options for Verilator */
+/*! \brief Attributes to store options for Verilator */
 struct VerilatorOptionsNode : public tvm::AttrsNode<VerilatorOptionsNode> {
   String lib_path;
   int reset_cycles;
