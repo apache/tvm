@@ -230,6 +230,9 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
+    .add_attr_option<Integer>("shared_memory_per_block")
+    .add_attr_option<Integer>("registers_per_block")
+    .add_attr_option<Integer>("max_threads_per_block")
     .set_default_keys({"cuda", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("nvptx", kDLGPU)
