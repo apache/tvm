@@ -95,7 +95,10 @@ tvm_crt_error_t Session::StartSession() {
   return to_return;
 }
 
-tvm_crt_error_t Session::Initialize() { return TerminateSession(); }
+tvm_crt_error_t Session::Initialize(uint8_t initial_session_nonce) {
+  local_nonce_ = initial_session_nonce;
+  return TerminateSession();
+}
 
 tvm_crt_error_t Session::TerminateSession() {
   SetSessionId(0, 0);

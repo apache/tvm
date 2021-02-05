@@ -22,12 +22,11 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
-import json
 import logging
 import threading
 
 import tvm
-from tvm import autotvm, te, transform
+from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
@@ -56,7 +55,10 @@ def call_all_topi_funcs(mod, params, target):
 
     with transform.PassContext(
         opt_level=3,
-        config={"relay.backend.use_auto_scheduler": True},
+        config={
+            "relay.backend.use_auto_scheduler": True,
+            "relay.backend.disable_compile_engine_cache": True,
+        },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
         try:
@@ -105,7 +107,6 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import relay
 
     if isinstance(target, str):
         target = tvm.target.Target(target)
@@ -123,17 +124,10 @@ def extract_tasks(
         build_thread.start()
         build_thread.join()
 
-    # query the compile engine to get the number of occurrence of all tasks
-    engine = relay.backend.compile_engine.get()
-    use_count_dict = {}
-    for k, v in engine.items():
-        use_count_dict[k] = v.use_count
-
     # create search tasks
     tasks = []
     weights = []
-    for wkl_key, ccache_key in env.wkl_key_to_ccache_key.items():
-        dag = ComputeDAG(wkl_key)
+    for wkl_key, weight in env.wkl_key_to_weight.items():
         tasks.append(
             SearchTask(
                 workload_key=wkl_key,
@@ -145,10 +139,7 @@ def extract_tasks(
                 layout_rewrite_option=LayoutRewriteOption.get_target_default(target, True),
             )
         )
-        weights.append(use_count_dict[ccache_key] + 1)
-
-    # clean the cached lowering results
-    engine.clear()
+        weights.append(weight)
 
     return tasks, weights
 
@@ -169,7 +160,7 @@ class TracingEnvironment:
     def __init__(self, tracing_mode):
         self.tracing_mode = tracing_mode
         self.relay_disable_build_cache = "false"
-        self.wkl_key_to_ccache_key = {}
+        self.wkl_key_to_weight = {}
 
     def __enter__(self):
         TracingEnvironment.current = self
@@ -178,17 +169,17 @@ class TracingEnvironment:
     def __exit__(self, exc_type, exc_val, exc_tb):
         TracingEnvironment.current = None
 
-    def add_workload_key(self, workload_key, ccache_key):
+    def add_workload_key(self, workload_key):
         """Add the workload key of a search task
 
         Parameters
         ----------
         workload_key: str
             The workload key of a task
-        ccache_key: CCacheKey
-            The corresponding ccache_key of the task
         """
-        self.wkl_key_to_ccache_key[workload_key] = ccache_key
+        if workload_key not in self.wkl_key_to_weight:
+            self.wkl_key_to_weight[workload_key] = 0
+        self.wkl_key_to_weight[workload_key] += 1
 
 
 @tvm._ffi.register_func("auto_scheduler.enter_layout_rewrite")
@@ -275,10 +266,9 @@ def auto_schedule_topi(outs):
     -------
     sch: Optional[te.Schedule]
         A tuned schedule or none (if not tuned) in the final build mode;
-        An initial schdule in the tracing mode.
+        None in the tracing mode so that the fallback topi schedule will be used.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import relay
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
@@ -290,8 +280,7 @@ def auto_schedule_topi(outs):
         logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
 
-    key = register_workload_tensors(dag.hash_key(), io_tensors)
-
+    key = register_workload_tensors(dag.workload_key(), io_tensors)
     target = tvm.target.Target.current()
 
     env = TracingEnvironment.current
@@ -302,13 +291,12 @@ def auto_schedule_topi(outs):
             return None
 
         schedule, _ = dag.apply_steps_from_state(state)
-    elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
+        return schedule
+
+    if env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
-            engine = relay.backend.compile_engine.get()
-            ccache_key = engine.get_current_ccache_key()
-            env.add_workload_key(key, ccache_key)
-        schedule = te.create_schedule([x.op for x in outs])
+            env.add_workload_key(key)
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
         if (
@@ -321,16 +309,14 @@ def auto_schedule_topi(outs):
                 return None
 
             # rewrite the layout and update the context for the new dag
-            dag = ComputeDAG(outs)
             new_dag = dag.rewrite_layout_from_state(state)
-            new_key = json.dumps((new_dag.hash_key(),))
+            new_key = new_dag.workload_key()
             if new_key != key:
                 dispatch_ctx.update(target, new_key, state)
-        return te.create_schedule([x.op for x in outs])
     else:
         raise ValueError("Invalid tracing mode: " + env.tracing_mode)
 
-    return schedule
+    return None
 
 
 def tensor_no_check_call(self, *indices):

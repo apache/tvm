@@ -52,6 +52,27 @@ reg.register_schedule("nn.log_softmax", strategy.schedule_log_softmax)
 reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 
+@reg.register_legalize("nn.dense")
+def legalize_dense(attrs, inputs, types):
+    """Legalize dense op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.dense_legalize(attrs, inputs, types)
+
+
 # dense
 reg.register_strategy("nn.dense", strategy.dense_strategy)
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
@@ -65,6 +86,27 @@ def compute_fifo_buffer(attrs, inputs, out_type):
 
 reg.register_injective_schedule("nn.fifo_buffer")
 reg.register_pattern("nn.fifo_buffer", OpPattern.OPAQUE)
+
+
+@reg.register_legalize("nn.batch_matmul")
+def legalize_batch_matmul(attrs, inputs, types):
+    """Legalize batch_matmul op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.batch_matmul_legalize(attrs, inputs, types)
 
 
 # batch_matmul

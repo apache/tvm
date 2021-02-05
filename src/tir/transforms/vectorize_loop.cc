@@ -352,7 +352,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {
-    if (op->for_type == ForType::Vectorized) {
+    if (op->kind == ForKind::kVectorized) {
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
     ICHECK(is_zero(op->min));
@@ -365,7 +365,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return For(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
+      return For(op->loop_var, op->min, extent, op->kind, body, op->thread_binding,
+                 op->annotations);
     }
   }
   // IfThenElse
@@ -436,7 +437,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     Var idx(var_->name_hint + ".s", var_->dtype);
     Map<Var, PrimExpr> values{{var_, idx}};
     stmt = Substitute(stmt, values);
-    return For(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
+    return For(idx, 0, var_lanes_, ForKind::kSerial, stmt);
   }
   // ProducerStore
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
@@ -525,7 +526,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 class LoopVectorizer : public StmtMutator {
  public:
   Stmt VisitStmt_(const ForNode* op) final {
-    if (op->for_type == ForType::Vectorized) {
+    if (op->kind == ForKind::kVectorized) {
       ICHECK(is_zero(op->min));
       auto* extent_as_int = op->extent.as<IntImmNode>();
       if (!extent_as_int || extent_as_int->value < 1) {
@@ -545,8 +546,8 @@ class VectorizeSkipper : public StmtMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ForNode>();
-    if (op->for_type == ForType::Vectorized) {
-      return For(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api, op->body);
+    if (op->kind == ForKind::kVectorized) {
+      return For(op->loop_var, op->min, op->extent, ForKind::kSerial, op->body);
     } else {
       return stmt;
     }

@@ -112,6 +112,50 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "FunctionPatternNode(" << node->params << ", " << node->body << ")";
     });
 
+LetPattern::LetPattern(DFPattern var, DFPattern value, DFPattern body) {
+  ObjectPtr<LetPatternNode> n = make_object<LetPatternNode>();
+  n->var = std::move(var);
+  n->value = std::move(value);
+  n->body = std::move(body);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(LetPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.LetPattern")
+    .set_body_typed([](DFPattern var, DFPattern value, DFPattern body) {
+      return LetPattern(var, value, body);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<LetPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const LetPatternNode*>(ref.get());
+      p->stream << "LetPatternNode(" << node->var << ", " << node->value << ", " << node->body
+                << ")";
+    });
+
+IfPattern::IfPattern(DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
+  ObjectPtr<IfPatternNode> n = make_object<IfPatternNode>();
+  n->cond = std::move(cond);
+  n->true_branch = std::move(true_branch);
+  n->false_branch = std::move(false_branch);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(IfPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.IfPattern")
+    .set_body_typed([](DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
+      return IfPattern(cond, true_branch, false_branch);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<IfPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const IfPatternNode*>(ref.get());
+      p->stream << "IfPattern(" << node->cond << ", " << node->true_branch << ", "
+                << node->false_branch << ")";
+    });
+
 TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
   ObjectPtr<TuplePatternNode> n = make_object<TuplePatternNode>();
   n->fields = std::move(fields);

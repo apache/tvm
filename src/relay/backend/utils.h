@@ -303,6 +303,15 @@ inline bool IsAutoSchedulerEnabled() {
       .value();
 }
 
+/*!
+ * \brief Return whether the compile engine cache is disabled in the pass context.
+ */
+inline bool IsCompileEngineCacheDisabled() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
+      .value();
+}
+
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm

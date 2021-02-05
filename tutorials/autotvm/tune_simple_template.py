@@ -59,7 +59,8 @@ import sys
 
 import numpy as np
 import tvm
-from tvm import te, testing
+from tvm import te
+import tvm.testing
 
 # the module is called `autotvm`
 from tvm import autotvm

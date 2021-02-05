@@ -19,11 +19,11 @@
 """ The auto-scheduler's computational graph and related program analyses. """
 
 import hashlib
+import json
 
 import tvm._ffi
 from tvm.runtime import Object
 from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
-from tvm.te import ComputeOp, PlaceholderOp
 
 from . import _ffi_api
 from .loop_state import State, StateObject
@@ -220,32 +220,23 @@ class ComputeDAG(Object):
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state_obj)
 
-    def hash_key(self):
-        """Return the hash key of this compute DAG.
+    def workload_key(self):
+        """Return the workload key of this compute DAG.
+        The workload key is a JSON string from a tuple of (hash-key, tensor shapes...)
 
         Returns
         -------
         key: str
-            The hash key of this compute DAG
+            The workload key of this compute DAG
         """
-        # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
-        # of ComputeDAG
-        str_key = ""
-        for op in self.ops:
-            t = op.output(0)
-            if isinstance(op, PlaceholderOp):
-                str_key += "placeholder,"
-                str_key += str(get_const_tuple(t.shape)) + ","
-                str_key += t.dtype + ";"
-            elif isinstance(op, ComputeOp):
-                str_key += str(t.op.body) + ","
-                str_key += str(get_const_tuple(t.shape)) + ","
-                str_key += t.dtype + ";"
-            else:
-                raise ValueError("Invalid op: " + op)
+        str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
+        str_dag = str_dag.encode(encoding="utf-8")
+        hash_key = hashlib.md5(str_dag).hexdigest()
 
-        str_key = str_key.encode(encoding="utf-8")
-        return hashlib.md5(str_key).hexdigest()
+        io_shapes = []
+        for tensor in self.tensors:
+            io_shapes += get_const_tuple(tensor.shape)
+        return json.dumps([hash_key] + io_shapes)
 
     def __str__(self):
         # pretty print

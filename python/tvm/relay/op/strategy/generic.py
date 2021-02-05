@@ -35,7 +35,7 @@ def naive_schedule(_, outs, target):
     if "gpu" in target.keys:
         # For GPU, we at least need thread binding to make a valid schedule.
         # So the naive schedule cannot be compiled.
-        raise RuntimeError(
+        logger.debug(
             "Cannot compile for GPU targets if no tuned schedule is found. "
             "Please see the warning messages above for more information about the failed workloads."
         )
@@ -1123,7 +1123,7 @@ def wrap_compute_scatter(topi_compute):
     """Wrap scatter topi compute"""
 
     def _compute_scatter(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], axis=attrs.axis)]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis)]
 
     return _compute_scatter
 
@@ -1315,5 +1315,70 @@ def argwhere_strategy(attrs, inputs, out_type, target):
         wrap_compute_argwhere(topi.argwhere),
         wrap_topi_schedule(topi.generic.schedule_argwhere),
         name="argwhere.generic",
+    )
+    return strategy
+
+
+# threefry_generate
+def wrap_compute_threefry_generate(topi_compute):
+    """Wrap threefry_generate topi compute"""
+
+    def _compute_threefry_generate(attrs, inputs, _):
+        return topi_compute(inputs[0], attrs.out_shape)
+
+    return _compute_threefry_generate
+
+
+@override_native_generic_func("threefry_generate_strategy")
+def threefry_generate_strategy(attrs, inputs, out_type, target):
+    """threefry_generate generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_threefry_generate(topi.random.threefry_generate),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="threefry_generate.generic",
+    )
+    return strategy
+
+
+# threefry_split
+def wrap_compute_threefry_split(topi_compute):
+    """Wrap threefry_split topi compute"""
+
+    def _compute_threefry_split(attrs, inputs, _):
+        return topi_compute(inputs[0])
+
+    return _compute_threefry_split
+
+
+@override_native_generic_func("threefry_split_strategy")
+def threefry_split_strategy(attrs, inputs, out_type, target):
+    """threefry_split generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_threefry_split(topi.random.threefry_split),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="threefry_split.generic",
+    )
+    return strategy
+
+
+def wrap_compute_cumsum(topi_compute):
+    """Wrap cumsum topi compute"""
+
+    def _compute_cumsum(attrs, inputs, _):
+        return [topi_compute(inputs[0], attrs.axis, attrs.dtype)]
+
+    return _compute_cumsum
+
+
+@override_native_generic_func("cumsum_strategy")
+def cumsum_strategy(attrs, inputs, out_type, target):
+    """cumsum generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_cumsum(topi.cumsum),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumsum.generic",
     )
     return strategy

@@ -282,6 +282,18 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
       }
     }
 
+    void VisitDFPattern_(const IfPatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->cond, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->true_branch, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->false_branch, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const LetPatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->var, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->value, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->body, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
     void VisitDFPattern_(const TypePatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->pattern, graph_.node_map_[GetRef<DFPattern>(op)]);
     }

@@ -435,7 +435,7 @@ class TShape : public Tuple<dim_t> {
    */
   template <int dim>
   inline mshadow::Shape<dim> get() const {
-    ICHECK_EQ(dim, static_cast<int>(ndim()))
+    CHECK_EQ(dim, static_cast<int>(ndim()))
         << "dimension do not match target dimension " << dim << " vs " << ndim();
     const dim_t* d = this->data();
     mshadow::Shape<dim> s;
@@ -467,7 +467,7 @@ class TShape : public Tuple<dim_t> {
    * \return the flat 3d shape
    */
   inline mshadow::Shape<3> FlatTo3D(size_t axis_begin, size_t axis_end) const {
-    ICHECK(axis_end >= axis_begin);
+    CHECK(axis_end >= axis_begin);
     mshadow::Shape<3> s;
     if (ndim() == 0) return mshadow::Shape3(0, 0, 0);
     const dim_t* d = this->data();

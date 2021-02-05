@@ -30,13 +30,11 @@ import time
 from random import getrandbits
 from collections import namedtuple
 import tempfile
-
 import numpy as np
 
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd, rpc as _rpc
-from tvm.target import Target
 from tvm.error import TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
@@ -195,10 +193,6 @@ class RPCRunner(Runner):
         will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
-    check_correctness: bool, optional
-        Whether check correctness after measurement. This will use llvm cpu target to
-        call your template and get the reference output.
-        This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -219,7 +213,6 @@ class RPCRunner(Runner):
         repeat=3,
         min_repeat_ms=0,
         cooldown_interval=0.1,
-        check_correctness=False,
         enable_cpu_cache_flush=False,
     ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
@@ -234,10 +227,7 @@ class RPCRunner(Runner):
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
 
-        self.ref_input = None
-        self.ref_output = None
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
-        self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
 
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
@@ -254,19 +244,6 @@ class RPCRunner(Runner):
                 "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
                 "and make sure you have free devices on the queue status."
             )
-
-        if self.check_correctness:
-            # use llvm cpu to generate a reference input/output
-            # this option works for tuning topi, but might not work for you custom op
-            with Target("llvm"):
-                s, arg_bufs = task.instantiate(task.config_space.get(0))
-            self.ref_input = [
-                np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype) for x in arg_bufs
-            ]
-            func = build(s, arg_bufs, "llvm")
-            tvm_buf = [nd.array(x) for x in self.ref_input]
-            func(*tvm_buf)
-            self.ref_output = [x.asnumpy() for x in tvm_buf]
 
     def get_build_kwargs(self):
         kwargs = {}
@@ -312,8 +289,6 @@ class RPCRunner(Runner):
                     self.min_repeat_ms,
                     self.cooldown_interval,
                     remote_args,
-                    self.ref_input,
-                    self.ref_output,
                     self.enable_cpu_cache_flush,
                 )
                 futures.append(ret)
@@ -357,10 +332,6 @@ class LocalRunner(RPCRunner):
         will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
-    check_correctness: bool, optional
-        Whether check correctness after measurement. This will use llvm cpu target to
-        call your template and get the reference output.
-        This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -380,7 +351,6 @@ class LocalRunner(RPCRunner):
         repeat=3,
         min_repeat_ms=0,
         cooldown_interval=0.1,
-        check_correctness=False,
         enable_cpu_cache_flush=False,
     ):
         super(LocalRunner, self).__init__(
@@ -394,7 +364,6 @@ class LocalRunner(RPCRunner):
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
             cooldown_interval=cooldown_interval,
-            check_correctness=check_correctness,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
         )
         self.tracker = None
@@ -512,8 +481,6 @@ def run_through_rpc(
     min_repeat_ms,
     cooldown_interval,
     remote_args,
-    ref_input=None,
-    ref_output=None,
     enable_cpu_cache_flush=False,
 ):
     """Run a generated library through rpc
@@ -544,10 +511,6 @@ def run_through_rpc(
         The cool down interval between two measurements
     remote_args: Tuple
         The argument for request_remote
-    ref_input: List of np.ndarray
-        The reference input used for checking correctness
-    ref_output: List of np.ndarray
-        The reference output used for checking correctness
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -592,20 +555,18 @@ def run_through_rpc(
             f_preproc=f_prepare,
         )
 
-        # set input
-        if ref_input:
-            args = [nd.array(x, ctx=ctx) for x in ref_input]
-        else:
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
-            args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
+        try:
+            random_fill = remote.get_function("tvm.contrib.random.random_fill")
+        except AttributeError:
+            raise AttributeError(
+                "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+            )
+        args = [nd.array(np.zeros(x[0], dtype=x[1]), ctx=ctx) for x in build_result.arg_info]
+        if "scatter" not in measure_input.task.name:
+            # the index tensor of scatter op cannot be randomly initialized
             for arg in args:
                 random_fill(arg)
-            ctx.sync()
+        ctx.sync()
 
         costs = time_f(*args).results
 
@@ -618,13 +579,6 @@ def run_through_rpc(
             costs = list(costs)
             costs.sort()
             costs = tuple(costs[1:-1])
-
-        # check correctness of output
-        if ref_output:
-            for expected, real in zip(ref_output, args):
-                if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                    logger.warning("Wrong Answer!")
-                    errno = MeasureErrorNo.WRONG_ANSWER
     except TVMError as exc:
         msg = str(exc)
         if "Stack trace returned" in msg:

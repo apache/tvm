@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
+import copy
 import warnings
 import numpy as np
 import tvm
@@ -167,7 +168,7 @@ def get_pad_pair(input1d, kernel1d, stride1d):
     return [pad_before, pad_after]
 
 
-def onnx_default_layout(dims):
+def onnx_default_layout(dims, op_name):
     if dims == 1:
         return "NCW"
     if dims == 2:
@@ -175,11 +176,11 @@ def onnx_default_layout(dims):
     if dims == 3:
         return "NCDHW"
 
-    msg = "Only 1D, 2D and 3D layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported for operator {}."
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
-def onnx_storage_order2layout(storage_order, dims=2):
+def onnx_storage_order2layout(storage_order, dims, op_name):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid("Mode of storage_order must be either 0 or 1")
@@ -191,7 +192,7 @@ def onnx_storage_order2layout(storage_order, dims=2):
     if dims == 3:
         return "NCDHW" if storage_order == 0 else "NDHWC"
 
-    msg = "Only 1D, 2D and 3D layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported for operator {}."
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
@@ -300,10 +301,10 @@ class Pool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2)
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
         return AttrCvt(
             op_name=dimension_picker(cls.name),
@@ -709,10 +710,10 @@ class LpPool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2)
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name="LpPool"
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name="LpPool")
 
         p = _expr.const(attr["p"], dtype)
         reci_p = _expr.const(1.0 / attr["p"], dtype)
@@ -1028,10 +1029,6 @@ class Upsample(OnnxOpConverter):
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode)
             )
 
-        if method == "nearest_neighbor":
-            align_corners = False
-        else:
-            align_corners = True
         # in 3d case, we use the purely static op
         if dims == 5:
             if isinstance(scales, _expr.Call):
@@ -1065,7 +1062,7 @@ class Upsample(OnnxOpConverter):
                 scale_w,
                 layout=layout,
                 method=method,
-                align_corners=align_corners,
+                align_corners=False,
             )
         return out
 
@@ -1111,17 +1108,22 @@ class Split(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        splits = attr.get("split", False)
-        if splits:
+        splits = attr.get("split", None)
+        if splits is not None:
+            indices = []
             attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
-                attr["indices_or_sections"].append(index)
+                indices.append(index)
         # When splits isnt specified divide evenly over axis.
         else:
-            attr["indices_or_sections"] = attr["tvm_custom"]["num_outputs"]
-        return AttrCvt("split", ignores=["split"])(inputs, attr, params)
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
 
 
 class Slice(OnnxOpConverter):
@@ -1227,7 +1229,9 @@ class GatherND(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.gather_nd(inputs[0], inputs[1])
+        indices_dims = len(infer_shape(inputs[1]))
+        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
+        return _op.gather_nd(inputs[0], indices)
 
 
 class Scatter(OnnxOpConverter):
@@ -1447,7 +1451,7 @@ class ArgMax(OnnxOpConverter):
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
-        return AttrCvt("argmax")(inputs, attr)
+        return _op.cast(AttrCvt("argmax")(inputs, attr), "int64")
 
 
 class ArgMin(OnnxOpConverter):
@@ -1458,7 +1462,7 @@ class ArgMin(OnnxOpConverter):
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
-        return AttrCvt("argmin")(inputs, attr)
+        return _op.cast(AttrCvt("argmin")(inputs, attr), "int64")
 
 
 class Softmax(OnnxOpConverter):
@@ -1539,15 +1543,6 @@ class Tile(Elemwise):
     """Operator converter for Tile"""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        if "repeats" not in attr:
-            raise tvm.error.OpAttributeInvalid(
-                'Attribute "repeats" should be set ' "for operator Tile."
-            )
-        reps = attr.pop("repeats")  # The number of times repeating the tensor data.
-        return _op.tile(inputs[0], reps)
-
-    @classmethod
     def _impl_v6(cls, inputs, attr, params):
         return _op.tile(inputs[0], inputs[1])
 
@@ -1565,34 +1560,26 @@ class Where(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        condition_shape = infer_shape(inputs[0])
-        x_shape = infer_shape(inputs[1])
-        y_shape = infer_shape(inputs[2])
+        condition_rank = len(infer_shape(inputs[0]))
+        x_rank = len(infer_shape(inputs[1]))
+        y_rank = len(infer_shape(inputs[2]))
+        ranks = [condition_rank, x_rank, y_rank]
 
-        # condition, x, and y can all be broadcasted.
-        # broadcast each of them to the longest shape.
-        # if two shapes have the same number of dimensions,
-        # try to choose the one that doesn't have "1" as
-        # a dimension.
-        shapes = [condition_shape, x_shape, y_shape]
-        shape_lens = [len(shape) for shape in shapes]
-        max_size = max(shape_lens)
-        max_size_idxs = [i for i, x in enumerate(shape_lens) if x == max_size]
-        broadcast_idx = max_size_idxs[0]
-        if len(max_size_idxs) > 1:
-            for idx in max_size_idxs:
-                if 1 not in shapes[idx]:
-                    broadcast_idx = idx
+        # If one rank is longer than others, then we can broadcast
+        # to that shape.
+        max_rank = max(ranks)
+        max_rank_idxs = [i for i, x in enumerate(ranks) if x == max_rank]
+        broadcast_shape = _op.shape_of(inputs[max_rank_idxs[0]])
+        # If two or more inputs have the same rank, compute the broadcast
+        # shape by taking the maximum value of each dimensions.
+        if len(max_rank_idxs) > 1:
+            for idx in max_rank_idxs:
+                broadcast_shape = _op.maximum(broadcast_shape, _op.shape_of(inputs[idx]))
 
-        broadcast_shape = shapes[broadcast_idx]
-
-        if condition_shape != broadcast_shape:
-            inputs[0] = _op.broadcast_to(inputs[0], broadcast_shape)
-        if x_shape != broadcast_shape:
-            inputs[1] = _op.broadcast_to(inputs[1], broadcast_shape)
-        if y_shape != broadcast_shape:
-            inputs[2] = _op.broadcast_to(inputs[2], broadcast_shape)
-        return _op.where(inputs[0], inputs[1], inputs[2])
+        condition = _op.broadcast_to(inputs[0], broadcast_shape)
+        x = _op.broadcast_to(inputs[1], broadcast_shape)
+        y = _op.broadcast_to(inputs[2], broadcast_shape)
+        return _op.where(condition, x, y)
 
 
 class Or(Elemwise):
@@ -2005,7 +1992,7 @@ class TopK(OnnxOpConverter):
         if largest == 0:
             raise ValueError("TVM only supports finding TopK largest elements")
 
-        return _op.topk(inputs[0], inputs[1], axis=axis)
+        return _op.topk(inputs[0], inputs[1], axis=axis, dtype="int64")
 
 
 class Range(OnnxOpConverter):
@@ -2046,7 +2033,7 @@ class RoiAlign(OnnxOpConverter):
         x = inputs[0]
         rois = inputs[1]
         batch_indices = inputs[2]
-        mode = attr.get("mode", "avg")
+        mode = attr.get("mode", b"avg")
         if mode != b"avg":
             raise ValueError("RoiAlign in Relay only uses avg mode")
         output_height = attr.get("output_height", 1)
@@ -2056,7 +2043,7 @@ class RoiAlign(OnnxOpConverter):
         spatial_scale = attr.get("spatial_scale", 1.0)
 
         batch_indices = _op.expand_dims(batch_indices, axis=1, num_newaxis=1)
-        batch_indices = _op.cast(batch_indices, infer_type(rois).type_annotation.dtype)
+        batch_indices = _op.cast(batch_indices, infer_type(rois).checked_type.dtype)
         rois = _op.concatenate([batch_indices, rois], 1)
 
         return _vision.roi_align(
@@ -2074,6 +2061,10 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "min" not in attr:
+            attr["min"] = -np.inf
+        if "max" not in attr:
+            attr["max"] = np.inf
         return Clip.convert_attributes(inputs, attr, params)
 
     @classmethod
@@ -2109,7 +2100,9 @@ class Loop(OnnxOpConverter):
         cond = inputs[1]
         loop_deps = inputs[2:]
         num_deps = len(loop_deps)
-        body = attr["body"]
+        # Create a copy of the body function to prevent the original
+        # from being modified.
+        body = copy.copy(attr["body"])
         iter_dtype = infer_type(max_loop_count).checked_type.dtype
 
         # Determine what condition mode we're in.
@@ -2146,6 +2139,8 @@ class Loop(OnnxOpConverter):
             checked_type = infer_type(val)
             if hasattr(checked_type, "type_annotation"):
                 checked_type = checked_type.type_annotation
+            if hasattr(checked_type, "checked_type"):
+                checked_type = checked_type.checked_type
             shape = get_const_tuple(checked_type.shape)
             actual_shape = []
             for dim in shape:
@@ -2181,8 +2176,14 @@ class Loop(OnnxOpConverter):
         scan_output_init = []
         for i in range(num_scan_outputs):
             name, shape, dtype, _ = get_info(body.output[i + 1 + num_deps])
-            scan_output_vars.append(_expr.var(name, shape=([_ty.Any()] + shape), dtype=dtype))
-            scan_output_init.append(_op.reshape(_expr.const([]), [0] + shape))
+            if dtype == "float":
+                dtype = "float32"
+            scan_output_vars.append(
+                _expr.var(name, shape=([_ty.Any()] * (len(shape) + 1)), dtype=dtype)
+            )
+            scan_output_init.append(
+                _op.reshape(_expr.const(np.array([]).astype(dtype)), [0] + [1] * len(shape))
+            )
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2215,17 +2216,26 @@ class Loop(OnnxOpConverter):
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
             new_scan_outputs = [loop_outputs[i] for i in range(1 + num_deps, len(loop_outputs))]
 
+            # Add new scan outputs to tracking
+            combined_scan_outputs = []
+            for i, scan in enumerate(scan_outputs):
+                rank = len(infer_shape(scan)) - 1
+                new_scan = new_scan_outputs[i]
+                expand_scan = _op.expand_dims(new_scan, axis=0)
+                # For non scalar outputs we need to broadcast the initial value.
+                if rank > 0:
+                    new_scan_shape = _op.shape_of(new_scan, dtype=iter_dtype)
+                    scan_broadcast = _op.concatenate(
+                        [_op.reshape(loop_count, [1]), new_scan_shape], axis=0
+                    )
+                    scan = _op.broadcast_to(scan, scan_broadcast)
+                combined_scan = _op.concatenate([scan, expand_scan], axis=0)
+                combined_scan_outputs.append(combined_scan)
+
             # Increment counter.
             if max_loop_count is not None:
                 incr = _expr.const(1, dtype=iter_dtype)
                 loop_count = loop_count + incr
-
-            # Add new scan outputs to tracking
-            combined_scan_outputs = []
-            for i, scan in enumerate(scan_outputs):
-                new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
-                combined_scan = _op.concatenate([scan, new_scan], axis=0)
-                combined_scan_outputs.append(combined_scan)
 
             # Pack loop outputs for next iteration
             # [iter_count, cond, loop_deps, loop_scans]
@@ -2626,12 +2636,12 @@ def _get_convert_map(opset):
         "Greater": Greater.get_converter(opset),
         "Less": Less.get_converter(opset),
         "Log": Renamer("log"),
-        "ACos": Renamer("acos"),
-        "ACosh": Renamer("acosh"),
-        "ASin": Renamer("asin"),
-        "ASinh": Renamer("asinh"),
-        "ATan": Renamer("atan"),
-        "ATanh": Renamer("atanh"),
+        "Acos": Renamer("acos"),
+        "Acosh": Renamer("acosh"),
+        "Asin": Renamer("asin"),
+        "Asinh": Renamer("asinh"),
+        "Atan": Renamer("atan"),
+        "Atanh": Renamer("atanh"),
         "Cos": Renamer("cos"),
         "Cosh": Renamer("cosh"),
         "Sin": Renamer("sin"),

@@ -1758,19 +1758,21 @@ def test_forward_batch_matmul():
 # ----------------------------------
 
 
-def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=False):
+def _test_sparse_dense_matmul(indices, values, A_inp_shape, B_inp_shape, dtype, flip=False):
     """ One iteration of sparse_dense_matmul """
 
-    # TODO(ANSHUMAN87): Support adjoint options too
-    for adjoint_a in [False]:
-        for adjoint_b in [False]:
+    for adjoint_a in [False, True]:
+        for adjoint_b in [False, True]:
+            A_shape = A_inp_shape[::-1] if adjoint_a else A_inp_shape
+            B_shape = B_inp_shape[::-1] if adjoint_b else B_inp_shape
+
             with tf.Graph().as_default():
                 A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
                 B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
 
                 if flip:
                     result = tf.sparse.sparse_dense_matmul(
-                        B, A_sp, adjoint_a=adjoint_a, adjoint_b=adjoint_b
+                        B, A_sp, adjoint_a=adjoint_b, adjoint_b=adjoint_a
                     )
                 else:
                     result = tf.sparse.sparse_dense_matmul(
@@ -1779,8 +1781,7 @@ def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=Fal
 
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
-                # TODO(ANSHUMAN87): There is an issue in cuda scheduling for csr, work in progress
-                compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+                compare_tf_with_tvm([B_np], [B.name], result.name)
 
 
 def test_forward_sparse_dense_matmul():
@@ -4177,6 +4178,10 @@ def test_forward_isinf():
 
 def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
+
+
+def test_forward_isnan():
+    _verify_infiniteness_ops(tf.is_nan, "isnan")
 
 
 def _test_spop_placeholder_without_shape_info():

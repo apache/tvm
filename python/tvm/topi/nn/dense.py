@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM operator fully connected compute."""
+import tvm
 from tvm import te, auto_scheduler
 from .. import tag
 
@@ -80,3 +81,26 @@ def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layo
         matmul = auto_scheduler.rewrite_compute_body(matmul, auto_scheduler_rewritten_layout)
 
     return matmul
+
+
+@tvm.target.generic_func
+def dense_legalize(attrs, inputs, types):
+    """Legalizes dense op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current dense
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    # pylint: disable=unused-argument
+    return None

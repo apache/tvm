@@ -509,3 +509,8 @@ release_and_return : {
 }
   return err;
 }
+
+// Default implementation, overridden by the platform runtime.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  return kTvmErrorFunctionCallNotImplemented;
+}

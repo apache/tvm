@@ -17,9 +17,9 @@
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
 
+from ..expr import Constant, Expr, TupleWrapper
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import TupleWrapper, Expr, Constant
 
 
 def sort(data, axis=-1, is_ascend=1):

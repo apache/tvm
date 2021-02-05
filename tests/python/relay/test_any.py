@@ -54,7 +54,6 @@ def check_result(
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
-            print(tgt)
             if disable_targets and tgt in disable_targets:
                 continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
@@ -120,6 +119,7 @@ def test_any_elemwise():
     verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
     verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
     verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
+    verify_any_elemwise((relay.Any(),), (3,), relay.round, np.round)
 
 
 @tvm.testing.uses_gpu
@@ -845,7 +845,7 @@ def test_any_softmax():
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
 
 
-def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
+def verify_any_topk(data_shape, kval, np_dshape, dtype, ret_type="indices", const_k=False):
     mod = tvm.IRModule()
     data = relay.var("data", shape=data_shape, dtype=dtype)
     np_data = np.random.uniform(size=np_dshape).astype(dtype)
@@ -857,7 +857,9 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
         k = relay.var("k", shape=(), dtype="int32")
         args = [data, k]
         in_vals = [np_data, kval]
-    out = relay.topk(data, k, ret_type="indices")
+    out = relay.topk(data, k, ret_type=ret_type)
+    if ret_type == "both":
+        out = out[0]
     mod["main"] = relay.Function(args, out)
 
     sorted = np.argsort(-np_data)
@@ -873,7 +875,56 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
-    verify_any_topk(any_dims(2), 3, (6, 3), "float32", True)
+    verify_any_topk(any_dims(2), 3, (6, 3), "float32", const_k=True)
+    verify_any_topk(any_dims(1), 0, (0,), "float32", ret_type="both")
+
+
+def verify_any_get_valid_counts(num_anchor_real, dtype, targets=None):
+    mod = tvm.IRModule()
+    batch_size = 1
+    num_anchor = relay.Any()
+    data = relay.var("data", shape=(batch_size, num_anchor, 5), dtype=dtype)
+    np_data = np.random.uniform(size=(batch_size, num_anchor_real, 5)).astype(dtype)
+
+    np_out1 = np.zeros(shape=(batch_size,))
+    np_out2 = np.zeros(shape=np_data.shape).astype(dtype)
+    np_out3 = np.zeros(shape=(batch_size, num_anchor_real))
+    score_threshold = 0.95
+
+    for i in range(batch_size):
+        np_out1[i] = 0
+        inter_idx = 0
+        for j in range(num_anchor_real):
+            score = np_data[i, j, 0]
+            if score > score_threshold:
+                for k in range(5):
+                    np_out2[i, inter_idx, k] = np_data[i, j, k]
+                np_out1[i] += 1
+                np_out3[i, inter_idx] = j
+                inter_idx += 1
+            if j >= np_out1[i]:
+                for k in range(5):
+                    np_out2[i, j, k] = -1.0
+                np_out3[i, j] = -1
+
+    z = relay.vision.get_valid_counts(data, score_threshold, 0, score_index=0)
+
+    mod["main"] = relay.Function([data], z.astuple())
+
+    check_result([np_data], mod, [np_out1, np_out2, np_out3], targets=targets)
+
+
+@tvm.testing.uses_gpu
+def test_any_get_valid_counts():
+    verify_any_get_valid_counts(10, "float32")
+    # opencl seems to have issues with empty size buffer
+    # Check failed: err_code == CL_SUCCESS == false: OpenCL Error,
+    # code=-61: CL_INVALID_BUFFER_SIZE
+    targets = []
+    for tgt, ctx in tvm.testing.enabled_targets():
+        if "opencl" not in tgt:
+            targets.append((tgt, ctx))
+    verify_any_get_valid_counts(0, "float32", targets=targets)
 
 
 @tvm.testing.uses_gpu

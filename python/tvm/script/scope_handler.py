@@ -35,7 +35,7 @@ class ScopeHandler:
     def signature(self):
         return "tir." + self.func.__name__, get_param_list(self.func)
 
-    def enter_scope(self, node, context):
+    def enter_scope(self, node, context, arg_list, span):
         pass
 
     def exit_scope(self, node, context, arg_list, span):
@@ -86,7 +86,7 @@ class Allocate(WithScopeHandler):
         super().__init__(allocate, concise_scope=True, def_symbol=True)
         self.buffer_var = None
 
-    def enter_scope(self, node, context):
+    def enter_scope(self, node, context, arg_list, span):
         # define buffer vars in symbol table
         if isinstance(node, ast.With):
             names = WithScopeHandler.get_optional_var_names(node, context)
@@ -98,7 +98,12 @@ class Allocate(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        self.buffer_var = tvm.te.var(name, "handle", span=from_synr_span(node.lhs.id.span))
+        def setup_buffer_var(extents, dtype, scope, condition=True, span=None):
+            """Setup buffer var for a given type."""
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
+            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
+
+        setup_buffer_var(*arg_list, span=from_synr_span(node.lhs.id.span))
         context.update_symbol(name, self.buffer_var)
 
 
@@ -187,7 +192,7 @@ class ForScopeHandler(ScopeHandler):
         super().__init__(func)
         self.loop_vars = None
 
-    def enter_scope(self, node, context):
+    def enter_scope(self, node, context, arg_list, span):
         assert isinstance(node, ast.For)
 
         loop_var_names = list()
@@ -221,7 +226,7 @@ class Serial(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var", span)
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, self.body, span=span)
 
         super().__init__(serial)
 
@@ -236,7 +241,7 @@ class Parallel(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, self.body, span=span)
 
         super().__init__(parallel)
 
@@ -251,7 +256,7 @@ class Vectorized(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, self.body, span=span)
 
         super().__init__(vectorized)
 
@@ -266,6 +271,6 @@ class Unroll(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, self.body, span=span)
 
         super().__init__(unroll)
