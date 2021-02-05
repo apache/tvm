@@ -71,14 +71,13 @@ Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool overri
 /**********  Register Target tags  ***********/
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
-  TVM_REGISTER_TARGET_TAG(Name)                                     \
-    .set_config({                                                 \
-        {"kind", String("cuda")},                                 \
-        {"arch", String(Arch)},                                   \
-        {"shared_memory_per_block", Integer(SharedMem)},          \
-        {"registers_per_block", Integer(RegPerBlock)},            \
-        {"max_threads_per_block", Integer(1024)},                 \
-        {"thread_warp_size", Integer(32)},                        \
+  TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
+      {"kind", String("cuda")},                                   \
+      {"arch", String(Arch)},                                     \
+      {"shared_memory_per_block", Integer(SharedMem)},            \
+      {"registers_per_block", Integer(RegPerBlock)},              \
+      {"max_threads_per_block", Integer(1024)},                   \
+      {"thread_warp_size", Integer(32)},                          \
   });
 
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
