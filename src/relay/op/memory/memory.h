@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/op/memory/memory.h
- * \brief Operators for manifest shape-aware memory allocation in Relay.
+ * \brief Operators for memory related operations in Relay.
  */
 
 #ifndef TVM_RELAY_OP_MEMORY_H_
@@ -30,7 +30,11 @@
 namespace tvm {
 namespace relay {
 
+Expr AllocStorage(Expr size, Expr alignment, TVMContext ctx, DataType dtype_hint);
 Expr DeviceCopy(Expr data, int src_dev_type, int dst_dev_type);
+Expr ToTupleType(const Type& ty, const std::vector<Expr>& exprs);
+std::vector<Expr> FromTupleType(const Type& type, const Expr& expr);
+std::vector<TensorType> FlattenTupleType(const Type& type);
 
 }  // namespace relay
 }  // namespace tvm

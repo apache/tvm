@@ -54,20 +54,23 @@ RELAY_REGISTER_OP("vm.shape_of")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
-TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed([](Expr expr) {
+Expr ShapeOf(Expr expr) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = DataType::Int(64);
   static const Op& op = Op::Get("vm.shape_of");
   return Call(op, {expr}, Attrs(attrs), {});
-});
+}
 
-TVM_REGISTER_GLOBAL("relay.op.vm.shape_func")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
-      static const Op& op = Op::Get("vm.shape_func");
-      auto attrs = make_object<ShapeFuncAttrs>();
-      attrs->is_input = is_input;
-      return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
-    });
+TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed(ShapeOf);
+
+Expr ShapeFunc(Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
+  static const Op& op = Op::Get("vm.shape_func");
+  auto attrs = make_object<ShapeFuncAttrs>();
+  attrs->is_input = is_input;
+  return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vm.shape_func").set_body_typed(ShapeFunc);
 
 bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
@@ -215,13 +218,14 @@ RELAY_REGISTER_OP("vm.reshape_tensor")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
-TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor")
-    .set_body_typed([](Expr data, Expr shape, Array<PrimExpr> newshape) {
-      static const Op& op = Op::Get("vm.reshape_tensor");
-      auto attrs = make_object<ReshapeTensorAttrs>();
-      attrs->newshape = std::move(newshape);
-      return Call(op, {data, shape}, Attrs(attrs), {});
-    });
+Expr ReshapeTensor(Expr data, Expr shape, Array<PrimExpr> newshape) {
+  static const Op& op = Op::Get("vm.reshape_tensor");
+  auto attrs = make_object<ReshapeTensorAttrs>();
+  attrs->newshape = std::move(newshape);
+  return Call(op, {data, shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor").set_body_typed(ReshapeTensor);
 
 }  // namespace relay
 }  // namespace tvm
