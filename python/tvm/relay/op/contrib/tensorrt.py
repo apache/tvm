@@ -615,7 +615,7 @@ def layout_transform_annotate_fn(expr):  # pylint: disable=unused-variable
 @_register_external_dynamic_check_func("reshape")
 def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if reshape is supported by TensorRT."""
-
+    print("Inside Here")
     attrs, args = expr.attrs, expr.args
     if args[0].checked_type.dtype != "float32":
         logger.info("Only float32 inputs are supported for TensorRT.")
@@ -635,20 +635,23 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         if dynamic_reshape:
             # Make sure that the batch dim is unmodified.
             if int(new_shape[0]) < 0:
-                for shape_val, new_shape_val in enumerate(shape[1:], new_shape[1:]):
+                for shape_val, new_shape_val in zip(shape[1:], new_shape[1:]):
                     if not (
-                        isinstance(shape_val, int)
-                        and isinstance(new_shape_val, int)
+                        isinstance(shape_val, (tvm.tir.expr.IntImm, int))
+                        and isinstance(new_shape_val, (tvm.tir.expr.IntImm, int))
                         and int(shape_val) == int(new_shape_val)
                     ):
-                        return False
+                        print("HERE2")
+                        return True
             elif int(new_shape[0]) > 0:
                 if not (
-                    isinstance(shape[0], int)
-                    and isinstance(new_shape[0], int)
+                    isinstance(shape[0], (tvm.tir.expr.IntImm, int))
+                    and isinstance(new_shape[0], (tvm.tir.expr.IntImm, int))
                     and int(shape[0]) == int(new_shape[0])
                 ):
-                    return False
+                    print("vhn")
+                    return True
+            print("HERE")
             return True
         shape = list(map(int, shape))
         new_shape = list(map(int, new_shape))

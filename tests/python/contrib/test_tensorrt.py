@@ -631,6 +631,40 @@ def test_reshape():
     run_and_verify_func(get_graph((1, 1, 2, 3), (1, 6)))
 
 
+def test_dynamic_reshape():
+    if skip_codegen_test():
+        return
+
+    def test_run(batches_to_test, x_shape, new_shape):
+        x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
+        result_arr = [{} for _ in range(len(batches_to_test))]
+        for use_trt in [True]:
+            x = relay.var("x", shape=x_shape, dtype="float32")
+            out = relay.reshape(x, new_shape)
+            f = relay.Function([x], out)
+            mod = tvm.IRModule()
+            mod["main"] = f
+            if use_trt:
+                mod, _ = tensorrt.partition_for_tensorrt(mod, params={})
+                print(mod)
+            if not skip_runtime_test():
+                with relay.build_config(opt_level=3):
+                    relay_exec = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
+
+                for i, batch_size in enumerate(batches_to_test):
+                    result_arr[i][use_trt] = relay_exec.evaluate()(x_data[:batch_size, ...])
+                    print(x_data[:batch_size, ...].shape, result_arr[i][use_trt].shape)
+
+        if not skip_runtime_test():
+            for i in range(len(batches_to_test)):
+                assert_result_dict_holds(result_arr[i])
+
+    batches_to_test = [1, 1, 0, 2, 3, 0, 1, 3, 2]
+    x_shape = (relay.Any(), 3, 2, 3)
+    new_shape = (-1, 1, 2, 3)
+    test_run(batches_to_test, x_shape, new_shape)
+
+
 def test_transpose():
     def get_graph(x_shape, order):
         x = relay.var("x", shape=(x_shape), dtype="float32")
@@ -1231,4 +1265,6 @@ def test_maskrcnn_resnet50() -> None:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # test_reshape()
+    test_dynamic_reshape()
+    # pytest.main([__file__])
