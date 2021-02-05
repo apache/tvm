@@ -91,8 +91,8 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType>
-bool DenseWeightTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                             const TypeReporter& reporter) {
+bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();

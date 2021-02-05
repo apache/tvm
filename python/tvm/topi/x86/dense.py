@@ -32,7 +32,7 @@ from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
 
-def _schedule_dense_weight_transform_template(cfg, s, C, O):
+def _schedule_dense_pack_template(cfg, s, C, O):
     A, packedB = s[C].op.input_tensors
 
     CC = s.cache_write(C, "global")
@@ -99,7 +99,7 @@ def _schedule_dense_nopack_template(cfg, s, C):
     return s
 
 
-def _default_dense_weight_transform_config(cfg, M, N, K):
+def _default_dense_pack_config(cfg, M, N, K):
     # Generate default schedule for dynamic shape.
     if isinstance(M, tvm.tir.Var):
         M = 16
@@ -201,16 +201,8 @@ def schedule_dense_nopack(cfg, outs):
     return s
 
 
-def dense_pack(data, weight, bias=None, out_dtype=None):
-    return dense_weight_transform(data, weight, bias, out_dtype)
-
-
-def schedule_dense_pack(outs):
-    return schedule_dense_weight_transform(outs)
-
-
-@autotvm.register_topi_compute("dense_weight_transform.x86")
-def dense_weight_transform(cfg, data, weight, bias=None, out_dtype=None):
+@autotvm.register_topi_compute("dense_pack.x86")
+def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     """Compute dense with transformed weight."""
     if out_dtype is None:
         out_dtype = data.dtype
@@ -226,7 +218,7 @@ def dense_weight_transform(cfg, data, weight, bias=None, out_dtype=None):
     cfg.define_split("tile_k", K, num_outputs=2)
     cfg.define_split("tile_inner", M, num_outputs=2, filter=lambda y: y.size[-1] <= 16)
     if cfg.is_fallback:
-        _default_dense_weight_transform_config(cfg, M, N, K)
+        _default_dense_pack_config(cfg, M, N, K)
 
     if len(weight.shape) == 2:
         packw_bn = cfg["tile_x"].size[-1]
@@ -251,21 +243,21 @@ def dense_weight_transform(cfg, data, weight, bias=None, out_dtype=None):
             * packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
             axis=k,
         ),
-        tag="dense_weight_transform",
+        tag="dense_pack",
     )
     if bias is not None:
         C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
 
 
-@autotvm.register_topi_schedule("dense_weight_transform.x86")
-def schedule_dense_weight_transform(cfg, outs):
-    """Create the schedule for dense_weight_transform"""
+@autotvm.register_topi_schedule("dense_pack.x86")
+def schedule_dense_pack(cfg, outs):
+    """Create the schedule for dense_pack"""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "dense_weight_transform" in op.tag:
-            _schedule_dense_weight_transform_template(cfg, s, op.output(0), outs[0])
+        if "dense_pack" in op.tag:
+            _schedule_dense_pack_template(cfg, s, op.output(0), outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
     return s

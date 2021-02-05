@@ -107,8 +107,8 @@ def dense_legalize(attrs, inputs, types):
     return None
 
 
-def dense_weight_transform(data, weight, bias=None, out_dtype=None):
-    """The default implementation of dense_weight_transform in topi.
+def dense_pack(data, weight, bias=None, out_dtype=None):
+    """The default implementation of dense_pack in topi.
 
     Parameters
     ----------
@@ -145,8 +145,8 @@ def dense_weight_transform(data, weight, bias=None, out_dtype=None):
             * weight[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
             axis=k,
         ),
-        name="T_dense_weight_transform",
-        tag="dense_weight_transform",
+        name="T_dense_pack",
+        tag="dense_pack",
     )
     if bias is not None:
         C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)

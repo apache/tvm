@@ -731,15 +731,15 @@ def dense_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-@override_native_generic_func("dense_weight_transform_strategy")
-def dense_weight_transform_strategy(attrs, inputs, out_type, target):
-    """dense_weight_transform generic strategy"""
-    logger.warning("dense_weight_transform is not optimized for this platform.")
+@override_native_generic_func("dense_pack_strategy")
+def dense_pack_strategy(attrs, inputs, out_type, target):
+    """dense_pack generic strategy"""
+    logger.warning("dense_pack is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_dense(topi.nn.dense_weight_transform),
+        wrap_compute_dense(topi.nn.dense_pack),
         wrap_topi_schedule(topi.generic.schedule_dense),
-        name="dense_weight_transform.generic",
+        name="dense_pack.generic",
     )
     return strategy
 

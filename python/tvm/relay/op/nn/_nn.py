@@ -84,9 +84,9 @@ def alter_op_layout_dense(attrs, inputs, tinfos, out_type):
     return topi.nn.dense_alter_layout(attrs, inputs, tinfos, out_type)
 
 
-# dense_weight_transform
-reg.register_strategy("nn.contrib_dense_weight_transform", strategy.dense_weight_transform_strategy)
-reg.register_pattern("nn.contrib_dense_weight_transform", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+# dense_pack
+reg.register_strategy("nn.contrib_dense_pack", strategy.dense_pack_strategy)
+reg.register_pattern("nn.contrib_dense_pack", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # fifo_buffer

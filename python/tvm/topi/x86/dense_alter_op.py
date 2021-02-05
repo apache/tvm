@@ -21,7 +21,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm import autotvm
-from .dense import _default_dense_weight_transform_config
+from .dense import _default_dense_pack_config
 from ..utils import get_const_tuple
 from ..nn import dense_alter_layout
 
@@ -42,9 +42,9 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     if workload:
         cfg = dispatch_ctx.query(target, workload)
         topi_impl = workload[0]
-        if topi_impl == "dense_weight_transform.x86":
+        if topi_impl == "dense_pack.x86":
             if cfg.is_fallback:
-                _default_dense_weight_transform_config(cfg, M, N, K)
+                _default_dense_pack_config(cfg, M, N, K)
             packw_bn = cfg["tile_x"].size[-1]
             weight_layout = "NK%dn" % packw_bn
             new_weight = te.placeholder(
@@ -63,8 +63,6 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
             )
             dispatch_ctx.update(target, new_workload, cfg)
             weight_transform = relay.layout_transform(inputs[1], "NK", weight_layout)
-            return relay.nn.contrib_dense_weight_transform(
-                inputs[0], weight_transform, None, out_dtype
-            )
+            return relay.nn.contrib_dense_pack(inputs[0], weight_transform, None, out_dtype)
 
     return None
