@@ -225,7 +225,7 @@ def test_unbound_cross_scope():
         }
     }
     """
-  prog = tvm.parser.fromtext(source)
+  prog = tvm.parser.fromtext(source)["main"]
   check_basic_block_normal_form(prog)
 
 
