@@ -177,6 +177,7 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
 def test_load_model__pth(pytorch_resnet18):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
+    pytest.importorskip("torchvision")
 
     mod, params = tvmc.frontends.load_model(
         pytorch_resnet18, shape_dict={"input": [1, 3, 224, 224]}
