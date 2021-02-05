@@ -476,6 +476,10 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
     }
   }
 }
+
+void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
+                       std::function<void(const LetNode*)> post_visit);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_FUNCTOR_H_

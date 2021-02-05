@@ -379,6 +379,33 @@ inline const char* ArgTypeCode2Str(int type_code);
  */
 template <typename T>
 struct ObjectTypeChecker {
+  /*!
+   * \brief Check if an object matches the template type and return the
+   *        mismatched type if it exists.
+   * \param ptr The object to check the type of.
+   * \return An Optional containing the actual type of the pointer if it does not match the
+   *         template type. If the Optional does not contain a value, then the types match.
+   */
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    using ContainerType = typename T::ContainerType;
+    if (ptr == nullptr) {
+      if (T::_type_is_nullable) {
+        return NullOpt;
+      } else {
+        return String("nullptr");
+      }
+    }
+    if (ptr->IsInstance<ContainerType>()) {
+      return NullOpt;
+    } else {
+      return String(ptr->GetTypeKey());
+    }
+  }
+  /*!
+   * \brief Check if an object matches the template type.
+   * \param ptr The object to check the type of.
+   * \return Whether or not the template type matches the objects type.
+   */
   static bool Check(const Object* ptr) {
     using ContainerType = typename T::ContainerType;
     if (ptr == nullptr) return T::_type_is_nullable;
@@ -388,6 +415,40 @@ struct ObjectTypeChecker {
     using ContainerType = typename T::ContainerType;
     return ContainerType::_type_key;
   }
+};
+
+// Additional overloads for PackedFunc checking.
+template <typename T>
+struct ObjectTypeChecker<Array<T>> {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    if (ptr == nullptr) {
+      return NullOpt;
+    }
+    if (!ptr->IsInstance<ArrayNode>()) {
+      return String(ptr->GetTypeKey());
+    }
+    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
+    for (size_t i = 0; i < n->size(); i++) {
+      const ObjectRef& p = (*n)[i];
+      Optional<String> check_subtype = ObjectTypeChecker<T>::CheckAndGetMismatch(p.get());
+      if (check_subtype.defined()) {
+        return String("Array[index " + std::to_string(i) + ": " + check_subtype.value() + "]");
+      }
+    }
+    return NullOpt;
+  }
+  static bool Check(const Object* ptr) {
+    if (ptr == nullptr) return true;
+    if (!ptr->IsInstance<ArrayNode>()) return false;
+    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
+    for (const ObjectRef& p : *n) {
+      if (!ObjectTypeChecker<T>::Check(p.get())) {
+        return false;
+      }
+    }
+    return true;
+  }
+  static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
 };
 
 /*!
@@ -1499,15 +1560,15 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
   if (type_code_ == kTVMObjectHandle) {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
-    CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
-        << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName() << " but got "
-        << ptr->GetTypeKey();
+    Optional<String> checked_type = ObjectTypeChecker<TObjectRef>::CheckAndGetMismatch(ptr);
+    ICHECK(!checked_type.defined()) << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
+                                    << ", but got " << checked_type.value();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (type_code_ == kTVMObjectRValueRefArg) {
     Object* ptr = *static_cast<Object**>(value_.v_handle);
-    CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
-        << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName() << " but got "
-        << ptr->GetTypeKey();
+    Optional<String> checked_type = ObjectTypeChecker<TObjectRef>::CheckAndGetMismatch(ptr);
+    ICHECK(!checked_type.defined()) << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
+                                    << ", but got " << checked_type.value();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (std::is_base_of<ContainerType, NDArray::ContainerType>::value &&
              type_code_ == kTVMNDArrayHandle) {

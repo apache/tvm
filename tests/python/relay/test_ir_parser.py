@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
-from tvm import te
 from tvm import relay
 import tvm.relay.testing
 import pytest
 from numpy import isclose
 from typing import Union
-from functools import wraps
 
 
 SEMVER = '#[version = "0.0.5"]\n'
@@ -908,6 +908,16 @@ def test_load_prelude():
     mod = tvm.IRModule()
     mod.import_from_std("prelude.rly")
     tvm.parser.parse(mod.astext())
+
+
+def test_tokenize_inf():
+    x = relay.var("x", shape=(3, 4), dtype="float32")
+    y = relay.clip(x, -np.inf, np.inf)
+
+    f = relay.Function([x], y)
+    mod = tvm.IRModule.from_expr(f)
+
+    mod = relay.transform.AnnotateSpans()(mod)
 
 
 if __name__ == "__main__":

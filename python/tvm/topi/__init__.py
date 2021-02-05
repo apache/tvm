@@ -41,6 +41,7 @@ from .scatter import *
 from .scatter_add import *
 from .argwhere import *
 from .cumsum import *
+from .einsum import *
 from . import generic
 from . import nn
 from . import x86
