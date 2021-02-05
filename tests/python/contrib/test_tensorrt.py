@@ -1332,5 +1332,4 @@ def test_maskrcnn_resnet50() -> None:
 
 
 if __name__ == "__main__":
-    test_dynamic_reshape()
-    # pytest.main([__file__])
+    pytest.main([__file__])
