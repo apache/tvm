@@ -84,8 +84,9 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
         // filter out exprs whose scope do not matter
         Expr expr = node_to_expr[n];
         if (!expr.as<OpNode>()) {
-          // only variables can be used across scope boundaries
-          if (s != original_s || (crosses_scopes && !expr.as<VarNode>())) {
+          // only variables and constants can be used across scope boundaries
+          bool must_lift = !expr.as<VarNode>() && !expr.as<ConstantNode>();
+          if (s != original_s || (crosses_scopes && must_lift)) {
             lifted_exprs.insert(expr);
           }
         }
