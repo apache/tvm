@@ -243,7 +243,7 @@ class DialectRewriter : public ExprMutator {
 
   Expr ComputeStorageInRelay(const Expr& shape, const TensorType& type) const {
     auto dtype = DataType(type->dtype);
-    Expr els = Prod(shape, {}, false, false);
+    Expr els = Prod(shape, Array<Integer>(nullptr), false, false);
     Expr num = MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
     Expr add = Add(num, MakeConstantScalar(DataType::Int(64), 7));
     Expr div = MakeConstantScalar(DataType::Int(64), 8);

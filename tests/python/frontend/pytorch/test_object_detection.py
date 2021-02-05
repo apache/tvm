@@ -34,7 +34,7 @@ from tvm.contrib.download import download
 import torch
 import torchvision
 
-in_size = 300
+in_size = 150
 
 
 def process_image(img):
@@ -162,3 +162,8 @@ def test_detection_models():
     # Results should be equivalent after rewriting
     for res1, res2 in zip(tvm_res, tvm_res_after_rewrite):
         tvm.testing.assert_allclose(res1.asnumpy(), res2.asnumpy())
+
+    print("ok")
+
+
+test_detection_models()

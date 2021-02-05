@@ -22,8 +22,10 @@
  * \brief Operators for memory related operations in Relay.
  */
 
-#ifndef TVM_RELAY_OP_MEMORY_H_
-#define TVM_RELAY_OP_MEMORY_H_
+#ifndef TVM_RELAY_OP_MEMORY_MEMORY_H_
+#define TVM_RELAY_OP_MEMORY_MEMORY_H_
+
+#include <vector>
 
 #include "tvm/relay/expr.h"
 
@@ -41,4 +43,4 @@ std::vector<TensorType> FlattenTupleType(const Type& type);
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_OP_MEMORY_H_
+#endif  // TVM_RELAY_OP_MEMORY_MEMORY_H_

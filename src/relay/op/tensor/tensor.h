@@ -21,8 +21,8 @@
  * \file tensor.h
  * \brief Declarations for tensor operations.
  */
-#ifndef TVM_RELAY_OP_TENSOR_H_
-#define TVM_RELAY_OP_TENSOR_H_
+#ifndef TVM_RELAY_OP_TENSOR_TENSOR_H_
+#define TVM_RELAY_OP_TENSOR_TENSOR_H_
 
 #include "tvm/relay/expr.h"
 
@@ -34,4 +34,4 @@ Expr Prod(Expr data, Array<Integer> axis, bool keepdims, bool exclude);
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_OP_TENSOR_H_
+#endif  // TVM_RELAY_OP_TENSOR_TENSOR_H_
