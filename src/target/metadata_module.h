@@ -43,4 +43,4 @@ runtime::Module CreateMetadataModule(
 }  // namespace codegen
 }  // namespace tvm
 
-#endif
+#endif  // TVM_TARGET_METADATA_MODULE_H_

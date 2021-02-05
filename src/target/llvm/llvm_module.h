@@ -22,6 +22,9 @@
  * \brief Declares top-level shared functions related to the LLVM codegen.
  */
 
+#ifndef TVM_TARGET_LLVM_LLVM_MODULE_H_
+#define TVM_TARGET_LLVM_LLVM_MODULE_H_
+
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
@@ -37,3 +40,5 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 }  // namespace tvm
 
 #endif  // TVM_LLVM_VERSION
+
+#endif  // TVM_TARGET_LLVM_LLVM_MODULE_H_
