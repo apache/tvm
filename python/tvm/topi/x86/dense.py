@@ -101,11 +101,11 @@ def _schedule_dense_nopack_template(cfg, s, C):
 
 def _default_dense_pack_config(cfg, M, N, K):
     # Generate default schedule for dynamic shape.
-    if isinstance(M, tvm.tir.Var):
+    if isinstance(M, (tvm.tir.Var, tvm.tir.Any)):
         M = 16
-    if isinstance(N, tvm.tir.Var):
+    if isinstance(N, (tvm.tir.Var, tvm.tir.Any)):
         N = 16
-    if isinstance(K, tvm.tir.Var):
+    if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
     vec_width = get_fp32_len()
@@ -139,11 +139,11 @@ def _default_dense_pack_config(cfg, M, N, K):
 
 def _default_dense_nopack_config(cfg, M, N, K):
     # Generate default schedule for dynamic shape.
-    if isinstance(M, tvm.tir.Var):
+    if isinstance(M, (tvm.tir.Var, tvm.tir.Any)):
         M = 16
-    if isinstance(N, tvm.tir.Var):
+    if isinstance(N, (tvm.tir.Var, tvm.tir.Any)):
         N = 16
-    if isinstance(K, tvm.tir.Var):
+    if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
     vec_width = get_fp32_len()
@@ -165,9 +165,15 @@ def dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     # create tuning space
-    cfg.define_split("tile_y", 32 if isinstance(M, tvm.tir.Var) else M, num_outputs=2)
-    cfg.define_split("tile_x", 32 if isinstance(N, tvm.tir.Var) else N, num_outputs=2)
-    cfg.define_split("tile_k", 32 if isinstance(K, tvm.tir.Var) else K, num_outputs=2)
+    cfg.define_split(
+        "tile_y", 32 if isinstance(M, (tvm.tir.Var, tvm.tir.Any)) else M, num_outputs=2
+    )
+    cfg.define_split(
+        "tile_x", 32 if isinstance(N, (tvm.tir.Var, tvm.tir.Any)) else N, num_outputs=2
+    )
+    cfg.define_split(
+        "tile_k", 32 if isinstance(K, (tvm.tir.Var, tvm.tir.Any)) else K, num_outputs=2
+    )
     if cfg.is_fallback:
         _default_dense_nopack_config(cfg, M, N, K)
 
@@ -213,10 +219,21 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     else:
         N, _ = get_const_tuple(weight.shape)  # out_dim
     # create tuning space
-    cfg.define_split("tile_y", M, num_outputs=3)
-    cfg.define_split("tile_x", N, num_outputs=3)
-    cfg.define_split("tile_k", K, num_outputs=2)
-    cfg.define_split("tile_inner", M, num_outputs=2, filter=lambda y: y.size[-1] <= 16)
+    cfg.define_split(
+        "tile_y", 32 if isinstance(M, (tvm.tir.Var, tvm.tir.Any)) else M, num_outputs=3
+    )
+    cfg.define_split(
+        "tile_x", 32 if isinstance(N, (tvm.tir.Var, tvm.tir.Any)) else N, num_outputs=3
+    )
+    cfg.define_split(
+        "tile_k", 32 if isinstance(K, (tvm.tir.Var, tvm.tir.Any)) else K, num_outputs=2
+    )
+    cfg.define_split(
+        "tile_inner",
+        32 if isinstance(M, (tvm.tir.Var, tvm.tir.Any)) else M,
+        num_outputs=2,
+        filter=lambda y: y.size[-1] <= 16,
+    )
     if cfg.is_fallback:
         _default_dense_pack_config(cfg, M, N, K)
 
