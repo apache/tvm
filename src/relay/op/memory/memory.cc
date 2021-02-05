@@ -22,6 +22,8 @@
  * \brief Operators for manifest shape-aware memory allocation in Relay.
  */
 
+#include "memory.h"
+
 #include <tvm/node/node.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
