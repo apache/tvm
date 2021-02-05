@@ -60,10 +60,8 @@ inline Constant MakeConstant(const std::vector<int64_t>& value) {
 
 inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dtype,
                         Array<IndexExpr> assert_shape) {
-  auto f = runtime::Registry::Get("relay.op.memory._make.alloc_tensor");
-  CHECK(f != nullptr) << "unable to find alloc_tensor op";
   auto offset = MakeConstantScalar(DataType::Int(64), 0);
-  return (*f)(storage, offset, shape, dtype, assert_shape);
+  return AllocTensor(storage, offset, shape, dtype, assert_shape);
 }
 
 // A pass to check if the fused op contains only reshape ops.
