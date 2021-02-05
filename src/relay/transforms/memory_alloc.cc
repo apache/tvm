@@ -43,6 +43,7 @@
 #include "../backend/compile_engine.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
+#include "../op/tensor/tensor.h"
 #include "let_list.h"
 #include "pattern_utils.h"
 
@@ -104,7 +105,6 @@ class DialectRewriter : public ExprMutator {
   DialectRewriter(const Target& target_host, const AnalysisResultMap& context_analysis_map)
       : target_host_(target_host),
         context_analysis_map_(context_analysis_map),
-        prod_(runtime::Registry::Get("relay.op._make.prod")),
         divide_(runtime::Registry::Get("relay.op._make.divide")),
         add_(runtime::Registry::Get("relay.op._make.add")),
         multiply_(runtime::Registry::Get("relay.op._make.multiply")) {}
@@ -247,7 +247,7 @@ class DialectRewriter : public ExprMutator {
 
   Expr ComputeStorageInRelay(const Expr& shape, const TensorType& type) const {
     auto dtype = DataType(type->dtype);
-    Expr els = (*prod_)(shape, Array<Expr>(nullptr), false, false);
+    Expr els = Prod(shape, {}, false, false);
     Expr num = MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
     Expr add = (*add_)(num, MakeConstantScalar(DataType::Int(64), 7));
     Expr div = MakeConstantScalar(DataType::Int(64), 8);
@@ -414,7 +414,6 @@ class DialectRewriter : public ExprMutator {
   std::vector<LetList> scopes_;
 
   // Cache the following ops
-  const PackedFunc* prod_;
   const PackedFunc* divide_;
   const PackedFunc* add_;
   const PackedFunc* multiply_;
