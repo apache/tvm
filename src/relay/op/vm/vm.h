@@ -33,6 +33,7 @@ Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs);
 Expr ShapeFunc(Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input);
 Expr ShapeOf(Expr expr);
 Expr ReshapeTensor(Expr data, Expr shape, Array<PrimExpr> newshape);
+
 }  // namespace relay
 }  // namespace tvm
 

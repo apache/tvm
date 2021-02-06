@@ -475,10 +475,6 @@ Array<te::Tensor> ProdCompute(const Attrs& attrs, const Array<te::Tensor>& input
   return ReduceCompute(attrs, inputs, out_type, topi::prod);
 }
 
-Expr Prod(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
-  return MakeReduce(data, axis, keepdims, exclude, "prod");
-}
-
 TVM_REGISTER_GLOBAL("relay.op._make.prod").set_body_typed(Prod);
 
 RELAY_REGISTER_OP("prod")
