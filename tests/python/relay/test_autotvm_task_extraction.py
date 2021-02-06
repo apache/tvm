@@ -60,9 +60,9 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(
         mod["main"], target=target, params=params, ops=(dense,)
     )
-    assert len(tasks) == 1
+    assert len(tasks) == 2
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
-    assert len(tasks) == 1
+    assert len(tasks) == 2
 
     mod, params, _ = get_network("resnet-18", batch_size=1)
     mod_list.append(mod)
@@ -70,13 +70,13 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(
         mod["main"], target=target, params=params, ops=(conv2d, dense)
     )
-    assert len(tasks) == 13
+    assert len(tasks) == 14
     tasks = autotvm.task.extract_from_program(
         mod, target=target, params=params, ops=(conv2d, dense)
     )
-    assert len(tasks) == 13
+    assert len(tasks) == 14
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params)
-    assert len(tasks) == 13
+    assert len(tasks) == 14
 
     mod, params, _ = get_network("resnet3d-18", batch_size=1)
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(conv3d,))
@@ -88,7 +88,7 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(
         mod, target=target, params=params, ops=(conv2d, dense)
     )
-    assert len(tasks) == 20
+    assert len(tasks) == 21
 
     mod, params, _ = get_network("dcgan", batch_size=1)
     tasks = autotvm.task.extract_from_program(
