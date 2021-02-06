@@ -1957,37 +1957,37 @@ def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, dty
         new_shape = tf.placeholder(
             shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
         )
-        new_shape_2_np = np.array([2, 3, 6], dtype=np.int32)
+        # new_shape_2_np = np.array([2, 3, 6], dtype=np.int32)
 
-        new_shape_2 = tf.placeholder(
-            shape=new_shape_2_np.shape, dtype=new_shape_2_np.dtype, name="new_shape_2"
-        )
+        # new_shape_2 = tf.placeholder(
+        #     shape=new_shape_2_np.shape, dtype=new_shape_2_np.dtype, name="new_shape_2"
+        # )
         result1 = tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
-        # result2 = tf.sparse.reshape(result1, new_shape_2, name="sparse_reshape2")
-        result2 = tf.sparse.fill_empty_rows(result1, 0, name="sparse_fill_empty_rows")
+        # # result2 = tf.sparse.reshape(result1, new_shape_2, name="sparse_reshape2")
+        # result2 = tf.sparse.fill_empty_rows(result1, 0, name="sparse_fill_empty_rows")
         # import pdb
 
         # pdb.set_trace()
-        compare_tf_with_tvm(
-            [new_shape_np],
-            [new_shape.name],
-            [
-                "sparse_fill_empty_rows/SparseFillEmptyRows:0",
-                "sparse_fill_empty_rows/SparseFillEmptyRows:1",
-                "sparse_reshape:1",
-                "sparse_fill_empty_rows/SparseFillEmptyRows:2",
-            ],
-        )
+        # compare_tf_with_tvm(
+        #     [new_shape_np],
+        #     [new_shape.name],
+        #     [
+        #         "sparse_fill_empty_rows/SparseFillEmptyRows:0",
+        #         "sparse_fill_empty_rows/SparseFillEmptyRows:1",
+        #         "sparse_reshape:1",
+        #         "sparse_fill_empty_rows/SparseFillEmptyRows:2",
+        #     ],
+        # )
         # compare_tf_with_tvm(
         #     [new_shape_np, new_shape_2_np],
         #     [new_shape.name, new_shape_2.name],
         #     ["sparse_reshape2:0", "sparse_reshape2:1", "sparse_reshape2/Identity:0"],
         # )
-        # compare_tf_with_tvm(
-        #     [new_shape_np],
-        #     [new_shape.name],
-        #     ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
-        # )
+        compare_tf_with_tvm(
+            [new_shape_np],
+            [new_shape.name],
+            ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+        )
 
 
 def test_forward_sparse_reshape():
@@ -2037,6 +2037,17 @@ def test_forward_sparse_reshape():
     new_shape_np = np.array([5, 5], dtype=np.int32)
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
 
+    sparse_indices_np = np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([500, 20], dtype=np.int32)
+    new_shape_np = np.array([500, 20], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+
+    sparse_indices_np = np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([500, 20], dtype=np.int32)
+    new_shape_np = np.array([250, 40], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
 
 #######################################################################
 # StridedSlice
@@ -4909,7 +4920,7 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    # test_forward_sparse_reshape()
+    test_forward_sparse_reshape()
     # test_forward_sparse_fill_empty_rows()
-    test_forward_sparse_segment_sqrtn()
+    # test_forward_sparse_segment_sqrtn()
     # pytest.main([__file__])

@@ -1529,9 +1529,13 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
                                    const Tensor& new_shape,
                                    const std::string name = "T_sparse_reshape",
                                    std::string tag = kInjective) {
-  LOG(INFO) << "Sparse Indices Size " << sparse_indices->shape.size();
-  LOG(INFO) << "Prev Shape Size " << prev_shape->shape.size();
-  LOG(INFO) << "New Shape Size " << new_shape->shape.size();
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+  CHECK(prev_shape->dtype.is_int()) << "prev_shape must be tensor of integers";
+  CHECK(new_shape->dtype.is_int()) << "new_shape must be tensor of integers";
+  ICHECK_EQ(sparse_indices->shape.size(), 2) << "sparse_indices must be 2-D tensor";
+  ICHECK_EQ(prev_shape->shape.size(), 1) << "prev_shape must be 1-D tensor";
+  ICHECK_EQ(new_shape->shape.size(), 1) << "new_shape must be 1-D tensor";
+
   Array<Tensor> result;
   Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
 
@@ -1560,7 +1564,15 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
   result.push_back(compute(
       new_sparse_indices_shape,
       [&](const Array<Var>& indices) {
-        LOG(INFO) << "Indices size 1560 " << indices.size();
+        PrimExpr is_same_shape = true;
+        if (prev_shape_size == new_shape_size) {
+          for (int i = 0; i < prev_shape_size; i++) {
+            is_same_shape = if_then_else(multipliers[i] != dividers[i], false, is_same_shape);
+          }
+        }
+        else {
+          is_same_shape = false;
+        }
         PrimExpr flattened_idx = 0;
         if (sparse_indices->shape.size() == 1) {
           flattened_idx += sparse_indices[indices[0]];
@@ -1579,21 +1591,21 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
 
           for (int i = 0; i < new_shape_size; i++) {
             if (indices.size() == 1) {
-              return new_sparse_indices[0];
+              return if_then_else(is_same_shape == true, sparse_indices(indices), new_sparse_indices[0]);
             } else {
               ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
             }
           }
-          return ret;
+          return if_then_else(is_same_shape == true, sparse_indices(indices), ret);
         } else {
-          return flattened_idx;
+          return if_then_else(is_same_shape == true, sparse_indices(indices), flattened_idx);
         }
       },
       name, tag));
+
   result.push_back(compute(
       Array<PrimExpr>{new_shape_size},
       [&](const Array<Var>& indices) {
-        LOG(INFO) << "Indices size 1593 " << indices.size();
         PrimExpr ret = new_shape(indices);
         ret = if_then_else(ret == -1, neg_shape_val[0], ret);
         return ret;
