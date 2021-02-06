@@ -263,6 +263,14 @@ class IRBuilder(object):
 
         return WithScope(loop_var, _exit_cb)
 
+    def while_loop(self, condition):
+        """TODO"""
+        self._seq_stack.append([])
+        def _exit_cb():
+            self.emit(_stmt.While(condition, self._pop_seq()))
+
+        return WithScope(None, _exit_cb)
+
     def if_scope(self, cond):
         """Create an if scope.
 

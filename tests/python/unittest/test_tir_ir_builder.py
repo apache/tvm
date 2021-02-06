@@ -173,9 +173,100 @@ def test_gpu():
     check_target("cuda")
 
 
+def test_binary_search():
+    def binary_search(ib, n, i, Aptr, Bptr, Cptr):
+        lo = ib.allocate("int32", (1,), name="lo", scope="local")
+        hi = ib.allocate("int32", (1,), name="hi", scope="local")
+
+        lo[0] = 0
+        hi[0] = n
+        v = Bptr[i]
+
+        with ib.while_loop(lo[0] < hi[0]) as _:
+            mid = lo[0] + tvm.tir.floordiv(hi[0] - lo[0], 2).astype("int32")
+            with ib.if_scope(Aptr[mid] < v):
+                lo[0] = mid + 1
+            with ib.else_scope():
+                hi[0] = mid
+
+        Cptr[i] = lo[0]
+
+    def searchsorted_ir_cpu(A, B, C, n):
+        ib = tvm.tir.ir_builder.create()
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+
+        with ib.for_range(0, n, name="i", kind="parallel") as i:
+            binary_search(ib, n, i, Aptr, Bptr, Cptr)
+
+        body = ib.get()
+
+        return body
+
+    def searchsorted_ir_gpu(A, B, C, n):
+        ib = tvm.tir.ir_builder.create()
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        max_threads = 32
+        ib.scope_attr(bx, "thread_extent", tvm.tir.indexdiv(n + max_threads - 1, max_threads))
+        ib.scope_attr(tx, "thread_extent", max_threads)
+        tid = bx * max_threads + tx
+
+        with ib.if_scope(tid < n):
+            binary_search(ib, n, tid, Aptr, Bptr, Cptr)
+
+        body = ib.get()
+
+        return body
+
+    n = 1024
+    dtype = "float32"
+    A = te.placeholder((n,), name="A", dtype=dtype)
+    B = te.placeholder((n,), name="B", dtype=dtype)
+
+    def check_target(target, ir):
+        if not tvm.testing.device_enabled(target):
+            return
+
+        C = te.extern(
+            A.shape,
+            [A, B],
+            lambda ins, outs: ir(ins[0], ins[1], outs[0], n),
+            name="searchsorted_ir",
+            dtype="int32",
+        )
+        s = te.create_schedule(C.op)
+
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["HoistIfThenElse"]):
+            print(tvm.lower(s, [A, B, C], simple_mode=True))
+            return
+            func = tvm.build(s, [A, B, C], target)
+
+        ctx = tvm.context(target, 0)
+        a_np = np.random.uniform(size=n).astype(A.dtype)
+        b_np = np.random.uniform(size=n).astype(B.dtype)
+        a_np = np.sort(a_np)
+        a = tvm.nd.array(a_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        func(a, b, c)
+        ref = np.searchsorted(a_np, b_np)
+        tvm.testing.assert_allclose(c.asnumpy(), ref)
+
+    check_target("llvm", searchsorted_ir_cpu)
+    # check_target("cuda", searchsorted_ir_gpu)
+    # check_target("nvptx", searchsorted_ir_gpu)
+
+
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    test_binary_search()

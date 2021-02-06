@@ -192,6 +192,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final { VisitNewScope(op); }
 
+  void VisitStmt_(const WhileNode* op) final { VisitNewScope(op); }
+
   void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
   // linearized access sequence.

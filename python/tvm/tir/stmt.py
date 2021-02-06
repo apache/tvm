@@ -158,6 +158,18 @@ class For(Stmt):
             span,
         )
 
+@tvm._ffi.register_object("tir.While")
+class While(Stmt):
+    """TODO"""
+
+    def __init__(self, condition, body, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.While,
+            condition,
+            body,
+            span,
+        )
+
 
 @tvm._ffi.register_object("tir.Store")
 class Store(Stmt):

@@ -112,6 +112,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
+    IR_STMT_FUNCTOR_DISPATCH(WhileNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
