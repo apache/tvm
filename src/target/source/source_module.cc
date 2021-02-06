@@ -23,13 +23,13 @@
  */
 #include "source_module.h"
 
-#include <unordered_map>
-#include <string>
-#include <utility>
-
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
+#include <string>
+#include <unordered_map>
+#include <utility>
 
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"

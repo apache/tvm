@@ -103,12 +103,11 @@ runtime::Module CreateMetadataModule(
           non_exportable_modules += pf_sym().operator std::string();
         } else {
           non_exportable_modules +=
-            std::string{"(module type_key="} + mod->type_key() + std::string{")"};
+              std::string{"(module type_key="} + mod->type_key() + std::string{")"};
         }
       }
-      CHECK(false)
-        << "These " << non_crt_exportable_modules.size()
-        << " modules are not exportable to C-runtime: " << non_exportable_modules;
+      CHECK(false) << "These " << non_crt_exportable_modules.size()
+                   << " modules are not exportable to C-runtime: " << non_exportable_modules;
     }
 
     if (target->kind->name == "c") {
