@@ -48,9 +48,11 @@ runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target) {
   // Here we split modules into two groups:
-  //  1.
-  Array<tvm::runtime::Module> csource_modules;
-  Array<tvm::runtime::Module> binary_modules;
+  //  1. Those modules which can be exported to C-runtime. These are DSO-exportable
+  //     (i.e. llvm or c) modules which return nothing from get_const_vars().
+  //  2. Other modules.
+  Array<runtime::Module> crt_exportable_modules;
+  Array<runtime::Module> non_crt_exportable_modules;
 
   auto DSOExportable = [](tvm::runtime::Module& mod) {
     return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
@@ -81,44 +83,46 @@ runtime::Module CreateMetadataModule(
     // if the variables are empty when all the runtime modules implement get_func_names
     if (arrays.empty() && DSOExportable(mod) &&
         (target->kind->name == "c" || target->kind->name == "llvm")) {
-      csource_modules.push_back(mod);
+      crt_exportable_modules.push_back(mod);
     } else {
-      binary_modules.push_back(mod);
+      non_crt_exportable_modules.push_back(mod);
     }
   }
 
   if (target.defined() &&
       target->GetAttr<String>("runtime").value_or(String("")) == kTvmRuntimeCrt) {
-    if (!binary_modules.empty()) {
-      string non_exportable_modules;
-      for (int i = 0; i < binary_modules.size(); i++) {
+    if (!non_crt_exportable_modules.empty()) {
+      std::string non_exportable_modules;
+      for (int i = 0; i < non_crt_exportable_modules.size(); i++) {
         if (i > 0) {
           non_exportable_modules += ", ";
         }
+        auto mod = non_crt_exportable_modules[i];
         auto pf_sym = mod.GetFunction("get_symbol");
         if (pf_sym != nullptr) {
           non_exportable_modules += pf_sym().operator std::string();
         } else {
-          non_exportable_modules.push_back(std::string{"(module type_key="} + m->type_);
+          non_exportable_modules +=
+            std::string{"(module type_key="} + mod->type_key() + std::string{")"};
         }
       }
       CHECK(false)
-        << "These " << binary_modules.size() << " modules are not exportable to C-runtime: "
-        << non_exportable_modules;
+        << "These " << non_crt_exportable_modules.size()
+        << " modules are not exportable to C-runtime: " << non_exportable_modules;
     }
 
     if (target->kind->name == "c") {
-      csource_modules.push_back(target_module);
-      target_module = CreateCSourceCrtMetadataModule(csource_modules, target);
+      crt_exportable_modules.push_back(target_module);
+      target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target);
     } else if (target->kind->name == "llvm") {
-      csource_modules.push_back(target_module);
-      target_module = CreateLLVMCrtMetadataModule(csource_modules, target);
+      crt_exportable_modules.push_back(target_module);
+      target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target);
     }
   } else {
-    if (!binary_modules.empty()) {
+    if (!non_crt_exportable_modules.empty()) {
       runtime::Module binary_meta_mod = runtime::MetadataModuleCreate(params, sym_metadata);
       binary_meta_mod.Import(target_module);
-      for (const auto& it : binary_modules) {
+      for (const auto& it : non_crt_exportable_modules) {
         binary_meta_mod.Import(it);
       }
       return binary_meta_mod;
