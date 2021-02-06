@@ -47,6 +47,8 @@ namespace codegen {
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target) {
+  // Here we split modules into two groups:
+  //  1.
   Array<tvm::runtime::Module> csource_modules;
   Array<tvm::runtime::Module> binary_modules;
 
@@ -87,6 +89,24 @@ runtime::Module CreateMetadataModule(
 
   if (target.defined() &&
       target->GetAttr<String>("runtime").value_or(String("")) == kTvmRuntimeCrt) {
+    if (!binary_modules.empty()) {
+      string non_exportable_modules;
+      for (int i = 0; i < binary_modules.size(); i++) {
+        if (i > 0) {
+          non_exportable_modules += ", ";
+        }
+        auto pf_sym = mod.GetFunction("get_symbol");
+        if (pf_sym != nullptr) {
+          non_exportable_modules += pf_sym().operator std::string();
+        } else {
+          non_exportable_modules.push_back(std::string{"(module type_key="} + m->type_);
+        }
+      }
+      CHECK(false)
+        << "These " << binary_modules.size() << " modules are not exportable to C-runtime: "
+        << non_exportable_modules;
+    }
+
     if (target->kind->name == "c") {
       csource_modules.push_back(target_module);
       target_module = CreateCSourceCrtMetadataModule(csource_modules, target);
