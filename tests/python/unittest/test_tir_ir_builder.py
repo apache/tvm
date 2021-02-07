@@ -173,6 +173,94 @@ def test_gpu():
     check_target("cuda")
 
 
+def test_while():
+    n = 160
+    shape = (n * 2, n)
+    t = 300
+
+    def mandel_ref():
+        def complex_sqr(z):
+            return np.array([z[0] ** 2 - z[1] ** 2, z[1] * z[0] * 2])
+
+        pixels = np.zeros(shape)
+
+        for i in range(pixels.shape[0]):
+            for j in range(pixels.shape[1]):
+                c = np.array([-0.8, np.cos(t) * 0.2])
+                z = np.array([i / n - 1, j / n - 0.5]) * 2
+                iterations = 0
+
+                while np.linalg.norm(z) < 20 and iterations < 50:
+                    z = complex_sqr(z) + c
+                    iterations += 1
+
+                pixels[i, j] = 1 - iterations * 0.02
+
+        return pixels
+
+    def mandel(ib, i, j, pixels):
+        c = ib.allocate("float32", (2,), name="c", scope="local")
+        z = ib.allocate("float32", (2,), name="z", scope="local")
+        tmp = ib.allocate("float32", (1,), name="1", scope="local")
+        iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
+
+        c[0] = -0.8
+        c[1] = float(np.cos(t)) * 0.2
+        z[0] = (i / float(n) - 1) * 2
+        z[1] = (j / float(n) - 0.5) * 2
+        iterations[0] = 0
+
+        def norm(z):
+            return tvm.tir.sqrt(z[0] * z[0] + z[1] * z[1])
+
+        with ib.while_loop(tvm.tir.all(norm(z) < 20, iterations[0] < 50)):
+            tmp[0] = z[0]
+            z[0] = z[0] * z[0] - z[1] * z[1] + c[0]
+            z[1] = z[1] * tmp[0] * 2 + c[1]
+            iterations[0] += 1
+
+        pixels[i, j] = 1 - iterations[0] * 0.02
+
+    def mandel_ir_cpu(C):
+        ib = tvm.tir.ir_builder.create()
+        ny = C.shape[0]
+        nx = C.shape[1]
+        C = ib.buffer_ptr(C)
+
+        with ib.for_range(0, ny, name="i", kind="parallel") as i:
+            with ib.for_range(0, nx, name="j") as j:
+                mandel(ib, i, j, C)
+
+        body = ib.get()
+
+        return body
+
+    ref = mandel_ref()
+
+    def check_target(target, ir):
+        if not tvm.testing.device_enabled(target):
+            return
+
+        C = te.extern(
+            shape,
+            [],
+            lambda ins, outs: ir(outs[0]),
+            name="mandel_ir",
+            dtype="float32",
+        )
+        s = te.create_schedule(C.op)
+
+        with tvm.transform.PassContext(opt_level=3):
+            func = tvm.build(s, [C], target)
+
+        ctx = tvm.context(target, 0)
+        c = tvm.nd.array(np.zeros(shape, dtype=C.dtype), ctx)
+        func(c)
+        tvm.testing.assert_allclose(c.asnumpy(), ref)
+
+    check_target("llvm", mandel_ir_cpu)
+
+
 def test_binary_search():
     def binary_search(ib, n, i, Aptr, Bptr, Cptr):
         lo = ib.allocate("int32", (1,), name="lo", scope="local")
@@ -182,7 +270,7 @@ def test_binary_search():
         hi[0] = n
         v = Bptr[i]
 
-        with ib.while_loop(lo[0] < hi[0]) as _:
+        with ib.while_loop(lo[0] < hi[0]):
             mid = lo[0] + tvm.tir.floordiv(hi[0] - lo[0], 2).astype("int32")
             with ib.if_scope(Aptr[mid] < v):
                 lo[0] = mid + 1
@@ -242,7 +330,7 @@ def test_binary_search():
         )
         s = te.create_schedule(C.op)
 
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["HoistIfThenElse"]):
+        with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [A, B, C], target)
 
         ctx = tvm.context(target, 0)
@@ -262,9 +350,10 @@ def test_binary_search():
 
 
 if __name__ == "__main__":
-    test_prefetch()
-    test_if()
-    test_for()
-    test_cpu()
-    test_gpu()
+    # test_prefetch()
+    # test_if()
+    # test_for()
+    # test_cpu()
+    # test_gpu()
+    test_while()
     test_binary_search()
