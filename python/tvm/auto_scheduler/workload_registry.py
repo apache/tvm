@@ -35,6 +35,7 @@ import pickle
 import json
 
 import tvm._ffi
+from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
 from .utils import serialize_args, deserialize_args, get_func_name
 
 logger = logging.getLogger("auto_scheduler")
@@ -216,13 +217,17 @@ def serialize_workload_registry_entry(workload_key):
     global WORKLOAD_FUNC_REGISTRY
 
     if workload_key in WORKLOAD_FUNC_REGISTRY:
-        return (workload_key, WORKLOAD_FUNC_REGISTRY[workload_key])
+        sname = workload_key
+    else:
+        workload = json.loads(workload_key)
+        sname = workload[0]
 
-    workload = json.loads(workload_key)
-    name = workload[0]
-    value = WORKLOAD_FUNC_REGISTRY[name]
+    svalue = WORKLOAD_FUNC_REGISTRY[sname]
+    if not callable(svalue):
+        # pylint: disable=assignment-from-no-return
+        svalue = SaveJSON(svalue)
 
-    return name, value
+    return sname, svalue
 
 
 def deserialize_workload_registry_entry(data):
@@ -239,7 +244,8 @@ def deserialize_workload_registry_entry(data):
 
     name, value = data
     if name not in WORKLOAD_FUNC_REGISTRY:
-        WORKLOAD_FUNC_REGISTRY[name] = value
+        # pylint: disable=assignment-from-no-return
+        WORKLOAD_FUNC_REGISTRY[name] = LoadJSON(value)
 
 
 def save_workload_func_registry(filename):
