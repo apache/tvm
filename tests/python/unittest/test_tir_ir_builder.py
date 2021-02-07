@@ -243,8 +243,6 @@ def test_binary_search():
         s = te.create_schedule(C.op)
 
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["HoistIfThenElse"]):
-            print(tvm.lower(s, [A, B, C], simple_mode=True))
-            return
             func = tvm.build(s, [A, B, C], target)
 
         ctx = tvm.context(target, 0)
@@ -259,14 +257,14 @@ def test_binary_search():
         tvm.testing.assert_allclose(c.asnumpy(), ref)
 
     check_target("llvm", searchsorted_ir_cpu)
-    # check_target("cuda", searchsorted_ir_gpu)
-    # check_target("nvptx", searchsorted_ir_gpu)
+    check_target("cuda", searchsorted_ir_gpu)
+    check_target("nvptx", searchsorted_ir_gpu)
 
 
 if __name__ == "__main__":
-    # test_prefetch()
-    # test_if()
-    # test_for()
-    # test_cpu()
-    # test_gpu()
+    test_prefetch()
+    test_if()
+    test_for()
+    test_cpu()
+    test_gpu()
     test_binary_search()
