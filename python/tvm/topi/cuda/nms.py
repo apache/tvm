@@ -521,7 +521,7 @@ def nms_ir(
             offset_j = j * 4
             num_iter_per_thread = ceil_div(nkeep - (j + 1), nthread_tx)
 
-            with ib.for_range(0, num_iter_per_thread) as _k:
+            with ib.for_range(0, num_iter_per_thread, name="_k") as _k:
                 k = j + 1 + _k * nthread_tx + tx
                 offset_k = k * 4
 
@@ -559,14 +559,16 @@ def nms_ir(
                 # No need to do more iteration if we have already reached max_output_size boxes
                 box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
                 box_idx[0] = 0
-                with ib.while_loop(num_valid_boxes_local[0] < max_output_size):
-                    # Proceed to the inner loop if the box j is still valid
+                with ib.while_loop(
+                    tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+                ):
+                    # Proceed to the inner loop if the box with id box_idx is still valid
                     with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
                         nms_inner_loop(ib, box_idx[0])
                     box_idx[0] += 1
 
             with ib.else_scope():
-                with ib.for_range(0, nkeep) as j:
+                with ib.for_range(0, nkeep, name="j") as j:
                     # Proceed to the inner loop if the box j is still valid
                     with ib.if_scope(out_scores[i, j] > -1.0):
                         nms_inner_loop(ib, j)
