@@ -201,7 +201,7 @@ def test_while():
     def mandel(ib, i, j, pixels):
         c = ib.allocate("float32", (2,), name="c", scope="local")
         z = ib.allocate("float32", (2,), name="z", scope="local")
-        tmp = ib.allocate("float32", (1,), name="1", scope="local")
+        tmp = ib.allocate("float32", (1,), name="tmp", scope="local")
         iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
 
         c[0] = -0.8
@@ -235,6 +235,33 @@ def test_while():
 
         return body
 
+    def mandel_ir_gpu(C):
+        ib = tvm.tir.ir_builder.create()
+        ny = C.shape[0]
+        nx = C.shape[1]
+        C = ib.buffer_ptr(C)
+
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        by = te.thread_axis("blockIdx.y")
+        ty = te.thread_axis("threadIdx.y")
+
+        max_threads = 16
+        ib.scope_attr(bx, "thread_extent", tvm.tir.indexdiv(nx + max_threads - 1, max_threads))
+        ib.scope_attr(tx, "thread_extent", max_threads)
+        ib.scope_attr(by, "thread_extent", tvm.tir.indexdiv(ny + max_threads - 1, max_threads))
+        ib.scope_attr(ty, "thread_extent", max_threads)
+
+        tidx = bx * max_threads + tx
+        tidy = by * max_threads + ty
+
+        with ib.if_scope(tvm.tir.all(tidx < nx, tidy < ny)):
+            mandel(ib, tidy, tidx, C)
+
+        body = ib.get()
+
+        return body
+
     ref = mandel_ref()
 
     def check_target(target, ir):
@@ -259,6 +286,8 @@ def test_while():
         tvm.testing.assert_allclose(c.asnumpy(), ref)
 
     check_target("llvm", mandel_ir_cpu)
+    check_target("npvtx", mandel_ir_gpu)
+    check_target("cuda", mandel_ir_gpu)
 
 
 def test_binary_search():
@@ -350,10 +379,10 @@ def test_binary_search():
 
 
 if __name__ == "__main__":
-    # test_prefetch()
-    # test_if()
-    # test_for()
-    # test_cpu()
-    # test_gpu()
+    test_prefetch()
+    test_if()
+    test_for()
+    test_cpu()
+    test_gpu()
     test_while()
     test_binary_search()
