@@ -1269,7 +1269,12 @@ def test_forward_group_norm():
         x = np.random.uniform(size=shape).astype("float32")
         gamma = np.random.uniform(size=(shape[1])).astype("float32")
         beta = np.random.uniform(size=(shape[1])).astype("float32")
-        ref_res = mx.nd.GroupNorm(data=mx.nd.array(x), gamma=mx.nd.array(gamma), beta=mx.nd.array(beta), num_groups=num_groups)
+        ref_res = mx.nd.GroupNorm(
+            data=mx.nd.array(x),
+            gamma=mx.nd.array(gamma),
+            beta=mx.nd.array(beta),
+            num_groups=num_groups
+        )
         mx_sym = mx.sym.GroupNorm(
             mx.sym.var("x"), mx.sym.var("gamma"), mx.sym.var("beta"), num_groups=num_groups
         )
