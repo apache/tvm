@@ -148,7 +148,7 @@ class ConstantFolder : public MixedModeMutator {
     }
     static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
 
-    std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
+    std::unordered_set<std::string> skip_list{};
 
     auto origin_args = call->args;
     call = post.as<CallNode>();
