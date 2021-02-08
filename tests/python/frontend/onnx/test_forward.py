@@ -3993,7 +3993,7 @@ def test_cumsum():
 
         model = helper.make_model(graph, producer_name="cumsum_test")
 
-        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11, targets=['llvm'])
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11)
 
     data = np.array([
         1.0, 2.0, 3.0, 4.0,
@@ -4004,9 +4004,9 @@ def test_cumsum():
     verify_cumsum(data, 1)
     verify_cumsum(data, 0, 1, 0)
     verify_cumsum(data, 1, 1, 0)
-    #verify_cumsum(data, 0, 0, 1)
-    #verify_cumsum(data, 1, 0, 1)
-    #verify_cumsum(data, 1, 1, 1)
+    verify_cumsum(data, 0, 0, 1)
+    verify_cumsum(data, 1, 0, 1)
+    verify_cumsum(data, 1, 1, 1)
     data = np.random.randn(1, 32, 32, 3).astype("float32")
     verify_cumsum(data, 1)
 

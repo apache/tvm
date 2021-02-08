@@ -1377,4 +1377,11 @@ def cumsum(data, axis=None, dtype=None, exclusive=None, reverse=None):
         cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 2, 2, 3, 4, 4]
     """
-    return _make.cumsum(data, axis, dtype, exclusive, reverse)
+    if reverse is None:
+        reverse = 0
+    if reverse == 0:
+        return _make.cumsum(data, axis, dtype, exclusive, reverse)
+    else:
+        out = _make.reverse(data, axis)
+        out = _make.cumsum(out, axis, dtype, exclusive, reverse)
+        return _make.reverse(out, axis)

@@ -3710,7 +3710,6 @@ Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive, Inte
   attrs->dtype = dtype;
   attrs->axis = axis;
   attrs->exclusive = exclusive;
-  attrs->reverse = reverse;
   static const Op& op = Op::Get("cumsum");
   return Call(op, {data}, Attrs(attrs), {});
 }
