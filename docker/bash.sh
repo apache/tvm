@@ -88,6 +88,9 @@ else
     CI_ADDON_ENV=""
 fi
 
+DOCKER_ENVS=""
+DOCKER_DEVICES=""
+WORKSPACE_VOLUMES=""
 # If the Vitis-AI docker image is selected, expose the Xilinx FPGA devices and required volumes containing e.g. DSA's and overlays
 if [[ "${DOCKER_IMAGE_NAME}" == *"demo_vitis_ai"* && -d "/dev/shm" && -d "/opt/xilinx/dsa" && -d "/opt/xilinx/overlaybins" ]]; then
     WORKSPACE_VOLUMES="-v /dev/shm:/dev/shm -v /opt/xilinx/dsa:/opt/xilinx/dsa -v /opt/xilinx/overlaybins:/opt/xilinx/overlaybins"
@@ -102,13 +105,15 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"demo_vitis_ai"* && -d "/dev/shm" && -d "/opt/x
     for i in ${RENDER_DRIVER} ;
     do
         DOCKER_DEVICES+="--device=$i "
-    done
-
-else
-    DOCKER_DEVICES=""
-    WORKSPACE_VOLUMES=""
+    done  
 fi
 
+# Add ROCm devices and set ROCM_ENABLED=1 which is used in the with_the_same_user script
+# to add the user to the video group
+if [[ "${DOCKER_IMAGE_NAME}" == *"rocm"* && -d "/dev/dri" ]]; then
+    DOCKER_DEVICES+="--device=/dev/kfd --device=/dev/dri "
+    DOCKER_ENVS+="-e ROCM_ENABLED=1 "
+fi
 
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
@@ -143,6 +148,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -e "CI_BUILD_GID=$(id -g)" \
     -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
     -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
+    ${DOCKER_ENVS} \
     ${CI_ADDON_ENV} \
     ${CUDA_ENV} \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
