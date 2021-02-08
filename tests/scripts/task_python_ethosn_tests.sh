@@ -22,9 +22,9 @@ source tests/scripts/setup-pytest-env.sh
 
 
 # Rebuild cython
+# TODO(u99127): Enable cython tests.
 
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
-TVM_FFI=ctypes python3 -m pytest tests/python/contrib/test_ethosn
-
+TVM_PYTEST_FFI_TYPES=ctypes run_pytest python-ethosn tests/python/contrib/test_ethosn
