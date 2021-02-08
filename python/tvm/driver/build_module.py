@@ -433,7 +433,8 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
                 "runtime.CreateCSourceCrtMetadataModule"
             )
             return create_csource_crt_metadata_module([rt_mod_host], target_host)
-        elif target_host.kind.name == "llvm":
+
+        if target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
