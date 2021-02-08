@@ -216,7 +216,6 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
-
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
@@ -922,6 +921,85 @@ def test_forward_conv_transpose():
     conv1d_input_data = torch.rand(conv1d_input_shape).float()
     verify_model(torch.nn.ConvTranspose1d(3, 6, 7, bias=True), input_data=conv1d_input_data)
     verify_model(torch.nn.ConvTranspose1d(3, 12, 3, bias=False), input_data=conv1d_input_data)
+
+
+def test_forward_deform_conv():
+    torch.set_grad_enabled(False)
+
+    def test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    ):
+        input_shape = [batch_size, in_channels, in_height, in_width]
+        offset_shape = [batch_size, 2 * offset_groups * kh * kw, out_height, out_width]
+        weight_shape = [out_channels, in_channels // groups, kh, kw]
+        input_data = torch.rand(input_shape)
+        offset_data = torch.rand(offset_shape)
+        weight_data = torch.rand(weight_shape)
+
+        class DeformConv2D(Module):
+            def forward(self, *args):
+                return torchvision.ops.deform_conv2d(args[0], args[1], args[2])
+
+        verify_model(
+            DeformConv2D().float().eval(),
+            input_data=[input_data, offset_data, weight_data],
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+    batch_size = 4
+    in_channels, out_channels = 4, 6
+    in_height, in_width = 10, 10
+    out_height, out_width = 8, 8
+    offset_groups = 2
+    kh, kw = 3, 3
+    groups = 1
+
+    test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    )
+
+    batch_size = 5
+    in_channels, out_channels = 4, 6
+    in_height, in_width = 10, 10
+    out_height, out_width = 8, 8
+    offset_groups = 1
+    kh, kw = 3, 3
+    groups = 1
+
+    test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    )
 
 
 @tvm.testing.uses_gpu
@@ -1700,7 +1778,7 @@ def test_forward_roi_align():
     """ROI align"""
     torch.set_grad_enabled(False)
 
-    class ROIAlgin(Module):
+    class ROIAlign(Module):
         def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1):
             super().__init__()
             self.spatial_scale = spatial_scale
@@ -1721,9 +1799,9 @@ def test_forward_roi_align():
     in_batch = torch.zeros((35, 1), dtype=torch.float)
     in_boxes = torch.cat([in_batch, in_boxes], dim=1)
 
-    verify_model(ROIAlgin(7), [in_data, in_boxes])
-    verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
-    verify_model(ROIAlgin(15, 0.9, 3), [in_data, in_boxes])
+    verify_model(ROIAlign(7), [in_data, in_boxes])
+    verify_model(ROIAlign((10, 10), 0.7, 5), [in_data, in_boxes])
+    verify_model(ROIAlign(15, 0.9, 3), [in_data, in_boxes])
 
 
 @tvm.testing.uses_gpu
