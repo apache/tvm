@@ -1089,7 +1089,7 @@ class CumSum(OnnxOpConverter):
         exclusive = attr.get("exclusive", 0)
         reverse = attr.get("reverse", 0)
 
-        return _op.cumsum(data, axis=dim, exclusive=exclusive, reverse=reverse)
+        return _op.cumsum(data, axis=dim, exclusive=exclusive, rev=reverse)
 
 
 class Cast(OnnxOpConverter):

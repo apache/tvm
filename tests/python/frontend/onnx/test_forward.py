@@ -3967,10 +3967,10 @@ def test_softplus():
 def test_cumsum():
     def verify_cumsum(indata, axis, exclusive=0, reverse=0):
         cumsum_node = onnx.helper.make_node(
-                "CumSum",
-                inputs=["X", "axis"],
-                outputs=["Y"],
-            )
+            "CumSum",
+            inputs=["X", "axis"],
+            outputs=["Y"],
+        )
         if exclusive != 0:
             exclusive_attr = helper.make_attribute("exclusive", exclusive)
             cumsum_node.attribute.append(exclusive_attr)
@@ -3995,11 +3995,27 @@ def test_cumsum():
 
         verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11)
 
-    data = np.array([
-        1.0, 2.0, 3.0, 4.0,
-        5.0, 6.0, 7.0, 8.0,
-        9.0, 10.0, 11.0, 12.0,
-    ]).astype(np.float32).reshape((3, 4))
+    data = (
+        np.array(
+            [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0,
+                12.0,
+            ]
+        )
+        .astype(np.float32)
+        .reshape((3, 4))
+    )
+
     verify_cumsum(data, 0)
     verify_cumsum(data, 1)
     verify_cumsum(data, 0, 1, 0)

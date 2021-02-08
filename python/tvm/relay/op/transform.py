@@ -1322,7 +1322,7 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def cumsum(data, axis=None, dtype=None, exclusive=None, reverse=None):
+def cumsum(data, axis=None, dtype=None, exclusive=None, rev=None):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
 
@@ -1345,7 +1345,7 @@ def cumsum(data, axis=None, dtype=None, exclusive=None, reverse=None):
         the sum of the first (j-1) elements. Otherwise, it would be the sum of
         the first j elements.
 
-    reverse : int, optional
+    rev : int, optional
         If set to 1 will perform the sums in reverse direction.
 
     Returns
@@ -1377,11 +1377,8 @@ def cumsum(data, axis=None, dtype=None, exclusive=None, reverse=None):
         cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 2, 2, 3, 4, 4]
     """
-    if reverse is None:
-        reverse = 0
-    if reverse == 0:
-        return _make.cumsum(data, axis, dtype, exclusive, reverse)
-    else:
+    if rev is not None and rev != 0:
         out = _make.reverse(data, axis)
-        out = _make.cumsum(out, axis, dtype, exclusive, reverse)
+        out = _make.cumsum(out, axis, dtype, exclusive)
         return _make.reverse(out, axis)
+    return _make.cumsum(data, axis, dtype, exclusive)
