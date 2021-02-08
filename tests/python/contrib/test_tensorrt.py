@@ -666,10 +666,10 @@ def are_ops_on_trt(mod, op_list):
             op_on_tvm = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
         elif mod[name].attrs and mod[name].attrs["Compiler"] == "tensorrt":
             op_on_trt = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
-        elif mod[name].attrs and mod[name].attrs["Compiler"] != "tensorrt":
+        else:
             op_on_tvm &= AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
 
-        if not op_on_trt and op_on_tvm:
+        if not op_on_trt or op_on_tvm:
             return False
 
     return True
