@@ -157,9 +157,7 @@ Expr MakeReinterpret(Expr data, DataType dtype) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 2>(MakeReinterpret, args, rv);
-});
+TVM_REGISTER_GLOBAL("relay._make.reinterpret").set_body_typed(MakeReinterpret);
 
 RELAY_REGISTER_OP("reinterpret")
     .describe(R"code(Reinterpret the data into a new data type.

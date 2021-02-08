@@ -159,9 +159,11 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
-      auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
-      if (op_map.count(op)) {
-        matches = MatchRetValue(attr_value, op_map[op]);
+      if (Op::HasAttrMap(attr_name)) {
+        auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
+        if (op_map.count(op)) {
+          matches = MatchRetValue(attr_value, op_map[op]);
+        }
       }
     }
   } else if (auto* op = expr.as<CallNode>()) {
@@ -730,7 +732,8 @@ class PatternGrouper {
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
             // and the node is used by nodes outside of the group
-            if (memo.count(output->ref_) == 0) {
+            if (memo.count(output->ref_) == 0 &&
+                !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
               // Exit because nodes in this pattern's body are used outside the pattern
               // fusing it would be invalid
               return;

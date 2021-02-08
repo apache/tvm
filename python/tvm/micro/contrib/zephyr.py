@@ -191,7 +191,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         with open(os.path.join(output, "main.c"), "w"):
             pass
 
-        # expecetd not to exist after populate_tvm_libs
+        # expected not to exist after populate_tvm_libs
         build_dir = os.path.join(output, "__tvm_build")
         os.mkdir(build_dir)
         self._subprocess_env.run(
@@ -241,11 +241,12 @@ class ZephyrCompiler(tvm.micro.Compiler):
     def flasher_factory(self):
         return compiler.FlasherFactory(
             ZephyrFlasher,
-            (self._west_cmd,),
+            (self._board,),
             dict(
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
                 subprocess_env=self._subprocess_env.default_overrides,
+                west_cmd=self._west_cmd,
             ),
         )
 
@@ -291,7 +292,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
     def __init__(
         self,
-        west_cmd,
+        board,
         zephyr_base=None,
         project_dir=None,
         subprocess_env=None,
@@ -300,6 +301,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         flash_args=None,
         debug_rpc_session=None,
         serial_timeouts=None,
+        west_cmd=None,
     ):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
@@ -310,6 +312,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         finally:
             sys.path.pop(0)
 
+        self._board = board
         self._zephyr_base = zephyr_base
         self._project_dir = project_dir
         self._west_cmd = west_cmd
@@ -414,6 +417,20 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         build_dir = os.path.dirname(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
         )
+
+        # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
+        # This is because readback protection is enabled by default when this device is flashed.
+        # Otherwise, flashing may fail with an error such as the following:
+        #  ERROR: The operation attempted is unavailable due to readback protection in
+        #  ERROR: your device. Please use --recover to unlock the device.
+        if (
+            self._board.startswith("nrf5340dk")
+            and self._get_flash_runner(cmake_entries) == "nrfjprog"
+        ):
+            recover_args = ["nrfjprog", "--recover"]
+            recover_args.extend(self._get_nrf_device_args())
+            self._subprocess_env.run(recover_args, cwd=build_dir)
+
         west_args = (
             self._west_cmd
             + ["flash", "--build-dir", build_dir, "--skip-rebuild"]

@@ -238,14 +238,28 @@ def divide_grad(orig, grad):
 
 @register_gradient("zeros")
 def zeros_grad(orig, grad):
-    """Returns [shape]"""
-    return [orig.args[0]]
+    """Returns []"""
+    return []
+
+
+@register_gradient("dyn.zeros")
+def dyn_zeros_grad(orig, grad):
+    """Returns the gradient of dyn.zeros which is just zero."""
+    assert len(orig.args) == 1
+    return [zeros_like(orig.args[0])]
 
 
 @register_gradient("ones")
 def ones_grad(orig, grad):
-    """Returns [shape]"""
-    return [orig.args[0]]
+    """Returns []"""
+    return []
+
+
+@register_gradient("dyn.ones")
+def dyn_ones_grad(orig, grad):
+    """Returns the gradient of dyn.ones which is just zero."""
+    assert len(orig.args) == 1
+    return [zeros_like(orig.args[0])]
 
 
 @register_gradient("zeros_like")

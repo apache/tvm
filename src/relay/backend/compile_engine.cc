@@ -651,10 +651,10 @@ class CompileEngineImpl : public CompileEngineNode {
                                       << AsText(src_func, false);
 
         std::string sn = symbol_name.value();
-        if (cached_symbol.count(sn)) {
+        if (!cached_symbol.count(sn)) {
           cached_symbol[sn] = code_gen_name;
         } else {
-          ICHECK_NE(sn, code_gen_name)
+          ICHECK_NE(cached_symbol[sn], code_gen_name)
               << "Found duplicated symbol: " << sn << " for: " << code_gen_name;
         }
 

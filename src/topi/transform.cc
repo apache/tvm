@@ -23,6 +23,7 @@
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/topi/einsum.h>
 #include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>
 
@@ -163,6 +164,10 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
     Array<PrimExpr> axes = args[3];
     *rv = tensordot(args[0], args[1], args[2], axes);
   }
+});
+
+TVM_REGISTER_GLOBAL("topi.einsum").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = einsum(args[0], args[1]);
 });
 
 TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
