@@ -93,7 +93,7 @@ runtime::Module CreateMetadataModule(
       target->GetAttr<String>("runtime").value_or(String("")) == kTvmRuntimeCrt) {
     if (!non_crt_exportable_modules.empty()) {
       std::string non_exportable_modules;
-      for (int i = 0; i < non_crt_exportable_modules.size(); i++) {
+      for (unsigned int i = 0; i < non_crt_exportable_modules.size(); i++) {
         if (i > 0) {
           non_exportable_modules += ", ";
         }
