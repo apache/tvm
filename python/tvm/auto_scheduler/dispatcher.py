@@ -322,10 +322,16 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
     cost_model_file: str
         The filename of the pre-trained XGBoost cost model. If not present, then random
         model will be used.
+    num_measure: int
+        Meausre the top-N rank of sampled schedules on the device. The default -1 means
+        no measurement and simply return the top-1 schedule ranked by the cost model.
     """
 
-    def __init__(self, records, sample_simple_workloads=False, cost_model_file=None):
+    def __init__(
+        self, records, sample_simple_workloads=False, cost_model_file=None, num_measure=-1
+    ):
         self.sample_simple_workloads = sample_simple_workloads
+        self.num_measure = num_measure
         self.log_dir = tempdir()
         if cost_model_file is None:
             self.cost_model = RandomModel()
@@ -360,7 +366,7 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
 
         while ret is None:
             tune_option = TuningOptions(
-                num_measure_trials=2,
+                num_measure_trials=self.num_measure,
                 runner=measure_ctx.runner,
                 measure_callbacks=[RecordToFile(log_file)],
                 verbose=0,

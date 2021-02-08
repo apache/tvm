@@ -57,7 +57,7 @@ def tune_network(network, target):
                 lib = relay.build(mod, target=target, params=params)
 
         # Sample a schedule when missing
-        with auto_scheduler.ApplyHistoryBestOrSample(None):
+        with auto_scheduler.ApplyHistoryBestOrSample(None, num_measure=2):
             with tvm.transform.PassContext(
                 opt_level=3, config={"relay.backend.use_auto_scheduler": True}
             ):
