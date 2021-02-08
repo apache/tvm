@@ -24,12 +24,11 @@ to handle tensor processing. Particularly:
 import math
 import tvm.ir
 
-from .register import register_pattern_table, get_pattern_table
-
 from tvm.relay import transform
 from tvm.relay.expr import const
 from tvm.relay.build_module import bind_params_by_name
 
+from .register import register_pattern_table, get_pattern_table
 from ...dataflow_pattern import wildcard, is_op, is_expr
 
 
