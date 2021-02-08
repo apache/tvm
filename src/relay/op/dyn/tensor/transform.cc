@@ -64,8 +64,9 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  // Doesn't support dynamic output rank
-  for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
+  const IntImmNode* rank = newshape->shape[0].as<IntImmNode>();
+  ICHECK(rank != nullptr) << "Dynamic Reshape doesn't support Dynamic Rank";
+  for (int i = 0; i < rank->value; i++) {
     oshape.push_back(Any());
   }
 
@@ -398,6 +399,9 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* fill_value = types[0].as<TensorTypeNode>();
   const auto* fill_shape = types[1].as<TensorTypeNode>();
   if (fill_value == nullptr) {
+    return false;
+  }
+  if (fill_shape == nullptr) {
     return false;
   }
 

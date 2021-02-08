@@ -232,11 +232,11 @@ def test_dynamic_to_static_zeros_ones():
 
             func = run_infer_type(relay.Function([x], y))
             func2 = run_opt_pass(
-                run_opt_pass(func, transform.DynamicToStatic()), transform.InferType()
+                run_opt_pass(func, transform.DynamicToStatic()),
+                transform.InferType(),
             )
 
             zz = func2.body
-            assert isinstance(zz, relay.Constant)
             assert zz.checked_type == relay.ty.TensorType(shape, dtype)
 
             x_data = np.random.uniform(low=1, high=1, size=shape)
@@ -516,6 +516,46 @@ def test_dyn_to_static_sparse_to_dense():
         [0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1]
     )  # floats
     verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+
+
+@tvm.testing.uses_gpu
+def test_dynamic_to_static_dynamic_rank():
+    def verify_full(fill_value, fill_shape, dtype):
+        x = relay.var("x", relay.scalar_type(dtype))
+        y = relay.var("y", relay.TensorType(fill_shape, "int64"))
+        shape = relay.shape_of(y)
+        shape = relay.strided_slice(shape, [0], relay.shape_of(shape))
+        z = relay.full(x, shape, dtype)
+
+        func = relay.Function([x, y], z)
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("full")
+
+        ref_res = np.full(fill_shape, fill_value).astype(dtype)
+        y_data = np.random.uniform(low=-1, high=1, size=fill_shape).astype("int64")
+        verify_func(func2, [fill_value, y_data], ref_res)
+
+    verify_full(4, (1, 2, 3, 4), "int32")
+    verify_full(4.0, (1, 2, 8, 10), "float32")
+
+
+@tvm.testing.uses_gpu
+def test_dynamic_to_static_dynamic_if():
+    x = relay.var("x", relay.TensorType((2, 2), "int64"))
+    cond = relay.const(1)
+    iff = relay.If(cond, relay.reshape(x, [1, 4]), relay.reshape(x, (4, 1)))
+
+    func = relay.Function([x], iff)
+    func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+    zz = func2.body
+    assert isinstance(zz, relay.Call)
+    assert zz.op == relay.op.get("reshape")
+    x_data = np.random.uniform(low=-1, high=1, size=(2, 2)).astype("int64")
+    verify_func(func2, [x_data], x_data.reshape(1, 4))
 
 
 if __name__ == "__main__":

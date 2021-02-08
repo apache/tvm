@@ -644,6 +644,10 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   return MakeReduce(data, axis, keepdims, exclude, "sum");
 }
 
+static inline Expr Prod(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  return MakeReduce(data, axis, keepdims, exclude, "prod");
+}
+
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
   return MakeReshape(data, newshape);
 }

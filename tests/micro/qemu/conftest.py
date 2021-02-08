@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
 
 def pytest_addoption(parser):
@@ -25,8 +26,16 @@ def pytest_addoption(parser):
             "for microTVM tests."
         ),
     )
+    parser.addoption(
+        "--west-cmd", default="west", help="Path to `west` command for flashing device."
+    )
 
 
 def pytest_generate_tests(metafunc):
     if "platform" in metafunc.fixturenames:
         metafunc.parametrize("platform", metafunc.config.getoption("microtvm_platforms").split(","))
+
+
+@pytest.fixture
+def west_cmd(request):
+    return request.config.getoption("--west-cmd")

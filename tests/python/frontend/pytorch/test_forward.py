@@ -216,7 +216,6 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
-
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
@@ -924,6 +923,85 @@ def test_forward_conv_transpose():
     verify_model(torch.nn.ConvTranspose1d(3, 12, 3, bias=False), input_data=conv1d_input_data)
 
 
+def test_forward_deform_conv():
+    torch.set_grad_enabled(False)
+
+    def test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    ):
+        input_shape = [batch_size, in_channels, in_height, in_width]
+        offset_shape = [batch_size, 2 * offset_groups * kh * kw, out_height, out_width]
+        weight_shape = [out_channels, in_channels // groups, kh, kw]
+        input_data = torch.rand(input_shape)
+        offset_data = torch.rand(offset_shape)
+        weight_data = torch.rand(weight_shape)
+
+        class DeformConv2D(Module):
+            def forward(self, *args):
+                return torchvision.ops.deform_conv2d(args[0], args[1], args[2])
+
+        verify_model(
+            DeformConv2D().float().eval(),
+            input_data=[input_data, offset_data, weight_data],
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+    batch_size = 4
+    in_channels, out_channels = 4, 6
+    in_height, in_width = 10, 10
+    out_height, out_width = 8, 8
+    offset_groups = 2
+    kh, kw = 3, 3
+    groups = 1
+
+    test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    )
+
+    batch_size = 5
+    in_channels, out_channels = 4, 6
+    in_height, in_width = 10, 10
+    out_height, out_width = 8, 8
+    offset_groups = 1
+    kh, kw = 3, 3
+    groups = 1
+
+    test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    )
+
+
 @tvm.testing.uses_gpu
 def test_forward_threshold():
     torch.set_grad_enabled(False)
@@ -1147,7 +1225,7 @@ def test_forward_view():
 @tvm.testing.uses_gpu
 def test_forward_select():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
+    input_shape = [5, 3, 10, 10]
 
     class Select1(Module):
         def forward(self, *args):
@@ -1166,6 +1244,9 @@ def test_forward_select():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Select1().float().eval(), input_data=input_data)
+
+    # test negative indexing
+    verify_model(lambda x: x[-1], input_data=input_data)
 
     x = torch.randn(3, 4)
     indices = torch.tensor([0, 2])
@@ -1697,7 +1778,7 @@ def test_forward_roi_align():
     """ROI align"""
     torch.set_grad_enabled(False)
 
-    class ROIAlgin(Module):
+    class ROIAlign(Module):
         def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1):
             super().__init__()
             self.spatial_scale = spatial_scale
@@ -1718,9 +1799,9 @@ def test_forward_roi_align():
     in_batch = torch.zeros((35, 1), dtype=torch.float)
     in_boxes = torch.cat([in_batch, in_boxes], dim=1)
 
-    verify_model(ROIAlgin(7), [in_data, in_boxes])
-    verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
-    verify_model(ROIAlgin(15, 0.9, 3), [in_data, in_boxes])
+    verify_model(ROIAlign(7), [in_data, in_boxes])
+    verify_model(ROIAlign((10, 10), 0.7, 5), [in_data, in_boxes])
+    verify_model(ROIAlign(15, 0.9, 3), [in_data, in_boxes])
 
 
 @tvm.testing.uses_gpu
@@ -2653,6 +2734,8 @@ def test_forward_take():
     verify_model(Take1().float().eval(), input_data=input_data)
     indices = torch.tensor([[0, 0], [1, 0]])
     verify_model(Take2().float().eval(), input_data=[input_data, indices])
+    indices = torch.tensor([0, -1])
+    verify_model(Take2().float().eval(), input_data=[input_data, indices])
 
 
 @tvm.testing.uses_gpu
@@ -3452,6 +3535,93 @@ def test_hard_swish():
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
+def test_cumsum():
+    def test_fn(dim, dtype=None):
+        return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
+
+    inp = torch.randint(0, 100, (10000,), dtype=torch.int32)
+    verify_model(test_fn(0), [inp])
+    verify_model(test_fn(0), [inp.to(torch.int64)])
+    verify_model(test_fn(0, dtype=torch.int64), [inp.to(torch.int64)])
+
+    inp = torch.randn((100, 100), dtype=torch.float32)
+    verify_model(test_fn(dim=0, dtype=torch.float64), [inp])
+    verify_model(test_fn(dim=1), [inp])
+
+    inp = torch.randn((100, 100), dtype=torch.float32) > 0.5
+    verify_model(test_fn(dim=0, dtype=torch.int32), [inp])
+
+
+def test_masked_fill():
+    def test_fn(x, mask):
+        return torch.masked_fill(x, mask, 0.0)
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn, [inp, inp > 0.5])
+    verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
+
+
+def test_transformer():
+    model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
+    model = model.eval()
+    src = torch.rand((10, 32, 256))
+    tgt = torch.rand((20, 32, 256))
+    verify_model(model.eval(), input_data=[src, tgt])
+
+
+def test_argsort():
+    def test_fn(dim, descending):
+        return lambda x: torch.argsort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
+def test_sort():
+    def test_fn(dim, descending):
+        return lambda x: torch.sort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
+def test_logical_and():
+    def test_fn(x, y):
+        return torch.logical_and(x, y)
+
+    a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
+    b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)
+    verify_model(test_fn, [a, b])
+
+    a = torch.tensor([True, False, True])
+    b = torch.tensor([True, False, False])
+    verify_model(test_fn, [a, b])
+
+
+def test_masked_select():
+    def test_fn(x, mask):
+        return torch.masked_select(x, mask)
+
+    for shape in [(10,), (3, 4), (16, 32, 64)]:
+        x = torch.randn(*shape)
+        mask = x.ge(0.5)
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3580,6 +3750,13 @@ if __name__ == "__main__":
     test_forward_scatter()
     test_numel()
     test_bincount()
+    test_cumsum()
+    test_masked_fill()
+    test_transformer()
+    test_sort()
+    test_argsort()
+    test_logical_and()
+    test_masked_select()
 
     # Model tests
     test_resnet18()
