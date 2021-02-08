@@ -120,7 +120,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto git = exec_->global_map.find(func_name);
       ICHECK(git != exec_->global_map.end())
           << "Cannot find function " << func_name << " in the executable";
-      auto func = exec_->functions[git->second];
+      func_index_ = git->second;
+      auto func = exec_->functions[func_index_];
       if (func.params.empty()) {
         *rv = Invoke(func, {});
       } else {
@@ -200,7 +201,9 @@ Index VirtualMachine::PopFrame() {
   return call_stack_size;
 }
 
-void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args) {
+void VirtualMachine::InvokeGlobal(const VMFunction& func,
+                                  Index func_index,
+                                  const std::vector<ObjectRef>& args) {
   DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
 
   PushFrame(func.params.size(), this->pc_ + 1, func);
@@ -211,12 +214,13 @@ void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Obje
 
   code_ = func.instructions.data();
   pc_ = 0;
+  func_index_ = func_index;
 }
 
 ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
   DLOG(INFO) << "Executing Function: " << std::endl << func;
 
-  InvokeGlobal(func, args);
+  InvokeGlobal(func, func_index_, args);
   RunLoop();
   return return_register_;
 }
@@ -405,7 +409,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_args; ++i) {
           args.push_back(ReadRegister(instr.invoke_args_registers[i]));
         }
-        InvokeGlobal(exec_->functions[instr.func_index], args);
+        InvokeGlobal(exec_->functions[instr.func_index], instr.func_index, args);
         frames_.back().caller_return_register = instr.dst;
         goto main_loop;
       }
@@ -438,7 +442,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_closure_args; ++i) {
           args.push_back(ReadRegister(instr.closure_args[i]));
         }
-        InvokeGlobal(exec_->functions[closure->func_index], args);
+        InvokeGlobal(exec_->functions[closure->func_index], closure->func_index, args);
         frames_.back().caller_return_register = instr.dst;
         goto main_loop;
       }

@@ -256,7 +256,7 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * This does not begin execution of the VM.
    */
-  void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
+  void InvokeGlobal(const VMFunction& func, Index func_index, const std::vector<ObjectRef>& args);
 
  protected:
   /*! \brief The virtual machine's packed function table. */
