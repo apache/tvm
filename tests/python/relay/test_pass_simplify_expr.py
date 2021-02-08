@@ -58,44 +58,70 @@ def test_simplify_reshape():
     assert tvm.ir.structural_equal(zz, after)
 
 
-def test_simplify_full_argwhere():
-    def verify(x_shape):
-        def before():
-            x = relay.const(1)
-            y = relay.full(x, x_shape, dtype="int64")
-            z = relay.argwhere(y)
-            return z
+def test_simplify_full_elementwise():
+    def validate(shape, value, dtype):
+        def before_left(x, elem_op, full):
+            return elem_op(full, x)
 
-        def expected():
-            x = relay.const(1)
-            full = relay.full(x, x_shape, dtype="int64")
-            start = relay.const(0)
-            end = relay.take(relay.shape_of(full, "int32"), relay.const(0), 0)
-            step = relay.const(1)
-            y = relay.arange(start, end, step, dtype="int32")
-            z = relay.reshape(y, [-1, 1])
-            return z
+        def after_left(x, elem_op, value):
+            return elem_op(relay.const(value, dtype), x)
 
-        z = before()
-        zz = run_opt_pass(z, transform.SimplifyExpr())
-        after = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(zz, after)
+        def before_right(x, elem_op, full):
+            return elem_op(x, full)
 
-        mod1 = tvm.IRModule.from_expr(z)
-        mod2 = tvm.IRModule.from_expr(zz)
+        def after_right(x, elem_op, value):
+            return elem_op(x, relay.const(value, dtype))
 
-        with tvm.transform.PassContext(disabled_pass="SimplifyExpr"):
-            ex1 = relay.create_executor("vm", mod=mod1, ctx=tvm.cpu(), target="llvm")
-        ex2 = relay.create_executor("vm", mod=mod2, ctx=tvm.cpu(), target="llvm")
+        x = relay.var("x", shape=shape, dtype=dtype)
+        elem_ops = [relay.add, relay.multiply, relay.subtract, relay.divide]
+        full_ops = []
+        if value == 0:
+            full_ops.append(relay.zeros(shape, dtype))
+            full_ops.append(relay.zeros_like(x))
+        if value == 1:
+            full_ops.append(relay.ones(shape, dtype))
+            full_ops.append(relay.ones_like(x))
+        else:
+            full_ops.append(relay.full(relay.const(value, dtype), shape))
+            full_ops.append(relay.full_like(x, relay.const(value, dtype)))
+        for op in elem_ops:
+            for full in full_ops:
+                z = before_left(x, op, full)
+                zz = run_opt_pass(z, transform.SimplifyExpr())
+                after = run_opt_pass(after_left(x, op, value), transform.InferType())
+                assert tvm.ir.structural_equal(zz, after)
 
-        result1 = ex1.evaluate()()
-        result2 = ex2.evaluate()()
+                z = before_right(x, op, full)
+                zz = run_opt_pass(z, transform.SimplifyExpr())
+                after = run_opt_pass(after_right(x, op, value), transform.InferType())
+                assert tvm.ir.structural_equal(zz, after)
 
-        tvm.testing.assert_allclose(result1.asnumpy(), result2.asnumpy())
+        # Test the case in which x is broadcast to full's shape
+        full_ops = []
+        if value == 0:
+            full_ops.append(relay.zeros(shape * 2, dtype))
+        if value == 1:
+            full_ops.append(relay.ones(shape * 2, dtype))
+        else:
+            full_ops.append(relay.full(relay.const(value, dtype), shape * 2))
+        for op in elem_ops:
+            for full in full_ops:
+                z = before_left(x, op, full)
+                zz = run_opt_pass(z, transform.SimplifyExpr())
+                after = run_opt_pass(before_left(x, op, full), transform.InferType())
+                assert tvm.ir.structural_equal(zz, after)
 
-    verify([128])
-    verify(relay.const([128], dtype="int64"))
+                z = before_right(x, op, full)
+                zz = run_opt_pass(z, transform.SimplifyExpr())
+                after = run_opt_pass(before_right(x, op, full), transform.InferType())
+                assert tvm.ir.structural_equal(zz, after)
+
+    for shape in [[10], [10, 10], [10, 10, 10]]:
+        for dtype in ["float32", "int32"]:
+            for value in [0, 1, 2]:
+                validate(shape, value, dtype)
+
 
 if __name__ == "__main__":
     test_simplify_reshape()
-    test_simplify_full_argwhere()
+    test_simplify_full_elementwise()
