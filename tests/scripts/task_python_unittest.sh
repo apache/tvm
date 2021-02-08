@@ -25,7 +25,9 @@ source tests/scripts/setup-pytest-env.sh
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
-TVM_FFI=ctypes python3 -m pytest tests/python/all-platform-minimal-test
-TVM_FFI=cython python3 -m pytest tests/python/all-platform-minimal-test
-TVM_FFI=ctypes python3 -m pytest tests/python/unittest
-TVM_FFI=cython python3 -m pytest tests/python/unittest
+if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
+    TVM_UNITTEST_TESTSUITE_NAME=python-unittest
+fi
+
+run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
+run_pytest ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest
