@@ -446,7 +446,9 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   TVM_DECLARE_ATTRS(CumsumAttrs, "relay.attrs.CumsumAttrs") {
     TVM_ATTR_FIELD(axis).describe("The axis to sum over").set_default(NullValue<Integer>());
     TVM_ATTR_FIELD(dtype).describe("Output data type").set_default(NullValue<DataType>());
-    TVM_ATTR_FIELD(exclusive).describe("The top element is not included").set_default(NullValue<Integer>());
+    TVM_ATTR_FIELD(exclusive)
+        .describe("The top element is not included")
+        .set_default(NullValue<Integer>());
   }
 };
 
