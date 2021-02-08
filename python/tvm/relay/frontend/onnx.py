@@ -1088,12 +1088,8 @@ class CumSum(OnnxOpConverter):
 
         exclusive = attr.get("exclusive", 0)
         reverse = attr.get("reverse", 0)
-        if exclusive != 0:
-            raise NotImplementedError("Exclusive CumSum not yet supported.")
-        if reverse != 0:
-            raise NotImplementedError("Reverse CumSum not yet supported.")
 
-        return _op.cumsum(data, axis=dim)
+        return _op.cumsum(data, axis=dim, exclusive=exclusive, reverse=reverse)
 
 
 class Cast(OnnxOpConverter):

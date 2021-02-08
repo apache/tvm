@@ -3965,14 +3965,21 @@ def test_softplus():
 
 
 def test_cumsum():
-    def verify_cumsum(indata, axis):
-        nodes = [
-            make_constant_node("axis", onnx.TensorProto.INT32, [1], [axis]),
-            onnx.helper.make_node(
+    def verify_cumsum(indata, axis, exclusive=0, reverse=0):
+        cumsum_node = onnx.helper.make_node(
                 "CumSum",
                 inputs=["X", "axis"],
                 outputs=["Y"],
-            ),
+            )
+        if exclusive != 0:
+            exclusive_attr = helper.make_attribute("exclusive", exclusive)
+            cumsum_node.attribute.append(exclusive_attr)
+        if reverse != 0:
+            reverse_attr = helper.make_attribute("reverse", reverse)
+            cumsum_node.attribute.append(reverse_attr)
+        nodes = [
+            make_constant_node("axis", onnx.TensorProto.INT32, [1], [axis]),
+            cumsum_node,
         ]
 
         graph = helper.make_graph(
@@ -3986,11 +3993,20 @@ def test_cumsum():
 
         model = helper.make_model(graph, producer_name="cumsum_test")
 
-        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11)
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11, targets=['llvm'])
 
-    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).astype(np.float32).reshape((2, 3))
+    data = np.array([
+        1.0, 2.0, 3.0, 4.0,
+        5.0, 6.0, 7.0, 8.0,
+        9.0, 10.0, 11.0, 12.0,
+    ]).astype(np.float32).reshape((3, 4))
     verify_cumsum(data, 0)
     verify_cumsum(data, 1)
+    verify_cumsum(data, 0, 1, 0)
+    verify_cumsum(data, 1, 1, 0)
+    #verify_cumsum(data, 0, 0, 1)
+    #verify_cumsum(data, 1, 0, 1)
+    #verify_cumsum(data, 1, 1, 1)
     data = np.random.randn(1, 32, 32, 3).astype("float32")
     verify_cumsum(data, 1)
 

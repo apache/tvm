@@ -22,7 +22,7 @@ from .utils import prod, get_const_int
 from .math import cast
 
 
-def cumsum(data, axis=None, dtype=None):
+def cumsum(data, axis=None, dtype=None, exclusive=None, reverse=None):
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
     Parameters
@@ -37,6 +37,15 @@ def cumsum(data, axis=None, dtype=None):
     dtype : string, optional
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : int, optional
+        If set to 1 will return exclusive sum in which the top element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
+
+    reverse : int, optional
+        If set to 1 will perform the sums in reverse direction.
 
     Returns
     -------
@@ -75,6 +84,12 @@ def cumsum(data, axis=None, dtype=None):
             elif i > axis:
                 axis_mul_after *= value
 
+    if exclusive is None:
+        exclusive = 0
+
+    if reverse is None:
+        reverse = 0
+
     def gen_ir(data_buf, out_buf):
         ib = ir_builder.create()
         data_buf = ib.buffer_ptr(data_buf)
@@ -90,6 +105,10 @@ def cumsum(data, axis=None, dtype=None):
                 cur_idx = base_idx + k * axis_mul_after
                 prev_idx = base_idx + (k - 1) * axis_mul_after
                 out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[cur_idx])
+            if exclusive != 0:
+                with ib.for_range(0, cumsum_axis_len, "_k") as k:
+                    cur_idx = base_idx + k * axis_mul_after
+                    out_buf[cur_idx] = out_buf[cur_idx] - maybe_cast(data_buf[cur_idx])
 
         return ib.get()
 
