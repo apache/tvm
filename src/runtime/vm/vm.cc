@@ -204,7 +204,8 @@ Index VirtualMachine::PopFrame() {
 void VirtualMachine::InvokeGlobal(const VMFunction& func,
                                   Index func_index,
                                   const std::vector<ObjectRef>& args) {
-  DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
+  DLOG(INFO) << "Invoking global " << func.name << " at index " << func_index_
+             << " args size" << args.size();
 
   PushFrame(func.params.size(), this->pc_ + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
