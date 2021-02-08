@@ -161,7 +161,7 @@ class InternalError : public Error {
    * \param file The file where the error occurred.
    * \param lineno The line number where the error occurred.
    * \param message The error message to display.
-   * \param time The time at which the error occurred.
+   * \param time The time at which the error occurred. This should be in local time.
    * \param backtrace Backtrace from when the error occurred.
    */
   InternalError(std::string file, int lineno, std::string message,

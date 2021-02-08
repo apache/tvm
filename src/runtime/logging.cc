@@ -39,7 +39,10 @@ struct BacktraceInfo {
   std::string error_message;
 };
 
-static backtrace_state* _backtrace_state = nullptr;
+backtrace_state** GetBacktraceState() {
+  thread_local backtrace_state* state = nullptr;
+  return &state;
+}
 
 std::string DemangleName(const char* name) {
   int status = 0;
@@ -80,7 +83,8 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
     symbol_str = DemangleName(symbol);
   } else {
     // see if syminfo gives anything
-    backtrace_syminfo(_backtrace_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
+    backtrace_state** bt_state = GetBacktraceState();
+    backtrace_syminfo(*bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
                       &symbol_str);
   }
   s << symbol_str;
@@ -94,7 +98,7 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   // Skip tvm::backtrace and tvm::LogFatal::~LogFatal at the beginning of the trace as they don't
   // add anything useful to the backtrace.
   if (!(stack_trace->lines.size() == 0 &&
-        (symbol_str.find("tvm::Backtrace", 0) == 0 || symbol_str.find("tvm::LogFatal", 0) == 0))) {
+        (symbol_str.find("tvm::runtime::Backtrace", 0) == 0 || symbol_str.find("tvm::runtime::detail::LogFatal", 0) == 0))) {
     stack_trace->lines.push_back(s.str());
   }
   // TVMFuncCall denotes the API boundary so we stop there. Exceptions should be caught there.
@@ -108,12 +112,13 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 std::string Backtrace() {
   BacktraceInfo bt;
   bt.max_size = 100;
-  if (_backtrace_state == nullptr) {
+  backtrace_state** bt_state = GetBacktraceState();
+  if (*bt_state == nullptr) {
     // TVM is loaded as a shared library into python, so we cannot supply an
     // executable path to libbacktrace.
-    _backtrace_state = backtrace_create_state(nullptr, 1, BacktraceErrorCallback, &bt);
+    *bt_state = backtrace_create_state(nullptr, 1, BacktraceErrorCallback, &bt);
   }
-  backtrace_full(_backtrace_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
+  backtrace_full(*bt_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
 
   std::ostringstream s;
   s << "Stack trace:\n";

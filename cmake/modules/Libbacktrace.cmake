@@ -35,7 +35,10 @@ ExternalProject_Add(project_libbacktrace
   )
 
 # Only rebuild libbacktrace if this file changes
-# libbacktrace has a bug on macOS with shared libraries, so we patch it here
+# libbacktrace has a bug on macOS with shared libraries: when looking for symbols in shared
+# libraries, if any library is missing symbols, then the process stops and no symbols are used. We
+# include a patch that changes libbacktrace to instead perform a best-effort lookup of symbols. This
+# is a one-line change where a return is changed to a continue within the symbol lookup loop.
 ExternalProject_Add_Step(project_libbacktrace checkout
   DEPENDERS configure
   DEPENDEES download
