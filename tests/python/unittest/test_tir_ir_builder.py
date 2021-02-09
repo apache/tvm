@@ -173,6 +173,70 @@ def test_gpu():
     check_target("cuda")
 
 
+def test_while_collatz():
+    """Test while loop + if"""
+
+    def collatz_ref(n):
+        a = n
+        i = 0
+        while a > 1:
+            if a % 2 == 1:
+                a = 3 * a + 1
+            else:
+                a = a >> 1
+            i += 1
+        return i
+
+    def collatz(ib, n, C):
+        i = ib.allocate("int32", (1,), name="i", scope="local")
+        a = ib.allocate("int32", (1,), name="a", scope="local")
+        i[0] = 0
+        a[0] = n
+        with ib.while_loop(a[0] > 1):
+            with ib.if_scope(tvm.tir.floormod(a[0], 2) == 1):
+                a[0] = 3 * a[0] + 1
+            with ib.else_scope():
+                a[0] = a[0] >> 1
+            i[0] += 1
+
+        C[n] = i[0]
+
+    def collatz_ir_cpu(C):
+        ib = tvm.tir.ir_builder.create()
+        n = C.shape[0]
+        C = ib.buffer_ptr(C)
+
+        with ib.for_range(0, n, name="i", kind="parallel") as i:
+            collatz(ib, i, C)
+
+        body = ib.get()
+
+        return body
+
+    n = 30
+
+    def check_target(target, ir):
+        C = te.extern(
+            (n,),
+            [],
+            lambda ins, outs: ir(outs[0]),
+            name="collatz",
+            dtype="int32",
+        )
+        s = te.create_schedule(C.op)
+
+        with tvm.transform.PassContext(opt_level=3):
+            func = tvm.build(s, [C], target)
+
+        ctx = tvm.context(target, 0)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        func(c)
+        ref = np.array([collatz_ref(i) for i in range(n)])
+        tvm.testing.assert_allclose(c.asnumpy(), ref)
+
+    check_target("llvm", collatz_ir_cpu)
+
+
 def test_while_mandel():
     n = 160
     shape = (n * 2, n)
@@ -283,15 +347,11 @@ def test_while_mandel():
         ctx = tvm.context(target, 0)
         c = tvm.nd.array(np.zeros(shape, dtype=C.dtype), ctx)
         func(c)
-        tvm.testing.assert_allclose(c.asnumpy(), ref)
+        tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
 
     check_target("llvm", mandel_ir_cpu)
     check_target("npvtx", mandel_ir_gpu)
     check_target("cuda", mandel_ir_gpu)
-
-
-def test_collatz():
-    pass
 
 
 def test_while_binary_search():
@@ -388,6 +448,6 @@ if __name__ == "__main__":
     test_for()
     test_cpu()
     test_gpu()
-    test_while_mandel()
     test_while_collatz()
+    test_while_mandel()
     test_while_binary_search()
