@@ -129,18 +129,10 @@
 namespace tvm {
 namespace runtime {
 
-#ifndef TVM_BACKTRACE_DISABLED
 /* \brief Generate a backtrace when called.
  * \return A multiline string of the backtrace. There will be either one or two lines per frame.
  */
 std::string Backtrace();
-#else
-// TODO(bkimball,tkonolige) This inline function is to work around a linking error I am having when
-// using MSVC If the function definition is in logging.cc then the linker can't find it no matter
-// what kind of attributes (dllexport) I decorate it with. This is temporary and will be addressed
-// when we get backtrace working on Windows.
-inline std::string Backtrace() { return ""; }
-#endif
 
 /*! \brief Base error type for TVM. Wraps a string message. */
 class Error : public ::dmlc::Error {  // for backwards compatibility

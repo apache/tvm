@@ -17,7 +17,13 @@
  * under the License.
  */
 
-#ifndef TVM_BACKTRACE_DISABLED
+#ifdef TVM_BACKTRACE_DISABLED
+// TODO(bkimball,tkonolige) This inline function is to work around a linking error I am having when
+// using MSVC If the function definition is in logging.cc then the linker can't find it no matter
+// what kind of attributes (dllexport) I decorate it with. This is temporary and will be addressed
+// when we get backtrace working on Windows.
+std::string tvm::runtime::Backtrace() { return ""; }
+#else
 
 #include <backtrace.h>
 #include <cxxabi.h>
@@ -84,8 +90,7 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   } else {
     // see if syminfo gives anything
     backtrace_state** bt_state = GetBacktraceState();
-    backtrace_syminfo(*bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
-                      &symbol_str);
+    backtrace_syminfo(*bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback, &symbol_str);
   }
   s << symbol_str;
 
@@ -98,7 +103,8 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   // Skip tvm::backtrace and tvm::LogFatal::~LogFatal at the beginning of the trace as they don't
   // add anything useful to the backtrace.
   if (!(stack_trace->lines.size() == 0 &&
-        (symbol_str.find("tvm::runtime::Backtrace", 0) == 0 || symbol_str.find("tvm::runtime::detail::LogFatal", 0) == 0))) {
+        (symbol_str.find("tvm::runtime::Backtrace", 0) == 0 ||
+         symbol_str.find("tvm::runtime::detail::LogFatal", 0) == 0))) {
     stack_trace->lines.push_back(s.str());
   }
   // TVMFuncCall denotes the API boundary so we stop there. Exceptions should be caught there.

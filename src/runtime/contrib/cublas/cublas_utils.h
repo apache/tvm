@@ -68,7 +68,7 @@ inline const char* GetCublasErrorString(int error) {
     int error = static_cast<int>(fn);                                                     \
     ICHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << GetCublasErrorString(error); \
   } while (0)  // ; intentionally left off.
-#endif         // CHECK_CUBLAS_ERROR
+#endif  // CHECK_CUBLAS_ERROR
 
 struct CuBlasThreadEntry {
   CuBlasThreadEntry();
