@@ -173,6 +173,61 @@ def test_gpu():
     check_target("cuda")
 
 
+def test_while_vectorize():
+    """Test while loop + vectorized inner loop"""
+
+    n = 64
+    num_iter = 10
+
+    def test_ir(A, B, C):
+        ib = tvm.tir.ir_builder.create()
+        n = C.shape[0]
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+        C = ib.buffer_ptr(C)
+        i = ib.allocate("int32", (1,), name="i", scope="local")
+        i[0] = 0
+
+        with ib.for_range(0, n) as j:
+            C[j] = 0.0
+
+        with ib.while_loop(i[0] < num_iter):
+            with ib.for_range(0, n, kind="vectorize") as j:
+                C[j] += A[j] + B[j]
+            i[0] += 1
+
+        return ib.get()
+
+    def check_target(target, ir):
+        dtype = "float32"
+        A = te.placeholder((n,), name="A", dtype=dtype)
+        B = te.placeholder((n,), name="B", dtype=dtype)
+
+        C = te.extern(
+            (n,),
+            [A, B],
+            lambda ins, outs: ir(ins[0], ins[1], outs[0]),
+            name="while_vectorize",
+            dtype=dtype,
+        )
+        s = te.create_schedule(C.op)
+
+        with tvm.transform.PassContext(opt_level=3):
+            func = tvm.build(s, [A, B, C], target)
+
+        ctx = tvm.context(target, 0)
+        a_np = np.random.uniform(size=n).astype(A.dtype)
+        b_np = np.random.uniform(size=n).astype(B.dtype)
+        a = tvm.nd.array(a_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        func(a, b, c)
+        ref = num_iter * (a_np + b_np)
+        tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+
+    check_target("llvm", test_ir)
+
+
 def test_while_collatz():
     """Test while loop + if"""
 
@@ -448,6 +503,7 @@ if __name__ == "__main__":
     test_for()
     test_cpu()
     test_gpu()
+    test_while_vectorize()
     test_while_collatz()
     test_while_mandel()
     test_while_binary_search()
