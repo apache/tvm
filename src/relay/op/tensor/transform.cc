@@ -3705,10 +3705,11 @@ bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeCumsum(Expr data, Integer axis, DataType dtype) {
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive) {
   auto attrs = make_object<CumsumAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
+  attrs->exclusive = exclusive;
   static const Op& op = Op::Get("cumsum");
   return Call(op, {data}, Attrs(attrs), {});
 }

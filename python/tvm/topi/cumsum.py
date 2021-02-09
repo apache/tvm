@@ -22,7 +22,7 @@ from .utils import prod, get_const_int
 from .math import cast
 
 
-def cumsum(data, axis=None, dtype=None):
+def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
     Parameters
@@ -37,6 +37,12 @@ def cumsum(data, axis=None, dtype=None):
     dtype : string, optional
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : int, optional
+        If set to 1 will return exclusive sum in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
 
     Returns
     -------
@@ -75,6 +81,9 @@ def cumsum(data, axis=None, dtype=None):
             elif i > axis:
                 axis_mul_after *= value
 
+    if exclusive is None:
+        exclusive = 0
+
     def gen_ir(data_buf, out_buf):
         ib = ir_builder.create()
         data_buf = ib.buffer_ptr(data_buf)
@@ -84,12 +93,18 @@ def cumsum(data, axis=None, dtype=None):
             i = fused // axis_mul_after
             j = fused % axis_mul_after
             base_idx = i * cumsum_axis_len * axis_mul_after + j
-            out_buf[base_idx] = maybe_cast(data_buf[base_idx])
+            if exclusive == 0:
+                out_buf[base_idx] = maybe_cast(data_buf[base_idx])
+            else:
+                out_buf[base_idx] = cast(0, dtype)
             with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
                 k = _k + 1
                 cur_idx = base_idx + k * axis_mul_after
                 prev_idx = base_idx + (k - 1) * axis_mul_after
-                out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[cur_idx])
+                if exclusive == 0:
+                    out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[cur_idx])
+                else:
+                    out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[prev_idx])
 
         return ib.get()
 

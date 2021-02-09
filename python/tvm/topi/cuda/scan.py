@@ -488,7 +488,7 @@ def schedule_scan(outs):
     return s
 
 
-def cumsum(data, axis=None, dtype=None):
+def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
     Parameters
@@ -504,6 +504,12 @@ def cumsum(data, axis=None, dtype=None):
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
 
+    exclusive : int, optional
+        If set to 1 will return exclusive sum in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
+
     Returns
     -------
     result : tvm.te.Tensor
@@ -514,4 +520,6 @@ def cumsum(data, axis=None, dtype=None):
         axis = 0
         data = reshape(data, (prod(data.shape),))
     axis = get_const_int(axis)
+    if exclusive is not None and exclusive != 0:
+        return exclusive_scan(data, axis, output_dtype=dtype, binop=tvm.tir.generic.add)
     return inclusive_scan(data, axis, output_dtype=dtype, binop=tvm.tir.generic.add)

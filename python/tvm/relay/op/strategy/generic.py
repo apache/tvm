@@ -1367,7 +1367,7 @@ def wrap_compute_cumsum(topi_compute):
     """Wrap cumsum topi compute"""
 
     def _compute_cumsum(attrs, inputs, _):
-        return [topi_compute(inputs[0], attrs.axis, attrs.dtype)]
+        return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
     return _compute_cumsum
 

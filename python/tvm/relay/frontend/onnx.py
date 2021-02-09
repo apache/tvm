@@ -34,7 +34,7 @@ from .. import loops as _loops
 from .. import ty as _ty
 
 from .common import AttrCvt, Renamer
-from .common import get_relay_op, new_var, infer_shape, infer_channels
+from .common import get_relay_op, new_var, infer_shape, infer_channels, infer_value
 from .common import infer_type, get_name
 
 
@@ -1073,6 +1073,28 @@ class Shape(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.shape_of(inputs[0], "int64")
+
+
+class CumSum(OnnxOpConverter):
+    """Operator converter for CumSum."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        dim = inputs[1]
+
+        if dim is not None:
+            dim = int(infer_value(dim, params).asnumpy())
+
+        exclusive = attr.get("exclusive", 0)
+        reverse = attr.get("reverse", 0)
+
+        if reverse != 0:
+            out = _op.reverse(data, axis=dim)
+            out = _op.cumsum(out, axis=dim, exclusive=exclusive)
+            return _op.reverse(out, axis=dim)
+
+        return _op.cumsum(data, axis=dim, exclusive=exclusive)
 
 
 class Cast(OnnxOpConverter):
@@ -2736,6 +2758,7 @@ def _get_convert_map(opset):
         "Resize": Resize.get_converter(opset),
         "NonZero": NonZero.get_converter(opset),
         "Range": Range.get_converter(opset),
+        "CumSum": CumSum.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
