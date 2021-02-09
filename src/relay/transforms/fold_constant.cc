@@ -82,10 +82,6 @@ class ConstantFolder : public MixedModeMutator {
         device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
-        invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
-        shape_func_op_(Op::Get("vm.shape_func")),
-        alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
-        alloc_storage_op_(Op::Get("memory.alloc_storage")),
         cast_op_(Op::Get("cast")),
         ndarray_size_op_(Op::Get("ndarray_size")) {}
 
@@ -217,10 +213,6 @@ class ConstantFolder : public MixedModeMutator {
   const Op& device_copy_op_;
   const Op& shape_of_op_;
   const Op& vm_shape_of_op_;
-  const Op& invoke_tvm_op_;
-  const Op& shape_func_op_;
-  const Op& alloc_tensor_op_;
-  const Op& alloc_storage_op_;
   const Op& cast_op_;
   const Op& ndarray_size_op_;
 

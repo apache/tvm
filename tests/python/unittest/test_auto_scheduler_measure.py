@@ -24,8 +24,10 @@ from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
 import tvm.testing
+import pickle
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
+from tvm.auto_scheduler import workload_registry
 
 
 def record_common(dag, s):
@@ -255,6 +257,42 @@ def test_measure_local_builder_runner():
         assert mress[0].error_no == 0
 
 
+def test_dag_measure_local_builder_runner():
+    if not tvm.testing.device_enabled("llvm"):
+        return
+
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
+    D = topi.nn.relu(C)
+    E = topi.nn.relu(D)
+
+    tensors = [A, B, E]
+    dag = auto_scheduler.ComputeDAG(tensors)
+    key = workload_registry.register_workload_tensors(dag.workload_key(), tensors)
+    transfer_data = workload_registry.serialize_workload_registry_entry(key)
+    f_data = pickle.dumps(transfer_data)
+    f_new = pickle.loads(f_data)
+    del workload_registry.WORKLOAD_FUNC_REGISTRY[key]
+    workload_registry.deserialize_workload_registry_entry(f_new)
+
+    target = tvm.target.Target("llvm")
+    task = auto_scheduler.SearchTask(compute_dag=dag, workload_key=key, target=target)
+
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        local_runner = auto_scheduler.LocalRunner(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = local_runner.run([minp], bress)
+        assert mress[0].error_no == 0
+
+
 def test_measure_local_builder_rpc_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
@@ -325,5 +363,6 @@ if __name__ == "__main__":
     test_recover_measure_input()
     test_workload_dis_factor()
     test_measure_local_builder_runner()
+    test_dag_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
     test_measure_target_host()

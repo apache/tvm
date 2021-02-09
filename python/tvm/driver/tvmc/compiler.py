@@ -87,6 +87,13 @@ def add_compile_parser(subparsers):
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
+    parser.add_argument(
+        "--input-shapes",
+        help="specify non-generic shapes for model to run, format is "
+        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
+        type=common.parse_shape_string,
+        default=None,
+    )
 
 
 def drive_compile(args):
@@ -98,7 +105,7 @@ def drive_compile(args):
         Arguments from command line parser.
 
     Returns
-    --------
+    -------
     int
         Zero if successfully completed
 
@@ -112,6 +119,7 @@ def drive_compile(args):
         args.model_format,
         args.tuning_records,
         args.desired_layout,
+        args.input_shapes,
     )
 
     if dumps:
@@ -129,6 +137,7 @@ def compile_model(
     model_format=None,
     tuning_records=None,
     alter_layout=None,
+    shape_dict=None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -158,6 +167,9 @@ def compile_model(
         The layout to convert the graph to. Note, the convert layout
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
+    shape_dict: dict, optional
+        A mapping from input names to their shape. When present,
+        the default shapes in the model will be overwritten.
 
     Returns
     -------
@@ -172,7 +184,7 @@ def compile_model(
 
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format)
+    mod, params = frontends.load_model(path, model_format, shape_dict)
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)

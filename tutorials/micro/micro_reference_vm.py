@@ -59,14 +59,16 @@ Installing prerequisites
 
 A minimal set of prerequisites are needed:
 
-
 1. `Vagrant <https://vagrantup.com>`__
-2. A supported Virtual Machine hypervisor.
-   `VirtualBox <https://www.virtualbox.org>`__ is one suggested free hypervisor, but please note
+2. A supported Virtual Machine hypervisor (**VirtualBox**, **Parallels**, or **VMWare Fusion/Workstation**).
+   `VirtualBox <https://www.virtualbox.org>`__ is a suggested free hypervisor, but please note
    that the `VirtualBox Extension Pack`_ is required for proper USB forwarding. If using VirtualBox,
    also consider installing the `vbguest <https://github.com/dotless-de/vagrant-vbguest>`_ plugin.
 
 .. _VirtualBox Extension Pack: https://www.virtualbox.org/wiki/Downloads#VirtualBox6.1.16OracleVMVirtualBoxExtensionPack
+
+3. If required for your hypervisor, the
+   `Vagrant provider plugin <https://github.com/hashicorp/vagrant/wiki/Available-Vagrant-Plugins#providers>`__ (or see `here <https://www.vagrantup.com/vmware>`__ for VMWare).
 
 First boot
 ----------
@@ -75,9 +77,9 @@ The first time you use a reference VM, you need to create the box locally and th
 
 .. code-block:: bash
 
-    # Replace zepyhr with the name of a different platform, if you are not using Zephyr.
+    # Replace zephyr with the name of a different platform, if you are not using Zephyr.
     ~/.../tvm $ cd apps/microtvm/reference-vm/zephyr
-    # Replace <provider_name> with the name of the hypervisor you wish to use (i.e. virtualbox).
+    # Replace <provider_name> with the name of the hypervisor you wish to use (i.e. virtualbox, parallels, vmware_desktop).
     ~/.../tvm/apps/microtvm/reference-vm/zephyr $ vagrant up --provider=<provider_name>
 
 

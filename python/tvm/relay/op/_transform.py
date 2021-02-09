@@ -116,7 +116,7 @@ _reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
 @_reg.register_compute("cumsum")
 def compute_cumsum(attrs, inputs, output_type):
     """Compute definition of cumsum"""
-    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype)]
+    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
 
 _reg.register_strategy("cumsum", strategy.cumsum_strategy)
