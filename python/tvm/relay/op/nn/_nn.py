@@ -78,6 +78,17 @@ reg.register_strategy("nn.dense", strategy.dense_strategy)
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_alter_op_layout("nn.dense")
+def alter_op_layout_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of dense"""
+    return topi.nn.dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+# dense_pack
+reg.register_strategy("nn.contrib_dense_pack", strategy.dense_pack_strategy)
+reg.register_pattern("nn.contrib_dense_pack", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # fifo_buffer
 @reg.register_compute("nn.fifo_buffer")
 def compute_fifo_buffer(attrs, inputs, out_type):
@@ -1127,6 +1138,25 @@ def dense_shape_func(attrs, inputs, _):
     Shape function for dense op.
     """
     ret = [_dense_shape_func(inputs[0], inputs[1])]
+    return ret
+
+
+@script
+def _dense_pack_shape_func(data_shape, weight_shape):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0] - 1):
+        out[i] = data_shape[i]
+    out[out.shape[0] - 1] = weight_shape[0] * weight_shape[2]
+
+    return out
+
+
+@reg.register_shape_func("nn.contrib_dense_pack", False)
+def dense_pack_shape_func(attrs, inputs, _):
+    """
+    Shape function for dense_pack op.
+    """
+    ret = [_dense_pack_shape_func(inputs[0], inputs[1])]
     return ret
 
 
