@@ -245,6 +245,38 @@ def test_pca():
     _test_model_impl(st_helper, rpca, dshape, data)
 
 
+def test_date_time_vectorizer():
+    from sagemaker_sklearn_extension.feature_extraction.date_time import DateTimeVectorizer
+
+    st_helper = SklearnTestHelper()
+
+    data = np.array(
+        [
+            "Jan 3th, 2018, 1:34am",
+            "Feb 11th, 2012, 11:34:59pm",
+        ]
+    ).reshape((-1, 1))
+
+    translated_data = np.array(
+        [[3, 2018, 1, 34, 0, 1, 1], [6, 2012, 23, 34, 59, 2, 6]], dtype=np.float32
+    )
+
+    date_time = DateTimeVectorizer(mode="ordinal", ignore_constant_columns=True)
+    python_out = date_time.fit_transform(data)
+
+    dshape = (relay.Any(), 7)
+    st_helper.compile(date_time, dshape, "float32", "transform")
+
+    tvm_out = st_helper.run(translated_data)
+    tvm.testing.assert_allclose(python_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    date_time = DateTimeVectorizer(mode="cyclic", ignore_constant_columns=True)
+    python_out = date_time.fit_transform(data)
+
+    dshape = (relay.Any(), 7)
+    st_helper.compile(date_time, dshape, "float32", "transform")
+
+
 def test_automl():
     st_helper = SklearnTestHelper()
 
@@ -384,3 +416,4 @@ if __name__ == "__main__":
     test_log_extreme_values_transformer()
     test_quantile_transformer()
     test_quantile_extremevalues_transformer()
+    test_date_time_vectorizer()

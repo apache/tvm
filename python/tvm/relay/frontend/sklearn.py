@@ -491,6 +491,73 @@ def _LogExtremeValuesTransformer(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
+_date_time_func_index = {
+    "extract_weekday": 0,
+    "extract_year": 1,
+    "extract_hour": 2,
+    "extract_minute": 3,
+    "extract_second": 4,
+    "extract_month": 5,
+    "extract_week_of_year": 6,
+}
+
+
+def _cyclic_transform(data, low, high, dtype):
+    normalized = _op.multiply(_op.subtract(data, low), _op.const(2 * np.pi, dtype))
+    normalized = _op.divide(normalized, _op.add(_op.const(1, dtype), _op.subtract(high, low)))
+    sin_values = _op.sin(normalized)
+    cos_values = _op.cos(normalized)
+    return sin_values, cos_values
+
+
+def _DateTimeVectorizer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Converts array-like data with datetime.datetime or strings describing datetime objects into
+    numeric features
+    """
+    mins = []
+    maxs = []
+    cols = []
+    cols_without_year = []  # year is not eligible for ordinal/cyclic transform
+
+    for datetime_property in op.extract_:
+        extract_func = datetime_property.extract_func.__name__
+        cols.append(_date_time_func_index[extract_func])
+        if datetime_property.min is not None:
+            cols_without_year.append(_date_time_func_index[extract_func])
+            mins.append(datetime_property.min)
+            maxs.append(datetime_property.max)
+
+    mins = np.array(mins, dtype=np.float32)
+    maxs = np.array(maxs, dtype=np.float32)
+
+    data = _op.take(inexpr, _op.const(cols_without_year), axis=1)
+    year = _op.take(inexpr, _op.const([1]), axis=1)
+
+    ordinal_values = _op.split(_op.subtract(data, _op.const(mins)), len(cols_without_year), axis=1)
+
+    sin_values, cos_values = _cyclic_transform(data, _op.const(mins), _op.const(maxs), dtype)
+    sin_values = _op.split(sin_values, len(cols_without_year), axis=1)
+    cos_values = _op.split(cos_values, len(cols_without_year), axis=1)
+
+    out, i = [], 0
+    for col in cols:
+        if col == 1:
+            out.append(year)
+        else:
+            if op.mode == "ordinal":
+                out.append(ordinal_values[i])
+            elif op.mode == "cyclic":
+                out.append(sin_values[i])
+                out.append(cos_values[i])
+            i += 1
+
+    ret = _op.concatenate(out, axis=1)
+
+    return ret
+
+
 _convert_map = {
     "ColumnTransformer": {"transform": _ColumnTransformer},
     "SimpleImputer": {"transform": _SimpleImputer},
@@ -505,6 +572,7 @@ _convert_map = {
     "RobustMissingIndicator": {"transform": _RobustMissingIndicator},
     "RobustPCA": {"transform": _RobustPCA},
     "FeatureUnion": {"transform": _FeatureUnion},
+    "DateTimeVectorizer": {"transform": _DateTimeVectorizer},
     "Pipeline": {"transform": _Pipeline},
     "QuantileTransformer": {"transform": _QuantileTransformer},
     "QuantileExtremeValuesTransformer": {"transform": _QuantileExtremeValuesTransformer},
