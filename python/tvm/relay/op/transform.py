@@ -1340,7 +1340,7 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         If dtype is not specified, it defaults to the dtype of data.
 
     exclusive : int, optional
-        If set to 1 will return exclusive sum in which the top element is not
+        If set to 1 will return exclusive sum in which the first element is not
         included. In other terms, if set to 1, the j-th output element would be
         the sum of the first (j-1) elements. Otherwise, it would be the sum of
         the first j elements.

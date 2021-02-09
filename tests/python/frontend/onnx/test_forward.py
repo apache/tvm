@@ -3965,7 +3965,7 @@ def test_softplus():
 
 
 def test_cumsum():
-    def verify_cumsum(indata, axis, exclusive=0, reverse=0):
+    def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
         cumsum_node = onnx.helper.make_node(
             "CumSum",
             inputs=["X", "axis"],
@@ -3981,19 +3981,24 @@ def test_cumsum():
             make_constant_node("axis", onnx.TensorProto.INT32, [1], [axis]),
             cumsum_node,
         ]
+        if type == "float32":
+            tensor_type = TensorProto.FLOAT
+        else:
+            tensor_type = TensorProto.INT32
+            type = "int32"
 
         graph = helper.make_graph(
             nodes,
             "cumsum_test",
             inputs=[
-                helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape)),
+                helper.make_tensor_value_info("X", tensor_type, list(indata.shape)),
             ],
-            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", tensor_type, list(indata.shape))],
         )
 
         model = helper.make_model(graph, producer_name="cumsum_test")
 
-        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11)
+        verify_with_ort_with_inputs(model, [indata], dtype=type, use_vm=True, opset=11)
 
     data = (
         np.array(
@@ -4025,6 +4030,14 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1)
     data = np.random.randn(1, 32, 32, 3).astype("float32")
     verify_cumsum(data, 1)
+    data = np.random.randn(1, 32, 32, 3).astype("int32")
+    verify_cumsum(data, 0, type="int32")
+    verify_cumsum(data, 1, type="int32")
+    verify_cumsum(data, 0, 1, 0, type="int32")
+    verify_cumsum(data, 1, 1, 0, type="int32")
+    verify_cumsum(data, 0, 0, 1, type="int32")
+    verify_cumsum(data, 1, 0, 1, type="int32")
+    verify_cumsum(data, 1, 1, 1, type="int32")
 
 
 if __name__ == "__main__":

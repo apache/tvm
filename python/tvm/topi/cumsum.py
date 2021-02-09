@@ -39,7 +39,7 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         If dtype is not specified, it defaults to the dtype of data.
 
     exclusive : int, optional
-        If set to 1 will return exclusive sum in which the top element is not
+        If set to 1 will return exclusive sum in which the first element is not
         included. In other terms, if set to 1, the j-th output element would be
         the sum of the first (j-1) elements. Otherwise, it would be the sum of
         the first j elements.
@@ -96,7 +96,7 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
             if exclusive == 0:
                 out_buf[base_idx] = maybe_cast(data_buf[base_idx])
             else:
-                out_buf[base_idx] = 0.0
+                out_buf[base_idx] = cast(0, dtype)
             with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
                 k = _k + 1
                 cur_idx = base_idx + k * axis_mul_after
