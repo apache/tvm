@@ -100,6 +100,23 @@ def keras_resnet50(tmpdir_factory):
 
 
 @pytest.fixture(scope="session")
+def pytorch_resnet18(tmpdir_factory):
+    try:
+        import torch
+        import torchvision.models as models
+    except ImportError:
+        # Not all environments provide Pytorch, so skip if that's the case.
+        return ""
+    model = models.resnet18()
+    model_file_name = "{}/{}".format(tmpdir_factory.mktemp("data"), "resnet18.pth")
+    # Trace model into torchscript.
+    traced_cpu = torch.jit.trace(model, torch.randn(1, 3, 224, 224))
+    torch.jit.save(traced_cpu, model_file_name)
+
+    return model_file_name
+
+
+@pytest.fixture(scope="session")
 def onnx_resnet50():
     base_url = "https://github.com/onnx/models/raw/master/vision/classification/resnet/model"
     file_to_download = "resnet50-v2-7.onnx"
