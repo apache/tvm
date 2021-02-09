@@ -158,6 +158,7 @@ class For(Stmt):
             span,
         )
 
+
 @tvm._ffi.register_object("tir.While")
 class While(Stmt):
     """TODO"""

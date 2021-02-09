@@ -266,6 +266,7 @@ class IRBuilder(object):
     def while_loop(self, condition):
         """TODO"""
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(_stmt.While(condition, self._pop_seq()))
 
