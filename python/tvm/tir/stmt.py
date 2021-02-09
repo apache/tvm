@@ -161,7 +161,19 @@ class For(Stmt):
 
 @tvm._ffi.register_object("tir.While")
 class While(Stmt):
-    """TODO"""
+    """While node.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The termination condition.
+
+    body : Stmt
+        The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
 
     def __init__(self, condition, body, span=None):
         self.__init_handle_by_constructor__(

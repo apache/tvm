@@ -873,9 +873,9 @@ class For : public Stmt {
  */
 class WhileNode : public StmtNode {
  public:
-  /*! \brief The minimum value of iteration. */
+  /*! \brief The termination condition. */
   PrimExpr condition;
-  /*! \brief The body of the for loop. */
+  /*! \brief The body of the while loop. */
   Stmt body;
 
   void VisitAttrs(AttrVisitor* v) {

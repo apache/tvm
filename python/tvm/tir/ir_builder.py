@@ -264,7 +264,27 @@ class IRBuilder(object):
         return WithScope(loop_var, _exit_cb)
 
     def while_loop(self, condition):
-        """TODO"""
+        """Create a while loop scope.
+
+        Parameters
+        ----------
+        condition : Expr
+            The termination condition.
+
+        Returns
+        -------
+        loop_scope : With.Scope of Var
+            The while scope.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            ib = tvm.tir.ir_builder.create()
+            iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
+            with ib.while_loop(iterations[0] < 10):
+                iterations[0] += 1
+        """
         self._seq_stack.append([])
 
         def _exit_cb():
