@@ -270,7 +270,7 @@ class HybridParser(ast.NodeVisitor):
         # Do I need any assertion here?
         return entry
 
-    def visit_Num(self, node):
+    def visit_Constant(self, node):
         if isinstance(node.n, numbers.Integral):
             dtype = "int32"
         elif isinstance(node.n, float):

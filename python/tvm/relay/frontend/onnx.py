@@ -1614,6 +1614,7 @@ class Expand(OnnxOpConverter):
             """
             in_dims = infer_shape(in_shape)[0]
             new_dims = infer_shape(shape)[0]
+
             if in_dims < new_dims:
                 in_shape = _op.concatenate(
                     [
@@ -2034,8 +2035,8 @@ class RoiAlign(OnnxOpConverter):
         rois = inputs[1]
         batch_indices = inputs[2]
         mode = attr.get("mode", b"avg")
-        if mode != b"avg":
-            raise ValueError("RoiAlign in Relay only uses avg mode")
+        if mode != b"avg" and mode != b"max":
+            raise ValueError("RoiAlign in Relay only uses avg and max modes")
         output_height = attr.get("output_height", 1)
         output_width = attr.get("output_width", 1)
 
@@ -2047,7 +2048,7 @@ class RoiAlign(OnnxOpConverter):
         rois = _op.concatenate([batch_indices, rois], 1)
 
         return _vision.roi_align(
-            x, rois, [output_height, output_width], spatial_scale, sampling_ratio
+            x, rois, [output_height, output_width], spatial_scale, sampling_ratio, mode=mode
         )
 
 

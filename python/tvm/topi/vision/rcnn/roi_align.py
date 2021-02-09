@@ -22,7 +22,7 @@ from ...utils import get_const_tuple
 from ...cpp.utils import bilinear_sample_nchw
 
 
-def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
+def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1):
     """ROI align operator in NCHW layout.
 
     Parameters
@@ -92,17 +92,26 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         rw = te.reduce_axis((0, roi_bin_grid_w))
         roi_start_h += ph * bin_h
         roi_start_w += pw * bin_w
-        return te.sum(
-            _bilinear(
-                batch_index,
-                c,
-                roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
-                roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+        if mode == b'avg':
+            return te.sum(
+                _bilinear(
+                    batch_index,
+                    c,
+                    roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
+                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+                )
+                / count,
+                axis=[rh, rw],
             )
-            / count,
-            axis=[rh, rw],
-        )
-
+        elif mode == b'max':
+            return te.max(
+                _bilinear(
+                    batch_index,
+                    c,
+                    roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
+                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w),
+                axis=[rh, rw]
+            )
     return te.compute(
         (num_roi, channel, pooled_size_h, pooled_size_w), _sample, tag="pool,roi_align_nchw"
     )

@@ -19,13 +19,14 @@
 import math
 import tvm
 
+from tvm import relay
 from tvm.te import hybrid
 from ..tensor import full
 from ..utils import get_const_tuple
 
 
 @hybrid.script
-def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_scale, sample_ratio):
+def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_scale, sample_ratio, mode):
     """Hybrid routing fo ROI align operator in NCHW layout.
 
     Parameters
@@ -56,6 +57,10 @@ def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_s
 
     sample_ratio : tvm.tir.const
         Sampling ratio of ROI align, using adaptive size by default.
+
+    mode : tvm.tir.const
+        Mode of RoiAlign. A value of 0 corrensponds to b'avg', while a value of 1 corresponds to
+        b'max'.
 
     Returns
     -------
@@ -161,47 +166,81 @@ def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_s
             for ph in range(pooled_size_h):
                 for pw in range(pooled_size_w):
                     output_val = 0.0
-                    for iy in range(roi_bin_grid_h):
-                        for ix in range(roi_bin_grid_w):
-                            output_val += (
-                                w_pc[n, pre_calc_index, 0]
-                                * data[
-                                    roi_batch_index,
-                                    c,
-                                    pos_pc[n, pre_calc_index, 2],
-                                    pos_pc[n, pre_calc_index, 0],
-                                ]
-                                + w_pc[n, pre_calc_index, 1]
-                                * data[
-                                    roi_batch_index,
-                                    c,
-                                    pos_pc[n, pre_calc_index, 2],
-                                    pos_pc[n, pre_calc_index, 1],
-                                ]
-                                + w_pc[n, pre_calc_index, 2]
-                                * data[
-                                    roi_batch_index,
-                                    c,
-                                    pos_pc[n, pre_calc_index, 3],
-                                    pos_pc[n, pre_calc_index, 0],
-                                ]
-                                + w_pc[n, pre_calc_index, 3]
-                                * data[
-                                    roi_batch_index,
-                                    c,
-                                    pos_pc[n, pre_calc_index, 3],
-                                    pos_pc[n, pre_calc_index, 1],
-                                ]
-                            )
-                            pre_calc_index += 1
+                    if mode == 0:
+                        for iy in range(roi_bin_grid_h):
+                            for ix in range(roi_bin_grid_w):
+                                output_val += (
+                                    w_pc[n, pre_calc_index, 0]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 2],
+                                        pos_pc[n, pre_calc_index, 0],
+                                    ]
+                                    + w_pc[n, pre_calc_index, 1]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 2],
+                                        pos_pc[n, pre_calc_index, 1],
+                                    ]
+                                    + w_pc[n, pre_calc_index, 2]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 3],
+                                        pos_pc[n, pre_calc_index, 0],
+                                    ]
+                                    + w_pc[n, pre_calc_index, 3]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 3],
+                                        pos_pc[n, pre_calc_index, 1],
+                                    ]
+                                )
+                                pre_calc_index += 1
 
-                    output_val /= count
-                    output[n, c, ph, pw] = output_val
-
+                        output_val /= count
+                        output[n, c, ph, pw] = output_val
+                    elif mode == 1:
+                        output_val = 0.0
+                        for iy in range(roi_bin_grid_h):
+                            for ix in range(roi_bin_grid_w):
+                                output_val = max(output_val, w_pc[n, pre_calc_index, 0]
+                                                            * data[
+                                                            roi_batch_index,
+                                                            c,
+                                                            pos_pc[n, pre_calc_index, 2],
+                                                            pos_pc[n, pre_calc_index, 0],
+                                                            ])
+                                output_val = max(output_val, w_pc[n, pre_calc_index, 1]
+                                                             * data[
+                                                             roi_batch_index,
+                                                             c,
+                                                             pos_pc[n, pre_calc_index, 2],
+                                                             pos_pc[n, pre_calc_index, 1],
+                                    ])
+                                output_val = max(output_val, w_pc[n, pre_calc_index, 2]
+                                                             * data[
+                                                             roi_batch_index,
+                                                             c,
+                                                             pos_pc[n, pre_calc_index, 3],
+                                                             pos_pc[n, pre_calc_index, 0],
+                                    ])
+                                output_val = max(output_val, w_pc[n, pre_calc_index, 3]
+                                                             * data[
+                                                             roi_batch_index,
+                                                             c,
+                                                             pos_pc[n, pre_calc_index, 3],
+                                                             pos_pc[n, pre_calc_index, 1],
+                                    ])
+                                pre_calc_index += 1
+                        output[n, c, ph, pw] = output_val
     return output
 
 
-def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
+def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1):
     """ROI align operator in NCHW layout.
 
     Parameters
@@ -219,6 +258,9 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     spatial_scale : float
         Ratio of input feature map height (or w) to raw image height (or w). Equals the reciprocal
         of total stride in convolutional layers, which should be in range (0.0, 1.0]
+    
+    mode : str
+        Mode of RoiAlign. Should be b'max' or b'avg'.
 
     sample_ratio : int
         Optional sampling ratio of ROI align, using adaptive size by default.
@@ -250,6 +292,10 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     pooled_size = tvm.runtime.convert(pooled_size)
     spatial_scale = tvm.tir.const(spatial_scale, "float32")
     sample_ratio = tvm.tir.const(sample_ratio, "int32")
+    if mode == b'avg':
+        mode = tvm.tir.const(0, dtype='float32')
+    elif mode == b'max':
+        mode = tvm.tir.const(1, dtype='float32')
     return roi_align_nchw_ir(
-        data, rois, num_rois, w_pc_buffer, pos_pc_buffer, pooled_size, spatial_scale, sample_ratio
+        data, rois, num_rois, w_pc_buffer, pos_pc_buffer, pooled_size, spatial_scale, sample_ratio, mode
     )
