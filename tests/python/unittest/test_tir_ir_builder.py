@@ -419,7 +419,7 @@ def test_while_binary_search():
         v = Bptr[i]
 
         with ib.while_loop(lo[0] < hi[0]):
-            mid = lo[0] + tvm.tir.floordiv(hi[0] - lo[0], 2).astype("int32")
+            mid = lo[0] + (hi[0] - lo[0] >> 1)
             with ib.if_scope(Aptr[mid] < v):
                 lo[0] = mid + 1
             with ib.else_scope():
