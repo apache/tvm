@@ -173,7 +173,7 @@ def test_gpu():
     check_target("cuda")
 
 
-def test_while():
+def test_while_mandel():
     n = 160
     shape = (n * 2, n)
     t = 300
@@ -290,7 +290,11 @@ def test_while():
     check_target("cuda", mandel_ir_gpu)
 
 
-def test_binary_search():
+def test_collatz():
+    pass
+
+
+def test_while_binary_search():
     def binary_search(ib, n, i, Aptr, Bptr, Cptr):
         lo = ib.allocate("int32", (1,), name="lo", scope="local")
         hi = ib.allocate("int32", (1,), name="hi", scope="local")
@@ -384,5 +388,6 @@ if __name__ == "__main__":
     test_for()
     test_cpu()
     test_gpu()
-    test_while()
-    test_binary_search()
+    test_while_mandel()
+    test_while_collatz()
+    test_while_binary_search()
