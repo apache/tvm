@@ -21,6 +21,7 @@ from os import path
 import pytest
 
 import tvm
+from tvm import relay
 from tvm.driver import tvmc
 
 
@@ -149,3 +150,35 @@ def test_tracker_host_port_from_cli__only_hostname__default_port_is_9090():
 
     assert expected_host == actual_host
     assert expected_port == actual_port
+
+
+def test_shape_parser():
+    # Check that a valid input is parsed correctly
+    shape_string = "input:[10,10,10]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10]}
+    # Check that multiple valid input shapes are parse correctly
+    shape_string = "input:[10,10,10] input2:[20,20,20,20]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+    # Check that alternate syntax parses correctly
+    shape_string = "input: [10, 10, 10] input2: [20, 20, 20, 20]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+    shape_string = "input:[10,10,10],input2:[20,20,20,20]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+    # Check that negative dimensions parse to Any correctly.
+    shape_string = "input:[-1,3,224,224]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    # Convert to strings to allow comparison with Any.
+    assert str(shape_dict) == "{'input': [?, 3, 224, 224]}"
+
+    # Check that invalid pattern raises expected error.
+    shape_string = "input:[a,10]"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with invalid separators raises error.
+    shape_string = "input:5,10 input2:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
