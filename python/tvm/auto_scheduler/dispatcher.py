@@ -28,8 +28,13 @@ import pathlib
 
 import numpy as np
 
+from tvm.contrib.utils import tempdir
 from tvm.tir.expr import FloatImm
-from .measure_record import load_records
+from .cost_model import RandomModel, XGBModel
+from .measure import LocalRPCMeasureContext
+from .measure_record import RecordToFile, load_records
+from .search_policy import PreloadMeasuredStates, SketchPolicy
+from .search_task import SearchTask, TuningOptions
 from .utils import calc_workload_dis_factor, decode_workload_key
 
 logger = logging.getLogger("auto_scheduler")
@@ -299,6 +304,92 @@ class ApplyHistoryBest(DispatchContext):
         for k in target.keys:
             entry, _, _ = self.get_workload_entry(self._best_user_defined, k, workload_key)
             entry[workload_args] = (state, 1)
+
+
+class ApplyHistoryBestOrSample(ApplyHistoryBest):
+    """
+    Apply the history best config, or sample a valid schedule if no config is found.
+
+    Parameters
+    ----------
+    records : str or iterator of (auto_scheduler.measure.MeasureInput,\
+                                  auto_scheduler.measure.MeasureResult)
+        Collection of tuning records.
+        If is str, then it should be the filename of a records log file.
+        Each row of this file is an encoded record pair. Otherwise, it is an iterator.
+    sample_simple_workloads: bool
+        When False, sampling will not apply to simple workloads (w/o reduction).
+    cost_model_file: str
+        The filename of the pre-trained XGBoost cost model. If not present, then random
+        model will be used.
+    num_measure: int
+        Meausre the top-N rank of sampled schedules on the device. The default -1 means
+        no measurement and simply return the top-1 schedule ranked by the cost model.
+    """
+
+    def __init__(
+        self, records, sample_simple_workloads=False, cost_model_file=None, num_measure=-1
+    ):
+        self.sample_simple_workloads = sample_simple_workloads
+        self.num_measure = num_measure
+        self.log_dir = tempdir()
+        if cost_model_file is None:
+            self.cost_model = RandomModel()
+        else:
+            self.cost_model = XGBModel()
+            self.cost_model.load(cost_model_file)
+
+        super(ApplyHistoryBestOrSample, self).__init__(
+            records, n_lines=None, include_compatible=True
+        )
+
+    def query(self, target, workload_key, has_complex_op, dag):
+        if has_complex_op or self.sample_simple_workloads:
+            ret = self._query_inside(target, workload_key)
+        else:
+            ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+
+        if ret is None:
+            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag)
+        return ret
+
+    def _query_inside(self, target, workload_key):
+        ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+        if ret is not None:
+            return ret
+
+        # Sampling valid schedules when no existing records can be used.
+        task = SearchTask(workload_key=workload_key, target=target)
+        measure_ctx = LocalRPCMeasureContext(min_repeat_ms=300)
+
+        log_file = self.log_dir.relpath("%s.log" % decode_workload_key(workload_key)[0])
+
+        while ret is None:
+            tune_option = TuningOptions(
+                num_measure_trials=self.num_measure,
+                runner=measure_ctx.runner,
+                measure_callbacks=[RecordToFile(log_file)],
+                verbose=0,
+            )
+            search_policy = SketchPolicy(
+                task,
+                self.cost_model,
+                params={
+                    "eps_greedy": 0.01,
+                    "sample_init_min_population": 64,
+                    "evolutionary_search_num_iters": 0,
+                },
+                init_search_callbacks=[PreloadMeasuredStates(log_file)],
+                verbose=0,
+            )
+            task.tune(tune_option, search_policy)
+
+            # Load the sampled records and query again.
+            self.load(log_file)
+            ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+
+        del measure_ctx
+        return ret
 
 
 class FallbackContext(DispatchContext):
