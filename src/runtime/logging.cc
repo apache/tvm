@@ -18,11 +18,17 @@
  */
 
 #ifdef TVM_BACKTRACE_DISABLED
+#include <string>
+
 // TODO(bkimball,tkonolige) This inline function is to work around a linking error I am having when
 // using MSVC If the function definition is in logging.cc then the linker can't find it no matter
 // what kind of attributes (dllexport) I decorate it with. This is temporary and will be addressed
 // when we get backtrace working on Windows.
-std::string tvm::runtime::Backtrace() { return ""; }
+namespace tvm {
+namespace runtime {
+std::string Backtrace() { return ""; }
+}  // namespace runtime
+}  // namespace tvm
 #else
 
 #include <backtrace.h>
