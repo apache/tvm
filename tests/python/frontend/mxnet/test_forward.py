@@ -1273,7 +1273,7 @@ def test_forward_group_norm():
             data=mx.nd.array(x),
             gamma=mx.nd.array(gamma),
             beta=mx.nd.array(beta),
-            num_groups=num_groups
+            num_groups=num_groups,
         )
         mx_sym = mx.sym.GroupNorm(
             mx.sym.var("x"), mx.sym.var("gamma"), mx.sym.var("beta"), num_groups=num_groups
