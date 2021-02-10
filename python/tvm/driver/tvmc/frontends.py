@@ -198,19 +198,6 @@ class TensorflowFrontend(Frontend):
 class TFLiteFrontend(Frontend):
     """ TFLite frontend for TVMC """
 
-    _tflite_m = {
-        0: "float32",
-        1: "float16",
-        2: "int32",
-        3: "uint8",
-        4: "int64",
-        5: "string",
-        6: "bool",
-        7: "int16",
-        8: "complex64",
-        9: "int8",
-    }
-
     @staticmethod
     def name():
         return "tflite"
@@ -243,6 +230,7 @@ class TFLiteFrontend(Frontend):
 
         logger.debug("parse TFLite model and convert into Relay computation graph")
         mod, params = relay.frontend.from_tflite(tflite_model)
+        mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict)
         return mod, params
 
 
