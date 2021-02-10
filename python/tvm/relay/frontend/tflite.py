@@ -3539,59 +3539,42 @@ def get_tensor_name(subgraph, tensor_idx):
     return subgraph.Tensors(tensor_idx).Name().decode("utf-8")
 
 
-def get_tensor_shape(subgraph, tensor_idx):
-    """Get the tensor shape.
-
-    Parameters
-    ----------
-    subgraph:
-        tflite.Subgraph.Subgraph
-
-    tensor:
-        tensor index in subgraph
-
-    Returns
-    -------
-        tensor shape
-    """
-    return tuple(subgraph.Tensors(tensor_idx).ShapeAsNumpy())
+def _decode_type(n):
+    _tflite_m = {
+        0: "float32",
+        1: "float16",
+        2: "int32",
+        3: "uint8",
+        4: "int64",
+        5: "string",
+        6: "bool",
+        7: "int16",
+        8: "complex64",
+        9: "int8",
+    }
+    return _tflite_m[n]
 
 
-def get_tensor_type(subgraph, tensor_idx):
-    """Get the tensor type.
+def _input_type(model):
+    subgraph_count = model.SubgraphsLength()
+    assert subgraph_count > 0
+    shape_dict = {}
+    dtype_dict = {}
+    for subgraph_index in range(subgraph_count):
+        subgraph = model.Subgraphs(subgraph_index)
+        inputs_count = subgraph.InputsLength()
+        assert inputs_count >= 1
+        for input_index in range(inputs_count):
+            input_ = subgraph.Inputs(input_index)
+            assert subgraph.TensorsLength() > input_
+            tensor = subgraph.Tensors(input_)
+            input_shape = tuple(tensor.ShapeAsNumpy())
+            tensor_type = tensor.Type()
+            input_name = tensor.Name().decode("utf8")
+            shape_dict[input_name] = input_shape
+            dtype_dict[input_name] = _decode_type(tensor_type)
 
-    Parameters
-    ----------
-    subgraph:
-        tflite.Subgraph.Subgraph
-
-    tensor:
-        tensor index in subgraph
-
-    Returns
-    -------
-        tensor type in string
-    """
-    from enum import Enum
-
-    class TensorType(Enum):
-        """ Enum defined in tensorflow lite """
-
-        FLOAT32 = 0
-        FLOAT16 = 1
-        INT32 = 2
-        UINT8 = 3
-        INT64 = 4
-        STRING = 5
-        BOOL = 6
-        INT16 = 7
-        COMPLEX64 = 8
-        INT8 = 9
-        FLOAT64 = 10
-        COMPLEX128 = 11
-        UINT64 = 12
-
-    return TensorType(subgraph.Tensors(tensor_idx).Type()).name.lower()
+    return shape_dict, dtype_dict
 
 
 def from_tflite(model, shape_dict=None, dtype_dict=None):
@@ -3632,6 +3615,9 @@ def from_tflite(model, shape_dict=None, dtype_dict=None):
 
         assert isinstance(model, tflite.Model.Model)
 
+    if not shape_dict or not dtype_dict:
+        shape_dict, dtype_dict = _input_type(model)
+
     # keep the same as tflite
     assert model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
     subgraph = model.Subgraphs(0)
@@ -3643,14 +3629,8 @@ def from_tflite(model, shape_dict=None, dtype_dict=None):
     exp_tab = ExprTable()
     for model_input in model_inputs:
         model_input_name = get_tensor_name(subgraph, model_input)
-        if shape_dict:
-            shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
-        else:
-            shape = get_tensor_shape(subgraph, model_input)
-        if dtype_dict:
-            dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
-        else:
-            dtype = get_tensor_type(subgraph, model_input)
+        shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
+        dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model
