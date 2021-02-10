@@ -581,6 +581,7 @@ _convert_map = {
 
 INPUT_FLOAT = 0
 INPUT_STRING = 1
+INPUT_DATETIME = 2
 
 column_transformer_op_types = {
     "RobustImputer": INPUT_FLOAT,
@@ -589,6 +590,7 @@ column_transformer_op_types = {
     "RobustStandardScaler": INPUT_FLOAT,
     "RobustOrdinalEncoder": INPUT_STRING,
     "ThresholdOneHotEncoder": INPUT_STRING,
+    "DateTimeVectorizer": INPUT_DATETIME,
 }
 
 
@@ -644,7 +646,8 @@ def from_auto_ml(model, shape=None, dtype="float32", func_name="transform"):
     if func_name == "transform":
         inexpr_float = _expr.var("input_float", shape=shape, dtype=dtype)
         inexpr_string = _expr.var("input_string", shape=shape, dtype=dtype)
-        inexpr = [inexpr_float, inexpr_string]
+        inexpr_datetime = _expr.var("input_datetime", shape=shape, dtype=dtype)
+        inexpr = [inexpr_float, inexpr_string, inexpr_datetime]
 
         if type(model.feature_transformer.steps[0][1]).__name__ != "ColumnTransformer":
             raise NameError(
