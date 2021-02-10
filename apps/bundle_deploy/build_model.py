@@ -51,7 +51,7 @@ def build_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-        ext = 'tar' if runtime_name == 'c' else 'o'
+        ext = "tar" if runtime_name == "c" else "o"
         lib.export_library(os.path.join(build_dir, file_format_str.format(name="model", ext=ext)))
         with open(
             os.path.join(build_dir, file_format_str.format(name="graph", ext="json")), "w"
@@ -85,7 +85,9 @@ def build_test_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-        lib.export_library(os.path.join(build_dir, file_format_str.format(name="test_model", ext="tar")))
+        lib.export_library(
+            os.path.join(build_dir, file_format_str.format(name="test_model", ext="tar"))
+        )
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_graph", ext="json")), "w"
         ) as f_graph_json:
