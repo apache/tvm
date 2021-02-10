@@ -212,7 +212,14 @@ namespace detail {
 class LogFatal {
  public:
   LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION { throw InternalError(file_, lineno_, stream_.str()); }
+#ifdef _MSC_VER
+#pragma disagnostic push
+#pragma warning(disable : 4722)
+#endif
+  ~LogFatal() noexcept(false) { throw InternalError(file_, lineno_, stream_.str()); }
+#ifdef _MSC_VER
+#pragma disagnostic pop
+#endif
   std::ostringstream& stream() { return stream_; }
 
  private:
