@@ -28,6 +28,7 @@ from tvm.topi.utils import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
+from .op import register_strategy, register_pattern
 from ._tensor import elemwise_shape_func
 
 _reg.register_broadcast_schedule("broadcast_to")
@@ -946,3 +947,29 @@ def where_shape_func(attrs, inputs, _):
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
 
     return [out_shape]
+
+
+register_strategy("unique", strategy.unique_strategy)
+register_pattern("unique", OpPattern.OPAQUE)
+
+
+@script
+def _unique_shape_1(data_shape):
+    shape_tensor = output_tensor((1,), "int64")
+    shape_tensor[0] = int64(data_shape[0])
+    return shape_tensor
+
+
+@script
+def _unique_shape_2(inputs):
+    shape_tensor = output_tensor((1,), "int64")
+    shape_tensor[0] = int64(1)
+    return shape_tensor
+
+
+@_reg.register_shape_func("unique", False)
+def unique_shape_func(attrs, inputs, _):
+    """
+    Shape func for unique operator.
+    """
+    return [_unique_shape_1(inputs[0]), _unique_shape_1(inputs[0]), _unique_shape_1(inputs[0]), _unique_shape_2(inputs[0])]

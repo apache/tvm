@@ -931,3 +931,41 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+
+def unique(data):
+    """
+    Find the unique elements of a tensor
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        A 1-D tensor of integers
+    Returns
+    -------
+    output : tvm.te.Tensor
+        A 1-D tensor containing the unique elements of data tensor
+    inverse_indices : rtvm.te.Tensor
+        A 1-D tensor containing the index of each value of data tensor in output tensor
+    counts : tvm.te.Tensor
+        A 1-D tensor containing the count of each element of output tensor in data tensor
+    num_unique_elements : tvm.te.Tensor
+        A 0-D tensor containing the number of unique elements in data tensor
+    Examples
+    --------
+    .. code-block:: python
+        [y, idx, counts, n] = unique([1, 1, 2, 4, 4, 4, 7, 8, 8])
+        y     =  [1, 2, 4, 7, 8, ?, ?, ?, ?]
+        idx   =  [0, 0, 1, 2, 2, 2, 3, 4, 4]
+        count =  [2, 1, 3, 1, 2, ?, ?, ?, ?]
+        n     =  [5]
+    """
+    return te.extern(
+        [data.shape, data.shape, data.shape, (1,)],
+        [data],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.algorithm.unique", ins[0], *outs
+        ),
+        dtype=[data.dtype, "int32", "int32", "int32", "int32"],
+        name="unique_cpu",
+        tag="unique_cpu",
+    )

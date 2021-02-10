@@ -139,7 +139,58 @@ def test_topk():
                 verify_topk(k, axis, ret_type, False, "float32")
 
 
+def test_unique():
+    def calc_unique(data):
+        uniq, index, inverse, counts = np.unique(
+            data, return_index=True, return_inverse=True, return_counts=True)
+        order = np.argsort(index)
+        reverse_order = dict(zip(order, np.arange(len(order))))
+        uniq = uniq[order].astype(data.dtype)
+        inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
+        counts = counts[order].astype("int32")
+        num_uniq = np.array([len(uniq)]).astype("int32")
+        return uniq, inverse, counts, num_uniq
+
+    def verify_unique(len, dtype, is_dyn=False):
+        if is_dyn:
+            x = relay.var("x", relay.TensorType([relay.Any()], dtype))
+        else:
+            x = relay.var("x", relay.TensorType([len], dtype))
+        outs = relay.unique(x)
+        outs = outs.astuple()
+        func = relay.Function([x], outs)
+        x_data = np.random.randint(100, size=len).astype(dtype)
+
+        if is_dyn:
+            backends = ["vm", "debug"]
+        else:
+            backends = ["graph", "debug"]
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in backends:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(
+                    kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_data)
+                ref_res = calc_unique(x_data)
+                num_uniq = ref_res[3][0]
+                assert num_uniq == op_res[3].asnumpy()[0]
+                # output
+                tvm.testing.assert_allclose(
+                    op_res[0].asnumpy()[:num_uniq], ref_res[0], rtol=1e-5)
+                # inverse_indices
+                tvm.testing.assert_allclose(
+                    op_res[1].asnumpy(), ref_res[1], rtol=1e-5)
+                # count
+                tvm.testing.assert_allclose(
+                    op_res[2].asnumpy()[:num_uniq], ref_res[2], rtol=1e-5)
+    for dtype in ["int32", "int64"]:
+        for is_dyn in [False, True]:
+            verify_unique((50), dtype, is_dyn=is_dyn)
+            verify_unique((100), dtype, is_dyn=is_dyn)
+
+
 if __name__ == "__main__":
     test_sort()
     test_argsort()
     test_topk()
+    test_unique()
