@@ -318,16 +318,14 @@ def test_while_mandel():
         return pixels
 
     def mandel(ib, i, j, pixels):
-        c = ib.allocate("float32", (2,), name="c", scope="local")
         z = ib.allocate("float32", (2,), name="z", scope="local")
         tmp = ib.allocate("float32", (1,), name="tmp", scope="local")
         iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
 
-        c[0] = -0.8
-        c[1] = float(np.cos(t)) * 0.2
         z[0] = (i / float(n) - 1) * 2
         z[1] = (j / float(n) - 0.5) * 2
         iterations[0] = 0
+        c = [-0.8, float(np.cos(t)) * 0.2]
 
         def norm(z):
             return tvm.tir.sqrt(z[0] * z[0] + z[1] * z[1])
@@ -497,6 +495,52 @@ def test_while_binary_search():
     check_target("nvptx", searchsorted_ir_gpu)
 
 
+def test_vectorize_while_fail():
+    """A while loop inside a vectorized loop should fail."""
+
+    n = 64
+    num_iter = 10
+
+    def test_ir(A, B, C):
+        ib = tvm.tir.ir_builder.create()
+        n = C.shape[0]
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+        C = ib.buffer_ptr(C)
+        i = ib.allocate("int32", (1,), name="i", scope="local")
+        i[0] = 0
+
+        with ib.for_range(0, n) as j:
+            C[j] = 0.0
+
+        with ib.for_range(0, n, kind="vectorize") as j:
+            with ib.while_loop(i[0] < num_iter):
+                C[j] += A[j] + B[j]
+                i[0] += 1
+
+        return ib.get()
+
+    dtype = "float32"
+    A = te.placeholder((n,), name="A", dtype=dtype)
+    B = te.placeholder((n,), name="B", dtype=dtype)
+
+    C = te.extern(
+        (n,),
+        [A, B],
+        lambda ins, outs: test_ir(ins[0], ins[1], outs[0]),
+        name="while_vectorize",
+        dtype=dtype,
+    )
+    s = te.create_schedule(C.op)
+
+    try:
+        tvm.lower(s, [A, B, C], "llvm")
+    except tvm.error.TVMError as e:
+        error_msg = str(e).split("\n")[-1]
+        expected = "A while loop inside a vectorized loop not supported"
+        assert expected in error_msg
+
+
 if __name__ == "__main__":
     test_prefetch()
     test_if()
@@ -507,3 +551,4 @@ if __name__ == "__main__":
     test_while_collatz()
     test_while_mandel()
     test_while_binary_search()
+    test_vectorize_while_fail()
