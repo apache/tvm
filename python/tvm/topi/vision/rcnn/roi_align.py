@@ -53,11 +53,9 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     output : tvm.te.Tensor
         4-D with shape [num_roi, channel, pooled_size, pooled_size]
     """
-    print("rcnn roi align called")
-    print("rcnn roi align mode: ", mode)
-    avg_mode = (mode == b'avg' or mode == 0)
-    max_mode = (mode == b'max' or mode == 1)
-    assert (avg_mode or max_mode), "Mode must be avg or max. Please pass in a valid mode."
+    avg_mode = mode == b"avg" or mode == 0
+    max_mode = mode == b"max" or mode == 1
+    assert avg_mode or max_mode, "Mode must be avg or max. Please pass in a valid mode."
     dtype = rois.dtype
     _, channel, height, width = get_const_tuple(data.shape)
     num_roi, _ = get_const_tuple(rois.shape)
@@ -118,9 +116,11 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
                     batch_index,
                     c,
                     roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
-                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w),
-                axis=[rh, rw]
+                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+                ),
+                axis=[rh, rw],
             )
+
     return te.compute(
         (num_roi, channel, pooled_size_h, pooled_size_w), _sample, tag="pool,roi_align_nchw"
     )

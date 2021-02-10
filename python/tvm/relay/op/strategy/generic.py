@@ -1028,7 +1028,7 @@ def wrap_compute_roi_align(topi_compute):
     def _compute_roi_align(attrs, inputs, out_type):
         assert attrs.layout == "NCHW"
         pooled_size = get_const_tuple(attrs.pooled_size)
-        mode = bytes(attrs.mode, 'utf-8')
+        mode = bytes(attrs.mode, "utf-8")
         return [
             topi_compute(
                 inputs[0],
@@ -1036,7 +1036,7 @@ def wrap_compute_roi_align(topi_compute):
                 pooled_size=pooled_size,
                 spatial_scale=attrs.spatial_scale,
                 sample_ratio=attrs.sample_ratio,
-                mode=mode
+                mode=mode,
             )
         ]
 

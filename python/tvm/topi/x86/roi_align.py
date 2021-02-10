@@ -26,7 +26,9 @@ from ..utils import get_const_tuple
 
 
 @hybrid.script
-def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_scale, sample_ratio, mode):
+def roi_align_nchw_ir(
+    data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_scale, sample_ratio, mode
+):
     """Hybrid routing fo ROI align operator in NCHW layout.
 
     Parameters
@@ -204,38 +206,40 @@ def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_s
                         output_val /= count
                         output[n, c, ph, pw] = output_val
                     elif mode == 1:
-                        output_val = 0.0
                         for iy in range(roi_bin_grid_h):
                             for ix in range(roi_bin_grid_w):
-                                output_val = max(output_val, w_pc[n, pre_calc_index, 0]
-                                                            * data[
-                                                            roi_batch_index,
-                                                            c,
-                                                            pos_pc[n, pre_calc_index, 2],
-                                                            pos_pc[n, pre_calc_index, 0],
-                                                            ])
-                                output_val = max(output_val, w_pc[n, pre_calc_index, 1]
-                                                             * data[
-                                                             roi_batch_index,
-                                                             c,
-                                                             pos_pc[n, pre_calc_index, 2],
-                                                             pos_pc[n, pre_calc_index, 1],
-                                    ])
-                                output_val = max(output_val, w_pc[n, pre_calc_index, 2]
-                                                             * data[
-                                                             roi_batch_index,
-                                                             c,
-                                                             pos_pc[n, pre_calc_index, 3],
-                                                             pos_pc[n, pre_calc_index, 0],
-                                    ])
-                                output_val = max(output_val, w_pc[n, pre_calc_index, 3]
-                                                             * data[
-                                                             roi_batch_index,
-                                                             c,
-                                                             pos_pc[n, pre_calc_index, 3],
-                                                             pos_pc[n, pre_calc_index, 1],
-                                    ])
+                                bilinear_val = (
+                                    w_pc[n, pre_calc_index, 0]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 2],
+                                        pos_pc[n, pre_calc_index, 0],
+                                    ]
+                                    + w_pc[n, pre_calc_index, 1]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 2],
+                                        pos_pc[n, pre_calc_index, 1],
+                                    ]
+                                    + w_pc[n, pre_calc_index, 2]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 3],
+                                        pos_pc[n, pre_calc_index, 0],
+                                    ]
+                                    + w_pc[n, pre_calc_index, 3]
+                                    * data[
+                                        roi_batch_index,
+                                        c,
+                                        pos_pc[n, pre_calc_index, 3],
+                                        pos_pc[n, pre_calc_index, 1],
+                                    ]
+                                )
                                 pre_calc_index += 1
+                                output_val = max(output_val, bilinear_val)
                         output[n, c, ph, pw] = output_val
     return output
 
@@ -258,7 +262,7 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     spatial_scale : float
         Ratio of input feature map height (or w) to raw image height (or w). Equals the reciprocal
         of total stride in convolutional layers, which should be in range (0.0, 1.0]
-    
+
     mode : str
         Mode of RoiAlign. Should be b'max' or b'avg'.
 
@@ -270,7 +274,6 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     output : tvm.te.Tensor
         4-D with shape [num_roi, channel, pooled_size, pooled_size]
     """
-    print("x86 roi align")
     if not isinstance(pooled_size, (tuple, list)):
         pooled_size = (pooled_size, pooled_size)
 
@@ -293,13 +296,21 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     pooled_size = tvm.runtime.convert(pooled_size)
     spatial_scale = tvm.tir.const(spatial_scale, "float32")
     sample_ratio = tvm.tir.const(sample_ratio, "int32")
-    if mode == b'avg' or mode == 0:
-        mode = tvm.tir.const(0, dtype='float32')
-    elif mode == b'max' or mode == 1:
-        mode = tvm.tir.const(1, dtype='float32')
+    if mode == b"avg" or mode == 0:
+        mode = tvm.tir.const(0, dtype="float32")
+    elif mode == b"max" or mode == 1:
+        mode = tvm.tir.const(1, dtype="float32")
     else:
         raise ValueError(mode, "Value %s passed in for mode not supported", mode)
-    print("Mode from x86 roi align is: ", mode)
+
     return roi_align_nchw_ir(
-        data, rois, num_rois, w_pc_buffer, pos_pc_buffer, pooled_size, spatial_scale, sample_ratio, mode
+        data,
+        rois,
+        num_rois,
+        w_pc_buffer,
+        pos_pc_buffer,
+        pooled_size,
+        spatial_scale,
+        sample_ratio,
+        mode,
     )
