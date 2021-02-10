@@ -333,6 +333,12 @@ class VTInjector : public StmtExprMutator {
     }
   }
 
+  // While
+  Stmt VisitStmt_(const WhileNode* op) final {
+    // TODO(masahi): Do we need a special handling for While nodes?
+    return StmtMutator::VisitStmt_(op);
+  }
+
   // Seq
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     ICHECK_EQ(max_loop_depth_, 0);
