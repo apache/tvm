@@ -44,6 +44,8 @@ class TargetNode : public Object {
  public:
   /*! \brief The kind of the target device */
   TargetKind kind;
+  /*! \brief Target host information of the target device */
+  Optional<ObjectRef> host;
   /*! \brief Tag of the the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
@@ -64,6 +66,7 @@ class TargetNode : public Object {
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
+    v->Visit("host", &host);
   }
 
   /*!
