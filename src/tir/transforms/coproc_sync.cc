@@ -429,6 +429,11 @@ class CoProcInstDepDetector : public StmtVisitor {
     }
   }
 
+  void VisitStmt_(const WhileNode* op) final {
+    // TODO(masahi): Do we need a special handling for While nodes?
+    LOG(FATAL) << "WhileNode not supported in CoProcSync.";
+  }
+
   // insert before is stored in reverse order
   // the first element is closest to the node.
   std::unordered_map<const Object*, std::vector<Stmt> > insert_before_;
