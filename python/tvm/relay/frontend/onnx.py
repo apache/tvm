@@ -1972,7 +1972,6 @@ class Resize(OnnxOpConverter):
 
         scale = inputs[1]
         size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
-        size = _op.cast(size, "int64")
         layout = "NCHW"  # ONNX assumes NCHW layout
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         return _op.image.resize(inputs[0], out_size, layout, method, "asymmetric")
@@ -1999,7 +1998,6 @@ class Resize(OnnxOpConverter):
         else:
             assert len(scale_shape) != 0, "One of scale or size should be passed."
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
-        size = _op.cast(size, "int64")
 
         coord_trans = attr.get("coordinate_transformation_mode")
         if coord_trans in [b"pytorch_half_pixel", b"half_pixel"]:
