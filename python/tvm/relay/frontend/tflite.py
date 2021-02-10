@@ -3615,8 +3615,11 @@ def from_tflite(model, shape_dict=None, dtype_dict=None):
 
         assert isinstance(model, tflite.Model.Model)
 
-    if not shape_dict or not dtype_dict:
-        shape_dict, dtype_dict = _input_type(model)
+    _shape_dict, _dtype_dict = _input_type(model)
+    if shape_dict is not None:
+        _shape_dict.update(shape_dict)
+    if dtype_dict is not None:
+        _dtype_dict.update(dtype_dict)
 
     # keep the same as tflite
     assert model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
@@ -3629,8 +3632,8 @@ def from_tflite(model, shape_dict=None, dtype_dict=None):
     exp_tab = ExprTable()
     for model_input in model_inputs:
         model_input_name = get_tensor_name(subgraph, model_input)
-        shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
-        dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
+        shape = _shape_dict[model_input_name] if model_input_name in _shape_dict else None
+        dtype = _dtype_dict[model_input_name] if model_input_name in _dtype_dict else "float32"
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model
