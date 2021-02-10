@@ -20,12 +20,18 @@ import math
 import numpy as np
 
 
-def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio):
+def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b'avg'):
     """Roi align in python"""
+    avg_mode = (mode == b'avg' or mode == 0)
+    max_mode = (mode == b'max' or mode == 1)
+    assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
     _, channel, height, width = a_np.shape
     num_roi = rois_np.shape[0]
     b_np = np.zeros((num_roi, channel, pooled_size, pooled_size), dtype=a_np.dtype)
-
+    if (avg_mode):
+        print("average mode")
+    if (max_mode):
+        print(max_mode)
     if isinstance(pooled_size, int):
         pooled_size_h = pooled_size_w = pooled_size
     else:
@@ -52,7 +58,10 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         for wx, xp in zip((wx_l, wx_h), (x_low, x_high)):
             for wy, yp in zip((wy_l, wy_h), (y_low, y_high)):
                 if 0 <= yp < height and 0 <= xp < width:
-                    val += wx * wy * a_np[n, c, yp, xp]
+                    if avg_mode:
+                        val += wx * wy * a_np[n, c, yp, xp]
+                    elif max_mode:
+                        val = max(val, wx * wy * a_np[n, c, yp, xp])
         return val
 
     for i in range(num_roi):
@@ -76,11 +85,20 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         for c in range(channel):
             for ph in range(pooled_size_h):
                 for pw in range(pooled_size_w):
-                    total = 0.0
-                    for iy in range(roi_bin_grid_h):
-                        for ix in range(roi_bin_grid_w):
-                            y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
-                            x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
-                            total += _bilinear(batch_index, c, y, x)
-                    b_np[i, c, ph, pw] = total / count
+                    if avg_mode:
+                        total = 0.0
+                        for iy in range(roi_bin_grid_h):
+                            for ix in range(roi_bin_grid_w):
+                                y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
+                                x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
+                                total += _bilinear(batch_index, c, y, x)
+                        b_np[i, c, ph, pw] = total / count
+                    elif max_mode:
+                        total = 0.0
+                        for iy in range(roi_bin_grid_h):
+                            for ix in range(roi_bin_grid_w):
+                                y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
+                                x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
+                                total = max(total, _bilinear(batch_index, c, y, x))
+                        b_np[i, c, ph, pw] = total
     return b_np

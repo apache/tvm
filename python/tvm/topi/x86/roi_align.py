@@ -270,6 +270,7 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     output : tvm.te.Tensor
         4-D with shape [num_roi, channel, pooled_size, pooled_size]
     """
+    print("x86 roi align")
     if not isinstance(pooled_size, (tuple, list)):
         pooled_size = (pooled_size, pooled_size)
 
@@ -292,10 +293,13 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     pooled_size = tvm.runtime.convert(pooled_size)
     spatial_scale = tvm.tir.const(spatial_scale, "float32")
     sample_ratio = tvm.tir.const(sample_ratio, "int32")
-    if mode == b'avg':
+    if mode == b'avg' or mode == 0:
         mode = tvm.tir.const(0, dtype='float32')
-    elif mode == b'max':
+    elif mode == b'max' or mode == 1:
         mode = tvm.tir.const(1, dtype='float32')
+    else:
+        raise ValueError(mode, "Value %s passed in for mode not supported", mode)
+    print("Mode from x86 roi align is: ", mode)
     return roi_align_nchw_ir(
         data, rois, num_rois, w_pc_buffer, pos_pc_buffer, pooled_size, spatial_scale, sample_ratio, mode
     )
