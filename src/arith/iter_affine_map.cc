@@ -412,8 +412,8 @@ class IterMapRewriter : public ExprMutator {
     return analyzer_->CanProve(floormod(lhs, rhs) == 0);
   }
 
-  PrimExpr SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr &orig);
-  PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr &orig);
+  PrimExpr SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr& orig);
+  PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr& orig);
 
   static void AddToLhs(IterSumExprNode* lhs, IterSplitExpr rhs, int sign) {
     tir::ExprDeepEqual equal;
@@ -604,7 +604,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
 }
 
 PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
-                                             const PrimExpr &orig) {
+                                             const PrimExpr& orig) {
   // floordiv(x*scale, rhs)
   if (is_one(rhs)) return std::move(lhs);
   if (!is_one(lhs->scale)) {
@@ -689,7 +689,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
 }
 
 PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs,
-                                             const PrimExpr &orig) {
+                                             const PrimExpr& orig) {
   // floormod(x*scale, rhs)
   if (is_one(rhs)) return make_zero(lhs->dtype);
   if (!is_one(lhs->scale)) {
