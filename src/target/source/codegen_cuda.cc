@@ -82,6 +82,7 @@ std::string CodeGenCUDA::Finish() {
   decl_stream << "\n#ifdef _WIN32\n";
   decl_stream << "  using uint = unsigned int;\n";
   decl_stream << "  using uchar = unsigned char;\n";
+  decl_stream << "  using ushort = unsigned short;\n";
   decl_stream << "  using int64_t = long long;\n";
   decl_stream << "  using uint64_t = unsigned long long;\n";
   decl_stream << "#else\n";
