@@ -229,7 +229,6 @@ class TFLiteFrontend(Frontend):
             raise TVMCException("input file not tflite version 3")
 
         logger.debug("parse TFLite model and convert into Relay computation graph")
-        mod, params = relay.frontend.from_tflite(tflite_model)
         mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict)
         return mod, params
 
