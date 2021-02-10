@@ -165,7 +165,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
                           MakeConstantScalar(cfg->dtype_activation, static_cast<int>(shift_nbit)));
       } else {
         data = LeftShift(data,
-                         MakeConstantScalar(cfg->dtype_activation, static_cast<int>(shift_nbit)));
+                         MakeConstantScalar(cfg->dtype_activation, static_cast<int>(-shift_nbit)));
       }
       data = Clip(data, clip_min_imm, clip_max_imm);
       return QRealizeIntExpr(data, dom_scale, n->dtype);
