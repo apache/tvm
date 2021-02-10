@@ -148,8 +148,6 @@ class ConstantFolder : public MixedModeMutator {
     }
     static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
 
-    std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
-
     auto origin_args = call->args;
     call = post.as<CallNode>();
     // We don't constant fold function with zero arguments.
@@ -158,9 +156,6 @@ class ConstantFolder : public MixedModeMutator {
     if (call->args.size() == 0) return post;
     const OpNode* op = call->op.as<OpNode>();
     if (op == nullptr) return post;
-    if (skip_list.count(op->name)) {
-      return post;
-    }
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return post;
     // Try to evaluate shape_of op
