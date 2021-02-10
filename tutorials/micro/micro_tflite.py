@@ -195,7 +195,7 @@ TARGET = tvm.target.target.micro("host")
 # Now, compile the model for the target:
 
 with tvm.transform.PassContext(
-    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["FuseOps"]
+    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["FuseOps", "AlterOpLayout"]
 ):
     graph, c_mod, c_params = relay.build(mod, target=TARGET, params=params)
 

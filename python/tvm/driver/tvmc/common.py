@@ -17,8 +17,10 @@
 """
 Common utility functions shared by TVMC modules.
 """
+import re
 import logging
 import os.path
+import argparse
 
 from urllib.parse import urlparse
 
@@ -136,3 +138,40 @@ def tracker_host_port_from_cli(rpc_tracker_str):
         logger.info("RPC tracker port: %s", rpc_port)
 
     return rpc_hostname, rpc_port
+
+
+def parse_shape_string(inputs_string):
+    """Parse an input shape dictionary string to a usable dictionary.
+
+    Parameters
+    ----------
+    inputs_string: str
+        A string of the form "input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]" that
+        indicates the desired shape for specific model inputs.
+
+    Returns
+    -------
+    shape_dict: dict
+        A dictionary mapping input names to their shape for use in relay frontend converters.
+    """
+
+    # Create a regex pattern that extracts each separate input mapping.
+    pattern = r"\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    input_mappings = re.findall(pattern, inputs_string)
+    if not input_mappings:
+        raise argparse.ArgumentTypeError(
+            "--input-shapes argument must be of the form "
+            '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"'
+        )
+    shape_dict = {}
+    for mapping in input_mappings:
+        # Remove whitespace.
+        mapping = mapping.replace(" ", "")
+        # Split mapping into name and shape.
+        name, shape_string = mapping.split(":")
+        # Convert shape string into a list of integers or Anys if negative.
+        shape = [int(x) if int(x) > 0 else relay.Any() for x in shape_string.strip("][").split(",")]
+        # Add parsed mapping to shape dictionary.
+        shape_dict[name] = shape
+
+    return shape_dict

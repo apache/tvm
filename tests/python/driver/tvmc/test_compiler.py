@@ -39,14 +39,11 @@ def test_save_dumps(tmpdir_factory):
 # End to end tests for compilation
 
 
-def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+def verify_compile_tflite_module(model, shape_dict=None):
     pytest.importorskip("tflite")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        tflite_mobilenet_v1_1_quant,
-        target="llvm",
-        dump_code="ll",
-        alter_layout="NCHW",
+        model, target="llvm", dump_code="ll", alter_layout="NCHW", shape_dict=shape_dict
     )
 
     # check for output types
@@ -54,6 +51,17 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     assert type(lib) is tvm.runtime.module.Module
     assert type(params) is dict
     assert type(dumps) is dict
+
+
+def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer tflite, so skip in case it is not present
+    pytest.importorskip("tflite")
+    # Check default compilation.
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
+    # Check with manual shape override
+    shape_string = "input:[1,224,224,3]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
@@ -114,12 +122,12 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
     assert "asm" in dumps.keys()
 
 
-def test_compile_onnx_module(onnx_resnet50):
+def verify_compile_onnx_module(model, shape_dict=None):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        onnx_resnet50, target="llvm", dump_code="ll"
+        model, target="llvm", dump_code="ll", shape_dict=shape_dict
     )
 
     # check for output types
@@ -128,6 +136,15 @@ def test_compile_onnx_module(onnx_resnet50):
     assert type(params) is dict
     assert type(dumps) is dict
     assert "ll" in dumps.keys()
+
+
+def test_compile_onnx_module(onnx_resnet50):
+    # Test default compilation
+    verify_compile_onnx_module(onnx_resnet50)
+    # Test with manual shape dict
+    shape_string = "data:[1,3,200,200]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    verify_compile_onnx_module(onnx_resnet50, shape_dict)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.

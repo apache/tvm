@@ -20,11 +20,25 @@
 set +u
 
 if [[ ! -z $CI_PYTEST_ADD_OPTIONS ]]; then
-    export PYTEST_ADDOPTS="-v $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
+    export PYTEST_ADDOPTS="-s -v $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
 else
-    export PYTEST_ADDOPTS="-v $PYTEST_ADDOPTS"
+    export PYTEST_ADDOPTS="-s -v $PYTEST_ADDOPTS"
 fi
 set -u
 
 export TVM_PATH=`pwd`
-export PYTHONPATH=${TVM_PATH}/python
+export PYTHONPATH="${TVM_PATH}/python"
+
+export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
+mkdir -p "${TVM_PYTEST_RESULT_DIR}"
+
+function run_pytest() {
+    test_suite_name="$1"
+    shift
+    for ffi_type in ${TVM_PYTEST_FFI_TYPES:-ctypes cython}; do
+        TVM_FFI=${ffi_type} python3 -m pytest \
+           -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
+           "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
+           "$@"
+    done
+}
