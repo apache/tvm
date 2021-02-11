@@ -147,6 +147,11 @@ class Target(Object):
     def libs(self):
         return list(self.attrs.get("libs", []))
 
+    @staticmethod
+    def list_kinds():
+        """Returns the list of available target names."""
+        return list(_ffi_api.ListTargetKinds())
+
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
 
