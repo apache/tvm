@@ -141,8 +141,7 @@ struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
         "dimensions respectively. Convolution is applied on the 'H' and"
         "'W' dimensions.");
     TVM_ATTR_FIELD(mode).set_default("avg").describe(
-      "Mode for ROI Align. Can be 'avg' or 'max'. The default mode is 'avg'."
-    );
+        "Mode for ROI Align. Can be 'avg' or 'max'. The default mode is 'avg'.");
   }
 };
 
