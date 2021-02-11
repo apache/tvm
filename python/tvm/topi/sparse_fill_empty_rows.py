@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: no-else-return
+# pylint: disable=no-else-return, too-many-locals, too-many-arguments, too-many-branches
+# pylint: disable=undefined-variable, invalid-name
 """SparseFillEmptyRows operator"""
 from ..te import hybrid
 
