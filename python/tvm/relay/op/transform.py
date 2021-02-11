@@ -1322,6 +1322,12 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
+def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    return TupleWrapper(
+        _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 2
+    )
+
+
 def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.

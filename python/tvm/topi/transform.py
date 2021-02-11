@@ -931,3 +931,7 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+
+def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)

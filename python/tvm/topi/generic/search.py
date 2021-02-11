@@ -66,3 +66,7 @@ def schedule_scatter_add(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_sparse_fill_empty_rows(outs):
+    return _default_schedule(outs, False)
