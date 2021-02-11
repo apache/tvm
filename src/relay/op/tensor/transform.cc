@@ -1601,11 +1601,13 @@ bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attr
   // auto sample_input = types[0].as<TensorTypeNode>();
   reporter->Assign(types[types.size() - 1], TupleType(Array<Type>(fields)));
 
-  // reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  // reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()},
+  // tvm::DataType::Int(64)));
   return true;
 }
 
-Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr dense_shape, Expr default_value) {
+Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr dense_shape,
+                             Expr default_value) {
   static const Op& op = Op::Get("sparse_fill_empty_rows");
   return Call(op, {sparse_indices, sparse_values, dense_shape, default_value}, Attrs(), {});
 }
@@ -1625,7 +1627,7 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .add_argument("dense_shape", "Tensor",
                   "A 1-D int64 tensor of shape [ndims], which specifies the dense_shape of the"
                   "sparse tensor. Takes a list indicating the number of elements in each dimension")
-    .add_argument("default_value", "Tensor", 
+    .add_argument("default_value", "Tensor",
                   "The value to fill for empty rows, with the same type as sparse_values")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)

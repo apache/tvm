@@ -463,26 +463,6 @@ _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 
 
-# @script
-# def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
-#     out = output_tensor((2,), "int64")
-#     out2 = output_tensor((1,), "int64")
-#     num_rows = int64(dense_shape[0])
-#     count = int64(sparse_indices.shape[0])
-#     for i in const_range(1, sparse_indices.shape[0]):
-#         index = sparse_indices[i, 0]
-#         prev_index = sparse_indices[i - 1, 0] + 1
-
-#         if int64(index) > int64(prev_index):
-#             count += int64(index) - int64(prev_index)
-
-#     count += int64(num_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0])
-#     out[0] = int64(count)
-#     out[1] = int64(2)
-#     out2[0] = int64(count)
-#     return (out, out2)
-
-
 @script
 def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
     new_sparse_indices_shape = output_tensor((2,), "int64")
