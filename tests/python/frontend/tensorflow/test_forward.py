@@ -1817,18 +1817,19 @@ def test_forward_sparse_dense_matmul():
 # ------------
 
 
-def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value):
+def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value_int):
     with tf.Graph().as_default():
         indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
         values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
         dense_shape = tf.placeholder(
             shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
         )
+        default_value = tf.placeholder(shape=(), dtype = values_np.dtype, name="default_value")
         sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
         _ = tf.sparse.fill_empty_rows(sp_input, default_value, name="sparse_fill_empty_rows")
         compare_tf_with_tvm(
-            [indices_np, values_np, dense_shape_np],
-            [indices.name, values.name, dense_shape.name],
+            [indices_np, values_np, dense_shape_np, default_value_int],
+            [indices.name, values.name, dense_shape.name, default_value.name],
             [
                 "sparse_fill_empty_rows/SparseFillEmptyRows:0",
                 "sparse_fill_empty_rows/SparseFillEmptyRows:1",
