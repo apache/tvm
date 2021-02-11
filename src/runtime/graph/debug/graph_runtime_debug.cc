@@ -148,9 +148,10 @@ class GraphRuntimeDebug : public GraphRuntime {
   }
 
   double RunOpHost(int index) {
+    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
+    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
     auto op_tbegin = std::chrono::high_resolution_clock::now();
     op_execs_[index]();
-    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
     TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
     auto op_tend = std::chrono::high_resolution_clock::now();
     double op_duration =
