@@ -26,9 +26,9 @@ from tvm.relay.testing import check_grad, run_infer_type
 import tvm.testing
 
 
-def verify_func(func, data, ref_res):
+def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
     assert isinstance(data, list)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, ctx in target_ctx:
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
@@ -316,7 +316,10 @@ def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, defa
             default_value_np,
         )
         verify_func(
-            func, [sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np], ref_res
+            func,
+            [sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np],
+            ref_res,
+            [("llvm", tvm.cpu())],
         )
 
     verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
