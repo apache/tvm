@@ -278,7 +278,7 @@ def _pooling(name):
         out = AttrCvt(
             op_name=_dimension_picker(name),
             transforms={"kernel_shape": "pool_size", "data_format": "layout"},
-            ignores=["ksize"],
+            ignores=["ksize", "explicit_paddings"],
             extras={"ceil_mode": False},
             custom_check=_dimension_constraint(),
         )(inputs, attr)
@@ -1416,9 +1416,9 @@ def _squeeze():
     def _impl(inputs, attr, params, mod):
         if len(attr["squeeze_dims"]) == 0:
             attr["squeeze_dims"] = None
-        return AttrCvt(op_name="squeeze", transforms={"squeeze_dims": "axis"}, ignores=["T"])(
-            inputs, attr
-        )
+        return AttrCvt(
+            op_name="squeeze", transforms={"squeeze_dims": "axis"}, ignores=["T", "_cloned"]
+        )(inputs, attr)
 
     return _impl
 
