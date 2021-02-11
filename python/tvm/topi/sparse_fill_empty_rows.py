@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """SparseFillEmptyRows operator"""
-from ..tir import decl_buffer, ir_builder, Cast, AssertStmt, StringImm, Evaluate
-from ..te import extern, hybrid
+from ..te import hybrid
 
 
 @hybrid.script
