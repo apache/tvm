@@ -18,6 +18,7 @@
 """Non-maximum suppression operator for intel cpu"""
 import math
 
+import tvm
 from tvm.te import hybrid
 from ..tensor import full
 from ..utils import get_const_tuple
