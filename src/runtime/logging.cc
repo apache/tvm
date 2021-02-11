@@ -26,7 +26,7 @@
 // when we get backtrace working on Windows.
 namespace tvm {
 namespace runtime {
-TVM_DLL std::string Backtrace() { return ""; }
+__declspec(dllexport) std::string Backtrace() { return ""; }
 }  // namespace runtime
 }  // namespace tvm
 #else
