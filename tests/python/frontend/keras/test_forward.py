@@ -350,6 +350,16 @@ class TestKeras:
         x = keras.layers.Reshape(target_shape=(4, 4))(data)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model, need_transpose=False)
+        # "non-square" target shape
+        data = keras.layers.Input(shape=(15,))
+        x = keras.layers.Reshape(target_shape=(5, 3))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+        # modify channel dim
+        data = keras.layers.Input(shape=(3, 2, 4))
+        x = keras.layers.Reshape(target_shape=(3, 8))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model)
 
     def test_forward_crop(self, keras):
         data = keras.layers.Input(shape=(32, 32, 3))
