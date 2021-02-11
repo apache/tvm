@@ -20,7 +20,8 @@ import copy
 import glob
 import os
 import pytest
-pytest.importorskip('pty')
+
+pytest.importorskip("pty")
 import sys
 import subprocess
 import textwrap

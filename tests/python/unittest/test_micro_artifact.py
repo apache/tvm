@@ -24,7 +24,8 @@ import shutil
 import tvm
 
 from tvm.contrib import utils
-pytest.importorskip('tvm.micro')
+
+pytest.importorskip("tvm.micro")
 from tvm.micro import artifact
 
 FILE_LIST = ["label1", "label2", "label12", "unlabelled"]

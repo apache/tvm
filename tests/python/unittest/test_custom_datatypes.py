@@ -62,9 +62,11 @@ def get_cat_image(dimensions):
     img = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
     return np.asarray(img, dtype="float32")
 
+
 # we use a random seed to generate input_data
 # to guarantee stable tests
 np.random.seed(0)
+
 
 def convert_ndarray(dst_dtype, array):
     """Converts NDArray(s) into the specified datatype"""
