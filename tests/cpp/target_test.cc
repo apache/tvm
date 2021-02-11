@@ -152,8 +152,8 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->GetAttr<Bool>("link-params"), false);
 }
 
-TEST(TargetKindRegistryListAllNames, Basic) {
-  Array<String> names = TargetKindRegEntry::ListAllNames();
+TEST(TargetKindRegistryListTargetKinds, Basic) {
+  Array<String> names = TargetKindRegEntry::ListTargetKinds();
   ICHECK_EQ(names.empty(), false);
   ICHECK_EQ(std::count(std::begin(names), std::end(names), "llvm"), 1);
 }

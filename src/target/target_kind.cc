@@ -45,7 +45,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 using TargetKindRegistry = AttrRegistry<TargetKindRegEntry, TargetKind>;
 
-Array<String> TargetKindRegEntry::ListAllNames() {
+Array<String> TargetKindRegEntry::ListTargetKinds() {
   return TargetKindRegistry::Global()->ListAllNames();
 }
 
@@ -314,6 +314,6 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
 
 /**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.ListAllNames").set_body_typed(TargetKindRegEntry::ListAllNames);
+TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
 
 }  // namespace tvm

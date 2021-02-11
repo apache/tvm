@@ -200,7 +200,7 @@ class TargetKindRegEntry {
    * \brief List all the entry names in the registry.
    * \return The entry names.
    */
-  TVM_DLL static Array<String> ListAllNames();
+  TVM_DLL static Array<String> ListTargetKinds();
   /*!
    * \brief Register or get a new entry.
    * \param target_kind_name The name of the TargetKind.
