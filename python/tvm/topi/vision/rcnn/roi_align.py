@@ -53,8 +53,8 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     output : tvm.te.Tensor
         4-D with shape [num_roi, channel, pooled_size, pooled_size]
     """
-    avg_mode = mode == b"avg" or mode == 0
-    max_mode = mode == b"max" or mode == 1
+    avg_mode = mode in (b"avg", 0)
+    max_mode = mode in (b"max", 1)
     assert avg_mode or max_mode, "Mode must be avg or max. Please pass in a valid mode."
     dtype = rois.dtype
     _, channel, height, width = get_const_tuple(data.shape)

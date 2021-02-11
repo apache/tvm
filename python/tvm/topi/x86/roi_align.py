@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements
 """Non-maximum suppression operator for intel cpu"""
 import math
-import tvm
 
 from tvm import relay
 from tvm.te import hybrid
@@ -296,9 +295,9 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     pooled_size = tvm.runtime.convert(pooled_size)
     spatial_scale = tvm.tir.const(spatial_scale, "float32")
     sample_ratio = tvm.tir.const(sample_ratio, "int32")
-    if mode == b"avg" or mode == 0:
+    if mode in (b"avg", 0):
         mode = tvm.tir.const(0, dtype="float32")
-    elif mode == b"max" or mode == 1:
+    elif mode in (b"max", 1):
         mode = tvm.tir.const(1, dtype="float32")
     else:
         raise ValueError(mode, "Value %s passed in for mode not supported", mode)

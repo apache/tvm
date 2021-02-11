@@ -2035,7 +2035,7 @@ class RoiAlign(OnnxOpConverter):
         rois = inputs[1]
         batch_indices = inputs[2]
         mode = attr.get("mode", b"avg")
-        if mode != b"avg" and mode != b"max":
+        if not in (b"avg", b"max"):
             raise ValueError("RoiAlign in Relay only uses avg and max modes")
         output_height = attr.get("output_height", 1)
         output_width = attr.get("output_width", 1)

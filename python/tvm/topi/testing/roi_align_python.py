@@ -22,8 +22,8 @@ import numpy as np
 
 def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
     """Roi align in python"""
-    avg_mode = mode == b"avg" or mode == "avg" or mode == 0
-    max_mode = mode == b"max" or mode == "max" or mode == 1
+    avg_mode = mode in (b"avg", "avg", 0)
+    max_mode = mode in (b"max", "max", 1)
     assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
     _, channel, height, width = a_np.shape
     num_roi = rois_np.shape[0]
