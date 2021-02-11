@@ -136,7 +136,7 @@ namespace runtime {
 /* \brief Generate a backtrace when called.
  * \return A multiline string of the backtrace. There will be either one or two lines per frame.
  */
-std::string Backtrace();
+TVM_DLL std::string Backtrace();
 
 /*! \brief Base error type for TVM. Wraps a string message. */
 class Error : public ::dmlc::Error {  // for backwards compatibility
