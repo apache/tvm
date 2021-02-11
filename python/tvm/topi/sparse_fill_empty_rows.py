@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
+
+# pylint: no-else-return
 """SparseFillEmptyRows operator"""
 from ..te import hybrid
 
