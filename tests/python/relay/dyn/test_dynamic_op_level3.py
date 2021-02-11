@@ -29,14 +29,18 @@ import tvm.testing
 def verify_func(func, data, ref_res):
     assert isinstance(data, list)
     for target, ctx in tvm.testing.enabled_targets():
-        for kind in ["vm"]:
+        for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
             op_res = intrp.evaluate()(*data)
-            for op_result, ref_result in zip(op_res, ref_res):
-                # print(op_result.asnumpy(), ref_result)
-                print(op_result.asnumpy())
-                # tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            if isinstance(op_res, tvm.runtime.container.ADT):
+                assert len(op_res) == len(
+                    ref_res
+                ), "Outputs from TVM and Python implementation must be equal "
+                for op_result, ref_result in zip(op_res, ref_res):
+                    tvm.testing.assert_allclose(op_result.asnumpy(), ref_result, rtol=1e-5)
+            else:
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
 
@@ -205,7 +209,42 @@ def test_dyn_sparse_to_dense():
     verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
 
 
-def test_sparse_fill_empty_rows():
+@pytest.mark.parametrize(
+    "sparse_indices, sparse_values, dense_shape, default_value",
+    [
+        (
+            np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            np.array([10], dtype=np.int64),
+        ),
+        (
+            np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([7, 7, 7], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+        ),
+        (
+            np.array([[1], [2]], dtype=np.int64),
+            np.array([7, 8], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 3), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([9, 3, 7], dtype=np.int64),
+            np.array([100], dtype=np.int64),
+        ),
+    ],
+)
+def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
     def ref_sparse_fill_empty_rows(
         sparse_indices: np.ndarray,
         sparse_values: np.ndarray,
@@ -216,26 +255,29 @@ def test_sparse_fill_empty_rows():
         This function calculates the expected output of sparse_fill_empty_rows operator given the
         inputs.
         """
-        new_sparse_indices = -1 * np.ones(
-            (sparse_indices.shape[0] + dense_shape[0], sparse_indices.shape[1])
-        )
-        empty_row_indicator = np.ones(dense_shape[0], dtype=bool)
-        new_sparse_values = -1 * np.ones(sparse_indices.shape[0] + dense_shape[0])
 
-        for i in range(sparse_indices.shape[0]):
-            empty_row_indicator[sparse_indices[i][0]] = False
+        def check_add_rows(current_idx, limit_idx):
+            while current_idx < limit_idx:
+                new_sparse_indices.append([current_idx] + [0] * (num_cols - 1))
+                new_sparse_values.append(default_value[0])
+                empty_row_indicator[current_idx] = 1
+                current_idx += 1
 
-        new_sparse_indices[: sparse_indices.shape[0]][:] = sparse_indices[:]
-        new_sparse_values[: sparse_values.shape[0]] = sparse_values[:]
-        new_sparse_indices_index = sparse_indices.shape[0]
+            return current_idx
 
-        for empty_row_index, element in enumerate(empty_row_indicator):
-            if element:
-                new_sparse_indices[new_sparse_indices_index, 0] = empty_row_index
-                new_sparse_indices[new_sparse_indices_index, 1:] = 0
-                new_sparse_values[new_sparse_indices_index] = default_value[0]
-                new_sparse_indices_index += 1
+        current_idx = 0
+        new_sparse_indices = []
+        new_sparse_values = []
+        empty_row_indicator = [0 for _ in range(dense_shape[0])]
+        num_cols = sparse_indices.shape[1]
+        for sparse_row, sparse_value in zip(sparse_indices, sparse_values):
+            limit_idx = sparse_row[0]
+            current_idx = check_add_rows(current_idx, limit_idx)
+            new_sparse_indices.append(list(sparse_row))
+            new_sparse_values.append(sparse_value)
+            current_idx = limit_idx + 1
 
+        check_add_rows(current_idx, dense_shape[0])
         return new_sparse_indices, new_sparse_values, empty_row_indicator
 
     def verify_sparse_fill_empty_rows(
@@ -273,42 +315,12 @@ def test_sparse_fill_empty_rows():
             dense_shape_np,
             default_value_np,
         )
-        # ref_res = []
         verify_func(
             func, [sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np], ref_res
         )
 
-    sparse_indices = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64)
-    sparse_values = np.array([1, 2, 3, 4], dtype=np.int64)
-    dense_shape = np.array([7, 6], dtype=np.int64)
-    default_value = np.array([5], dtype=sparse_values.dtype)
-    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
-
-    sparse_indices = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64)
-    sparse_values = np.array([1, 2, 3, 4], dtype=np.int64)
-    dense_shape = np.array([7, 7, 7], dtype=np.int64)
-    default_value = np.array([10], dtype=np.int64)
-    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
-
-    sparse_indices = np.array([[1], [2]], dtype=np.int64)
-    sparse_values = np.array([7, 8], dtype=np.int64)
-    dense_shape = np.array([5], dtype=np.int64)
-    default_value = np.array([4], dtype=np.int64)
-    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
-
-    sparse_indices = np.ones((0, 1), dtype=np.int64)
-    sparse_values = np.array([], dtype=np.int64)
-    dense_shape = np.array([5], dtype=np.int64)
-    default_value = np.array([4], dtype=np.int64)
-    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
-
-    sparse_indices = np.ones((0, 3), dtype=np.int64)
-    sparse_values = np.array([], dtype=np.int64)
-    dense_shape = np.array([9, 3, 7], dtype=np.int64)
-    default_value = np.array([100], dtype=np.int64)
     verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
 
 if __name__ == "__main__":
-    test_sparse_fill_empty_rows()
-    # pytest.main([__file__])
+    pytest.main([__file__])
