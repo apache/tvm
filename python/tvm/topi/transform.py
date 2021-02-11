@@ -962,9 +962,7 @@ def unique(data):
     return te.extern(
         [data.shape, data.shape, data.shape, (1,)],
         [data],
-        lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.algorithm.unique", ins[0], *outs
-        ),
+        lambda ins, outs: tvm.tir.call_packed("tvm.contrib.algorithm.unique", ins[0], *outs),
         dtype=[data.dtype, "int32", "int32", "int32", "int32"],
         name="unique_cpu",
         tag="unique_cpu",

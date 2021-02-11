@@ -972,4 +972,9 @@ def unique_shape_func(attrs, inputs, _):
     """
     Shape func for unique operator.
     """
-    return [_unique_shape_1(inputs[0]), _unique_shape_1(inputs[0]), _unique_shape_1(inputs[0]), _unique_shape_2(inputs[0])]
+    return [
+        _unique_shape_1(inputs[0]),
+        _unique_shape_1(inputs[0]),
+        _unique_shape_1(inputs[0]),
+        _unique_shape_2(inputs[0]),
+    ]
