@@ -1813,6 +1813,66 @@ def test_forward_sparse_dense_matmul():
 
 
 #######################################################################
+# SparseFillEmptyRows
+# ------------
+
+
+def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value):
+    with tf.Graph().as_default():
+        indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+        values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
+        dense_shape = tf.placeholder(
+            shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
+        )
+        sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
+        _ = tf.sparse.fill_empty_rows(sp_input, default_value, name="sparse_fill_empty_rows")
+        compare_tf_with_tvm(
+            [indices_np, values_np, dense_shape_np],
+            [indices.name, values.name, dense_shape.name],
+            [
+                "sparse_fill_empty_rows/SparseFillEmptyRows:0",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:1",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:2",
+            ],
+            mode="vm",
+        )
+
+
+def test_forward_sparse_fill_empty_rows():
+    """ sparse_fill_empty_rows op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    sparse_indices_np = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64)
+    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int64)
+    dense_shape_np = np.array([5, 6], dtype=np.int64)
+    default_value = 10
+    _test_sparse_fill_empty_rows(sparse_indices_np, sparse_values_np, dense_shape_np, default_value)
+
+    sparse_indices_np = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64)
+    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int64)
+    dense_shape_np = np.array([7, 7, 7], dtype=np.int64)
+    default_value_np = 5
+    _test_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np
+    )
+
+    sparse_indices_np = np.array([[1], [2]], dtype=np.int64)
+    sparse_values_np = np.array([7, 8], dtype=np.int64)
+    dense_shape_np = np.array([5], dtype=np.int64)
+    default_value_np = 4
+    _test_sparse_fill_empty_rows(sparse_indices_np, sparse_values_np, dense_shape_np, default_value)
+
+
+#######################################################################
 # StridedSlice
 # ------------
 
@@ -4687,4 +4747,5 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_forward_sparse_fill_empty_rows()
+    # pytest.main([__file__])

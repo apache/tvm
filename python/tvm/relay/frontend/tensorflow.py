@@ -998,6 +998,23 @@ def _sparse_tensor_dense_matmul():
     return _impl
 
 
+def _sparse_fill_empty_rows():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        new_sparse_indices, new_sparse_values, empty_row_indicator = _op.sparse_fill_empty_rows(
+            inputs[0], inputs[1], inputs[2], inputs[3]
+        )
+
+        return _expr.TupleWrapper(
+            _expr.Tuple(
+                [new_sparse_indices, new_sparse_values, _op.cast(empty_row_indicator, dtype="bool")]
+            ),
+            3,
+        )
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2447,6 +2464,7 @@ _convert_map = {
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
+    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
