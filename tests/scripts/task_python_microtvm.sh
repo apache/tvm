@@ -25,4 +25,4 @@ source tests/scripts/setup-pytest-env.sh
 find . -type f -path "*.pyc" | xargs rm -f
 
 make cython3
-run_pytest python-microtvm-qemu tests/micro/qemu
+run_pytest ctypes python-microtvm-qemu tests/micro/qemu
