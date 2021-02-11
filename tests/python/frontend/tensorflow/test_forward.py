@@ -1843,6 +1843,12 @@ def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_
     "sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int",
     [
         (
+            np.array([[1, 1], [0, 3], [0, 1], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4, 5], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
             np.array([[1, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
             np.array([1, 2, 3, 4], dtype=np.int64),
             np.array([5, 6], dtype=np.int64),
