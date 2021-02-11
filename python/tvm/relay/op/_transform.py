@@ -22,6 +22,7 @@ from tvm import te
 from tvm.te.hybrid import script
 from tvm.runtime import convert
 from tvm import topi
+from tvm.topi.transform import shape
 from tvm.topi.utils import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
@@ -878,3 +879,23 @@ def where_shape_func(attrs, inputs, _):
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
 
     return [out_shape]
+
+@script
+def _sparse_reshape_1(sparse_indices_shape, prev_shape_shape, new_shape_shape):
+    indices_shape = output_tensor((2,), "int64")
+    indices_shape[0] = int64(sparse_indices_shape[0])
+    indices_shape[1] = int64(new_shape_shape[0])
+    return indices_shape
+
+@script
+def _sparse_reshape_2(sparse_indices_shape, prev_shape_shape, new_shape_shape):
+    shape_tensor = output_tensor((1,), "int64")
+    shape_tensor[0] = int64(new_shape_shape[0])
+    return shape_tensor
+
+@_reg.register_shape_func("sparse_reshape", False)
+def sparse_reshape_shape_func(attrs, inputs, _):
+    """
+    Shape func for sparse_reshape.
+    """
+    return [_sparse_reshape_1(*inputs), _sparse_reshape_2(*inputs)]

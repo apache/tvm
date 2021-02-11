@@ -1680,10 +1680,21 @@ bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& att
   // types: [sparse_indices, prev_shape, new_shape, result]
   ICHECK_EQ(types.size(), 4) << "SparseReshapeRel expects 4 types but " << types.size()
                              << " provided";
+  ICHECK_EQ(num_inputs, 3) << "SparseReshapeRel expects 4 inputs but " << num_inputs << " provided";
   auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto prev_shape = types[1].as<TensorTypeNode>();
   auto new_shape = types[2].as<TensorTypeNode>();
-  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
+  if (sparse_indices == nullptr || prev_shape == nullptr || new_shape == nullptr) {
+    return false;
+  }
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+  CHECK(prev_shape->dtype.is_int()) << "prev_shape must be tensor of integers";
+  CHECK(new_shape->dtype.is_int()) << "new_shape must be tensor of integers";
+  ICHECK_EQ(sparse_indices->shape.size(), 2) << "sparse_indices must be 2-D tensor";
+  ICHECK_EQ(prev_shape->shape.size(), 1) << "prev_shape must be 1-D tensor";
+  ICHECK_EQ(new_shape->shape.size(), 1) << "new_shape must be 1-D tensor";
   std::vector<Type> fields;
+  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
   fields.push_back(TensorType(new_sparse_indices_shape, sparse_indices->dtype));
   fields.push_back(TensorType(new_shape->shape, new_shape->dtype));
   reporter->Assign(types[3], TupleType(Array<Type>(fields)));
@@ -1692,8 +1703,7 @@ bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
 Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                        const Type& out_type) {
-  ICHECK_EQ(inputs.size(), 3) << "SparseReshapeCompute expects 2 input but provided "
-                              << inputs.size();
+  ICHECK_EQ(inputs.size(), 3) << "SparseReshapeCompute expects 3 inputs but " << inputs.size() << "provided";
   return {topi::SparseReshape(inputs[0], inputs[1], inputs[2])};
 }
 
@@ -1715,6 +1725,7 @@ RELAY_REGISTER_OP("sparse_reshape")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3)
     .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);
+
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);
 
