@@ -39,7 +39,7 @@ def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1, layout="N
 
     sample_ratio : int
         Optional sampling ratio of ROI align, using adaptive size by default.
-    
+
     mode : str, Optional
         The pooling method. Relay supports two methods, 'avg' and 'max'. Default is 'avg'.
 
