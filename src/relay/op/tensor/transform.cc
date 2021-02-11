@@ -1591,18 +1591,10 @@ bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attr
   std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto ndims = sparse_indices->shape[1];
-  // auto dense_shape = types[2].as<TensorTypeNode>();
   fields.push_back(TensorType(Array<PrimExpr>{Any(), ndims}, tvm::DataType::Int(64)));
-  // fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
-
   fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
   fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
-
-  // auto sample_input = types[0].as<TensorTypeNode>();
   reporter->Assign(types[types.size() - 1], TupleType(Array<Type>(fields)));
-
-  // reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()},
-  // tvm::DataType::Int(64)));
   return true;
 }
 
