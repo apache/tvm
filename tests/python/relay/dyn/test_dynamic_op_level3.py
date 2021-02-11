@@ -296,11 +296,17 @@ def test_sparse_fill_empty_rows():
     default_value = np.array([4], dtype=np.int64)
     verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
-    # sparse_indices = np.array([[]], dtype=np.int64)
-    # sparse_values = np.array([], dtype=np.int64)
-    # dense_shape = np.array([5], dtype=np.int64)
-    # default_value = np.array([4], dtype=np.int64)
-    # verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
+    sparse_indices = np.ones((0, 1), dtype=np.int64)
+    sparse_values = np.array([], dtype=np.int64)
+    dense_shape = np.array([5], dtype=np.int64)
+    default_value = np.array([4], dtype=np.int64)
+    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
+
+    sparse_indices = np.ones((0, 3), dtype=np.int64)
+    sparse_values = np.array([], dtype=np.int64)
+    dense_shape = np.array([9, 3, 7], dtype=np.int64)
+    default_value = np.array([100], dtype=np.int64)
+    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
 
 if __name__ == "__main__":

@@ -465,25 +465,35 @@ _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 
 @script
 def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
+
     new_sparse_indices_shape = output_tensor((2,), "int64")
     new_sparse_values_shape = output_tensor((1,), "int64")
     empty_row_indicator_shape = output_tensor((1,), "int64")
-    num_rows = int64(dense_shape[0])
-    count = int64(sparse_indices.shape[0])
-    for i in const_range(1, sparse_indices.shape[0]):
-        index = int64(sparse_indices[i, 0])
-        prev_index = int64(sparse_indices[i - 1, 0] + 1)
+    num_dense_rows = int64(dense_shape[0])
 
-        if index > prev_index:
-            count += index - prev_index
+    if int64(sparse_indices.shape[0]) == int64(0):
+        new_sparse_indices_shape[0] = num_dense_rows
+        new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
+        new_sparse_values_shape[0] = num_dense_rows
+        empty_row_indicator_shape[0] = num_dense_rows
+        return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
 
-    count += int64(sparse_indices[0, 0])
-    count += int64(num_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0])
-    new_sparse_indices_shape[0] = int64(count)
-    new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
-    new_sparse_values_shape[0] = int64(count)
-    empty_row_indicator_shape[0] = int64(dense_shape[0])
-    return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
+    else:
+        count = int64(sparse_indices.shape[0])
+        for i in const_range(1, sparse_indices.shape[0]):
+            index = int64(sparse_indices[i, 0])
+            prev_index = int64(sparse_indices[i - 1, 0] + 1)
+
+            if index > prev_index:
+                count += index - prev_index
+
+        count += int64(sparse_indices[0, 0])
+        count += int64(num_dense_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0])
+        new_sparse_indices_shape[0] = int64(count)
+        new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
+        new_sparse_values_shape[0] = int64(count)
+        empty_row_indicator_shape[0] = num_dense_rows
+        return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
 
 
 @_reg.register_shape_func("sparse_fill_empty_rows", True)

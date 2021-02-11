@@ -254,6 +254,7 @@ def compare_tf_with_tvm(
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
+            print(tvm_output)
             for i in range(len(tf_output)):
                 if not isinstance(tf_output[i], np.ndarray):
                     assert len(tvm_output[i].shape) == 0
@@ -1839,7 +1840,44 @@ def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_
         )
 
 
-def test_forward_sparse_fill_empty_rows():
+@pytest.mark.parametrize(
+    "sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int",
+    [
+        (
+            np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([7, 7, 7], dtype=np.int64),
+            5,
+        ),
+        (
+            np.array([[1], [2]], dtype=np.int64),
+            np.array([7, 8], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            4,
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            4,
+        ),
+        (
+            np.ones((0, 3), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([9, 3, 7], dtype=np.int64),
+            100,
+        ),
+    ],
+)
+def test_forward_sparse_fill_empty_rows(
+    sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
+):
     """ sparse_fill_empty_rows op test"""
     ###################################################################
     #
@@ -1852,26 +1890,6 @@ def test_forward_sparse_fill_empty_rows():
     #     [0, 0, 0, 0]]
     #
     # ------------------------------------------------------------------
-    sparse_indices_np = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64)
-    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int64)
-    dense_shape_np = np.array([5, 6], dtype=np.int64)
-    default_value_int = 10
-    _test_sparse_fill_empty_rows(
-        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
-    )
-
-    sparse_indices_np = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64)
-    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int64)
-    dense_shape_np = np.array([7, 7, 7], dtype=np.int64)
-    default_value_int = 5
-    _test_sparse_fill_empty_rows(
-        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
-    )
-
-    sparse_indices_np = np.array([[1], [2]], dtype=np.int64)
-    sparse_values_np = np.array([7, 8], dtype=np.int64)
-    dense_shape_np = np.array([5], dtype=np.int64)
-    default_value_int = 4
     _test_sparse_fill_empty_rows(
         sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
     )
@@ -4752,5 +4770,4 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    test_forward_sparse_fill_empty_rows()
-    # pytest.main([__file__])
+    pytest.main([__file__])
