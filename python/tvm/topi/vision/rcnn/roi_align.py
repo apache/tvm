@@ -110,16 +110,16 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
                 / count,
                 axis=[rh, rw],
             )
-        elif max_mode:
-            return te.max(
-                _bilinear(
-                    batch_index,
-                    c,
-                    roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
-                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
-                ),
-                axis=[rh, rw],
-            )
+        # max mode
+        return te.max(
+            _bilinear(
+                batch_index,
+                c,
+                roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
+                roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+            ),
+            axis=[rh, rw],
+        )
 
     return te.compute(
         (num_roi, channel, pooled_size_h, pooled_size_w), _sample, tag="pool,roi_align_nchw"
