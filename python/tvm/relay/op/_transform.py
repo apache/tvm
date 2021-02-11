@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend compiler related feature registration"""
-# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks, too-many-local-variables, too-many-arguments
+# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks,
+# pylint: disable=too-many-local-variables, too-many-arguments, no-else-return
+
 from __future__ import absolute_import
 import tvm
 from tvm import te
