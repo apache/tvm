@@ -404,7 +404,7 @@ if(USE_LIBBACKTRACE)
   include(cmake/modules/Libbacktrace.cmake)
   target_link_libraries(tvm PRIVATE libbacktrace)
   target_link_libraries(tvm_runtime PRIVATE libbacktrace)
-  target_link_libraries(tvm_runtime_objs libbacktrace)
+  target_link_libraries(tvm_runtime_objs PRIVATE libbacktrace)
   # pre 3.12 versions of cmake cannot propagate include directories from imported targets so we set them manually
   target_include_directories(tvm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
   target_include_directories(tvm_objs PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
