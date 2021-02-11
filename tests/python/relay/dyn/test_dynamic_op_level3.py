@@ -278,28 +278,28 @@ def test_sparse_fill_empty_rows():
             func, [sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np], ref_res
         )
 
-    sparse_indices = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int32)
-    sparse_values = np.array([1, 2, 3, 4], dtype=np.int32)
-    dense_shape = np.array([7, 6], dtype=np.int32)
+    sparse_indices = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64)
+    sparse_values = np.array([1, 2, 3, 4], dtype=np.int64)
+    dense_shape = np.array([7, 6], dtype=np.int64)
     default_value = np.array([5], dtype=sparse_values.dtype)
     verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
-    sparse_indices = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int32)
-    sparse_values = np.array([1, 2, 3, 4], dtype=np.int32)
-    dense_shape = np.array([7, 7, 7], dtype=np.int32)
-    default_value = np.array([10], dtype=np.int32)
+    sparse_indices = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64)
+    sparse_values = np.array([1, 2, 3, 4], dtype=np.int64)
+    dense_shape = np.array([7, 7, 7], dtype=np.int64)
+    default_value = np.array([10], dtype=np.int64)
     verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
-    sparse_indices = np.array([[1], [2]], dtype=np.int32)
-    sparse_values = np.array([7, 8], dtype=np.int32)
-    dense_shape = np.array([5], dtype=np.int32)
-    default_value = np.array([4], dtype=np.int32)
+    sparse_indices = np.array([[1], [2]], dtype=np.int64)
+    sparse_values = np.array([7, 8], dtype=np.int64)
+    dense_shape = np.array([5], dtype=np.int64)
+    default_value = np.array([4], dtype=np.int64)
     verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
-    # sparse_indices = np.ones((0, 1), dtype=np.int32)
-    # sparse_values = np.array([], dtype=np.int32)
-    # dense_shape = np.array([5], dtype=np.int32)
-    # default_value = np.array([4], dtype=np.int32)
+    # sparse_indices = np.array([[]], dtype=np.int64)
+    # sparse_values = np.array([], dtype=np.int64)
+    # dense_shape = np.array([5], dtype=np.int64)
+    # default_value = np.array([4], dtype=np.int64)
     # verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
 
 

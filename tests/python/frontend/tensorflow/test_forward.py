@@ -1824,7 +1824,7 @@ def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_
         dense_shape = tf.placeholder(
             shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
         )
-        default_value = tf.placeholder(shape=(), dtype = values_np.dtype, name="default_value")
+        default_value = tf.placeholder(shape=(), dtype=values_np.dtype, name="default_value")
         sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
         _ = tf.sparse.fill_empty_rows(sp_input, default_value, name="sparse_fill_empty_rows")
         compare_tf_with_tvm(
@@ -1855,22 +1855,26 @@ def test_forward_sparse_fill_empty_rows():
     sparse_indices_np = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64)
     sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int64)
     dense_shape_np = np.array([5, 6], dtype=np.int64)
-    default_value = 10
-    _test_sparse_fill_empty_rows(sparse_indices_np, sparse_values_np, dense_shape_np, default_value)
+    default_value_int = 10
+    _test_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
+    )
 
     sparse_indices_np = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64)
     sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int64)
     dense_shape_np = np.array([7, 7, 7], dtype=np.int64)
-    default_value_np = 5
+    default_value_int = 5
     _test_sparse_fill_empty_rows(
-        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
     )
 
     sparse_indices_np = np.array([[1], [2]], dtype=np.int64)
     sparse_values_np = np.array([7, 8], dtype=np.int64)
     dense_shape_np = np.array([5], dtype=np.int64)
-    default_value_np = 4
-    _test_sparse_fill_empty_rows(sparse_indices_np, sparse_values_np, dense_shape_np, default_value)
+    default_value_int = 4
+    _test_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
+    )
 
 
 #######################################################################
