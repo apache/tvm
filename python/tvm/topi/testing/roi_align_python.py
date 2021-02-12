@@ -80,18 +80,17 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
                 for pw in range(pooled_size_w):
                     if avg_mode:
                         total = 0.0
-                        for iy in range(roi_bin_grid_h):
-                            for ix in range(roi_bin_grid_w):
-                                y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
-                                x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
+                    if max_mode:
+                        total = float("-inf")
+                    for iy in range(roi_bin_grid_h):
+                        for ix in range(roi_bin_grid_w):
+                            y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
+                            x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
+                            if avg_mode:
                                 total += _bilinear(batch_index, c, y, x)
-                        b_np[i, c, ph, pw] = total / count
-                    elif max_mode:
-                        total = 0.0
-                        for iy in range(roi_bin_grid_h):
-                            for ix in range(roi_bin_grid_w):
-                                y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
-                                x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
+                            if max_mode:
                                 total = max(total, _bilinear(batch_index, c, y, x))
-                        b_np[i, c, ph, pw] = total
+                    if avg_mode:
+                        total = total / count
+                    b_np[i, c, ph, pw] = total
     return b_np

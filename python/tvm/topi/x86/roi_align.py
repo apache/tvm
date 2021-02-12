@@ -166,78 +166,45 @@ def roi_align_nchw_ir(
             pre_calc_index = 0
             for ph in range(pooled_size_h):
                 for pw in range(pooled_size_w):
-                    output_val = 0.0
-                    if mode == 0:
-                        for iy in range(roi_bin_grid_h):
-                            for ix in range(roi_bin_grid_w):
-                                output_val += (
-                                    w_pc[n, pre_calc_index, 0]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 2],
-                                        pos_pc[n, pre_calc_index, 0],
-                                    ]
-                                    + w_pc[n, pre_calc_index, 1]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 2],
-                                        pos_pc[n, pre_calc_index, 1],
-                                    ]
-                                    + w_pc[n, pre_calc_index, 2]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 3],
-                                        pos_pc[n, pre_calc_index, 0],
-                                    ]
-                                    + w_pc[n, pre_calc_index, 3]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 3],
-                                        pos_pc[n, pre_calc_index, 1],
-                                    ]
-                                )
-                                pre_calc_index += 1
-
-                        output_val /= count
-                        output[n, c, ph, pw] = output_val
-                    elif mode == 1:
-                        for iy in range(roi_bin_grid_h):
-                            for ix in range(roi_bin_grid_w):
-                                bilinear_val = (
-                                    w_pc[n, pre_calc_index, 0]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 2],
-                                        pos_pc[n, pre_calc_index, 0],
-                                    ]
-                                    + w_pc[n, pre_calc_index, 1]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 2],
-                                        pos_pc[n, pre_calc_index, 1],
-                                    ]
-                                    + w_pc[n, pre_calc_index, 2]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 3],
-                                        pos_pc[n, pre_calc_index, 0],
-                                    ]
-                                    + w_pc[n, pre_calc_index, 3]
-                                    * data[
-                                        roi_batch_index,
-                                        c,
-                                        pos_pc[n, pre_calc_index, 3],
-                                        pos_pc[n, pre_calc_index, 1],
-                                    ]
-                                )
-                                pre_calc_index += 1
+                    output_val = 0.0  # Avg mode
+                    if mode == 1:  # Max mode
+                        output_val = ninf("float32")
+                    for iy in range(roi_bin_grid_h):
+                        for ix in range(roi_bin_grid_w):
+                            bilinear_val = (
+                                w_pc[n, pre_calc_index, 0]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 2],
+                                    pos_pc[n, pre_calc_index, 0],
+                                ]
+                                + w_pc[n, pre_calc_index, 1]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 2],
+                                    pos_pc[n, pre_calc_index, 1],
+                                ]
+                                + w_pc[n, pre_calc_index, 2]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 3],
+                                    pos_pc[n, pre_calc_index, 0],
+                                ]
+                                + w_pc[n, pre_calc_index, 3]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 3],
+                                    pos_pc[n, pre_calc_index, 1],
+                                ]
+                            )
+                            pre_calc_index += 1
+                            if mode == 0:  # Avg mode
+                                output_val += bilinear_val / count
+                            if mode == 1:  # Max mode
                                 output_val = max(output_val, bilinear_val)
                         output[n, c, ph, pw] = output_val
     return output
