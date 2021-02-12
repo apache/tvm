@@ -220,7 +220,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
                         line = next(lines)
                     else:
                         break
-                except:
+                except StopIteration:
                     pass
 
     def binary(self, output, objects, options=None, link_main=True, main_options=None):
