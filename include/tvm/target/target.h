@@ -141,6 +141,11 @@ class Target : public ObjectRef {
    * \return The target that is the current context. The target may not be defined if
    * allow_not_defined is true.
    */
+  TVM_DLL explicit Target(Target target, Target host);
+  /*!
+   * \brief Construct a Target given target and host
+   * \return The Target with given target and host context information
+   */
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);

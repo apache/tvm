@@ -527,6 +527,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   const String kTag = "tag";
   const String kKeys = "keys";
   const String kDeviceName = "device";
+  const String kHost = "host";
   ObjectPtr<TargetNode> target = make_object<TargetNode>();
   // parse 'kind'
   if (config.count(kKind)) {
@@ -599,6 +600,13 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
       throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
   }
+  // parse host
+  if (config.count(kHost)) {
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    config.erase(kHost);
+  } else {
+    target->host = NullOpt;
+  }
   // set default attribute values if they do not exist
   for (const auto& kv : target->kind->key2default_) {
     if (!attrs.count(kv.first)) {
@@ -612,6 +620,15 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     target->attrs = attrs;
   }
   return target;
+}
+
+Target::Target(Target target, Target host) {
+  ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
+  if (n->host.defined())
+    throw dmlc::Error(": Error when adding target host to target already with host");
+  // add target host into host field
+  n->host = std::move(host);
+  data_ = std::move(n);
 }
 
 /**********  Registry  **********/
