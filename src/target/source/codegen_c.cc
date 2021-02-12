@@ -525,7 +525,18 @@ void CodeGenC::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
 void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintBinaryExpr(op, "%", os, this);
+  if (op->dtype.is_int() || op->dtype.is_uint()) {
+    PrintBinaryExpr(op, "%", os, this);
+  } else {
+    ICHECK(op->dtype.is_float()) << "non integer or floating point datatype in Mod";
+    if (op->dtype.bits() == 32) {
+      PrintBinaryExpr(op, "fmodf", os, this);
+    } else if (op->dtype.bits() == 64) {
+      PrintBinaryExpr(op, "fmod", os, this);
+    } else {
+      ICHECK(false) << "non single or double precision floating point in Mod";
+    }
+  }
 }
 void CodeGenC::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
@@ -727,7 +738,6 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
   } else {
     ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
-
 
     if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
       std::string value = this->PrintExpr(op->value);
