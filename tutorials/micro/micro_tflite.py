@@ -207,7 +207,9 @@ with tvm.transform.PassContext(
 # First, compile a static microTVM runtime for the targeted device. In this case, the host simulated
 # device is used.
 compiler = tvm.micro.DefaultCompiler(target=TARGET)
-opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+opts = tvm.micro.default_options(
+    os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+)
 
 # %%
 # Compiling for physical hardware
@@ -230,18 +232,13 @@ opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
 
 workspace = tvm.micro.Workspace()
 micro_binary = tvm.micro.build_static_runtime(
-    # the x86 compiler *expects* you to give the exact same dictionary for both
-    # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
-    # the binary compiler is expecting those mutations to be in bin_opts.
-    # TODO(weberlo) fix this very bizarre behavior
     workspace,
     compiler,
     c_mod,
-    lib_opts=opts["lib_opts"],
-    bin_opts=opts["bin_opts"],
+    opts,
     # Use the microTVM memory manager. If, in your main.cc, you change TVMPlatformMemoryAllocate and
     # TVMPlatformMemoryFree to use e.g. malloc() and free(), you can omit this extra library.
-    extra_libs=[os.path.join(tvm.micro.build.CRT_ROOT_DIR, "memory")],
+    extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
 )
 
 

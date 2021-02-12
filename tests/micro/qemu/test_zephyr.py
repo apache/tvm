@@ -92,8 +92,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
             workspace,
             compiler,
             mod,
-            lib_opts=opts["lib_opts"],
-            bin_opts=opts["bin_opts"],
+            opts,
         )
         if os.path.exists(prev_build):
             os.unlink(prev_build)

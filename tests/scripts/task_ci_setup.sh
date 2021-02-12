@@ -31,3 +31,8 @@ set -o pipefail
 echo "Addtiional setup in" ${CI_IMAGE_NAME}
 
 python3 -m pip install --user tlcpack-sphinx-addon==0.1.4 synr==0.2.1
+
+# Rebuild standalone_crt in build/ tree. This file is not currently archived by pack_lib() in
+# Jenkinsfile. We expect config.cmake to be present from pack_lib().
+# TODO(areusch): Make pack_lib() pack all the data dependencies of TVM.
+(cd build && cmake .. && make standalone_crt)
