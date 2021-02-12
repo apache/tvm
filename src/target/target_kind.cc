@@ -23,6 +23,7 @@
  */
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
@@ -43,6 +44,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 /**********  Registry-related code  **********/
 
 using TargetKindRegistry = AttrRegistry<TargetKindRegEntry, TargetKind>;
+
+Array<String> TargetKindRegEntry::ListTargetKinds() {
+  return TargetKindRegistry::Global()->ListAllNames();
+}
 
 TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_name) {
   return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
@@ -306,5 +311,9 @@ TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
     .add_attr_option<Target>("target_host")
     .add_attr_option<Array<Target>>("devices");
+
+/**********  Registry  **********/
+
+TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
 
 }  // namespace tvm

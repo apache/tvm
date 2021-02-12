@@ -33,12 +33,17 @@ export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
 
 function run_pytest() {
-    test_suite_name="$1"
+    local ffi_type="$1"
     shift
-    for ffi_type in ${TVM_PYTEST_FFI_TYPES:-ctypes cython}; do
-        TVM_FFI=${ffi_type} python3 -m pytest \
+    local test_suite_name="$1"
+    shift
+    if [ -z "${ffi_type}" -o -z "${test_suite_name}" ]; then
+        echo "error: run_pytest called incorrectly: run_pytest ${ffi_type} ${test_suite_name} $@"
+        echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
+        exit 2
+    fi
+    TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "$@"
-    done
 }

@@ -32,22 +32,22 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 echo "Running relay MXNet frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-mxnet tests/python/frontend/mxnet
+run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
 
 echo "Running relay ONNX frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-onnx tests/python/frontend/onnx
+run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
 echo "Running relay CoreML frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-coreml tests/python/frontend/coreml
+run_pytest cython python-frontend-coreml tests/python/frontend/coreml
 
 echo "Running relay Tensorflow frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-tensorflow tests/python/frontend/tensorflow
+run_pytest cython python-frontend-tensorflow tests/python/frontend/tensorflow
 
 echo "Running relay caffe2 frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-caffe2 tests/python/frontend/caffe2
+run_pytest cython python-frontend-caffe2 tests/python/frontend/caffe2
 
 echo "Running relay DarkNet frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-darknet tests/python/frontend/darknet
+run_pytest cython python-frontend-darknet tests/python/frontend/darknet
 
 echo "Running relay PyTorch frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-pytorch tests/python/frontend/pytorch
+run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
