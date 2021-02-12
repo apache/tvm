@@ -1076,7 +1076,7 @@ def shape_of(x, dtype="int64"):
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
         return _expr.const(shape, dtype)
-    return _op.shape_of(x, "int64")
+    return _op.shape_of(x, dtype)
 
 
 class Shape(OnnxOpConverter):
@@ -2879,11 +2879,11 @@ class GraphProto:
         for init_tensor in graph.initializer:
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
+            array = self._parse_array(init_tensor)
             if freeze_params:
-                array = self._parse_array(init_tensor)
                 self._nodes[init_tensor.name] = _expr.const(array)
             else:
-                self._params[init_tensor.name] = self._parse_array(init_tensor)
+                self._params[init_tensor.name] = array
                 self._nodes[init_tensor.name] = new_var(
                     init_tensor.name,
                     shape=self._params[init_tensor.name].shape,
@@ -2961,10 +2961,10 @@ class GraphProto:
                 len(node_output), outputs_num, op_name
             )
             if outputs_num == 1:
-                self._nodes[node_output[0]] = op
+                self._nodes[node_output[0]] = fold_constant(op)
             else:
                 for k, i in zip(list(node_output), range(len(node_output))):
-                    self._nodes[k] = op[i]
+                    self._nodes[k] = fold_constant(op[i])
 
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
