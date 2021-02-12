@@ -24,18 +24,18 @@ import contextlib
 
 
 def code_loader(bitstream=None):
-  def reprogram_fpga(remote, build_result):
-    """default_code_loader callback which reprograms the FPGA.
+    def reprogram_fpga(remote, build_result):
+        """default_code_loader callback which reprograms the FPGA.
 
-    Parameters
-    ----------
-    remote : tvm.rpc.RPCSession
-        RPC session established to the remote device.
+        Parameters
+        ----------
+        remote : tvm.rpc.RPCSession
+            RPC session established to the remote device.
 
-    build_result : tvm.autotvm.measure.measure_methods.BuildResult
-        Artifact from the build phase, unused here.
-    """
-    rpc_client.program_bitstream(remote, bitstream)
-    rpc_client.reconfig_runtime(remote)
+        build_result : tvm.autotvm.measure.measure_methods.BuildResult
+            Artifact from the build phase, unused here.
+        """
+        rpc_client.program_bitstream(remote, bitstream)
+        rpc_client.reconfig_runtime(remote)
 
-  return default_code_loader(reprogram_fpga)
+    return default_code_loader(reprogram_fpga)
