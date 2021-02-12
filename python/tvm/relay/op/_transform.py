@@ -482,7 +482,7 @@ def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
 
     else:
         count = int64(sparse_indices.shape[0])
-        for i in const_range(1, sparse_indices.shape[0]):
+        for i in range(1, int64(sparse_indices.shape[0])):
             index = int64(sparse_indices[i, 0])
             prev_index = int64(sparse_indices[i - 1, 0] + 1)
 
