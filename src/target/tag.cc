@@ -68,7 +68,7 @@ Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool overri
   return Target(config);
 }
 
-/**********  Register Target tags  ***********/
+/**********  Register Target tags  **********/
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
@@ -225,7 +225,6 @@ TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-560-ti", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-550-ti", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-460", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gts-450", "sm_21", 49152, 32768);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gts-450*", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-590", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-580", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-570", "sm_20", 49152, 32768);
@@ -236,17 +235,15 @@ TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-740", "sm_30", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-730", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-730-ddr3,128bit", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-720", "sm_35", 49152, 65536);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-705*", "sm_35", 49152, 65536);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-640-(gddr5)", "sm_35", 49152, 65536);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-640-(gddr3)", "sm_21", 49152, 32768);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-705", "sm_35", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-640-gddr5", "sm_35", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-640-gddr3", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-630", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-620", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-610", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-520", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-440", "sm_21", 49152, 32768);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-440*", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-430", "sm_21", 49152, 32768);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gt-430*", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-2080", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-2070", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-2060", "sm_75", 49152, 65536);
@@ -265,7 +262,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/geforce-920m", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-910m", "sm_52", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-880m", "sm_30", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-870m", "sm_30", 49152, 65536);
-TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-860m-cuda-sm_30", "sm_30", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-860m-sm-30", "sm_30", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-860m-sm-50", "sm_50", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-gtx-850m", "sm_50", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-840m", "sm_50", 49152, 65536);

@@ -151,6 +151,13 @@ def test_target_tag_1():
     assert tgt.attrs["registers_per_block"] == 32768
 
 
+def test_list_kinds():
+    targets = tvm.target.Target.list_kinds()
+    assert len(targets) != 0
+    assert "llvm" in targets
+    assert all(isinstance(target_name, str) for target_name in targets)
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()
@@ -158,3 +165,4 @@ if __name__ == "__main__":
     test_target_config()
     test_config_map()
     test_composite_target()
+    test_list_kinds()

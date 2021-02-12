@@ -1435,6 +1435,39 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
+def contrib_dense_pack(data, weight, units=None, out_dtype=""):
+    """Dense operator.
+    Applies a linear transformation
+
+    .. math::
+
+    `Y = X * W^T`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator,
+        of shape `(d_1, d_2, ..., d_n, units_in)`.
+
+    weight : tvm.relay.Expr
+        The transformed weight expressions, 3-D matrix,
+        of shape `(units // pack_weight_tile, units_in, pack_weight_tile)`.
+
+    units : int, optional
+        Number of hidden units of the dense transformation.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense,
+        of shape `(d_1, d_2, ..., d_n, units)`.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_dense_pack(data, weight, units, out_dtype)
+
+
 def fifo_buffer(data, buffer, axis):
     """FIFO buffer to enable computation reuse in CNNs with sliding indow input
 
