@@ -1007,10 +1007,7 @@ def _identity():
 
 def _identityn():
     def _impl(inputs, attr, params, mod):
-        return _expr.TupleWrapper(
-            _expr.Tuple([input for input in inputs]),
-            len(inputs),
-        )
+        return inputs
 
     return _impl
 
