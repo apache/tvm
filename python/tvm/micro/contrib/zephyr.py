@@ -55,7 +55,7 @@ class SubprocessEnv(object):
         for k, v in self.default_overrides.items():
             env[k] = v
 
-        return subprocess.check_output(cmd, env=env, **kw, text=True)
+        return subprocess.check_output(cmd, env=env, **kw, universal_newlines=True)
 
 
 class ProjectNotFoundError(Exception):
