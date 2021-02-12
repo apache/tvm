@@ -2010,6 +2010,32 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.transform.scatter(data, index, src, axis)
 
+    def index_put(self, inputs, input_types):
+        in_tensor = inputs[0]
+        indices = inputs[1]
+        values = inputs[2]
+        accumulate = inputs[3]
+        # accumulate parameter is ignored.
+        # torch.index_put default is False but Relay.scatter_nd accumulates values.
+        # We assume there is no duplicate indices in torch.index_put input
+        if not accumulate:
+            logging.warning(
+                "torch.index_put accumulate parameter is False. "
+                "TVM uses tvm.relay.scatter_nd operator which accumulates values. "
+                "Make sure there is no duplicate indices in torch.index_put input."
+            )
+        # Relay scatter_nd does not support input tensor
+        # We assume that torch.index_put is used with empty zero-values input tensor
+        # scatter_nd will create empty zero-values tensor with a given shape
+        out_shape = self.infer_shape(in_tensor)
+        logging.warning(
+            "tvm.relay.scatter_nd operator does not support input tensor parameter. "
+            "TVM assumes that torch.index_put is used with empty zero-values input tensor"
+        )
+        # Combine array of index tensors into one index tensor with shape (N,_)
+        index_tensor = _op.stack(indices, axis=0)
+        return _op.transform.scatter_nd(values, index_tensor, out_shape)
+
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
         cast_map = {
@@ -2326,6 +2352,8 @@ class PyTorchOpConverter:
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::index_put": self.index_put,
+            "aten::index_put_": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
             "aten::IntImplicit": self.identity,
