@@ -2180,7 +2180,9 @@ class Loop(OnnxOpConverter):
 
         # Get the current graph proto and create a clone for the subgraph
         graph_scope = GraphProto.current
-        subgraph_scope = GraphProto(graph_scope._shape, graph_scope._dtype)
+        subgraph_scope = GraphProto(
+            graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params
+        )
         # Load nodes from outer graph into inner graph.
         subgraph_scope._nodes = graph_scope._nodes.copy()
 
@@ -2292,7 +2294,7 @@ class Loop(OnnxOpConverter):
             return [loop_count, max_count, new_cond] + new_loop_vars + combined_scan_outputs
 
         # Create the loop function.
-        loop = _loops.while_loop(cond_fn, loop_vars + scan_output_vars, body_fn)
+        loop = fold_constant(_loops.while_loop(cond_fn, loop_vars + scan_output_vars, body_fn))
 
         # Now need to run initial values through the graph.
         init_count = _expr.const(0, dtype=iter_dtype)
@@ -2315,6 +2317,7 @@ class Loop(OnnxOpConverter):
         # Update outer graph with constants found in the subgraph.
         free_vars = analysis.free_vars(loop)
         graph_scope._params.update(subgraph_scope._params)
+        graph_scope._nodes.update(subgraph_scope._nodes)
         for var in free_vars:
             graph_scope._nodes.update({var.name_hint: var})
         return outputs
@@ -2335,9 +2338,9 @@ class If(OnnxOpConverter):
 
         # Create graph converters for both branches.
         graph_scope = GraphProto.current
-        then_graph = GraphProto(graph_scope._shape, graph_scope._dtype)
+        then_graph = GraphProto(graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params)
         then_graph._nodes = graph_scope._nodes.copy()
-        else_graph = GraphProto(graph_scope._shape, graph_scope._dtype)
+        else_graph = GraphProto(graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params)
         else_graph._nodes = graph_scope._nodes.copy()
 
         # Convert each branch to a relay expression.
@@ -2348,10 +2351,12 @@ class If(OnnxOpConverter):
 
         # Add constants from both branches to parent graph.
         graph_scope._params.update(then_graph._params)
+        graph_scope._nodes.update(then_graph._nodes)
         then_free_vars = analysis.free_vars(then_expr)
         for var in then_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
         graph_scope._params.update(else_graph._params)
+        graph_scope._nodes.update(else_graph._nodes)
         else_free_vars = analysis.free_vars(else_expr)
         for var in else_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
@@ -2805,11 +2810,19 @@ class GraphProto:
 
     dtype : str or dict of str to str
         The input types to the graph
+
+    freeze_params: bool
+        If this parameter is true, the importer will take any provided
+        onnx input values (weights, shapes, etc) and embed them into the relay model
+        as Constants instead of variables. This allows more aggressive optimizations
+        at compile time and helps in making models static if certain inputs represent
+        attributes relay would traditionally consider compile-time constants.
+
     """
 
     current = None
 
-    def __init__(self, shape, dtype):
+    def __init__(self, shape, dtype, freeze_params=False):
         self._nodes = {}
         self._params = {}
         self._inputs = {}
@@ -2819,6 +2832,7 @@ class GraphProto:
         self._shape = shape if shape else {}
         self._dtype = dtype
         self.opset = None
+        self._freeze_params = freeze_params
 
     def __enter__(self):
         self._old_manager = GraphProto.current
@@ -2837,7 +2851,7 @@ class GraphProto:
         fn = _function.Function(analysis.free_vars(body), body)
         return fn, {}
 
-    def from_onnx(self, graph, opset, freeze_params=False, get_output_expr=False):
+    def from_onnx(self, graph, opset, get_output_expr=False):
         """Construct Relay expression from ONNX graph.
 
         Onnx graph is a python protobuf object.
@@ -2853,13 +2867,6 @@ class GraphProto:
             The loaded onnx graph
 
         opset : opset version
-
-        freeze_params: bool
-            If this parameter is true, the importer will take any provided
-            onnx input values (weights, shapes, etc) and embed them into the relay model
-            as Constants instead of variables. This allows more aggressive optimizations
-            at compile time and helps in making models static if certain inputs represent
-            attributes relay would traditionally consider compile-time constants.
 
         get_output_expr: bool
             If set to true, this conversion will return each output expression rather
@@ -2880,7 +2887,7 @@ class GraphProto:
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
             array = self._parse_array(init_tensor)
-            if freeze_params:
+            if self._freeze_params:
                 self._nodes[init_tensor.name] = _expr.const(array)
             else:
                 self._params[init_tensor.name] = array
@@ -2963,8 +2970,9 @@ class GraphProto:
             if outputs_num == 1:
                 self._nodes[node_output[0]] = fold_constant(op)
             else:
+                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
                 for k, i in zip(list(node_output), range(len(node_output))):
-                    self._nodes[k] = fold_constant(op[i])
+                    self._nodes[k] = op[i]
 
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
@@ -3122,7 +3130,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
                 warnings.warn(str(e))
     except ImportError:
         pass
-    g = GraphProto(shape, dtype)
+    g = GraphProto(shape, dtype, freeze_params)
     graph = model.graph
     if opset is None:
         try:
@@ -3131,5 +3139,5 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             opset = 1
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     with g:
-        mod, params = g.from_onnx(graph, opset, freeze_params)
+        mod, params = g.from_onnx(graph, opset)
     return mod, params
