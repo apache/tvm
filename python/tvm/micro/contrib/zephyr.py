@@ -205,20 +205,23 @@ class ZephyrCompiler(tvm.micro.Compiler):
         return tvm.micro.MicroLibrary(build_dir, [f"lib{project_name}.a"])
 
     def _print_make_statistics(self, output):
-        print("==================")
         output = output.splitlines()
         lines = iter(output)
         for line in lines:
             if line.startswith("Memory region"):
                 # print statistics header
-                print(line)
+                _LOG.info(line)
+                _LOG.info("--------------------- ---------- ------------ ---------")
                 line = next(lines)
                 # while there is a region print it
-                while ":" in line:
-                    print(line)
-                    line = next(lines)
-                else:
-                    break
+                try:
+                    while ":" in line:
+                        _LOG.info(line)
+                        line = next(lines)
+                    else:
+                        break
+                except:
+                    pass
 
     def binary(self, output, objects, options=None, link_main=True, main_options=None):
         assert link_main, "Must pass link_main=True"
