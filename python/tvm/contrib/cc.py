@@ -216,7 +216,7 @@ def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=F
 
 def _windows_compile(output, objects, options):
     cmd = ["clang"]
-    cmd += ["-O2", "-v", "-fvisibility=default", "-export-all-symbols"]
+    cmd += ["-O2"]
 
     if output.endswith(".so") or output.endswith(".dll"):
         cmd += ["-shared"]

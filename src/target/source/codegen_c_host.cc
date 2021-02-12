@@ -44,6 +44,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   emit_asserts_ = emit_asserts;
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
+  decl_stream << "#define TVM_EXPORTS\n";
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
