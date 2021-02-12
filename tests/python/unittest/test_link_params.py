@@ -354,21 +354,18 @@ def test_crt_link_params():
 
             workspace = tvm.micro.Workspace()
             compiler = tvm.micro.DefaultCompiler(target=target)
-            opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+            opts = tvm.micro.default_options(
+                os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+            )
             opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_RUNTIME_MODULE")
 
             micro_binary = tvm.micro.build_static_runtime(
-                # the x86 compiler *expects* you to give the exact same dictionary for both
-                # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
-                # the binary compiler is expecting those mutations to be in bin_opts.
-                # TODO(weberlo) fix this very bizarre behavior
                 workspace,
                 compiler,
                 lib,
-                lib_opts=opts["bin_opts"],
-                bin_opts=opts["bin_opts"],
+                compiler_options=opts,
                 extra_libs=[
-                    os.path.join(tvm.micro.CRT_ROOT_DIR, m)
+                    tvm.micro.get_standalone_crt_lib(m)
                     for m in ("memory", "graph_runtime_module", "graph_runtime")
                 ],
             )
