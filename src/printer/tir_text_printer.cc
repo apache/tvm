@@ -301,7 +301,7 @@ Doc TIRTextPrinter::VisitExpr_(const NotNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const SelectNode* op) {
   Doc doc;
   doc << "select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
-      << Print(op->false_value);
+      << Print(op->false_value) << ")";
   return doc;
 }
 
