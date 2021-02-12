@@ -321,7 +321,7 @@ def scatter_nd(data, indices, out_shape):
     indices : relay.Expr
         The index locations to update.
 
-    out_shape : relay.Expr
+    out_shape : Union[Tuple[int], List[int]]
         Output shape of the scatter.
 
     Returns
