@@ -729,6 +729,7 @@ def schedule_sparse_transpose(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_sparse_add(outs):
     """Schedule for sparse_add
 
@@ -744,6 +745,7 @@ def schedule_sparse_add(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 def schedule_batch_matmul(outs):
     """Schedule for batch_matmul

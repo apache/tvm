@@ -525,6 +525,7 @@ def test_sparse_dense_padded_alter_op():
         with tvm.transform.PassContext(opt_level=3, required_pass="AlterOpLayout"):
             x = relay.build(tvm.IRModule.from_expr(f), target=tvm.target.Target("cuda"))
 
+
 def test_sparse_add_csr():
     M, K, density = 3, 49, 0.2
     X_np = np.random.randn(M, K).astype("float32")
@@ -548,6 +549,7 @@ def test_sparse_add_csr():
         Z_tvm,
     )
     tvm.testing.assert_allclose(Z_tvm.asnumpy(), Z_np, atol=1e-4, rtol=1e-4)
+
 
 if __name__ == "__main__":
     test_csrmv()

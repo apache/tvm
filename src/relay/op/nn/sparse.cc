@@ -198,7 +198,7 @@ RELAY_REGISTER_OP("nn.sparse_transpose")
 
 // relay.nn.sparse_add
 bool SparseAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                        const TypeReporter& reporter) {
+                  const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 5);
   const auto* dense_data = types[0].as<TensorTypeNode>();
   const auto* sparse_data = types[1].as<TensorTypeNode>();
@@ -235,7 +235,6 @@ RELAY_REGISTER_OP("nn.sparse_add")
     .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer matrix.")
     .set_support_level(1)
     .add_type_rel("SparseAdd", SparseAddRel);
-
 
 }  // namespace relay
 }  // namespace tvm
