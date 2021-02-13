@@ -996,7 +996,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets,
+IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
                                     const Target& target_host) {
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
