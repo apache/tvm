@@ -205,7 +205,6 @@ bool SparseAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_EQ(sparse_data->shape.size(), 1);
   const auto* sparse_indices = types[2].as<TensorTypeNode>();
   ICHECK_EQ(sparse_indices->shape.size(), 1);
-  const auto* sparse_indptr = types[3].as<TensorTypeNode>();
 
   reporter->Assign(types[4], TensorType(dense_data->shape, dense_data->dtype));
   return true;
@@ -219,15 +218,14 @@ Expr MakeSparseAdd(Expr dense_data, Expr sparse_data, Expr sparse_indices, Expr 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_add").set_body_typed(MakeSparseAdd);
 
 RELAY_REGISTER_OP("nn.sparse_add")
-    .describe(R"code(Add a dense matrix X with sparse matrix Y. Only support square sparse matrix
+    .describe(R"code(Add a dense matrix X with sparse matrix Y.
 
-- **dense**: `(N, N)`
-- **sparse**: `(N, N)`
+- **dense**: `(M, N)`
+- **sparse**: `(M, N)`
 
-- **out**: `(N, N)`.
+- **out**: `(M, N)`.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<SparseTransposeAttrs>()
     .set_num_inputs(4)
     .add_argument("dense_data", "2D Tensor", "Dense data matrix.")
     .add_argument("sparse_data", "1D Tensor", "Sparse data matrix.")

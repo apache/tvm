@@ -2148,6 +2148,39 @@ def sparse_transpose(x):
     return expr.TupleWrapper(_make.sparse_transpose(x[0], x[1], x[2]), 3)
 
 
+# pylint: disable=no-else-return,inconsistent-return-statements
+def sparse_add(dense_mat, sparse_mat):
+    r"""
+    Computes the matrix addition of `dense_mat` and `sparse_mat`, where `dense_mat` is
+    a dense matrix and `sparse_mat` is a sparse (either BSR or CSR) namedtuple with
+    fields `data`, `indices`, and `indptr`.
+
+    .. math::
+
+        \mbox{sparse_add}(dense_mat, sparse_mat)[m, n] = \mbox{add}(\mbox{as_dense}(S), (D))[m, n]
+
+    where `as_dense` returns dense equivalent of the given S(sparse matrix)
+    while performing addition with given D(dense matrix).
+
+    Parameters
+    ----------
+    dense_mat : tvm.relay.Expr
+        The input dense matrix for the matrix multiplication
+
+    sparse_mat : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
+        The input sparse matrix for the matrix multiplication.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+    """
+    if hasattr(sparse_mat, "indices"):
+        return _make.sparse_add(dense_mat, sparse_mat.data, sparse_mat.indices, sparse_mat.indptr)
+    else:
+        return _make.sparse_add(dense_mat, sparse_mat[0], sparse_mat[1], sparse_mat[2])
+
+
 def contrib_conv2d_winograd_without_weight_transform(
     data,
     weight,

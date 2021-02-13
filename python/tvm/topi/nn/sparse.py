@@ -477,7 +477,7 @@ def sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr):
     Parameters
     ----------
     dense_data : tvm.te.Tensor
-        2-D with shape [M, K], float32
+        2-D with shape [M, N], float32
 
     sparse_data : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
@@ -486,7 +486,7 @@ def sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr):
         1-D with shape [nnz] (CSR) or
 
     sparse_indptr : tvm.te.Tensor
-        1-D with shape [N + 1] (CSR) or
+        1-D with shape [M + 1] (CSR) or
 
     Returns
     -------
