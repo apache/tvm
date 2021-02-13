@@ -1264,6 +1264,38 @@ def test_forward_layer_norm():
 
 
 @tvm.testing.uses_gpu
+def test_forward_group_norm():
+    def verify(shape, num_groups=1):
+        x = np.random.uniform(size=shape).astype("float32")
+        gamma = np.random.uniform(size=(shape[1])).astype("float32")
+        beta = np.random.uniform(size=(shape[1])).astype("float32")
+        ref_res = mx.nd.GroupNorm(
+            data=mx.nd.array(x),
+            gamma=mx.nd.array(gamma),
+            beta=mx.nd.array(beta),
+            num_groups=num_groups,
+        )
+        mx_sym = mx.sym.GroupNorm(
+            mx.sym.var("x"), mx.sym.var("gamma"), mx.sym.var("beta"), num_groups=num_groups
+        )
+        shape_dict = {"x": x.shape, "gamma": gamma.shape, "beta": beta.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
+                )
+
+    verify((1, 4, 2), num_groups=4)
+    # TODO(trevmorr): MXNet GroupNorm implementation is bugged for cases when num_groups != num_channels
+    # https://github.com/apache/incubator-mxnet/pull/18199
+    # verify((1, 4, 2, 3), num_groups=2)
+    # verify((1, 4, 2, 3))
+
+
+@tvm.testing.uses_gpu
 def test_forward_one_hot():
     def verify(indices_shape, depth, on_value, off_value, dtype):
         x = np.random.randint(0, 5, size=indices_shape)
