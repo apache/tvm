@@ -244,7 +244,8 @@ def test_dyn_sparse_to_dense():
         ),
     ],
 )
-def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value, use_dyn):
     def ref_sparse_fill_empty_rows(
         sparse_indices: np.ndarray,
         sparse_values: np.ndarray,
@@ -289,22 +290,44 @@ def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, defa
         """
         This function verifies the relay output of sparse_fill_empty_rows with its expected output.
         """
-        sparse_indices = relay.var(
-            "sparse_indices",
-            relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
-        )
-        sparse_values = relay.var(
-            "sparse_values",
-            relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype)),
-        )
-        dense_shape = relay.var(
-            "dense_shape",
-            relay.TensorType(dense_shape_np.shape, str(dense_shape_np.dtype)),
-        )
-        default_value = relay.var(
-            "default_value",
-            relay.TensorType(default_value_np.shape, str(default_value_np.dtype)),
-        )
+        if use_dyn:
+            sparse_indices = relay.var(
+                "sparse_indices",
+                shape=[relay.Any(), relay.Any()],
+                dtype=str(sparse_indices_np.dtype),
+            )
+            sparse_values = relay.var(
+                "sparse_values",
+                shape=[relay.Any()],
+                dtype=str(sparse_values_np.dtype),
+            )
+            dense_shape = relay.var(
+                "dense_shape",
+                shape=[relay.Any()],
+                dtype=str(dense_shape_np.dtype),
+            )
+            default_value = relay.var(
+                "default_value",
+                shape=[relay.Any()],
+                dtype=str(default_value_np.dtype),
+            )
+        else:
+            sparse_indices = relay.var(
+                "sparse_indices",
+                relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
+            )
+            sparse_values = relay.var(
+                "sparse_values",
+                relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype)),
+            )
+            dense_shape = relay.var(
+                "dense_shape",
+                relay.TensorType(dense_shape_np.shape, str(dense_shape_np.dtype)),
+            )
+            default_value = relay.var(
+                "default_value",
+                relay.TensorType(default_value_np.shape, str(default_value_np.dtype)),
+            )
         z = relay.sparse_fill_empty_rows(
             sparse_indices, sparse_values, dense_shape, default_value
         ).astuple()
