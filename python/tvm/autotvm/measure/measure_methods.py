@@ -496,7 +496,7 @@ def run_through_rpc(
     repeat,
     min_repeat_ms,
     cooldown_interval,
-    remote_args,
+    remote_kw,
     enable_cpu_cache_flush=False,
     code_loader=None,
 ):
@@ -526,8 +526,8 @@ def run_through_rpc(
         will be automatically increased.
     cooldown_interval: float
         The cool down interval between two measurements
-    remote_args: Tuple
-        The argument for request_remote
+    remote_kw: dict
+        Passed to code_loader(). Ultimately, keyword args to request_remote().
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to

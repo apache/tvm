@@ -20,11 +20,22 @@
 from tvm.autotvm.measure import default_code_loader
 from . import rpc_client
 
-import contextlib
-
 
 def code_loader(bitstream=None):
-    def reprogram_fpga(remote, build_result):
+    """Construct a CodeLoader implementation specialized for VTA.
+
+    Parameters
+    ----------
+    bitsream : Optional[str]
+        Path to the bitstream to write prior to uploading code.
+
+    Returns
+    -------
+    CodeLoader :
+        The CodeLoader instance.
+    """
+
+    def reprogram_fpga(remote, _build_result):
         """default_code_loader callback which reprograms the FPGA.
 
         Parameters
@@ -32,7 +43,7 @@ def code_loader(bitstream=None):
         remote : tvm.rpc.RPCSession
             RPC session established to the remote device.
 
-        build_result : tvm.autotvm.measure.measure_methods.BuildResult
+        _build_result : tvm.autotvm.measure.measure_methods.BuildResult
             Artifact from the build phase, unused here.
         """
         rpc_client.program_bitstream(remote, bitstream)
