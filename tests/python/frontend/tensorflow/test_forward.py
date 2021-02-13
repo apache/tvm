@@ -1817,13 +1817,21 @@ def test_forward_sparse_dense_matmul():
 # ------------
 
 
-def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value_int):
+def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value_int, use_dyn):
     with tf.Graph().as_default():
-        indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
-        values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
-        dense_shape = tf.placeholder(
-            shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
-        )
+        if use_dyn:
+            indices = tf.placeholder(shape=(None, None), dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=(None), dtype=values_np.dtype, name="values")
+            dense_shape = tf.placeholder(
+                shape=(None), dtype=dense_shape_np.dtype, name="dense_shape"
+            )
+        else:
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
+            dense_shape = tf.placeholder(
+                shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
+            )
+
         default_value = tf.placeholder(shape=(), dtype=values_np.dtype, name="default_value")
         sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
         _ = tf.sparse.fill_empty_rows(sp_input, default_value, name="sparse_fill_empty_rows")
@@ -1886,8 +1894,9 @@ def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_
         ),
     ],
 )
+@pytest.mark.parametrize("use_dyn", [True, False])
 def test_forward_sparse_fill_empty_rows(
-    sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
+    sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int, use_dyn
 ):
     """ sparse_fill_empty_rows op test"""
     ###################################################################
@@ -1902,7 +1911,7 @@ def test_forward_sparse_fill_empty_rows(
     #
     # ------------------------------------------------------------------
     _test_sparse_fill_empty_rows(
-        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int, use_dyn
     )
 
 

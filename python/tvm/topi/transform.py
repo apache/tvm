@@ -934,4 +934,12 @@ def adv_index(data, indices):
 
 
 def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    """
+    This op exactly follows the documentation here:
+    https://www.tensorflow.org/api_docs/python/tf/sparse/fill_empty_rows
+    There are two exceptions:
+    1. Input Sparse Indices are expected to be in row-major order.
+    2. Empty Row Indicator has int64 output type with 1(for True) and 0(for False).
+
+    """
     return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
