@@ -352,16 +352,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // start rewrite
     stmt = operator()(std::move(stmt));
     if (attach_map_.count(nullptr)) {
-      std::vector<Stmt> nest;
-      for (StorageEntry* e : attach_map_.at(nullptr)) {
-        // ICHECK_EQ(e->scope.rank, 0);
-        if (e->new_alloc.defined()) {
-          nest.emplace_back(AttrStmt(e->alloc_var, attr::storage_scope,
-                                     StringImm(e->scope.to_string()), Evaluate(0)));
-          nest.push_back(e->new_alloc);
-        }
-      }
-      stmt = MergeNest(nest, stmt);
+      return MakeAttach(attach_map_.at(nullptr), stmt);
     }
     return stmt;
   }
