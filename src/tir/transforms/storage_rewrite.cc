@@ -246,6 +246,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
       VisitStmt_(static_cast<const ForNode*>(stmt));
     } else if (stmt->IsInstance<IfThenElseNode>()) {
       VisitStmt_(static_cast<const IfThenElseNode*>(stmt));
+    } else if (stmt->IsInstance<WhileNode>()) {
+      VisitStmt_(static_cast<const WhileNode*>(stmt));
     } else if (stmt->IsInstance<StoreNode>()) {
       VisitStmt_(static_cast<const StoreNode*>(stmt));
     } else {
