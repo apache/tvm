@@ -365,9 +365,11 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
 int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task) {
   int num_workers = tvm::runtime::threading::MaxConcurrency();
   if (num_workers == 1) {
+    std::atomic<int32_t> sync_counter{0};
     TVMParallelGroupEnv env;
     env.num_task = 1;
-    (*flambda)(1, &env, cdata);
+    env.sync_handle = &sync_counter;
+    (*flambda)(0, &env, cdata);
     return 0;
   } else {
 #if !TVM_THREADPOOL_USE_OPENMP
