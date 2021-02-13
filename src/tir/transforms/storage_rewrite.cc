@@ -446,6 +446,18 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const WhileNode* op) final {
+    // remake all the allocation at the attach scope.
+    if (attach_map_.count(op)) {
+      auto& svec = attach_map_[op];
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      op = stmt.as<WhileNode>();
+      return While(op->condition, MakeAttach(svec, op->body));
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+  }
+
   Stmt VisitStmt_(const AllocateNode* op) final { return this->VisitStmt(op->body); }
 
  private:
