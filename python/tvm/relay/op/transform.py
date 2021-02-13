@@ -21,7 +21,7 @@
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-from ..expr import TupleWrapper, const, Expr, Tuple
+from ..expr import TupleWrapper, const, Constant, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -216,6 +216,8 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Constant):
+        newshape = list(newshape.data.asnumpy())
     if isinstance(newshape, Expr):
         return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
@@ -431,6 +433,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.full(fill_value, shape, dtype)
     if isinstance(shape, int):
@@ -614,6 +618,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
+    if isinstance(reps, Constant):
+        reps = list(reps.data.asnumpy())
     if isinstance(reps, Expr):
         return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
@@ -753,6 +759,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.broadcast_to(data, shape)
     if isinstance(shape, int):
@@ -884,6 +892,12 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         The computed result.
     """
     strides = strides or [1]
+    if isinstance(begin, Constant):
+        begin = list(begin.data.asnumpy())
+    if isinstance(end, Constant):
+        end = list(end.data.asnumpy())
+    if isinstance(strides, Constant):
+        strides = list(strides.data.asnumpy())
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
@@ -1170,6 +1184,8 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 1, 0],
              [0, 0, 1]]
     """
+    if isinstance(depth, Constant):
+        depth = depth.data.asnumpy().item()
     if isinstance(depth, Expr):
         return _dyn_make.one_hot(indices, on_value, off_value, depth, axis, dtype)
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
