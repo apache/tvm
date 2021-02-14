@@ -198,12 +198,13 @@ def _sort_common(
             bottom_up_merge(source, dest, source_idx, dest_idx, start[0], middle[0], end[0], even)
 
     lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
+        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int32"
     )
-    with ib.for_range(0, lim, dtype="int64") as l2_width:
+    with ib.for_range(0, lim, dtype="int32") as l2_width:
         width = 2 << l2_width
         # Define and launch the cuda kernel
         with ib.new_scope():
+            width = tvm.tir.generic.cast(width, "int64")
             i = ib.allocate("int64", (1,), name="i", scope="local")
             j = ib.allocate("int64", (1,), name="j", scope="local")
             start = ib.allocate("int64", (1,), name="start", scope="local")
