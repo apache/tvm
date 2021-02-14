@@ -76,10 +76,14 @@ VerilatorProfiler* VerilatorProfiler::ThreadLocal() {
   return &inst;
 }
 
-void VerilatorRuntime::LoadLibrary(const std::string& lib_name) {
-  lib_ = new VerilatorLibrary();
-  lib_->Load(lib_name);
+VerilatorRuntime::~VerilatorRuntime() {
+  auto dealloc = reinterpret_cast<VerilatorDeallocFunc>(lib_->GetSymbol("VerilatorDealloc"));
+  ICHECK(dealloc != nullptr);
+  dealloc(device_);
+  lib_->~VerilatorLibrary();
 }
+
+void VerilatorRuntime::SetLibrary(const std::string& lib_path) { lib_path_ = lib_path; }
 
 void VerilatorRuntime::SetResetCycles(const int cycles) { reset_cycles_ = cycles; }
 
@@ -88,7 +92,8 @@ void VerilatorRuntime::EnableProfiler() { prof_enable_ = true; }
 void VerilatorRuntime::SetProfilerCycleCounterId(const int id) { prof_cycle_counter_id_ = id; }
 
 void VerilatorRuntime::Init(const Array<NDArray>& consts) {
-  // get symbols
+  lib_ = new VerilatorLibrary();
+  lib_->Load(lib_path_);
   auto alloc = reinterpret_cast<VerilatorAllocFunc>(lib_->GetSymbol("VerilatorAlloc"));
   ICHECK(alloc != nullptr);
   auto reset = reinterpret_cast<VerilatorResetFunc>(lib_->GetSymbol("VerilatorReset"));

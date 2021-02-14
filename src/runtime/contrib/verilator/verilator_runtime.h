@@ -48,6 +48,7 @@ using namespace tvm::runtime::contrib;
 using namespace tvm::runtime::json;
 
 typedef VerilatorHandle (*VerilatorAllocFunc)();
+typedef void (*VerilatorDeallocFunc)(VerilatorHandle);
 typedef void (*VerilatorResetFunc)(VerilatorHandle, int);
 typedef void (*VerilatorAddFunc)(VerilatorHandle, int*, int*, int*, int, int);
 typedef int (*VerilatorReadFunc)(VerilatorHandle, int, int);
@@ -88,10 +89,12 @@ class VerilatorRuntime : public JSONRuntimeBase {
                    const Array<String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
+  ~VerilatorRuntime();
+
   const char* type_key() const { return "verilator"; }
 
-  /*! \brief load verilator library */
-  void LoadLibrary(const std::string& lib_name);
+  /*! \brief set verilator library */
+  void SetLibrary(const std::string& lib_name);
 
   /*! \brief set the number of reset cycles */
   void SetResetCycles(const int cycles);
@@ -109,6 +112,8 @@ class VerilatorRuntime : public JSONRuntimeBase {
   void Run() override;
 
  private:
+  /*! \brief the verilator library path */
+  String lib_path_;
   /*! \brief the verilator device */
   VerilatorHandle device_{nullptr};
   /*! \brief the verilator library */

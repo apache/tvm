@@ -122,7 +122,7 @@ runtime::Module VerilatorBackend(const ObjectRef& ref) {
     cfg = AttrsWithDefaultValues<VerilatorOptions>();
   }
 
-  n->LoadLibrary(cfg.value()->lib_path);
+  n->SetLibrary(cfg.value()->lib_path);
   n->SetResetCycles(cfg.value()->reset_cycles);
 
   if (cfg.value()->profiler_enable) {
