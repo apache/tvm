@@ -67,6 +67,10 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
 
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
 
+    lim = tvm.tir.generic.cast(
+        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(scan_axis_size, "float64"))), "int32"
+    )
+
     with ib.if_scope(scan_axis_size == 0):
         with ib.new_scope():
             bx = te.thread_axis("blockIdx.x")
@@ -95,13 +99,11 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
 
         # The following algorithm performs parallel exclusive scan
         # Up Sweep of exclusive scan
-        lim = tvm.tir.generic.cast(
-            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(scan_axis_size, "float64"))), "int64"
-        )
-        with ib.for_range(0, lim, dtype="int64") as l2_width:
+        with ib.for_range(0, lim, dtype="int32") as l2_width:
             width = 2 << l2_width
 
             with ib.new_scope():
+                width = tvm.tir.generic.cast(width, "int64")
                 tx = te.thread_axis("threadIdx.x")
                 bx = te.thread_axis("blockIdx.x")
                 ib.scope_attr(tx, "thread_extent", nthread_tx)
@@ -136,10 +138,11 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
                     reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
                 output[(bx + 1) * scan_axis_size - 1] = cast(0, out_dtype)
 
-        with ib.for_range(0, lim, dtype="int64") as l2_width:
+        with ib.for_range(0, lim, dtype="int32") as l2_width:
             width = 2 << (lim - l2_width - 1)
 
             with ib.new_scope():
+                width = tvm.tir.generic.cast(width, "int64")
                 tx = te.thread_axis("threadIdx.x")
                 bx = te.thread_axis("blockIdx.x")
                 ib.scope_attr(tx, "thread_extent", nthread_tx)

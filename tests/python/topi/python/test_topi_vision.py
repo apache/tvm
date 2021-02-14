@@ -112,7 +112,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
         tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
 
-    for device in ["llvm", "cuda", "opencl"]:
+    for device in ["llvm", "cuda", "opencl", "vulkan"]:
         check_device(device)
 
 
