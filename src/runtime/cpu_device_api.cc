@@ -69,12 +69,6 @@ class CPUDeviceAPI final : public DeviceAPI {
 #endif
   }
 
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final {
-    memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
-  }
-
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {}
 
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
@@ -85,6 +79,13 @@ class CPUDeviceAPI final : public DeviceAPI {
     // Global state will be recycled by OS as the process exits.
     static auto* inst = new CPUDeviceAPI();
     return inst;
+  }
+
+ protected:
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      TVMStreamHandle stream) final {
+    memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
   }
 };
 

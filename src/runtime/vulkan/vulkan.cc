@@ -199,6 +199,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     delete pbuf;
   }
 
+ protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
@@ -307,6 +308,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     }
   }
 
+ public:
   // Always use the default stream
   TVMStreamHandle CreateStream(TVMContext ctx) {
     LOG(FATAL) << "Not implemented";
