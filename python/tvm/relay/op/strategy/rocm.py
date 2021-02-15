@@ -19,6 +19,7 @@
 from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
+from tvm.te import SpecializedCondition
 from tvm._ffi import get_global_func
 from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
