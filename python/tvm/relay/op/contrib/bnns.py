@@ -205,11 +205,26 @@ def make_dense_bias_gelu_pattern():
 
 
 def check_dense(extract):
-    """Check conv pattern is supported by BNNS."""
+    """Check dense pattern is supported by BNNS."""
     call = extract
     while call.op.name != "nn.dense":
         call = call.args[0]
     return dense(call)
+
+
+@tvm.ir.register_op_attr("nn.instance_norm", "target.bnns")
+def instance_norm_check(expr):
+    """Check if the nn.instance_norm can be executed in BNNS"""
+    attrs, args = expr.attrs, expr.args
+    data_typ = args[0].checked_type
+    rank = len(data_typ.shape)
+    if rank < 3 or rank > 4 or data_typ.dtype != "float32":
+        return False
+    if not isinstance(args[1], tvm.relay.expr.Constant) or not isinstance(args[2], tvm.relay.expr.Constant):
+        return False
+    if attrs.axis == 0 and rank == 3 or attrs.axis == 1 and rank == 4:
+        return True
+    return False
 
 
 @register_pattern_table("bnns")

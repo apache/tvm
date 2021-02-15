@@ -195,6 +195,37 @@ class TView {
     return res;
   }
 
+  /** Expand the shape of an array */
+  TView expand_dims(std::vector<size_t> axes) const {
+    auto rank = Tensor::getRank(view_desc_);
+    TView res = *this;
+    size_t unsqueezed_shape[BNNS_MAX_TENSOR_DIMENSION] = {};
+    size_t unsqueezed_rank = axes.size() + rank;
+    ICHECK_LE(unsqueezed_rank, BNNS_MAX_TENSOR_DIMENSION);
+    for (const auto& axis : axes) {
+      ICHECK_LT(axis, unsqueezed_rank);
+      unsqueezed_shape[axis] = 1;
+    }
+    for (int i = 0, orig_idx = 0; i < unsqueezed_rank; ++i) {
+        if (unsqueezed_shape[i] == 1)
+            continue;
+        unsqueezed_shape[i] = view_desc_.size[orig_idx++];
+    }
+    std::copy(unsqueezed_shape, unsqueezed_shape + unsqueezed_rank, res.view_desc_.size);
+    res.view_desc_.layout = Tensor::getPlainLayout(unsqueezed_rank);
+    return res;
+  }
+
+  /** Unsqueeze tensor to a new rank */
+  TView unsqueeze(size_t new_rank) const {
+    ICHECK_LE(new_rank, BNNS_MAX_TENSOR_DIMENSION);
+    auto rank = Tensor::getRank(view_desc_);
+    ICHECK_GT(new_rank, rank);
+    std::vector<size_t> axes(new_rank - rank);
+    std::iota(axes.begin(), axes.end(), rank);
+    return expand_dims(axes);
+  }
+
   /** Construct new TView with specified layout if it applicable */
   TView with_layout(BNNSDataLayout layout) const {
     ICHECK_EQ(Tensor::getRank(view_desc_), Tensor::getRank(layout));
@@ -285,12 +316,9 @@ class TView {
 class Primitive {
  public:
   Primitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& dst)
-      : filters(fs), src_view(src), src2_view(), dst_view(dst) {}
+      : filters(fs), src_view(src), dst_view(dst) {}
 
-  Primitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& src2, const TView& dst)
-      : filters(fs), src_view(src), src2_view(src2), dst_view(dst) {}
-
-  ~Primitive() {
+  virtual ~Primitive() {
     for (auto& filter : filters)
       if (filter) {
         BNNSFilterDestroy(filter);
@@ -299,7 +327,7 @@ class Primitive {
   }
 
   /** Execute primitive with using specified src/dst */
-  void execute() {
+  virtual void execute() {
     auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
     ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
   }
@@ -310,8 +338,6 @@ class Primitive {
     const auto filter = prim->filters[task_id];
     const auto src_view = prim->src_view[task_id];
     const auto dst_view = prim->dst_view[task_id];
-    TView src2_view;
-    if (prim->src2_view) src2_view = prim->src2_view[task_id];
 
     size_t mb = src_view.get_batch_size();
 
@@ -320,22 +346,85 @@ class Primitive {
     //     BNNSFilterApply doesn't work for grouped convolution.
     //   * Group convolution doesn't support arbitrary stride for Batch dim.
     //     The tensor should be dense.
-    auto sts =
-        (prim->src2_view)
-            ? BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(),
-                                           src_view.get_stride(), src2_view.get_data_hdl(),
-                                           src2_view.get_stride(), dst_view.get_data_hdl(),
-                                           dst_view.get_stride())
-            : BNNSFilterApplyBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
-                                   dst_view.get_data_hdl(), dst_view.get_stride());
+    auto sts = BNNSFilterApplyBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
+                                    dst_view.get_data_hdl(), dst_view.get_stride());
     return sts;
   }
 
- private:
+ protected:
   /** BNNS kernels/filters collect which will execute primitive */
   std::vector<BNNSFilter> filters = {};
-  const TView src_view, src2_view;
+  const TView src_view;
   const TView dst_view;
+  bool isNormalization;
+};
+
+/**
+ * Wrapper on top of BNNS::Primitive
+ *
+ * This primitive should be used for executing primitive with two inputs.
+ */
+class TwoInputPrimitive : public Primitive {
+ public:
+  TwoInputPrimitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& src2,
+                    const TView& dst)
+      : Primitive(fs, src, dst), src2_view(src2) {}
+
+  /** Execute primitive with using specified src/dst */
+  void execute() override {
+    auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
+    ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
+  }
+
+ private:
+  static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
+    auto prim = reinterpret_cast<TwoInputPrimitive*>(cdata);
+    const auto filter = prim->filters[task_id];
+    const auto src_view = prim->src_view[task_id];
+    TView src2_view = prim->src2_view[task_id];
+    const auto dst_view = prim->dst_view[task_id];
+
+    size_t mb = src_view.get_batch_size();
+
+    auto sts = BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(),
+                                           src_view.get_stride(), src2_view.get_data_hdl(),
+                                           src2_view.get_stride(), dst_view.get_data_hdl(),
+                                           dst_view.get_stride());
+    return sts;
+  }
+ protected:
+  const TView src2_view;
+};
+
+/**
+ * Wrapper on top of BNNS::Primitive
+ *
+ * This primitive should be used for executing normalization filter
+ */
+class NormPrimitive : public Primitive {
+ public:
+  NormPrimitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& dst)
+      : Primitive(fs, src, dst) {}
+
+  /** Execute primitive with using specified src/dst */
+  void execute() override {
+    auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
+    ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
+  }
+
+ private:
+  static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
+    auto prim = reinterpret_cast<NormPrimitive*>(cdata);
+    const auto filter = prim->filters[task_id];
+    const auto src_view = prim->src_view[task_id];
+    const auto dst_view = prim->dst_view[task_id];
+
+    size_t mb = src_view.get_batch_size();
+    auto sts = BNNSNormalizationFilterApplyBatch(filter, mb, src_view.get_data_hdl(),
+                                              src_view.get_stride(), dst_view.get_data_hdl(),
+                                              dst_view.get_stride(), false);
+    return sts;
+  }
 };
 
 /**

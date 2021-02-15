@@ -180,6 +180,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
           Dense(nid, true, true);
         } else if ("nn.batch_matmul" == op_name) {
           MatMul(nid);
+        } else if ("nn.instance_norm" == op_name) {
+          InstanceNormalization(nid);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -363,8 +365,72 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
     } else {
       primitives_.emplace_back(
-          std::make_shared<BNNS::Primitive>(filters, a_view, b_view, dst_view));
+          std::make_shared<BNNS::TwoInputPrimitive>(filters, a_view, b_view, dst_view));
     }
+  }
+
+  void InstanceNormalization(const size_t& nid) {
+    auto node = nodes_[nid];
+    size_t axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
+    float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
+    bool center = std::stoi(node.GetAttr<std::vector<std::string>>("center")[0]);
+    bool scale = std::stoi(node.GetAttr<std::vector<std::string>>("scale")[0]);
+
+    // Setup attributes.
+    auto src_entry = node.GetInputs()[0];
+    auto scale_entry = node.GetInputs()[1];
+    auto bias_entry = node.GetInputs()[2];
+    auto dst_entry = JSONGraphNodeEntry(nid, 0);
+
+    // Memory descriptions.
+    auto src_t = GetBNNSTensor(src_entry);
+    auto scale_t = GetBNNSTensor(scale_entry);
+    auto bias_t = GetBNNSTensor(bias_entry);
+    auto dst_t = GetBNNSTensor(dst_entry);
+
+    auto src_view = TView::as_is(src_t);
+    auto dst_view = TView::as_is(dst_t);
+    size_t src_rank = Tensor::getRank(src_view.get_bnns_view());
+    size_t dst_rank = Tensor::getRank(dst_view.get_bnns_view());
+    ICHECK_EQ(src_rank, dst_rank);
+    ICHECK_LE(src_rank, 4);
+    if (src_rank < 4) {
+        src_view = src_view.unsqueeze(4);
+        dst_view = dst_view.unsqueeze(4);
+    }
+    src_view = src_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
+    dst_view = dst_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
+    auto scale_view = TView::as_is(scale_t).with_layout(BNNSDataLayoutVector);
+    auto bias_view = TView::as_is(bias_t).with_layout(BNNSDataLayoutVector);
+    BNNSActivation activation = {BNNSActivationFunctionIdentity};
+
+    auto b_desc = bias_view.get_bnns_view();
+    if (!center)
+        b_desc = {};
+    auto s_desc = scale_view.get_bnns_view();
+    if (!scale)
+        s_desc = {};
+
+    // NOTE: Axis option is ignored in BNNS. The result doesn't depends on value of axis.
+    BNNSLayerParametersNormalization layerParameters = {src_view.get_bnns_view(),  // i_desc
+                                                        dst_view.get_bnns_view(),  // o_desc
+                                                        b_desc,                    // beta_desc
+                                                        s_desc,                    // gamma_desc
+                                                        {},          // moving_mean_desc
+                                                        {},          // moving_variance_desc
+                                                        1.f,         // momentum
+                                                        epsilon,     // epsilon
+                                                        activation,  // activation
+                                                        1,           // num_groups
+                                                        axis};       // normalization_axis
+
+    BNNSFilterType filter_type = BNNSInstanceNorm;
+    auto common_filter_param = getCommonFilterParams();
+    auto filter = BNNSFilterCreateLayerNormalization(filter_type, &layerParameters, &common_filter_param);
+    ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
+
+    std::vector<BNNSFilter> filters{filter};
+    primitives_.emplace_back(std::make_shared<BNNS::NormPrimitive>(filters, src_view, dst_view));
   }
 
   BNNS::Dtype convertToBNNS(const DLDataType& dl_dtype) {
