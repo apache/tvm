@@ -473,7 +473,8 @@ def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
     empty_row_indicator_shape = output_tensor((1,), "int64")
     num_dense_rows = int64(dense_shape[0])
 
-    if int64(sparse_indices.shape[0]) == int64(0):
+    if int64(sparse_indices.shape[0]) == int64(0):  # Handle Empty Case
+        #  Total rows will equal dense_shape[0]
         new_sparse_indices_shape[0] = num_dense_rows
         new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
         new_sparse_values_shape[0] = num_dense_rows
@@ -481,16 +482,18 @@ def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
         return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
 
     else:
-        count = int64(sparse_indices.shape[0])
+        count = int64(sparse_indices.shape[0])  # Add count of all rows already in sparse_indices
         for i in range(1, int64(sparse_indices.shape[0])):
             index = int64(sparse_indices[i, 0])
             prev_index = int64(sparse_indices[i - 1, 0] + 1)
 
             if index > prev_index:
-                count += index - prev_index
+                count += index - prev_index  # Add count of all rows between two consecutive indices
 
-        count += int64(sparse_indices[0, 0])
-        count += int64(num_dense_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0])
+        count += int64(sparse_indices[0, 0])  # Add count from 0 to first row id in sparse_indices
+        count += int64(
+            num_dense_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0]
+        )  # Add count from last row id to dense_shape - 1
         new_sparse_indices_shape[0] = int64(count)
         new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
         new_sparse_values_shape[0] = int64(count)
