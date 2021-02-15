@@ -1608,8 +1608,8 @@ TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows")
     .set_body_typed(MakeSparseFillEmptyRows);
 
 RELAY_REGISTER_OP("sparse_fill_empty_rows")
-    .describe(R"code(Return representation of a sparse tensor with empty rows filled with default 
-    value.)code" TVM_ADD_FILELINE)
+    .describe(
+        R"code(Fill empty rows of a sparse tensor with a default value.)code" TVM_ADD_FILELINE)
     .set_num_inputs(4)
     .add_argument("sparse_indices", "Tensor",
                   "A 2-D int64 tensor of shape [N, ndims], which specifies the indices of the"
