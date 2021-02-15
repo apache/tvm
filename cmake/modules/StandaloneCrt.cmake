@@ -104,7 +104,6 @@ if(USE_MICRO)
 
     set(make_common_args
         "CRT_CONFIG=template/host/crt_config.h"
-        "DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"
         "BUILD_DIR=${host_build_dir_abspath}"
         "DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"
         "EXTRA_CFLAGS=-fPIC"
