@@ -49,7 +49,7 @@ def _sparse_fill_empty_rows(
         return (new_sparse_indices, new_sparse_values, empty_row_indicator)
 
     else:
-        # Add rows with default value if first row id of sparse_indices is not a zero.
+        # Add rows with default value if first row id of sparse_indices is not a zero
         for i in range(0, int64(sparse_indices[0, 0])):
             new_sparse_indices[new_sparse_indices_row_id, 0] = int64(i)
             for k in range(1, int64(new_sparse_indices_shape[1])):
@@ -59,6 +59,7 @@ def _sparse_fill_empty_rows(
             empty_row_indicator[i] = int64(1)
             new_sparse_indices_row_id += 1
 
+        # Iterate through sparse_indices and add rows if/when required
         for i in range(0, int64(sparse_indices.shape[0])):
             row_id = int64(sparse_indices[i, 0])
             if i == 0:
