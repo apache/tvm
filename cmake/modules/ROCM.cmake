@@ -50,9 +50,14 @@ if(USE_ROCM)
   endif(USE_ROCBLAS)
 
   if(USE_THRUST)
-    message(STATUS "Build with Thrust support")
-    # Override CXX to hipcc. This is required by rocthrust
-    set(CMAKE_CXX_COMPILER hipcc)
+    message(STATUS "Build with rocThrust support")
+    # We need to override CXX to hipcc. This is required by rocthrust
+    if (${CMAKE_CXX_COMPILER} MATCHES "hipcc$")
+      message(STATUS "Using hipcc compiler to compile rocthrust code.")
+    else()
+      message(FATAL_ERROR "Set CXX=hipcc to compile rocthrust code.")
+    endif()
+
     find_package(rocprim REQUIRED)
     find_package(rocthrust REQUIRED)
     file(GLOB CONTRIB_THRUST_SRC src/runtime/contrib/rocthrust/*.cc)
