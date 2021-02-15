@@ -1587,7 +1587,8 @@ RELAY_REGISTER_OP("repeat")
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
   // types: [sparse_indices, sparse_values, dense_shape, default_value, result]
-  ICHECK_EQ(types.size(), 5);
+  ICHECK_EQ(types.size(), 5) << "SparseFillEmptyRowsRel expects 5 inputs but " << types.size()
+                             << "provided";
   std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto ndims = sparse_indices->shape[1];
@@ -1613,14 +1614,17 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .set_num_inputs(4)
     .add_argument("sparse_indices", "Tensor",
                   "A 2-D int64 tensor of shape [N, ndims], which specifies the indices of the"
-                  "elements in the sparse tensor that contain nonzero values")
-    .add_argument("sparse_values", "Tensor",
-                  "A 1-D tensor[N] which supplies the values for each element in indices")
+                  "elements in the sparse tensor that contain nonzero values. COO Format")
+    .add_argument(
+        "sparse_values", "Tensor",
+        "A 1-D tensor[N] which supplies the values for each element in indices. COO Format")
     .add_argument("dense_shape", "Tensor",
                   "A 1-D int64 tensor of shape [ndims], which specifies the dense_shape of the"
-                  "sparse tensor. Takes a list indicating the number of elements in each dimension")
-    .add_argument("default_value", "Tensor",
-                  "The value to fill for empty rows, with the same type as sparse_values")
+                  "sparse tensor. Takes a list indicating the number of elements in each "
+                  "dimension. COO Format")
+    .add_argument(
+        "default_value", "Tensor",
+        "The value to fill for empty rows, with the same type as sparse_values. COO Format")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
