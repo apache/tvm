@@ -251,7 +251,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
           << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
     }
-    if (op_pattern >= anchor_op_pattern_) {
+    if (op_pattern > anchor_op_pattern_) {
       anchor_op_ = op;
       anchor_attrs_ = call_node->attrs;
       anchor_op_pattern_ = op_pattern;
@@ -309,7 +309,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   tvm::Target target_;
   Op anchor_op_;
   Attrs anchor_attrs_;
-  int anchor_op_pattern_{0};
+  int anchor_op_pattern_{-1};
   OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
