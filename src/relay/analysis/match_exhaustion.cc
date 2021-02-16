@@ -125,7 +125,7 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
 };
 
 // Returns list of arrays corresponding to Cartesian product of input list.
-// Note: CartesianProduct({}) = {}
+// Note: CartesianProduct({}) = {{}}
 Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
   // the only combination of 0 fields is 0 fields
   if (fields.size() == 0) {
