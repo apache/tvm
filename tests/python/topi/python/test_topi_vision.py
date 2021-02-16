@@ -468,7 +468,7 @@ def verify_roi_align(
         f = tvm.build(s, [a, rois, b], device)
         f(tvm_a, tvm_rois, tvm_b)
         tvm_val = tvm_b.asnumpy()
-        tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-5)
+        tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-4)
 
     for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
