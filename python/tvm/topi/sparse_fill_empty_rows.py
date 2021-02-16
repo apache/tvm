@@ -32,8 +32,8 @@ def _sparse_fill_empty_rows(
     empty_row_indicator_shape,
 ):
     default_value_ = int64(default_value[0])
-    new_sparse_indices = output_tensor(new_sparse_indices_shape, sparse_indices.dtype)
-    new_sparse_values = output_tensor(new_sparse_values_shape, sparse_values.dtype)
+    new_sparse_indices = output_tensor(new_sparse_indices_shape, "int64")
+    new_sparse_values = output_tensor(new_sparse_values_shape, "int64")
     empty_row_indicator = output_tensor(empty_row_indicator_shape, "int64")
     new_sparse_indices_row_id = 0
 

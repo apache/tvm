@@ -244,8 +244,11 @@ def test_dyn_sparse_to_dense():
         ),
     ],
 )
+@pytest.mark.parametrize("dtype", [np.int32, np.int64])
 @pytest.mark.parametrize("use_dyn", [True, False])
-def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value, use_dyn):
+def test_sparse_fill_empty_rows(
+    sparse_indices, sparse_values, dense_shape, default_value, dtype, use_dyn
+):
     def ref_sparse_fill_empty_rows(
         sparse_indices: np.ndarray,
         sparse_values: np.ndarray,
@@ -345,7 +348,12 @@ def test_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, defa
             [("llvm", tvm.cpu())],
         )
 
-    verify_sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
+    verify_sparse_fill_empty_rows(
+        sparse_indices.astype(dtype),
+        sparse_values.astype(dtype),
+        dense_shape.astype(dtype),
+        default_value.astype(dtype),
+    )
 
 
 if __name__ == "__main__":
