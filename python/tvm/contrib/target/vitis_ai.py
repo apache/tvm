@@ -139,7 +139,7 @@ def vitis_ai_compiler(ref):
                     if relay_id in output_relay_ids:
                         out_tensor_names[output_relay_ids.index(relay_id)] = layer.name
                         break
-        if not out_tensor_names:
+        if any([name == "unkown_name" for name in out_tensor_names]):
             raise ValueError(
                 "During codegeneration the loading of subexpression \
                              failed due to output tensor name mismatch in Relay PyXIR interface."
