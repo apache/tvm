@@ -111,7 +111,7 @@ def test_compile_runtime_llvm():
         # NOTE: test_compile_runtime uses the "c" backend--re run it using the llvm backend.
         target_str = str(TARGET)
         assert target_str.startswith("c ")
-        TARGET = tvm.target.Target("llvm " + str(TARGET)[len("c "):])
+        TARGET = tvm.target.Target("llvm " + str(TARGET)[len("c ") :])
 
         test_compile_runtime()
 
