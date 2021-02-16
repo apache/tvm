@@ -27,6 +27,11 @@
 #     Execute command in the docker image, default non-interactive
 #     With -i, execute interactively.
 #
+
+set -e
+
+source "$(dirname $0)/dev_common.sh" || exit 2
+
 interactive=0
 if [ "$1" == "-i" ]; then
     interactive=1
@@ -38,7 +43,10 @@ if [ "$#" -lt 1 ]; then
     exit -1
 fi
 
-DOCKER_IMAGE_NAME=("$1")
+DOCKER_IMAGE_NAME=$(lookup_image_spec "$1")
+if [ -z "${DOCKER_IMAGE_NAME}" ]; then
+    DOCKER_IMAGE_NAME=("$1")
+fi
 
 CI_DOCKER_EXTRA_PARAMS=( )
 if [ "$#" -eq 1 ]; then
@@ -105,7 +113,7 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"demo_vitis_ai"* && -d "/dev/shm" && -d "/opt/x
     for i in ${RENDER_DRIVER} ;
     do
         DOCKER_DEVICES+="--device=$i "
-    done  
+    done
 fi
 
 # Add ROCm devices and set ROCM_ENABLED=1 which is used in the with_the_same_user script

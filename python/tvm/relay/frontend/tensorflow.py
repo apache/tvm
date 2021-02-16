@@ -1005,6 +1005,13 @@ def _identity():
     return _impl
 
 
+def _identityn():
+    def _impl(inputs, attr, params, mod):
+        return inputs
+
+    return _impl
+
+
 def _concatV2():
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(len(inputs) - 1)
@@ -2378,6 +2385,7 @@ _convert_map = {
     "Greater": _broadcast("greater"),
     "GreaterEqual": _broadcast("greater_equal"),
     "Identity": _identity(),
+    "IdentityN": _identityn(),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
     "IsNan": AttrCvt("isnan"),

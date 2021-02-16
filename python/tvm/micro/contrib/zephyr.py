@@ -55,7 +55,7 @@ class SubprocessEnv(object):
         for k, v in self.default_overrides.items():
             env[k] = v
 
-        return subprocess.check_output(cmd, env=env, **kw)
+        return subprocess.check_output(cmd, env=env, **kw, universal_newlines=True)
 
 
 class ProjectNotFoundError(Exception):
@@ -204,6 +204,25 @@ class ZephyrCompiler(tvm.micro.Compiler):
         )
         return tvm.micro.MicroLibrary(build_dir, [f"lib{project_name}.a"])
 
+    def _print_make_statistics(self, output):
+        output = output.splitlines()
+        lines = iter(output)
+        for line in lines:
+            if line.startswith("Memory region"):
+                # print statistics header
+                _LOG.info(line)
+                _LOG.info("--------------------- ---------- ------------ ---------")
+                line = next(lines)
+                # while there is a region print it
+                try:
+                    while ":" in line:
+                        _LOG.info(line)
+                        line = next(lines)
+                    else:
+                        break
+                except StopIteration:
+                    pass
+
     def binary(self, output, objects, options=None, link_main=True, main_options=None):
         assert link_main, "Must pass link_main=True"
         assert self._project_dir is not None, "Must supply project_dir= to build binaries"
@@ -224,7 +243,9 @@ class ZephyrCompiler(tvm.micro.Compiler):
         cmake_args.append(f'-DTVM_LIBS={";".join(copied_libs)}')
         self._subprocess_env.run(cmake_args, cwd=output)
 
-        self._subprocess_env.run(["make"], cwd=output)
+        make_output = self._subprocess_env.run(["make"], cwd=output)
+
+        self._print_make_statistics(make_output)
 
         return tvm.micro.MicroBinary(
             output,

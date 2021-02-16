@@ -4074,6 +4074,56 @@ def test_forward_dilation():
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
 
 
+def _test_identityn(data_np_list):
+    with tf.Graph().as_default():
+        data_tensors = []
+        data_tensors_name = []
+        for index, data_np in enumerate(data_np_list):
+            tensor_name = f"data_{index}"
+            data_tensors_name.append(tensor_name + ":0")
+            data_tensors.append(
+                tf.placeholder(shape=data_np.shape, dtype=str(data_np.dtype), name=tensor_name)
+            )
+
+        output = tf.identity_n(data_tensors)
+        output_names = [out.name for out in output]
+        compare_tf_with_tvm(
+            data_np_list,
+            data_tensors_name,
+            output_names,
+        )
+
+
+@pytest.mark.parametrize(
+    "data_np_list",
+    [
+        (
+            [
+                np.array([[1, 1], [0, 3], [0, 1], [2, 0], [3, 1]], dtype=np.int64),
+                np.array([1, 2, 3, 4, 5], dtype=np.int64),
+                np.array([5, 6], dtype=np.int64),
+            ]
+        ),
+        (
+            [
+                np.array([[1, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+                np.array([1, 2, 3, 4], dtype=np.int64),
+                np.array([5, 6], dtype=np.int64),
+                np.array([True, False, True]),
+            ]
+        ),
+        (
+            [
+                np.array([]),
+                np.array([[]]),
+            ]
+        ),
+    ],
+)
+def test_forward_identityn(data_np_list):
+    _test_identityn(data_np_list)
+
+
 #######################################################################
 # Sparse To Dense
 # ---------------

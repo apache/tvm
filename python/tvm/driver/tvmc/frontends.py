@@ -198,19 +198,6 @@ class TensorflowFrontend(Frontend):
 class TFLiteFrontend(Frontend):
     """ TFLite frontend for TVMC """
 
-    _tflite_m = {
-        0: "float32",
-        1: "float16",
-        2: "int32",
-        3: "uint8",
-        4: "int64",
-        5: "string",
-        6: "bool",
-        7: "int16",
-        8: "complex64",
-        9: "int8",
-    }
-
     @staticmethod
     def name():
         return "tflite"
@@ -241,42 +228,9 @@ class TFLiteFrontend(Frontend):
         if version != 3:
             raise TVMCException("input file not tflite version 3")
 
-        logger.debug("tflite_input_type")
-        input_shapes, dtype_dict = TFLiteFrontend._input_type(tflite_model)
-        if shape_dict is not None:
-            input_shapes.update(shape_dict)
-
         logger.debug("parse TFLite model and convert into Relay computation graph")
-        mod, params = relay.frontend.from_tflite(
-            tflite_model, shape_dict=input_shapes, dtype_dict=dtype_dict
-        )
+        mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict)
         return mod, params
-
-    @staticmethod
-    def _decode_type(n):
-        return TFLiteFrontend._tflite_m[n]
-
-    @staticmethod
-    def _input_type(model):
-        subgraph_count = model.SubgraphsLength()
-        assert subgraph_count > 0
-        shape_dict = {}
-        dtype_dict = {}
-        for subgraph_index in range(subgraph_count):
-            subgraph = model.Subgraphs(subgraph_index)
-            inputs_count = subgraph.InputsLength()
-            assert inputs_count >= 1
-            for input_index in range(inputs_count):
-                input_ = subgraph.Inputs(input_index)
-                assert subgraph.TensorsLength() > input_
-                tensor = subgraph.Tensors(input_)
-                input_shape = tuple(tensor.ShapeAsNumpy())
-                tensor_type = tensor.Type()
-                input_name = tensor.Name().decode("utf8")
-                shape_dict[input_name] = input_shape
-                dtype_dict[input_name] = TFLiteFrontend._decode_type(tensor_type)
-
-        return shape_dict, dtype_dict
 
 
 class PyTorchFrontend(Frontend):

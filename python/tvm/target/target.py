@@ -296,6 +296,7 @@ def arm_cpu(model="unknown", options=None):
             "-model=stm32mp1",
             "-mtriple=armv7a-linux-gnueabihf",
             "-mattr=+neon,+vfp4,+thumb2",
+            "-mcpu=cortex-a7",
         ],
         "thunderx": [
             "-model=thunderx",
