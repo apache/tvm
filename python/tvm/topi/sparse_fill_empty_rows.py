@@ -39,7 +39,7 @@ def _sparse_fill_empty_rows(
 
     if int64(sparse_indices.shape[0]) == int64(0):  # Handle Empty Case
         #  Fill all rows with default values
-        for i in range(0, int64(new_sparse_indices_shape[0])):
+        for i in range(0, new_sparse_indices_shape[0]):
             new_sparse_indices[i, 0] = int64(i)
             new_sparse_values[i] = default_value_
             empty_row_indicator[i] = int64(1)

@@ -1330,24 +1330,24 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
     Parameters
     ----------
     sparse_indices : relay.Expr
-        A 2-D int64 tensor[N, ndims] of integers containing location of sparse values, where N is
+        A 2-D tensor[N, ndims] of integers containing location of sparse values, where N is
         the number of sparse values and n_dim is the number of dimensions of the dense_shape.
         The first column of this relay parameter must be sorted in ascending order.
     sparse_values : relay.Expr
-        A 1-D int64 tensor[N] containing the sparse values for the sparse indices.
+        A 1-D tensor[N] containing the sparse values for the sparse indices.
     dense_shape : relay.Expr
-        A 1-D int64 tensor[ndims] which contains shape of the dense output tensor.
+        A 1-D tensor[ndims] which contains shape of the dense output tensor.
     default_value : relay.Expr
         A 1-D tensor[1] containing the default value for the remaining locations.
     Returns
     -------
     new_sparse_indices : relay.Expr
-        A 2-D int64 tensor[?, ndims] of integers containing location of new sparse
+        A 2-D tensor[?, ndims] of integers containing location of new sparse
         indices. The first column outputs must be sorted in ascending order.
     new_sparse_values : relay.Expr
-        A 1-D int64 tensor[?] containing the sparse values for the sparse indices.
+        A 1-D tensor[?] containing the sparse values for the sparse indices.
     empty_row_indicator : relay.Expr
-        A 1-D int64 tensor[dense_shape[0]] filled with zeros and ones
+        A 1-D tensor[dense_shape[0]] filled with zeros and ones
         indicating whether the particular row is empty or full respectively
 
     Note
@@ -1380,13 +1380,18 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
                              [2, 0],
                              [3, 1],
                              [4, 0]]
-        empty_row_indicator = [0, 1, 0, 0, 1]
+        empty_row_indicator = [False, True, False, False, True]
         new_sparse_values = [1, 2, 10, 3, 4, 10]
 
     """
-    return TupleWrapper(
+    new_sparse_indices, new_sparse_values, empty_row_indicator = TupleWrapper(
         _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 3
     )
+    new_sparse_indices = cast_like(new_sparse_indices, sparse_indices)
+    new_sparse_values = cast_like(new_sparse_values, sparse_values)
+    empty_row_indicator = cast(empty_row_indicator, "bool")
+
+    return Tuple((new_sparse_indices, new_sparse_values, empty_row_indicator))
 
 
 def cumsum(data, axis=None, dtype=None, exclusive=None):

@@ -1013,9 +1013,7 @@ def _sparse_fill_empty_rows():
         )
 
         return _expr.TupleWrapper(
-            _expr.Tuple(
-                [new_sparse_indices, new_sparse_values, _op.cast(empty_row_indicator, dtype="bool")]
-            ),
+            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]),
             3,
         )
 

@@ -244,7 +244,7 @@ def test_dyn_sparse_to_dense():
         ),
     ],
 )
-@pytest.mark.parametrize("dtype", [np.int32, np.int64])
+@pytest.mark.parametrize("dtype", [np.int64, np.int32])
 @pytest.mark.parametrize("use_dyn", [True, False])
 def test_sparse_fill_empty_rows(
     sparse_indices, sparse_values, dense_shape, default_value, dtype, use_dyn
@@ -264,7 +264,7 @@ def test_sparse_fill_empty_rows(
             while current_idx < limit_idx:
                 new_sparse_indices.append([current_idx] + [0] * (num_cols - 1))
                 new_sparse_values.append(default_value[0])
-                empty_row_indicator[current_idx] = 1
+                empty_row_indicator[current_idx] = True
                 current_idx += 1
 
             return current_idx
@@ -272,7 +272,7 @@ def test_sparse_fill_empty_rows(
         current_idx = 0
         new_sparse_indices = []
         new_sparse_values = []
-        empty_row_indicator = [0 for _ in range(dense_shape[0])]
+        empty_row_indicator = [False for _ in range(dense_shape[0])]
         num_cols = sparse_indices.shape[1]
         for sparse_row, sparse_value in zip(sparse_indices, sparse_values):
             limit_idx = sparse_row[0]
@@ -331,9 +331,7 @@ def test_sparse_fill_empty_rows(
                 "default_value",
                 relay.TensorType(default_value_np.shape, str(default_value_np.dtype)),
             )
-        z = relay.sparse_fill_empty_rows(
-            sparse_indices, sparse_values, dense_shape, default_value
-        ).astuple()
+        z = relay.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)
         func = relay.Function([sparse_indices, sparse_values, dense_shape, default_value], z)
         ref_res = ref_sparse_fill_empty_rows(
             sparse_indices_np,
@@ -341,6 +339,16 @@ def test_sparse_fill_empty_rows(
             dense_shape_np,
             default_value_np,
         )
+        (
+            new_sparse_indices_infer_type,
+            new_sparse_values_infer_type,
+            empty_row_indicator_infer_type,
+        ) = run_infer_type(z)
+
+        assert new_sparse_indices_infer_type.checked_type.dtype == sparse_indices_np.dtype
+        assert new_sparse_values_infer_type.checked_type.dtype == sparse_indices_np.dtype
+        assert empty_row_indicator_infer_type.checked_type.dtype == "bool"
+
         verify_func(
             func,
             [sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np],
