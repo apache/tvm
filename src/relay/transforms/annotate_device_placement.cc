@@ -43,7 +43,7 @@ class DeviceAnnotator : public MixedModeMutator {
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     Expr rc = post;
     const CallNode* call_node = post.as<CallNode>();
-    if (const OpNode* op_node = call_node->op.as<OpNode>()) {
+    if (call_node->op.as<OpNode>()) {
       int device_type = get_placement_(GetRef<Expr>(call_node));
       if (device_type > 0) {
         rc = relay::op::annotation::on_device(post, device_type);
