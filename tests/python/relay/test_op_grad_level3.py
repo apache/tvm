@@ -146,7 +146,7 @@ def test_zeros_ones_grad_const_ints():
 
 def test_zeros_ones_grad_const_expr():
     # when shape is static (i.e. not an input), there is no gradient at all
-    shape_const = relay.const(np.array([2, 3, 4]), dtype="int32")
+    shape_const = relay.const(np.array([2, 3, 4]), dtype="int32") * relay.const(1, dtype="int32")
     static_ty = relay.TensorType([2, 3, 4], dtype="float32")
     dyn_ty = relay.TensorType([relay.Any(), relay.Any(), relay.Any()], dtype="float32")
     expected_ty_static = relay.TupleType([static_ty, relay.TupleType([])])

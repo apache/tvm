@@ -826,6 +826,7 @@ def scatter_nd_cuda(attrs, inputs, out_type, target):
         name="scatter_nd.cuda",
         plevel=10,
     )
+    return strategy
 
 
 @sort_strategy.register(["cuda", "gpu"])

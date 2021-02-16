@@ -2107,10 +2107,18 @@ def test_erf():
     verify_erf(x, z)
 
 
-def verify_where(condition, x, y, dtype, outdata):
-    node = helper.make_node("Where", inputs=["condition", "x", "y"], outputs=["out"])
+def verify_where(condition, x, y, dtype, outdata, dynamic=False):
+    node_list = []
+    where_inputs = ["condition", "x", "y"]
+    if dynamic:
+        shape_node = helper.make_node("Shape", ["x"], ["shape"])
+        reshape_node = helper.make_node("Reshape", ["x", "shape"], ["X"])
+        where_inputs[1] = "X"
+        node_list += [shape_node, reshape_node]
+    node = helper.make_node("Where", inputs=where_inputs, outputs=["out"])
+    node_list.append(node)
     graph = helper.make_graph(
-        [node],
+        node_list,
         "where_test",
         inputs=[
             helper.make_tensor_value_info("condition", TensorProto.BOOL, list(condition.shape)),
@@ -2120,7 +2128,7 @@ def verify_where(condition, x, y, dtype, outdata):
         outputs=[helper.make_tensor_value_info("out", dtype, list(outdata.shape))],
     )
     model = helper.make_model(graph, producer_name="where_test")
-    verify_with_ort_with_inputs(model, [condition, x, y], [outdata.shape])
+    verify_with_ort_with_inputs(model, [condition, x, y], [outdata.shape], use_vm=True)
 
 
 @tvm.testing.uses_gpu
@@ -2156,6 +2164,7 @@ def test_where():
     y = np.array([[1], [7]], dtype=np.float32)
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata, dynamic=True)
 
 
 def verify_or(indata, dtype):
@@ -3955,6 +3964,82 @@ def test_softplus():
     verify_softplus(input_data)
 
 
+def test_cumsum():
+    def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
+        cumsum_node = onnx.helper.make_node(
+            "CumSum",
+            inputs=["X", "axis"],
+            outputs=["Y"],
+        )
+        if exclusive != 0:
+            exclusive_attr = helper.make_attribute("exclusive", exclusive)
+            cumsum_node.attribute.append(exclusive_attr)
+        if reverse != 0:
+            reverse_attr = helper.make_attribute("reverse", reverse)
+            cumsum_node.attribute.append(reverse_attr)
+        nodes = [
+            make_constant_node("axis", onnx.TensorProto.INT32, [1], [axis]),
+            cumsum_node,
+        ]
+        if type == "float32":
+            tensor_type = TensorProto.FLOAT
+        else:
+            tensor_type = TensorProto.INT32
+            type = "int32"
+
+        graph = helper.make_graph(
+            nodes,
+            "cumsum_test",
+            inputs=[
+                helper.make_tensor_value_info("X", tensor_type, list(indata.shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("Y", tensor_type, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="cumsum_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype=type, use_vm=True, opset=11)
+
+    data = (
+        np.array(
+            [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0,
+                12.0,
+            ]
+        )
+        .astype(np.float32)
+        .reshape((3, 4))
+    )
+
+    verify_cumsum(data, 0)
+    verify_cumsum(data, 1)
+    verify_cumsum(data, 0, 1, 0)
+    verify_cumsum(data, 1, 1, 0)
+    verify_cumsum(data, 0, 0, 1)
+    verify_cumsum(data, 1, 0, 1)
+    verify_cumsum(data, 1, 1, 1)
+    data = np.random.randn(1, 32, 32, 3).astype("float32")
+    verify_cumsum(data, 1)
+    data = np.random.randn(1, 32, 32, 3).astype("int32")
+    verify_cumsum(data, 0, type="int32")
+    verify_cumsum(data, 1, type="int32")
+    verify_cumsum(data, 0, 1, 0, type="int32")
+    verify_cumsum(data, 1, 1, 0, type="int32")
+    verify_cumsum(data, 0, 0, 1, type="int32")
+    verify_cumsum(data, 1, 0, 1, type="int32")
+    verify_cumsum(data, 1, 1, 1, type="int32")
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4031,3 +4116,4 @@ if __name__ == "__main__":
     test_size()
     test_maxunpool()
     test_softplus()
+    test_cumsum()

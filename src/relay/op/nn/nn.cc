@@ -186,6 +186,33 @@ RELAY_REGISTER_OP("nn.dense")
     .set_support_level(1)
     .add_type_rel("Dense", DenseRel<DenseAttrs>);
 
+// relay.nn.contrib_dense_pack
+// Positional relay function to create dense_pack operator used by frontend FFI.
+Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
+  auto attrs = make_object<DenseAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("nn.contrib_dense_pack");
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_dense_pack").set_body_typed(MakeDensePack);
+
+RELAY_REGISTER_OP("nn.contrib_dense_pack")
+    .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
+
+- **data**: `(x1, x2, ..., xn, input_dim)`
+- **weight**: `(units // pack_weight_tile, input_dim, pack_weight_tile)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<DenseAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("weight", "3D Tensor", "Packed weight matrix.")
+    .set_support_level(10)
+    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
+
 // relay.leaky_relu
 TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 

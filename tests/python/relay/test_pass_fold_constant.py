@@ -231,22 +231,6 @@ def test_fold_ndarray_size():
         assert tvm.ir.structural_equal(zz, zexpected)
 
 
-def test_fold_full():
-    c_shape = (8, 9, 10)
-
-    def before():
-        dtype = "float32"
-        return relay.full(relay.const(1.0, dtype), c_shape, dtype=dtype)
-
-    def expected():
-        # expect no changes
-        return before()
-
-    zz = run_opt_pass(before(), transform.FoldConstant())
-    zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
-
-
 def test_fold_batch_norm():
     def expected():
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))

@@ -4157,6 +4157,27 @@ def test_forward_mediapipe_hand_landmark():
 
 
 #######################################################################
+# Test check for Tensorflow "dynamic range quantization" optimization
+# --------------
+def test_prevent_tensorflow_dynamic_range():
+    """
+    Should prevent runnung "dynamic range quantization" optimized TFLite graph
+    """
+    data_array = np.random.randint(0, 2, (1, 1024, 1024)).astype(dtype=np.float32)
+    filter_array = np.random.randint(0, 2, (1024, 1024)).astype(dtype=np.float32)
+    data_in = tf.keras.layers.Input(shape=data_array.shape[1:])
+    dense = tf.keras.layers.Dense(units=filter_array.shape[-1], use_bias=False)(data_in)
+    keras_model = tf.keras.models.Model(data_in, dense)
+    keras_model.layers[1].set_weights([filter_array])
+
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    tflite_model = converter.convert()
+    with pytest.raises(tvm.error.OpNotImplemented):
+        tvm_output = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
+
+
+#######################################################################
 # Main
 # ----
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from tvm.te.hybrid import script
 
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import Tuple, Expr
+from ..expr import Tuple, Expr, Constant
 from . import op as reg
 
 
@@ -960,6 +960,8 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.zeros(shape, dtype)
     if isinstance(shape, int):
@@ -1001,6 +1003,8 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.ones(shape, dtype)
     if isinstance(shape, int):

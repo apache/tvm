@@ -21,7 +21,7 @@
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-from ..expr import TupleWrapper, const, Expr, Tuple
+from ..expr import TupleWrapper, const, Constant, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -216,6 +216,8 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Constant):
+        newshape = list(newshape.data.asnumpy())
     if isinstance(newshape, Expr):
         return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
@@ -321,7 +323,7 @@ def scatter_nd(data, indices, out_shape):
     indices : relay.Expr
         The index locations to update.
 
-    out_shape : relay.Expr
+    out_shape : Union[Tuple[int], List[int]]
         Output shape of the scatter.
 
     Returns
@@ -431,6 +433,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.full(fill_value, shape, dtype)
     if isinstance(shape, int):
@@ -614,6 +618,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
+    if isinstance(reps, Constant):
+        reps = list(reps.data.asnumpy())
     if isinstance(reps, Expr):
         return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
@@ -753,6 +759,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.broadcast_to(data, shape)
     if isinstance(shape, int):
@@ -884,6 +892,12 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         The computed result.
     """
     strides = strides or [1]
+    if isinstance(begin, Constant):
+        begin = list(begin.data.asnumpy())
+    if isinstance(end, Constant):
+        end = list(end.data.asnumpy())
+    if isinstance(strides, Constant):
+        strides = list(strides.data.asnumpy())
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
@@ -1170,6 +1184,8 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 1, 0],
              [0, 0, 1]]
     """
+    if isinstance(depth, Constant):
+        depth = depth.data.asnumpy().item()
     if isinstance(depth, Expr):
         return _dyn_make.one_hot(indices, on_value, off_value, depth, axis, dtype)
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
@@ -1322,7 +1338,7 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def cumsum(data, axis=None, dtype=None):
+def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
 
@@ -1338,6 +1354,12 @@ def cumsum(data, axis=None, dtype=None):
     dtype : string, optional
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : int, optional
+        If set to 1 will return exclusive sum in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
 
     Returns
     -------
@@ -1368,4 +1390,4 @@ def cumsum(data, axis=None, dtype=None):
         cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 2, 2, 3, 4, 4]
     """
-    return _make.cumsum(data, axis, dtype)
+    return _make.cumsum(data, axis, dtype, exclusive)

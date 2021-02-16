@@ -524,6 +524,8 @@ class DominatorPattern : public DFPattern {
 DFPattern IsVar(const String& name);
 /*! \brief Syntatic Sugar for creating a ConstantPattern */
 DFPattern IsConstant();
+/*! \brief Syntatic Sugar for creating a WildcardPattern */
+DFPattern IsWildcard();
 /*! \brief Syntatic Sugar for creating a ExprPattern */
 DFPattern IsExpr(const Expr& expr);
 /*! \brief Syntatic Sugar for creating a ExprPattern base on an Op*/

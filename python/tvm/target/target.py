@@ -147,6 +147,11 @@ class Target(Object):
     def libs(self):
         return list(self.attrs.get("libs", []))
 
+    @staticmethod
+    def list_kinds():
+        """Returns the list of available target names."""
+        return list(_ffi_api.ListTargetKinds())
+
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
 
@@ -291,6 +296,7 @@ def arm_cpu(model="unknown", options=None):
             "-model=stm32mp1",
             "-mtriple=armv7a-linux-gnueabihf",
             "-mattr=+neon,+vfp4,+thumb2",
+            "-mcpu=cortex-a7",
         ],
         "thunderx": [
             "-model=thunderx",
