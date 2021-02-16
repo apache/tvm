@@ -392,8 +392,16 @@ class PyTorchOpConverter:
         dim = int(inputs[1])
         stride = inputs[4]
 
-        target_begin, is_begin_const = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
-        target_end, is_end_const = try_infer_value(inputs[3], lambda ret: np.asscalar(ret.astype(np.int)))
+        target_begin, is_begin_const = try_infer_value(
+            inputs[2], lambda ret: np.asscalar(ret.astype(np.int))
+        )
+        target_end, is_end_const = try_infer_value(
+            inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+        )
+
+        # A fast path when slicing is nop.
+        if target_begin == 0 and target_end >= index_size_limit and stride == 1:
+            return data
 
         # Process begin
         begin = [0] * ndim
@@ -415,12 +423,10 @@ class PyTorchOpConverter:
         if isinstance(target_end, int) and target_end >= index_size_limit:
             target_end = dshape[dim]
 
-        end = []
-        for d in dshape:
-            if isinstance(d, tvm.tir.Any):
-                end = _op.shape_of(data)
-                break
-            end.append(int(d))
+        if any([isinstance(d, tvm.tir.Any) for d in dshape]):
+            end = _op.shape_of(data)
+        else:
+            end = dshape
 
         if isinstance(target_end, int):
             if isinstance(end, list):
