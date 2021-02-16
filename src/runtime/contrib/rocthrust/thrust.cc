@@ -119,7 +119,8 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
     } else if (out_dtype == "float64") {
       thrust_sort<float, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32 and float64";
     }
   } else if (data_dtype == "float64") {
     if (out_dtype == "int32") {
@@ -131,7 +132,8 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
     } else if (out_dtype == "float64") {
       thrust_sort<double, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32 and float64";
     }
   } else if (data_dtype == "int32") {
     if (out_dtype == "int32") {
@@ -143,7 +145,8 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
     } else if (out_dtype == "float64") {
       thrust_sort<int32_t, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32 and float64";
     }
   } else if (data_dtype == "int64") {
     if (out_dtype == "int32") {
@@ -155,10 +158,12 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
     } else if (out_dtype == "float64") {
       thrust_sort<int64_t, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32 and float64";
     }
   } else {
-    LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
+    LOG(FATAL) << "Unsupported input dtype: " << data_dtype
+               << ". Supported input dtypes are int32, int64, and float32 and float64.";
   }
 }
 
@@ -221,7 +226,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
           thrust_stable_sort_by_key<int, float>(keys_in, values_in, keys_out, values_out,
                                                 for_scatter);
         } else {
-          LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+          LOG(FATAL) << "Unsupported value dtype: " << value_dtype
+                     << ". Supported value dtypes are int32, int64 and float32";
         }
       } else if (key_dtype == "int64") {
         if (value_dtype == "int32") {
@@ -234,7 +240,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
           thrust_stable_sort_by_key<int64_t, float>(keys_in, values_in, keys_out, values_out,
                                                     for_scatter);
         } else {
-          LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+          LOG(FATAL) << "Unsupported value dtype: " << value_dtype
+                     << ". Supported value dtypes are int32, int64 and float32";
         }
       } else if (key_dtype == "float32") {
         if (value_dtype == "int32") {
@@ -247,10 +254,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
           thrust_stable_sort_by_key<float, float>(keys_in, values_in, keys_out, values_out,
                                                   for_scatter);
         } else {
-          LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+          LOG(FATAL) << "Unsupported value dtype: " << value_dtype
+                     << ". Supported value dtypes are int32, int64 and float32";
         }
       } else {
-        LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
+        LOG(FATAL) << "Unsupported key dtype: " << key_dtype
+                   << ". Supported key dtypes are int32, int64, and float32.";
       }
     });
 
