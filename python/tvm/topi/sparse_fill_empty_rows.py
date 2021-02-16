@@ -49,45 +49,30 @@ def _sparse_fill_empty_rows(
         return (new_sparse_indices, new_sparse_values, empty_row_indicator)
 
     else:
-        # Add rows with default value if first row id of sparse_indices is not a zero
-        for i in range(0, int64(sparse_indices[0, 0])):
-            new_sparse_indices[new_sparse_indices_row_id, 0] = int64(i)
-            for k in range(1, int64(new_sparse_indices_shape[1])):
-                new_sparse_indices[new_sparse_indices_row_id, k] = int64(0)
-
-            new_sparse_values[new_sparse_indices_row_id] = default_value_
-            empty_row_indicator[i] = int64(1)
-            new_sparse_indices_row_id += 1
-
         # Iterate through sparse_indices and add rows if/when required
         for i in range(0, int64(sparse_indices.shape[0])):
-            row_id = int64(sparse_indices[i, 0])
             if i == 0:
-                # Add first row of input to output
-                new_sparse_indices[new_sparse_indices_row_id, 0] = row_id
-                for k in range(1, int64(new_sparse_indices_shape[1])):
-                    new_sparse_indices[new_sparse_indices_row_id, k] = int64(sparse_indices[i, k])
-                new_sparse_values[new_sparse_indices_row_id] = int64(sparse_values[i])
-                empty_row_indicator[row_id] = int64(0)
-                new_sparse_indices_row_id += 1
+                prev_row_id = int64(0)
             else:
                 prev_row_id = int64(sparse_indices[i - 1, 0] + 1)
-                # Since input is in row-major order, add rows between prev_row_id and row_id
-                for j in range(prev_row_id, row_id):
-                    new_sparse_indices[new_sparse_indices_row_id, 0] = int64(j)
-                    for k in range(1, int64(new_sparse_indices_shape[1])):
-                        new_sparse_indices[new_sparse_indices_row_id, k] = int64(0)
-                    empty_row_indicator[prev_row_id] = int64(1)
-                    new_sparse_values[new_sparse_indices_row_id] = default_value_
-                    new_sparse_indices_row_id += 1
+            row_id = int64(sparse_indices[i, 0])
 
-                # Add current row to output
-                new_sparse_indices[new_sparse_indices_row_id, 0] = row_id
+            # Since input is in row-major order, add rows between prev_row_id and row_id
+            for j in range(prev_row_id, row_id):
+                new_sparse_indices[new_sparse_indices_row_id, 0] = int64(j)
                 for k in range(1, int64(new_sparse_indices_shape[1])):
-                    new_sparse_indices[new_sparse_indices_row_id, k] = int64(sparse_indices[i, k])
-                new_sparse_values[new_sparse_indices_row_id] = int64(sparse_values[i])
-                empty_row_indicator[row_id] = int64(0)
+                    new_sparse_indices[new_sparse_indices_row_id, k] = int64(0)
+                empty_row_indicator[prev_row_id] = int64(1)
+                new_sparse_values[new_sparse_indices_row_id] = default_value_
                 new_sparse_indices_row_id += 1
+
+            # Add current element to output
+            new_sparse_indices[new_sparse_indices_row_id, 0] = row_id
+            for k in range(1, int64(new_sparse_indices_shape[1])):
+                new_sparse_indices[new_sparse_indices_row_id, k] = int64(sparse_indices[i, k])
+            new_sparse_values[new_sparse_indices_row_id] = int64(sparse_values[i])
+            empty_row_indicator[row_id] = int64(0)
+            new_sparse_indices_row_id += 1
 
         # Add rows with default value if last row id of sparse_indices is not dense_shape[0] - 1
         for i in range(

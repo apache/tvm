@@ -1621,10 +1621,9 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .add_argument("dense_shape", "Tensor",
                   "A 1-D int64 tensor of shape [ndims], which specifies the dense_shape of the"
                   "sparse tensor. Takes a list indicating the number of elements in each "
-                  "dimension. COO Format")
-    .add_argument(
-        "default_value", "Tensor",
-        "The value to fill for empty rows, with the same type as sparse_values. COO Format")
+                  "dimension")
+    .add_argument("default_value", "Tensor",
+                  "The value to fill for empty rows, with the same type as sparse_values")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
