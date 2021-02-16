@@ -49,7 +49,7 @@ def get_tvm_output_with_vm(
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
-
+    print(shape_dict)
     mod, params = relay.frontend.from_onnx(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
@@ -4089,6 +4089,47 @@ def test_cumsum():
     verify_cumsum(data, 1, 0, 1, type="int32")
     verify_cumsum(data, 1, 1, 1, type="int32")
 
+@tvm.testing.uses_gpu
+def test_onnx_nodes():
+    from onnx import numpy_helper
+    f = onnx.__file__
+    import glob
+    tests = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
+    print(len(tests))
+    failures = 0
+    for n, test in enumerate(tests):
+        print(n, test)
+        try:
+            onnx_model = onnx.load(test + "/model.onnx")
+            inputs = []
+            outputs = []
+            for dataset in glob.glob(test + "/*/"):
+                tensors = sorted(glob.glob(dataset + "/*.pb"))
+                for tensor in tensors:
+                    new_tensor = onnx.TensorProto()
+                    with open(tensor, 'rb') as f:
+                        new_tensor.ParseFromString(f.read())
+                    if "input" in tensor:
+                        inputs.append(numpy_helper.to_array(new_tensor))
+                    if "output" in tensor:
+                        outputs.append(numpy_helper.to_array(new_tensor))
+                tvm_val =  get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
+                if len(outputs) == 1:
+                    tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
+                else:
+                    for output, val in zip(outputs, tvm_val):
+                        tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
+        except Exception as e:
+            if "frontend ONNX" not in str(e): 
+                print("--------------------")
+                print("Test Number", n)
+                print("Failure number", failures)
+                print(test)
+                print(inputs)
+                print(e)
+                failures += 1
+
+    raise
 
 def test_wrong_input():
     node = helper.make_node(
