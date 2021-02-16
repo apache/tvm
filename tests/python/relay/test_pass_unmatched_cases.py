@@ -420,5 +420,36 @@ def @shallow_opt[A](%a: Arith[A]) -> Arith[A] {
     # fromtext parse the module, then checked it (which include strictness checking).
 
 
+def no_arg_ctor_pattern():
+    code = """
+#[version = "0.0.5"]
+type List[A] {
+    Cons(A, List[A]),
+    Nil,
+}
+
+def @no_arg_ctor_match(%a: List[()]) -> int {
+    match (%a) {
+        Nil => 1,
+        _ => 2,
+    }
+}
+"""
+    tvm.parser.fromtext(code)
+
+
+def test_empty_tuple_pattern():
+    code = """
+#[version = "0.0.5"]
+def @empty_tup_match(%a: ()) -> int {
+    match (%a) {
+        () => 1,
+        _ => 2,
+    }
+}
+"""
+    tvm.parser.fromtext(code)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
