@@ -227,7 +227,7 @@ Expr MakeExpandDims(Expr data, int axis, int num_newaxis) {
 TVM_REGISTER_GLOBAL("relay.op._make.expand_dims").set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("expand_dims")
-    .describe(R"code(Insert `num_newaxis` axises at the position given by `axis`
+    .describe(R"code(Insert `num_newaxis` axes at the position given by `axis`
 
 - **data**: The input data to the operator.
 

@@ -54,7 +54,7 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
         "If `axis < 0`, it is the first axis inserted;"
         "If `axis >= 0`, it is the last axis inserted in Python's negative indexing.");
     TVM_ATTR_FIELD(num_newaxis)
-        .describe("Number of axises to be inserted. Should be >= 0.")
+        .describe("Number of axes to be inserted. Should be >= 0.")
         .set_lower_bound(0)
         .set_default(1);
   }

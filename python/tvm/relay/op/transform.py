@@ -86,7 +86,7 @@ def reinterpret(data, dtype):
 
 
 def expand_dims(data, axis, num_newaxis=1):
-    """Insert `num_newaxis` axises at the position given by `axis`.
+    """Insert `num_newaxis` axes at the position given by `axis`.
 
     Parameters
     ----------
