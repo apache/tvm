@@ -1584,6 +1584,50 @@ RELAY_REGISTER_OP("repeat")
     .set_attr<FTVMCompute>("FTVMCompute", RepeatCompute)
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
+bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                            const TypeReporter& reporter) {
+  // types: [sparse_indices, sparse_values, dense_shape, default_value, result]
+  ICHECK_EQ(types.size(), 5) << "SparseFillEmptyRowsRel expects 5 inputs but " << types.size()
+                             << "provided";
+  std::vector<Type> fields;
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto ndims = sparse_indices->shape[1];
+  fields.push_back(TensorType(Array<PrimExpr>{Any(), ndims}, tvm::DataType::Int(64)));
+  fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  reporter->Assign(types[types.size() - 1], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr dense_shape,
+                             Expr default_value) {
+  static const Op& op = Op::Get("sparse_fill_empty_rows");
+  return Call(op, {sparse_indices, sparse_values, dense_shape, default_value}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows")
+    .set_body_typed(MakeSparseFillEmptyRows);
+
+RELAY_REGISTER_OP("sparse_fill_empty_rows")
+    .describe(
+        R"code(Fill empty rows of a sparse tensor with a default value.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .add_argument("sparse_indices", "Tensor",
+                  "A 2-D int64 tensor of shape [N, ndims], which specifies the indices of the"
+                  "elements in the sparse tensor that contain nonzero values. COO Format")
+    .add_argument(
+        "sparse_values", "Tensor",
+        "A 1-D tensor[N] which supplies the values for each element in indices. COO Format")
+    .add_argument("dense_shape", "Tensor",
+                  "A 1-D int64 tensor of shape [ndims], which specifies the dense_shape of the"
+                  "sparse tensor. Takes a list indicating the number of elements in each "
+                  "dimension")
+    .add_argument("default_value", "Tensor",
+                  "The value to fill for empty rows, with the same type as sparse_values")
+    .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 
