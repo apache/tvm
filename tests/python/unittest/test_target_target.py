@@ -193,6 +193,23 @@ def test_target_host_single_dict():
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
+def test_target_host_single_string():
+    tgt = tvm.target.Target("cuda --host llvm")
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+
+
+def test_target_host_single_string_with_tag():
+    tgt = tvm.target.Target("cuda --host nvidia/jetson-nano")
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_53"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 32768
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()

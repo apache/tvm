@@ -88,7 +88,7 @@ class Target(Object):
                 hardware or software floating-point operations.
             host : Union[str, Dict[str, Any]] (optional)
                 Description for target host. Can be recursive. Similar to tag_or_str_or_dict.
-        host_tag_or_str_or_dict : Union[str, Dict[str, Any]]
+        host_tag_or_str_or_dict : Optional[Union[str, Dict[str, Any]]]
             Similar to tag_or_str_or_dict but for target host. Can be one of a literal
             target host string, a json string describing a configuration, or a dictionary of
             configuration options. When using a dictionary or json string to configure target,
@@ -97,10 +97,8 @@ class Target(Object):
         if not isinstance(tag_or_str_or_dict, (dict, str, Target)):
             raise ValueError("target has to be a string or dictionary.")
         if host_tag_or_str_or_dict is not None:
-            if not isinstance(host_tag_or_str_or_dict, (dict, str, Target)):
-                raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(
-                _ffi_api.Target, tag_or_str_or_dict, host_tag_or_str_or_dict
+                _ffi_api.Target, Target(tag_or_str_or_dict), Target(host_tag_or_str_or_dict)
             )
         else:
             self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)

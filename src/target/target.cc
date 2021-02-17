@@ -362,13 +362,6 @@ Target::Target(const String& tag_or_config_or_target_str) {
   data_ = std::move(target);
 }
 
-Target::Target(const String& tag_or_config_or_target_str,
-               const String& host_tag_or_config_or_host_str) {
-  ObjectPtr<TargetNode> n = make_object<TargetNode>(
-      *Target(Target(tag_or_config_or_target_str), Target(host_tag_or_config_or_host_str)).get());
-  data_ = std::move(n);
-}
-
 Target::Target(const Map<String, ObjectRef>& config) {
   ObjectPtr<Object> target;
   try {
@@ -380,16 +373,10 @@ Target::Target(const Map<String, ObjectRef>& config) {
   data_ = std::move(target);
 }
 
-Target::Target(const Map<String, ObjectRef>& config, const Map<String, ObjectRef>& host_config) {
-  ObjectPtr<TargetNode> n =
-      make_object<TargetNode>(*Target(Target(config), Target(host_config)).get());
-  data_ = std::move(n);
-}
-
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-  if (n->host.defined())
-    throw dmlc::Error(": Error when adding target host to target already with host");
+  CHECK(!n->host.defined()) <<
+    "ValueError: Adding a host to a target whose host field has been defined";
   // add target host into host field
   n->host = std::move(host);
   data_ = std::move(n);
@@ -479,12 +466,17 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
     }
     return;
   } else if (args.num_args == 2) {
-    const auto &argt = args[0], &argh = args[1];
-    auto func = PackedFunc(ConstructorDispatcher);
-    *rv = Target(func(argt).AsObjectRef<Target>(), func(argh).AsObjectRef<Target>());
+    if (args[0].IsObjectRef<Target>() && args[1].IsObjectRef<Target>()) {
+      Target target = args[0];
+      Target host = args[1];
+      *rv = Target(target, host);
+    } else {
+      LOG(FATAL) << "ValueError: Invalid type of arguments. Expect 2 Target arguments.";
+    }
     return;
   }
-  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1, but gets: " << args.num_args;
+  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: "
+    << args.num_args;
 }
 
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
