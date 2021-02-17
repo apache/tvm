@@ -583,7 +583,7 @@ def test_multibox_transform_loc():
 
 @tvm.testing.uses_gpu
 def test_roi_align():
-    def verify_roi_align(data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio):
+    def verify_roi_align(data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode):
         data = relay.var("data", relay.ty.TensorType(data_shape, "float32"))
         rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
         z = relay.vision.roi_align(
@@ -592,6 +592,7 @@ def test_roi_align():
             pooled_size=(pooled_size, pooled_size),
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
+            mode=mode,
             layout="NCHW",
         )
         zz = run_infer_type(z)
@@ -612,6 +613,7 @@ def test_roi_align():
             pooled_size=pooled_size,
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
+            mode=mode,
         )
         for target, ctx in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -621,8 +623,18 @@ def test_roi_align():
             op_res2 = intrp2.evaluate(func)(np_data, np_rois)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
 
-    verify_roi_align((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1)
-    verify_roi_align((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2)
+    verify_roi_align(
+        (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
+    )
+    verify_roi_align(
+        (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
+    )
+    verify_roi_align(
+        (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
+    )
+    verify_roi_align(
+        (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
+    )
 
 
 @tvm.testing.uses_gpu
