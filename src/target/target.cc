@@ -362,6 +362,14 @@ Target::Target(const String& tag_or_config_or_target_str) {
   data_ = std::move(target);
 }
 
+Target::Target(const String& tag_or_config_or_target_str,
+               const String& host_tag_or_config_or_host_str) {
+  ObjectPtr<TargetNode> n = make_object<TargetNode>(
+    *Target(Target(tag_or_config_or_target_str),
+            Target(host_tag_or_config_or_host_str)).get());
+  data_ = std::move(n);
+}
+
 Target::Target(const Map<String, ObjectRef>& config) {
   ObjectPtr<Object> target;
   try {
@@ -371,6 +379,22 @@ Target::Target(const Map<String, ObjectRef>& config) {
                << ". Target creation from config dict failed: " << config;
   }
   data_ = std::move(target);
+}
+
+Target::Target(const Map<String, ObjectRef>& config,
+    const Map<String, ObjectRef>& host_config) {
+  ObjectPtr<TargetNode> n = make_object<TargetNode>(
+    *Target(Target(config), Target(host_config)).get());
+  data_ = std::move(n);
+}
+
+Target::Target(Target target, Target host) {
+  ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
+  if (n->host.defined())
+    throw dmlc::Error(": Error when adding target host to target already with host");
+  // add target host into host field
+  n->host = std::move(host);
+  data_ = std::move(n);
 }
 
 std::vector<std::string> TargetNode::GetKeys() const {
@@ -456,6 +480,11 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
                  << runtime::ArgTypeCode2Str(arg.type_code());
     }
     return;
+  } else if (args.num_args == 2) {
+    const auto& argt = args[0], argh = args[1];
+    auto func = PackedFunc(ConstructorDispatcher);
+    *rv = Target(func(argt).AsObjectRef<Target>(), func(argh).AsObjectRef<Target>());
+    return;
   }
   LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1, but gets: " << args.num_args;
 }
@@ -527,6 +556,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   const String kTag = "tag";
   const String kKeys = "keys";
   const String kDeviceName = "device";
+  const String kHost = "host";
   ObjectPtr<TargetNode> target = make_object<TargetNode>();
   // parse 'kind'
   if (config.count(kKind)) {
@@ -598,6 +628,13 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     } catch (const dmlc::Error& e) {
       throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
+  }
+  // parse host
+  if (config.count(kHost)) {
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    config.erase(kHost);
+  } else {
+    target->host = NullOpt;
   }
   // set default attribute values if they do not exist
   for (const auto& kv : target->kind->key2default_) {

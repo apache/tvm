@@ -44,6 +44,8 @@ class TargetNode : public Object {
  public:
   /*! \brief The kind of the target device */
   TargetKind kind;
+  /*! \brief Target host information of the target device */
+  Optional<ObjectRef> host;
   /*! \brief Tag of the the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
@@ -64,6 +66,7 @@ class TargetNode : public Object {
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
+    v->Visit("host", &host);
   }
 
   /*!
@@ -122,14 +125,28 @@ class Target : public ObjectRef {
   TVM_DLL explicit Target(std::nullptr_t) { data_ = nullptr; }
   /*!
    * \brief Construct a Target given a string
-   * \param tag_or_config_or_target_str the string to parse
+   * \param tag_or_config_or_target_str the string to parse for target
    */
   TVM_DLL explicit Target(const String& tag_or_config_or_target_str);
   /*!
+   * \brief Construct a Target given a string
+   * \param tag_or_config_or_target_str the string to parse for target
+   * \param host_tag_or_config_or_host_str the string to parse for target host
+   */
+  TVM_DLL explicit Target(const String& tag_or_config_or_target_str,
+    const String& host_tag_or_config_or_host_str);
+  /*!
    * \brief Construct a Target using a JSON-like configuration
-   * \param config The JSON-like configuration
+   * \param config The JSON-like configuration for target
    */
   TVM_DLL explicit Target(const Map<String, ObjectRef>& config);
+   /*!
+   * \brief Construct a Target using a JSON-like configuration
+   * \param config The JSON-like configuration for target
+   * \param host_config The JSON-like configuration for target host
+   */
+  TVM_DLL explicit Target(const Map<String, ObjectRef>& config,
+    const Map<String, ObjectRef>& host_config);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an
@@ -137,6 +154,11 @@ class Target : public ObjectRef {
    *   runtime error.
    * \return The target that is the current context. The target may not be defined if
    * allow_not_defined is true.
+   */
+  TVM_DLL explicit Target(Target target, Target host);
+  /*!
+   * \brief Construct a Target given target and host
+   * \return The Target with given target and host context information
    */
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
