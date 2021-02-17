@@ -20,12 +20,14 @@ import math
 import numpy as np
 
 
-def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio):
+def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
     """Roi align in python"""
+    avg_mode = mode in (b"avg", "avg", 0)
+    max_mode = mode in (b"max", "max", 1)
+    assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
     _, channel, height, width = a_np.shape
     num_roi = rois_np.shape[0]
     b_np = np.zeros((num_roi, channel, pooled_size, pooled_size), dtype=a_np.dtype)
-
     if isinstance(pooled_size, int):
         pooled_size_h = pooled_size_w = pooled_size
     else:
@@ -76,11 +78,17 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         for c in range(channel):
             for ph in range(pooled_size_h):
                 for pw in range(pooled_size_w):
-                    total = 0.0
+                    if avg_mode:
+                        total = 0.0
+                    if max_mode:
+                        total = float("-inf")
                     for iy in range(roi_bin_grid_h):
                         for ix in range(roi_bin_grid_w):
                             y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
                             x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
-                            total += _bilinear(batch_index, c, y, x)
-                    b_np[i, c, ph, pw] = total / count
+                            if avg_mode:
+                                total += _bilinear(batch_index, c, y, x) / count
+                            if max_mode:
+                                total = max(total, _bilinear(batch_index, c, y, x))
+                    b_np[i, c, ph, pw] = total
     return b_np
