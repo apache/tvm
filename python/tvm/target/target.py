@@ -99,10 +99,9 @@ class Target(Object):
         if host_tag_or_str_or_dict is not None:
             if not isinstance(host_tag_or_str_or_dict, (dict, str, Target)):
                 raise ValueError("target host has to be a string or dictionary.")
-            else:
-                self.__init_handle_by_constructor__(
-                    _ffi_api.Target, tag_or_str_or_dict, host_tag_or_str_or_dict
-                )
+            self.__init_handle_by_constructor__(
+                _ffi_api.Target, tag_or_str_or_dict, host_tag_or_str_or_dict
+            )
         else:
             self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
 
