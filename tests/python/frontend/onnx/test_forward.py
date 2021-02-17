@@ -17,12 +17,14 @@
 import numpy as np
 import onnx
 from onnx import helper, TensorProto, mapping, numpy_helper
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 import torch
 import torchvision
 import pytest
 import tvm.topi.testing
 import tvm
 from tvm import relay
+from tvm.relay.frontend.onnx import ONNXAttrError
 from tvm.contrib import graph_runtime
 import scipy
 import tvm.testing
@@ -49,14 +51,11 @@ def get_tvm_output_with_vm(
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
-    print(shape_dict)
     mod, params = relay.frontend.from_onnx(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
-
     if convert_to_static:
         mod = relay.transform.DynamicToStatic()(mod)
-
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data, **params)
     if isinstance(result, tvm.runtime.NDArray):
@@ -3479,13 +3478,7 @@ def test_topk():
 @tvm.testing.uses_gpu
 def test_roi_align():
     def verify_roi_align(
-        input_dims,
-        num_roi,
-        output_height,
-        output_width,
-        sampling_ratio=0,
-        spatial_scale=1.0,
-        mode="avg",
+        input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0
     ):
         output_dims = [num_roi, input_dims[1], output_height, output_width]
 
@@ -3493,7 +3486,7 @@ def test_roi_align():
             "RoiAlign",
             inputs=["X", "rois", "batch_indicies"],
             outputs=["Y"],
-            mode=mode,
+            mode="avg",
             output_height=output_height,
             output_width=output_width,
             sampling_ratio=sampling_ratio,
@@ -3537,8 +3530,6 @@ def test_roi_align():
     verify_roi_align((3, 4, 12, 16), 32, 7, 7, sampling_ratio=0, spatial_scale=1.5)
     verify_roi_align((5, 4, 16, 14), 32, 7, 7, sampling_ratio=1, spatial_scale=1.0)
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
-
-    # ONNX implementation of roi_align with max mode is incorrect, so we don't compare outputs here.
 
 
 # @tvm.testing.uses_gpu
@@ -4095,10 +4086,12 @@ def test_onnx_nodes():
     f = onnx.__file__
     import glob
     tests = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
-    print(len(tests))
     failures = 0
     for n, test in enumerate(tests):
         print(n, test)
+        if ("cast" in test and "FLOAT16" in test) or "test_slice_start_out_of_bounds" in test: 
+            print("FAILURE: SKIPPING due to segfault")
+            continue
         try:
             onnx_model = onnx.load(test + "/model.onnx")
             inputs = []
@@ -4111,8 +4104,11 @@ def test_onnx_nodes():
                         new_tensor.ParseFromString(f.read())
                     if "input" in tensor:
                         inputs.append(numpy_helper.to_array(new_tensor))
-                    if "output" in tensor:
+                    elif "output" in tensor:
                         outputs.append(numpy_helper.to_array(new_tensor))
+                    else:
+                        print(tensor)
+                        raise
                 tvm_val =  get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
                 if len(outputs) == 1:
                     tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
@@ -4120,15 +4116,8 @@ def test_onnx_nodes():
                     for output, val in zip(outputs, tvm_val):
                         tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
         except Exception as e:
-            if "frontend ONNX" not in str(e): 
-                print("--------------------")
-                print("Test Number", n)
-                print("Failure number", failures)
-                print(test)
-                print(inputs)
-                print(e)
-                failures += 1
-
+            print("------------------TEST FAILURE--------------------")
+            print(e)
     raise
 
 def test_wrong_input():

@@ -40,6 +40,8 @@ from .common import infer_type, get_name
 
 __all__ = ["from_onnx"]
 
+class ONNXAttrError(Exception):
+    pass
 
 class onnx_input:
     """ Dual purpose list or dictionary access object."""
@@ -106,7 +108,8 @@ def get_type(elem_type):
         from onnx import TensorProto
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
-    return TensorProto.DataType.Name(elem_type).lower()
+    from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+    return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
 def get_info(info_proto):
@@ -157,7 +160,7 @@ def revert_caffe2_pad(pads):
     return pads
 
 
-def get_pad_pair(input1d, kernel1d, stride1d):
+def get_pad_pair(input1d, kernel1d, stride1d, mode):
     """infer pad size"""
     if input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
@@ -165,6 +168,8 @@ def get_pad_pair(input1d, kernel1d, stride1d):
         pad = max(kernel1d - (input1d % stride1d), 0)
     pad_before = pad // 2
     pad_after = pad - pad_before
+    if "LOWER" in mode:
+        return [pad_after, pad_before]
     return [pad_before, pad_after]
 
 
@@ -280,9 +285,9 @@ class Pool(OnnxOpConverter):
                     pad_tuple = []
                     for axis in range(len(input_shape) - 2):
                         axis_shape = input_shape[2 + axis]
-                        stride = attr["strides"][axis]
+                        stride = attr.get("strides", [1] * ndim)[axis]
                         kernel = attr["kernel_shape"][axis]
-                        pad = get_pad_pair(axis_shape, kernel, stride)
+                        pad = get_pad_pair(axis_shape, kernel, stride, attr["auto_pad"])
                         pad_tuple.append(pad)
                     pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
                     attr["pads"] = pad_tuple
@@ -1121,7 +1126,6 @@ class Cast(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         try:
             from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-
             attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
         except ImportError as e:
             raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
@@ -1485,6 +1489,8 @@ class ArgMax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "select_last_index" in attr:
+            raise ONNXAttrError("select_last_index not supported in ArgMax")
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
@@ -1496,6 +1502,8 @@ class ArgMin(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "select_last_index" in attr:
+            raise ONNXAttrError("select_last_index not supported in ArgMax")
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
@@ -2128,7 +2136,8 @@ class Clip(OnnxOpConverter):
         result = inputs[0]
         for i, op in enumerate([_op.tensor.maximum, _op.tensor.minimum]):
             if i < len(inputs) - 1:
-                result = op(result, inputs[i + 1])
+                if inputs[i + 1] is not None:
+                    result = op(result, inputs[i + 1])
         return result
 
 
@@ -2958,6 +2967,8 @@ class GraphProto:
             for i in node.input:
                 if i != "":
                     inputs[i] = self._nodes[self._renames.get(i, i)]
+                else:
+                    inputs[i] = None
             i_name = self._parse_value_proto(node)
             node_output = self._fix_outputs(op_name, node.output)
             attr["tvm_custom"] = {}
