@@ -375,8 +375,8 @@ Target::Target(const Map<String, ObjectRef>& config) {
 
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-  CHECK(!n->host.defined()) <<
-    "ValueError: Adding a host to a target whose host field has been defined";
+  CHECK(!n->host.defined())
+      << "ValueError: Adding a host to a target whose host field has been defined";
   // add target host into host field
   n->host = std::move(host);
   data_ = std::move(n);
@@ -476,7 +476,7 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
     return;
   }
   LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: "
-    << args.num_args;
+             << args.num_args;
 }
 
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
