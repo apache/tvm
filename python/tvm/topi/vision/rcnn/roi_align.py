@@ -126,13 +126,13 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     )
 
 
-def roi_align_nhwc(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
+def roi_align_nhwc(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1):
     """ROI align operator in NHWC layout.
 
     Parameters
     ----------
     data : tvm.te.Tensor
-        4-D with shape [batch, channel, height, width]
+        4-D with shape [batch, height, width, channel]
 
     rois : tvm.te.Tensor
         2-D with shape [num_roi, 5]. The last dimension should be in format of
@@ -145,14 +145,21 @@ def roi_align_nhwc(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         Ratio of input feature map height (or w) to raw image height (or w). Equals the reciprocal
         of total stride in convolutional layers, which should be in range (0.0, 1.0]
 
+    mode : int or str
+        There are two modes, average and max. For the average mode, you can pass b'avg' or 0, and
+        for the max mode, you can pass b'max' or 1.
+
     sample_ratio : int
         Optional sampling ratio of ROI align, using adaptive size by default.
 
     Returns
     -------
     output : tvm.te.Tensor
-        4-D with shape [num_roi, channel, pooled_size, pooled_size]
+        4-D with shape [num_roi, pooled_size, pooled_size, channel]
     """
+    avg_mode = mode in (b"avg", 0)
+    max_mode = mode in (b"max", 1)
+    assert avg_mode or max_mode, "Mode must be avg or max. Please pass in a valid mode."
     dtype = rois.dtype
     _, height, width, channel = get_const_tuple(data.shape)
     num_roi, _ = get_const_tuple(rois.shape)
@@ -196,18 +203,28 @@ def roi_align_nhwc(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         rw = te.reduce_axis((0, roi_bin_grid_w))
         roi_start_h += ph * bin_h
         roi_start_w += pw * bin_w
-        return te.sum(
+        if avg_mode:
+            return te.sum(
+                _bilinear(
+                    batch_index,
+                    roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
+                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+                    c
+                )
+                / count,
+                axis=[rh, rw],
+            )
+        # max mode
+        return te.max(
             _bilinear(
                 batch_index,
                 roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
                 roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
-                c,
-            )
-            / count,
+                c
+            ),
             axis=[rh, rw],
         )
 
-    print("nhwc roi align called")
     return te.compute(
-        (num_roi, pooled_size_h, pooled_size_w, channel, ), _sample, tag="pool,roi_align_nhwc"
+        (num_roi, pooled_size_h, pooled_size_w, channel), _sample, tag="pool,roi_align_nchw"
     )
