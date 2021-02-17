@@ -583,7 +583,18 @@ def test_multibox_transform_loc():
 
 @tvm.testing.uses_gpu
 def test_roi_align():
-    def verify_roi_align(data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode):
+    def verify_roi_align(
+        data_shape,
+        rois_shape,
+        channel,
+        in_size,
+        pooled_size,
+        spatial_scale,
+        sample_ratio,
+        mode,
+        layout,
+        ref_func,
+    ):
         data = relay.var("data", relay.ty.TensorType(data_shape, "float32"))
         rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
         z = relay.vision.roi_align(
@@ -593,21 +604,27 @@ def test_roi_align():
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
             mode=mode,
-            layout="NCHW",
+            layout=layout,
         )
         zz = run_infer_type(z)
-        batch, channel, in_size, _ = data_shape
+
         num_roi = rois_shape[0]
-        assert zz.checked_type == relay.ty.TensorType(
-            (num_roi, channel, pooled_size, pooled_size), "float32"
-        )
+
+        if layout == "NCHW":
+            assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, channel, pooled_size, pooled_size), "float32"
+            )
+        else:
+            assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, pooled_size, pooled_size, channel), "float32"
+            )
 
         func = relay.Function([data, rois], z)
         func = run_infer_type(func)
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype("float32") * in_size
-        np_rois[:, 0] = np.random.randint(low=0, high=batch, size=num_roi)
-        ref_res = tvm.topi.testing.roi_align_nchw_python(
+        np_rois[:, 0] = np.random.randint(low=0, high=data_shape[0], size=num_roi)
+        ref_res = ref_func(
             np_data,
             np_rois,
             pooled_size=pooled_size,
@@ -616,6 +633,7 @@ def test_roi_align():
             mode=mode,
         )
         for target, ctx in tvm.testing.enabled_targets():
+            print("test on", target)
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_data, np_rois)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
@@ -623,17 +641,63 @@ def test_roi_align():
             op_res2 = intrp2.evaluate(func)(np_data, np_rois)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
 
-    verify_roi_align(
+    def verify_roi_align_nchw(
+        data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode
+    ):
+        _, channel, in_size, _ = data_shape
+        return verify_roi_align(
+            data_shape,
+            rois_shape,
+            channel,
+            in_size,
+            pooled_size,
+            spatial_scale,
+            sample_ratio,
+            mode,
+            "NCHW",
+            tvm.topi.testing.roi_align_nchw_python,
+        )
+
+    def verify_roi_align_nhwc(
+        data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode
+    ):
+        _, in_size, _, channel = data_shape
+        return verify_roi_align(
+            data_shape,
+            rois_shape,
+            channel,
+            in_size,
+            pooled_size,
+            spatial_scale,
+            sample_ratio,
+            mode,
+            "NHWC",
+            tvm.topi.testing.roi_align_nhwc_python,
+        )
+
+    verify_roi_align_nchw(
         (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
     )
-    verify_roi_align(
+    verify_roi_align_nchw(
         (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
     )
-    verify_roi_align(
+    verify_roi_align_nchw(
         (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
     )
-    verify_roi_align(
+    verify_roi_align_nchw(
         (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
+    )
+    verify_roi_align_nhwc(
+        (1, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
+    )
+    verify_roi_align_nhwc(
+        (4, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
+    )
+    verify_roi_align_nhwc(
+        (1, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
+    )
+    verify_roi_align_nhwc(
+        (4, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
     )
 
 
@@ -1262,7 +1326,6 @@ if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
     test_resize3d_infer_type()
-    test_resize3d()
     test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
