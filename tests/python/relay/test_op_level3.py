@@ -1391,17 +1391,46 @@ def test_scatter_nd(target, ctx):
             op_res = intrp.evaluate(func)(data_np, indices_np)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol, atol=atol)
 
+    def verify_scatter_nd_with_stack(data_np, indices_np, shape, ref_res, rtol=1e-5, atol=1e-5):
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices_vars = [
+            relay.var("ind{i}", shape=v.shape, dtype=str(v.dtype)) for i, v in enumerate(indices_np)
+        ]
+
+        # test if scatter_nd works in case indices are prepared by another Relay operator
+        indices = relay.op.stack(indices_vars, axis=0)
+        out = relay.op.scatter_nd(data, indices, shape)
+        func = relay.Function(
+            [
+                data,
+            ]
+            + indices_vars,
+            out,
+        )
+
+        fargs = [
+            data_np,
+        ]
+        for a in indices_np:
+            fargs.append(a)
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(*fargs)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol, atol=atol)
+
     data = np.array([2, 3, 0])
     indices = np.array([[1, 1, 0], [0, 1, 0]])
     shape = (2, 2)
     out = np.array([[0, 0], [2, 3]])
     verify_scatter_nd(data, indices, shape, out)
+    verify_scatter_nd_with_stack(data, indices, shape, out)
 
     data = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
     indices = np.array([[0, 1], [1, 1]])
     shape = (2, 2, 2, 2)
     out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
     verify_scatter_nd(data, indices, shape, out)
+    verify_scatter_nd_with_stack(data, indices, shape, out)
 
     data = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
     indices = np.array([[1, 0, 0]])
@@ -1411,6 +1440,7 @@ def test_scatter_nd(target, ctx):
     out[0, :] += data[1, :]
     out[0, :] += data[2, :]
     verify_scatter_nd(data, indices, shape, out)
+    verify_scatter_nd_with_stack(data, indices, shape, out)
 
     data = np.ones((5, 3)).astype("float64")
     indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype("int64")
@@ -1420,6 +1450,7 @@ def test_scatter_nd(target, ctx):
         for j in range(data.shape[1]):
             out[indices[0, i], indices[1, i], j] += data[i, j]
     verify_scatter_nd(data, indices, shape, out)
+    verify_scatter_nd_with_stack(data, indices, shape, out)
 
 
 if __name__ == "__main__":
