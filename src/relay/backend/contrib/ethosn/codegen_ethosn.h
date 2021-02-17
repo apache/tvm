@@ -251,7 +251,9 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant)
-        .describe("0 for Ethos-N77, 1 for Ethos-N57, 2 for Ethos-N37. See Ethos-N documentation.")
+        .describe(
+            "0 for Ethos-N77, 1 for Ethos-N57, 2 for Ethos-N37,"
+            " 3 for Ethos-N78. See Ethos-N documentation.")
         .set_default(0);
     TVM_ATTR_FIELD(strategy0).set_default(true);
     TVM_ATTR_FIELD(strategy1).set_default(true);
