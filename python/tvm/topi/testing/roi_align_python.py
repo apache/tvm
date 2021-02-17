@@ -63,6 +63,7 @@ def roi_align_common(
     width,
     layout,
 ):
+    """Common code used by roi align NCHW and NHWC"""
     num_roi = rois_np.shape[0]
 
     for i in range(num_roi):
@@ -113,7 +114,7 @@ def roi_align_common(
 
 
 def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
-    """Roi align in python"""
+    """Roi align NCHW in python"""
     avg_mode = mode in (b"avg", "avg", 0)
     max_mode = mode in (b"max", "max", 1)
     assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
@@ -143,7 +144,7 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
 
 
 def roi_align_nhwc_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
-    """Roi align in python"""
+    """Roi align NHWC in python"""
     avg_mode = mode in (b"avg", "avg", 0)
     max_mode = mode in (b"max", "max", 1)
     assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
