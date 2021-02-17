@@ -221,7 +221,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
                 with ib.if_scope(scan_axis_size > 0):
                     reduction[tid] = binop(
                         data_ex_scan[tid * scan_axis_size + scan_axis_size - 1],
-                        data[tid, scan_axis_size - 1],
+                        data[tid * scan_axis_size + scan_axis_size - 1],
                     )
                 with ib.else_scope():
                     reduction[tid] = 0
@@ -352,7 +352,8 @@ def exclusive_scan(
 
     def do_scan(data, output_dtype):
         target = tvm.target.Target.current()
-        if target and target.kind.name == "cuda" and is_thrust_available():
+        # TODO(masahi): Check -libs=thrust option
+        if target and target.kind.name in ["cuda", "rocm"] and is_thrust_available():
             return scan_thrust(
                 data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop
             )
