@@ -1067,6 +1067,7 @@ def roi_align_strategy(attrs, inputs, out_type, target):
             name="roi_align.generic",
         )
     else:
+        assert layout == "NHWC", "layout must be NCHW or NHWC."
         strategy.add_implementation(
             wrap_compute_roi_align(topi.vision.rcnn.roi_align_nhwc),
             wrap_topi_schedule(topi.generic.schedule_roi_align),

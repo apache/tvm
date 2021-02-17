@@ -476,19 +476,25 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
-# @roi_align_strategy.register("cpu")
-# def roi_align_strategy_cpu(attrs, inputs, out_type, target):
-#     """roi_align x86 strategy"""
-#     strategy = _op.OpStrategy()
-#     layout = attrs.layout
-#     assert layout == "NCHW", "only support nchw for now"
-#     if layout == "NHWC":
-#         strategy.add_implementation(
-#             wrap_compute_roi_align(topi.x86.roi_align_nchw),
-#             wrap_topi_schedule(topi.generic.schedule_roi_align),
-#             name="roi_align.x86",
-#         )
-#     return strategy
+@roi_align_strategy.register("cpu")
+def roi_align_strategy_cpu(attrs, inputs, out_type, target):
+    """roi_align x86 strategy"""
+    strategy = _op.OpStrategy()
+    layout = attrs.layout
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.x86.roi_align_nchw),
+            wrap_topi_schedule(topi.generic.schedule_roi_align),
+            name="roi_align.x86",
+        )
+    else:
+        assert layout == "NHWC", "layout must be NCHW or NHWC."
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.vision.rcnn.roi_align_nhwc),
+            wrap_topi_schedule(topi.generic.schedule_roi_align),
+            name="roi_align.x86",
+        )
+    return strategy
 
 
 @bitserial_conv2d_strategy.register("cpu")

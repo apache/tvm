@@ -110,5 +110,5 @@ def roi_align_shape_func(attrs, inputs, _):
     if attrs.layout == "NCHW":
         return [_roi_align_shape_func_nchw(inputs[0], inputs[1], convert(attrs.pooled_size))]
     else:
-        assert attrs.layout == "NHWC"
+        assert attrs.layout == "NHWC", "layout must be NCHW or NHWC."
         return [_roi_align_shape_func_nhwc(inputs[0], inputs[1], convert(attrs.pooled_size))]
