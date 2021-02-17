@@ -1338,6 +1338,78 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
+def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    """
+    Fill rows in a sparse matrix that do no contain any values. Values are placed in the first
+    column of empty rows. The sparse array is in COO format.
+    It returns a TupleWrapper with 3 outputs
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, ndims] of integers containing location of sparse values, where N is
+        the number of sparse values and n_dim is the number of dimensions of the dense_shape.
+        The first column of this relay parameter must be sorted in ascending order.
+    sparse_values : relay.Expr
+        A 1-D tensor[N] containing the sparse values for the sparse indices.
+    dense_shape : relay.Expr
+        A 1-D tensor[ndims] which contains shape of the dense output tensor.
+    default_value : relay.Expr
+        A 1-D tensor[1] containing the default value for the remaining locations.
+    Returns
+    -------
+    new_sparse_indices : relay.Expr
+        A 2-D tensor[?, ndims] of integers containing location of new sparse
+        indices. The first column outputs must be sorted in ascending order.
+    new_sparse_values : relay.Expr
+        A 1-D tensor[?] containing the sparse values for the sparse indices.
+    empty_row_indicator : relay.Expr
+        A 1-D tensor[dense_shape[0]] filled with zeros and ones
+        indicating whether the particular row is empty or full respectively
+
+    Note
+    ----
+    This op exactly follows the documentation here:
+    https://www.tensorflow.org/api_docs/python/tf/sparse/fill_empty_rows
+    There are two exceptions:
+    1. Input Sparse Indices are expected to be in row-major order.
+    2. Empty Row Indicator has int64 output type with 1(for True) and 0(for False).
+
+    Examples
+    -------
+    .. code-block:: python
+        sparse_indices = [[0, 1],
+                         [0, 3],
+                         [2, 0],
+                         [3, 1]]
+        sparse_values = [1, 2, 3, 4]
+        default_value = [10]
+        dense_shape = [5, 6]
+        new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index =
+                            relay.sparse_fill_empty_rows(
+                            sparse_indices,
+                            sparse_values,
+                            default_value,
+                            dense_shape)
+        new_sparse_indices = [[0, 1],
+                             [0, 3],
+                             [1, 0],
+                             [2, 0],
+                             [3, 1],
+                             [4, 0]]
+        empty_row_indicator = [False, True, False, False, True]
+        new_sparse_values = [1, 2, 10, 3, 4, 10]
+
+    """
+    new_sparse_indices, new_sparse_values, empty_row_indicator = TupleWrapper(
+        _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 3
+    )
+    new_sparse_indices = cast_like(new_sparse_indices, sparse_indices)
+    new_sparse_values = cast_like(new_sparse_values, sparse_values)
+    empty_row_indicator = cast(empty_row_indicator, "bool")
+
+    return Tuple((new_sparse_indices, new_sparse_values, empty_row_indicator))
+
+
 def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.

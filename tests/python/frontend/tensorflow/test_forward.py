@@ -1813,6 +1813,109 @@ def test_forward_sparse_dense_matmul():
 
 
 #######################################################################
+# SparseFillEmptyRows
+# ------------
+
+
+def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value_int, use_dyn):
+    with tf.Graph().as_default():
+        if use_dyn:
+            indices = tf.placeholder(shape=(None, None), dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=(None), dtype=values_np.dtype, name="values")
+            dense_shape = tf.placeholder(
+                shape=(None), dtype=dense_shape_np.dtype, name="dense_shape"
+            )
+        else:
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
+            dense_shape = tf.placeholder(
+                shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
+            )
+
+        default_value = tf.placeholder(shape=(), dtype=values_np.dtype, name="default_value")
+        sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
+        _ = tf.sparse.fill_empty_rows(sp_input, default_value, name="sparse_fill_empty_rows")
+        compare_tf_with_tvm(
+            [indices_np, values_np, dense_shape_np, default_value_int],
+            [indices.name, values.name, dense_shape.name, default_value.name],
+            [
+                "sparse_fill_empty_rows/SparseFillEmptyRows:0",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:1",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:2",
+            ],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int",
+    [
+        (
+            np.array([[1, 1], [0, 3], [0, 1], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4, 5], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[1, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([7, 7, 7], dtype=np.int64),
+            5,
+        ),
+        (
+            np.array([[1], [2]], dtype=np.int64),
+            np.array([7, 8], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            4,
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            4,
+        ),
+        (
+            np.ones((0, 3), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([9, 3, 7], dtype=np.int64),
+            100,
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_forward_sparse_fill_empty_rows(
+    sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int, use_dyn
+):
+    """ sparse_fill_empty_rows op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    _test_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int, use_dyn
+    )
+
+
+#######################################################################
 # StridedSlice
 # ------------
 

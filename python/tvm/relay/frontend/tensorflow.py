@@ -998,6 +998,28 @@ def _sparse_tensor_dense_matmul():
     return _impl
 
 
+def _sparse_fill_empty_rows():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        sparse_indices = inputs[0]
+        sparse_values = inputs[1]
+        sparse_indices_num_cols = _infer_shape(sparse_indices, mod)[1]
+        first_column = _op.split(sparse_indices, sparse_indices_num_cols, axis=1)[0]
+        sorted_indices = _op.argsort(_op.squeeze(first_column))
+        sorted_sparse_indices = _op.take(sparse_indices, sorted_indices, axis=0)
+        sorted_sparse_values = _op.take(sparse_values, sorted_indices, axis=0)
+        new_sparse_indices, new_sparse_values, empty_row_indicator = _op.sparse_fill_empty_rows(
+            sorted_sparse_indices, sorted_sparse_values, inputs[2], inputs[3]
+        )
+
+        return _expr.TupleWrapper(
+            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]),
+            3,
+        )
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2455,6 +2477,7 @@ _convert_map = {
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
+    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
