@@ -134,19 +134,19 @@ class Target : public ObjectRef {
    * \param host_tag_or_config_or_host_str the string to parse for target host
    */
   TVM_DLL explicit Target(const String& tag_or_config_or_target_str,
-    const String& host_tag_or_config_or_host_str);
+                          const String& host_tag_or_config_or_host_str);
   /*!
    * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration for target
    */
   TVM_DLL explicit Target(const Map<String, ObjectRef>& config);
-   /*!
+  /*!
    * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration for target
    * \param host_config The JSON-like configuration for target host
    */
   TVM_DLL explicit Target(const Map<String, ObjectRef>& config,
-    const Map<String, ObjectRef>& host_config);
+                          const Map<String, ObjectRef>& host_config);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an

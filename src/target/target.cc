@@ -365,8 +365,7 @@ Target::Target(const String& tag_or_config_or_target_str) {
 Target::Target(const String& tag_or_config_or_target_str,
                const String& host_tag_or_config_or_host_str) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(
-    *Target(Target(tag_or_config_or_target_str),
-            Target(host_tag_or_config_or_host_str)).get());
+      *Target(Target(tag_or_config_or_target_str), Target(host_tag_or_config_or_host_str)).get());
   data_ = std::move(n);
 }
 
@@ -381,10 +380,9 @@ Target::Target(const Map<String, ObjectRef>& config) {
   data_ = std::move(target);
 }
 
-Target::Target(const Map<String, ObjectRef>& config,
-    const Map<String, ObjectRef>& host_config) {
-  ObjectPtr<TargetNode> n = make_object<TargetNode>(
-    *Target(Target(config), Target(host_config)).get());
+Target::Target(const Map<String, ObjectRef>& config, const Map<String, ObjectRef>& host_config) {
+  ObjectPtr<TargetNode> n =
+      make_object<TargetNode>(*Target(Target(config), Target(host_config)).get());
   data_ = std::move(n);
 }
 
@@ -481,7 +479,7 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
     }
     return;
   } else if (args.num_args == 2) {
-    const auto& argt = args[0], argh = args[1];
+    const auto &argt = args[0], &argh = args[1];
     auto func = PackedFunc(ConstructorDispatcher);
     *rv = Target(func(argt).AsObjectRef<Target>(), func(argh).AsObjectRef<Target>());
     return;
