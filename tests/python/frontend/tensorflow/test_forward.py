@@ -2361,13 +2361,13 @@ def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
     """ One iteration of tf.sparse.add """
 
     # TODO(ANSHUMAN87): support cuda
-    # TODO(ANSHUMAN87): support flip case
     # TODO(ANSHUMAN87): support both sparse input case
 
     with tf.Graph().as_default():
         A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
         B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
 
+        # TODO(ANSHUMAN87): support user input threashold values
         if flip:
             result = tf.sparse.add(B, A_sp, threshold=0)
         else:
@@ -2392,8 +2392,10 @@ def test_sparse_add():
     #
     # ------------------------------------------------------------------
 
-    # TODO(ANSHUMAN87): add more test case
     _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], "float32")
+    _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], "float32", True)
+    _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32")
+    _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32", True)
 
 
 #######################################################################
