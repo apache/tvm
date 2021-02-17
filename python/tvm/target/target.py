@@ -86,6 +86,8 @@ class Target(Object):
             mfloat-abi : str (optional)
                 An llvm setting that is one of 'hard' or 'soft' indicating whether to use
                 hardware or software floating-point operations.
+            host : Union[str, Dict[str, Any]] (optional)
+                Description for target host. Can be recursive. Similar to tag_or_str_or_dict.
         host_tag_or_str_or_dict : Union[str, Dict[str, Any]]
             Similar to tag_or_str_or_dict but for target host. Can be one of a literal
             target host string, a json string describing a configuration, or a dictionary of
