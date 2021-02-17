@@ -58,6 +58,9 @@ runtime::Module CreateMetadataModule(
     return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
   };
 
+  bool is_targeting_crt =
+      target.defined() && target->GetAttr<String>("runtime").value_or(String("")) == kTvmRuntimeCrt;
+
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
   for (tvm::runtime::Module mod : ext_modules) {
@@ -81,7 +84,7 @@ runtime::Module CreateMetadataModule(
 
     // TODO(@manupa-arm) : we should be able to use csource_metadata
     // if the variables are empty when all the runtime modules implement get_func_names
-    if (arrays.empty() && DSOExportable(mod) &&
+    if (arrays.empty() && is_targeting_crt && DSOExportable(mod) &&
         (target->kind->name == "c" || target->kind->name == "llvm")) {
       crt_exportable_modules.push_back(mod);
     } else {
@@ -89,8 +92,7 @@ runtime::Module CreateMetadataModule(
     }
   }
 
-  if (target.defined() &&
-      target->GetAttr<String>("runtime").value_or(String("")) == kTvmRuntimeCrt) {
+  if (is_targeting_crt) {
     if (!non_crt_exportable_modules.empty()) {
       std::string non_exportable_modules;
       for (unsigned int i = 0; i < non_crt_exportable_modules.size(); i++) {
