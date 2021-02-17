@@ -188,6 +188,7 @@ stage('Build') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -234,6 +235,7 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -251,6 +253,7 @@ stage('Unit Test') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -265,6 +268,7 @@ stage('Unit Test') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -277,6 +281,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+          junit "build/pytest-results/*.xml"
           // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }
       }
@@ -305,6 +310,7 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -317,6 +323,7 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
@@ -329,6 +336,7 @@ stage('Integration Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
+          junit "build/pytest-results/*.xml"
         }
       }
     }
