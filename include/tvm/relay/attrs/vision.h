@@ -124,6 +124,7 @@ struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
   double spatial_scale;
   int sample_ratio;
   std::string layout;
+  std::string mode;
   TVM_DECLARE_ATTRS(ROIAlignAttrs, "relay.attrs.ROIAlignAttrs") {
     TVM_ATTR_FIELD(pooled_size).describe("Output size of roi align.");
     TVM_ATTR_FIELD(spatial_scale)
@@ -139,6 +140,8 @@ struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively. Convolution is applied on the 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(mode).set_default("avg").describe(
+        "Mode for ROI Align. Can be 'avg' or 'max'. The default mode is 'avg'.");
   }
 };
 

@@ -1041,6 +1041,7 @@ def wrap_compute_roi_align(topi_compute):
     def _compute_roi_align(attrs, inputs, out_type):
         assert attrs.layout == "NCHW"
         pooled_size = get_const_tuple(attrs.pooled_size)
+        mode = bytes(attrs.mode, "utf-8")
         return [
             topi_compute(
                 inputs[0],
@@ -1048,6 +1049,7 @@ def wrap_compute_roi_align(topi_compute):
                 pooled_size=pooled_size,
                 spatial_scale=attrs.spatial_scale,
                 sample_ratio=attrs.sample_ratio,
+                mode=mode,
             )
         ]
 
@@ -1066,6 +1068,35 @@ def roi_align_strategy(attrs, inputs, out_type, target):
         name="roi_align.generic",
     )
     return strategy
+
+
+# sparse_fill_empty_rows
+@override_native_generic_func("sparse_fill_empty_rows_strategy")
+def sparse_fill_empty_rows_strategy(attrs, outs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_fill_empty_rows(topi.sparse_fill_empty_rows),
+        wrap_topi_schedule(topi.generic.schedule_sparse_fill_empty_rows),
+        name="sparse_fill_empty_rows.generic",
+    )
+    return strategy
+
+
+def wrap_compute_sparse_fill_empty_rows(topi_compute):
+    """Wrap sparse_fill_empty_rows compute"""
+
+    def _compute_sparse_fill_empty_rows(attrs, inputs, output_type):
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            inputs[2],
+            inputs[3],
+            output_type.fields[0].shape,
+            output_type.fields[1].shape,
+            output_type.fields[2].shape,
+        )
+
+    return _compute_sparse_fill_empty_rows
 
 
 # roi_pool

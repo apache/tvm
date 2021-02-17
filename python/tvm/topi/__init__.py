@@ -38,6 +38,7 @@ from .transform import *
 from .broadcast import *
 from .sort import *
 from .scatter import *
+from .sparse_fill_empty_rows import *
 from .scatter_add import *
 from .argwhere import *
 from .cumsum import *

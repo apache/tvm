@@ -45,5 +45,6 @@ function run_pytest() {
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
+           "--junit-prefix=${ffi_type}" \
            "$@"
 }

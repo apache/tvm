@@ -22,7 +22,7 @@ from ...utils import get_const_tuple
 from ...cpp.utils import bilinear_sample_nchw
 
 
-def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
+def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1):
     """ROI align operator in NCHW layout.
 
     Parameters
@@ -41,6 +41,10 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         Ratio of input feature map height (or w) to raw image height (or w). Equals the reciprocal
         of total stride in convolutional layers, which should be in range (0.0, 1.0]
 
+    mode : int or str
+        There are two modes, average and max. For the average mode, you can pass b'avg' or 0, and
+        for the max mode, you can pass b'max' or 1.
+
     sample_ratio : int
         Optional sampling ratio of ROI align, using adaptive size by default.
 
@@ -49,6 +53,9 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     output : tvm.te.Tensor
         4-D with shape [num_roi, channel, pooled_size, pooled_size]
     """
+    avg_mode = mode in (b"avg", 0)
+    max_mode = mode in (b"max", 1)
+    assert avg_mode or max_mode, "Mode must be avg or max. Please pass in a valid mode."
     dtype = rois.dtype
     _, channel, height, width = get_const_tuple(data.shape)
     num_roi, _ = get_const_tuple(rois.shape)
@@ -92,14 +99,25 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         rw = te.reduce_axis((0, roi_bin_grid_w))
         roi_start_h += ph * bin_h
         roi_start_w += pw * bin_w
-        return te.sum(
+        if avg_mode:
+            return te.sum(
+                _bilinear(
+                    batch_index,
+                    c,
+                    roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
+                    roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+                )
+                / count,
+                axis=[rh, rw],
+            )
+        # max mode
+        return te.max(
             _bilinear(
                 batch_index,
                 c,
                 roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
                 roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
-            )
-            / count,
+            ),
             axis=[rh, rw],
         )
 

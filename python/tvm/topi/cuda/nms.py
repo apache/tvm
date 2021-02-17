@@ -610,7 +610,8 @@ def _get_sorted_indices(data, data_buf, score_index, score_shape):
     )
 
     target = tvm.target.Target.current()
-    if target and target.kind.name == "cuda" and is_thrust_available():
+    # TODO(masahi): Check -libs=thrust option
+    if target and target.kind.name in ["cuda", "rocm"] and is_thrust_available():
         sort_tensor = argsort_thrust(score_tensor, axis=1, is_ascend=False, dtype="int32")
     else:
         sort_tensor = argsort(score_tensor, axis=1, is_ascend=False, dtype="int32")
