@@ -19,7 +19,6 @@ from typing import List
 
 import tvm
 from tvm import relay
-from tvm.relay.dataflow_pattern import ffi as pattern_ffi
 from tvm.relay.dataflow_pattern import _DFPatternCallback
 from tvm.relay.transform.quantize import QuantizerPattern
 from tvm.relay.frontend.common import infer_type

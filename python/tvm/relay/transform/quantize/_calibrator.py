@@ -25,7 +25,8 @@ import tvm.relay.build_module as build_module
 
 
 class QuantizationCalibrator:
-    """The QuantizationCalibrator picks scales and zero points for all qnn ops in the quantized module.
+    """The QuantizationCalibrator picks scales and zero points for all qnn ops in the quantized
+    module.
 
     Parameters
     ----------
@@ -43,7 +44,8 @@ class QuantizationCalibrator:
         data-aware calibration.
     """
 
-    def __init__(self, quantizer, target="llvm", ctx=tvm.cpu(), dataset_manager=None, show_scale_zps=False):
+    def __init__(self, quantizer, target="llvm", ctx=tvm.cpu(), dataset_manager=None,
+                 show_scale_zps=False):
         self.quantizer = quantizer
 
         self.calibration_info = CalibrationInfo(

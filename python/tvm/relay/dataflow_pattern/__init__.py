@@ -813,7 +813,7 @@ class DFPatternCallback:
         result : tvm.relay.Expr
             The Expression with matched subgraphs rewritten by the callbacks.
         """
-        return rewrite(self, expr, allow_overlapping_groups = allow_overlapping_groups)
+        return rewrite(self, expr, allow_overlapping_groups=allow_overlapping_groups)
 
     def callback(self, pre: Expr, post: Expr, node_map: tvm.ir.container.Map) -> Expr:
         """

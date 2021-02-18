@@ -15,4 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
+"""Module containing data-related utilities."""
 from ._dataset_manager import DatasetManager, TFDatasetManager, RandomDatasetManager

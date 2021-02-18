@@ -20,7 +20,6 @@ average max algorithm to pick scales."""
 
 import numpy as np
 
-from tvm import relay
 from tvm.relay.transform.quantize import (
     Conv2DPattern,
     Conv2DBiasAddPattern,
@@ -28,7 +27,6 @@ from tvm.relay.transform.quantize import (
     DenseBiasAddPattern,
     PerChannelPattern,
     CalibrationCallback,
-    QuantizerPattern,
 )
 
 
@@ -36,6 +34,19 @@ class AverageMaxPerChannelPattern(PerChannelPattern):
     """Per channel implementation of the AverageMax algorithm."""
 
     def calibrate_pattern(self, calibration_info):
+        """Calibrates the pattern using the average max algorithm, and calibrates weights
+        per-channel.
+
+        calibration_info : CalibrationInfo
+            The class containing relevant information and utility functions to calibrate one
+            instance of a pattern.
+
+        Returns
+        -------
+        scale_zp_map : Dictionary
+            A map from the names of scales and zero point variables in this pattern to their
+            values.
+        """
         self.attr_callback(calibration_info.partition_info.expr)
         scale_zp_values = {}
 
@@ -101,9 +112,6 @@ class AverageMaxPerChannelConv2DBiasAddPattern(
 class AverageMaxPerChannelDensePattern(AverageMaxPerChannelPattern, DensePattern):
     """Per channel version of DensePattern, implementing the average max algorithm to
     calculate scales and zero points."""
-
-    def __init__(self, calibration_callback: CalibrationCallback = None):
-        super().__init__(calibration_callback)
 
     def extract_attrs(self, pre, post, node_map):
         dense = node_map[self.dense][0]

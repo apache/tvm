@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Utility functions for constructing lists of quantizer patterns."""
+
 from tvm.relay.transform.quantize import (
     CalibrationCallback,
     Conv2DPattern,

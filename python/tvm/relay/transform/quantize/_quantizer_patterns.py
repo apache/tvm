@@ -31,7 +31,6 @@ from tvm.relay.dataflow_pattern import (
 from tvm.relay.dataflow_pattern import ffi as pattern_ffi
 from tvm.relay.frontend.common import infer_type
 from tvm.relay.op.nn.utils import get_pad_tuple2d
-from . import _ffi as ffi
 
 
 class QuantizerPattern(DFPatternCallback):
@@ -79,7 +78,7 @@ class QuantizerPattern(DFPatternCallback):
     def callback(self, pre, post, node_map):
         raise NotImplementedError
 
-    def scale(self, name, is_weight=False):
+    def scale(self, name):
         """Helper to create the scale variable for qnn.quantize when rewriting our pattern.
 
         Parameters
@@ -144,14 +143,14 @@ class QuantizerPattern(DFPatternCallback):
 
 
 class Conv2DPattern(QuantizerPattern):
-    def __init__(self, calibration_callback: CalibrationCallback = None):
-        """Pattern to rewrite nn.conv2d ops as qnn.conv2d ops.
+    """Pattern to rewrite nn.conv2d ops as qnn.conv2d ops.
 
-        Parameters
-        ----------
-        calibration_callback : CalibrationCallback
-            The method we will use to calibrate this pattern.
-        """
+    Parameters
+    ----------
+    calibration_callback : CalibrationCallback
+        The method we will use to calibrate this pattern.
+    """
+    def __init__(self, calibration_callback: CalibrationCallback = None):
         super().__init__(calibration_callback)
         self.input = wildcard()
         self.conv_weight = wildcard()
@@ -478,7 +477,8 @@ class DensePattern(QuantizerPattern):
 
 
 class DenseBiasAddPattern(DensePattern):
-    """Pattern to rewrite nn.dense -> add and nn.dense -> nn.bias_add pattern as qnn.dense -> nn.bias_add.
+    """Pattern to rewrite nn.dense -> add and nn.dense -> nn.bias_add pattern as
+    qnn.dense -> nn.bias_add.
 
     Parameters
     ----------
@@ -675,7 +675,8 @@ class PerChannelPattern:
         return var
 
     def create_scale_zps(self, left_name, right_name):
-        """Helper to create scales and zero points for binops, with the per channel weight scale quantized.
+        """Helper to create scales and zero points for binops, with the per channel weight scale
+        quantized.
 
         Parameters
         ----------

@@ -76,6 +76,7 @@ class GlobalCalibrationCallback(CalibrationCallback):
 
 
 class AverageMaxCalibrationCallback(CalibrationCallback):
+    """Callback implementing the average max calibration algorithm."""
     def calibrate_pattern(self, calibration_info):
         scale_zp_values = {}
 
@@ -102,7 +103,8 @@ class AverageMaxCalibrationCallback(CalibrationCallback):
         # Threshold for quantization of an input to a layer is mean(abs(avg_max), abs(avg_min))
         thresholds = np.mean([np.abs(avg_mins), np.abs(avg_maxs)], axis=0)
 
-        # Since this is a symmetric distribution and we are quantizing to int8, there are 256 bins, and 128 are positive
+        # Since this is a symmetric distribution and we are quantizing to int8, there are 256 bins,
+        # and 128 are positive
         scales = thresholds / 128
 
         for i, scale_value in enumerate(scales):
