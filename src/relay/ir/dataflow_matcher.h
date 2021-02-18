@@ -21,11 +21,16 @@
  * \file src/tvm/relay/dataflow_matcher.h
  * \brief The dataflow pattern matcher for Relay.
  */
+#ifndef TVM_RELAY_IR_DATAFLOW_MATCHER_H_
+#define TVM_RELAY_IR_DATAFLOW_MATCHER_H_
 
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
+#include <unordered_map>
+#include <vector>
 
 #include "indexed_graph.h"
 
@@ -73,3 +78,5 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 
 }  // namespace relay
 }  // namespace tvm
+
+#endif  // TVM_RELAY_IR_DATAFLOW_MATCHER_H_

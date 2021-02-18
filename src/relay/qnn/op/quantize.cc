@@ -41,7 +41,7 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // types = [data_type, scale_type, zp_type, ret_type]
   ICHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
-  
+
   if (data == nullptr) {
     return false;
   }

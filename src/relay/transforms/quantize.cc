@@ -184,7 +184,7 @@ class RewritePartitions : protected MixedModeMutator {
     }
     // TVM object system doesn't have pairs, so we'll return new_out and infos_ in a Map
     Map<String, ObjectRef> out_pair = {{"new_out", new_out}, {"infos_", infos_}};
-    return out_pair;  //{new_out, infos_};
+    return out_pair;  // {new_out, infos_};
   }
 
  protected:
@@ -354,16 +354,14 @@ class LowerPartitions : protected MixedModeMutator {
   bool skipping_partitions_;
 };
 
-TVM_REGISTER_GLOBAL("relay.transform.quantize.partition_outputs").set_body_typed([](const Expr& expr) {
-  return PartitionOutputs().GetPartitionOutputs(expr);
-});
+TVM_REGISTER_GLOBAL("relay.transform.quantize.partition_outputs")
+    .set_body_typed([](const Expr& expr) { return PartitionOutputs().GetPartitionOutputs(expr); });
 TVM_REGISTER_GLOBAL("relay.transform.quantize.rewrite_partitions")
     .set_body_typed([](const Array<DFPatternCallback>& callbacks, const Expr& expr) {
       return RewritePartitions(callbacks).Rewrite(expr);
     });
-TVM_REGISTER_GLOBAL("relay.transform.quantize.lower_partitions").set_body_typed([](const Expr& expr) {
-  return LowerPartitions().Rewrite(expr);
-});
+TVM_REGISTER_GLOBAL("relay.transform.quantize.lower_partitions")
+    .set_body_typed([](const Expr& expr) { return LowerPartitions().Rewrite(expr); });
 TVM_REGISTER_GLOBAL("relay.transform.quantize.skip_partitions")
     .set_body_typed([](const Expr& expr, bool skip_first, bool skip_last) {
       auto targets = PartitionsInOrder(skip_first, skip_last).GetPartitionsInOrder(expr);

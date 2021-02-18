@@ -30,6 +30,10 @@
 #include <tvm/relay/transform.h>
 
 #include <stack>
+#include <string>
+#include <utility>
+#include <unordered_set>
+#include <vector>
 
 #include "indexed_graph.h"
 
@@ -499,7 +503,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern)
 class PatternGrouper {
  public:
   /*! \brief Internal Group class for storing analysis */
-  PatternGrouper(bool allow_overlapping_groups = false)
+  explicit PatternGrouper(bool allow_overlapping_groups = false)
       : allow_overlapping_groups_(allow_overlapping_groups) {}
   struct Group {
     Expr root_node;
@@ -678,7 +682,7 @@ class PatternGrouper {
     // used to determine Group overlap in other passes
     auto extractor = MatchExtractor(inputs);
     auto body = extractor.Mutate(expr);
-    
+
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
     if (!allow_overlapping_groups_) {

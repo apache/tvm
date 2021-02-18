@@ -44,7 +44,7 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr) {
     return false;
   }
-  
+
   const auto input_dtype = data->dtype;
   ICHECK(input_dtype == DataType::Int(8) || input_dtype == DataType::UInt(8) ||
          input_dtype == DataType::Int(32))
@@ -54,7 +54,7 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const DequantizeAttrs* dequantize_attrs = attrs.as<DequantizeAttrs>();
   DataType out_dtype = dequantize_attrs->out_dtype;
   CHECK(out_dtype == DataType::Float(32) || out_dtype == DataType::Int(32))
-    << "out_dtype for dequantize must be float32 or int32, but got " << out_dtype;
+      << "out_dtype for dequantize must be float32 or int32, but got " << out_dtype;
 
   // Assign type to scale and zero point if they're channelwise.
   if (data->shape.size() != 0) {
