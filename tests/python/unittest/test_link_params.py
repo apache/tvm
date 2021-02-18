@@ -183,12 +183,12 @@ def _make_mod_and_params(dtype):
 @tvm.testing.requires_llvm
 def test_llvm_link_params():
     for dtype in LINKABLE_DTYPES:
-        mod, param_init = _make_mod_and_params(dtype)
+        ir_mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        main_func = mod["main"]
+        main_func = ir_mod["main"]
         target = "llvm --runtime=c --system-lib --link-params"
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(mod, target, params=param_init)
+            lib = tvm.relay.build(ir_mod, target, params=param_init)
 
             # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
             # against one another.
@@ -214,7 +214,7 @@ def test_llvm_link_params():
             linked_output = _run_linked(lib, mod)
 
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
+            lib = tvm.relay.build(ir_mod, "llvm --system-lib", params=param_init)
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
