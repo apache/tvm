@@ -816,7 +816,7 @@ def sparse_add_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_sparse_add(topi.nn.sparse_add),
-        wrap_topi_schedule(topi.generic.schedule_sparse_add),
+        wrap_topi_schedule(topi.generic.schedule_extern),
         name="sparse_add.generic",
     )
     return strategy

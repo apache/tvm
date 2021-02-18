@@ -1291,7 +1291,9 @@ def _sparse_tensor_dense_add():
     from scipy.sparse import csr_matrix
 
     def _impl(inputs, attr, params, mod):
-        assert len(inputs) == 4, "There should be 4 input tensors"
+        assert (
+            len(inputs) == 4
+        ), "There should be 4 input tensors [sparse_indices, sparse_values, sparse_shape, dense]."
 
         indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
         values_tensor = _infer_value(inputs[1], params, mod).asnumpy()

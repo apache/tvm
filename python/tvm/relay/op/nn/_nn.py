@@ -144,7 +144,7 @@ def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
 
 # sparse_add
 reg.register_strategy("nn.sparse_add", strategy.sparse_add_strategy)
-reg.register_pattern("nn.sparse_add", reg.OpPattern.ELEMWISE)
+reg.register_pattern("nn.sparse_add", reg.OpPattern.OPAQUE)
 
 
 @reg.register_compute("nn.internal.sparse_dense_padded")

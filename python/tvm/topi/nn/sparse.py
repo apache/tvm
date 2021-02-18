@@ -494,7 +494,7 @@ def sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr):
         2-D with shape [M, N]
     """
     # TODO(ANSHUMAN87): support BSR format too
-    assert len(sparse_data.shape) == 1
+    assert len(sparse_data.shape) == 1, "only CSR format is supported"
     return _sparse_add_csr(dense_data, sparse_data, sparse_indices, sparse_indptr)
 
 
@@ -529,6 +529,11 @@ def _sparse_add_csr(dense_data_inp, sparse_data_inp, sparse_indices_inp, sparse_
         inputs=[dense_data_inp, sparse_data_inp, sparse_indices_inp, sparse_indptr_inp],
         fcompute=lambda ins, outs: _csr_add_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
         tag="sparse_add_csr",
-        dtype=["float32", "float32", "int32", "int32"],
+        dtype=[
+            dense_data_inp.dtype,
+            sparse_data_inp.dtype,
+            sparse_indices_inp.dtype,
+            sparse_indptr_inp.dtype,
+        ],
         name="out",
     )

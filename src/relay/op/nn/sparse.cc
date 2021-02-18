@@ -202,9 +202,10 @@ bool SparseAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_EQ(types.size(), 5);
   const auto* dense_data = types[0].as<TensorTypeNode>();
   const auto* sparse_data = types[1].as<TensorTypeNode>();
-  ICHECK_EQ(sparse_data->shape.size(), 1);
+  ICHECK(reporter->Assert(sparse_data->dtype == dense_data->dtype));
+  ICHECK(reporter->Assert(sparse_data->shape.size() == 1));
   const auto* sparse_indices = types[2].as<TensorTypeNode>();
-  ICHECK_EQ(sparse_indices->shape.size(), 1);
+  ICHECK(reporter->Assert(sparse_indices->shape.size() == 1));
 
   reporter->Assign(types[4], TensorType(dense_data->shape, dense_data->dtype));
   return true;
@@ -228,9 +229,9 @@ RELAY_REGISTER_OP("nn.sparse_add")
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(4)
     .add_argument("dense_data", "2D Tensor", "Dense data matrix.")
-    .add_argument("sparse_data", "1D Tensor", "Sparse data matrix.")
-    .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
-    .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer matrix.")
+    .add_argument("sparse_data", "1D Tensor", "Sparse data vector.")
+    .add_argument("sparse_indices", "1D Tensor", "Sparse indices vector.")
+    .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer vector.")
     .set_support_level(1)
     .add_type_rel("SparseAdd", SparseAddRel);
 
