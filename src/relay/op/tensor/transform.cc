@@ -1146,6 +1146,9 @@ Expr MakeScatterND(Expr data, Expr indices, const Array<Integer> out_shape) {
 
 TVM_REGISTER_GLOBAL("relay.op._make.scatter_nd").set_body_typed(MakeScatterND);
 
+// scatter_nd operator has extern schedules for CPU and GPU devices.
+// Fusing extern schedules with Injective schedules leads to errors.
+// So, converting the scatter_nd to Opaque to prevent compilation failures
 RELAY_REGISTER_OP("scatter_nd")
     .describe(R"code(Scatter elements or slices from data and store to a tensor
 whose shape is defined by indices.
@@ -1158,7 +1161,7 @@ Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}) and indices with sh
     .add_argument("indices", "Tensor", "The indices tensor.")
     .set_support_level(3)
     .add_type_rel("ScatterND", ScatterNDRel)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
