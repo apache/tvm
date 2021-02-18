@@ -25,7 +25,6 @@ from tvm.topi.utils import get_const_tuple
 import tvm.contrib.sparse as tvmsp
 from collections import namedtuple
 import time
-import scipy.sparse as sp
 import tvm.testing
 
 _sparse_dense_implement = {
@@ -248,6 +247,8 @@ def test_dense():
 
 
 def test_sparse_dense_csr():
+    import scipy.sparse as sp
+
     M, N, K, density = 1, 17, 47, 0.2
     X_np = np.random.randn(M, K).astype("float32")
     W_sp_np = sp.random(N, K, density=density, format="csr", dtype="float32")

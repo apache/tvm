@@ -107,6 +107,18 @@ where
         let oref: ObjectRef = map_get_item(self.object.clone(), key.upcast())?;
         oref.downcast()
     }
+
+    pub fn empty() -> Self {
+        Self::from_iter(vec![].into_iter())
+    }
+
+    //(@jroesch): I don't think this is a correct implementation.
+    pub fn null() -> Self {
+        Map {
+            object: ObjectRef::null(),
+            _data: PhantomData,
+        }
+    }
 }
 
 pub struct IntoIter<K, V> {

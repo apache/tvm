@@ -17,8 +17,6 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """CUDA specific declaration and schedules."""
-from __future__ import absolute_import as _abs
-
 from .conv1d import *
 from .conv1d_transpose_ncw import *
 from .conv2d import *
