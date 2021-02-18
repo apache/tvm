@@ -58,6 +58,11 @@ TypedPackedFunc<int64_t()> DefaultTimer(TVMContext ctx);
  * TVMContext and return a new function. The new function should return the
  * elapsed time between the first and second call in nanoseconds.
  *
+ * Note that timers are specific to a context (and by extension device stream).
+ * The code being timed should run on the specific context only, otherwise you
+ * may get mixed results. Furthermore, the context should not be modified
+ * between the start and end of the timer (i.e. do not call TVMDeviceSetStream).
+ *
  * Example usage:
  * \code{.cpp}
  * auto timer_stop = StartTimer(TVMContext::cpu());
