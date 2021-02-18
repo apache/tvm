@@ -18,7 +18,6 @@
 """Sort related operators """
 import tvm
 from tvm import te
-from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose

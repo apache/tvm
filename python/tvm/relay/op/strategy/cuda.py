@@ -21,7 +21,6 @@ from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust
-from tvm._ffi import get_global_func
 from .generic import *
 from .. import op as _op
 
