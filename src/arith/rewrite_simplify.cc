@@ -1598,10 +1598,15 @@ PrimExpr RewriteSimplifier::operator()(const PrimExpr& expr) {
   // Run simplification in post order
   PrimExpr res = expr;
   int max_iter = 2;
-  for (int i = 0; i < max_iter; ++i) {
-    PrimExpr new_expr = impl_->operator()(res);
-    if (new_expr.same_as(res)) return res;
-    res = new_expr;
+  // same as kMaxFusedOps.
+  // avoid long compile time of tflite quantized model
+  constexpr static size_t kMaxPrimOps = 256;
+  if (CalculateExprComplexity(expr) < kMaxPrimOps) {
+    for (int i = 0; i < max_iter; ++i) {
+      PrimExpr new_expr = impl_->operator()(res);
+      if (new_expr.same_as(res)) return res;
+      res = new_expr;
+    }
   }
   return res;
 }

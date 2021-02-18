@@ -141,6 +141,12 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  */
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
+/*!
+ * \brief Calculate the expresion complexity based on number of symbols it contains.
+ * \param expr The expr to be calculated.
+ */
+TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
+
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
 namespace transform {
