@@ -193,7 +193,7 @@ def test_llvm_link_params():
             # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
             # against one another.
             temp_dir = tempfile.mkdtemp()
-            export_file = os.path.join(temp_dir, 'lib.so')
+            export_file = os.path.join(temp_dir, "lib.so")
             lib.lib.export_library(export_file)
             mod = tvm.runtime.load_module(export_file)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded

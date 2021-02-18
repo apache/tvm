@@ -81,7 +81,6 @@ class Compiler(metaclass=abc.ABCMeta):
         target_strs = set()
 
         for obj in sources:
-            print("read", obj)
             if os.path.splitext(obj)[1] not in (".cc", ".c"):
                 continue
 
