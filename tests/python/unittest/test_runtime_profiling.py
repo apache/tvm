@@ -14,19 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM runtime namespace."""
+import tvm
+import time
 
-# class exposures
-from .packed_func import PackedFunc
-from .object import Object
-from .object_generic import ObjectGeneric, ObjectTypes
-from .ndarray import NDArray, DataType, DataTypeCode, TVMContext
-from .module import Module
-
-# function exposures
-from .object_generic import convert_to_object, convert, const
-from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, ext_dev, micro_dev
-from .module import load_module, enabled, system_lib
-from .container import String
-from .profiling import start_timer
+@tvm.testing.parametrize_targets
+def test_cpu_timer(target, ctx):
+    timer_stop = tvm.runtime.start_timer(ctx)
+    time.sleep(1e-3)
+    nanosecs = timer_stop()
+    assert nanosecs < 2e6 and nanosecs > 5e5

@@ -25,6 +25,7 @@
 #include <cuda_runtime.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstring>
@@ -239,6 +240,25 @@ TVM_REGISTER_GLOBAL("device_api.gpu").set_body([](TVMArgs args, TVMRetValue* rv)
 TVM_REGISTER_GLOBAL("device_api.cpu_pinned").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
+});
+
+TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](TVMContext ctx) {
+  cudaEvent_t start;
+  cudaEvent_t stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  cudaEventRecord(start, CUDAThreadEntry::ThreadLocal()->stream);
+  return TypedPackedFunc<int64_t()>(
+      [=]() -> int64_t {
+        cudaEventRecord(stop, CUDAThreadEntry::ThreadLocal()->stream);
+        cudaEventSynchronize(stop);
+        float milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, start, stop);
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+        return milliseconds * 1e6;
+      },
+      "profiling.timer.gpu.stop");
 });
 
 }  // namespace runtime

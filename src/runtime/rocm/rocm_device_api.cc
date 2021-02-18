@@ -200,5 +200,24 @@ TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv
   DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+TVM_REGISTER_GLOBAL("profiling.timer.rocm").set_body_typed([](TVMContext ctx) {
+  hipEvent_t start;
+  hipEvent_t stop;
+  hipEventCreate(&start);
+  hipEventCreate(&stop);
+  hipEventRecord(start, ROCMThreadEntry::ThreadLocal()->stream);
+  return TypedPackedFunc<int64_t()>(
+      [=]() -> int64_t {
+        hipEventRecord(stop, ROCMThreadEntry::ThreadLocal()->stream);
+        hipEventSynchronize(stop);
+        float milliseconds = 0;
+        hipEventElapsedTime(&milliseconds, start, stop);
+        hipEventDestroy(start);
+        hipEventDestroy(stop);
+        return milliseconds * 1e6;
+      },
+      "profiling.timer.gpu.stop");
+});
 }  // namespace runtime
 }  // namespace tvm

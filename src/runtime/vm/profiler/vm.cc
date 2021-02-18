@@ -24,6 +24,7 @@
 
 #include "vm.h"
 
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -120,14 +121,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
 
   TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
 
-  auto op_begin = std::chrono::high_resolution_clock::now();
+  auto timer_stop = StartTimer(ctx);
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-  auto op_end = std::chrono::high_resolution_clock::now();
-  double op_duration =
-      std::chrono::duration_cast<std::chrono::duration<double>>(op_end - op_begin).count();
+  int64_t op_duration = timer_stop();
 
-  op_durations_[packed_index].push_back(op_duration * 1e6);
+  op_durations_[packed_index].push_back(op_duration / 1e3);
   op_invokes_[packed_index] += 1;
 }
 

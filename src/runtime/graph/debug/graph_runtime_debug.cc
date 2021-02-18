@@ -23,6 +23,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <chrono>
@@ -148,14 +149,11 @@ class GraphRuntimeDebug : public GraphRuntime {
   }
 
   double RunOpHost(int index) {
-    auto op_tbegin = std::chrono::high_resolution_clock::now();
-    op_execs_[index]();
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-    auto op_tend = std::chrono::high_resolution_clock::now();
-    double op_duration =
-        std::chrono::duration_cast<std::chrono::duration<double> >(op_tend - op_tbegin).count();
-    return op_duration;
+    auto timer_stop = StartTimer(ctx);
+    op_execs_[index]();
+    int64_t duration = timer_stop();
+    return duration / 1e9;
   }
 
   /*!
