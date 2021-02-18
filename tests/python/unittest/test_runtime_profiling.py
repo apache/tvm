@@ -17,6 +17,7 @@
 import tvm
 import time
 
+
 @tvm.testing.parametrize_targets
 def test_cpu_timer(target, ctx):
     timer_stop = tvm.runtime.start_timer(ctx)

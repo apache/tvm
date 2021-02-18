@@ -17,6 +17,7 @@
 """Runtime profiling functions."""
 import tvm._ffi
 
+
 def start_timer(ctx):
     """
     Start a low-overhead device specific timer.
@@ -43,6 +44,9 @@ def start_timer(ctx):
           x += 1
         nanosecs = timer_stop()  # elapsed time in nanoseconds
     """
-    raise RuntimeError("Profiling functions not loaded from runtime. Are you sure the runtime was built?")
+    raise RuntimeError(
+        "Profiling functions not loaded from runtime. Are you sure the runtime was built?"
+    )
+
 
 tvm._ffi._init_api("profiling", "tvm.runtime.profiling")
