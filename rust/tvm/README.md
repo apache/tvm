@@ -17,7 +17,7 @@
 
 # TVM
 
-This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/tvm).
+This crate provides an idiomatic Rust API for [Apache TVM](https://github.com/apache/tvm).
 The code works on **Stable Rust** and is tested against `rustc 1.47`.
 
 You can find the API Documentation [here](https://tvm.apache.org/docs/api/rust/tvm/index.html).
@@ -52,3 +52,7 @@ and usage is welcome and encouraged. If you want to discuss design issues check 
 Please follow the TVM [install](https://tvm.apache.org/docs/install/index.html) instructions, `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
 
 *Note:* To run the end-to-end examples and tests, `tvm` and `topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed individually.
+
+### Disclaimers
+
+*Apache TVM is a top level project from the Apache software foundation. Please refer to the official Apache TVM website for Apache source releases. Apache TVM, Apache, the Apache feather, and the Apache TVM project logo are either trademarks or registered trademarks of the Apache Software Foundation.*

@@ -287,7 +287,7 @@ impl NDArray {
         check_call!(ffi::TVMArrayCopyFromBytes(
             self.as_raw_dltensor(),
             data.as_ptr() as *mut _,
-            data.len() * mem::size_of::<T>()
+            (data.len() * mem::size_of::<T>()) as _,
         ));
     }
 
@@ -296,7 +296,7 @@ impl NDArray {
         check_call!(ffi::TVMArrayCopyToBytes(
             self.as_raw_dltensor(),
             data.as_ptr() as *mut _,
-            self.size(),
+            self.size() as _,
         ));
     }
 
