@@ -201,7 +201,6 @@ def test_bias_add():
             np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol)
 
 
-@pytest.mark.xfail
 def test_bias_add_type_failure():
     # the axis is out of range
     try:
