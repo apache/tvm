@@ -19,7 +19,7 @@
 
 from __future__ import absolute_import as _abs
 from tvm.relay.expr import Tuple, TupleWrapper
-from tvm.relay.op.nn.util import get_pad_tuple2d
+from tvm.relay.op.nn.utils import get_pad_tuple2d
 from ... import op as reg
 from ...op import OpPattern
 from . import _make
