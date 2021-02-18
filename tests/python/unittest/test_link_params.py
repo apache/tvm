@@ -21,6 +21,7 @@ import os
 import re
 import struct
 import sys
+import tempfile
 
 import numpy as np
 import pytest
@@ -188,23 +189,29 @@ def test_llvm_link_params():
         target = "llvm --runtime=c --system-lib --link-params"
         with tvm.transform.PassContext(opt_level=3):
             lib = tvm.relay.build(mod, target, params=param_init)
-            print("mod", lib.lib.get_source())
+
+            # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
+            # against one another.
+            temp_dir = tempfile.mkdtemp()
+            export_file = os.path.join(temp_dir, 'lib.so')
+            lib.lib.export_library(export_file)
+            mod = tvm.runtime.load_module(export_file)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
-            assert lib.lib.get_function("TVMSystemLibEntryPoint") != None
+            assert mod.get_function("TVMSystemLibEntryPoint") != None
 
             graph = json.loads(lib.graph_json)
             for p in lib.params:
-                _verify_linked_param(dtype, lib, lib.lib, graph, p) or found_one
+                _verify_linked_param(dtype, lib, mod, graph, p) or found_one
 
             # Wrap in function to explicitly deallocate the runtime.
-            def _run_linked(lib):
-                graph_json, mod, _ = lib
+            def _run_linked(lib, mod):
+                graph_json, _, _ = lib
                 graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
                 return graph_rt.get_output(0)
 
-            linked_output = _run_linked(lib)
+            linked_output = _run_linked(lib, mod)
 
         with tvm.transform.PassContext(opt_level=3):
             lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
