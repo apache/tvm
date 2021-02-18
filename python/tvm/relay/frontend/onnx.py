@@ -40,8 +40,10 @@ from .common import infer_type, get_name
 
 __all__ = ["from_onnx"]
 
+
 class ONNXAttrError(Exception):
     pass
+
 
 class onnx_input:
     """ Dual purpose list or dictionary access object."""
@@ -109,6 +111,7 @@ def get_type(elem_type):
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
     from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
     return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
@@ -449,9 +452,15 @@ class ConvTranspose(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
-        channels = infer_channels(inputs[1], True)
+        out_type = infer_type(inputs[1])
+        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+        channels = out_shapes[0][1]
         attr["channels"] = channels
         groups = attr.get("group", 1)
+
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = out_shapes[0][2:]
+
         attr["groups"] = groups
         # infer pads for auto_pad
         data = inputs[0]
@@ -1124,6 +1133,7 @@ class Cast(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         try:
             from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
             attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
         except ImportError as e:
             raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
