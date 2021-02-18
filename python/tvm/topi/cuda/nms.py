@@ -21,7 +21,6 @@ import tvm
 from tvm import te
 from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from tvm.tir import if_then_else
-
 from .sort import argsort, argsort_thrust
 from .scan import exclusive_scan
 from ..utils import ceil_div
