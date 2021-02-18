@@ -3327,6 +3327,38 @@ def test_forward_scatter():
     verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], targets)
 
 
+def test_forward_index_put():
+    # torch.index_put for 2D tensor and default accumulate (False)
+    def test_fn_index_put2():
+        return lambda data, xidx, yidx, values: torch.index_put(
+            data, indices=[xidx, yidx], values=values
+        )
+
+    # torch.index_put for 3D tensor and accumulate=True
+    def test_fn_index_put3a():
+        return lambda data, xidx, yidx, zidx, values: torch.index_put(
+            data, indices=[xidx, yidx, zidx], values=values, accumulate=True
+        )
+
+    shape = (3, 5)
+    in_data = torch.zeros(shape)
+    xidx = torch.tensor([0, 1, 2, 2])
+    yidx = torch.tensor([0, 1, 3, 4])
+    values = torch.tensor([2.0, 4.0, 7.0, 9.0])
+
+    targets = ["llvm", "cuda"]
+    verify_trace_model(test_fn_index_put2(), [in_data, xidx, yidx, values], targets)
+
+    shape = (3, 5, 3)
+    in_data = torch.zeros(shape)
+    xidx = torch.tensor([0, 1, 2, 2, 0])
+    yidx = torch.tensor([0, 1, 3, 4, 0])
+    zidx = torch.tensor([0, 1, 1, 2, 0])
+    values = torch.tensor([2.0, 4.0, 7.0, 9.0, 1.0])
+
+    verify_trace_model(test_fn_index_put3a(), [in_data, xidx, yidx, zidx, values], targets)
+
+
 def test_numel():
     class Numel(Module):
         def forward(self, data):
