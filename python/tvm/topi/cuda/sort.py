@@ -879,10 +879,3 @@ def stable_sort_by_key_thrust(keys, values, for_scatter=False):
         tag="stable_sort_by_key",
     )
     return out[0], out[1]
-
-
-def is_thrust_available():
-    """
-    Test if thrust based sorting ops are available.
-    """
-    return get_global_func("tvm.contrib.thrust.sort", allow_missing=True) is not None
