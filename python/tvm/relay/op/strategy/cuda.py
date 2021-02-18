@@ -945,12 +945,20 @@ def roi_align_strategy_cuda(attrs, inputs, out_type, target):
     """roi_align cuda strategy"""
     strategy = _op.OpStrategy()
     layout = attrs.layout
-    assert layout == "NCHW", "only support nchw for now"
-    strategy.add_implementation(
-        wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_roi_align),
-        name="roi_align_nchw.cuda",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_roi_align),
+            name="roi_align_nchw.cuda",
+        )
+    else:
+        assert layout == "NHWC", "layout must be NCHW or NHWC."
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.vision.rcnn.roi_align_nhwc),
+            wrap_topi_schedule(topi.cuda.schedule_roi_align),
+            name="roi_align_nhwc.cuda",
+        )
     return strategy
 
 
