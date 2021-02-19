@@ -44,11 +44,12 @@ TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx) {
 
 TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
   auto start = std::chrono::steady_clock::now();
-  return TypedPackedFunc<int64_t()>(
-      [=]() -> int64_t {
+  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
+      [=]() {
         auto stop = std::chrono::steady_clock::now();
         std::chrono::duration<int64_t, std::nano> duration = stop - start;
-        return duration.count();
+        return TypedPackedFunc<int64_t()>([=]() -> int64_t { return duration.count(); },
+                                          "profiling.timer.cpu.get_time");
       },
       "profiling.timer.cpu.stop");
 });
