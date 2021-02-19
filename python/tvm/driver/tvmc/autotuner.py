@@ -29,7 +29,7 @@ from tvm.autotvm.tuner import GridSearchTuner
 from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 
-from . import common, frontends
+from . import common, composite_target, frontends
 from .common import TVMCException
 from .main import register_parser
 
@@ -241,8 +241,13 @@ def drive_tune(args):
                 "need to provide an RPC tracker key (--rpc-key) for remote tuning"
             )
 
-    target = common.target_from_cli(args.target)
+    target, extra_targets = common.target_from_cli(args.target)
     mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
+
+    for codegen_from_cli in extra_targets:
+        codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
+        partition_function = codegen["pass_pipeline"]
+        mod = partition_function(mod, params)
 
     # min_repeat_ms should be:
     # a. the value provided by the user, if any, or
