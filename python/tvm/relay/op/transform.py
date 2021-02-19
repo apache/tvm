@@ -1412,7 +1412,8 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
 
 def sparse_reshape(sparse_indices, prev_shape, new_shape):
     """
-    Reshape a Sparse Tensor
+    Reshape a Sparse Tensor. The sparse array is in COO format.
+
     Parameters
     ----------
     sparse_indices : relay.Expr
