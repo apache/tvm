@@ -210,6 +210,15 @@ def test_target_host_single_string_with_tag():
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
+def test_target_host_warning():
+    """
+    Confirm that constructing a target with invalid
+    attributes fails as expected.
+    """
+    with pytest.raises(ValueError):
+        tgt = tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()
