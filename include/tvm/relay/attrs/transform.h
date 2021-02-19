@@ -452,6 +452,14 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   }
 };
 
+/*! \brief Attributes used in unique operator */
+struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
+  bool sorted;
+  TVM_DECLARE_ATTRS(UniqueAttrs, "relay.attrs.UniqueAttrs") {
+    TVM_ATTR_FIELD(sorted).describe("Whether the unique elements are sorted").set_default(true);
+  }
+};  // struct UniqueAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

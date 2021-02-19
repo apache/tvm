@@ -4842,6 +4842,8 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 #######################################################################
 # Unique
 # ------------
+
+
 def _test_unique(n, dtype, is_dyn):
     """ One iteration of a Stridedslice """
 

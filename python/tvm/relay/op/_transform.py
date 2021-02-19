@@ -28,7 +28,6 @@ from tvm.topi.utils import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
-from .op import register_strategy, register_pattern
 from ._tensor import elemwise_shape_func
 
 _reg.register_broadcast_schedule("broadcast_to")
@@ -142,6 +141,15 @@ def compute_cumsum(attrs, inputs, output_type):
 
 _reg.register_strategy("cumsum", strategy.cumsum_strategy)
 _reg.register_shape_func("cumsum", False, elemwise_shape_func)
+
+
+@_reg.register_compute("unique")
+def compute_unique(attrs, inputs, output_type):
+    """Compute definition of cumsum"""
+    return topi.unique(inputs[0], attrs.sorfted)
+
+
+_reg.register_strategy("unique", strategy.unique_strategy)
 
 #####################
 #  Shape functions  #
@@ -949,22 +957,15 @@ def where_shape_func(attrs, inputs, _):
     return [out_shape]
 
 
-register_strategy("unique", strategy.unique_strategy)
-register_pattern("unique", OpPattern.OPAQUE)
-
-
 @script
-def _unique_shape_1(data_shape):
-    shape_tensor = output_tensor((1,), "int64")
-    shape_tensor[0] = int64(data_shape[0])
-    return shape_tensor
-
-
-@script
-def _unique_shape_2(inputs):
-    shape_tensor = output_tensor((1,), "int64")
-    shape_tensor[0] = int64(1)
-    return shape_tensor
+def _unique_shape(data_shape):
+    unique_shape = output_tensor((1,), "int64")
+    indices_shape = output_tensor((1,), "int64")
+    num_unique_shape = output_tensor((1,), "int64")
+    unique_shape[0] = data_shape[0]
+    indices_shape[0] = data_shape[0]
+    num_unique_shape[0] = int64(1)
+    return (unique_shape, indices_shape, num_unique_shape)
 
 
 @_reg.register_shape_func("unique", False)
@@ -972,9 +973,4 @@ def unique_shape_func(attrs, inputs, _):
     """
     Shape func for unique operator.
     """
-    return [
-        _unique_shape_1(inputs[0]),
-        _unique_shape_1(inputs[0]),
-        _unique_shape_1(inputs[0]),
-        _unique_shape_2(inputs[0]),
-    ]
+    return _unique_shape(inputs[0])

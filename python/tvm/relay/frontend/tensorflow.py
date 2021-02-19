@@ -2327,10 +2327,13 @@ def _LSTMBlockCell():
 def _unique():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 1
-        x = inputs[0]
-        [output, indices, counts, num_uniq] = _op.unique(x)
-        output_sliced = _op.strided_slice(output, begin=[0], end=num_uniq, slice_mode="size")
-        return [output_sliced, indices]
+        data = inputs[0]
+        [unique, indices, num_uniq] = _op.unique(data, is_sorted=False)
+        unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+        return _expr.TupleWrapper(
+            _expr.Tuple([unique_sliced, indices]),
+            2,
+        )
 
     return _impl
 

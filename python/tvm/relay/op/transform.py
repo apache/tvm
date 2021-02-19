@@ -1465,30 +1465,34 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
     return _make.cumsum(data, axis, dtype, exclusive)
 
 
-def unique(data):
+def unique(data, is_sorted=True):
     """
     Find the unique elements of a tensor
     Parameters
     ----------
     data : relay.Expr
         A 1-D tensor of integers
+    sorted : bool
+        Whether to sort the unique elements in ascending order before returning as output
     Returns
     -------
     output : relay.Expr
-        A 1-D tensor containing the unique elements of data tensor
-    inverse_indices : relay.Expr
-        A 1-D tensor containing the index of each value of data tensor in output tensor
-    counts : relay.Expr
-        A 1-D tensor containing the count of each element of output tensor in data tensor
-    num_unique_elements : relay.Expr
-        A 0-D tensor containing the number of unique elements in data tensor
+        A 1-D tensor containing the unique elements of the input data tensor
+    indices : relay.Expr
+        A 1-D tensor containing the index of each data element in the output tensor
+    num_unique : relay.Expr
+        A 0-D tensor containing the number of unique elements in the input data tensor
     Examples
     --------
     .. code-block:: python
-        [y, idx, counts, n] = unique([1, 1, 2, 4, 4, 4, 7, 8, 8])
-        y     =  [1, 2, 4, 7, 8, ?, ?, ?, ?]
-        idx   =  [0, 0, 1, 2, 2, 2, 3, 4, 4]
-        count =  [2, 1, 3, 1, 2, ?, ?, ?, ?]
-        n     =  [5]
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=True)
+        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
+        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique     =  [5]
     """
-    return TupleWrapper(_make.unique(data), 4)
+    return TupleWrapper(_make.unique(data, is_sorted), 3)
