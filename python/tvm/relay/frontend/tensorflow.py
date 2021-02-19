@@ -268,6 +268,13 @@ def _pooling(name):
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
             attr["padding"] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 8
+            if flip_layout or attr["data_format"] == "NHWC":
+                attr["padding"] = [paddings[2], paddings[4], paddings[3], paddings[5]]
+            else:
+                attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
             msg = 'Value {} in attribute "padding" of operator Pooling is ' "not valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -418,6 +425,13 @@ def _conv(opname):
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             attr["padding"] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 8
+            if flip_layout or attr["data_format"] == "NHWC":
+                attr["padding"] = [paddings[2], paddings[4], paddings[3], paddings[5]]
+            else:
+                attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -626,7 +640,27 @@ def _conv3d(opname):
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             attr["padding"] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
-
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 10
+            if flip_layout or attr["data_format"] == "NDHWC":
+                attr["padding"] = [
+                    paddings[2],
+                    paddings[4],
+                    paddings[6],
+                    paddings[3],
+                    paddings[5],
+                    paddings[7],
+                ]
+            else:
+                attr["padding"] = [
+                    paddings[4],
+                    paddings[6],
+                    paddings[8],
+                    paddings[5],
+                    paddings[7],
+                    paddings[9],
+                ]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
