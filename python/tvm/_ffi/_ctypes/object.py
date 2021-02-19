@@ -106,6 +106,11 @@ class ObjectBase(object):
 
     def __del__(self):
         if _LIB is not None:
+            try:
+                handle = self.handle
+            except AttributeError:
+                return
+
             check_call(_LIB.TVMObjectFree(self.handle))
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
