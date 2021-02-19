@@ -1665,9 +1665,15 @@ RELAY_REGISTER_OP("sparse_reshape")
     .describe(R"code(Return new sparse indices of the reshaped tensor
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
-    .add_argument("sparse_indices", "Tensor", "The first tensor")
-    .add_argument("prev_shape", "Tensor", "The second tensor")
-    .add_argument("new_shape", "Tensor", "The third tensor")
+    .add_argument("sparse_indices", "Tensor",
+                  "A 2-D tensor of shape [N, ndims], which specifies the indices of the"
+                  "elements in the sparse tensor that contain nonzero values.  COO Format")
+    .add_argument("prev_shape", "Tensor",
+                  "A 1-D tensor of shape [ndims], which specifies the previous dense shape of the"
+                  "sparse tensor")
+    .add_argument("new_shape", "Tensor",
+                  "A 1-D tensor of shape [ndims], which specifies the desired dense shape of the"
+                  "sparse tensor")
     .add_type_rel("sparse_reshape", SparseReshapeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3);
