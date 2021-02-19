@@ -4088,6 +4088,8 @@ def test_onnx_nodes():
     tests = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
     failures = 0
     for n, test in enumerate(tests):
+        #if "gather" not in test:
+        #    continue
         print(n, test)
         if ("cast" in test and "FLOAT16" in test) or "test_slice_start_out_of_bounds" in test: 
             print("FAILURE: SKIPPING due to segfault")
@@ -4118,12 +4120,11 @@ def test_onnx_nodes():
         except tvm.error.OpNotImplemented as e:
             print("WARNING, missing Op:", e)
         except NotImplementedError as e:
-            print("WARNING, missing implementation:", e)
+            print("WARNING, missing implementation in Op:", e)
         except Exception as e:
             print("------------------TEST FAILURE--------------------")
             print(e)
             #raise e
-    #raise
 
 def test_wrong_input():
     node = helper.make_node(

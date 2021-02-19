@@ -1265,7 +1265,13 @@ class Gather(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 0)
-        return AttrCvt("take", extras={"axis": axis})(inputs, {})
+        data = inputs[0]
+        indices = inputs[1]
+        ind_dtype = infer_type(indices).checked_type.dtype
+        # Normalize the indices to a positive range
+        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
+        return _op.take(data, indices, axis)
 
 
 class GatherElements(OnnxOpConverter):
@@ -1276,6 +1282,10 @@ class GatherElements(OnnxOpConverter):
         data = inputs[0]
         indices = inputs[1]
         axis = attr.get("axis", 0)
+        ind_dtype = infer_type(indices).checked_type.dtype
+        # Normalize the indices to a positive range
+        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
         return _op.gather(data, axis, indices)
 
 
@@ -2454,9 +2464,8 @@ class NonMaxSuppression(OnnxOpConverter):
         dtype = infer_type(boxes).checked_type.dtype
 
         if "center_point_box" in attr:
-            assert (
-                attr["center_point_box"] == 0
-            ), "Only support center_point_box = 0 in onnx importer right now"
+            if  attr["center_point_box"] != 0:
+                raise NotImplementedError("Only support center_point_box = 0 in ONNX NonMaxSuprresion")
 
         if iou_threshold is None:
             iou_threshold = _expr.const(0.0, dtype="float32")
