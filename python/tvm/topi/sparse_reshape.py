@@ -1,0 +1,138 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
+"""Scatter operator"""
+from ..tir import decl_buffer, ir_builder, Cast, AssertStmt, StringImm, Evaluate
+from ..te import extern, hybrid, div, floordiv, floormod
+
+
+def sparse_reshape(
+    sparse_indices,
+    prev_shape,
+    new_shape,
+    new_sparse_indices_shape,
+    new_shape_shape,
+):
+    def gen_ir(
+        sparse_indices_ptr,
+        prev_shape_ptr,
+        new_shape_ptr,
+        new_sparse_indices_ptr,
+        out_new_shape_ptr,
+    ):
+        ib = ir_builder.create()
+
+        sparse_indices = ib.buffer_ptr(sparse_indices_ptr)
+        prev_shape = ib.buffer_ptr(prev_shape_ptr)
+
+        new_shape = ib.buffer_ptr(new_shape_ptr)
+        out_new_shape = ib.buffer_ptr(out_new_shape_ptr)
+        new_sparse_indices = ib.buffer_ptr(new_sparse_indices_ptr)
+        out_new_shape = ib.buffer_ptr(out_new_shape_ptr)
+
+        prev_shape_size = prev_shape_ptr.shape[0]
+        new_shape_size = new_shape_ptr.shape[0]
+
+        multipliers = ib.allocate("int64", (prev_shape_size,), name="multipliers", scope="local")
+        dividers = ib.allocate("int64", (new_shape_size,), name="dividers", scope="local")
+        flattened_indices = ib.allocate(
+            "int64", (sparse_indices_ptr.shape[0],), name="flattened_indices", scope="local"
+        )
+
+        total_ele = ib.allocate("int64", (1,), name="total_ele", scope="local")
+        total_ele[0] = prev_shape[0]
+
+        # Cumulative Reverse Exclusive Multiply
+        multipliers[prev_shape_size - 1] = Cast("int64", 1)
+        with ib.for_range(0, prev_shape_size - 1) as i_:
+            i = i_ + 1
+            multipliers[prev_shape_size - 1 - i] = (
+                prev_shape[prev_shape_size - i] * multipliers[prev_shape_size - i]
+            )
+            total_ele[0] *= prev_shape[prev_shape_size - i]
+
+        division_total_ele = ib.allocate("int64", (1,), name="division_total_ele", scope="local")
+        division_total_ele[0] = Cast("int64", 1)
+        with ib.for_range(0, new_shape_size) as i:
+            with ib.if_scope(new_shape[i] != -1):
+                division_total_ele[0] *= new_shape[i]
+
+        # Compute true output shape (replace negative ones)
+        with ib.for_range(0, new_shape_size) as i:
+            with ib.if_scope(new_shape[i] == -1):
+                # if Cast("int64", new_shape[i]) == Cast("int64", -1):
+                out_new_shape[i] = Cast("int64", div(total_ele[0], division_total_ele[0]))
+            with ib.else_scope():
+                out_new_shape[i] = new_shape[i]
+
+        equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="local")
+
+        # Check if prev_shape and new_shape are equal
+        equal_shape[0] = True
+        with ib.if_scope(prev_shape_size == new_shape_size):
+            with ib.for_range(0, prev_shape_size) as i:
+                with ib.if_scope(prev_shape[i] != out_new_shape[i]):
+                    equal_shape[0] = False
+        with ib.else_scope():
+            equal_shape[0] = False
+
+        # Return same inputs if shapes are equal
+        with ib.if_scope(equal_shape[0]):
+            with ib.for_range(0, sparse_indices_ptr.shape[0]) as i:
+                with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
+                    new_sparse_indices[i, j] = sparse_indices[i, j]
+
+        # Else compute new_sparse_indices
+        with ib.else_scope():
+            dividers[new_shape_size - 1] = Cast("int64", 1)
+            with ib.for_range(0, new_shape_size - 1) as i_:
+                i = i_ + 1
+                dividers[new_shape_size - 1 - i] = (
+                    dividers[new_shape_size - i] * out_new_shape[new_shape_size - i]
+                )
+
+            with ib.for_range(0, sparse_indices_ptr.shape[0]) as i:
+                flattened_indices[i] = Cast("int64", 0)
+                with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
+                    flattened_indices[i] += sparse_indices[i, j] * multipliers[j]
+
+            with ib.for_range(0, new_sparse_indices_ptr.shape[0]) as i:
+                current_element = ib.allocate("int64", (1,), name="current_element", scope="local")
+                current_element[0] = flattened_indices[i]
+
+                with ib.for_range(0, new_sparse_indices_ptr.shape[1]) as j:
+                    new_sparse_indices[i, j] = Cast(
+                        "int64", floordiv(current_element[0], dividers[j])
+                    )
+                    current_element[0] = floormod(current_element[0], dividers[j])
+
+        return ib.get()
+
+    new_sparse_indices_buf = decl_buffer(
+        new_sparse_indices_shape, "int64", "new_sparse_indices_buf"
+    )
+    new_shape_buf = decl_buffer(new_shape_shape, "int64", "new_shape_buf")
+
+    return extern(
+        [new_sparse_indices_shape, new_shape_shape],
+        [sparse_indices, prev_shape, new_shape],
+        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], outs[1]),
+        dtype="int64",
+        out_buffers=[new_sparse_indices_buf, new_shape_buf],
+        name="sparse_reshape",
+        tag="sparse_reshape",
+    )

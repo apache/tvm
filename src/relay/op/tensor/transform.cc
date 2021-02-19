@@ -1628,6 +1628,57 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
+bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // types: [sparse_indices, prev_shape, new_shape, result]
+  ICHECK_EQ(types.size(), 4) << "SparseReshapeRel expects 4 types but " << types.size()
+                             << " provided";
+  ICHECK_EQ(num_inputs, 3) << "SparseReshapeRel expects 4 inputs but " << num_inputs << " provided";
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto prev_shape = types[1].as<TensorTypeNode>();
+  auto new_shape = types[2].as<TensorTypeNode>();
+  if (sparse_indices == nullptr || prev_shape == nullptr || new_shape == nullptr) {
+    return false;
+  }
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+  CHECK(prev_shape->dtype.is_int()) << "prev_shape must be tensor of integers";
+  CHECK(new_shape->dtype.is_int()) << "new_shape must be tensor of integers";
+  ICHECK_EQ(sparse_indices->shape.size(), 2) << "sparse_indices must be 2-D tensor";
+  ICHECK_EQ(prev_shape->shape.size(), 1) << "prev_shape must be 1-D tensor";
+  ICHECK_EQ(new_shape->shape.size(), 1) << "new_shape must be 1-D tensor";
+  std::vector<Type> fields;
+  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
+  fields.push_back(TensorType(new_sparse_indices_shape, sparse_indices->dtype));
+  fields.push_back(TensorType(new_shape->shape, new_shape->dtype));
+  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+// Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+//                                        const Type& out_type) {
+//   ICHECK_EQ(inputs.size(), 3) << "SparseReshapeCompute expects 3 inputs but " << inputs.size() << "provided";
+//   return {topi::SparseReshape(inputs[0], inputs[1], inputs[2])};
+// }
+
+Expr MakeSparseReshape(Expr sparse_indices, Expr prev_shape, Expr new_shape) {
+  static const Op& op = Op::Get("sparse_reshape");
+  return Call(op, {sparse_indices, prev_shape, new_shape}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_reshape").set_body_typed(MakeSparseReshape);
+
+RELAY_REGISTER_OP("sparse_reshape")
+    .describe(R"code(Return new sparse indices of the reshaped tensor
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .add_argument("sparse_indices", "Tensor", "The first tensor")
+    .add_argument("prev_shape", "Tensor", "The second tensor")
+    .add_argument("new_shape", "Tensor", "The third tensor")
+    .add_type_rel("sparse_reshape", SparseReshapeRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_support_level(3);
+    // .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);
+
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 
