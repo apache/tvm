@@ -964,17 +964,6 @@ def test_forward_convolution3d():
         "NDHWC",
         add_shapes_to_graph_def=False,
     )
-    # Explicit padding
-    if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
-        _test_convolution3d(
-            "conv",
-            [4, 8, 8, 8, 16],
-            [1, 1, 1, 16, 32],
-            [1, 1, 1],
-            [1, 1, 1],
-            [[0, 0], [1, 0], [0, 1], [2, 3]],
-            "NDHWC",
-        )
 
 
 #######################################################################
