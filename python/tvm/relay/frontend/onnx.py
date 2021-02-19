@@ -1532,7 +1532,35 @@ class Softmax(OnnxOpConverter):
         # set default value when axis is not set in the model
         if "axis" not in attr:
             attr["axis"] = 1
-        return AttrCvt("softmax", transforms={"axis": ("axis", 1)})(inputs, attr, params)
+        axis = attr["axis"]
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = list(range(axis, ndim))
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        return e / _op.sum(e, axes, keepdims=True)
+
+
+class LogSoftmax(OnnxOpConverter):
+    """Operator converter for Softmax."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # set default value when axis is not set in the model
+        if "axis" not in attr:
+            attr["axis"] = 1
+        axis = attr["axis"]
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = list(range(axis, ndim))
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        s = _op.sum(e, axes, keepdims=True)
+        return x - m - _op.log(s)
 
 
 class OneHot(OnnxOpConverter):
@@ -2741,7 +2769,7 @@ def _get_convert_map(opset):
         "Softplus": Softplus.get_converter(opset),
         # softmax default axis is different in onnx
         "Softmax": Softmax.get_converter(opset),
-        "LogSoftmax": AttrCvt("log_softmax", {"axis": ("axis", 1)}),
+        "LogSoftmax": LogSoftmax.get_converter(opset),
         "OneHot": OneHot.get_converter(opset),
         # 'Hardmax'
         "Softsign": Softsign.get_converter(opset),
