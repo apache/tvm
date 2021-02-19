@@ -120,7 +120,7 @@ _reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows
 def compute_reshape(attrs, inputs, output_type):
     """Compute definition of sparse_reshape"""
 
-    return topi.reshape(
+    return topi.sparse_reshape(
         inputs[0],
         inputs[1],
         inputs[2],
