@@ -44,19 +44,27 @@ namespace runtime {
  * Note that this timer performs synchronization between the device and CPU,
  * which can lead to overhead in the reported results.
  */
-TypedPackedFunc<int64_t()> DefaultTimer(TVMContext ctx);
+TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx);
 
 /*!
  * \brief Get a device specific timer.
  * \param ctx The device context to time.
  * \return A function, that when called starts a timer. The results from this
- *         function is another function that will stop the timer and return the elapsed
- *         time in nanoseconds.
+ *         function is another function that will stop the timer and return
+ *         another function that returns the elapsed time in nanoseconds. The
+ *         third function should be called as late as possible to avoid
+ *         synchronization overhead.
+ *
+ * This three function approach is complicated, but it is necessary to avoid
+ * synchronization overhead on GPUs. On GPUs, the first two function generate
+ * start and stop events respectively. The third function synchronizes the GPU
+ * with the CPU and gets the elapsed time between events.
  *
  * Users can register a timer for a device by registering a packed function
  * with the name "profiler.timer.device_name". This function should take a
- * TVMContext and return a new function. The new function should return the
- * elapsed time between the first and second call in nanoseconds.
+ * TVMContext and return a new function. The new function will stop the timer
+ * when called and returns a third function. The third function should return
+ * the elapsed time between the first and second call in nanoseconds.
  *
  * Note that timers are specific to a context (and by extension device stream).
  * The code being timed should run on the specific context only, otherwise you
@@ -67,10 +75,12 @@ TypedPackedFunc<int64_t()> DefaultTimer(TVMContext ctx);
  * \code{.cpp}
  * auto timer_stop = StartTimer(TVMContext::cpu());
  * my_long_running_function();
- * int64_t nanosecs = timer_stop(); // elapsed time in nanoseconds
+ * auto get_elapsed = timer_stop();
+ * ... // some more computation
+ * int64_t nanosecs = get_elapsed() // elapsed time in nanoseconds
  * \endcode
  */
-inline TypedPackedFunc<int64_t()> StartTimer(TVMContext ctx) {
+inline TypedPackedFunc<TypedPackedFunc<int64_t()>()> StartTimer(TVMContext ctx) {
   auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(ctx.device_type));
   if (f == nullptr) {
     return DefaultTimer(ctx);

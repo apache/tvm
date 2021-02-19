@@ -27,15 +27,17 @@
 
 namespace tvm {
 namespace runtime {
-TypedPackedFunc<int64_t()> DefaultTimer(TVMContext ctx) {
+TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx) {
   TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
   auto start = std::chrono::steady_clock::now();
-  return TypedPackedFunc<int64_t()>(
-      [=]() -> int64_t {
+  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
+      [=]() {
         TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
         auto stop = std::chrono::steady_clock::now();
         std::chrono::duration<int64_t, std::nano> duration = stop - start;
-        return duration.count();
+
+        return TypedPackedFunc<int64_t()>([=]() -> int64_t { return duration.count(); },
+                                          "profiling.timer.default.get_time");
       },
       "profiling.timer.default.stop");
 }

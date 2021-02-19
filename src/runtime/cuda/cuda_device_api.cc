@@ -248,15 +248,19 @@ TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](TVMContext ctx) {
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   cudaEventRecord(start, CUDAThreadEntry::ThreadLocal()->stream);
-  return TypedPackedFunc<int64_t()>(
-      [=]() -> int64_t {
+  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
+      [=]() {
         cudaEventRecord(stop, CUDAThreadEntry::ThreadLocal()->stream);
-        cudaEventSynchronize(stop);
-        float milliseconds = 0;
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        cudaEventDestroy(start);
-        cudaEventDestroy(stop);
-        return milliseconds * 1e6;
+        return TypedPackedFunc<int64_t()>(
+            [=]() -> int64_t {
+              cudaEventSynchronize(stop);
+              float milliseconds = 0;
+              cudaEventElapsedTime(&milliseconds, start, stop);
+              cudaEventDestroy(start);
+              cudaEventDestroy(stop);
+              return milliseconds * 1e6;
+            },
+            "profiling.timer.gpu.get_time");
       },
       "profiling.timer.gpu.stop");
 });

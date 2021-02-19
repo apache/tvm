@@ -206,18 +206,22 @@ TVM_REGISTER_GLOBAL("profiling.timer.rocm").set_body_typed([](TVMContext ctx) {
   hipEvent_t stop;
   hipEventCreate(&start);
   hipEventCreate(&stop);
-  hipEventRecord(start, ROCMThreadEntry::ThreadLocal()->stream);
-  return TypedPackedFunc<int64_t()>(
-      [=]() -> int64_t {
-        hipEventRecord(stop, ROCMThreadEntry::ThreadLocal()->stream);
-        hipEventSynchronize(stop);
-        float milliseconds = 0;
-        hipEventElapsedTime(&milliseconds, start, stop);
-        hipEventDestroy(start);
-        hipEventDestroy(stop);
-        return milliseconds * 1e6;
+  hipEventRecord(start, hipThreadEntry::ThreadLocal()->stream);
+  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
+      [=]() {
+        hipEventRecord(stop, hipThreadEntry::ThreadLocal()->stream);
+        return TypedPackedFunc<int64_t()>(
+            [=]() -> int64_t {
+              hipEventSynchronize(stop);
+              float milliseconds = 0;
+              hipEventElapsedTime(&milliseconds, start, stop);
+              hipEventDestroy(start);
+              hipEventDestroy(stop);
+              return milliseconds * 1e6;
+            },
+            "profiling.timer.rocm.get_time");
       },
-      "profiling.timer.gpu.stop");
+      "profiling.timer.rocm.stop");
 });
 }  // namespace runtime
 }  // namespace tvm

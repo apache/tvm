@@ -31,7 +31,10 @@ def start_timer(ctx):
     -------
     timer_start: function
         A function that stops the device specific timer. Calling this function
-        stops the timer and returns the elapsed time in nanoseconds.
+        stops the timer and returns another function that returns the elapsed
+        time in nanoseconds. This third function should be called as late as
+        possible to avoid synchronization overhead on GPUs.
+
     Example
     -------
     .. code-block:: python
@@ -42,7 +45,9 @@ def start_timer(ctx):
         x = 0
         for i in range(100000):
           x += 1
-        nanosecs = timer_stop()  # elapsed time in nanoseconds
+        elapsed = timer_stop()
+        # do some more stuff
+        print(elapsed())  # elapsed time in nanoseconds between timer_start and timer_stop
     """
     raise RuntimeError(
         "Profiling functions not loaded from runtime. Are you sure the runtime was built?"

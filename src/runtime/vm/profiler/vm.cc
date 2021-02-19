@@ -46,7 +46,15 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size(), 1U);
       std::vector<std::pair<Index, double>> op_acc_time;
+      std::unordered_map<Index, std::vector<double>> op_durations;
       for (auto kv : op_durations_) {
+        std::vector<double> durations;
+        for (auto f : kv.second) {
+          durations.push_back(f() / 1e3);
+        }
+        op_durations[kv.first] = durations;
+      }
+      for (auto kv : op_durations) {
         auto val =
             std::make_pair(kv.first, std::accumulate(kv.second.begin(), kv.second.end(), 0.0));
         op_acc_time.push_back(val);
@@ -67,7 +75,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
          << "#Duration(us): Sum/Mean/Min/Max" << std::endl;
 
       for (auto kv : op_acc_time) {
-        auto vals = op_durations_[kv.first];
+        auto vals = op_durations[kv.first];
         auto sum = kv.second;
         auto mean = sum / static_cast<double>(vals.size());
         auto min_value = *std::min_element(vals.begin(), vals.end());
@@ -123,9 +131,9 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
 
   auto timer_stop = StartTimer(ctx);
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  int64_t op_duration = timer_stop();
+  auto op_duration = timer_stop();
 
-  op_durations_[packed_index].push_back(op_duration / 1e3);
+  op_durations_[packed_index].push_back(op_duration);
   op_invokes_[packed_index] += 1;
 }
 
