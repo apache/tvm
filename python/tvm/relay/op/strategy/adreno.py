@@ -29,18 +29,34 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     stride_h, stride_w = attrs.get_int_tuple("strides")
     groups = attrs.groups
-    layout = attrs.data_layout
+    data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
+    assert out_type.dtype == "float16", "No float32 input/output tensor support is currently provided for Adreno GPU"
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
     if groups == 1:
-        if layout == "NCHW4c" and kernel_layout == "OIHW4o":
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
+                wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
+                name="conv2d_nchw_spatial_pack.mali",
+            )
+        elif data_layout == "NCHW4c" and kernel_layout == "OIHW4o":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.conv2d_nchwc),
                 wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc),
                 name="conv2d_nchwc.opencl",
+                plevel=10
             )
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.adreno.conv2d_nchwc_acc32),
+                wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc_acc32),
+                name="conv2d_nchwc_acc32.opencl",
+                plevel=20
+            )
+        else:
+            raise RuntimeError("Layout not supported: ("+data_layout+", "+kernel_layout+") - only support NCHW4c / OIHW4o layouts for conv2d")
     else:
         raise RuntimeError("group_conv2d is not yet supported for adreno")
     return strategy
