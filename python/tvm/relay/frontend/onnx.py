@@ -1349,8 +1349,8 @@ class Minimum(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+        if len(inputs) == 1:
+            return inputs[0]
         _min = inputs[0]
         for i in range(1, len(inputs)):
             _min = AttrCvt("minimum")([_min, inputs[i]], {})
@@ -1504,7 +1504,7 @@ class ArgMax(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if "select_last_index" in attr:
-            raise ONNXAttrError("select_last_index not supported in ArgMax")
+            raise NotImplementedError("select_last_index not supported in ArgMax")
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
@@ -1517,7 +1517,7 @@ class ArgMin(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if "select_last_index" in attr:
-            raise ONNXAttrError("select_last_index not supported in ArgMax")
+            raise NotImplementedError("select_last_index not supported in ArgMin")
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
@@ -1612,7 +1612,7 @@ class Constant(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
-            raise "No Value in Constant"
+            raise tvm.errors.OpAttributeRequired("no value in Constant")
         np_value = get_numpy(attr.pop("value"))
         dtype = np_value.dtype.name
         value = _expr.const(np_value, dtype)
@@ -2102,7 +2102,7 @@ class TopK(OnnxOpConverter):
         largest = attr.get("largest", 1)
 
         if largest == 0:
-            raise ValueError("TVM only supports finding TopK largest elements")
+            raise NotImplementedError("TVM only supports finding TopK largest elements")
 
         return _op.topk(inputs[0], inputs[1], axis=axis, dtype="int64")
 
@@ -2147,7 +2147,7 @@ class RoiAlign(OnnxOpConverter):
         batch_indices = inputs[2]
         mode = attr.get("mode", b"avg")
         if mode not in (b"avg", b"max"):
-            raise ValueError("RoiAlign in Relay only uses avg and max modes")
+            raise NotImplementedError("RoiAlign in Relay only uses avg and max modes")
         output_height = attr.get("output_height", 1)
         output_width = attr.get("output_width", 1)
 

@@ -4088,8 +4088,6 @@ def test_onnx_nodes():
     tests = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
     failures = 0
     for n, test in enumerate(tests):
-        #if "cumsum" not in test:
-        #    continue
         print(n, test)
         if ("cast" in test and "FLOAT16" in test) or "test_slice_start_out_of_bounds" in test: 
             print("FAILURE: SKIPPING due to segfault")
@@ -4117,6 +4115,10 @@ def test_onnx_nodes():
                 else:
                     for output, val in zip(outputs, tvm_val):
                         tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
+        except tvm.error.OpNotImplemented as e:
+            print("WARNING, missing Op:", e)
+        except NotImplementedError as e:
+            print("WARNING, missing implementation:", e)
         except Exception as e:
             print("------------------TEST FAILURE--------------------")
             print(e)
