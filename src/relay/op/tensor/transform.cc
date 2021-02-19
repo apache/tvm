@@ -1654,12 +1654,6 @@ bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& att
   return true;
 }
 
-// Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-//                                        const Type& out_type) {
-//   ICHECK_EQ(inputs.size(), 3) << "SparseReshapeCompute expects 3 inputs but " << inputs.size() << "provided";
-//   return {topi::SparseReshape(inputs[0], inputs[1], inputs[2])};
-// }
-
 Expr MakeSparseReshape(Expr sparse_indices, Expr prev_shape, Expr new_shape) {
   static const Op& op = Op::Get("sparse_reshape");
   return Call(op, {sparse_indices, prev_shape, new_shape}, Attrs(), {});
@@ -1677,7 +1671,6 @@ RELAY_REGISTER_OP("sparse_reshape")
     .add_type_rel("sparse_reshape", SparseReshapeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3);
-    // .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);
 
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);

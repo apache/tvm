@@ -65,7 +65,6 @@ _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
-# _reg.register_injective_schedule("sparse_reshape")
 
 
 # concatenate
