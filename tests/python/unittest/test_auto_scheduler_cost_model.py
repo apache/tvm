@@ -68,7 +68,7 @@ def test_xgb_model():
     assert rmse <= 0.3
 
     # test loading a record file
-    tmpdir = tvm.contrib.util.tempdir()
+    tmpdir = tvm.contrib.utils.tempdir()
     tmpfile = tmpdir.relpath("test1")
     auto_scheduler.save_records(tmpfile, inputs, results)
     model.update_from_file(tmpfile)
