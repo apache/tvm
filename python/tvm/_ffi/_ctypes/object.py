@@ -106,7 +106,10 @@ class ObjectBase(object):
 
     def __del__(self):
         if _LIB is not None:
-            check_call(_LIB.TVMObjectFree(self.handle))
+            try:
+                _LIB.TVMObjectFree(self.handle)
+            except:  # pylint: disable=bare-except
+                pass
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.
