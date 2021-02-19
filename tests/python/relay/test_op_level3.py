@@ -1401,7 +1401,7 @@ def test_sparse_to_dense():
         ),
     ],
 )
-@pytest.mark.parametrize("use_dyn", [True])
+@pytest.mark.parametrize("use_dyn", [True, False])
 def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn):
     def ref_sparse_reshape(
         sparse_indices: np.ndarray,
