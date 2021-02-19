@@ -61,8 +61,13 @@ bool BiasAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (axis < 0) {
     axis = data->shape.size() + axis;
   }
-  ICHECK_LE(axis, static_cast<int>(data->shape.size()))
-      << "axis " << param->axis << " is out of range";
+  if (axis >= static_cast<int>(data->shape.size())) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "The axis in bias_add must be in range for the shape; "
+                                     << "attempted to access index " << axis << " of "
+                                     << PrettyPrint(data->shape));
+    return false;
+  }
 
   // assign output type
   reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
