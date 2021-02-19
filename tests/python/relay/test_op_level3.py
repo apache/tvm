@@ -1316,24 +1316,6 @@ def test_sparse_to_dense():
     "sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np",
     [
         (
-            np.ones((0, 1), dtype=np.int64),
-            np.array([], dtype=np.int64),
-            np.array([4], dtype=np.int64),
-            np.array([2, -1], dtype=np.int64),
-        ),
-        (
-            np.ones((0, 1), dtype=np.int64),
-            np.array([], dtype=np.int64),
-            np.array([4], dtype=np.int64),
-            np.array([2, 2], dtype=np.int64),
-        ),
-        (
-            np.ones((0, 2), dtype=np.int64),
-            np.array([], dtype=np.int64),
-            np.array([3, 6], dtype=np.int64),
-            np.array([-1, 2], dtype=np.int64),
-        ),
-        (
             np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int64),
             np.array([7, 5, 6, 3, 9], dtype=np.int64),
             np.array([2, 3, 6], dtype=np.int64),
@@ -1399,9 +1381,27 @@ def test_sparse_to_dense():
             np.array([500, 20], dtype=np.int64),
             np.array([250, 40], dtype=np.int64),
         ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, -1], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, 2], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 2), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([3, 6], dtype=np.int64),
+            np.array([-1, 2], dtype=np.int64),
+        ),
     ],
 )
-@pytest.mark.parametrize("use_dyn", [True, False])
+@pytest.mark.parametrize("use_dyn", [True])
 def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn):
     def ref_sparse_reshape(
         sparse_indices: np.ndarray,
@@ -1498,7 +1498,7 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
             func,
             [sparse_indices_np, prev_shape_np, new_shape_np],
             ref_res,
-            [("llvm", tvm.cpu())],
+            [("cuda", tvm.gpu(0))],
         )
 
     verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
