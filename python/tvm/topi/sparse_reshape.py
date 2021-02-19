@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Scatter operator"""
-from ..tir import decl_buffer, ir_builder, Cast, AssertStmt, StringImm, Evaluate
-from ..te import extern, hybrid, div, floordiv, floormod
+from ..tir import decl_buffer, ir_builder, Cast
+from ..te import extern, div, floordiv, floormod
 
 
 def sparse_reshape(
