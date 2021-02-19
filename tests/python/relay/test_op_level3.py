@@ -1316,6 +1316,24 @@ def test_sparse_to_dense():
     "sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np",
     [
         (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, -1], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, 2], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 2), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([3, 6], dtype=np.int64),
+            np.array([-1, 2], dtype=np.int64),
+        ),
+        (
             np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int64),
             np.array([7, 5, 6, 3, 9], dtype=np.int64),
             np.array([2, 3, 6], dtype=np.int64),
@@ -1328,6 +1346,21 @@ def test_sparse_to_dense():
             ),
             np.array([7, 5, 6, 3, 9], dtype=np.int64),
             np.array([2, 3, 6, 7], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 1, 2, 3],
+                    [0, 1, 0, 3, 5],
+                    [1, 0, 0, 4, 6],
+                    [1, 2, 3, 6, 8],
+                ],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7, 9], dtype=np.int64),
             np.array([9, -1, 7], dtype=np.int64),
         ),
         (
