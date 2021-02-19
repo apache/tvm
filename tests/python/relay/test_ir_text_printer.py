@@ -182,7 +182,7 @@ def test_squeezenet():
 
 
 def test_vgg():
-    net, _ = tvm.relay.testing.vgg.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.vgg.get_workload(batch_size=1, dtype="float16")
     astext(net)
 
 
