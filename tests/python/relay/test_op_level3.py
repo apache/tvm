@@ -1498,6 +1498,7 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
             func,
             [sparse_indices_np, prev_shape_np, new_shape_np],
             ref_res,
+            [("llvm", tvm.cpu())],
         )
 
     verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
