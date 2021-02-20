@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_OP_NN_CONVOLUTION_H_
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/support/logging.h>
 #include <tvm/tir/analysis.h>
 
@@ -369,7 +370,18 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
-    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
+
+    Array<PrimExpr> wshape;
+    if (param->auto_scheduler_rewritten_layout.size() == 0) {
+      wshape = weight->shape;
+    } else {
+      // works for the default kernel layout "DHWIO"
+      ICHECK_EQ(param->kernel_layout, "DHWIO");
+      wshape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
+                                                           {"rd", "rh", "rw", "rc", "cc"});
+    }
+
+    wshape = trans_kernel_layout.ForwardShape(wshape);
     if (param->kernel_size.defined()) {
       ICHECK_EQ(param->kernel_size.size(), 3);
       // check the size

@@ -28,7 +28,7 @@ from tvm import relay
 from tvm.contrib import cc
 from tvm.contrib import utils
 
-from . import common, frontends
+from . import common, composite_target, frontends
 from .main import register_parser
 
 
@@ -72,7 +72,7 @@ def add_compile_parser(subparsers):
     )
     parser.add_argument(
         "--target",
-        help="compilation target as plain string, inline JSON or path to a JSON file",
+        help="compilation targets as comma separated string, inline JSON or path to a JSON file.",
         required=True,
     )
     parser.add_argument(
@@ -185,12 +185,20 @@ def compile_model(
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
     mod, params = frontends.load_model(path, model_format, shape_dict)
+    config = {}
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
 
-    tvm_target = common.target_from_cli(target)
+    tvm_target, extra_targets = common.target_from_cli(target)
     target_host = tvm_target if not target_host else target_host
+
+    for codegen_from_cli in extra_targets:
+        codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
+        partition_function = codegen["pass_pipeline"]
+        mod = partition_function(mod, params)
+        if codegen["config_key"] is not None:
+            config[codegen["config_key"]] = codegen_from_cli["opts"]
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
@@ -203,22 +211,21 @@ def compile_model(
 
         if use_autoscheduler:
             with auto_scheduler.ApplyHistoryBest(tuning_records):
-                with tvm.transform.PassContext(
-                    opt_level=3, config={"relay.backend.use_auto_scheduler": True}
-                ):
+                config["relay.backend.use_auto_scheduler"] = True
+                with tvm.transform.PassContext(opt_level=3, config=config):
                     logger.debug("building relay graph with autoscheduler")
                     graph_module = relay.build(
                         mod, target=target, params=params, target_host=target_host
                     )
         else:
             with autotvm.apply_history_best(tuning_records):
-                with tvm.transform.PassContext(opt_level=3):
+                with tvm.transform.PassContext(opt_level=3, config=config):
                     logger.debug("building relay graph with tuning records")
                     graph_module = relay.build(
                         mod, tvm_target, params=params, target_host=target_host
                     )
     else:
-        with tvm.transform.PassContext(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3, config=config):
             logger.debug("building relay graph (no tuning records provided)")
             graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
 

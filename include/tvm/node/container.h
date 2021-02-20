@@ -1145,7 +1145,7 @@ inline MapNode::iterator& MapNode::iterator::operator++() {
 
 inline MapNode::iterator& MapNode::iterator::operator--() {
   TVM_DISPATCH_MAP_CONST(self, p, {
-    index = p->IncItr(index);
+    index = p->DecItr(index);
     return *this;
   });
 }

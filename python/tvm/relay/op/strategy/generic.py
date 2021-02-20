@@ -1039,7 +1039,6 @@ def wrap_compute_roi_align(topi_compute):
     """wrap roi_align topi compute"""
 
     def _compute_roi_align(attrs, inputs, out_type):
-        assert attrs.layout == "NCHW"
         pooled_size = get_const_tuple(attrs.pooled_size)
         mode = bytes(attrs.mode, "utf-8")
         return [
@@ -1061,12 +1060,19 @@ def roi_align_strategy(attrs, inputs, out_type, target):
     """roi_align generic strategy"""
     strategy = _op.OpStrategy()
     layout = attrs.layout
-    assert layout == "NCHW", "only support nchw for now"
-    strategy.add_implementation(
-        wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
-        wrap_topi_schedule(topi.generic.schedule_roi_align),
-        name="roi_align.generic",
-    )
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
+            wrap_topi_schedule(topi.generic.schedule_roi_align),
+            name="roi_align.generic",
+        )
+    else:
+        assert layout == "NHWC", "layout must be NCHW or NHWC."
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.vision.rcnn.roi_align_nhwc),
+            wrap_topi_schedule(topi.generic.schedule_roi_align),
+            name="roi_align.generic",
+        )
     return strategy
 
 

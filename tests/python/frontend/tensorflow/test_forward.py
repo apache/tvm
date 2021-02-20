@@ -414,6 +414,16 @@ def test_forward_pooling():
             pooling_type=pool_type,
             dilation_rate=[2],
         )
+    # Explicit padding
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
+        _test_pooling(
+            input_shape=[2, 9, 10, 2],
+            window_shape=[4, 4],
+            padding=[[0, 0], [0, 1], [2, 3], [0, 0]],
+            pooling_type="MAX",
+            dilation_rate=[1, 1],
+            strides=[1, 1],
+        )
 
 
 #######################################################################
@@ -830,6 +840,36 @@ def test_forward_convolution():
         [4, 8, 8, 176],
         add_shapes_to_graph_def=False,
     )
+    # Explicit padding
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
+        _test_convolution(
+            "conv",
+            [4, 8, 8, 16],
+            [1, 1, 16, 32],
+            [1, 1],
+            [1, 1],
+            [[0, 0], [2, 3], [0, 1], [0, 0]],
+            "NHWC",
+        )
+        _test_convolution(
+            "depthwise",
+            [4, 8, 8, 16],
+            [1, 1, 16, 1],
+            [1, 1],
+            [1, 1],
+            [[0, 0], [2, 3], [0, 1], [0, 0]],
+            "NHWC",
+        )
+        _test_convolution(
+            "conv_transpose",
+            [4, 8, 8, 32],
+            [3, 3, 176, 32],
+            [1, 1],
+            [2, 2],
+            [[0, 0], [1, 0], [1, 0], [0, 0]],
+            "NHWC",
+            [4, 16, 16, 176],
+        )
 
 
 #######################################################################

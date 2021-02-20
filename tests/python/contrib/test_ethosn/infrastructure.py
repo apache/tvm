@@ -151,7 +151,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     """
     relay.backend.compile_engine.get().clear()
     with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": 0}}
+        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
     ):
         with tvm.target.Target("llvm"):
             if npu:
@@ -321,3 +321,10 @@ def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, ke
 
 def get_ethosn_api_version():
     return tvm.get_global_func("relay.ethos-n.api.version")()
+
+
+def get_ethosn_variant():
+    ethosn_variant_config = os.getenv("ETHOSN_VARIANT_CONFIG")
+    if ethosn_variant_config is not None:
+        return 3
+    return 0

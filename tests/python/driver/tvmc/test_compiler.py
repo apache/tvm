@@ -19,9 +19,12 @@ import os
 import shutil
 from os import path
 
+from unittest import mock
 import pytest
 
 import tvm
+
+from tvm.relay.op.contrib.ethosn import ethosn_available
 
 from tvm.driver import tvmc
 
@@ -73,7 +76,7 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         tflite_mobilenet_v1_1_quant,
-        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
     )
 
@@ -110,7 +113,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         keras_resnet50,
-        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
     )
 
@@ -185,3 +188,43 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert type(lib) is tvm.runtime.module.Module
     assert type(params) is dict
     assert type(dumps) is dict
+
+
+@pytest.mark.skipif(
+    not ethosn_available(),
+    reason="--target=ethos-n77 is not available. TVM built with 'USE_ETHOSN OFF'",
+)
+def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+
+    graph, lib, params, dumps = tvmc.compiler.compile_model(
+        tflite_mobilenet_v1_1_quant, target="ethos-n77, llvm", dump_code="relay"
+    )
+
+    # check for output types
+    assert type(graph) is str
+    assert type(lib) is tvm.runtime.module.Module
+    assert type(params) is dict
+    assert type(dumps) is dict
+
+
+@mock.patch("tvm.relay.build")
+@mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
+@mock.patch("tvm.driver.tvmc.frontends.load_model")
+@mock.patch("tvm.transform.PassContext")
+def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_relay):
+    mock_codegen = {}
+    mock_codegen["config_key"] = "relay.ext.mock.options"
+    mock_codegen["pass_pipeline"] = lambda *args: None
+
+    mock_fe.return_value = (None, None)
+    mock_ct.return_value = mock_codegen
+    mock_relay.return_value = mock.MagicMock()
+
+    graph, lib, params, dumps = tvmc.compiler.compile_model(
+        "no_file_needed", target="mockcodegen -testopt=value, llvm"
+    )
+
+    mock_pc.assert_called_once_with(
+        opt_level=3, config={"relay.ext.mock.options": {"testopt": "value"}}
+    )
