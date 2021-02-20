@@ -110,7 +110,6 @@ def sparse_reshape(
         # Compute true output shape (replace negative ones)
         with ib.for_range(0, new_shape_size) as i:
             with ib.if_scope(new_shape[i] == -1):
-                # if Cast("int64", new_shape[i]) == Cast("int64", -1):
                 out_new_shape[i] = Cast("int64", div(total_ele[0], division_total_ele[0]))
             with ib.else_scope():
                 out_new_shape[i] = new_shape[i]
@@ -169,6 +168,6 @@ def sparse_reshape(
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], outs[1]),
         dtype="int64",
         out_buffers=[new_sparse_indices_buf, new_shape_buf],
-        name="sparse_reshape",
-        tag="sparse_reshape",
+        name="sparse_reshape_cpu",
+        tag="sparse_reshape_cpu",
     )

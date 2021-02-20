@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
-"""Scatter operator"""
+"""Sparse_Reshape operator"""
+import tvm
 from ...tir import decl_buffer, ir_builder, Cast
 from tvm import te
 from ...te import extern, div, floordiv, floormod
+from ..utils import ceil_div
 
 
 def sparse_reshape(
@@ -89,7 +91,10 @@ def sparse_reshape(
         flattened_indices = ib.allocate(
             "int64", (sparse_indices_ptr.shape[0],), name="flattened_indices", scope="local"
         )
-
+        total_ele = ib.allocate("int64", (1,), name="total_ele", scope="local")
+        division_total_ele = ib.allocate("int64", (1,), name="division_total_ele", scope="local")
+        equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="local")
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         with ib.new_scope():
 
             nthread_tx = 1
@@ -99,7 +104,6 @@ def sparse_reshape(
             ib.scope_attr(tx, "thread_extent", nthread_tx)
             ib.scope_attr(bx, "thread_extent", nthread_bx)
 
-            total_ele = ib.allocate("int64", (1,), name="total_ele", scope="local")
             total_ele[0] = prev_shape[0]
 
             # Cumulative Reverse Exclusive Multiply
@@ -111,9 +115,6 @@ def sparse_reshape(
                 )
                 total_ele[0] *= prev_shape[prev_shape_size - i]
 
-            division_total_ele = ib.allocate(
-                "int64", (1,), name="division_total_ele", scope="local"
-            )
             division_total_ele[0] = Cast("int64", 1)
             with ib.for_range(0, new_shape_size) as i:
                 with ib.if_scope(new_shape[i] != -1):
@@ -122,12 +123,9 @@ def sparse_reshape(
             # Compute true output shape (replace negative ones)
             with ib.for_range(0, new_shape_size) as i:
                 with ib.if_scope(new_shape[i] == -1):
-                    # if Cast("int64", new_shape[i]) == Cast("int64", -1):
                     out_new_shape[i] = Cast("int64", div(total_ele[0], division_total_ele[0]))
                 with ib.else_scope():
                     out_new_shape[i] = new_shape[i]
-
-            equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="local")
 
             # Check if prev_shape and new_shape are equal
             equal_shape[0] = True
@@ -139,10 +137,21 @@ def sparse_reshape(
                 equal_shape[0] = False
 
             # Return same inputs if shapes are equal
+        with ib.new_scope():
+
+            nthread_tx = max_threads
+            nthread_bx = ceil_div(sparse_indices_ptr.shape[0], max_threads)
+            tx = te.thread_axis("threadIdx.x")
+            bx = te.thread_axis("blockIdx.x")
+            ib.scope_attr(tx, "thread_extent", nthread_tx)
+            ib.scope_attr(bx, "thread_extent", nthread_bx)
+
+            row_number = bx * max_threads + tx
+
             with ib.if_scope(equal_shape[0]):
-                with ib.for_range(0, sparse_indices_ptr.shape[0]) as i:
+                with ib.if_scope(row_number < sparse_indices_ptr.shape[0]):
                     with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
-                        new_sparse_indices[i, j] = sparse_indices[i, j]
+                        new_sparse_indices[row_number, j] = sparse_indices[row_number, j]
 
             # Else compute new_sparse_indices
             with ib.else_scope():
@@ -153,19 +162,21 @@ def sparse_reshape(
                         dividers[new_shape_size - i] * out_new_shape[new_shape_size - i]
                     )
 
-                with ib.for_range(0, sparse_indices_ptr.shape[0]) as i:
-                    flattened_indices[i] = Cast("int64", 0)
+                with ib.if_scope(row_number < sparse_indices_ptr.shape[0]):
+                    flattened_indices[row_number] = Cast("int64", 0)
                     with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
-                        flattened_indices[i] += sparse_indices[i, j] * multipliers[j]
+                        flattened_indices[row_number] += (
+                            sparse_indices[row_number, j] * multipliers[j]
+                        )
 
-                with ib.for_range(0, new_sparse_indices_ptr.shape[0]) as i:
+                with ib.if_scope(row_number < sparse_indices_ptr.shape[0]):
                     current_element = ib.allocate(
                         "int64", (1,), name="current_element", scope="local"
                     )
-                    current_element[0] = flattened_indices[i]
+                    current_element[0] = flattened_indices[row_number]
 
                     with ib.for_range(0, new_sparse_indices_ptr.shape[1]) as j:
-                        new_sparse_indices[i, j] = Cast(
+                        new_sparse_indices[row_number, j] = Cast(
                             "int64", floordiv(current_element[0], dividers[j])
                         )
                         current_element[0] = floormod(current_element[0], dividers[j])
@@ -183,8 +194,8 @@ def sparse_reshape(
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], outs[1]),
         dtype="int64",
         out_buffers=[new_sparse_indices_buf, new_shape_buf],
-        name="sparse_reshape",
-        tag="sparse_reshape",
+        name="sparse_reshape_cuda",
+        tag="sparse_reshape_cuda",
     )
 
 
