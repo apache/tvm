@@ -137,20 +137,6 @@ def sparse_reshape(
             with ib.else_scope():
                 equal_shape[0] = False
 
-        with ib.if_scope(equal_shape[0]):
-            with ib.new_scope():
-                nthread_tx = max_threads
-                nthread_bx = ceil_div(sparse_indices_ptr.shape[0], max_threads)
-                tx = te.thread_axis("threadIdx.x")
-                bx = te.thread_axis("blockIdx.x")
-                ib.scope_attr(tx, "thread_extent", nthread_tx)
-                ib.scope_attr(bx, "thread_extent", nthread_bx)
-
-                row_number = bx * max_threads + tx
-                with ib.if_scope(row_number < sparse_indices_ptr.shape[0]):
-                    with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
-                        new_sparse_indices[row_number, j] = sparse_indices[row_number, j]
-
         with ib.new_scope():
             nthread_tx = max_threads
             nthread_bx = ceil_div(sparse_indices_ptr.shape[0], max_threads)
