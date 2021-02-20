@@ -167,11 +167,15 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
         if ("nn.conv2d" == op_name) {
           Conv2d(nid);
         } else if ("bnns.conv2d_relu" == op_name) {
-          Conv2d(nid, true, false);
+          Conv2d(nid, false, "relu");
         } else if ("bnns.conv2d_bias_relu" == op_name) {
-          Conv2d(nid, true, true);
+          Conv2d(nid, true, "relu");
+        } else if ("bnns.conv2d_sigmoid" == op_name) {
+          Conv2d(nid, false, "sigmoid");
+        } else if ("bnns.conv2d_bias_sigmoid" == op_name) {
+          Conv2d(nid, true, "sigmoid");
         } else if ("bnns.conv2d_bias" == op_name) {
-          Conv2d(nid, false, true);
+          Conv2d(nid, true);
         } else if ("nn.dense" == op_name) {
           Dense(nid);
         } else if ("bnns.dense_bias" == op_name) {
@@ -196,7 +200,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     return tensors_eid_[eid];
   }
 
-  void Conv2d(const size_t& nid, const bool has_relu = false, const bool has_bias = false) {
+  void Conv2d(const size_t& nid, const bool has_bias = false, const std::string activation_type = "none") {
     auto node = nodes_[nid];
 
     // Setup attributes.
@@ -239,8 +243,11 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       bias_view = TView::as_is(bias_t).squeeze().with_layout(BNNSDataLayoutVector);
     }
 
-    BNNSActivation activation = {has_relu ? BNNSActivationFunctionRectifiedLinear
-                                          : BNNSActivationFunctionIdentity};
+    BNNSActivation activation = {BNNSActivationFunctionIdentity};
+    if (activation_type == "relu")
+        activation = {BNNSActivationFunctionRectifiedLinear};
+    else if (activation_type == "sigmoid")
+        activation = {BNNSActivationFunctionSigmoid};
 
     BNNSLayerParametersConvolution conv_param = {
         src_view.get_bnns_view(),

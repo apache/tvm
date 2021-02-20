@@ -78,6 +78,8 @@ def _get_model(
 
     if activation_type == "relu":
         out = relay.nn.relu(out)
+    elif activation_type == "sigmoid":
+        out = relay.op.sigmoid(out)
     return out, params
 
 
@@ -95,7 +97,7 @@ def test_conv2d():
     batches = [1, 2]
     groups = [1, 2]
     bias_kind = ["none", "add_3d", "add_4d", "bias.add"]
-    activation_kind = ["none", "relu"]
+    activation_kind = ["none", "relu", "sigmoid"]
     trials = generate_trials(
         [
             kernel_hs,
@@ -126,6 +128,8 @@ def test_conv2d():
         bias,
         activation,
     ) in trials:
+        if out_channels % group != 0:
+            continue
         func, params = _get_model(
             shape=(batch, *input_shapes),
             kernel=(kernel_h, kernel_w),

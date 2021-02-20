@@ -146,6 +146,8 @@ def dense(expr):
     data_typ = args[0].checked_type
     if data_typ.dtype != "float32":
         return False
+    if not isinstance(args[1], tvm.relay.expr.Constant):
+        return False
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 2 or kernel_typ.dtype != "float32":
         return False
@@ -154,7 +156,7 @@ def dense(expr):
     return True
 
 
-def make_conv_relu_pattern(with_bias=True, with_relu=True):
+def make_conv_pattern(with_bias=True, activation="none"):
     """Make pattern for bnns.conv2d primitive"""
     data = wildcard()
     weight = wildcard()
@@ -162,8 +164,10 @@ def make_conv_relu_pattern(with_bias=True, with_relu=True):
     pat = is_op("nn.conv2d")(data, weight)
     if with_bias:
         pat = is_op("add")(pat, bias) | is_op("nn.bias_add")(pat, bias)
-    if with_relu:
+    if activation == "relu":
         pat = is_op("nn.relu")(pat)
+    elif activation == "sigmoid":
+        pat = is_op("sigmoid")(pat)
     return pat
 
 
@@ -232,17 +236,27 @@ def pattern_table():
     """Get BNNS specific fusing patterns collection"""
     conv2d_bias_pat = (
         "bnns.conv2d_bias",
-        make_conv_relu_pattern(with_bias=True, with_relu=False),
+        make_conv_pattern(with_bias=True),
         check_conv,
     )
     conv2d_bias_relu_pat = (
         "bnns.conv2d_bias_relu",
-        make_conv_relu_pattern(with_bias=True, with_relu=True),
+        make_conv_pattern(with_bias=True, activation="relu"),
         check_conv,
     )
     conv2d_relu_pat = (
         "bnns.conv2d_relu",
-        make_conv_relu_pattern(with_bias=False, with_relu=True),
+        make_conv_pattern(with_bias=False, activation="relu"),
+        check_conv,
+    )
+    conv2d_bias_sigmoid_pat = (
+        "bnns.conv2d_bias_sigmoid",
+        make_conv_pattern(with_bias=True, activation="sigmoid"),
+        check_conv,
+    )
+    conv2d_sigmoid_pat = (
+        "bnns.conv2d_sigmoid",
+        make_conv_pattern(with_bias=False, activation="sigmoid"),
         check_conv,
     )
     dense_bias_gelu = ("bnns.dense_bias_gelu", make_dense_bias_gelu_pattern(), check_dense)
@@ -250,6 +264,8 @@ def pattern_table():
     bnns_patterns = [
         conv2d_bias_relu_pat,
         conv2d_relu_pat,
+        conv2d_bias_sigmoid_pat,
+        conv2d_sigmoid_pat,
         conv2d_bias_pat,
         dense_bias_gelu,
         dense_bias,

@@ -94,6 +94,13 @@ class BNNSJSONSerializer : public backend::contrib::JSONSerializer {
       } else if (name == "bnns.conv2d_relu") {
         call = GetRootCall(body, 1, {"nn.conv2d", "nn.relu"});
         ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "bnns.conv2d_bias_sigmoid") {
+        auto add_op_type = IsOp(body->args[0].as<CallNode>(), "add") ? "add" : "nn.bias_add";
+        call = GetRootCall(body, 2, {"nn.conv2d", add_op_type, "sigmoid"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "bnns.conv2d_sigmoid") {
+        call = GetRootCall(body, 1, {"nn.conv2d", "sigmoid"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name == "bnns.dense_bias") {
         call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.dense", "add"});
       } else if (name == "bnns.dense_bias_gelu") {
