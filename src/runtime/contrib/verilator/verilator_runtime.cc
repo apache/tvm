@@ -80,7 +80,6 @@ VerilatorRuntime::~VerilatorRuntime() {
   auto dealloc = reinterpret_cast<VerilatorDeallocFunc>(lib_->GetSymbol("VerilatorDealloc"));
   ICHECK(dealloc != nullptr);
   dealloc(device_);
-  lib_->~VerilatorLibrary();
 }
 
 void VerilatorRuntime::SetLibrary(const std::string& lib_path) { lib_path_ = lib_path; }
