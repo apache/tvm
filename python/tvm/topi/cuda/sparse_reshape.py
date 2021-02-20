@@ -96,7 +96,8 @@ def sparse_reshape(
         equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="local")
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         with ib.new_scope():
-
+            # The computation in this block is very very miniscule since we are just iterating over
+            # shape tensors which are very small (< 10) and there is no need of parallelization
             nthread_tx = 1
             nthread_bx = 1
             tx = te.thread_axis("threadIdx.x")
