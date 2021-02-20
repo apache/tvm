@@ -1956,6 +1956,28 @@ def test_forward_sparse_fill_empty_rows(
 
 
 #######################################################################
+# tensorflow.sparse.reorder
+# ---------------
+def _test_sparse_reorder(indices, values, A_shape, dtype):
+    with tf.Graph().as_default():
+        A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
+        B = tf.placeholder(shape=A_shape, dtype=dtype, name="B")
+
+        result = tf.sparse.to_dense(tf.sparse.reorder(A_sp)) + B
+
+        B_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
+
+        compare_tf_with_tvm([B_np], [B.name], result.name)
+
+
+def test_forward_sparse_reorder():
+    _test_sparse_reorder([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32")
+    _test_sparse_reorder([[1, 2], [0, 0]], [4.0, 8.0], [3, 4], "float32")
+    _test_sparse_reorder([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32")
+    _test_sparse_reorder([[0, 0], [4, 3], [1, 3]], [3.0, 6.0, 9.0], [5, 5], "float32")
+
+
+#######################################################################
 # StridedSlice
 # ------------
 
