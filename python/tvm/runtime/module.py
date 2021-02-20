@@ -20,6 +20,7 @@
 import os
 import ctypes
 import struct
+import sys
 from collections import namedtuple
 
 import tvm._ffi
@@ -48,8 +49,8 @@ class Module(object):
         if _LIB is not None:
             try:
                 _LIB.TVMObjectFree(self.handle)
-            except:  # pylint: disable=bare-except
-                pass
+            except Exception as e:
+                print(e.message, file=sys.stderr)
 
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value

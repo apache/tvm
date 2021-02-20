@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """Runtime NDArray api"""
 import ctypes
+import sys
 from ..base import _LIB, check_call, c_str
 from ..runtime_ctypes import TVMArrayHandle
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _return_handle
@@ -81,8 +82,8 @@ class NDArrayBase(object):
         if not self.is_view and _LIB:
             try:
                 _LIB.TVMObjectFree(self.handle)
-            except:  # pylint: disable=bare-except
-                pass
+            except Exception as e:
+                print(e.message, file=sys.stderr)
 
     @property
     def _tvm_handle(self):

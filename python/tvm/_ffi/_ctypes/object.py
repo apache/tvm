@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """Runtime Object api"""
 import ctypes
+import sys
 from ..base import _LIB, check_call
 from .types import ArgTypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
 from .ndarray import _register_ndarray, NDArrayBase
@@ -108,8 +109,8 @@ class ObjectBase(object):
         if _LIB is not None:
             try:
                 _LIB.TVMObjectFree(self.handle)
-            except:  # pylint: disable=bare-except
-                pass
+            except Exception as e:
+                print(e.message, file=sys.stderr)
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.

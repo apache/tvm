@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name, protected-access, too-many-branches, global-statement, unused-import
 """Function configuration API."""
 import ctypes
+import sys
 import traceback
 from numbers import Number, Integral
 
@@ -212,8 +213,8 @@ class PackedFuncBase(object):
         if not self.is_global and _LIB is not None:
             try:
                 _LIB.TVMObjectFree(self.handle)
-            except:  # pylint: disable=bare-except
-                pass
+            except Exception as e:
+                print(e.message, file=sys.stderr)
 
     def __call__(self, *args):
         """Call the function with positional arguments
