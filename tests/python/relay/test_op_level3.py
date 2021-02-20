@@ -1467,12 +1467,12 @@ def test_unique():
             counts = counts[order].astype("int32")
         return [uniq.astype(data.dtype), inverse.astype("int32"), counts, num_uniq]
 
-    def verify_unique(n, dtype, is_dyn=False, is_sorted=False):
+    def verify_unique(n, dtype, is_dyn=False, is_sorted=False, return_counts=False):
         if is_dyn:
             x = relay.var("x", relay.TensorType([relay.Any()], dtype))
         else:
             x = relay.var("x", relay.TensorType([n], dtype))
-        outs = relay.unique(x, is_sorted)
+        outs = relay.unique(x, is_sorted, return_counts)
         outs = outs.astuple()
         func = relay.Function([x], outs)
         x_data = np.random.randint(50, size=n).astype(dtype)
@@ -1494,11 +1494,14 @@ def test_unique():
             tvm.testing.assert_allclose(tvm_res[0].asnumpy()[:num_unique], np_res[0], rtol=1e-5)
             # inverse_indices
             tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_res[1], rtol=1e-5)
+            # counts
+            if return_counts:
+                tvm.testing.assert_allclose(tvm_res[3].asnumpy()[:num_unique], np_res[2], rtol=1e-5)
 
     for dtype in ["int32", "int64"]:
-        for is_dyn in [True, False]:
-            verify_unique(1, dtype, is_dyn, True)
-            verify_unique(50, dtype, is_dyn, False)
+        for i in range(8):
+            is_dyn, is_sorted, return_counts = bool(i & 1), bool(i & 2), bool(i & 4)
+            verify_unique(10, dtype, is_dyn, is_sorted, return_counts)
 
 
 if __name__ == "__main__":

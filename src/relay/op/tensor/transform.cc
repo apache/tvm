@@ -3792,13 +3792,18 @@ bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   fields.push_back(TensorType(data->shape, data->dtype));               // unique
   fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
   fields.push_back(TensorType(Array<PrimExpr>{1}, DataType::Int(32)));  // num_unique
+  const auto* param = attrs.as<UniqueAttrs>();
+  if (param->return_counts) {
+    fields.push_back(TensorType(data->shape, DataType::Int(32)));  // counts
+  }
   reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   return true;
 }
 
-Expr MakeUnique(Expr data, bool sorted) {
+Expr MakeUnique(Expr data, bool sorted, bool return_counts) {
   auto attrs = make_object<UniqueAttrs>();
   attrs->sorted = sorted;
+  attrs->return_counts = return_counts;
   static const Op& op = Op::Get("unique");
   return Call(op, {data}, Attrs(attrs), {});
 }

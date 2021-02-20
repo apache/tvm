@@ -39,20 +39,45 @@ def test_unique():
         return [uniq.astype(data.dtype), inverse.astype("int32"), counts, num_uniq]
 
     def check_unique(data, is_sorted=False):
+        # numpy reference
+        np_unique, np_indices, np_counts, np_num_unique = calc_numpy_unique(data, is_sorted)
+        num_unique = np_num_unique[0]
+
         implementations = {
-            "generic": (lambda x: topi.unique(x, is_sorted), topi.generic.schedule_unique),
+            "generic": (
+                lambda x, return_counts: topi.unique(x, is_sorted, return_counts),
+                topi.generic.schedule_unique,
+            ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm_data = tvm.nd.array(data, ctx=ctx)
         tvm_unique = tvm.nd.array(np.zeros(data.shape).astype(data.dtype), ctx=ctx)
         tvm_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), ctx=ctx)
         tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), ctx=ctx)
+
+        # without counts
         with tvm.target.Target(target):
             te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
-            outs = fcompute(te_input)
+            outs = fcompute(te_input, False)
             s = fschedule(outs)
             func = tvm.build(s, [te_input, *outs])
             func(tvm_data, tvm_unique, tvm_indices, tvm_num_unique)
+
+        assert tvm_num_unique.asnumpy()[0] == np_num_unique
+        np.testing.assert_allclose(
+            tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
+        )
+        np.testing.assert_allclose(tvm_indices.asnumpy(), np_indices, atol=1e-5, rtol=1e-5)
+
+        # with counts
+        tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), ctx=ctx)
+        with tvm.target.Target(target):
+            te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
+            outs = fcompute(te_input, True)
+            s = fschedule(outs)
+            func = tvm.build(s, [te_input, *outs])
+            func(tvm_data, tvm_unique, tvm_indices, tvm_num_unique, tvm_counts)
+
         np_unique, np_indices, _, np_num_unique = calc_numpy_unique(data, is_sorted)
         num_unique = np_num_unique[0]
         assert tvm_num_unique.asnumpy()[0] == np_num_unique
@@ -60,10 +85,15 @@ def test_unique():
             tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
         np.testing.assert_allclose(tvm_indices.asnumpy(), np_indices, atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(
+            tvm_counts.asnumpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
+        )
 
     for in_dtype in ["int32", "int64"]:
         for is_sorted in [True, False]:
-            data = np.random.randint(0, 100, size=(100)).astype(in_dtype)
+            data = np.random.randint(0, 100, size=(1)).astype(in_dtype)
+            check_unique(data, is_sorted)
+            data = np.random.randint(0, 100, size=(50)).astype(in_dtype)
             check_unique(data, is_sorted)
             data = np.random.randint(0, 10, size=(100)).astype(in_dtype)
             check_unique(data, is_sorted)

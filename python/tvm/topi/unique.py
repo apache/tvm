@@ -33,7 +33,7 @@ def _calc_adjacent_diff(data):
 @hybrid.script
 def _calc_num_unique(data):
     output = output_tensor((1,), "int32")
-    output[0] = data[data.shape[0] - 1] + 1
+    output[0] = data[data.shape[0] - 1] + int32(1)
     return output
 
 
@@ -45,6 +45,21 @@ def _calc_unique_sorted(data, argsorted_indices, inc_scan):
         indices[argsorted_indices[i]] = inc_scan[i]
         unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
     return unique_elements, indices
+
+
+@hybrid.script
+def _calc_unique_sorted_with_counts(data, argsorted_indices, inc_scan):
+    unique_elements = output_tensor(data.shape, data.dtype)
+    indices = output_tensor(data.shape, "int32")
+    counts = output_tensor(data.shape, "int32")
+    for i in parallel(data.shape[0]):
+        counts[i] = int32(0)
+    for i in parallel(data.shape[0]):
+        indices[argsorted_indices[i]] = inc_scan[i]
+        unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
+    for i in range(data.shape[0]):
+        counts[inc_scan[i]] += int32(1)
+    return unique_elements, indices, counts
 
 
 @hybrid.script
@@ -70,7 +85,25 @@ def _calc_unique_unsorted(data, argsorted_indices, inc_scan, index_converter):
     return unique_elements, indices
 
 
-def unique(data, is_sorted=True):
+@hybrid.script
+def _calc_unique_unsorted_with_counts(data, argsorted_indices, inc_scan, index_converter):
+    unique_elements = output_tensor(data.shape, data.dtype)
+    indices = output_tensor(data.shape, "int32")
+    counts = output_tensor(data.shape, "int32")
+    for i in parallel(data.shape[0]):
+        counts[i] = int32(0)
+    for i in parallel(data.shape[0]):
+        new_unique_idx = index_converter[inc_scan[i]]
+        new_data_idx = argsorted_indices[i]
+        unique_elements[new_unique_idx] = data[new_data_idx]
+        indices[new_data_idx] = new_unique_idx
+    for i in range(data.shape[0]):
+        idx = index_converter[inc_scan[i]]
+        counts[idx] += int32(1)
+    return unique_elements, indices, counts
+
+
+def unique(data, is_sorted=True, return_counts=False):
     """
     Find the unique elements of a tensor
     Parameters
@@ -79,6 +112,8 @@ def unique(data, is_sorted=True):
         A 1-D tensor of integers
     sorted : bool
         Whether to sort the unique elements in ascending order before returning as output
+    return_counts : bool
+        Whether to return the array with count of each unique element
     Returns
     -------
     output : relay.Expr
@@ -87,13 +122,21 @@ def unique(data, is_sorted=True):
         A 1-D tensor containing the index of each data element in the output tensor
     num_unique : relay.Expr
         A 0-D tensor containing the number of unique elements in the input data tensor
+    counts (optional) : relay.Expr
+        A 1-D tensor containing the count of each unique element in the output
     Examples
     --------
     .. code-block:: python
-        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False)
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False, return_counts=False)
         output         =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique     =  [5]
+
+        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False, return_counts=True)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
 
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=True)
         output         =  [1, 2, 3, 4, 5, ?, ?, ?]
@@ -107,12 +150,27 @@ def unique(data, is_sorted=True):
     inc_scan = cumsum(adjacent_diff, dtype="int32", exclusive=0)
     num_unique_elements = _calc_num_unique(inc_scan)
     if is_sorted:
-        unique_elements, inverse_indices = _calc_unique_sorted(data, argsorted_indices, inc_scan)
+        if return_counts:
+            unique_elements, inverse_indices, counts = _calc_unique_sorted_with_counts(
+                data, argsorted_indices, inc_scan
+            )
+            return [unique_elements, inverse_indices, num_unique_elements, counts]
+        else:
+            unique_elements, inverse_indices = _calc_unique_sorted(
+                data, argsorted_indices, inc_scan
+            )
+            return [unique_elements, inverse_indices, num_unique_elements]
     else:
         first_occurence = _calc_first_occurence(argsorted_indices, inc_scan)
         argsorted_first_occurence = argsort(first_occurence, dtype="int32")
         index_converter = argsort(argsorted_first_occurence, dtype="int32")
-        unique_elements, inverse_indices = _calc_unique_unsorted(
-            data, argsorted_indices, inc_scan, index_converter
-        )
-    return [unique_elements, inverse_indices, num_unique_elements]
+        if return_counts:
+            unique_elements, inverse_indices, counts = _calc_unique_unsorted_with_counts(
+                data, argsorted_indices, inc_scan, index_converter
+            )
+            return [unique_elements, inverse_indices, num_unique_elements, counts]
+        else:
+            unique_elements, inverse_indices = _calc_unique_unsorted(
+                data, argsorted_indices, inc_scan, index_converter
+            )
+            return [unique_elements, inverse_indices, num_unique_elements]

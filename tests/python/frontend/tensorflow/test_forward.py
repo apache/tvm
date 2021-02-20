@@ -4845,8 +4845,6 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 def _test_unique(n, dtype, is_dyn):
-    """ One iteration of a Stridedslice """
-
     tf.reset_default_graph()
     np_data = np.random.randint(100, size=n).astype(dtype)
     with tf.Graph().as_default():
@@ -4868,6 +4866,42 @@ def test_forward_unique():
         for is_dyn in [False, True]:
             _test_unique(50, dtype, is_dyn)
             _test_unique(100, dtype, is_dyn)
+
+
+#######################################################################
+# Unique with counts
+# ------------
+
+
+def _test_unique_with_counts(n, dtype, is_dyn):
+    tf.reset_default_graph()
+    np_data = np.random.randint(100, size=n).astype(dtype)
+    with tf.Graph().as_default():
+        if is_dyn:
+            in_data = tf.placeholder(dtype, [n], name="in_data")
+        else:
+            in_data = tf.constant(np_data, dtype, name="in_data")
+        tf.unique_with_counts(in_data)
+        if is_dyn:
+            compare_tf_with_tvm(
+                np_data,
+                "in_data:0",
+                ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"],
+                mode="vm",
+            )
+        else:
+            compare_tf_with_tvm(
+                None, "", ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"]
+            )
+
+
+def test_forward_unique_with_counts():
+    """test UniqueWithCounts"""
+
+    for dtype in ["int32", "int64"]:
+        for is_dyn in [False, True]:
+            _test_unique_with_counts(10, dtype, is_dyn)
+            _test_unique_with_counts(20, dtype, is_dyn)
 
 
 if __name__ == "__main__":
