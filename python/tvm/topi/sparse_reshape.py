@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
-"""Scatter operator"""
+"""Sparse_Reshape operator"""
 from ..tir import decl_buffer, ir_builder, Cast
 from ..te import extern, div, floordiv, floormod
 
