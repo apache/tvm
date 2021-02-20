@@ -25,7 +25,7 @@ from .sort import sort, argsort
 def _calc_adjacent_diff(data):
     output = output_tensor(data.shape, "int32")
     output[0] = int32(0)
-    for i in range(1, data.shape[0]):
+    for i in parallel(1, data.shape[0]):
         output[i] = int32(1) if data[i] != data[i - 1] else int32(0)
     return output
 
@@ -41,7 +41,7 @@ def _calc_num_unique(data):
 def _calc_unique_sorted(data, argsorted_indices, inc_scan):
     unique_elements = output_tensor(data.shape, data.dtype)
     indices = output_tensor(data.shape, "int32")
-    for i in range(data.shape[0]):
+    for i in parallel(data.shape[0]):
         indices[argsorted_indices[i]] = inc_scan[i]
         unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
     return unique_elements, indices
@@ -50,9 +50,9 @@ def _calc_unique_sorted(data, argsorted_indices, inc_scan):
 @hybrid.script
 def _calc_first_occurence(argsorted_indices, inc_scan):
     first_occurence = output_tensor(argsorted_indices.shape, "int32")
-    for i in range(argsorted_indices.shape[0]):
+    for i in parallel(argsorted_indices.shape[0]):
         first_occurence[i] = argsorted_indices.shape[0]
-    for i in range(argsorted_indices.shape[0]):
+    for i in parallel(argsorted_indices.shape[0]):
         if i == 0 or inc_scan[i] != inc_scan[i - 1]:
             first_occurence[inc_scan[i]] = argsorted_indices[i]
     return first_occurence
@@ -62,7 +62,7 @@ def _calc_first_occurence(argsorted_indices, inc_scan):
 def _calc_unique_unsorted(data, argsorted_indices, inc_scan, index_converter):
     unique_elements = output_tensor(data.shape, data.dtype)
     indices = output_tensor(data.shape, "int32")
-    for i in range(data.shape[0]):
+    for i in parallel(data.shape[0]):
         new_unique_idx = index_converter[inc_scan[i]]
         new_data_idx = argsorted_indices[i]
         unique_elements[new_unique_idx] = data[new_data_idx]
