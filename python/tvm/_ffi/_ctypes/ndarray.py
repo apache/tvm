@@ -83,7 +83,10 @@ class NDArrayBase(object):
             try:
                 _LIB.TVMObjectFree(self.handle)
             except Exception as e:
-                print(e.message, file=sys.stderr)
+                if hasattr(e, "message"):
+                    print(e.message, file=sys.stderr)
+                else:
+                    print(e, file=sys.stderr)
 
     @property
     def _tvm_handle(self):

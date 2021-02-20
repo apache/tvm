@@ -110,7 +110,10 @@ class ObjectBase(object):
             try:
                 _LIB.TVMObjectFree(self.handle)
             except Exception as e:
-                print(e.message, file=sys.stderr)
+                if hasattr(e, "message"):
+                    print("Exception:", e.message, file=sys.stderr)
+                else:
+                    print("Exception:", e, file=sys.stderr)
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.

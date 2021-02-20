@@ -214,7 +214,10 @@ class PackedFuncBase(object):
             try:
                 _LIB.TVMObjectFree(self.handle)
             except Exception as e:
-                print(e.message, file=sys.stderr)
+                if hasattr(e, "message"):
+                    print(e.message, file=sys.stderr)
+                else:
+                    print(e, file=sys.stderr)
 
     def __call__(self, *args):
         """Call the function with positional arguments
