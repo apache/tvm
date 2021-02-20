@@ -21,8 +21,10 @@ from tvm import topi
 import tvm.topi.testing
 
 
-@tvm.testing.parametrize_targets
-def test_unique(ctx, target):
+def test_unique():
+    target = "llvm"
+    ctx = tvm.cpu()
+
     def calc_numpy_unique(data, is_sorted=False):
         uniq, index, inverse, counts = np.unique(
             data, return_index=True, return_inverse=True, return_counts=True
@@ -68,4 +70,4 @@ def test_unique(ctx, target):
 
 
 if __name__ == "__main__":
-    test_unique(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_unique()
