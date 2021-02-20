@@ -1489,12 +1489,12 @@ def unique(data, is_sorted=True, return_counts=False):
     Examples
     --------
     .. code-block:: python
-        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False, return_counts=False)
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
         output         =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique     =  [5]
 
-        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False, return_counts=True)
+        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
         output         =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique     =  [5]
@@ -1507,5 +1507,4 @@ def unique(data, is_sorted=True, return_counts=False):
     """
     if return_counts:
         return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
-    else:
-        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)
+    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)

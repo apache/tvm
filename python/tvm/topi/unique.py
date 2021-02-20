@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, no-else-return
 """Unique operator"""
 from ..te import hybrid
 from .cumsum import cumsum
@@ -127,18 +127,18 @@ def unique(data, is_sorted=True, return_counts=False):
     Examples
     --------
     .. code-block:: python
-        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False, return_counts=False)
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
         output         =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique     =  [5]
 
-        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=False, return_counts=True)
+        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
         output         =  [4, 5, 1, 2, 3, ?, ?, ?]
         indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
         num_unique     =  [5]
         counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
 
-        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], sorted=True)
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
         output         =  [1, 2, 3, 4, 5, ?, ?, ?]
         indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
         num_unique     =  [5]
@@ -149,6 +149,7 @@ def unique(data, is_sorted=True, return_counts=False):
     adjacent_diff = _calc_adjacent_diff(sorted_data)
     inc_scan = cumsum(adjacent_diff, dtype="int32", exclusive=0)
     num_unique_elements = _calc_num_unique(inc_scan)
+
     if is_sorted:
         if return_counts:
             unique_elements, inverse_indices, counts = _calc_unique_sorted_with_counts(
