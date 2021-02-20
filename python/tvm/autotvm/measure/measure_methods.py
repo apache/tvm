@@ -22,6 +22,7 @@ These functions are responsible for building the tvm module, uploading it to
 remote devices, recording the running time costs, and checking the correctness of the output.
 """
 
+import contextlib
 import logging
 import shutil
 import os
