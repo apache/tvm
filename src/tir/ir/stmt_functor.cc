@@ -114,14 +114,50 @@ void StmtVisitor::VisitStmt_(const EvaluateNode* op) { this->VisitExpr(op->value
 
 class StmtMutator::Internal {
  public:
+  /*!
+   * \brief Mutate array's element by fmutate function.
+   *
+   * \note Use extra care for copy on write setting.
+   *
+   * In particular, consider the following case of two reference chains:
+   * - strongref0 -> loop0 -> loop1 -> loop2
+   * - strongref1 -> loop3 -> loop1 -> loop2
+   *
+   * Think of the case of calling MutateArray on loop1->loop2(as const reference).
+   * When both strongref0 and strongref1 exists, the context does not allow copy
+   * on write, even though loop1 uniquely refers to loop2.
+   *
+   * \param self The pointer to the mutator.
+   * \param arr Array to be mutated, const reference is used to allow copy on write
+   *            mutation in a recursive visitor.
+   * \param fmutate The mutator function.
+   * \return The mutated array, a new copy can be created.
+   */
+  template <typename T, typename F>
+  static Array<T> MutateArray(StmtMutator* self, const Array<T>& arr, F fmutate) {
+    if (self->allow_copy_on_write_ && arr.unique()) {
+      // if we allow copy on write, we can directly
+      // call the inplace mutate function.
+      const_cast<Array<T>&>(arr).MutateByApply(fmutate);
+      return arr;
+    } else {
+      bool allow_cow = false;
+      Array<T> copy = arr;
+      std::swap(allow_cow, self->allow_copy_on_write_);
+      copy.MutateByApply(fmutate);
+      std::swap(allow_cow, self->allow_copy_on_write_);
+      return copy;
+    }
+  }
+
   static Array<PrimExpr> Mutate(StmtMutator* self, const Array<PrimExpr>& arr) {
     auto fmutate = [self](const PrimExpr& e) { return self->VisitExpr(e); };
-    return MutateArray(arr, fmutate, self->allow_copy_on_write_);
+    return MutateArray(self, arr, fmutate);
   }
 
   static Array<Stmt> Mutate(StmtMutator* self, const Array<Stmt>& arr) {
     auto fmutate = [self](const Stmt& s) { return self->VisitStmt(s); };
-    return MutateArray(arr, fmutate, self->allow_copy_on_write_);
+    return MutateArray(self, arr, fmutate);
   }
 
   static Array<Range> Mutate(StmtMutator* self, const Array<Range>& arr) {
@@ -134,7 +170,7 @@ class StmtMutator::Internal {
         return Range::FromMinExtent(min, extent);
       }
     };
-    return MutateArray(arr, fmutate, self->allow_copy_on_write_);
+    return MutateArray(self, arr, fmutate);
   }
 };
 
@@ -323,7 +359,7 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
   }
   // function to run the visit.
   auto frunvisit = [&](const SeqStmtNode* op) {
-    Array<Stmt> seq = fmutate != nullptr ? MutateArray(op->seq, fmutate, allow_copy_on_write_)
+    Array<Stmt> seq = fmutate != nullptr ? Internal::MutateArray(this, op->seq, fmutate)
                                          : Internal::Mutate(this, op->seq);
     if (seq.same_as(op->seq)) {
       return GetRef<Stmt>(op);
