@@ -2167,6 +2167,9 @@ class PyTorchOpConverter:
     def unique(self, inputs, input_types):
         assert len(inputs) == 4
         [data, is_sorted, return_inverse, return_counts] = inputs
+        if is_sorted == False:
+            logging.warning("TVM always assumes sorted=True for torch.unique")
+            is_sorted = True
         if return_counts:
             [unique, indices, num_uniq, counts] = _op.unique(
                 data, is_sorted=is_sorted, return_counts=True
