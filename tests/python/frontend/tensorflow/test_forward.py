@@ -414,6 +414,16 @@ def test_forward_pooling():
             pooling_type=pool_type,
             dilation_rate=[2],
         )
+    # Explicit padding
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
+        _test_pooling(
+            input_shape=[2, 9, 10, 2],
+            window_shape=[4, 4],
+            padding=[[0, 0], [0, 1], [2, 3], [0, 0]],
+            pooling_type="MAX",
+            dilation_rate=[1, 1],
+            strides=[1, 1],
+        )
 
 
 #######################################################################
@@ -830,6 +840,36 @@ def test_forward_convolution():
         [4, 8, 8, 176],
         add_shapes_to_graph_def=False,
     )
+    # Explicit padding
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
+        _test_convolution(
+            "conv",
+            [4, 8, 8, 16],
+            [1, 1, 16, 32],
+            [1, 1],
+            [1, 1],
+            [[0, 0], [2, 3], [0, 1], [0, 0]],
+            "NHWC",
+        )
+        _test_convolution(
+            "depthwise",
+            [4, 8, 8, 16],
+            [1, 1, 16, 1],
+            [1, 1],
+            [1, 1],
+            [[0, 0], [2, 3], [0, 1], [0, 0]],
+            "NHWC",
+        )
+        _test_convolution(
+            "conv_transpose",
+            [4, 8, 8, 32],
+            [3, 3, 176, 32],
+            [1, 1],
+            [2, 2],
+            [[0, 0], [1, 0], [1, 0], [0, 0]],
+            "NHWC",
+            [4, 16, 16, 176],
+        )
 
 
 #######################################################################
@@ -1809,6 +1849,109 @@ def test_forward_sparse_dense_matmul():
     )
     _test_sparse_dense_matmul(
         [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [9, 5], [7, 9], "float32", True
+    )
+
+
+#######################################################################
+# SparseFillEmptyRows
+# ------------
+
+
+def _test_sparse_fill_empty_rows(indices_np, values_np, dense_shape_np, default_value_int, use_dyn):
+    with tf.Graph().as_default():
+        if use_dyn:
+            indices = tf.placeholder(shape=(None, None), dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=(None), dtype=values_np.dtype, name="values")
+            dense_shape = tf.placeholder(
+                shape=(None), dtype=dense_shape_np.dtype, name="dense_shape"
+            )
+        else:
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
+            dense_shape = tf.placeholder(
+                shape=dense_shape_np.shape, dtype=dense_shape_np.dtype, name="dense_shape"
+            )
+
+        default_value = tf.placeholder(shape=(), dtype=values_np.dtype, name="default_value")
+        sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=dense_shape)
+        _ = tf.sparse.fill_empty_rows(sp_input, default_value, name="sparse_fill_empty_rows")
+        compare_tf_with_tvm(
+            [indices_np, values_np, dense_shape_np, default_value_int],
+            [indices.name, values.name, dense_shape.name, default_value.name],
+            [
+                "sparse_fill_empty_rows/SparseFillEmptyRows:0",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:1",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:2",
+            ],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int",
+    [
+        (
+            np.array([[1, 1], [0, 3], [0, 1], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4, 5], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[1, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([5, 6], dtype=np.int64),
+            10,
+        ),
+        (
+            np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int64),
+            np.array([1, 2, 3, 4], dtype=np.int64),
+            np.array([7, 7, 7], dtype=np.int64),
+            5,
+        ),
+        (
+            np.array([[1], [2]], dtype=np.int64),
+            np.array([7, 8], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            4,
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([5], dtype=np.int64),
+            4,
+        ),
+        (
+            np.ones((0, 3), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([9, 3, 7], dtype=np.int64),
+            100,
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_forward_sparse_fill_empty_rows(
+    sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int, use_dyn
+):
+    """ sparse_fill_empty_rows op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    _test_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, dense_shape_np, default_value_int, use_dyn
     )
 
 
@@ -4072,6 +4215,56 @@ def test_forward_dilation():
     _test_dilation2d([1, 224, 224, 10], [8, 8, 10], [1, 3, 1, 1], [1, 1, 1, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 2, 2, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
+
+
+def _test_identityn(data_np_list):
+    with tf.Graph().as_default():
+        data_tensors = []
+        data_tensors_name = []
+        for index, data_np in enumerate(data_np_list):
+            tensor_name = f"data_{index}"
+            data_tensors_name.append(tensor_name + ":0")
+            data_tensors.append(
+                tf.placeholder(shape=data_np.shape, dtype=str(data_np.dtype), name=tensor_name)
+            )
+
+        output = tf.identity_n(data_tensors)
+        output_names = [out.name for out in output]
+        compare_tf_with_tvm(
+            data_np_list,
+            data_tensors_name,
+            output_names,
+        )
+
+
+@pytest.mark.parametrize(
+    "data_np_list",
+    [
+        (
+            [
+                np.array([[1, 1], [0, 3], [0, 1], [2, 0], [3, 1]], dtype=np.int64),
+                np.array([1, 2, 3, 4, 5], dtype=np.int64),
+                np.array([5, 6], dtype=np.int64),
+            ]
+        ),
+        (
+            [
+                np.array([[1, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int64),
+                np.array([1, 2, 3, 4], dtype=np.int64),
+                np.array([5, 6], dtype=np.int64),
+                np.array([True, False, True]),
+            ]
+        ),
+        (
+            [
+                np.array([]),
+                np.array([[]]),
+            ]
+        ),
+    ],
+)
+def test_forward_identityn(data_np_list):
+    _test_identityn(data_np_list)
 
 
 #######################################################################

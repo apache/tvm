@@ -1928,6 +1928,32 @@ class PyTorchOpConverter:
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
 
+    def deform_conv2d(self, inputs, input_types):
+        data = inputs[0]
+        weight = inputs[1]
+        offset = inputs[2]
+        strides = (inputs[4], inputs[5])
+        padding = (inputs[6], inputs[7])
+        dilation = (inputs[8], inputs[9])
+        groups = inputs[10]
+        deformable_groups = inputs[11]
+        weight_shape = self.infer_shape(weight)
+        output_channels = weight_shape[0]
+        kernel_size = (weight_shape[2], weight_shape[3])
+
+        return _op.nn.deformable_conv2d(
+            data,
+            offset,
+            weight,
+            strides,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+            output_channels,
+            kernel_size,
+        )
+
     def unbind(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
@@ -1983,6 +2009,32 @@ class PyTorchOpConverter:
         index = inputs[2]
         src = inputs[3]
         return _op.transform.scatter(data, index, src, axis)
+
+    def index_put(self, inputs, input_types):
+        in_tensor = inputs[0]
+        indices = inputs[1]
+        values = inputs[2]
+        accumulate = inputs[3]
+        # accumulate parameter is ignored.
+        # torch.index_put default is False but Relay.scatter_nd accumulates values.
+        # We assume there is no duplicate indices in torch.index_put input
+        if not accumulate:
+            logging.warning(
+                "torch.index_put accumulate parameter is False. "
+                "TVM uses tvm.relay.scatter_nd operator which accumulates values. "
+                "Make sure there is no duplicate indices in torch.index_put input."
+            )
+        # Relay scatter_nd does not support input tensor
+        # We assume that torch.index_put is used with empty zero-values input tensor
+        # scatter_nd will create empty zero-values tensor with a given shape
+        out_shape = self.infer_shape(in_tensor)
+        logging.warning(
+            "tvm.relay.scatter_nd operator does not support input tensor parameter. "
+            "TVM assumes that torch.index_put is used with empty zero-values input tensor"
+        )
+        # Combine array of index tensors into one index tensor with shape (N,_)
+        index_tensor = _op.stack(indices, axis=0)
+        return _op.transform.scatter_nd(values, index_tensor, out_shape)
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
@@ -2292,6 +2344,7 @@ class PyTorchOpConverter:
             "torchvision::nms": self.nms,
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
+            "torchvision::deform_conv2d": self.deform_conv2d,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
@@ -2299,6 +2352,8 @@ class PyTorchOpConverter:
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::index_put": self.index_put,
+            "aten::index_put_": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
             "aten::IntImplicit": self.identity,

@@ -299,7 +299,7 @@ print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), n
 # 1. During the tuning, the auto-scheduler needs to compile many programs and
 #    extract feature from them. This part is CPU-intensive,
 #    so a high-performance CPU with many cores is recommended for faster search.
-# 2. You can use :code:`python3 -m tvm.auto_scheduler.measure_record --mode distill --i log.json`
+# 2. You can use :code:`python3 -m tvm.auto_scheduler.measure_record --mode distill -i log.json`
 #    to distill the large log file and only save the best useful records.
 # 3. You can resume a search from the previous log file. You just need to
 #    add a new argument :code:`load_log_file` when creating the task scheduler

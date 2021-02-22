@@ -33,25 +33,30 @@ def test_stable_sort_by_key():
 
     keys_out, values_out = stable_sort_by_key_thrust(keys, values)
 
-    ctx = tvm.gpu(0)
-    target = "cuda"
-    s = te.create_schedule([keys_out.op, values_out.op])
-    f = tvm.build(s, [keys, values, keys_out, values_out], target)
+    for target in ["cuda", "rocm"]:
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
+            continue
 
-    keys_np = np.array([1, 4, 2, 8, 2, 7], np.int32)
-    values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
-    keys_np_out = np.zeros(keys_np.shape, np.int32)
-    values_np_out = np.zeros(values_np.shape, np.int32)
-    keys_in = tvm.nd.array(keys_np, ctx)
-    values_in = tvm.nd.array(values_np, ctx)
-    keys_out = tvm.nd.array(keys_np_out, ctx)
-    values_out = tvm.nd.array(values_np_out, ctx)
-    f(keys_in, values_in, keys_out, values_out)
+        target += " -libs=thrust"
+        ctx = tvm.context(target, 0)
+        s = te.create_schedule([keys_out.op, values_out.op])
+        f = tvm.build(s, [keys, values, keys_out, values_out], target)
 
-    ref_keys_out = np.sort(keys_np)
-    ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
-    tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
-    tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+        keys_np = np.array([1, 4, 2, 8, 2, 7], np.int32)
+        values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
+        keys_np_out = np.zeros(keys_np.shape, np.int32)
+        values_np_out = np.zeros(values_np.shape, np.int32)
+        keys_in = tvm.nd.array(keys_np, ctx)
+        values_in = tvm.nd.array(values_np, ctx)
+        keys_out = tvm.nd.array(keys_np_out, ctx)
+        values_out = tvm.nd.array(values_np_out, ctx)
+        f(keys_in, values_in, keys_out, values_out)
+
+        ref_keys_out = np.sort(keys_np)
+        ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
+        tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
+        tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
 
 
 def test_exclusive_scan():
@@ -59,35 +64,41 @@ def test_exclusive_scan():
         print("skip because thrust is not enabled...")
         return
 
-    for ishape in [(10,), (10, 10), (10, 10, 10)]:
-        values = te.placeholder(ishape, name="values", dtype="int32")
+    for target in ["cuda", "rocm"]:
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
+            continue
 
-        with tvm.target.Target("cuda"):
-            scan, reduction = exclusive_scan(values, return_reduction=True)
-            s = schedule_scan([scan, reduction])
+        target += " -libs=thrust"
+        for ishape in [(10,), (10, 10), (10, 10, 10)]:
+            values = te.placeholder(ishape, name="values", dtype="int32")
 
-        ctx = tvm.gpu(0)
-        f = tvm.build(s, [values, scan, reduction], "cuda")
+            with tvm.target.Target(target):
+                scan, reduction = exclusive_scan(values, return_reduction=True)
+                s = schedule_scan([scan, reduction])
 
-        values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
-        values_np_out = np.zeros(values_np.shape, np.int32)
+            ctx = tvm.context(target, 0)
+            f = tvm.build(s, [values, scan, reduction], target)
 
-        if len(ishape) == 1:
-            reduction_shape = ()
-        else:
-            reduction_shape = ishape[:-1]
+            values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
+            values_np_out = np.zeros(values_np.shape, np.int32)
 
-        reduction_np_out = np.zeros(reduction_shape, np.int32)
+            if len(ishape) == 1:
+                reduction_shape = ()
+            else:
+                reduction_shape = ishape[:-1]
 
-        values_in = tvm.nd.array(values_np, ctx)
-        values_out = tvm.nd.array(values_np_out, ctx)
-        reduction_out = tvm.nd.array(reduction_np_out, ctx)
-        f(values_in, values_out, reduction_out)
+            reduction_np_out = np.zeros(reduction_shape, np.int32)
 
-        ref_values_out = np.cumsum(values_np, axis=-1, dtype="int32") - values_np
-        tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
-        ref_reduction_out = np.sum(values_np, axis=-1)
-        tvm.testing.assert_allclose(reduction_out.asnumpy(), ref_reduction_out, rtol=1e-5)
+            values_in = tvm.nd.array(values_np, ctx)
+            values_out = tvm.nd.array(values_np_out, ctx)
+            reduction_out = tvm.nd.array(reduction_np_out, ctx)
+            f(values_in, values_out, reduction_out)
+
+            ref_values_out = np.cumsum(values_np, axis=-1, dtype="int32") - values_np
+            tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+            ref_reduction_out = np.sum(values_np, axis=-1)
+            tvm.testing.assert_allclose(reduction_out.asnumpy(), ref_reduction_out, rtol=1e-5)
 
 
 def test_inclusive_scan():
@@ -97,24 +108,30 @@ def test_inclusive_scan():
 
     out_dtype = "int64"
 
-    for ishape in [(10,), (10, 10)]:
-        values = te.placeholder(ishape, name="values", dtype="int32")
+    for target in ["cuda", "rocm"]:
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
+            continue
 
-        with tvm.target.Target("cuda"):
-            scan = scan_thrust(values, out_dtype, exclusive=False)
-            s = tvm.te.create_schedule([scan.op])
+        target += " -libs=thrust"
+        for ishape in [(10,), (10, 10)]:
+            values = te.placeholder(ishape, name="values", dtype="int32")
 
-        ctx = tvm.gpu(0)
-        f = tvm.build(s, [values, scan], "cuda")
+            with tvm.target.Target(target):
+                scan = scan_thrust(values, out_dtype, exclusive=False)
+                s = tvm.te.create_schedule([scan.op])
 
-        values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
-        values_np_out = np.zeros(values_np.shape, out_dtype)
-        values_in = tvm.nd.array(values_np, ctx)
-        values_out = tvm.nd.array(values_np_out, ctx)
-        f(values_in, values_out)
+            ctx = tvm.context(target, 0)
+            f = tvm.build(s, [values, scan], target)
 
-        ref_values_out = np.cumsum(values_np, axis=-1, dtype=out_dtype)
-        tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+            values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
+            values_np_out = np.zeros(values_np.shape, out_dtype)
+            values_in = tvm.nd.array(values_np, ctx)
+            values_out = tvm.nd.array(values_np_out, ctx)
+            f(values_in, values_out)
+
+            ref_values_out = np.cumsum(values_np, axis=-1, dtype=out_dtype)
+            tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
 
 
 if __name__ == "__main__":

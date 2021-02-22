@@ -26,6 +26,7 @@
 #include <thrust/sort.h>
 #include <thrust/gather.h>
 #include <thrust/scan.h>
+#include <thrust/sequence.h>
 
 #include <tvm/runtime/registry.h>
 #include <dlpack/dlpack.h>

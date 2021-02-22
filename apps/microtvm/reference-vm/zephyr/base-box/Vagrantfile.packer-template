@@ -36,5 +36,12 @@ Vagrant.configure("2") do |config|
     config.vm.synced_folder ".", "/vagrant", disabled: true
   {{- end}}
 
+
+  {{ if eq .BoxName "microtvm-base-vmware_desktop" -}}
+  config.vm.provision "shell", inline: "touch ~/skip_zeroing_disk", privileged: false
+  {{- end}}
+
+  # NOTE: setup.sh resides in the parent directory (../) because this template is expanded into a
+  # sub-directory of base-box (output-packer-*).
   config.vm.provision "shell", path: "../setup.sh", privileged: false
 end

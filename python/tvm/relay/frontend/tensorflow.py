@@ -268,6 +268,13 @@ def _pooling(name):
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
             attr["padding"] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 8
+            if flip_layout or attr["data_format"] == "NHWC":
+                attr["padding"] = [paddings[2], paddings[4], paddings[3], paddings[5]]
+            else:
+                attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
             msg = 'Value {} in attribute "padding" of operator Pooling is ' "not valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -278,7 +285,7 @@ def _pooling(name):
         out = AttrCvt(
             op_name=_dimension_picker(name),
             transforms={"kernel_shape": "pool_size", "data_format": "layout"},
-            ignores=["ksize"],
+            ignores=["ksize", "explicit_paddings"],
             extras={"ceil_mode": False},
             custom_check=_dimension_constraint(),
         )(inputs, attr)
@@ -418,6 +425,13 @@ def _conv(opname):
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             attr["padding"] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 8
+            if flip_layout or attr["data_format"] == "NHWC":
+                attr["padding"] = [paddings[2], paddings[4], paddings[3], paddings[5]]
+            else:
+                attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -626,7 +640,27 @@ def _conv3d(opname):
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             attr["padding"] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
-
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 10
+            if flip_layout or attr["data_format"] == "NDHWC":
+                attr["padding"] = [
+                    paddings[2],
+                    paddings[4],
+                    paddings[6],
+                    paddings[3],
+                    paddings[5],
+                    paddings[7],
+                ]
+            else:
+                attr["padding"] = [
+                    paddings[4],
+                    paddings[6],
+                    paddings[8],
+                    paddings[5],
+                    paddings[7],
+                    paddings[9],
+                ]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -998,9 +1032,38 @@ def _sparse_tensor_dense_matmul():
     return _impl
 
 
+def _sparse_fill_empty_rows():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        sparse_indices = inputs[0]
+        sparse_values = inputs[1]
+        sparse_indices_num_cols = _infer_shape(sparse_indices, mod)[1]
+        first_column = _op.split(sparse_indices, sparse_indices_num_cols, axis=1)[0]
+        sorted_indices = _op.argsort(_op.squeeze(first_column))
+        sorted_sparse_indices = _op.take(sparse_indices, sorted_indices, axis=0)
+        sorted_sparse_values = _op.take(sparse_values, sorted_indices, axis=0)
+        new_sparse_indices, new_sparse_values, empty_row_indicator = _op.sparse_fill_empty_rows(
+            sorted_sparse_indices, sorted_sparse_values, inputs[2], inputs[3]
+        )
+
+        return _expr.TupleWrapper(
+            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]),
+            3,
+        )
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
+
+    return _impl
+
+
+def _identityn():
+    def _impl(inputs, attr, params, mod):
+        return inputs
 
     return _impl
 
@@ -1416,9 +1479,9 @@ def _squeeze():
     def _impl(inputs, attr, params, mod):
         if len(attr["squeeze_dims"]) == 0:
             attr["squeeze_dims"] = None
-        return AttrCvt(op_name="squeeze", transforms={"squeeze_dims": "axis"}, ignores=["T"])(
-            inputs, attr
-        )
+        return AttrCvt(
+            op_name="squeeze", transforms={"squeeze_dims": "axis"}, ignores=["T", "_cloned"]
+        )(inputs, attr)
 
     return _impl
 
@@ -2378,6 +2441,7 @@ _convert_map = {
     "Greater": _broadcast("greater"),
     "GreaterEqual": _broadcast("greater_equal"),
     "Identity": _identity(),
+    "IdentityN": _identityn(),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
     "IsNan": AttrCvt("isnan"),
@@ -2447,6 +2511,7 @@ _convert_map = {
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
+    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
