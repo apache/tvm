@@ -116,13 +116,16 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       }
     }
     int non_any_size = static_cast<int>(non_any.size());
-    if (non_any_size != data_length) oshape[i] = Any();
     if (i != axis) {
       for (int k = 1; k < non_any_size; k++) {
         if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
         throw Error(
             "relay.concatenate requires all tensors have the same shape "
             "on non-concatenating axes");
+      }
+      if (non_any_size > 0) {
+        // For non concat-axes, enforce static shape constraint
+        oshape[i] = non_any[0];
       }
     }
   }
