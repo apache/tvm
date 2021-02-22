@@ -460,7 +460,7 @@ def make_idx(b, e, s, z, i):
 
     Returns
     -------
-    postion: Expr
+    position: Expr
         int expression that corresponds to an array position in the selection.
     """
     bc = tvm.tir.Select(s < 0, i <= e, i < b)

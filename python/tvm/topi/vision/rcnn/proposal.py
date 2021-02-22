@@ -231,7 +231,7 @@ def argsort_ir(data_buf, out_index_buf):
 
 
 def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
-    """Non-maximum supression.
+    """Non-maximum suppression.
 
     Parameters
     ----------
