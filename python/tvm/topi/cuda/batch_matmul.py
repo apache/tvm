@@ -161,7 +161,8 @@ def batch_matmul_cublas(cfg, x, y, out_shape=None):
     """
     b, m, k = x.shape
     b, n, k = y.shape
-    cfg.add_flop(b * m * k * n * 2)
+    if isinstance(b, int) and isinstance(m, int) and isinstance(n, int) and isinstance(k, int):
+        cfg.add_flop(b * m * k * n * 2)
     return cublas.batch_matmul(x, y, False, True)
 
 
