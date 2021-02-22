@@ -111,7 +111,7 @@ class ObjectBase(object):
             except AttributeError:
                 return
 
-            check_call(_LIB.TVMObjectFree(self.handle))
+            check_call(_LIB.TVMObjectFree(handle))
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.
