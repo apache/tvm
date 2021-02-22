@@ -82,6 +82,7 @@ class NDArrayBase(object):
         if not self.is_view and _LIB:
             try:
                 _LIB.TVMObjectFree(self.handle)
+            # pylint: disable=broad-except
             except Exception as e:
                 if hasattr(e, "message"):
                     print(e.message, file=sys.stderr)

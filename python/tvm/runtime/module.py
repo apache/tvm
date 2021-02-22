@@ -49,6 +49,7 @@ class Module(object):
         if _LIB is not None:
             try:
                 _LIB.TVMObjectFree(self.handle)
+            # pylint: disable=broad-except
             except Exception as e:
                 if hasattr(e, "message"):
                     print(e.message, file=sys.stderr)

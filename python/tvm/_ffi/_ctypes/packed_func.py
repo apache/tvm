@@ -213,6 +213,7 @@ class PackedFuncBase(object):
         if not self.is_global and _LIB is not None:
             try:
                 _LIB.TVMObjectFree(self.handle)
+            # pylint: disable=broad-except
             except Exception as e:
                 if hasattr(e, "message"):
                     print(e.message, file=sys.stderr)
