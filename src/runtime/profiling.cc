@@ -29,11 +29,11 @@ namespace tvm {
 namespace runtime {
 TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx) {
   TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-  auto start = std::chrono::steady_clock::now();
+  auto start = std::chrono::high_resolution_clock::now();
   return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
       [=]() {
         TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-        auto stop = std::chrono::steady_clock::now();
+        auto stop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<int64_t, std::nano> duration = stop - start;
 
         return TypedPackedFunc<int64_t()>([=]() -> int64_t { return duration.count(); },
@@ -43,10 +43,10 @@ TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx) {
 }
 
 TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
-  auto start = std::chrono::steady_clock::now();
+  auto start = std::chrono::high_resolution_clock::now();
   return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
       [=]() {
-        auto stop = std::chrono::steady_clock::now();
+        auto stop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<int64_t, std::nano> duration = stop - start;
         return TypedPackedFunc<int64_t()>([=]() -> int64_t { return duration.count(); },
                                           "profiling.timer.cpu.get_time");
