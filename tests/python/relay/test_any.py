@@ -208,6 +208,16 @@ def test_any_concat():
     ref = np.concatenate(x_np, axis=0)
     check_result(x_np, mod, ref)
 
+    x = [relay.var("x", shape=(relay.Any(), 3), dtype="float32") for _ in range(3)]
+    x.append(relay.var("x", shape=(relay.Any(), relay.Any()), dtype="float32"))
+    z = relay.op.concatenate(x, axis=0)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function(x, z)
+    typed_mod = relay.transform.InferType()(mod)
+    assert typed_mod["main"].body.checked_type == relay.TensorType(
+        (relay.Any(), 3), dtype="float32"
+    )
+
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var("x", shape=x_shape, dtype="float32")
