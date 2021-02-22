@@ -30,6 +30,7 @@
 
 #include <stack>
 #include <unordered_set>
+#include <chrono>
 
 #include "../runtime/object_internal.h"
 
@@ -168,6 +169,126 @@ void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_be
 }
 
 class ModulePass;
+
+struct PassProfile {
+  typedef std::chrono::steady_clock Clock;
+  typedef std::chrono::microseconds Duration;
+  typedef std::chrono::time_point<Clock> Time;
+
+  String name;
+  Time start;
+  Time end;
+  Duration duration;
+  std::vector<PassProfile> children;
+
+  PassProfile(String name) : name(name), start(Clock::now()), end(Clock::now()), children() {}
+
+  static PassProfile* Current();
+  static void EnterPass(String name);
+  static void ExitPass();
+};
+
+struct PassProfileThreadLocalEntry {
+  // TODO: figure out the TVM way to do this
+  PassProfile root;
+  std::stack<PassProfile*> profile_stack;
+
+  PassProfileThreadLocalEntry() : root("root") {}
+};
+
+typedef dmlc::ThreadLocalStore<PassProfileThreadLocalEntry> PassProfileThreadLocalStore;
+
+void PassProfile::EnterPass(String name) {
+  PassProfile* cur = PassProfile::Current();
+  cur->children.emplace_back(name);
+  PassProfileThreadLocalStore::Get()->profile_stack.push(&cur->children.back());
+}
+
+void PassProfile::ExitPass() {
+  PassProfile* cur = PassProfile::Current();
+  ICHECK_NE(cur->name, "root");
+  cur->end = std::move(PassProfile::Clock::now());
+  cur->duration = std::chrono::duration_cast<PassProfile::Duration>(cur->end - cur->start);
+  PassProfileThreadLocalStore::Get()->profile_stack.pop();
+}
+
+PassProfile* PassProfile::Current() {
+  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
+  if (!entry->profile_stack.empty()) {
+    return entry->profile_stack.top();
+  } else {
+    return &entry->root;
+  }
+}
+
+IRModule Pass::operator()(IRModule mod) const {
+  const PassNode* node = operator->();
+  ICHECK(node != nullptr);
+  PassProfile::EnterPass(node->Info()->name);
+  auto ret = node->operator()(std::move(mod));
+  PassProfile::ExitPass();
+  return std::move(ret);
+}
+
+IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  const PassNode* node = operator->();
+  ICHECK(node != nullptr);
+  PassProfile::EnterPass(node->Info()->name);
+  auto ret = node->operator()(std::move(mod), pass_ctx);
+  PassProfile::ExitPass();
+  return std::move(ret);
+}
+
+void PrintPassProfile() {
+  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
+  ICHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
+
+  if (entry->root.children.empty()) {
+    LOG(WARNING) << "no passes have been profiled";
+    return;
+  }
+
+  // (depth, parent_duration, pass)
+  std::stack<std::tuple<size_t, PassProfile::Duration, PassProfile*>> profiles;
+
+  // push top level passes
+  PassProfile::Duration top_dur(0);
+  for (auto it = entry->root.children.begin(); it != entry->root.children.end(); ++it) {
+    top_dur += it->duration;
+  }
+  for (auto it = entry->root.children.rbegin(); it != entry->root.children.rend(); ++it) {
+    profiles.push(std::make_tuple(0, top_dur, &*it));
+  }
+
+  while (profiles.size() > 0) {
+    size_t depth;
+    PassProfile::Duration parent_duration;
+    PassProfile *profile;
+    std::tie(depth, parent_duration, profile) = profiles.top();
+    profiles.pop();
+
+    // indent depth
+    for (size_t i = 0; i < depth; ++i) {
+      std::cout << "\t";
+    }
+
+    double percentage = static_cast<double>(profile->duration.count()) /
+                        static_cast<double>(parent_duration.count()) * 100;
+    printf("%s: %ldus (%.2f%%)\n", profile->name.c_str(), profile->duration.count(), percentage);
+
+    for (auto it = profile->children.rbegin(); it != profile->children.rend(); ++it) {
+      profiles.push(std::make_tuple(depth + 1, profile->duration, &*it));
+    }
+  }
+}
+
+TVM_REGISTER_GLOBAL("transform.print_pass_profiles").set_body_typed([]() {
+  PrintPassProfile();
+});
+
+TVM_REGISTER_GLOBAL("transform.clear_pass_profiles").set_body_typed([]() {
+  PassProfileThreadLocalStore::Get()->root.children.clear();
+});
 
 /*!
  * \brief Module-level passes are designed to implement global

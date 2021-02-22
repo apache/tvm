@@ -330,3 +330,11 @@ def PrintIR(header="", show_meta_data=False):
     The pass
     """
     return _ffi_transform_api.PrintIR(header, show_meta_data)
+
+
+def print_pass_profiles():
+    _ffi_transform_api.print_pass_profiles()
+
+
+def clear_pass_profiles():
+    _ffi_transform_api.clear_pass_profiles()
