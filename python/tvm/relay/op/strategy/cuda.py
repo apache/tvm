@@ -20,7 +20,7 @@ from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
-from tvm._ffi import get_global_func
+from tvm.contrib.thrust import can_use_thrust
 from .generic import *
 from .. import op as _op
 
@@ -791,9 +791,7 @@ def scatter_cuda(attrs, inputs, out_type, target):
     rank = len(inputs[0].shape)
 
     with SpecializedCondition(rank == 1):
-        if target.kind.name == "cuda" and get_global_func(
-            "tvm.contrib.thrust.stable_sort_by_key", allow_missing=True
-        ):
+        if can_use_thrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
             strategy.add_implementation(
                 wrap_compute_scatter(topi.cuda.scatter_via_sort),
                 wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
@@ -838,9 +836,7 @@ def sort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_sort),
         name="sort.cuda",
     )
-    if target.kind.name == "cuda" and get_global_func(
-        "tvm.contrib.thrust.sort", allow_missing=True
-    ):
+    if can_use_thrust(target, "tvm.contrib.thrust.sort"):
         strategy.add_implementation(
             wrap_compute_sort(topi.cuda.sort_thrust),
             wrap_topi_schedule(topi.cuda.schedule_sort),
@@ -859,9 +855,7 @@ def argsort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_argsort),
         name="argsort.cuda",
     )
-    if target.kind.name == "cuda" and get_global_func(
-        "tvm.contrib.thrust.sort", allow_missing=True
-    ):
+    if can_use_thrust(target, "tvm.contrib.thrust.sort"):
         strategy.add_implementation(
             wrap_compute_argsort(topi.cuda.argsort_thrust),
             wrap_topi_schedule(topi.cuda.schedule_argsort),
@@ -880,9 +874,7 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_topk),
         name="topk.cuda",
     )
-    if target.kind.name == "cuda" and get_global_func(
-        "tvm.contrib.thrust.sort", allow_missing=True
-    ):
+    if can_use_thrust(target, "tvm.contrib.thrust.sort"):
         strategy.add_implementation(
             wrap_compute_topk(topi.cuda.topk_thrust),
             wrap_topi_schedule(topi.cuda.schedule_topk),

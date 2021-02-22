@@ -19,9 +19,9 @@
 """Non-maximum suppression operator"""
 import tvm
 from tvm import te
-
+from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from tvm.tir import if_then_else
-from .sort import argsort, argsort_thrust, is_thrust_available
+from .sort import argsort, argsort_thrust
 from .scan import exclusive_scan
 from ..utils import ceil_div
 
@@ -610,8 +610,10 @@ def _get_sorted_indices(data, data_buf, score_index, score_shape):
     )
 
     target = tvm.target.Target.current()
-    # TODO(masahi): Check -libs=thrust option
-    if target and target.kind.name in ["cuda", "rocm"] and is_thrust_available():
+    if target and (
+        can_use_thrust(target, "tvm.contrib.thrust.sort")
+        or can_use_rocthrust(target, "tvm.contrib.thrust.sort")
+    ):
         sort_tensor = argsort_thrust(score_tensor, axis=1, is_ascend=False, dtype="int32")
     else:
         sort_tensor = argsort(score_tensor, axis=1, is_ascend=False, dtype="int32")
