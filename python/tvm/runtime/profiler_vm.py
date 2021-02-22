@@ -37,6 +37,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         self.module = _ffi_api._VirtualMachineDebug(exe.module)
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
+        self._profile = self.module["profile"]
         self._get_stat = self.module["get_stat"]
         self._set_input = self.module["set_input"]
         self._reset = self.module["reset"]
@@ -57,6 +58,29 @@ class VirtualMachineProfiler(vm.VirtualMachine):
             The execution statistics in string.
         """
         return self._get_stat(sort_by_time)
+
+    def profile(self, func_name="main", *args, **kwargs):
+        """Profile a function call.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+
+        Returns
+        -------
+        timing_results : str
+            Overall and per-op timing results formatted in a table.
+        """
+        if args or kwargs:
+            self.set_input(func_name, *args, **kwargs)
+        return self._profile(func_name)
 
     def reset(self):
         self._reset()
