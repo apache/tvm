@@ -109,7 +109,7 @@ class For(Stmt):
         The loop variable.
 
     min_val : PrimExpr
-        The begining value.
+        The beginning value.
 
     extent : PrimExpr
         The length of the loop.

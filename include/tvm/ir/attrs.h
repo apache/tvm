@@ -146,7 +146,7 @@ class BaseAttrsNode : public Object {
   virtual void VisitAttrs(AttrVisitor* v) {}
   /*!
    * \brief Initialize the attributes by sequence of arguments
-   * \param args The postional arguments in the form
+   * \param args The positional arguments in the form
    *        [key0, value0, key1, value1, ..., key_n, value_n]
    */
   template <typename... Args>
