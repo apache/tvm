@@ -80,7 +80,7 @@ class GraphRuntimeDebug : public GraphRuntime {
           tbegin = std::chrono::high_resolution_clock::now();
           std::vector<std::vector<TypedPackedFunc<int64_t()>>> op_timers;
           for (size_t index = 0; index < op_execs_.size(); index++) {
-            op_timers[index].push_back({});
+            op_timers.push_back({});
           }
           for (int k = 0; k < number; k++) {
             for (size_t index = 0; index < op_execs_.size(); ++index) {
