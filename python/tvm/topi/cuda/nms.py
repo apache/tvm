@@ -272,6 +272,7 @@ def nms_ir(
     out_bboxes,
     out_scores,
     out_class_ids,
+    out_features,
     box_indices,
     num_valid_boxes,
     max_output_size,
@@ -390,6 +391,7 @@ def nms_ir(
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
+    num_features = out_features.shape[2]
 
     ib = tvm.tir.ir_builder.create()
 
@@ -402,6 +404,7 @@ def nms_ir(
     out_bboxes = ib.buffer_ptr(out_bboxes)
     out_scores = ib.buffer_ptr(out_scores)
     out_class_ids = ib.buffer_ptr(out_class_ids)
+    out_features = ib.buffer_ptr(out_features)
     box_indices = ib.buffer_ptr(box_indices)
     num_valid_boxes = ib.buffer_ptr(num_valid_boxes)
 
@@ -428,6 +431,7 @@ def nms_ir(
         i = by
         base_src_idx = i * num_anchors * box_data_length
         base_bbox_idx = i * num_anchors * 4
+        base_features_idx = i * num_anchors * num_features
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Reorder output
@@ -439,6 +443,10 @@ def nms_ir(
                 src_idx = base_src_idx + sorted_index[i * num_anchors + j] * box_data_length
                 with ib.for_range(0, 4, kind="unroll") as k:
                     out_bboxes[(base_bbox_idx + j * 4 + k)] = data[src_idx + coord_start + k]
+                with ib.for_range(0, num_features, kind="unroll") as k:
+                    out_features[(base_features_idx + j * num_features + k)] = data[
+                        src_idx + coord_start + 4 + k
+                    ]
 
                 out_scores[i * num_anchors + j] = data[src_idx + score_index]
 
@@ -452,6 +460,8 @@ def nms_ir(
                     with ib.if_scope(j < num_anchors):
                         with ib.for_range(0, 4, kind="unroll") as k:
                             out_bboxes[(base_bbox_idx + j * 4 + k)] = -1.0
+                        with ib.for_range(0, num_features, kind="unroll") as k:
+                            out_features[(base_features_idx + j * num_features + k)] = -1.0
 
                         out_scores[i, j] = -1.0
 
@@ -468,6 +478,10 @@ def nms_ir(
 
                 with ib.for_range(0, 4, kind="unroll") as k:
                     out_bboxes[base_bbox_idx + j * 4 + k] = data[src_offset + coord_start + k]
+                with ib.for_range(0, num_features, kind="unroll") as k:
+                    out_features[(base_features_idx + j * num_features + k)] = data[
+                        src_offset + coord_start + 4 + k
+                    ]
                 out_scores[i * num_anchors + j] = data[src_offset + score_index]
 
                 if id_index >= 0:
@@ -649,16 +663,26 @@ def _run_nms(
 
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
+    # Number of extra features per box beyond coords, score, and id.
+    num_features = data.shape[2] - 6 if id_index >= 0 else data.shape[2] - 5
 
     # output shapes
     bbox_shape = (batch_size, num_anchors, 4)
     score_shape = (batch_size, num_anchors)
     class_id_shape = score_shape
+    out_features_shape = (batch_size, num_anchors, num_features)
     box_indices_shape = score_shape
     num_valid_boxes_shape = (batch_size, 1)
 
     return te.extern(
-        [bbox_shape, score_shape, class_id_shape, box_indices_shape, num_valid_boxes_shape],
+        [
+            bbox_shape,
+            score_shape,
+            class_id_shape,
+            out_features_shape,
+            box_indices_shape,
+            num_valid_boxes_shape,
+        ],
         [data, sort_tensor, valid_count, indices],
         lambda ins, outs: nms_ir(
             ins[0],
@@ -668,8 +692,9 @@ def _run_nms(
             outs[0],  # sorted bbox
             outs[1],  # sorted scores
             outs[2],  # sorted class ids
-            outs[3],  # box_indices
-            outs[4],  # num_valid_boxes
+            outs[3],  # sorted box feats
+            outs[4],  # box_indices
+            outs[5],  # num_valid_boxes
             max_output_size,
             iou_threshold,
             force_suppress,
@@ -679,7 +704,7 @@ def _run_nms(
             score_index,
             return_indices,
         ),
-        dtype=[data.dtype, "float32", "float32", "int32", "int32"],
+        dtype=[data.dtype, "float32", "float32", "float32", "int32", "int32"],
         in_buffers=[data_buf, sort_tensor_buf, valid_count_buf, indices_buf],
         name="nms",
         tag="nms",
@@ -687,11 +712,19 @@ def _run_nms(
 
 
 def _concatenate_outputs(
-    out_bboxes, out_scores, out_class_ids, out_shape, coord_start, score_index, id_index
+    out_bboxes,
+    out_scores,
+    out_class_ids,
+    out_features,
+    out_shape,
+    coord_start,
+    score_index,
+    id_index,
 ):
     """Pack the results from NMS into a single 5D or 6D tensor."""
     batch_size = out_bboxes.shape[0]
     num_anchors = out_bboxes.shape[1]
+    num_features = out_features.shape[2]
 
     def ir(out_bboxes, out_scores, out_class_ids, out):
         ib = tvm.tir.ir_builder.create()
@@ -718,6 +751,8 @@ def _concatenate_outputs(
             with ib.if_scope(tid < num_anchors):
                 with ib.for_range(0, 4, kind="unroll") as j:
                     out[i, tid, coord_start + j] = out_bboxes[i, tid, j]
+                with ib.for_range(0, num_features, kind="unroll") as j:
+                    out[i, tid, coord_start + 4 + j] = out_features[i, tid, j]
                 out[i, tid, score_index] = out_scores[i, tid]
                 if id_index >= 0:
                     out[i, tid, id_index] = out_class_ids[i, tid]
@@ -829,7 +864,7 @@ def non_max_suppression(
 
     sort_tensor = _get_sorted_indices(data, data_buf, score_index, (data.shape[0], data.shape[1]))
 
-    out_bboxes, out_scores, out_class_ids, box_indices, num_valid_boxes = _run_nms(
+    out_bboxes, out_scores, out_class_ids, out_features, box_indices, num_valid_boxes = _run_nms(
         data,
         data_buf,
         sort_tensor,
@@ -849,5 +884,12 @@ def non_max_suppression(
         return [box_indices, num_valid_boxes]
 
     return _concatenate_outputs(
-        out_bboxes, out_scores, out_class_ids, data.shape, coord_start, score_index, id_index
+        out_bboxes,
+        out_scores,
+        out_class_ids,
+        out_features,
+        data.shape,
+        coord_start,
+        score_index,
+        id_index,
     )
