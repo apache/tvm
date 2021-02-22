@@ -129,6 +129,9 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       } else {
         oshape[i] = Any();
       }
+    } else if (non_any_size != data_length) {
+      // For concat axis, if there is one any among input dims, the output dim is dynamic.
+      oshape[i] = Any();
     }
   }
 
