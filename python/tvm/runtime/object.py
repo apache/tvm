@@ -57,7 +57,7 @@ class Object(ObjectBase):
 
     def __getattr__(self, name):
         if name in self.__slots__:
-            raise AttributeError(f'{name} is not set')
+            raise AttributeError(f"{name} is not set")
 
         try:
             return _ffi_node_api.NodeGetAttr(self, name)
