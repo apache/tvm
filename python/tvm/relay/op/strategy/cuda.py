@@ -354,9 +354,6 @@ def judge_winograd(
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
     nH, nW = (OH + tile_size - 1) // tile_size, (OW + tile_size - 1) // tile_size
-
-    if not isinstance(N, int):
-        return False, False, False
     P = N * nH * nW
 
     judge_winograd_tensorcore = (
@@ -708,7 +705,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                         name="dense_tensorcore.cuda",
                         plevel=20,
                     )
-    if target.kind.name in ["cuda", "nvptx"] and "cublas" in target.libs:
+    if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_cublas),
             wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
