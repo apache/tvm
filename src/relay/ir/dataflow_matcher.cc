@@ -734,7 +734,7 @@ class PatternGrouper {
           // Exit due to overlapping partitions
           return;
         } else if (kv.second != body) {
-          // if the node isn't the ouput of the group
+          // if the node isn't the output of the group
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
             // and the node is used by nodes outside of the group

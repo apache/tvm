@@ -291,7 +291,7 @@ def batch_matmul_tensorcore_cuda(x, y):
     x_shape = get_const_tuple(x.shape)
     y_shape = get_const_tuple(y.shape)
     assert x_shape[0] == y_shape[0], "batch dimension doesn't match"
-    assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
+    assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistent"
     batch, M, K = x.shape
     N = y.shape[1]
     out_dtype = x.dtype
