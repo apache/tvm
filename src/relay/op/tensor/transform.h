@@ -124,8 +124,10 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
             "on non-concatenating axes");
       }
       if (non_any_size > 0) {
-        // For non concat-axes, enforce static shape constraint
+        // For non-concat axes, enforce static shape constraint
         oshape[i] = non_any[0];
+      } else {
+        oshape[i] = Any();
       }
     }
   }
