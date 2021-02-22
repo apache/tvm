@@ -488,6 +488,42 @@ def test_non_max_suppression():
         top_k=2,
     )
 
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [1, 0.7, 30, 60, 50, 80, 5, 6, 7, 8],
+                [0, 0.4, 4, 21, 19, 40, 9, 10, 11, 12],
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [1, 0.5, 100, 60, 70, 110, 17, 18, 19, 20],
+            ]
+        ]
+    ).astype("float32")
+    np_result = np.array(
+        [
+            [
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+            ]
+        ]
+    )
+    dshape = (1, 5, 10)
+    verify_nms(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_max_output_size,
+        dshape,
+        np_result,
+        np_indices_result,
+        force_suppress=True,
+        top_k=2,
+        check_type_only=False,
+    )
+
 
 @tvm.testing.uses_gpu
 def test_multibox_transform_loc():
