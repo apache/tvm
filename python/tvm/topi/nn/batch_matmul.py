@@ -62,7 +62,7 @@ def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
     k = te.reduce_axis((0, K), name="k")
     if oshape is None:
         assert XB == YB or XB == 1 or YB == 1, "batch dimension doesn't match"
-        assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
+        assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistent"
         batch = te.max(XB, YB)
         N = y.shape[1]
         oshape = (batch, M, N)

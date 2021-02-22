@@ -1204,7 +1204,7 @@ struct func_signature_helper<R (T::*)(Args...) const> {
 
 /*!
  * \brief template class to get function signature of a function or functor.
- * \tparam T The funtion/functor type.
+ * \tparam T The function/functor type.
  */
 template <typename T>
 struct function_signature {

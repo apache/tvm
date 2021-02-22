@@ -240,7 +240,7 @@ std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
 }
 
 std::vector<std::string> Symbol::ListOutputNames() const {
-  static auto& flist_ouputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
+  static auto& flist_outputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
 
   std::vector<std::string> ret;
   ret.reserve(outputs.size());
@@ -250,7 +250,7 @@ std::vector<std::string> Symbol::ListOutputNames() const {
     } else {
       const std::string& hname = head.node->attrs.name;
       std::string rname;
-      FListOutputNames fn = flist_ouputs.get(head.node->op(), nullptr);
+      FListOutputNames fn = flist_outputs.get(head.node->op(), nullptr);
       if (fn != nullptr) {
         rname = fn(head.node->attrs)[head.index];
       } else {
