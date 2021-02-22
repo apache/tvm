@@ -86,8 +86,8 @@ std::string CodeGenCUDA::Finish() {
   decl_stream << "  using int64_t = long long;\n";
   decl_stream << "  using uint64_t = unsigned long long;\n";
   decl_stream << "#else\n";
-  decl_stream << "  using int64_t = long;\n";
-  decl_stream << "  using uint64_t = ulong;\n";
+  decl_stream << "  #define int64_t long\n";
+  decl_stream << "  #define uint64_t ulong\n";
   decl_stream << "#endif\n";
 
   return CodeGenC::Finish();
