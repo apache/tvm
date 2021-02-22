@@ -513,8 +513,9 @@ class Gemm(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 3 or len(inputs) == 2, \
-            "Gemm op take 2 or 3 inputs, {} given".format(len(inputs))
+        assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
+            len(inputs)
+        )
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
