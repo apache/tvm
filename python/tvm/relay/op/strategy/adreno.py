@@ -58,6 +58,20 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Layout not supported: ("+data_layout+", "+kernel_layout+") - only support NCHW4c / OIHW4o layouts for conv2d")
     else:
-        raise RuntimeError("group_conv2d is not yet supported for adreno")
+        if data_layout == "NCHW4c" and kernel_layout == "OIHW4o":
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc),
+                wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc),
+                name="depthwise_conv2d_nchwc.opencl",
+                plevel=10
+            )
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc_acc32),
+                wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc_acc32),
+                name="depthwise_conv2d_nchwc_acc32.opencl",
+                plevel=20
+            )
+        else:
+            raise RuntimeError("Layout not supported: ("+data_layout+", "+kernel_layout+") - only support NCHW4c / OIHW4o layouts for conv2d")
     return strategy
 
