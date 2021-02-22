@@ -708,7 +708,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                         name="dense_tensorcore.cuda",
                         plevel=20,
                     )
-    if target.kind.name in ["cuda", "nvptx"]  and "cublas" in target.libs:
+    if target.kind.name in ["cuda", "nvptx"] and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_cublas),
             wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
