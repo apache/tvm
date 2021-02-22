@@ -39,6 +39,17 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
+
+
+void VirtualMachineDebug::CollectMetrics(Opcode opcode, double time_us) {
+  if (inst_invokes_.count(opcode) == 0) {
+    inst_invokes_[opcode] = 0;
+  }
+  inst_invokes_[opcode] += 1;
+  inst_durations_[opcode].push_back(time_us);
+}
+
+
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_stat") {
@@ -60,6 +71,8 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       double total_duration = 0.0;
       int64_t total_packed_funcs = 0;
       std::ostringstream os;
+      os << "=====================================" << std::endl
+         << "tvm op calls stats: " << std::endl;
       os << std::setw(30) << std::left << "#OpName"
          << "\t" << std::setw(10) << std::left << "#InvokeCount"
          << "\t"
@@ -81,12 +94,56 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       }
       os << "\nTotal Duration: " << total_duration << " us.\t"
          << "Total Packed Functions: " << total_packed_funcs << std::endl;
+
+      // print vm execution stats:
+      os << "=====================================" << std::endl
+         << "vm instruction execution stats: " << std::endl;
+      os << std::setw(30) << std::left << "#InstName"
+         << "\t" << std::setw(10) << std::left << "#ExecCount"
+         << "\t"
+         << "#Duration(us): Sum/Mean/Min/Max" << std::endl;
+
+      std::vector<std::pair<Opcode, double>> inst_acc_time;
+      for (auto kv : inst_durations_) {
+        auto val =
+          std::make_pair(kv.first, std::accumulate(kv.second.begin(), kv.second.end(), 0.0));
+        inst_acc_time.push_back(val);
+      }
+      if (sort_by_time) {
+        auto comp = [](const std::pair<Opcode, double>& lhs,
+                        const std::pair<Opcode, double>& rhs) {
+            return lhs.second > rhs.second;
+        };
+        std::sort(inst_acc_time.begin(), inst_acc_time.end(), comp);
+      }
+      total_duration = 0.0;
+      int64_t total_execs = 0;
+      for (auto kv : inst_acc_time) {
+        auto vals = inst_durations_[kv.first];
+        auto sum = kv.second;
+        auto mean = sum / static_cast<double>(vals.size());
+        auto min_value = *std::min_element(vals.begin(), vals.end());
+        auto max_value = *std::max_element(vals.begin(), vals.end());
+
+        os << std::setw(30) << std::left << InstructionStrRepr(kv.first) << "\t" << std::setw(10)
+           << std::left << inst_invokes_[kv.first] << "\t" << sum << "/" << mean
+           << "/" << min_value << "/" << max_value << std::endl;
+
+        total_duration += sum;
+        total_execs += inst_invokes_[kv.first];
+      }
+      os << "\nTotal Duration: " << total_duration << " us.\t"
+         << "Total Inst Execs: " << total_execs << std::endl;
+
+
       *rv = os.str();
     });
   } else if (name == "reset") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       op_durations_.clear();
       op_invokes_.clear();
+      inst_invokes_.clear();
+      inst_durations_.clear();
     });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);

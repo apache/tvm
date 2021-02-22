@@ -360,10 +360,33 @@ void VirtualMachine::RunLoop() {
   ICHECK(this->code_);
   pc_ = 0;
   Index frame_start = frames_.size();
+
+#ifdef USE_VM_PROFILER
+  bool started = false;
+  Opcode last_inst;
+  auto inst_begin = std::chrono::high_resolution_clock::now();
+  auto inst_end = inst_begin;
+#endif
+
   while (true) {
   main_loop:
     auto const& instr = code_[this->pc_];
     DLOG(INFO) << "Executing(" << pc_ << "): " << instr;
+
+#ifdef USE_VM_PROFILER
+    if (started) {
+      inst_end = std::chrono::high_resolution_clock::now();
+      double inst_duration =
+        std::chrono::duration_cast<std::chrono::duration<double>>(inst_end - inst_begin)\
+        .count() * 1e6;
+      CollectMetrics(last_inst, inst_duration);
+      inst_begin = std::chrono::high_resolution_clock::now();
+    } else {
+      started = true;
+    }
+    last_inst = instr.op;
+#endif
+
 
     switch (instr.op) {
       case Opcode::Move: {
@@ -567,7 +590,7 @@ void VirtualMachine::RunLoop() {
         auto caller_return_register = frames_.back().caller_return_register;
 
         if (PopFrame() == frame_start) {
-          return;
+          goto vm_completed;
           // Otherwise we are just returning from a local call.
         } else {
           WriteRegister(caller_return_register, return_register_);
@@ -612,6 +635,19 @@ void VirtualMachine::RunLoop() {
         LOG(FATAL) << "Unknown instruction opcode: " << int(instr.op);
     }
   }
+
+  vm_completed:
+#ifdef USE_VM_PROFILER
+  if (started) {
+    inst_end = std::chrono::high_resolution_clock::now();
+    double inst_duration =
+        std::chrono::duration_cast<std::chrono::duration<double>>(inst_end - inst_begin)\
+        .count() * 1e6;
+    CollectMetrics(last_inst, inst_duration);
+    inst_begin = std::chrono::high_resolution_clock::now();
+  }
+#endif
+  return;
 }
 
 runtime::Module CreateVirtualMachine(const Executable* exec) {

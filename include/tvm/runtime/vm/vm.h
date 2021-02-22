@@ -258,6 +258,12 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
 
+  /*!
+   * \brief Collect vm metrics for profiling purpose
+   */
+
+  virtual void CollectMetrics(Opcode opcode, double time_us) {}
+
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;

@@ -44,6 +44,8 @@ class VirtualMachineDebug : public VirtualMachine {
 
   void LoadExecutable(const Executable* exec) final;
 
+  void CollectMetrics(Opcode opcode, double time_us) final;
+
   ~VirtualMachineDebug() {}
 
  private:
@@ -53,6 +55,9 @@ class VirtualMachineDebug : public VirtualMachine {
   std::unordered_map<Index, std::string> packed_index_map_;
   std::unordered_map<Index, std::vector<double>> op_durations_;
   std::unordered_map<Index, int> op_invokes_;
+
+  std::unordered_map<Opcode, int> inst_invokes_;
+  std::unordered_map<Opcode, std::vector<double>> inst_durations_;
 };
 
 }  // namespace vm

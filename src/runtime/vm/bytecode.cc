@@ -632,6 +632,77 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
   }
 }
 
+std::string InstructionStrRepr(const Opcode op) {
+    switch (op) {
+        case Opcode::Move: {
+            return "move";
+        }
+        case Opcode::Ret: {
+            return "ret";
+        }
+        case Opcode::Fatal: {
+            return "fatal";
+        }
+        case Opcode::InvokePacked: {
+            return "invoke_packed";
+        }
+        case Opcode::AllocTensor: {
+            return "alloc_tensor";
+        }
+        case Opcode::AllocTensorReg: {
+            return "alloc_tensor_reg";
+        }
+        case Opcode::AllocADT: {
+            return "alloc_data";
+        }
+        case Opcode::AllocClosure: {
+            return "alloc_closure";
+        }
+        case Opcode::If: {
+            return "if";
+        }
+        case Opcode::Invoke: {
+            return "invoke";
+        }
+        case Opcode::InvokeClosure: {
+            return "invoke_closure";
+        }
+        case Opcode::LoadConst: {
+            return "load_const";
+        }
+        case Opcode::LoadConsti: {
+            return "load_consti";
+        }
+        case Opcode::GetField: {
+            return "get_field";
+        }
+        case Opcode::GetTag: {
+            return "get_tag";
+        }
+        case Opcode::Goto: {
+            return "goto";
+        }
+        case Opcode::AllocStorage: {
+            return "alloc_storage";
+        }
+        case Opcode::ShapeOf: {
+            return "shape_of";
+        }
+        case Opcode::ReshapeTensor: {
+            return "reshape_tensor";
+        }
+        case Opcode::DeviceCopy: {
+            return "device_copy";
+        }
+        default:
+            LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
+            break;
+    }
+    LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
+    return "";
+}
+
+
 std::ostream& operator<<(std::ostream& os, const Instruction& instr) {
   InstructionPrint(os, instr);
   return os;

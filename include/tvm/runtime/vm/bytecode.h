@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/data_type.h>
 #include <tvm/support/logging.h>
+#include <string>
 
 #include <iostream>
 #include <vector>
@@ -391,6 +392,8 @@ struct Instruction {
 
   friend std::ostream& operator<<(std::ostream& os, const Instruction&);
 };
+
+std::string InstructionStrRepr(const Opcode op);
 
 }  // namespace vm
 }  // namespace runtime
