@@ -26,8 +26,7 @@ use thiserror::Error;
 
 use crate::ir::IRModule;
 use crate::python;
-use crate::runtime::IsObjectRef;
-use crate::runtime::{map::Map, Function, Module as RtModule, NDArray, ObjectRef, String};
+use crate::runtime::{map::Map, Function, Module as RtModule, NDArray, String};
 
 #[derive(Error, Debug)]
 pub enum Error {

@@ -58,14 +58,12 @@ fn load_python_tvm_(py: Python) -> PyResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::load_python_tvm_;
+    use super::*;
     use anyhow::Result;
-    use pyo3::prelude::*;
 
-    #[ignore]
     #[test]
     fn test_run() -> Result<()> {
-        load_python_tvm_(Python::acquire_gil().python()).unwrap();
+        load().unwrap();
         Ok(())
     }
 }
