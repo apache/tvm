@@ -19,7 +19,8 @@
 from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
-from tvm._ffi import get_global_func
+from tvm.contrib.thrust import can_use_rocthrust
+
 from .generic import *
 from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
@@ -223,14 +224,6 @@ def batch_matmul_strategy_rocm(attrs, inputs, out_type, target):
     return strategy
 
 
-def can_use_thrust(target, func_name):
-    return (
-        target.kind.name == "rocm"
-        and "thrust" in target.libs
-        and get_global_func(func_name, allow_missing=True)
-    )
-
-
 @argsort_strategy.register(["rocm"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):
     """argsort rocm strategy"""
@@ -240,7 +233,7 @@ def argsort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_argsort),
         name="argsort.rocm",
     )
-    if can_use_thrust(target, "tvm.contrib.thrust.sort"):
+    if can_use_rocthrust(target, "tvm.contrib.thrust.sort"):
         strategy.add_implementation(
             wrap_compute_argsort(topi.cuda.argsort_thrust),
             wrap_topi_schedule(topi.cuda.schedule_argsort),
@@ -264,7 +257,7 @@ def scatter_cuda(attrs, inputs, out_type, target):
     rank = len(inputs[0].shape)
 
     with SpecializedCondition(rank == 1):
-        if can_use_thrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
+        if can_use_rocthrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
             strategy.add_implementation(
                 wrap_compute_scatter(topi.cuda.scatter_via_sort),
                 wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
@@ -283,7 +276,7 @@ def sort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_sort),
         name="sort.rocm",
     )
-    if can_use_thrust(target, "tvm.contrib.thrust.sort"):
+    if can_use_rocthrust(target, "tvm.contrib.thrust.sort"):
         strategy.add_implementation(
             wrap_compute_sort(topi.cuda.sort_thrust),
             wrap_topi_schedule(topi.cuda.schedule_sort),
@@ -303,7 +296,7 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
         name="topk.rocm",
     )
 
-    if can_use_thrust(target, "tvm.contrib.thrust.sort"):
+    if can_use_rocthrust(target, "tvm.contrib.thrust.sort"):
         strategy.add_implementation(
             wrap_compute_topk(topi.cuda.topk_thrust),
             wrap_topi_schedule(topi.cuda.schedule_topk),

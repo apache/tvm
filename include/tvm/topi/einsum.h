@@ -439,7 +439,7 @@ inline std::vector<std::string> Split(const std::string& str, const std::string&
  * \param subscripts input subscripts.
  * \param operands operand tensors.
  *
- * \return vector of strings, vector[0] represents the input part, vector[1] represents the ouput.
+ * \return vector of strings, vector[0] represents the input part, vector[1] represents the output.
  * if no output, the vector[1] is NULL.
  * "ab, bc -> ac" => ["ab,bc", "ac"]
  */

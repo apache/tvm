@@ -177,7 +177,7 @@ class Partitioner : public MixedModeMutator {
       AnnotatedRegion region = GetRegion(GetRef<Call>(call));
 
       // TODO(@manupa-arm) : need to use the parent function (to which region
-      // belongs to) name/key for the funtions that are created
+      // belongs to) name/key for the functions that are created
       BaseFunc f = GetFunc(GetRef<Call>(call));
 
       // Traverse subgraph inputs.

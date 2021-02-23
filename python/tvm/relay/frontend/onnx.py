@@ -513,7 +513,9 @@ class Gemm(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 3, "Gemm op take 3 inputs, {} given".format(len(inputs))
+        assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
+            len(inputs)
+        )
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -531,9 +533,12 @@ class Gemm(OnnxOpConverter):
             inputs[0] *= _expr.const(alpha)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
 
-        # skip (beta * C) if zero
-        C_array = params[inputs[2].name_hint].asnumpy()
-        if (beta == 0.0) or np.array_equal(C_array, np.array([0])):
+        if len(inputs) == 3:
+            # skip (beta * C) if zero
+            C_array = params[inputs[2].name_hint].asnumpy()
+            if (beta == 0.0) or np.array_equal(C_array, np.array([0])):
+                return out
+        else:
             return out
         return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
 

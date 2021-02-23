@@ -121,7 +121,7 @@ def _threefry(
         Threefry will write to :code:`out_buf[out_offset:out_offset+4*product(out_shape)]`
 
     out_shape: number
-        Determines the number of ouput states to generate. :code:`state[i]` will correspond to
+        Determines the number of output states to generate. :code:`state[i]` will correspond to
         counter+i.
     """
     nrounds = 20
