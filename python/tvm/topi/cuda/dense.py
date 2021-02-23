@@ -88,7 +88,7 @@ def _schedule_dense_small_batch(cfg, s, C):
     else:
         in_dim = None
 
-    if in_dim != None:
+    if in_dim is not None:
         cfg.define_split("tile_k", in_dim, num_outputs=2)
         if cfg.is_fallback:
             cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
@@ -113,7 +113,6 @@ def _schedule_dense_small_batch(cfg, s, C):
     s[CF].compute_at(s[C], tx)
     s[C].set_store_predicate(thread_x.var.equal(0))
     s[Out].set_store_predicate(thread_x.var.equal(0))
-
 
 
 @autotvm.register_topi_compute("dense_large_batch.cuda")

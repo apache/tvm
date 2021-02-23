@@ -277,4 +277,3 @@ register_shape_func("clip", False, elemwise_shape_func)
 register_shape_func("log2", False, elemwise_shape_func)
 register_shape_func("sigmoid", False, elemwise_shape_func)
 register_shape_func("tanh", False, elemwise_shape_func)
-
