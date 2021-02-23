@@ -309,7 +309,6 @@ TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
-    .add_attr_option<Target>("target_host")
     .add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/

@@ -44,6 +44,8 @@ class TargetNode : public Object {
  public:
   /*! \brief The kind of the target device */
   TargetKind kind;
+  /*! \brief Target host information, must be Target type */
+  Optional<ObjectRef> host;
   /*! \brief Tag of the the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
@@ -64,6 +66,7 @@ class TargetNode : public Object {
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
+    v->Visit("host", &host);
   }
 
   /*!
@@ -122,12 +125,12 @@ class Target : public ObjectRef {
   TVM_DLL explicit Target(std::nullptr_t) { data_ = nullptr; }
   /*!
    * \brief Construct a Target given a string
-   * \param tag_or_config_or_target_str the string to parse
+   * \param tag_or_config_or_target_str the string to parse for target
    */
   TVM_DLL explicit Target(const String& tag_or_config_or_target_str);
   /*!
    * \brief Construct a Target using a JSON-like configuration
-   * \param config The JSON-like configuration
+   * \param config The JSON-like configuration for target
    */
   TVM_DLL explicit Target(const Map<String, ObjectRef>& config);
   /*!
@@ -139,7 +142,13 @@ class Target : public ObjectRef {
    * allow_not_defined is true.
    */
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
-
+  /*!
+   * \brief Construct a Target given target and host
+   * \param target The Target typed object with host field undefined for target
+   * \param host The Target typed object for target host
+   * \return The Target with given target and host context information
+   */
+  TVM_DLL explicit Target(Target target, Target host);
   TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
 
  private:
