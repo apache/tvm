@@ -62,8 +62,8 @@ crate::external! {
 }
 
 impl Module {
-    pub fn entry(&mut self) -> Option<Function> {
-        panic!()
+    pub fn default_fn(&mut self) -> Result<Function, Error> {
+        self.get_function("default", true)
     }
 
     /// Gets a function by name from a registered module.
