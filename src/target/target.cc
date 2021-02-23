@@ -373,6 +373,15 @@ Target::Target(const Map<String, ObjectRef>& config) {
   data_ = std::move(target);
 }
 
+Target::Target(Target target, Target host) {
+  ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
+  CHECK(!n->host.defined())
+      << "ValueError: Adding a host to a target whose host field has been defined";
+  // add target host into host field
+  n->host = std::move(host);
+  data_ = std::move(n);
+}
+
 std::vector<std::string> TargetNode::GetKeys() const {
   std::vector<std::string> result;
   for (auto& expr : keys) {
@@ -456,8 +465,18 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
                  << runtime::ArgTypeCode2Str(arg.type_code());
     }
     return;
+  } else if (args.num_args == 2) {
+    if (args[0].IsObjectRef<Target>() && args[1].IsObjectRef<Target>()) {
+      Target target = args[0];
+      Target host = args[1];
+      *rv = Target(target, host);
+    } else {
+      LOG(FATAL) << "ValueError: Invalid type of arguments. Expect 2 Target arguments.";
+    }
+    return;
   }
-  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1, but gets: " << args.num_args;
+  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: "
+             << args.num_args;
 }
 
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
@@ -527,6 +546,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   const String kTag = "tag";
   const String kKeys = "keys";
   const String kDeviceName = "device";
+  const String kHost = "host";
   ObjectPtr<TargetNode> target = make_object<TargetNode>();
   // parse 'kind'
   if (config.count(kKind)) {
@@ -598,6 +618,13 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     } catch (const dmlc::Error& e) {
       throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
+  }
+  // parse host
+  if (config.count(kHost)) {
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    config.erase(kHost);
+  } else {
+    target->host = NullOpt;
   }
   // set default attribute values if they do not exist
   for (const auto& kv : target->kind->key2default_) {
