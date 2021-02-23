@@ -518,8 +518,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, resource_handle);
       if (ret != 0) {
-        throw tvm::Error(TVMGetLastError() +
-                         tvm::runtime::Backtrace());  // TODO(tkonolige): this may double backtrace
+        throw tvm::Error(TVMGetLastError() + tvm::runtime::Backtrace());
       }
     });
   } else {
