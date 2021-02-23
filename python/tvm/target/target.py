@@ -46,7 +46,7 @@ class Target(Object):
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
 
-    def __init__(self, tag_or_str_or_dict):
+    def __init__(self, tag_or_str_or_dict, host_tag_or_str_or_dict=None):
         """Construct a TVM target object from
         1) Raw target string
         2) Target config dict
@@ -86,10 +86,22 @@ class Target(Object):
             mfloat-abi : str (optional)
                 An llvm setting that is one of 'hard' or 'soft' indicating whether to use
                 hardware or software floating-point operations.
+            host : Union[str, Dict[str, Any]] (optional)
+                Description for target host. Can be recursive. Similar to tag_or_str_or_dict.
+        host_tag_or_str_or_dict : Optional[Union[str, Dict[str, Any]]]
+            Similar to tag_or_str_or_dict but for target host. Can be one of a literal
+            target host string, a json string describing a configuration, or a dictionary of
+            configuration options. When using a dictionary or json string to configure target,
+            the possible values are same as tag_or_str_or_dict.
         """
         if not isinstance(tag_or_str_or_dict, (dict, str, Target)):
             raise ValueError("target has to be a string or dictionary.")
-        self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
+        if host_tag_or_str_or_dict is not None:
+            self.__init_handle_by_constructor__(
+                _ffi_api.Target, Target(tag_or_str_or_dict), Target(host_tag_or_str_or_dict)
+            )
+        else:
+            self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
 
     def __enter__(self):
         _ffi_api.TargetEnterScope(self)
