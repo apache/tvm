@@ -57,7 +57,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             )
         else:
             raise RuntimeError("Layout not supported: ("+data_layout+", "+kernel_layout+") - only support NCHW4c / OIHW4o layouts for conv2d")
-    else:
+    elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
         if data_layout == "NCHW4c" and kernel_layout == "OIHW4o":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc),
@@ -73,5 +73,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             )
         else:
             raise RuntimeError("Layout not supported: ("+data_layout+", "+kernel_layout+") - only support NCHW4c / OIHW4o layouts for conv2d")
+    else:
+        raise RuntimeError("General group convolution is not currently supported")
     return strategy
 
