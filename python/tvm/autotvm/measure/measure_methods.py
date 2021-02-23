@@ -288,7 +288,9 @@ class RPCRunner(Runner):
                 measure_inputs[i : i + self.n_parallel], build_results[i : i + self.n_parallel]
             ):
                 module_loader = (
-                    self.module_loader if self.module_loader is not None else default_module_loader()
+                    self.module_loader
+                    if self.module_loader is not None
+                    else default_module_loader()
                 )
                 ret = self.executor.submit(
                     run_through_rpc,
