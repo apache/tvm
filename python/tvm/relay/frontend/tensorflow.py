@@ -1984,7 +1984,7 @@ def _range():
                 isinstance(delta, (np.int32, np.int64, int, np.float32, np.float64, float)),
             ]
         ):
-            return tvm.relay.const(list(range(start, limit, delta)))
+            return tvm.relay.const(list(range(int(start), int(limit), int(delta))))
 
         dtype = attr["Tidx"].name if "Tidx" in attr else str(start.dtype)
         if isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)):
