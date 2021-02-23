@@ -370,6 +370,33 @@ class Module(object):
 
         return fcompile(file_name, files, **kwargs)
 
+    def export_model_library_format(self, codegen_dir: str):
+        """Populate the codegen sub-directory as part of a Model Library Format export.
+
+        Parameters
+        ----------
+        codegen_dir : str
+            Path to the codegen directory on disk.
+        """
+        dso_modules = self._collect_dso_modules()
+        mod_indices = {"lib": 0, "src": 0}
+        host_codegen_dir = os.path.join(codegen_dir, "host")
+        for mod in dso_modules:
+            if mod.type_key == "c":
+                index = mod_indices["src"]
+                mod_indices["src"] += 1
+                parent_dir = os.path.join(host_codegen_dir, "src")
+                file_name = os.path.join(parent_dir, f"lib{index}.c")
+            else:
+                index = mod_indices["lib"]
+                mod_indices["lib"] += 1
+                parent_dir = os.path.join(host_codegen_dir, "lib")
+                file_name = os.path.join(parent_dir, f"lib{index}.o")
+
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir)
+            mod.save(file_name)
+
 
 def system_lib():
     """Get system-wide library module singleton.
