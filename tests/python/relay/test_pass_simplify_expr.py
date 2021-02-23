@@ -117,7 +117,7 @@ def test_simplify_full_elementwise():
                 assert tvm.ir.structural_equal(zz, after)
 
     for shape in [[10], [10, 10], [10, 10, 10]]:
-        for dtype in ["float32", "int32"]:
+        for dtype in ["float32", "int32", "bool"]:
             for value in [0, 1, 2]:
                 validate(shape, value, dtype)
 
