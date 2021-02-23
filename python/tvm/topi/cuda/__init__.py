@@ -58,3 +58,4 @@ from .sparse import *
 from . import tensorcore_alter_op
 from .argwhere import *
 from .scan import *
+from .unique import *

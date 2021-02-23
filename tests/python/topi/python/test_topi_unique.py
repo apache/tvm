@@ -21,10 +21,8 @@ from tvm import topi
 import tvm.topi.testing
 
 
-def test_unique():
-    target = "llvm"
-    ctx = tvm.cpu()
-
+@tvm.testing.parametrize_targets
+def test_unique(ctx, target):
     def calc_numpy_unique(data, is_sorted=False):
         uniq, index, inverse, counts = np.unique(
             data, return_index=True, return_inverse=True, return_counts=True
@@ -47,6 +45,14 @@ def test_unique():
             "generic": (
                 lambda x, return_counts: topi.unique(x, is_sorted, return_counts),
                 topi.generic.schedule_unique,
+            ),
+            "cuda": (
+                lambda x, return_counts: topi.cuda.unique(x, is_sorted, return_counts),
+                topi.cuda.schedule_scan,
+            ),
+            "nvptx": (
+                lambda x, return_counts: topi.cuda.unique(x, is_sorted, return_counts),
+                topi.cuda.schedule_scan,
             ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
@@ -95,9 +101,11 @@ def test_unique():
             check_unique(data, is_sorted)
             data = np.random.randint(0, 100, size=(50)).astype(in_dtype)
             check_unique(data, is_sorted)
-            data = np.random.randint(0, 10, size=(100)).astype(in_dtype)
+            data = np.random.randint(0, 100, size=(10000)).astype(in_dtype)
             check_unique(data, is_sorted)
 
 
 if __name__ == "__main__":
-    test_unique()
+    test_unique(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_unique(tvm.context("cuda"), tvm.target.Target("cuda"))
+    test_unique(tvm.context("nvptx"), tvm.target.Target("nvptx"))

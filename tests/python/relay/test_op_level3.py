@@ -1482,21 +1482,23 @@ def test_unique():
         else:
             backends = ["graph", "debug"]
 
-        target, ctx = "llvm", tvm.cpu()
-        for kind in backends:
-            mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-            tvm_res = intrp.evaluate()(x_data)
-            np_res = calc_numpy_unique(x_data, is_sorted)
-            num_unique = np_res[3][0]
-            assert num_unique == tvm_res[2].asnumpy()[0]
-            # unique
-            tvm.testing.assert_allclose(tvm_res[0].asnumpy()[:num_unique], np_res[0], rtol=1e-5)
-            # inverse_indices
-            tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_res[1], rtol=1e-5)
-            # counts
-            if return_counts:
-                tvm.testing.assert_allclose(tvm_res[3].asnumpy()[:num_unique], np_res[2], rtol=1e-5)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in backends:
+                if is_dyn and ctx.device_type == 2: # skip dynamic shape on GPU
+                    continue
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                tvm_res = intrp.evaluate()(x_data)
+                np_res = calc_numpy_unique(x_data, is_sorted)
+                num_unique = np_res[3][0]
+                assert num_unique == tvm_res[2].asnumpy()[0]
+                # unique
+                tvm.testing.assert_allclose(tvm_res[0].asnumpy()[:num_unique], np_res[0], rtol=1e-5)
+                # inverse_indices
+                tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_res[1], rtol=1e-5)
+                # counts
+                if return_counts:
+                    tvm.testing.assert_allclose(tvm_res[3].asnumpy()[:num_unique], np_res[2], rtol=1e-5)
 
     for dtype in ["int32", "int64"]:
         for i in range(8):

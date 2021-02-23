@@ -3664,7 +3664,7 @@ def test_unique():
         return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
 
     in_data = torch.randint(0, 20, (10,), dtype=torch.int32)
-    targets = ["llvm"]
+    targets = ["llvm", "cuda", "nvptx"]
     verify_trace_model(test_fn(True, True, True), [in_data], targets)
     verify_trace_model(test_fn(True, False, True), [in_data], targets)
     verify_trace_model(test_fn(True, True, False), [in_data], targets)

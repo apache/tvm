@@ -43,7 +43,8 @@ def _calc_unique_sorted(data, argsorted_indices, inc_scan):
     indices = output_tensor(data.shape, "int32")
     for i in parallel(data.shape[0]):
         indices[argsorted_indices[i]] = inc_scan[i]
-        unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
+        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
+            unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
     return unique_elements, indices
 
 
@@ -56,7 +57,8 @@ def _calc_unique_sorted_with_counts(data, argsorted_indices, inc_scan):
         counts[i] = int32(0)
     for i in parallel(data.shape[0]):
         indices[argsorted_indices[i]] = inc_scan[i]
-        unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
+        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
+            unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
     for i in range(data.shape[0]):
         counts[inc_scan[i]] += int32(1)
     return unique_elements, indices, counts
@@ -80,8 +82,9 @@ def _calc_unique_unsorted(data, argsorted_indices, inc_scan, index_converter):
     for i in parallel(data.shape[0]):
         new_unique_idx = index_converter[inc_scan[i]]
         new_data_idx = argsorted_indices[i]
-        unique_elements[new_unique_idx] = data[new_data_idx]
         indices[new_data_idx] = new_unique_idx
+        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
+            unique_elements[new_unique_idx] = data[new_data_idx]
     return unique_elements, indices
 
 
@@ -95,8 +98,9 @@ def _calc_unique_unsorted_with_counts(data, argsorted_indices, inc_scan, index_c
     for i in parallel(data.shape[0]):
         new_unique_idx = index_converter[inc_scan[i]]
         new_data_idx = argsorted_indices[i]
-        unique_elements[new_unique_idx] = data[new_data_idx]
         indices[new_data_idx] = new_unique_idx
+        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
+            unique_elements[new_unique_idx] = data[new_data_idx]
     for i in range(data.shape[0]):
         idx = index_converter[inc_scan[i]]
         counts[idx] += int32(1)
