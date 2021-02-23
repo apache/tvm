@@ -24,7 +24,6 @@
 
 #include "vm.h"
 
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -49,8 +48,8 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       std::unordered_map<Index, std::vector<double>> op_durations;
       for (auto kv : op_durations_) {
         std::vector<double> durations;
-        for (auto f : kv.second) {
-          durations.push_back(f() / 1e3);
+        for (auto t : kv.second) {
+          durations.push_back(t.SyncAndGetTime() / 1e3);
         }
         op_durations[kv.first] = durations;
       }
@@ -127,13 +126,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   auto nd_array = Downcast<NDArray>(arg);
   auto ctx = nd_array->ctx;
 
-  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-
-  auto timer_stop = StartTimer(ctx);
+  Timer t = StartTimer(ctx);
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  auto op_duration = timer_stop();
+  t.Stop();
 
-  op_durations_[packed_index].push_back(op_duration);
+  op_durations_[packed_index].push_back(t);
   op_invokes_[packed_index] += 1;
 }
 

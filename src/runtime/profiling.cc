@@ -27,31 +27,62 @@
 
 namespace tvm {
 namespace runtime {
-TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx) {
-  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-  auto start = std::chrono::high_resolution_clock::now();
-  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
-      [=]() {
-        TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-        auto stop = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<int64_t, std::nano> duration = stop - start;
 
-        return TypedPackedFunc<int64_t()>([=]() -> int64_t { return duration.count(); },
-                                          "profiling.timer.default.get_time");
-      },
-      "profiling.timer.default.stop");
+class DefaultTimerNode : public TimerNode {
+  public:
+    virtual void Start() {
+      TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
+      start_ = std::chrono::high_resolution_clock::now();
+    };
+    virtual void Stop(){
+      TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
+      duration_ = std::chrono::high_resolution_clock::now() - start_;
+    };
+    virtual int64_t SyncAndGetTime(){return duration_.count();};
+    virtual ~DefaultTimerNode() {
+    }
+
+
+    DefaultTimerNode(TVMContext ctx): ctx_(ctx) {}
+    static constexpr const char* _type_key = "DefaultTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DefaultTimerNode, TimerNode);
+  private:
+  std::chrono::high_resolution_clock::time_point start_;
+  std::chrono::duration<int64_t, std::nano> duration_;
+  TVMContext ctx_;
+};
+
+TVM_REGISTER_OBJECT_TYPE(DefaultTimerNode);
+TVM_REGISTER_OBJECT_TYPE(TimerNode);
+
+
+
+Timer DefaultTimer(TVMContext ctx) {
+  return Timer(GetObjectPtr<TimerNode>(new DefaultTimerNode(ctx)));
 }
 
+class CPUTimerNode : public TimerNode {
+  public:
+    virtual void Start() {
+      start_ = std::chrono::high_resolution_clock::now();
+    };
+    virtual void Stop(){
+      duration_ = std::chrono::high_resolution_clock::now() - start_;
+    };
+    virtual int64_t SyncAndGetTime(){return duration_.count();};
+    virtual ~CPUTimerNode() {}
+
+
+    static constexpr const char* _type_key = "CPUTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
+  private:
+  std::chrono::high_resolution_clock::time_point start_;
+  std::chrono::duration<int64_t, std::nano> duration_;
+};
+TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
+
 TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
-  auto start = std::chrono::high_resolution_clock::now();
-  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
-      [=]() {
-        auto stop = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<int64_t, std::nano> duration = stop - start;
-        return TypedPackedFunc<int64_t()>([=]() -> int64_t { return duration.count(); },
-                                          "profiling.timer.cpu.get_time");
-      },
-      "profiling.timer.cpu.stop");
+  return Timer(GetObjectPtr<TimerNode>(new CPUTimerNode()));
 });
 
 TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(StartTimer);

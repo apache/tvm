@@ -78,7 +78,7 @@ class GraphRuntimeDebug : public GraphRuntime {
                                                number * 1.618));  // 1.618 is chosen by random
           }
           tbegin = std::chrono::high_resolution_clock::now();
-          std::vector<std::vector<TypedPackedFunc<int64_t()>>> op_timers;
+          std::vector<std::vector<Timer>> op_timers;
           for (size_t index = 0; index < op_execs_.size(); index++) {
             op_timers.push_back({});
           }
@@ -90,8 +90,8 @@ class GraphRuntimeDebug : public GraphRuntime {
             }
           }
           for (size_t index = 0; index < op_execs_.size(); ++index) {
-            for (auto f : op_timers[index]) {
-              time_sec_per_op[index] += f() / 1e9;
+            for (auto t : op_timers[index]) {
+              time_sec_per_op[index] += t.SyncAndGetTime() / 1e9;
             }
           }
           tend = std::chrono::high_resolution_clock::now();
@@ -157,11 +157,12 @@ class GraphRuntimeDebug : public GraphRuntime {
     return results_arr[0];
   }
 
-  TypedPackedFunc<int64_t()> RunOpHost(int index) {
+  Timer RunOpHost(int index) {
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-    auto timer_stop = StartTimer(ctx);
+    Timer t = StartTimer(ctx);
     op_execs_[index]();
-    return timer_stop();
+    t.Stop();
+    return t;
   }
 
   /*!

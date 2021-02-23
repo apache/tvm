@@ -242,27 +242,41 @@ TVM_REGISTER_GLOBAL("device_api.cpu_pinned").set_body([](TVMArgs args, TVMRetVal
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](TVMContext ctx) {
-  cudaEvent_t start;
-  cudaEvent_t stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-  cudaEventRecord(start, CUDAThreadEntry::ThreadLocal()->stream);
-  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
-      [=]() {
-        cudaEventRecord(stop, CUDAThreadEntry::ThreadLocal()->stream);
-        return TypedPackedFunc<int64_t()>(
-            [=]() -> int64_t {
-              cudaEventSynchronize(stop);
+class GPUTimerNode : public TimerNode {
+  public:
+    virtual void Start() {
+      cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream);
+    };
+    virtual void Stop(){
+      cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream);
+    };
+    virtual int64_t SyncAndGetTime(){
+              cudaEventSynchronize(stop_);
               float milliseconds = 0;
-              cudaEventElapsedTime(&milliseconds, start, stop);
-              cudaEventDestroy(start);
-              cudaEventDestroy(stop);
+              cudaEventElapsedTime(&milliseconds, start_, stop_);
               return milliseconds * 1e6;
-            },
-            "profiling.timer.gpu.get_time");
-      },
-      "profiling.timer.gpu.stop");
+    }
+    virtual ~GPUTimerNode() {
+      cudaEventDestroy(start_);
+      cudaEventDestroy(stop_);
+    }
+    GPUTimerNode() {
+      cudaEventCreate(&start_);
+      cudaEventCreate(&stop_);
+    }
+
+
+    static constexpr const char* _type_key = "GPUTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(GPUTimerNode, TimerNode);
+  private:
+  cudaEvent_t start_;
+  cudaEvent_t stop_;
+};
+
+TVM_REGISTER_OBJECT_TYPE(GPUTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](TVMContext ctx) {
+    return Timer(GetObjectPtr<TimerNode>(new GPUTimerNode()));
 });
 
 }  // namespace runtime

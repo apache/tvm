@@ -37,6 +37,34 @@
 namespace tvm {
 namespace runtime {
 
+class TimerNode : public Object {
+  public:
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
+    virtual int64_t SyncAndGetTime() = 0;
+    virtual ~TimerNode() {};
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const uint32_t _type_child_slots = 4;
+  static constexpr const uint32_t _type_child_slots_can_overflow = true;
+    static constexpr const char* _type_key = "TimerNode";
+  TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
+};
+
+class Timer : public ObjectRef {
+  public:
+    void Start() {
+      operator->()->Start();
+    }
+    void Stop() {
+      operator->()->Stop();
+    }
+    int64_t SyncAndGetTime() {
+      return operator->()->SyncAndGetTime();
+    }
+    TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
+};
+
 /*!
  * \brief Default timer if one does not exist to the platform.
  * \param ctx The context to time on.
@@ -44,7 +72,7 @@ namespace runtime {
  * Note that this timer performs synchronization between the device and CPU,
  * which can lead to overhead in the reported results.
  */
-TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx);
+Timer DefaultTimer(TVMContext ctx);
 
 /*!
  * \brief Get a device specific timer.
@@ -73,19 +101,23 @@ TypedPackedFunc<TypedPackedFunc<int64_t()>()> DefaultTimer(TVMContext ctx);
  *
  * Example usage:
  * \code{.cpp}
- * auto timer_stop = StartTimer(TVMContext::cpu());
+ * Timer t = StartTimer(TVMContext::cpu());
  * my_long_running_function();
- * auto get_elapsed = timer_stop();
+ * t.Stop();
  * ... // some more computation
- * int64_t nanosecs = get_elapsed() // elapsed time in nanoseconds
+ * int64_t nanosecs = t.SyncAndGetTime() // elapsed time in nanoseconds
  * \endcode
  */
-inline TypedPackedFunc<TypedPackedFunc<int64_t()>()> StartTimer(TVMContext ctx) {
+inline Timer StartTimer(TVMContext ctx) {
   auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(ctx.device_type));
   if (f == nullptr) {
-    return DefaultTimer(ctx);
+    Timer t = DefaultTimer(ctx);
+    t.Start();
+    return t;
   } else {
-    return f->operator()(ctx);
+    Timer t = f->operator()(ctx);
+    t.Start();
+    return t;
   }
 }
 
