@@ -170,12 +170,13 @@ runtime::Module DeviceSourceModuleCreate(
     std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
 
 /*!
- * \brief Wrap the submodules that are to be wrapped in a c-source metadata module.
+ * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
  * \param modules The modules to be wrapped.
  * \param target the target the modules are compiled for.
  * \return The wrapped module.
  */
-runtime::Module CreateCSourceMetadataModule(const Array<runtime::Module>& modules, Target target);
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
+                                               Target target);
 
 }  // namespace codegen
 }  // namespace tvm
