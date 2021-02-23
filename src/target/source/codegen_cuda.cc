@@ -88,6 +88,7 @@ std::string CodeGenCUDA::Finish() {
   decl_stream << "#else\n";
   decl_stream << "  #define uint unsigned int\n";
   decl_stream << "  #define uchar unsigned char\n";
+  decl_stream << "  #define ushort unsigned short\n";
   decl_stream << "  #define int64_t long\n";
   decl_stream << "  #define uint64_t ulong\n";
   decl_stream << "#endif\n";
