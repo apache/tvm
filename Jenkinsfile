@@ -321,6 +321,7 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
+          sh "ulimit -S -s 16384"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
           junit "build/pytest-results/*.xml"
@@ -347,6 +348,7 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
+          sh "ulimit -S -s 16384"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh"
         }
