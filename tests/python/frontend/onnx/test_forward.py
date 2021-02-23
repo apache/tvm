@@ -1038,6 +1038,8 @@ def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
 @tvm.testing.uses_gpu
 def test_gemm():
     verify_gemm(a_shape=(4, 3), b_shape=(3, 4))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True)
 
 
 @tvm.testing.uses_gpu
