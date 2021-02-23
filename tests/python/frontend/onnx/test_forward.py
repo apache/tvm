@@ -1011,13 +1011,15 @@ def test_onehot():
 def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
     out_shape = [a_shape[0], b_shape[1]]
     a_array = np.random.uniform(size=a_shape).astype("float32")
-    b_array = np.random.uniform(size=b_shape).astype("float32")    
+    b_array = np.random.uniform(size=b_shape).astype("float32")
     input_names = ["a", "b"]
-    input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
-                   helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape))]
+    input_nodes = [
+        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+    ]
     input_values = [a_array, b_array]
     if c_shape is not None:
-        c_array = np.random.uniform(size=c_shape).astype("float32")    
+        c_array = np.random.uniform(size=c_shape).astype("float32")
         input_names.append("c")
         input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
         input_values.append(c_array)
