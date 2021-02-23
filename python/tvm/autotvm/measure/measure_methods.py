@@ -498,7 +498,7 @@ def run_through_rpc(
     repeat,
     min_repeat_ms,
     cooldown_interval,
-    remote_kw,
+    remote_kwargs,
     enable_cpu_cache_flush=False,
     module_loader=None,
 ):
@@ -528,7 +528,7 @@ def run_through_rpc(
         will be automatically increased.
     cooldown_interval: float
         The cool down interval between two measurements
-    remote_kw: dict
+    remote_kwargs: dict
         Passed to module_loader(). Ultimately, keyword args to request_remote().
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
@@ -546,7 +546,7 @@ def run_through_rpc(
     errno = MeasureErrorNo.NO_ERROR
     try:
         # upload built module
-        with module_loader(remote_kw, build_result) as (remote, mod):
+        with module_loader(remote_kwargs, build_result) as (remote, mod):
             ctx = remote.context(str(measure_input.target), 0)
 
             # Limitation:
@@ -612,8 +612,8 @@ def default_module_loader(pre_load_function=None):
     """
 
     @contextlib.contextmanager
-    def default_module_loader_mgr(remote_kw, build_result):
-        remote = request_remote(**remote_kw)
+    def default_module_loader_mgr(remote_kwargs, build_result):
+        remote = request_remote(**remote_kwargs)
         if pre_load_function is not None:
             pre_load_function(remote, build_result)
 
