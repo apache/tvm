@@ -1009,6 +1009,31 @@ def test_onehot():
 
 
 @tvm.testing.uses_gpu
+def test_gemm():
+    a_shape = (4, 3)
+    b_shape = (3, 4)
+    out_shape = [a_shape[0], b_shape[1]]
+
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+
+    gemm_node = helper.make_node("Gemm", ["a", "b"], ["out"])
+
+    graph = helper.make_graph(
+        [gemm_node],
+        "gemm_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="gemm_test")
+    verify_with_ort_with_inputs(model, [a_array, b_array])
+
+
+@tvm.testing.uses_gpu
 def test_matmul():
     a_shape = (4, 3)
     b_shape = (3, 4)
@@ -4065,6 +4090,7 @@ if __name__ == "__main__":
     test_clip()
     test_clip_min_max_as_inputs()
     test_onehot()
+    test_gemm()
     test_matmul()
     test_gather()
     test_gatherelements()
