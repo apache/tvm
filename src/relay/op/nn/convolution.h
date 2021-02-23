@@ -236,6 +236,8 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       wshape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
                                                            {"ry", "rx", "rc", "ff"});
     }
+
+    wshape = trans_kernel_layout.ForwardShape(wshape);
     if (param->kernel_size.defined()) {
       ICHECK_EQ(param->kernel_size.size(), 2);
 
