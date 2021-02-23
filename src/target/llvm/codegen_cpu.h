@@ -50,6 +50,12 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
 
+  /*!
+   * \brief A CPU-specific function to create the FuncRegistry.
+   * \param func_names List of functions to be included, in order.
+   */
+  void DefineFunctionRegistry(Array<String> func_names);
+
  protected:
   void AddStartupFunction() final;
   // meta data

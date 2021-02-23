@@ -23,6 +23,7 @@ import tvm
 from tvm import te
 import logging
 import json
+from tvm.contrib import cc as _cc
 
 RUNTIMES = {
     "c": "{name}_c.{ext}",
@@ -51,7 +52,17 @@ def build_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-        lib.save(os.path.join(build_dir, file_format_str.format(name="model", ext="o")))
+        ext = "tar" if runtime_name == "c" else "o"
+        lib_file_name = os.path.join(build_dir, file_format_str.format(name="model", ext=ext))
+        if runtime_name == "c":
+            lib.export_library(lib_file_name)
+        else:
+            # NOTE: at present, export_libarary will always create _another_ shared object, and you
+            # can't stably combine two shared objects together (in this case, init_array is not
+            # populated correctly when you do that). So for now, must continue to use save() with the
+            # C++ library.
+            # TODO(areusch): Obliterate runtime.cc and replace with libtvm_runtime.so.
+            lib.save(lib_file_name)
         with open(
             os.path.join(build_dir, file_format_str.format(name="graph", ext="json")), "w"
         ) as f_graph_json:
@@ -84,7 +95,17 @@ def build_test_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-        lib.save(os.path.join(build_dir, file_format_str.format(name="test_model", ext="o")))
+        ext = "tar" if runtime_name == "c" else "o"
+        lib_file_name = os.path.join(build_dir, file_format_str.format(name="test_model", ext=ext))
+        if runtime_name == "c":
+            lib.export_library(lib_file_name)
+        else:
+            # NOTE: at present, export_libarary will always create _another_ shared object, and you
+            # can't stably combine two shared objects together (in this case, init_array is not
+            # populated correctly when you do that). So for now, must continue to use save() with the
+            # C++ library.
+            # TODO(areusch): Obliterate runtime.cc and replace with libtvm_runtime.so.
+            lib.save(lib_file_name)
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_graph", ext="json")), "w"
         ) as f_graph_json:
