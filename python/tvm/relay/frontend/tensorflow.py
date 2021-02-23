@@ -44,23 +44,27 @@ from .common import infer_value as _infer_value
 __all__ = ["from_tensorflow"]
 
 
-
-def is_symbolic_shape(shape):
+def check_symbolic_shape(shape):
     return not all([isinstance(dim, (int, tvm.tir.IntImm)) for dim in shape])
+
 
 def list_shape_of(tensor, ndim):
     shape_tensor = _op.shape_of(tensor)
-    return [_op.strided_slice(shape_tensor, begin=[i], end=[i+1], strides=[1]) for i in range(ndim)]
+    return [
+        _op.strided_slice(shape_tensor, begin=[i], end=[i + 1], strides=[1]) for i in range(ndim)
+    ]
+
 
 def concat_dynamic_shape(shape_list):
     new_shape = []
     for dim in shape_list:
         if isinstance(dim, (int, tvm.tir.IntImm)):
-            new_shape.append(_op.expand_dims(_op.const(dim, 'int32'), axis=0))
-        else: # expected to be tensor[1]
+            new_shape.append(_op.expand_dims(_op.const(dim, "int32"), axis=0))
+        else:  # expected to be tensor[1]
             new_shape.append(dim)
 
     return _op.concatenate(_op.Tuple(new_shape), axis=0)
+
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
@@ -939,7 +943,7 @@ def _batch_matmul():
         orig_shape_y = _infer_shape(input_y, mod)
         ndim = len(orig_shape_x)
 
-        is_static = not is_symbolic_shape(orig_shape_x)
+        is_static = not check_symbolic_shape(orig_shape_x)
 
         if len(orig_shape_x) > 3 and not is_static:
             shape_of_x = list_shape_of(inputs[0], ndim)
@@ -952,11 +956,11 @@ def _batch_matmul():
                 num_outer_elts = np.prod(outer_dims)
                 new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
                 new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
-            else: # handle dynamic shape (dyn.reshape op)
+            else:  # handle dynamic shape (dyn.reshape op)
                 # new shape = [prod(shape[:-2]), -2, -1]
                 new_shape_x = [_op.const(1), shape_of_x[-2], shape_of_x[-1]]
                 new_shape_y = [_op.const(1), shape_of_y[-2], shape_of_y[-1]]
-                for i in range(ndim-2):
+                for i in range(ndim - 2):
                     new_shape_x[0] *= shape_of_x[i]
                     new_shape_y[0] *= shape_of_y[i]
                 new_shape_x = _op.concatenate(_op.Tuple(new_shape_x), axis=0)

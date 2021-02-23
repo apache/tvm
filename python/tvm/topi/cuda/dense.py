@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 import logging
-from tvm import te, tir
+from tvm import te
 import tvm.autotvm as autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cublas

@@ -19,7 +19,7 @@
 import tvm
 from tvm import te, auto_scheduler
 from tvm import tir
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
