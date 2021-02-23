@@ -46,13 +46,13 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.conv2d_nchwc),
                 wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc),
-                name="conv2d_nchwc.opencl",
+                name="conv2d_nchwc.image2d",
                 plevel=10
             )
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.conv2d_nchwc_acc32),
                 wrap_topi_schedule(topi.adreno.schedule_conv2d_nchwc_acc32),
-                name="conv2d_nchwc_acc32.opencl",
+                name="conv2d_nchwc_acc32.image2d",
                 plevel=20
             )
         else:
@@ -62,13 +62,13 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc),
                 wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc),
-                name="depthwise_conv2d_nchwc.opencl",
+                name="depthwise_conv2d_nchwc.image2d",
                 plevel=10
             )
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc_acc32),
                 wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc_acc32),
-                name="depthwise_conv2d_nchwc_acc32.opencl",
+                name="depthwise_conv2d_nchwc_acc32.image2d",
                 plevel=20
             )
         else:
