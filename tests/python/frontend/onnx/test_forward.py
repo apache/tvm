@@ -1007,6 +1007,7 @@ def test_onehot():
         )
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 @tvm.testing.uses_gpu
 def test_gemm():
     a_shape = (4, 3)
@@ -1030,6 +1031,7 @@ def test_gemm():
 
     model = helper.make_model(graph, producer_name="gemm_test")
     verify_with_ort_with_inputs(model, [a_array, b_array])
+
 
 @tvm.testing.uses_gpu
 def test_matmul():
