@@ -19,8 +19,9 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/profiling.h>
-#include <thread>
+
 #include <chrono>
+#include <thread>
 
 namespace tvm {
 namespace runtime {
@@ -36,7 +37,7 @@ TEST(DefaultTimer, Basic) {
   int64_t elapsed = t.SyncAndGetTime();
   CHECK_GT(elapsed, 0);
 }
-}  // namespace topi
+}  // namespace runtime
 }  // namespace tvm
 
 int main(int argc, char** argv) {

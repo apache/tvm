@@ -96,7 +96,7 @@ class GraphRuntimeDebug : public GraphRuntime {
           }
           tend = std::chrono::high_resolution_clock::now();
           duration_ms =
-              std::chrono::duration_cast<std::chrono::duration<double> >(tend - tbegin).count() *
+              std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() *
               1000;
         } while (duration_ms < min_repeat_ms);
 

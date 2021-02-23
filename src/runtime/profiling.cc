@@ -29,24 +29,23 @@ namespace tvm {
 namespace runtime {
 
 class DefaultTimerNode : public TimerNode {
-  public:
-    virtual void Start() {
-      TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
-      start_ = std::chrono::high_resolution_clock::now();
-    };
-    virtual void Stop(){
-      TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
-      duration_ = std::chrono::high_resolution_clock::now() - start_;
-    };
-    virtual int64_t SyncAndGetTime(){return duration_.count();};
-    virtual ~DefaultTimerNode() {
-    }
+ public:
+  virtual void Start() {
+    TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
+    start_ = std::chrono::high_resolution_clock::now();
+  }
+  virtual void Stop() {
+    TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
+    duration_ = std::chrono::high_resolution_clock::now() - start_;
+  }
+  virtual int64_t SyncAndGetTime() { return duration_.count(); }
+  virtual ~DefaultTimerNode() {}
 
-
-    DefaultTimerNode(TVMContext ctx): ctx_(ctx) {}
-    static constexpr const char* _type_key = "DefaultTimerNode";
+  explicit DefaultTimerNode(TVMContext ctx) : ctx_(ctx) {}
+  static constexpr const char* _type_key = "DefaultTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(DefaultTimerNode, TimerNode);
-  private:
+
+ private:
   std::chrono::high_resolution_clock::time_point start_;
   std::chrono::duration<int64_t, std::nano> duration_;
   TVMContext ctx_;
@@ -55,27 +54,19 @@ class DefaultTimerNode : public TimerNode {
 TVM_REGISTER_OBJECT_TYPE(DefaultTimerNode);
 TVM_REGISTER_OBJECT_TYPE(TimerNode);
 
-
-
-Timer DefaultTimer(TVMContext ctx) {
-  return Timer(make_object<DefaultTimerNode>(ctx));
-}
+Timer DefaultTimer(TVMContext ctx) { return Timer(make_object<DefaultTimerNode>(ctx)); }
 
 class CPUTimerNode : public TimerNode {
-  public:
-    virtual void Start() {
-      start_ = std::chrono::high_resolution_clock::now();
-    };
-    virtual void Stop(){
-      duration_ = std::chrono::high_resolution_clock::now() - start_;
-    };
-    virtual int64_t SyncAndGetTime(){return duration_.count();};
-    virtual ~CPUTimerNode() {}
+ public:
+  virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
+  virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
+  virtual int64_t SyncAndGetTime() { return duration_.count(); }
+  virtual ~CPUTimerNode() {}
 
-
-    static constexpr const char* _type_key = "CPUTimerNode";
+  static constexpr const char* _type_key = "CPUTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
-  private:
+
+ private:
   std::chrono::high_resolution_clock::time_point start_;
   std::chrono::duration<int64_t, std::nano> duration_;
 };

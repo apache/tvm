@@ -56,6 +56,7 @@ class TimerNode : public Object {
    */
   virtual void Stop() = 0;
   /*! \brief Synchronize timer state and return elapsed time between `Start` and `Stop`.
+   * \return The time in nanoseconds between `Start` and `Stop`.
    *
    * This function is necessary because we want to avoid timing the overhead of
    * doing timing. When using multiple timers, it is recommended to stop all of
@@ -66,7 +67,7 @@ class TimerNode : public Object {
    */
   virtual int64_t SyncAndGetTime() = 0;
 
-  virtual ~TimerNode(){};
+  virtual ~TimerNode() {}
 
   static constexpr const char* _type_key = "TimerNode";
   TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
@@ -89,6 +90,7 @@ class Timer : public ObjectRef {
    */
   void Stop() { operator->()->Stop(); }
   /*! \brief Synchronize timer state and return elapsed time between `Start` and `Stop`.
+   * \return The time in nanoseconds between `Start` and `Stop`.
    *
    * This function is necessary because we want to avoid timing the overhead of
    * doing timing. When using multiple timers, it is recommended to stop all of
