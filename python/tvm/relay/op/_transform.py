@@ -145,7 +145,7 @@ _reg.register_shape_func("cumsum", False, elemwise_shape_func)
 
 @_reg.register_compute("unique")
 def compute_unique(attrs, inputs, output_type):
-    """Compute definition of cumsum"""
+    """Compute definition of unique"""
     return topi.unique(inputs[0], attrs.sorted, attrs.return_counts)
 
 

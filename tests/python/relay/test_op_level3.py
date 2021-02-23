@@ -1484,8 +1484,6 @@ def test_unique():
 
         for target, ctx in tvm.testing.enabled_targets():
             for kind in backends:
-                if is_dyn and ctx.device_type == 2: # skip dynamic shape on GPU
-                    continue
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 tvm_res = intrp.evaluate()(x_data)
@@ -1498,7 +1496,9 @@ def test_unique():
                 tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_res[1], rtol=1e-5)
                 # counts
                 if return_counts:
-                    tvm.testing.assert_allclose(tvm_res[3].asnumpy()[:num_unique], np_res[2], rtol=1e-5)
+                    tvm.testing.assert_allclose(
+                        tvm_res[3].asnumpy()[:num_unique], np_res[2], rtol=1e-5
+                    )
 
     for dtype in ["int32", "int64"]:
         for i in range(8):
