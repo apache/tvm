@@ -180,10 +180,20 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
         s[kernel].compute_inline()
     kernel = flattened_kernel
 
+    # conv only
     if conv.op in s.outputs:
         output = conv
         OL = s.cache_write(conv, "local")
+    # conv -> output (e.g. when casting conv output)
+    elif output.op in s.outputs:
+        output = s.outputs[0].output(0)
+        s[conv].set_scope("local")
+        OL = conv
+    # conv -> injective -> ... -> injective -> output
     else:
+        # Explicitly mark the output cast to be computed inline
+        # the other injective ops are inlined via traverse_inline.
+        s[output].compute_inline()
         output = s.outputs[0].output(0)
         s[conv].set_scope("local")
         OL = conv
@@ -397,10 +407,20 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
         s[kernel].compute_inline()
     kernel = flattened_kernel
 
+    # conv only
     if conv.op in s.outputs:
         output = conv
         OL = s.cache_write(conv, "local")
+    # conv -> output (e.g. when casting conv output)
+    elif output.op in s.outputs:
+        output = s.outputs[0].output(0)
+        s[conv].set_scope("local")
+        OL = conv
+    # conv -> injective -> ... -> injective -> output
     else:
+        # Explicitly mark the output cast to be computed inline
+        # the other injective ops are inlined via traverse_inline.
+        s[output].compute_inline()
         output = s.outputs[0].output(0)
         s[conv].set_scope("local")
         OL = conv
