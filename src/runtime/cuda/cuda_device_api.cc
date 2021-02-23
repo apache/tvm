@@ -276,7 +276,7 @@ class GPUTimerNode : public TimerNode {
 TVM_REGISTER_OBJECT_TYPE(GPUTimerNode);
 
 TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](TVMContext ctx) {
-    return Timer(GetObjectPtr<TimerNode>(new GPUTimerNode()));
+    return Timer(make_object<GPUTimerNode>());
 });
 
 }  // namespace runtime

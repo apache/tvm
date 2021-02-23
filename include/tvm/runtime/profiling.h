@@ -37,32 +37,68 @@
 namespace tvm {
 namespace runtime {
 
+/*! \brief Base class for all implementations.
+ *
+ * New implementations of this interface should make sure that `Start` and `Stop`
+ * are as lightweight as possible. Expensive state synchronization should be
+ * done in `SyncAndGetTime`.
+ */
 class TimerNode : public Object {
-  public:
-    virtual void Start() = 0;
-    virtual void Stop() = 0;
-    virtual int64_t SyncAndGetTime() = 0;
-    virtual ~TimerNode() {};
+ public:
+  /*! \brief Start the timer.
+   *
+   * Note: this function should only be called once per object.
+   */
+  virtual void Start() = 0;
+  /*! \brief Stop the timer.
+   *
+   * Note: this function should only be called once per object.
+   */
+  virtual void Stop() = 0;
+  /*! \brief Synchronize timer state and return elapsed time between `Start` and `Stop`.
+   *
+   * This function is necessary because we want to avoid timing the overhead of
+   * doing timing. When using multiple timers, it is recommended to stop all of
+   * them before calling `SyncAndGetTime` on any of them.
+   *
+   * Note: this function should be only called once per object. It may incur
+   * a large synchronization overhead (for example, with GPUs).
+   */
+  virtual int64_t SyncAndGetTime() = 0;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const uint32_t _type_child_slots = 4;
-  static constexpr const uint32_t _type_child_slots_can_overflow = true;
-    static constexpr const char* _type_key = "TimerNode";
+  virtual ~TimerNode(){};
+
+  static constexpr const char* _type_key = "TimerNode";
   TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
 };
 
+/*! \brief Timer for a specific device.
+ *
+ * You should not construct this class directly. Instead use `StartTimer`.
+ */
 class Timer : public ObjectRef {
-  public:
-    void Start() {
-      operator->()->Start();
-    }
-    void Stop() {
-      operator->()->Stop();
-    }
-    int64_t SyncAndGetTime() {
-      return operator->()->SyncAndGetTime();
-    }
-    TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
+ public:
+  /*! \brief Start the timer.
+   *
+   * Note: this function should only be called once per object.
+   */
+  void Start() { operator->()->Start(); }
+  /*! \brief Stop the timer.
+   *
+   * Note: this function should only be called once per object.
+   */
+  void Stop() { operator->()->Stop(); }
+  /*! \brief Synchronize timer state and return elapsed time between `Start` and `Stop`.
+   *
+   * This function is necessary because we want to avoid timing the overhead of
+   * doing timing. When using multiple timers, it is recommended to stop all of
+   * them before calling `SyncAndGetTime` on any of them.
+   *
+   * Note: this function should be only called once per object. It may incur
+   * a large synchronization overhead (for example, with GPUs).
+   */
+  int64_t SyncAndGetTime() { return operator->()->SyncAndGetTime(); }
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
 };
 
 /*!
@@ -77,27 +113,7 @@ Timer DefaultTimer(TVMContext ctx);
 /*!
  * \brief Get a device specific timer.
  * \param ctx The device context to time.
- * \return A function, that when called starts a timer. The results from this
- *         function is another function that will stop the timer and return
- *         another function that returns the elapsed time in nanoseconds. The
- *         third function should be called as late as possible to avoid
- *         synchronization overhead.
- *
- * This three function approach is complicated, but it is necessary to avoid
- * synchronization overhead on GPUs. On GPUs, the first two function generate
- * start and stop events respectively. The third function synchronizes the GPU
- * with the CPU and gets the elapsed time between events.
- *
- * Users can register a timer for a device by registering a packed function
- * with the name "profiler.timer.device_name". This function should take a
- * TVMContext and return a new function. The new function will stop the timer
- * when called and returns a third function. The third function should return
- * the elapsed time between the first and second call in nanoseconds.
- *
- * Note that timers are specific to a context (and by extension device stream).
- * The code being timed should run on the specific context only, otherwise you
- * may get mixed results. Furthermore, the context should not be modified
- * between the start and end of the timer (i.e. do not call TVMDeviceSetStream).
+ * \return A `Timer` that has already been started.
  *
  * Example usage:
  * \code{.cpp}
@@ -107,6 +123,11 @@ Timer DefaultTimer(TVMContext ctx);
  * ... // some more computation
  * int64_t nanosecs = t.SyncAndGetTime() // elapsed time in nanoseconds
  * \endcode
+ *
+ * To add a new device-specific timer, register a new function
+ * "profiler.timer.my_device" (where `my_device` is the `DeviceName` of your
+ * device). This function should accept a `TVMContext` and return a new `Timer`
+ * that has already been started.
  */
 inline Timer StartTimer(TVMContext ctx) {
   auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(ctx.device_type));

@@ -58,7 +58,7 @@ TVM_REGISTER_OBJECT_TYPE(TimerNode);
 
 
 Timer DefaultTimer(TVMContext ctx) {
-  return Timer(GetObjectPtr<TimerNode>(new DefaultTimerNode(ctx)));
+  return Timer(make_object<DefaultTimerNode>(ctx));
 }
 
 class CPUTimerNode : public TimerNode {
@@ -82,7 +82,7 @@ class CPUTimerNode : public TimerNode {
 TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
 
 TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
-  return Timer(GetObjectPtr<TimerNode>(new CPUTimerNode()));
+  return Timer(make_object<CPUTimerNode>());
 });
 
 TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(StartTimer);
