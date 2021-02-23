@@ -61,6 +61,7 @@ mod tests {
     use super::*;
     use anyhow::Result;
 
+    #[ignore]
     #[test]
     fn test_run() -> Result<()> {
         load().unwrap();
