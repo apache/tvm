@@ -201,9 +201,9 @@ class RPCRunner(Runner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
-    code_loader : CodeLoader
+    module_loader : ModuleLoader
         If given, a context manager that loads the module to be timed into the remote runtime.
-        If not given, default_code_loader is used.
+        If not given, default_module_loader is used.
     """
 
     def __init__(
@@ -219,7 +219,7 @@ class RPCRunner(Runner):
         min_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
-        code_loader=None,
+        module_loader=None,
     ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
@@ -235,7 +235,7 @@ class RPCRunner(Runner):
 
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.cooldown_interval = cooldown_interval
-        self.code_loader = code_loader
+        self.module_loader = module_loader
 
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
@@ -287,8 +287,8 @@ class RPCRunner(Runner):
             for measure_inp, build_res in zip(
                 measure_inputs[i : i + self.n_parallel], build_results[i : i + self.n_parallel]
             ):
-                code_loader = (
-                    self.code_loader if self.code_loader is not None else default_code_loader()
+                module_loader = (
+                    self.module_loader if self.module_loader is not None else default_module_loader()
                 )
                 ret = self.executor.submit(
                     run_through_rpc,
@@ -300,7 +300,7 @@ class RPCRunner(Runner):
                     self.cooldown_interval,
                     remote_args,
                     self.enable_cpu_cache_flush,
-                    code_loader,
+                    module_loader,
                 )
                 futures.append(ret)
 
@@ -363,7 +363,7 @@ class LocalRunner(RPCRunner):
         min_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
-        code_loader=None,
+        module_loader=None,
     ):
         super(LocalRunner, self).__init__(
             "",
@@ -377,7 +377,7 @@ class LocalRunner(RPCRunner):
             min_repeat_ms=min_repeat_ms,
             cooldown_interval=cooldown_interval,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
-            code_loader=code_loader,
+            module_loader=module_loader,
         )
         self.tracker = None
         self.server = None
@@ -486,7 +486,7 @@ class _WrappedBuildFunc:
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
-CodeLoader = typing.Callable[
+ModuleLoader = typing.Callable[
     [dict, dict], typing.ContextManager[typing.Tuple[tvm.rpc.RPCSession, tvm.runtime.Module]]
 ]
 
@@ -500,7 +500,7 @@ def run_through_rpc(
     cooldown_interval,
     remote_kw,
     enable_cpu_cache_flush=False,
-    code_loader=None,
+    module_loader=None,
 ):
     """Run a generated library through rpc
 
@@ -529,14 +529,14 @@ def run_through_rpc(
     cooldown_interval: float
         The cool down interval between two measurements
     remote_kw: dict
-        Passed to code_loader(). Ultimately, keyword args to request_remote().
+        Passed to module_loader(). Ultimately, keyword args to request_remote().
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
-    code_loader: CodeLoader
+    module_loader: ModuleLoader
         A function that returns a ContextManager used to establish and teardown the remote session.
     """
     if isinstance(build_result, MeasureResult):
@@ -546,7 +546,7 @@ def run_through_rpc(
     errno = MeasureErrorNo.NO_ERROR
     try:
         # upload built module
-        with code_loader(remote_kw, build_result) as (remote, mod):
+        with module_loader(remote_kw, build_result) as (remote, mod):
             ctx = remote.context(str(measure_input.target), 0)
 
             # Limitation:
@@ -596,8 +596,8 @@ def run_through_rpc(
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
 
 
-def default_code_loader(pre_load_function=None):
-    """Returns a default function that can be passed as code_loader to run_through_rpc.
+def default_module_loader(pre_load_function=None):
+    """Returns a default function that can be passed as module_loader to run_through_rpc.
 
     Parameters
     ----------
@@ -607,12 +607,12 @@ def default_code_loader(pre_load_function=None):
 
     Returns
     -------
-    CodeLoader :
-        A function that can be passed as code_loader to run_through_rpc.
+    ModuleLoader :
+        A function that can be passed as module_loader to run_through_rpc.
     """
 
     @contextlib.contextmanager
-    def default_code_loader_mgr(remote_kw, build_result):
+    def default_module_loader_mgr(remote_kw, build_result):
         remote = request_remote(**remote_kw)
         if pre_load_function is not None:
             pre_load_function(remote, build_result)
@@ -627,7 +627,7 @@ def default_code_loader(pre_load_function=None):
             remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
             remote.remove("")
 
-    return default_code_loader_mgr
+    return default_module_loader_mgr
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):

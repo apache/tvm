@@ -27,7 +27,7 @@ from .measure_methods import (
     LocalBuilder,
     LocalRunner,
     RPCRunner,
-    default_code_loader,
+    default_module_loader,
     request_remote,
 )
 from .executor import Executor

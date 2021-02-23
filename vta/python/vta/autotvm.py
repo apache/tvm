@@ -17,12 +17,12 @@
 
 """Defines AutoTVM components used with VTA."""
 
-from tvm.autotvm.measure import default_code_loader
+from tvm.autotvm.measure import default_module_loader
 from . import rpc_client
 
 
-def code_loader(bitstream=None):
-    """Construct a CodeLoader implementation specialized for VTA.
+def module_loader(bitstream=None):
+    """Construct a ModuleLoader implementation specialized for VTA.
 
     Parameters
     ----------
@@ -31,12 +31,12 @@ def code_loader(bitstream=None):
 
     Returns
     -------
-    CodeLoader :
-        The CodeLoader instance.
+    ModuleLoader :
+        The ModuleLoader instance.
     """
 
     def reprogram_fpga(remote, _build_result):
-        """default_code_loader callback which reprograms the FPGA.
+        """default_module_loader callback which reprograms the FPGA.
 
         Parameters
         ----------
@@ -49,4 +49,4 @@ def code_loader(bitstream=None):
         rpc_client.program_bitstream(remote, bitstream)
         rpc_client.reconfig_runtime(remote)
 
-    return default_code_loader(reprogram_fpga)
+    return default_module_loader(reprogram_fpga)
