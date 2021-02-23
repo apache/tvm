@@ -3965,7 +3965,7 @@ def test_forward_raw_reduce():
             np_data = np_data.reshape(1, -1)
         with tf.Graph().as_default():
             if range_axis:
-                axis = tf.range(axis[0], axis[1], axis[2], name="range", dtype='int32')
+                axis = tf.range(axis[0], axis[1], axis[2], name="range", dtype="int32")
             in_data = tf.placeholder(dtype, name="in_data")
             reduce_op = tf_op(input=in_data, axis=axis, keep_dims=keepdims, name="reduce_std")
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
@@ -3977,8 +3977,9 @@ def test_forward_raw_reduce():
             _check_op(op, (1, 8, 8, 3), axis=(2, 3), keepdims=True, dtype=dtype)
             _check_op(op, (2, 3, 10, 10), axis=(1, 2), keepdims=True, dtype=dtype)
             _check_op(op, (1, 8, 8, 3), axis=(2, 4, 1), keepdims=True, range_axis=True, dtype=dtype)
-            _check_op(op, (2, 3, 10, 10), axis=(1, 3, 1), keepdims=True, range_axis=True,
-                      dtype=dtype)
+            _check_op(
+                op, (2, 3, 10, 10), axis=(1, 3, 1), keepdims=True, range_axis=True, dtype=dtype
+            )
 
     if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
         _test_raw_reduce_op(tf.raw_ops.All, dtypes=["bool"])
