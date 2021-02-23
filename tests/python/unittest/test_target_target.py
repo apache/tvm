@@ -16,6 +16,7 @@
 # under the License.
 import json
 import tvm
+import pytest
 from tvm import te
 from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, hexagon
 
@@ -113,18 +114,14 @@ def test_config_map():
     attributes fails as expected.
     """
     target_config = {"kind": "llvm", "libs": {"a": "b", "c": "d"}}
-    failed = False
-    try:
+    with pytest.raises(ValueError):
         tvm.target.Target(target_config)
-    except ValueError:
-        failed = True
-    assert failed
 
 
 def test_composite_target():
-    tgt = tvm.target.Target("composite --target_host=llvm --devices=cuda,opencl")
+    tgt = tvm.target.Target("composite --host=llvm --devices=cuda,opencl")
     assert tgt.kind.name == "composite"
-    assert tgt.attrs["target_host"].kind.name == "llvm"
+    assert tgt.attrs["host"].kind.name == "llvm"
     assert len(tgt.attrs["devices"]) == 2
     cuda_device, opencl_device = tgt.attrs["devices"]
     assert cuda_device.kind.name == "cuda"
@@ -156,6 +153,70 @@ def test_list_kinds():
     assert len(targets) != 0
     assert "llvm" in targets
     assert all(isinstance(target_name, str) for target_name in targets)
+
+
+def test_target_host_tags():
+    tgt = tvm.target.Target("nvidia/jetson-nano", "nvidia/geforce-rtx-2080-ti")
+    assert tgt.kind.name == "cuda"
+    assert tgt.attrs["arch"] == "sm_53"
+    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_threads_per_block"] == 1024
+    assert tgt.attrs["thread_warp_size"] == 32
+    assert tgt.attrs["registers_per_block"] == 32768
+    assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_75"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 65536
+
+
+def test_target_host_tag_dict():
+    tgt = tvm.target.Target("nvidia/jetson-nano", {"kind": "llvm"})
+    assert tgt.kind.name == "cuda"
+    assert tgt.attrs["arch"] == "sm_53"
+    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_threads_per_block"] == 1024
+    assert tgt.attrs["thread_warp_size"] == 32
+    assert tgt.attrs["registers_per_block"] == 32768
+    assert tgt.host.kind.name == "llvm"
+
+
+def test_target_host_single_dict():
+    tgt = tvm.target.Target({"kind": "llvm", "host": "nvidia/jetson-nano"})
+    assert tgt.kind.name == "llvm"
+    assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_53"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 32768
+
+
+def test_target_host_single_string():
+    tgt = tvm.target.Target("cuda --host llvm")
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+
+
+def test_target_host_single_string_with_tag():
+    tgt = tvm.target.Target("cuda --host nvidia/jetson-nano")
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_53"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 32768
+
+
+def test_target_host_warning():
+    """
+    Confirm that constructing a target with invalid
+    attributes fails as expected.
+    """
+    with pytest.raises(ValueError):
+        tgt = tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
 
 
 if __name__ == "__main__":
