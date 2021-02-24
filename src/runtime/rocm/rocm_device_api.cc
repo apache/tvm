@@ -211,11 +211,11 @@ class ROCMTimerNode : public TimerNode {
     hipEventElapsedTime(&milliseconds, start_, stop_);
     return milliseconds * 1e6;
   }
-  virtual ~GPUTimerNode() {
+  virtual ~ROCMTimerNode() {
     hipEventDestroy(start_);
     hipEventDestroy(stop_);
   }
-  GPUTimerNode() {
+  ROCMTimerNode() {
     hipEventCreate(&start_);
     hipEventCreate(&stop_);
   }
