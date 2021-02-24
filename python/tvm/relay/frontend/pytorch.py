@@ -841,6 +841,16 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
+        if isinstance(pool_size, list):
+            for i in range(len(pool_size)):
+                if isinstance(pool_size[i], _expr.Constant):
+                    pool_size[i] = int(_infer_value_simulated(pool_size[i], {}).asnumpy())
+
+        if isinstance(strides, list):
+            for i in range(len(strides)):
+                if isinstance(strides[i], _expr.Constant):
+                    strides[i] = int(_infer_value_simulated(strides[i], {}).asnumpy())
+
         if dilation != [1, 1]:
             msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
@@ -1321,6 +1331,16 @@ class PyTorchOpConverter:
         padding = inputs[3]
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
+
+        if isinstance(pool_size, list):
+            for i in range(len(pool_size)):
+                if isinstance(pool_size[i], _expr.Constant):
+                    pool_size[i] = int(_infer_value_simulated(pool_size[i], {}).asnumpy())
+
+        if isinstance(strides, list):
+            for i in range(len(strides)):
+                if isinstance(strides[i], _expr.Constant):
+                    strides[i] = int(_infer_value_simulated(strides[i], {}).asnumpy())
 
         def func(x):
             return _op.nn.avg_pool2d(
