@@ -1268,6 +1268,23 @@ def test_forward_clone():
 
 
 @tvm.testing.uses_gpu
+def test_forward_copy():
+    def test_fn_copy():
+        return lambda dst, src: dst.copy_(src)
+
+    targets = ["llvm", "cuda"]
+    # Copy src int32 tensor with shape (4) to dst float32 tensor with shape (3,2,4)
+    dst = torch.zeros((3, 2, 4), dtype=torch.float32)
+    src = torch.tensor([0, 1, 2, 6], dtype=torch.int32)
+    verify_trace_model(test_fn_copy(), [dst, src], targets)
+
+    # Copy src float32 tensor with shape (4) to dst float32 tensor with shape (4)
+    dst = torch.zeros((4,), dtype=torch.float32)
+    src = torch.tensor([0, 1, 2, 6], dtype=torch.float32)
+    verify_trace_model(test_fn_copy(), [dst, src], targets)
+
+
+@tvm.testing.uses_gpu
 def test_forward_gather():
     torch.set_grad_enabled(False)
 
@@ -3718,6 +3735,7 @@ if __name__ == "__main__":
     test_forward_true_divide()
     test_forward_is_floating_point()
     test_forward_clone()
+    test_forward_copy()
     test_forward_softplus()
     test_forward_softsign()
     test_forward_logsoftmax()
@@ -3780,6 +3798,7 @@ if __name__ == "__main__":
     test_forward_unbind()
     test_forward_nonzero()
     test_forward_scatter()
+    test_forward_index_put()
     test_numel()
     test_bincount()
     test_cumsum()

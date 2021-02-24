@@ -1298,6 +1298,27 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.tensor.copy(data)
 
+    # Copies the elements of src tensor.
+    # The src tensor must be broadcastable with the dst tensor.
+    # It may be of a different data type
+    def copy(self, inputs, input_types):
+        dst = inputs[0]
+        src = inputs[1]
+        # 3rd bool parameter 'non_blocking' is ignored
+        # get input/output shapes and dtypes
+        dst_shape = self.infer_shape(dst)
+        src_shape = self.infer_shape(src)
+        dst_dtype = input_types[0]
+        src_dtype = input_types[1]
+        # cast src to dst dtype if necessary
+        out = _op.cast(src, dst_dtype) if src_dtype != dst_dtype else src
+        # take output shape prefix and reverse it
+        front_shape_len = len(dst_shape) - len(src_shape)
+        for dim_sz in reversed(dst_shape[:front_shape_len]):
+            # expand dimension and duplicate src data according to dimension size
+            out = _op.stack([out] * dim_sz, axis=0)
+        return out
+
     def log_softmax(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -2246,6 +2267,7 @@ class PyTorchOpConverter:
             "aten::view": self.view,
             "aten::reshape": self.reshape,
             "aten::clone": self.clone,
+            "aten::copy_": self.copy,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
             "aten::softplus": self.softplus,
