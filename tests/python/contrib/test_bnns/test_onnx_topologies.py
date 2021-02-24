@@ -16,6 +16,8 @@
 # under the License.
 """BNNS pattern detection check"""
 
+import pytest
+
 import tvm
 from tvm import relay
 from tvm.relay import transform
@@ -23,9 +25,8 @@ from tvm.contrib import utils, graph_runtime
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 
-import onnx
 import numpy as np
-import pytest
+pytest.importorskip("onnx")
 
 bnns_is_absent = tvm.get_global_func("relay.ext.bnns", True) is None
 
