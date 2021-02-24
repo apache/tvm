@@ -201,27 +201,38 @@ TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv
   *rv = static_cast<void*>(ptr);
 });
 
+class ROCMTimerNode : public TimerNode {
+ public:
+  virtual void Start() { hipEventRecord(start_, ROCMThreadEntry::ThreadLocal()->stream); }
+  virtual void Stop() { hipEventRecord(stop_, ROCMThreadEntry::ThreadLocal()->stream); }
+  virtual int64_t SyncAndGetTime() {
+    hipEventSynchronize(stop_);
+    float milliseconds = 0;
+    hipEventElapsedTime(&milliseconds, start_, stop_);
+    return milliseconds * 1e6;
+  }
+  virtual ~GPUTimerNode() {
+    hipEventDestroy(start_);
+    hipEventDestroy(stop_);
+  }
+  GPUTimerNode() {
+    hipEventCreate(&start_);
+    hipEventCreate(&stop_);
+  }
+
+  static constexpr const char* _type_key = "ROCMTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ROCMTimerNode, TimerNode);
+
+ private:
+  hipEvent_t start_;
+  hipEvent_t stop_;
+};
+
+TVM_REGISTER_OBJECT_TYPE(ROCMTimerNode);
+
 TVM_REGISTER_GLOBAL("profiling.timer.rocm").set_body_typed([](TVMContext ctx) {
-  hipEvent_t start;
-  hipEvent_t stop;
-  hipEventCreate(&start);
-  hipEventCreate(&stop);
-  hipEventRecord(start, hipThreadEntry::ThreadLocal()->stream);
-  return TypedPackedFunc<TypedPackedFunc<int64_t()>()>(
-      [=]() {
-        hipEventRecord(stop, hipThreadEntry::ThreadLocal()->stream);
-        return TypedPackedFunc<int64_t()>(
-            [=]() -> int64_t {
-              hipEventSynchronize(stop);
-              float milliseconds = 0;
-              hipEventElapsedTime(&milliseconds, start, stop);
-              hipEventDestroy(start);
-              hipEventDestroy(stop);
-              return milliseconds * 1e6;
-            },
-            "profiling.timer.rocm.get_time");
-      },
-      "profiling.timer.rocm.stop");
+  return Timer(make_object<ROCMTimerNode>());
 });
+
 }  // namespace runtime
 }  // namespace tvm
