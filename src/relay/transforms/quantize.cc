@@ -339,7 +339,7 @@ class LowerPartitions : protected MixedModeMutator {
           Array<Expr> args = post_node->args;
           Array<Var> params = func_node->params;
 
-          for (uint i = 0; i < args.size(); i++) {
+          for (int i = 0; i < (int) args.size(); i++) {
             arg_map.insert({params[i], args[i]});
           }
           return ReplaceArgs().Rewrite(func_node->body, arg_map);
