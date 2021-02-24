@@ -83,6 +83,101 @@ class SimplifyReshape : public SimplifyPattern {
 };
 
 /*!
+ * \brief SimplifyConvPad matches a pad followed by a conv/convtranspose/pool/etc
+ * with a pad attribute and merges the padding into the kernel.
+ */
+class SimplifyConvPad : public SimplifyPattern {
+ public:
+  SimplifyConvPad() {
+    x_ = IsWildcard();
+    w_ = IsWildcard();
+    pad_ = IsOp("nn.pad")({x_});
+    conv1d_ = IsOp("nn.conv1d");
+    conv2d_ = IsOp("nn.conv2d");
+    conv3d_ = IsOp("nn.conv3d");
+    conv_ = (conv1d_ || conv2d_ || conv3d_)({pad_, w_});
+    pattern_ = conv_;
+  }
+  template <typename T>
+  Attrs MakeConvAttrs(const Attrs& attrs, const Array<PrimExpr> padding) const {
+    const T* old_attrs = attrs.as<T>();
+    ICHECK(old_attrs);
+    auto new_attrs = make_object<T>();
+    Array<PrimExpr> combined_padding;
+    ICHECK(padding.size() == old_attrs->padding.size());
+    for (size_t i = 0; i < padding.size(); ++i) {
+      combined_padding.push_back(padding[i] + old_attrs->padding[i]);
+    }
+    new_attrs->strides = old_attrs->strides;
+    new_attrs->padding = combined_padding;
+    new_attrs->dilation = old_attrs->dilation;
+    new_attrs->groups = old_attrs->groups;
+    new_attrs->channels = old_attrs->channels;
+    new_attrs->kernel_size = old_attrs->kernel_size;
+    new_attrs->data_layout = old_attrs->data_layout;
+    new_attrs->kernel_layout = old_attrs->kernel_layout;
+    new_attrs->out_layout = old_attrs->out_layout;
+    new_attrs->out_dtype = old_attrs->out_dtype;
+    return Attrs(new_attrs);
+  }
+  Expr callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call_node = post.as<CallNode>();
+    ICHECK(call_node);
+    auto pad = node_map[pad_][0];
+    const CallNode* pad_node = pad.as<CallNode>();
+    ICHECK(pad_node);
+    const PadAttrs* param = pad_node->attrs.as<PadAttrs>();
+    ICHECK(param);
+    if (param->pad_mode == "constant" && param->pad_value == 0.0) {
+      for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < param->pad_width[i].size(); ++j) {
+          if (param->pad_width[i][j] != 0) {
+            return post;
+          }
+        }
+      }
+      Array<PrimExpr> padding;
+      for (size_t j = 0; j < param->pad_width[0].size(); ++j) {
+        for (size_t i = 2; i < param->pad_width.size(); ++i) {
+          padding.push_back(param->pad_width[i][j]);
+        }
+      }
+      Attrs attrs;
+      if (node_map.count(conv1d_)) {
+        ICHECK(padding.size() == 2);
+        attrs = MakeConvAttrs<Conv1DAttrs>(call_node->attrs, padding);
+      } else if (node_map.count(conv2d_)) {
+        ICHECK(padding.size() == 4);
+        attrs = MakeConvAttrs<Conv2DAttrs>(call_node->attrs, padding);
+      } else if (node_map.count(conv3d_)) {
+        ICHECK(padding.size() == 6);
+        attrs = MakeConvAttrs<Conv3DAttrs>(call_node->attrs, padding);
+      } else {
+        return post;
+      }
+      auto x = node_map[x_][0];
+      auto w = node_map[w_][0];
+      return Call(call_node->op, {x, w}, attrs, call_node->type_args, call_node->span);
+    }
+    return post;
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  /*! \brief Pattern input weight */
+  DFPattern w_;
+  /*! \brief Pattern pad */
+  DFPattern pad_;
+  /*! \brief Pattern conv */
+  DFPattern conv_;
+  DFPattern conv1d_;
+  DFPattern conv2d_;
+  DFPattern conv3d_;
+};
+
+/*!
  * \brief FullArgwhere finds full followed by argwhere and turns it into an Arange op
  */
 class FullElementwise : public SimplifyPattern {
@@ -163,6 +258,7 @@ class ExprSimplifier {
   explicit ExprSimplifier(IRModule mod) : mod_(mod) {
     CreateCallback(SimplifyReshape());
     CreateCallback(FullElementwise());
+    CreateCallback(SimplifyConvPad());
   }
   template <typename T>
   void CreateCallback(const T& pattern) {
