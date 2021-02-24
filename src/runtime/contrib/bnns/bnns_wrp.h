@@ -327,17 +327,16 @@ class Primitive {
   }
 
   /** Execute primitive with using specified src/dst */
-  virtual void execute() {
+  void execute() {
     auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
     ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
   }
 
  private:
-  static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
-    auto prim = reinterpret_cast<Primitive*>(cdata);
-    const auto filter = prim->filters[task_id];
-    const auto src_view = prim->src_view[task_id];
-    const auto dst_view = prim->dst_view[task_id];
+  virtual int execute_impl(int part_idx) {
+    const auto filter = this->filters[part_idx];
+    const auto src_view = this->src_view[part_idx];
+    const auto dst_view = this->dst_view[part_idx];
 
     size_t mb = src_view.get_batch_size();
 
@@ -346,9 +345,13 @@ class Primitive {
     //     BNNSFilterApply doesn't work for grouped convolution.
     //   * Group convolution doesn't support arbitrary stride for Batch dim.
     //     The tensor should be dense.
-    auto sts = BNNSFilterApplyBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
-                                    dst_view.get_data_hdl(), dst_view.get_stride());
-    return sts;
+    return BNNSFilterApplyBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
+                                dst_view.get_data_hdl(), dst_view.get_stride());
+  }
+
+  static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
+    auto prim = reinterpret_cast<Primitive*>(cdata);
+    return prim->execute_impl(task_id);
   }
 
  protected:
@@ -356,7 +359,6 @@ class Primitive {
   std::vector<BNNSFilter> filters = {};
   const TView src_view;
   const TView dst_view;
-  bool isNormalization;
 };
 
 /**
@@ -370,27 +372,19 @@ class TwoInputPrimitive : public Primitive {
                     const TView& dst)
       : Primitive(fs, src, dst), src2_view(src2) {}
 
-  /** Execute primitive with using specified src/dst */
-  void execute() override {
-    auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
-    ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
-  }
-
  private:
-  static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
-    auto prim = reinterpret_cast<TwoInputPrimitive*>(cdata);
-    const auto filter = prim->filters[task_id];
-    const auto src_view = prim->src_view[task_id];
-    TView src2_view = prim->src2_view[task_id];
-    const auto dst_view = prim->dst_view[task_id];
+  int execute_impl(int task_id) override {
+    const auto filter = this->filters[task_id];
+    const auto src_view = this->src_view[task_id];
+    const auto src2_view = this->src2_view[task_id];
+    const auto dst_view = this->dst_view[task_id];
 
     size_t mb = src_view.get_batch_size();
 
-    auto sts = BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(),
+    return BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(),
                                            src_view.get_stride(), src2_view.get_data_hdl(),
                                            src2_view.get_stride(), dst_view.get_data_hdl(),
                                            dst_view.get_stride());
-    return sts;
   }
  protected:
   const TView src2_view;
@@ -403,27 +397,18 @@ class TwoInputPrimitive : public Primitive {
  */
 class NormPrimitive : public Primitive {
  public:
-  NormPrimitive(const std::vector<BNNSFilter> fs, const TView& src, const TView& dst)
-      : Primitive(fs, src, dst) {}
-
-  /** Execute primitive with using specified src/dst */
-  void execute() override {
-    auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
-    ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
-  }
+  using Primitive::Primitive;
 
  private:
-  static int run_task(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
-    auto prim = reinterpret_cast<NormPrimitive*>(cdata);
-    const auto filter = prim->filters[task_id];
-    const auto src_view = prim->src_view[task_id];
-    const auto dst_view = prim->dst_view[task_id];
+  int execute_impl(int task_id) {
+    const auto filter = this->filters[task_id];
+    const auto src_view = this->src_view[task_id];
+    const auto dst_view = this->dst_view[task_id];
 
     size_t mb = src_view.get_batch_size();
-    auto sts = BNNSNormalizationFilterApplyBatch(filter, mb, src_view.get_data_hdl(),
-                                              src_view.get_stride(), dst_view.get_data_hdl(),
-                                              dst_view.get_stride(), false);
-    return sts;
+    return BNNSNormalizationFilterApplyBatch(filter, mb, src_view.get_data_hdl(),
+                                             src_view.get_stride(), dst_view.get_data_hdl(),
+                                             dst_view.get_stride(), false);
   }
 };
 
