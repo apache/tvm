@@ -24,7 +24,9 @@ def intrin_vadd(xo, m, n):
     if m % n == 0:
         body = lambda i: x[i] + y[i]
     else:
-        body = lambda i: tvm.tir.Select(xo * n + i < m, x[i] + y[i], tvm.tir.const(0, dtype=x.dtype))
+        body = lambda i: tvm.tir.Select(
+            xo * n + i < m, x[i] + y[i], tvm.tir.const(0, dtype=x.dtype)
+        )
     z = te.compute(x.shape, body, name="z")
 
     def intrin_func(ins, outs):
@@ -90,7 +92,6 @@ def intrin_gemv_no_reset(m, n):
 
 
 def test_tensorize_vadd():
-
     def add(m):
         x = te.placeholder((m,), name="x")
         y = te.placeholder((m,), name="y")
