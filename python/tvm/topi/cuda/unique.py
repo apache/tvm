@@ -25,10 +25,25 @@ from .sort import sort, argsort
 from ..utils import ceil_div
 
 
-def _calc_adjacent_diff_ir(data, adjacent_diff):
+def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
+    """Low level IR to calculate adjacent difference in an 1-D array
+
+    Parameters
+    ----------
+    data : Buffer
+        Input 1-D Buffer.
+
+    output: Buffer
+        A buffer to store adjacent difference, of the same shape as data. The adjacent difference is defined as:
+        output[0] = 0, output[i] = binop(data[i], data[i-1]) where i > 0 and i < len(data).
+
+    binop: function, optional
+        A binary associative op to use for calculating adjacent difference. The function takes two TIR expressions
+        and produce a new TIR expression. By default it uses tvm.tir.Sub to compute the adjacent difference.
+    """
     ib = tvm.tir.ir_builder.create()
     data_ptr = ib.buffer_ptr(data)
-    adjacent_diff_ptr = ib.buffer_ptr(adjacent_diff)
+    output_ptr = ib.buffer_ptr(output)
     batch_size = data.shape[0]
     max_threads = tir.min(batch_size, tvm.target.Target.current(allow_none=False).max_num_threads)
     with ib.new_scope():
@@ -41,17 +56,52 @@ def _calc_adjacent_diff_ir(data, adjacent_diff):
         tid = bx * max_threads + tx
         with ib.if_scope(tid < batch_size):
             with ib.if_scope(tid == 0):
-                adjacent_diff_ptr[tid] = 0
+                output_ptr[tid] = 0
             with ib.else_scope():
-                with ib.if_scope(data_ptr[tid] != data_ptr[tid - 1]):
-                    adjacent_diff_ptr[tid] = 1
-                with ib.else_scope():
-                    adjacent_diff_ptr[tid] = 0
+                output_ptr[tid] = tir.Cast(output.dtype, binop(data_ptr[tid], data_ptr[tid - 1]))
     return ib.get()
+
+
+def _calc_adjacent_diff(data, out_dtype="int32", binop=tir.Sub):
+    """Function calculate adjacent difference in an 1-D array
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input 1-D tensor.
+
+    output_dtype : str
+        The output tensor data type.
+
+    binop: function, optional
+        A binary associative op to use for calculating difference. The function takes two TIR expressions
+        and produce a new TIR expression. By default it uses tvm.tir.Sub to compute the adjacent difference.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        1-D tensor storing the adjacent difference of the input tensor. The adjacent difference is defined as:
+        output[0] = 0, output[i] = binop(data[i], data[i-1]) where i > 0 and i < len(data).
+    """
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "sorted_data_buf", data_alignment=8)
+    output_buf = tvm.tir.decl_buffer(data.shape, out_dtype, "output_buf", data_alignment=8)
+    output = te.extern(
+        [data.shape],
+        [data],
+        lambda ins, outs: _calc_adjacent_diff_ir(ins[0], outs[0], binop=binop),
+        dtype=[out_dtype],
+        in_buffers=[data_buf],
+        out_buffers=[output_buf],
+        name="_calc_adjacent_diff",
+        tag="_calc_adjacent_diff_gpu",
+    )
+    return output
 
 
 @hybrid.script
 def _calc_num_unique(data):
+    """Function to get the last element of a 1-D tensor
+    """
     output = output_tensor((1,), "int32")
     for i in bind("threadIdx.x", 1):
         output[i] = data[data.shape[0] - 1] + int32(1)
@@ -274,25 +324,10 @@ def unique(data, is_sorted=True, return_counts=False):
     sorted_data = sort(data)
     argsorted_indices = argsort(data, dtype="int32")
     # calculate adjacent difference
-    sorted_data_buf = tvm.tir.decl_buffer(
-        data.shape, data.dtype, "sorted_data_buf", data_alignment=8
-    )
-    adjacent_diff_buf = tvm.tir.decl_buffer(
-        data.shape, "int32", "adjacent_diff_buf", data_alignment=8
-    )
-    adjacent_diff = te.extern(
-        [data.shape],
-        [sorted_data],
-        lambda ins, outs: _calc_adjacent_diff_ir(ins[0], outs[0]),
-        dtype=["int32"],
-        in_buffers=[sorted_data_buf],
-        out_buffers=[adjacent_diff_buf],
-        name="_calc_adjacent_diff",
-        tag="_calc_adjacent_diff_gpu",
-    )
+    adjacent_diff = _calc_adjacent_diff(sorted_data, out_dtype="int32", binop=tir.NE)
     # calculate inclusive scan
     inc_scan = cumsum(adjacent_diff, dtype="int32", exclusive=0)
-    # calculate number of unique elements
+    # calculate total number of unique elements
     num_unique_elements = _calc_num_unique(inc_scan)
     # declare buffers
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
