@@ -68,6 +68,11 @@ from . import support
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
 
 
+# NOTE: This file should be python2 compatible so we can
+# raise proper error message when user run the package using
+# an older version of the python
+
+
 def _should_print_backtrace():
     in_pytest = "PYTEST_CURRENT_TEST" in os.environ
     tvm_backtrace = os.environ.get("TVM_BACKTRACE", "0")
@@ -76,7 +81,7 @@ def _should_print_backtrace():
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
         raise ValueError(
-            f"invalid value for TVM_BACKTRACE `{tvm_backtrace}`, please set to 0 or 1."
+            "invalid value for TVM_BACKTRACE {}, please set to 0 or 1.".format(tvm_backtrace)
         )
 
     return in_pytest or tvm_backtrace
