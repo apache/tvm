@@ -186,6 +186,14 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
           MatMul(nid);
         } else if ("nn.instance_norm" == op_name) {
           InstanceNormalization(nid);
+        } else if ("nn.max_pool2d" == op_name) {
+          Pooling(nid, false);
+        } else if ("nn.avg_pool2d" == op_name) {
+          Pooling(nid, true);
+        } else if ("nn.global_max_pool2d" == op_name) {
+          Pooling(nid, false, true);
+        } else if ("nn.global_avg_pool2d" == op_name) {
+          Pooling(nid, true, true);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -438,6 +446,79 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     std::vector<BNNSFilter> filters{filter};
     primitives_.emplace_back(std::make_shared<BNNS::NormPrimitive>(filters, src_view, dst_view));
+  }
+
+  void Pooling(const size_t& nid, bool avg_pooling, bool global = false) {
+    auto node = nodes_[nid];
+
+    auto src_entry = node.GetInputs()[0];
+    auto dst_entry = JSONGraphNodeEntry(nid, 0);
+
+    // Memory descriptions.
+    auto src_t = GetBNNSTensor(src_entry);
+    auto dst_t = GetBNNSTensor(dst_entry);
+
+    auto src_view = TView::as_is(src_t);
+    auto dst_view = TView::as_is(dst_t);
+    size_t src_rank = Tensor::getRank(src_view.get_bnns_view());
+    size_t dst_rank = Tensor::getRank(dst_view.get_bnns_view());
+    ICHECK_EQ(src_rank, dst_rank);
+    ICHECK_LE(src_rank, 4);
+    if (src_rank < 4) {
+      src_view = src_view.unsqueeze(4);
+      dst_view = dst_view.unsqueeze(4);
+    }
+    src_view = src_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
+    dst_view = dst_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
+    BNNSActivation activation = {BNNSActivationFunctionIdentity};
+    BNNSPoolingFunction pf = {BNNSPoolingFunctionMax};
+    if (avg_pooling)
+      pf = {BNNSPoolingFunctionAverageCountExcludePadding};
+
+    // Setup attributes.
+    size_t k_height = 0;
+    size_t k_width = 0;
+    size_t y_padding = 0;
+    size_t x_padding = 0;
+    size_t y_stride = 1;
+    size_t x_stride = 1;
+    if (!global) {
+      std::vector<std::string> pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
+      std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
+      std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
+      k_height = std::stoi(pool_size[0]);
+      k_width = std::stoi(pool_size[1]);
+      y_padding = std::stoi(padding[0]);
+      x_padding = std::stoi(padding[1]);
+      y_stride = std::stoi(strides[0]);
+      x_stride = std::stoi(strides[1]);
+    } else {
+      auto sv = src_view.get_bnns_view();
+      k_height = sv.size[1];
+      k_width = sv.size[0];
+    }
+
+    BNNSLayerParametersPooling layerParameters = {src_view.get_bnns_view(),  // i_desc
+                                                  dst_view.get_bnns_view(),  // o_desc
+                                                  {},                        // bias
+                                                  activation,                // activation
+                                                  pf,                        // pooling_function
+                                                  k_width,                   // k_width
+                                                  k_height,                  // k_height
+                                                  x_stride,                  // x_stride
+                                                  y_stride,                  // y_stride
+                                                  0,                         // x_dilation_stride
+                                                  0,                         // y_dilation_stride
+                                                  x_padding,                 // x_padding
+                                                  y_padding,                 // y_padding
+                                                  {}};                       // pad left, right, up, down padding
+
+    auto common_filter_param = getCommonFilterParams();
+    auto filter = BNNSFilterCreateLayerPooling(&layerParameters, &common_filter_param);
+    ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
+
+    std::vector<BNNSFilter> filters{filter};
+    primitives_.emplace_back(std::make_shared<BNNS::PoolingPrimitive>(filters, src_view, dst_view));
   }
 
   BNNS::Dtype convertToBNNS(const DLDataType& dl_dtype) {

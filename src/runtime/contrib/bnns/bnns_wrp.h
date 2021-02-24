@@ -400,7 +400,7 @@ class NormPrimitive : public Primitive {
   using Primitive::Primitive;
 
  private:
-  int execute_impl(int task_id) {
+  int execute_impl(int task_id) override {
     const auto filter = this->filters[task_id];
     const auto src_view = this->src_view[task_id];
     const auto dst_view = this->dst_view[task_id];
@@ -409,6 +409,27 @@ class NormPrimitive : public Primitive {
     return BNNSNormalizationFilterApplyBatch(filter, mb, src_view.get_data_hdl(),
                                              src_view.get_stride(), dst_view.get_data_hdl(),
                                              dst_view.get_stride(), false);
+  }
+};
+
+/**
+ * Wrapper on top of BNNS::Primitive
+ *
+ * This primitive should be used for executing pooling filter
+ */
+class PoolingPrimitive : public Primitive {
+ public:
+  using Primitive::Primitive;
+
+ private:
+  int execute_impl(int task_id) override {
+    const auto filter = this->filters[task_id];
+    const auto src_view = this->src_view[task_id];
+    const auto dst_view = this->dst_view[task_id];
+
+    size_t mb = src_view.get_batch_size();
+    return BNNSPoolingFilterApplyBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
+                                       dst_view.get_data_hdl(), dst_view.get_stride(), nullptr, 0);
   }
 };
 

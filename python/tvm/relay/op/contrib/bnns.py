@@ -98,6 +98,58 @@ def _register_external_op_helper(op_name, supported=True):
 _register_external_op_helper("nn.batch_matmul")
 
 
+@tvm.ir.register_op_attr("nn.max_pool2d", "target.bnns")
+def max_pool2d_check(expr):
+    """Check if the nn.max_pool2d can be executed in BNNS"""
+    attrs, args = expr.attrs, expr.args
+    data_typ = args[0].checked_type
+    rank = len(data_typ.shape)
+    if rank < 3 or rank > 4 or data_typ.dtype != "float32":
+        return False
+    if attrs.layout != "NCHW":
+        return False
+    return True
+
+
+@tvm.ir.register_op_attr("nn.avg_pool2d", "target.bnns")
+def avg_pool2d_check(expr):
+    """Check if the nn.avg_pool2d can be executed in BNNS"""
+    attrs, args = expr.attrs, expr.args
+    data_typ = args[0].checked_type
+    rank = len(data_typ.shape)
+    if rank < 3 or rank > 4 or data_typ.dtype != "float32":
+        return False
+    if attrs.layout != "NCHW":
+        return False
+    return True
+
+
+@tvm.ir.register_op_attr("nn.global_max_pool2d", "target.bnns")
+def global_max_pool2d_check(expr):
+    """Check if the nn.global_max_pool2d can be executed in BNNS"""
+    attrs, args = expr.attrs, expr.args
+    data_typ = args[0].checked_type
+    rank = len(data_typ.shape)
+    if rank < 3 or rank > 4 or data_typ.dtype != "float32":
+        return False
+    if attrs.layout != "NCHW":
+        return False
+    return True
+
+
+@tvm.ir.register_op_attr("nn.global_avg_pool2d", "target.bnns")
+def global_avg_pool2d_check(expr):
+    """Check if the nn.global_avg_pool2d can be executed in BNNS"""
+    attrs, args = expr.attrs, expr.args
+    data_typ = args[0].checked_type
+    rank = len(data_typ.shape)
+    if rank < 3 or rank > 4 or data_typ.dtype != "float32":
+        return False
+    if attrs.layout != "NCHW":
+        return False
+    return True
+
+
 def dtype_is_supported(dtype):
     """Check if data type is supported by BNNS backend"""
     return dtype in ("", "float32")
