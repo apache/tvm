@@ -828,7 +828,7 @@ def test_import_grad():
 
 
 def test_mlp():
-    mod, _ = relay.testing.mlp.get_workload()
+    mod, _ = relay.testing.mlp.get_workload(1)
     text = mod.astext()
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
@@ -851,7 +851,7 @@ def inline_params(mod, params):
 
 
 def test_mlp_inlined_params():
-    mod, params = relay.testing.mlp.get_workload()
+    mod, params = relay.testing.mlp.get_workload(1)
     mod = inline_params(mod, params)
     mod = relay.transform.InferType()(mod)
     text = mod.astext()
