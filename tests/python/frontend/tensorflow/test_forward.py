@@ -3949,6 +3949,45 @@ def test_forward_reduce():
 
 
 #######################################################################
+# All, Max, Min
+# ------------------------------------------------------------------
+
+
+def test_forward_raw_reduce():
+    def _check_op(tf_op, ishape, axis, keepdims, range_axis=False, dtype="float32"):
+        tf.reset_default_graph()
+        if dtype == "bool":
+            np_data = np.random.choice([True, False], size=ishape)
+        else:
+            np_data = np.random.uniform(size=ishape).astype(dtype)
+        if tf_op == tf.math.reduce_prod:
+            axis = 1
+            np_data = np_data.reshape(1, -1)
+        with tf.Graph().as_default():
+            if range_axis:
+                axis = tf.range(axis[0], axis[1], axis[2], name="range", dtype="int32")
+            in_data = tf.placeholder(dtype, name="in_data")
+            reduce_op = tf_op(input=in_data, axis=axis, keep_dims=keepdims, name="reduce_std")
+            compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
+
+    def _test_raw_reduce_op(op, dtypes=["int32", "float32"]):
+        for dtype in dtypes:
+            _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
+            _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
+            _check_op(op, (1, 8, 8, 3), axis=(2, 3), keepdims=True, dtype=dtype)
+            _check_op(op, (2, 3, 10, 10), axis=(1, 2), keepdims=True, dtype=dtype)
+            _check_op(op, (1, 8, 8, 3), axis=(2, 4, 1), keepdims=True, range_axis=True, dtype=dtype)
+            _check_op(
+                op, (2, 3, 10, 10), axis=(1, 3, 1), keepdims=True, range_axis=True, dtype=dtype
+            )
+
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
+        _test_raw_reduce_op(tf.raw_ops.All, dtypes=["bool"])
+        _test_raw_reduce_op(tf.raw_ops.Max)
+        _test_raw_reduce_op(tf.raw_ops.Min)
+
+
+#######################################################################
 # Relational operators
 # --------------------
 
