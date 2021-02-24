@@ -226,7 +226,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
-    auto wshape = trans_kernel_layout.ForwardShape(wshape);
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
     if (param->kernel_size.defined()) {
       ICHECK_EQ(param->kernel_size.size(), 2);
 
