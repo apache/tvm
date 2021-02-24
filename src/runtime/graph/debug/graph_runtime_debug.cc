@@ -110,6 +110,16 @@ class GraphRuntimeDebug : public GraphRuntime {
   }
 
   double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
+    if (nodes_[index].op_type != "tvm_op") {
+      CHECK_EQ(nodes_[index].op_type, "null")
+          << "Don't know how to run op type " << nodes_[index].op_type
+          << " remotely over RPC right now";
+
+      // NOTE: GraphRuntimeDebug expects graph nodes to have an "op" attribute of "tvm_op" or "null"
+      // and "null" is a placeholder node for a parameter or input.
+      return 0;
+    }
+
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
     TVMOpParam param = nodes_[index].param;
     std::string name = param.func_name;
