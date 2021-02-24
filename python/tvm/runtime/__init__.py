@@ -29,4 +29,3 @@ from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, ext_dev, micro_dev
 from .module import load_module, enabled, system_lib
 from .container import String
-from .profiling import start_timer
