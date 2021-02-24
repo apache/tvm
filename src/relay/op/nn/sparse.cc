@@ -202,10 +202,12 @@ bool SparseAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_EQ(types.size(), 5);
   const auto* dense_data = types[0].as<TensorTypeNode>();
   const auto* sparse_data = types[1].as<TensorTypeNode>();
-  ICHECK(reporter->Assert(sparse_data->dtype == dense_data->dtype));
-  ICHECK(reporter->Assert(sparse_data->shape.size() == 1));
+  ICHECK(reporter->Assert(sparse_data->dtype == dense_data->dtype))
+      << "sparse tensor and dense tensor datatype should match.";
+  ICHECK(reporter->Assert(sparse_data->shape.size() == 1)) << "sparse data tensor should be 1D.";
   const auto* sparse_indices = types[2].as<TensorTypeNode>();
-  ICHECK(reporter->Assert(sparse_indices->shape.size() == 1));
+  ICHECK(reporter->Assert(sparse_indices->shape.size() == 1))
+      << "sparse indices tensor should be 1D.";
 
   reporter->Assign(types[4], TensorType(dense_data->shape, dense_data->dtype));
   return true;

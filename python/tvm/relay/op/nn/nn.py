@@ -2179,16 +2179,15 @@ def sparse_add(dense_mat, sparse_mat):
     -------
     .. code-block:: python
         dense_data = [[ 3.,   4.,   4. ]
-                                  [ 4.,  2.,  5. ]]
+                      [ 4.,  2.,  5. ]]
         sparse_data = [4., 8.]
         sparse_indices =[0, 2]
         sparse_indptr =[0, 1, 2]
-        dense_shape = [2, 3]
 
         output = relay.sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr)
 
         output = [[ 7.,   4.,   4. ]
-                         [ 4.,  2.,  13. ]]
+                  [ 4.,  2.,  13. ]]
     """
     if hasattr(sparse_mat, "indices"):
         return _make.sparse_add(dense_mat, sparse_mat.data, sparse_mat.indices, sparse_mat.indptr)
