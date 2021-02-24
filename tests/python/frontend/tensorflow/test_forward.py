@@ -1998,16 +1998,15 @@ def test_forward_sparse_to_dense():
 def _test_sparse_to_dense_v2(indices, values, A_shape, dtype, default_value=None):
     with tf.Graph().as_default():
         A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
-        B = tf.placeholder(shape=A_shape, dtype=dtype, name="B")
 
-        result = tf.sparse.to_dense(A_sp, default_value=default_value) + B
+        result = tf.sparse.to_dense(A_sp, default_value=default_value)
 
-        B_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
-
-        compare_tf_with_tvm([B_np], [B.name], result.name)
+        compare_tf_with_tvm([], [], result.name)
 
 
 def test_forward_sparse_to_dense_v2():
+    _test_sparse_to_dense_v2([[1]], [3.0], [5], "float32")
+    _test_sparse_to_dense_v2([[1]], [3.0], [5], "float32", 0.3)
     _test_sparse_to_dense_v2([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32")
     _test_sparse_to_dense_v2([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32", 1.3)
     _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32")
