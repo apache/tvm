@@ -1867,6 +1867,23 @@ def test_unary_ops():
     verify_unary_ops("Sigmoid", x)
     verify_unary_ops("Softsign", x)
 
+    def verify_unary_ops_fp16(op, x, rtol=1e-5, atol=1e-5):
+        z = helper.make_node(op, ["in1"], ["out"])
+        graph = helper.make_graph(
+            [z],
+            "_test",
+            inputs=[
+                helper.make_tensor_value_info("in1", TensorProto.FLOAT16, list(in_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT16, list(out_shape))],
+        )
+        model = helper.make_model(graph, producer_name="_test")
+        verify_with_ort_with_inputs(model, [x], rtol=rtol, atol=atol)
+
+    dtype = "float16"
+    x = np.random.uniform(size=in_shape).astype(dtype)
+    verify_unary_ops_fp16("Reciprocal", x)
+
 
 @tvm.testing.uses_gpu
 def test_leaky_relu():

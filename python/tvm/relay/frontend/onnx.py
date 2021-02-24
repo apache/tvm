@@ -839,7 +839,8 @@ class Reciprocal(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _expr.const(1.0) / inputs[0]
+        dtype = infer_type(inputs[0]).checked_type.dtype
+        return _expr.const(1.0, dtype=dtype) / inputs[0]
 
 
 class Flatten(OnnxOpConverter):
