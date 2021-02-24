@@ -170,43 +170,60 @@ void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_be
 
 class ModulePass;
 
+/*! \brief PassProfile stores profiling information for a given pass and its sub-passes. */
 struct PassProfile {
-  typedef std::chrono::steady_clock Clock;
-  typedef std::chrono::microseconds Duration;
-  typedef std::chrono::time_point<Clock> Time;
+  // TODO(@altanh): expose PassProfile through TVM Object API
+  using Clock = std::chrono::steady_clock;
+  using Duration = std::chrono::duration<double, std::micro>;
+  using Time = std::chrono::time_point<Clock>;
 
+  /*! \brief The name of the pass being profiled. */
   String name;
+  /*! \brief The time when the pass was entered. */
   Time start;
+  /*! \brief The time when the pass completed. */
   Time end;
+  /*! \brief The total duration of the pass, i.e. end - start. */
   Duration duration;
+  /*! \brief PassProfiles for all sub-passes invoked during the execution of the pass. */
   std::vector<PassProfile> children;
 
-  PassProfile(String name) : name(name), start(Clock::now()), end(Clock::now()), children() {}
+  explicit PassProfile(String name)
+      : name(name), start(Clock::now()), end(Clock::now()), children() {}
 
+  /*! \brief Gets the PassProfile of the currently executing pass. */
   static PassProfile* Current();
+  /*! \brief Pushes a new PassProfile with the given pass name. */
   static void EnterPass(String name);
+  /*! \brief Pops the current PassProfile. */
   static void ExitPass();
 };
 
 struct PassProfileThreadLocalEntry {
-  // TODO: figure out the TVM way to do this
+  /*! \brief The placeholder top-level PassProfile. */
   PassProfile root;
+  /*! \brief The stack of PassProfiles for nested passes currently running. */
   std::stack<PassProfile*> profile_stack;
+  /*! \brief Whether or not pass profiling is active. */
+  bool active;
 
-  PassProfileThreadLocalEntry() : root("root") {}
+  PassProfileThreadLocalEntry() : root("root"), active(false) {}
 };
 
+/*! \brief Thread local store to hold the pass profiling data. */
 typedef dmlc::ThreadLocalStore<PassProfileThreadLocalEntry> PassProfileThreadLocalStore;
 
 void PassProfile::EnterPass(String name) {
+  if (!PassProfileThreadLocalStore::Get()->active) return;
   PassProfile* cur = PassProfile::Current();
   cur->children.emplace_back(name);
   PassProfileThreadLocalStore::Get()->profile_stack.push(&cur->children.back());
 }
 
 void PassProfile::ExitPass() {
+  if (!PassProfileThreadLocalStore::Get()->active) return;
   PassProfile* cur = PassProfile::Current();
-  ICHECK_NE(cur->name, "root");
+  ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
   cur->end = std::move(PassProfile::Clock::now());
   cur->duration = std::chrono::duration_cast<PassProfile::Duration>(cur->end - cur->start);
   PassProfileThreadLocalStore::Get()->profile_stack.pop();
@@ -241,10 +258,10 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
 
 void PrintPassProfile() {
   PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
-  ICHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
+  CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
 
   if (entry->root.children.empty()) {
-    LOG(WARNING) << "no passes have been profiled";
+    LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";
     return;
   }
 
@@ -272,13 +289,18 @@ void PrintPassProfile() {
       std::cout << "\t";
     }
 
-    double percentage = static_cast<double>(profile->duration.count()) /
-                        static_cast<double>(parent_duration.count()) * 100;
-    printf("%s: %ldus (%.2f%%)\n", profile->name.c_str(), profile->duration.count(), percentage);
-
+    // calculate time spent in pass itself (excluding sub-passes), and push children
+    PassProfile::Duration self_duration = profile->duration;
     for (auto it = profile->children.rbegin(); it != profile->children.rend(); ++it) {
+      self_duration -= it->duration;
       profiles.push(std::make_tuple(depth + 1, profile->duration, &*it));
     }
+
+    double parent_pct = profile->duration.count() / parent_duration.count() * 100.0;
+    double total_pct = profile->duration.count() / top_dur.count() * 100.0;
+
+    printf("%s: %.0fus [%.0fus] (%.2f%%; %.2f%%)\n", profile->name.c_str(),
+           profile->duration.count(), self_duration.count(), total_pct, parent_pct);
   }
 }
 
@@ -288,6 +310,14 @@ TVM_REGISTER_GLOBAL("transform.print_pass_profiles").set_body_typed([]() {
 
 TVM_REGISTER_GLOBAL("transform.clear_pass_profiles").set_body_typed([]() {
   PassProfileThreadLocalStore::Get()->root.children.clear();
+});
+
+TVM_REGISTER_GLOBAL("transform.enable_pass_profiling").set_body_typed([]() {
+  PassProfileThreadLocalStore::Get()->active = true;
+});
+
+TVM_REGISTER_GLOBAL("transform.disable_pass_profiling").set_body_typed([]() {
+  PassProfileThreadLocalStore::Get()->active = false;
 });
 
 /*!
