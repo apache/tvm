@@ -226,7 +226,18 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
-    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
+
+    Array<PrimExpr> wshape;
+    if (param->auto_scheduler_rewritten_layout.size() == 0) {
+      wshape = weight->shape;
+    } else {
+      // works for the default kernel layout "HWIO"
+      ICHECK_EQ(param->kernel_layout, "HWIO");
+      wshape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
+                                                           {"ry", "rx", "rc", "ff"});
+    }
+
+    wshape = trans_kernel_layout.ForwardShape(wshape);
     if (param->kernel_size.defined()) {
       ICHECK_EQ(param->kernel_size.size(), 2);
 
