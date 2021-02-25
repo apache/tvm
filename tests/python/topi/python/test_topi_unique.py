@@ -97,12 +97,12 @@ def test_unique(ctx, target):
 
     for in_dtype in ["int32", "int64"]:
         for is_sorted in [True, False]:
-            # data = np.random.randint(0, 100, size=(1)).astype(in_dtype)
-            # check_unique(data, is_sorted)
+            data = np.random.randint(0, 100, size=(1)).astype(in_dtype)
+            check_unique(data, is_sorted)
             data = np.random.randint(0, 10, size=(10)).astype(in_dtype)
             check_unique(data, is_sorted)
-            # data = np.random.randint(0, 100, size=(10000)).astype(in_dtype)
-            # check_unique(data, is_sorted)
+            data = np.random.randint(0, 100, size=(10000)).astype(in_dtype)
+            check_unique(data, is_sorted)
 
 
 if __name__ == "__main__":
