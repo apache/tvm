@@ -47,7 +47,7 @@ def create_shared(output, objects, options=None, cc="g++"):
     ):
         _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
-        _windows_shared(output, objects, options)
+        _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
 
@@ -71,6 +71,8 @@ def create_executable(output, objects, options=None, cc="g++"):
     """
     if sys.platform == "darwin" or sys.platform.startswith("linux"):
         _linux_compile(output, objects, options, cc)
+    elif sys.platform == "win32":
+        _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
 
@@ -212,9 +214,9 @@ def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=F
         raise RuntimeError(msg)
 
 
-def _windows_shared(output, objects, options):
+def _windows_compile(output, objects, options):
     cmd = ["clang"]
-    cmd += ["-O2", "-flto=full", "-fuse-ld=lld-link"]
+    cmd += ["-O2"]
 
     if output.endswith(".so") or output.endswith(".dll"):
         cmd += ["-shared"]
@@ -240,6 +242,7 @@ def _windows_shared(output, objects, options):
         )
     if proc.returncode != 0:
         msg = "Compilation error:\n"
+        msg += " ".join(cmd) + "\n"
         msg += py_str(out)
 
         raise RuntimeError(msg)
