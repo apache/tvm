@@ -1753,7 +1753,7 @@ class LSTM(RNN):
         P = inputs[7]
 
         num_directions = infer_shape(W)[0]
-        W_dtype = infer_type(W).type_annotation.dtype
+        W_dtype = infer_type(W).checked_type.dtype
 
         if num_directions != 1:
             raise NotImplementedError("Bidirectional LSTMs not yet supported.")
@@ -1865,7 +1865,7 @@ class GRU(RNN):
         linear_before_reset = attr.get("linear_before_reset", 0)
 
         num_directions = infer_shape(W)[0]
-        W_dtype = infer_type(W).type_annotation.dtype
+        W_dtype = infer_type(W).checked_type.dtype
 
         if num_directions != 1:
             raise NotImplementedError("Bidirectional GRUs not yet supported.")
