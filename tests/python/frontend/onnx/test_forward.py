@@ -67,7 +67,7 @@ def get_tvm_output(
     graph_def, input_data, target, ctx, output_shape=None, output_dtype="float32", opset=None
 ):
     """ Generic function to execute and get tvm output"""
-    #target = "llvm"
+    target = "llvm"
 
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
@@ -75,7 +75,7 @@ def get_tvm_output(
     with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod, target, params=params)
 
-    #ctx = tvm.cpu(0)
+    ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
     if isinstance(input_data, list):
