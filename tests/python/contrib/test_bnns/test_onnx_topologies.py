@@ -26,6 +26,7 @@ from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 
 import numpy as np
+
 pytest.importorskip("onnx")
 
 bnns_is_absent = tvm.get_global_func("relay.ext.bnns", True) is None
