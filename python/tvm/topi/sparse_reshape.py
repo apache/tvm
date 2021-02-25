@@ -138,7 +138,7 @@ def sparse_reshape(
 
         # Return same inputs if shapes are equal
         with ib.if_scope(equal_shape[0]):
-            with ib.for_range(0, sparse_indices_ptr.shape[0]) as i:
+            with ib.for_range(0, sparse_indices_ptr.shape[0], kind="parallel") as i:
                 with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
                     new_sparse_indices[i, j] = sparse_indices[i, j]
 
@@ -151,12 +151,12 @@ def sparse_reshape(
                     dividers[new_shape_size - i] * out_new_shape[new_shape_size - i]
                 )
 
-            with ib.for_range(0, sparse_indices_ptr.shape[0]) as i:
+            with ib.for_range(0, sparse_indices_ptr.shape[0], kind="parallel") as i:
                 flattened_indices[i] = Cast(new_shape_ptr.dtype, 0)
                 with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
                     flattened_indices[i] += sparse_indices[i, j] * multipliers[j]
 
-            with ib.for_range(0, new_sparse_indices_ptr.shape[0]) as i:
+            with ib.for_range(0, new_sparse_indices_ptr.shape[0], kind="parallel") as i:
                 current_element = ib.allocate(
                     new_shape_ptr.dtype, (1,), name="current_element", scope="local"
                 )

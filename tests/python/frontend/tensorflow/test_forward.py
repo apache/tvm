@@ -2016,15 +2016,6 @@ def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, use
         ),
         (
             np.array(
-                [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]],
-                dtype=np.int64,
-            ),
-            np.array([7, 5, 6, 3, 9], dtype=np.int64),
-            np.array([2, 3, 6, 7], dtype=np.int64),
-            np.array([9, -1, 7], dtype=np.int64),
-        ),
-        (
-            np.array(
                 [
                     [0, 0, 0, 0, 0],
                     [0, 0, 1, 2, 3],
@@ -2037,12 +2028,6 @@ def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, use
             np.array([7, 5, 6, 3, 9], dtype=np.int64),
             np.array([2, 3, 6, 7, 9], dtype=np.int64),
             np.array([9, -1, 7], dtype=np.int64),
-        ),
-        (
-            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int64),
-            np.array([7, 5, 6, 3, 9], dtype=np.int64),
-            np.array([9, 4], dtype=np.int64),
-            np.array([2, -1, 6], dtype=np.int64),
         ),
         (
             np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int64),
