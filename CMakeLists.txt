@@ -151,7 +151,6 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
-  include(cmake/modules/ClangFlags.cmake)
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
@@ -371,13 +370,13 @@ endif()
 
 add_lib_info(${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 
-add_library(tvm_objs OBJECT ${COMPILER_SRCS} ${RUNTIME_SRCS})
+add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 
-add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs>)
-set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
+add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
+set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
-set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
+set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
 if(USE_MICRO)
   # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
@@ -394,16 +393,21 @@ if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
   target_compile_definitions(tvm_objs PRIVATE "USE_RELAY_DEBUG")
   target_compile_definitions(tvm_objs PRIVATE "DMLC_LOG_DEBUG")
+  target_compile_definitions(tvm_runtime_objs PRIVATE "USE_RELAY_DEBUG")
+  target_compile_definitions(tvm_runtime_objs PRIVATE "DMLC_LOG_DEBUG")
 else()
   target_compile_definitions(tvm_objs PRIVATE "NDEBUG")
+  target_compile_definitions(tvm_runtime_objs PRIVATE "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
   target_compile_definitions(tvm_objs PRIVATE "USE_FALLBACK_STL_MAP=1")
+  target_compile_definitions(tvm_runtime_objs PRIVATE "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
   target_compile_definitions(tvm_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
+  target_compile_definitions(tvm_runtime_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
@@ -430,6 +434,9 @@ endif()
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
+# Set flags for clang
+include(cmake/modules/ClangFlags.cmake)
+
 # Related headers
 target_include_directories(
   tvm
@@ -447,7 +454,7 @@ target_include_directorieS(
 
 set(TVM_TEST_LIBRARY_NAME tvm)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs>)
+  add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
   target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
   target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)

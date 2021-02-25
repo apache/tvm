@@ -56,9 +56,16 @@ def tune_network(network, target):
             ):
                 lib = relay.build(mod, target=target, params=params)
 
+        # Sample a schedule when missing
+        with auto_scheduler.ApplyHistoryBestOrSample(None, num_measure=2):
+            with tvm.transform.PassContext(
+                opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+            ):
+                lib2 = relay.build(mod, target=target, params=params)
+
         # Compile without auto-scheduler and any other optimization for correctness check
         with tvm.transform.PassContext(opt_level=0):
-            lib2 = relay.build(mod, target=target, params=params)
+            ref_lib = relay.build(mod, target=target, params=params)
 
         # Check the correctness
         def get_output(data, lib):
@@ -76,10 +83,12 @@ def tune_network(network, target):
         else:
             raise ValueError("Unknown network: " + network)
 
-        actual_output = get_output(data, lib)
-        expected_output = get_output(data, lib2)
+        actual_output1 = get_output(data, lib)
+        actual_output2 = get_output(data, lib2)
+        expected_output = get_output(data, ref_lib)
 
-        tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(actual_output1, expected_output, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(actual_output2, expected_output, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.requires_cuda

@@ -58,12 +58,6 @@ namespace transform {
 Pass LambdaLift();
 Pass InlinePrimitives();
 
-Pass ManifestAlloc(Target target_host, vm::TargetsMap targets) {
-  auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
-  ICHECK(f != nullptr) << "unable to load allocation manifestation pass";
-  return (*f)(target_host, targets);
-}
-
 Pass MemoryPlan() {
   auto f = tvm::runtime::Registry::Get("relay.transform.MemoryPlan");
   ICHECK(f != nullptr) << "unable to load the memory planning pass";
@@ -898,15 +892,6 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
 }
 
 void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
-  if (params_.size()) {
-    BaseFunc base_func = mod->Lookup("main");
-    ICHECK(base_func->IsInstance<FunctionNode>())
-        << "VM compiler expects to compile relay::Function";
-    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
-    auto gvar = mod->GetGlobalVar("main");
-    mod->Add(gvar, f);
-  }
-
   exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
@@ -985,8 +970,11 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
 
-  // Perform memory planning in order to coalesce/reduce allocations.
-  pass_seqs.push_back(transform::MemoryPlan());
+  // TODO(mbrookhart, jroesch, masahi): this pass is very slow, and is
+  // incomplete to provide memory resuse optimizations. Disable it until we can
+  // rewrite it in C++ and complete it.
+  // // Perform memory planning in order to coalesce/reduce allocations.
+  // pass_seqs.push_back(transform::MemoryPlan());
 
   // Compute away constant computation introduced by coalescing allocations.
   pass_seqs.push_back(transform::FoldConstant());
@@ -1008,8 +996,17 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets,
+IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
                                     const Target& target_host) {
+  if (params_.size()) {
+    BaseFunc base_func = mod->Lookup("main");
+    ICHECK(base_func->IsInstance<FunctionNode>())
+        << "VM compiler expects to compile relay::Function";
+    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
+    auto gvar = mod->GetGlobalVar("main");
+    mod->Add(gvar, f);
+  }
+
   Array<Pass> pass_seqs;
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));

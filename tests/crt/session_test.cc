@@ -55,8 +55,9 @@ class TestSession {
   TestSession(uint8_t initial_nonce)
       : framer{&framer_write_stream},
         receive_buffer{receive_buffer_array, sizeof(receive_buffer_array)},
-        sess{initial_nonce, &framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
-        unframer{sess.Receiver()} {}
+        sess{&framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
+        unframer{sess.Receiver()},
+        initial_nonce{initial_nonce} {}
 
   void WriteTo(TestSession* other) {
     auto framer_buffer = framer_write_stream.BufferContents();
@@ -84,6 +85,7 @@ class TestSession {
   FrameBuffer receive_buffer;
   Session sess;
   Unframer unframer;
+  uint8_t initial_nonce;
 };
 
 #define EXPECT_FRAMED_PACKET(session, expected)          \
@@ -126,14 +128,14 @@ class SessionTest : public ::testing::Test {
 
 TEST_F(SessionTest, NormalExchange) {
   tvm_crt_error_t err;
-  err = alice_.sess.Initialize();
+  err = alice_.sess.Initialize(alice_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(alice_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
                        "fw");
   alice_.WriteTo(&bob_);
 
-  err = bob_.sess.Initialize();
+  err = bob_.sess.Initialize(bob_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(bob_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
@@ -212,14 +214,14 @@ static constexpr const char kBobStartPacket[] = "\xff\xfd\x04\0\0\0f\0\0\x01`\xa
 
 TEST_F(SessionTest, DoubleStart) {
   tvm_crt_error_t err;
-  err = alice_.sess.Initialize();
+  err = alice_.sess.Initialize(alice_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(alice_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
                        "fw");
   alice_.WriteTo(&bob_);
 
-  err = bob_.sess.Initialize();
+  err = bob_.sess.Initialize(bob_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(bob_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"

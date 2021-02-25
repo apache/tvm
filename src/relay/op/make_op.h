@@ -100,6 +100,12 @@ Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
 
 Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
 
+Expr MakeArange(Expr start, Expr stop, Expr step, DataType dtype);
+
+Expr MakeShapeOf(Expr data, DataType dtype);
+
+Expr MakeTake(Expr data, Expr indices, Integer axis, String mode);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_MAKE_OP_H_

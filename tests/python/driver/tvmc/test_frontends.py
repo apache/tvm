@@ -174,9 +174,28 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
+@pytest.mark.skip(reason="https://github.com/apache/tvm/issues/7455")
+def test_load_model__pth(pytorch_resnet18):
+    # some CI environments wont offer torch, so skip in case it is not present
+    pytest.importorskip("torch")
+    pytest.importorskip("torchvision")
+
+    mod, params = tvmc.frontends.load_model(
+        pytorch_resnet18, shape_dict={"input": [1, 3, 224, 224]}
+    )
+    assert type(mod) is IRModule
+    assert type(params) is dict
+    # check whether one known value is part of the params dict
+    assert "layer1.0.conv1.weight" in params.keys()
+
+
 def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")
 
     with pytest.raises(RuntimeError) as e:
-        tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="pytorch")
+        tvmc.frontends.load_model(
+            tflite_mobilenet_v1_1_quant,
+            model_format="pytorch",
+            shape_dict={"input": [1, 3, 224, 224]},
+        )

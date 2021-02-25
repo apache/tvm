@@ -191,7 +191,7 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
     pad_before = [0, pad_top, pad_left, 0]
     pad_after = [0, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    # todo: padding filter to accomodate the intrinsic
+    # todo: padding filter to accommodate the intrinsic
 
     # packing the Filter to let memory access be consecutive for AVX512 intrinsic
     # Done in pre-compute stage

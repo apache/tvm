@@ -54,7 +54,7 @@ def test():
         f_pytorch = to_pytorch_func(f)
         zz2 = torch.empty(137, 137)
         f_pytorch(xx, yy, zz2)
-        tvm.testing.assert_allclose(zz.numpy(), zz2.numpy(), rtol=1e-6)
+        tvm.testing.assert_allclose(zz.numpy(), zz2.numpy(), rtol=1e-4, atol=1e-4)
 
     except ImportError:
         pass

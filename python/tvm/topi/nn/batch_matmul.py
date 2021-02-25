@@ -16,6 +16,7 @@
 # under the License.
 """Batch matrix multiplication"""
 # pylint: disable=invalid-name
+import tvm
 from tvm import te, auto_scheduler
 from ..utils import get_const_tuple
 
@@ -61,7 +62,7 @@ def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
     k = te.reduce_axis((0, K), name="k")
     if oshape is None:
         assert XB == YB or XB == 1 or YB == 1, "batch dimension doesn't match"
-        assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
+        assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistent"
         batch = te.max(XB, YB)
         N = y.shape[1]
         oshape = (batch, M, N)
@@ -77,3 +78,26 @@ def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
         output = auto_scheduler.rewrite_compute_body(output, auto_scheduler_rewritten_layout)
 
     return output
+
+
+@tvm.target.generic_func
+def batch_matmul_legalize(attrs, inputs, types):
+    """Legalizes batch_matmul op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current batch_matmul
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    # pylint: disable=unused-argument
+    return None

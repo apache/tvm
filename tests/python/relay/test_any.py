@@ -54,7 +54,6 @@ def check_result(
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
-            print(tgt)
             if disable_targets and tgt in disable_targets:
                 continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
@@ -120,6 +119,7 @@ def test_any_elemwise():
     verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
     verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
     verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
+    verify_any_elemwise((relay.Any(),), (3,), relay.round, np.round)
 
 
 @tvm.testing.uses_gpu
