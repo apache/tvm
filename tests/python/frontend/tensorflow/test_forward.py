@@ -2094,6 +2094,7 @@ def test_forward_sparse_reshape(
     # ------------------------------------------------------------------
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn)
 
+
 # tensorflow.compat.v1.sparse_to_dense
 # ---------------
 def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
