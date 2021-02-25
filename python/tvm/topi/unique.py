@@ -14,58 +14,180 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-else-return
+# pylint: disable=invalid-name
 """Unique operator"""
+from tvm import te, tir
 from ..te import hybrid
 from .cumsum import cumsum
 from .sort import sort, argsort
 
 
-@hybrid.script
-def _calc_adjacent_diff(data):
-    output = output_tensor(data.shape, "int32")
-    output[0] = int32(0)
-    for i in parallel(1, data.shape[0]):
-        output[i] = int32(1) if data[i] != data[i - 1] else int32(0)
-    return output
+def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
+    """Low level IR to calculate adjacent difference in an 1-D array.
+
+    Parameters
+    ----------
+    data : Buffer
+        Input 1-D Buffer.
+
+    output: Buffer
+        A buffer to store adjacent difference, of the same shape as data. The adjacent difference
+        is defined as: output[0] = 0, output[i] = binop(data[i], data[i-1])
+        where i > 0 and i < len(data).
+
+    binop: function, optional
+        A binary associative op to use for calculating adjacent difference. The function takes two
+        TIR expressions and produce a new TIR expression. By default it uses tvm.tir.Sub to
+        compute the adjacent difference.
+    """
+    ib = tir.ir_builder.create()
+    data_ptr = ib.buffer_ptr(data)
+    output_ptr = ib.buffer_ptr(output)
+    with ib.for_range(0, data.shape[0], kind="parallel") as i:
+        with ib.if_scope(i == 0):
+            output_ptr[0] = 0
+        with ib.else_scope():
+            output_ptr[i] = tir.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
+    return ib.get()
+
+
+def _calc_adjacent_diff(data, out_dtype="int32", binop=tir.Sub):
+    """Function calculate adjacent difference in an 1-D array.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input 1-D tensor.
+
+    output_dtype : str
+        The output tensor data type.
+
+    binop: function, optional
+        A binary associative op to use for calculating difference. The function takes two
+        TIR expressions and produce a new TIR expression. By default it uses tvm.tir.Sub to
+        compute the adjacent difference.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        1-D tensor storing the adjacent difference of the input tensor. The adjacent difference
+        is defined as: output[0] = 0, output[i] = binop(data[i], data[i-1])
+        where i > 0 and i < len(data).
+    """
+    return te.extern(
+        [data.shape],
+        [data],
+        lambda ins, outs: _calc_adjacent_diff_ir(ins[0], outs[0], binop=binop),
+        dtype=[out_dtype],
+        name="_calc_adjacent_diff",
+        tag="_calc_adjacent_diff_cpu",
+    )
 
 
 @hybrid.script
-def _calc_num_unique(data):
+def _calc_num_unique(inc_scan):
+    """Helper function to get the number of unique elements fron inc_scan tensor"""
     output = output_tensor((1,), "int32")
-    output[0] = data[data.shape[0] - 1] + int32(1)
+    output[0] = inc_scan[inc_scan.shape[0] - 1] + int32(1)
     return output
 
 
-@hybrid.script
-def _calc_unique_sorted(data, argsorted_indices, inc_scan):
-    unique_elements = output_tensor(data.shape, data.dtype)
-    indices = output_tensor(data.shape, "int32")
-    for i in parallel(data.shape[0]):
-        indices[argsorted_indices[i]] = inc_scan[i]
-        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
-            unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
-    return unique_elements, indices
+def _calc_unique_ir(
+    data, argsorted_indices, inc_scan, index_converter, unique_elements, indices, counts
+):
+    """Low level IR to calculate unique elements, inverse indices, and counts (optional) of
+    unique elements of 1-D array.
 
+    Parameters
+    ----------
+    data : Buffer
+        Input 1-D Buffer.
 
-@hybrid.script
-def _calc_unique_sorted_with_counts(data, argsorted_indices, inc_scan):
-    unique_elements = output_tensor(data.shape, data.dtype)
-    indices = output_tensor(data.shape, "int32")
-    counts = output_tensor(data.shape, "int32")
-    for i in parallel(data.shape[0]):
-        counts[i] = int32(0)
-    for i in parallel(data.shape[0]):
-        indices[argsorted_indices[i]] = inc_scan[i]
-        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
-            unique_elements[inc_scan[i]] = data[argsorted_indices[i]]
-    for i in range(data.shape[0]):
-        counts[inc_scan[i]] += int32(1)
-    return unique_elements, indices, counts
+    argsorted_indices : Buffer
+        A buffer that stores the argsorted indices of the input data.
+
+    inc_scan : Buffer
+        A buffer that stores the inclusive scan of the binary tir.NE adjacent difference
+        of the sorted data.
+
+    index_converter (optional) : Buffer
+        An optional index converter that transforms the unique element index
+        such that new_idx = index_converter[old_idx].
+
+    unique_elements : Buffer
+        A buffer that stores the unique elements.
+
+    indices : Buffer
+        A buffer that stores the the index of each input data element in the unique element array.
+
+    counts (optional) : Buffer
+        A buffer that stores the count of each unique element.
+    """
+    ib = tir.ir_builder.create()
+    data_ptr = ib.buffer_ptr(data)
+    argsorted_indices_ptr = ib.buffer_ptr(argsorted_indices)
+    inc_scan_ptr = ib.buffer_ptr(inc_scan)
+    unique_elements_ptr = ib.buffer_ptr(unique_elements)
+    indices_ptr = ib.buffer_ptr(indices)
+
+    index_converter_ptr = None
+    if isinstance(index_converter, tir.Buffer):
+        index_converter_ptr = ib.buffer_ptr(index_converter)
+
+    if isinstance(counts, tir.Buffer):
+        counts_ptr = ib.buffer_ptr(counts)
+        arange_ptr = ib.allocate(counts_ptr.dtype, counts.shape, name="arange_buf", scope="local")
+
+    data_length = data.shape[0]
+
+    with ib.new_scope():
+        with ib.for_range(0, data_length, kind="parallel") as i:
+            data_idx = argsorted_indices_ptr[i]
+            unique_idx = (
+                inc_scan_ptr[i] if not index_converter_ptr else index_converter_ptr[inc_scan_ptr[i]]
+            )
+            indices_ptr[data_idx] = unique_idx
+            with ib.if_scope(i == 0):
+                unique_elements_ptr[unique_idx] = data_ptr[data_idx]
+            with ib.else_scope():
+                with ib.if_scope(inc_scan_ptr[i] != inc_scan_ptr[i - 1]):
+                    unique_elements_ptr[unique_idx] = data_ptr[data_idx]
+
+    if isinstance(counts, tir.Buffer):
+        num_unique = inc_scan_ptr[inc_scan.shape[0] - 1] + 1
+        num_elements = data.shape[0]
+        arange_ptr[num_unique - 1] = num_elements
+        with ib.new_scope():
+            with ib.for_range(0, data_length, kind="parallel") as i:
+                with ib.if_scope(i > 0):
+                    with ib.if_scope(inc_scan_ptr[i] != inc_scan_ptr[i - 1]):
+                        arange_ptr[inc_scan_ptr[i] - 1] = i
+        with ib.new_scope():
+            with ib.for_range(0, num_unique, kind="parallel") as i:
+                unique_idx = i if not index_converter_ptr else index_converter_ptr[i]
+                with ib.if_scope(i == 0):
+                    counts_ptr[unique_idx] = arange_ptr[i]
+                with ib.else_scope():
+                    counts_ptr[unique_idx] = arange_ptr[i] - arange_ptr[i - 1]
+    return ib.get()
 
 
 @hybrid.script
 def _calc_first_occurence(argsorted_indices, inc_scan):
+    """Hybrid script to calculate the first occurence of each unique element in the input data.
+
+    Parameters
+    ----------
+    argsorted_indices : tvm.te.Tensor
+        A tensor that stores the argsorted indices of the input data.
+
+    inc_scan : tvm.te.Tensor
+        A tensor that stores the inclusive scan of the binary tir.NE adjacent difference
+        of the sorted data.
+
+    first_occurence : tvm.te.Tensor
+        A tensor that stores the first occurence of each unique element in the input data.
+    """
     first_occurence = output_tensor(argsorted_indices.shape, "int32")
     for i in parallel(argsorted_indices.shape[0]):
         first_occurence[i] = argsorted_indices.shape[0]
@@ -75,59 +197,36 @@ def _calc_first_occurence(argsorted_indices, inc_scan):
     return first_occurence
 
 
-@hybrid.script
-def _calc_unique_unsorted(data, argsorted_indices, inc_scan, index_converter):
-    unique_elements = output_tensor(data.shape, data.dtype)
-    indices = output_tensor(data.shape, "int32")
-    for i in parallel(data.shape[0]):
-        new_unique_idx = index_converter[inc_scan[i]]
-        new_data_idx = argsorted_indices[i]
-        indices[new_data_idx] = new_unique_idx
-        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
-            unique_elements[new_unique_idx] = data[new_data_idx]
-    return unique_elements, indices
-
-
-@hybrid.script
-def _calc_unique_unsorted_with_counts(data, argsorted_indices, inc_scan, index_converter):
-    unique_elements = output_tensor(data.shape, data.dtype)
-    indices = output_tensor(data.shape, "int32")
-    counts = output_tensor(data.shape, "int32")
-    for i in parallel(data.shape[0]):
-        counts[i] = int32(0)
-    for i in parallel(data.shape[0]):
-        new_unique_idx = index_converter[inc_scan[i]]
-        new_data_idx = argsorted_indices[i]
-        indices[new_data_idx] = new_unique_idx
-        if i == 0 or inc_scan[i] != inc_scan[i - 1]:
-            unique_elements[new_unique_idx] = data[new_data_idx]
-    for i in range(data.shape[0]):
-        idx = index_converter[inc_scan[i]]
-        counts[idx] += int32(1)
-    return unique_elements, indices, counts
-
-
 def unique(data, is_sorted=True, return_counts=False):
     """
-    Find the unique elements of a tensor
+    Find the unique elements of a 1-D tensor. Please note `output` and `counts` are all padded to
+    have the same length of `data` and element with index >= num_unique[0] has undefined value.
+
     Parameters
     ----------
-    data : relay.Expr
-        A 1-D tensor of integers
+    data : tvm.te.Tensor
+        A 1-D tensor of integers.
+
     sorted : bool
-        Whether to sort the unique elements in ascending order before returning as output
+        Whether to sort the unique elements in ascending order before returning as output.
+
     return_counts : bool
-        Whether to return the array with count of each unique element
+        Whether to return the count of each unique element.
+
     Returns
     -------
-    output : relay.Expr
-        A 1-D tensor containing the unique elements of the input data tensor
-    indices : relay.Expr
-        A 1-D tensor containing the index of each data element in the output tensor
-    num_unique : relay.Expr
-        A 0-D tensor containing the number of unique elements in the input data tensor
-    counts (optional) : relay.Expr
-        A 1-D tensor containing the count of each unique element in the output
+    output : tvm.te.Tensor
+        A 1-D tensor containing the unique elements of the input data tensor.
+
+    indices : tvm.te.Tensor
+        A 1-D tensor containing the index of each data element in the output tensor.
+
+    num_unique : tvm.te.Tensor
+        A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
+
+    counts (optional) : tvm.te.Tensor
+        A 1-D tensor containing the count of each unique element in the output.
+
     Examples
     --------
     .. code-block:: python
@@ -147,35 +246,48 @@ def unique(data, is_sorted=True, return_counts=False):
         indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
         num_unique     =  [5]
     """
-
     sorted_data = sort(data)
     argsorted_indices = argsort(data, dtype="int32")
-    adjacent_diff = _calc_adjacent_diff(sorted_data)
+    # adjacent difference
+    adjacent_diff = _calc_adjacent_diff(sorted_data, "int32", tir.NE)
+    # inclusive scan
     inc_scan = cumsum(adjacent_diff, dtype="int32", exclusive=0)
+    # total number of unique elements
     num_unique_elements = _calc_num_unique(inc_scan)
-
-    if is_sorted:
-        if return_counts:
-            unique_elements, inverse_indices, counts = _calc_unique_sorted_with_counts(
-                data, argsorted_indices, inc_scan
-            )
-            return [unique_elements, inverse_indices, num_unique_elements, counts]
-        else:
-            unique_elements, inverse_indices = _calc_unique_sorted(
-                data, argsorted_indices, inc_scan
-            )
-            return [unique_elements, inverse_indices, num_unique_elements]
+    # prepare outputs
+    if return_counts:
+        out_data_shape = [data.shape] * 3
+        out_dtypes = [data.dtype, "int32", "int32"]
     else:
+        out_data_shape = [data.shape] * 2
+        out_dtypes = [data.dtype, "int32"]
+    # prepare inputs and fcompute
+    if is_sorted:
+        in_data = [data, argsorted_indices, inc_scan]
+        if return_counts:
+            fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs)
+        else:
+            fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs, None)
+    else:
+        # calculate the index converter if the unique elements should not be sorted
+        # calculate first occurence
         first_occurence = _calc_first_occurence(argsorted_indices, inc_scan)
+        # calculate index converter by sorting unique elements by their first occurence
         argsorted_first_occurence = argsort(first_occurence, dtype="int32")
         index_converter = argsort(argsorted_first_occurence, dtype="int32")
+        in_data = [data, argsorted_indices, inc_scan, index_converter]
         if return_counts:
-            unique_elements, inverse_indices, counts = _calc_unique_unsorted_with_counts(
-                data, argsorted_indices, inc_scan, index_converter
-            )
-            return [unique_elements, inverse_indices, num_unique_elements, counts]
+            fcompute = lambda ins, outs: _calc_unique_ir(*ins, *outs)
         else:
-            unique_elements, inverse_indices = _calc_unique_unsorted(
-                data, argsorted_indices, inc_scan, index_converter
-            )
-            return [unique_elements, inverse_indices, num_unique_elements]
+            fcompute = lambda ins, outs: _calc_unique_ir(*ins, *outs, None)
+    outs = te.extern(
+        out_data_shape,
+        in_data,
+        fcompute,
+        dtype=out_dtypes,
+        name="_calc_unique",
+        tag="_calc_unique_cpu",
+    )
+    if return_counts:
+        return [outs[0], outs[1], num_unique_elements, outs[2]]
+    return [*outs, num_unique_elements]
