@@ -841,6 +841,7 @@ class Reciprocal(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return _expr.const(1.0) / inputs[0]
 
+
 class Flatten(OnnxOpConverter):
     """Operator converter for Flatten."""
 
