@@ -304,7 +304,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
         # or packed layouts.
         if layout == "NCDHW":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ncdhw, need_auto_scheduler_layout=True),
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
                 naive_schedule,
                 name="conv3d_ncdhw.x86",
             )
@@ -364,7 +364,6 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
     strategy = _op.OpStrategy()
-    m, _ = inputs[0].shape
     same_type = inputs[0].dtype == inputs[1].dtype == out_type.dtype
     dtype = inputs[0].dtype
     u8s8s32 = dtype == "uint8" and inputs[1].dtype == "int8" and out_type.dtype == "int32"
@@ -372,6 +371,13 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
         wrap_compute_dense(topi.x86.dense_nopack),
         wrap_topi_schedule(topi.x86.schedule_dense_nopack),
         name="dense_nopack.x86",
+        plevel=5,
+    )
+
+    strategy.add_implementation(
+        wrap_compute_dense(topi.x86.dense_pack),
+        wrap_topi_schedule(topi.x86.schedule_dense_pack),
+        name="dense_pack.x86",
         plevel=10,
     )
 
@@ -407,14 +413,18 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
                 name="dense_mkldnn.x86",
                 plevel=15,
             )
-    with SpecializedCondition(m >= 16):
-        # this implementation may not be well-optimized, so use plevel=5 for now.
-        strategy.add_implementation(
-            wrap_compute_dense(topi.x86.dense_pack),
-            wrap_topi_schedule(topi.x86.schedule_dense_pack),
-            name="dense_pack.x86",
-            plevel=5,
-        )
+    return strategy
+
+
+@dense_pack_strategy.register("cpu")
+def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
+    """dense_pack x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dense(topi.x86.dense_pack),
+        wrap_topi_schedule(topi.x86.schedule_dense_pack),
+        name="dense_pack.x86",
+    )
     return strategy
 
 
@@ -471,12 +481,19 @@ def roi_align_strategy_cpu(attrs, inputs, out_type, target):
     """roi_align x86 strategy"""
     strategy = _op.OpStrategy()
     layout = attrs.layout
-    assert layout == "NCHW", "only support nchw for now"
-    strategy.add_implementation(
-        wrap_compute_roi_align(topi.x86.roi_align_nchw),
-        wrap_topi_schedule(topi.generic.schedule_roi_align),
-        name="roi_align.x86",
-    )
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.x86.roi_align_nchw),
+            wrap_topi_schedule(topi.generic.schedule_roi_align),
+            name="roi_align.x86",
+        )
+    else:
+        assert layout == "NHWC", "layout must be NCHW or NHWC."
+        strategy.add_implementation(
+            wrap_compute_roi_align(topi.vision.rcnn.roi_align_nhwc),
+            wrap_topi_schedule(topi.generic.schedule_roi_align),
+            name="roi_align.x86",
+        )
     return strategy
 
 

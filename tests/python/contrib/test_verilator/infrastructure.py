@@ -16,7 +16,9 @@
 # under the License.
 """Verilator utility functions"""
 
+import os
 import sys
+import subprocess as sp
 
 import tvm
 from tvm import relay
@@ -66,10 +68,43 @@ def offload(mod):
     return mod
 
 
-def compile_module(mod):
-    """Compile Relay module"""
+def verilator_app_path():
+    """Find verilator hardware app path"""
 
-    with relay.build_config(opt_level=3):
+    cur_dir = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(
+        cur_dir,
+        "..",
+        "..",
+        "..",
+        "..",
+        "3rdparty",
+        "vta-hw",
+        "apps",
+        "verilator",
+    )
+
+
+def compile_hardware():
+    """Compile hardware into shared library"""
+
+    cmd = []
+    cmd.append("make")
+    cmd.append("--directory")
+    cmd.append(verilator_app_path())
+    sp.run(cmd, check=True)
+
+
+def compile_module(mod):
+    """Compile Relay module and hardware library"""
+
+    lib = os.path.join(verilator_app_path(), "libverilator.so")
+    if not os.path.isfile(lib):
+        compile_hardware()
+
+    opts = {"lib_path": lib}
+
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.verilator.options": opts}):
         exe = relay.vm.compile(mod, target="llvm", params=None)
         code, lib = exe.save()
         return runtime.vm.Executable.load_exec(code, lib)

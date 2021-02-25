@@ -111,6 +111,14 @@ def test_threefry_generate(target, ctx):
     ).any(), "Overflowing counter with no space left in path should change state"
 
 
+@tvm.testing.parametrize_targets
+def test_threefry_wrapping(target, ctx):
+    assert tvm.topi.random.threefry_test_wrapping(
+        target, ctx
+    ), f"{target} does not suppport wrapping unsigned integer arithmetic"
+
+
 if __name__ == "__main__":
     test_threefry_split(tvm.target.Target("llvm"), tvm.context("cpu"))
     test_threefry_generate(tvm.target.Target("llvm"), tvm.context("cpu"))
+    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.context("cpu"))

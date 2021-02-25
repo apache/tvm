@@ -22,6 +22,7 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
+#include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
@@ -91,6 +92,20 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
       std::chrono::duration_cast<std::chrono::microseconds>(utvm_stop_time - g_utvm_start_time);
   *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
   g_utvm_timer_running = 0;
+  return kTvmErrorNoError;
+}
+
+static_assert(RAND_MAX >= (1 << 8), "RAND_MAX is smaller than acceptable");
+unsigned int random_seed = 0;
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  if (random_seed == 0) {
+    random_seed = (unsigned int)time(NULL);
+  }
+  for (size_t i = 0; i < num_bytes; ++i) {
+    int random = rand_r(&random_seed);
+    buffer[i] = (uint8_t)random;
+  }
+
   return kTvmErrorNoError;
 }
 }

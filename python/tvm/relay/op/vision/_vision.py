@@ -86,7 +86,7 @@ def nms_shape_func(attrs, inputs, _):
 
 
 @script
-def _roi_align_shape_func(data_shape, rois_shape, pooled_size):
+def _roi_align_shape_func_nchw(data_shape, rois_shape, pooled_size):
     out = output_tensor((4,), "int64")
     out[0] = rois_shape[0]
     out[1] = data_shape[1]
@@ -95,6 +95,19 @@ def _roi_align_shape_func(data_shape, rois_shape, pooled_size):
     return out
 
 
+@script
+def _roi_align_shape_func_nhwc(data_shape, rois_shape, pooled_size):
+    out = output_tensor((4,), "int64")
+    out[0] = rois_shape[0]
+    out[1] = int64(pooled_size[0])
+    out[2] = int64(pooled_size[1])
+    out[3] = data_shape[3]
+    return out
+
+
 @reg.register_shape_func("vision.roi_align", False)
 def roi_align_shape_func(attrs, inputs, _):
-    return [_roi_align_shape_func(inputs[0], inputs[1], convert(attrs.pooled_size))]
+    if attrs.layout == "NCHW":
+        return [_roi_align_shape_func_nchw(inputs[0], inputs[1], convert(attrs.pooled_size))]
+    assert attrs.layout == "NHWC", "layout must be NCHW or NHWC."
+    return [_roi_align_shape_func_nhwc(inputs[0], inputs[1], convert(attrs.pooled_size))]

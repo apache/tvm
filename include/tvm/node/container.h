@@ -1145,7 +1145,7 @@ inline MapNode::iterator& MapNode::iterator::operator++() {
 
 inline MapNode::iterator& MapNode::iterator::operator--() {
   TVM_DISPATCH_MAP_CONST(self, p, {
-    index = p->IncItr(index);
+    index = p->DecItr(index);
     return *this;
   });
 }
@@ -1447,24 +1447,25 @@ inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
 namespace tvm {
 namespace runtime {
 // Additional overloads for PackedFunc checking.
-template <typename T>
-struct ObjectTypeChecker<Array<T>> {
-  static bool Check(const Object* ptr) {
-    if (ptr == nullptr) return true;
-    if (!ptr->IsInstance<ArrayNode>()) return false;
-    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
-    for (const ObjectRef& p : *n) {
-      if (!ObjectTypeChecker<T>::Check(p.get())) {
-        return false;
-      }
-    }
-    return true;
-  }
-  static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
-};
-
 template <typename K, typename V>
 struct ObjectTypeChecker<Map<K, V>> {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    if (ptr == nullptr) return NullOpt;
+    if (!ptr->IsInstance<MapNode>()) return String(ptr->GetTypeKey());
+    const MapNode* n = static_cast<const MapNode*>(ptr);
+    for (const auto& kv : *n) {
+      Optional<String> key_type = ObjectTypeChecker<K>::CheckAndGetMismatch(kv.first.get());
+      Optional<String> value_type = ObjectTypeChecker<K>::CheckAndGetMismatch(kv.first.get());
+      if (key_type.defined() || value_type.defined()) {
+        std::string key_name =
+            key_type.defined() ? std::string(key_type.value()) : ObjectTypeChecker<K>::TypeName();
+        std::string value_name = value_type.defined() ? std::string(value_type.value())
+                                                      : ObjectTypeChecker<V>::TypeName();
+        return String("Map[" + key_name + ", " + value_name + "]");
+      }
+    }
+    return NullOpt;
+  }
   static bool Check(const Object* ptr) {
     if (ptr == nullptr) return true;
     if (!ptr->IsInstance<MapNode>()) return false;

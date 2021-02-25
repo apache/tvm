@@ -580,6 +580,7 @@ def compute_flop(sch):
                 pass
             else:
                 raise FlopCalculationError(
+                    f"{op.name} is not supported by autotvm. "
                     "Only support te.compute currently. "
                     "Other ops like tvm.te.scan/te.extern is not supported"
                 )

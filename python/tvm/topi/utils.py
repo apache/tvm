@@ -460,7 +460,7 @@ def make_idx(b, e, s, z, i):
 
     Returns
     -------
-    postion: Expr
+    position: Expr
         int expression that corresponds to an array position in the selection.
     """
     bc = tvm.tir.Select(s < 0, i <= e, i < b)
@@ -492,3 +492,8 @@ def is_empty_shape(shape):
 def ceil_div(a, b):
     """Return ceil division of a by b"""
     return tvm.tir.indexdiv(a + (b - 1), b)
+
+
+def swap(arr, axis):
+    """ swap arr[axis] and arr[-1] """
+    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]

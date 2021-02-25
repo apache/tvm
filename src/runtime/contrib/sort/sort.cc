@@ -289,7 +289,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort").set_body([](TVMArgs args, TVMRetVal
     sort<double>(input, output, axis, is_ascend);
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
   } else if (data_dtype == "float16") {
-    sort<__fp16, __fp16>(input, output, axis, is_ascend);
+    sort<__fp16>(input, output, axis, is_ascend);
 #endif
   } else if (data_dtype == "int32") {
     sort<int32_t>(input, output, axis, is_ascend);

@@ -475,7 +475,11 @@ Array<te::Tensor> ProdCompute(const Attrs& attrs, const Array<te::Tensor>& input
   return ReduceCompute(attrs, inputs, out_type, topi::prod);
 }
 
-RELAY_REGISTER_REDUCE_OP("prod")
+TVM_REGISTER_GLOBAL("relay.op._make.prod").set_body_typed(Prod);
+
+RELAY_REGISTER_OP("prod")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .describe(R"code(Computes the products of array elements over given axes.
 
 Example::
@@ -595,9 +599,7 @@ Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool
   return Call(op, {data, mean}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make._variance").set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 6>(MakeVariance, args, rv);
-});
+TVM_REGISTER_GLOBAL("relay.op._make._variance").set_body_typed(MakeVariance);
 
 RELAY_REGISTER_OP("variance")
     .describe(R"code(Computes the variance of array elements over given axes.

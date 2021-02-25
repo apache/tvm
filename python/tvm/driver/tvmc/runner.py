@@ -427,7 +427,7 @@ def get_top_results(outputs, max_results):
         The first row is the indices and the second is the values.
 
     """
-    output = outputs["output_0"]
+    output = np.copy(outputs["output_0"])
     sorted_labels = output.argsort()[0][-max_results:][::-1]
     output.sort()
     sorted_values = output[0][-max_results:][::-1]

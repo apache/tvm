@@ -34,6 +34,7 @@
 #include <sstream>
 
 #include "../../../../runtime/contrib/json/json_node.h"
+#include "../../../../runtime/contrib/verilator/verilator_runtime.h"
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
@@ -43,6 +44,7 @@ namespace contrib {
 
 using namespace backend;
 
+/*! \brief Verilator JSON serializer */
 class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
   using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
   using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -74,11 +76,34 @@ class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
   }
 };
 
+/*! \brief Attributes to store options for Verilator */
+struct VerilatorOptionsNode : public tvm::AttrsNode<VerilatorOptionsNode> {
+  String lib_path;
+  int reset_cycles;
+  bool profiler_enable;
+  int profiler_cycle_counter_id;
+
+  TVM_DECLARE_ATTRS(VerilatorOptionsNode, "ext.attrs.VerilatorOptionsNode") {
+    TVM_ATTR_FIELD(lib_path).describe("the design library path").set_default("libverilator.so");
+    TVM_ATTR_FIELD(reset_cycles).describe("the number of reset cycles").set_default(1);
+    TVM_ATTR_FIELD(profiler_enable).describe("enable profiler").set_default(false);
+    TVM_ATTR_FIELD(profiler_cycle_counter_id).describe("profiler cycle counter id").set_default(0);
+  }
+};
+
+class VerilatorOptions : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VerilatorOptions, Attrs, VerilatorOptionsNode);
+};
+
+TVM_REGISTER_NODE_TYPE(VerilatorOptionsNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.verilator.options", VerilatorOptions);
+
 /*!
- * \brief The external compiler/codegen tool. It takes a Relay expression/module and
- * compile it into a runtime module.
+ * \brief The Verilator codegen tool. It takes a Relay expression/module and
+ * compile it into a Verilator runtime module.
  */
-runtime::Module VerilatorCompiler(const ObjectRef& ref) {
+runtime::Module VerilatorBackend(const ObjectRef& ref) {
   CHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = GetExtSymbol(func);
@@ -87,13 +112,28 @@ runtime::Module VerilatorCompiler(const ObjectRef& ref) {
   std::string graph_json = serializer.GetJSON();
   auto params = serializer.GetParams();
 
-  const auto* pf = runtime::Registry::Get("runtime.VerilatorJSONRuntimeCreate");
-  CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
-  auto mod = (*pf)(func_name, graph_json, params);
-  return mod;
+  // Create runtime object
+  auto n = make_object<runtime::contrib::VerilatorRuntime>(func_name, graph_json, params);
+
+  // Get Verilator compiler options
+  auto ctx = transform::PassContext::Current();
+  auto cfg = ctx->GetConfig<VerilatorOptions>("relay.ext.verilator.options");
+  if (!cfg.defined()) {
+    cfg = AttrsWithDefaultValues<VerilatorOptions>();
+  }
+
+  n->SetLibrary(cfg.value()->lib_path);
+  n->SetResetCycles(cfg.value()->reset_cycles);
+
+  if (cfg.value()->profiler_enable) {
+    n->EnableProfiler();
+    n->SetProfilerCycleCounterId(cfg.value()->profiler_cycle_counter_id);
+  }
+
+  return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("relay.ext.verilator").set_body_typed(VerilatorCompiler);
+TVM_REGISTER_GLOBAL("relay.ext.verilator").set_body_typed(VerilatorBackend);
 
 }  // namespace contrib
 }  // namespace relay

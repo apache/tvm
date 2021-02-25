@@ -86,6 +86,9 @@ namespace relay {
   } else if (type == DataType::UInt(8)) {                                             \
     typedef uint8_t DType;                                                            \
     { __VA_ARGS__ }                                                                   \
+  } else if (type == DataType::Bool()) {                                              \
+    typedef bool DType;                                                               \
+    { __VA_ARGS__ }                                                                   \
   } else if ((*tvm::runtime::Registry::Get("runtime._datatype_get_type_registered"))( \
                  static_cast<uint8_t>(type.code()))) {                                \
     typedef double DType;                                                             \
@@ -642,6 +645,10 @@ static inline Expr Dense(Expr data, Expr weight, IndexExpr units, DataType out_d
 
 static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
   return MakeReduce(data, axis, keepdims, exclude, "sum");
+}
+
+static inline Expr Prod(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  return MakeReduce(data, axis, keepdims, exclude, "prod");
 }
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
