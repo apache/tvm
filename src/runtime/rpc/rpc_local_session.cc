@@ -27,7 +27,6 @@
 #include <tvm/runtime/registry.h>
 
 #include <memory>
-#include <vector>
 
 namespace tvm {
 namespace runtime {
