@@ -769,7 +769,7 @@ def sparse_reshape_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_sparse_reshape(topi.cuda.sparse_reshape),
-        wrap_topi_schedule(topi.cuda.schedule_sparse_reshape),
+        wrap_topi_schedule(topi.generic.schedule_extern),
         name="sparse_reshape.cuda",
     )
     return strategy

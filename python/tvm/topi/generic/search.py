@@ -70,7 +70,3 @@ def schedule_scatter_add(outs):
 
 def schedule_sparse_fill_empty_rows(outs):
     return _default_schedule(outs, False)
-
-
-def schedule_sparse_reshape(outs):
-    return _default_schedule(outs, False)

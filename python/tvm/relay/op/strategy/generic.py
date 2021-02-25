@@ -1111,7 +1111,7 @@ def sparse_reshape_strategy(attrs, outs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_sparse_reshape(topi.sparse_reshape),
-        wrap_topi_schedule(topi.generic.schedule_sparse_reshape),
+        wrap_topi_schedule(topi.generic.schedule_extern),
         name="sparse_reshape.generic",
     )
     return strategy

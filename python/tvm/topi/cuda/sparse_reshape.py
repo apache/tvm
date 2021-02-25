@@ -207,36 +207,3 @@ def sparse_reshape(
         name="sparse_reshape_cuda",
         tag="sparse_reshape_cuda",
     )
-
-
-def _default_schedule(outs):
-    """Default schedule for gpu."""
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    s = te.create_schedule([x.op for x in outs])
-    scheduled_ops = []
-
-    def traverse(op):
-        for tensor in op.input_tensors:
-            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
-                traverse(tensor.op)
-        scheduled_ops.append(op)
-
-    traverse(outs[0].op)
-    return s
-
-
-def schedule_sparse_reshape(outs):
-    """Schedule for Sparse Reshape
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of nms
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs)
