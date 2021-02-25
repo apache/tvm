@@ -832,24 +832,22 @@ class PyTorchOpConverter:
         output_size = inputs[1]
         return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
+    @staticmethod
+    def convert_const_list(data):
+        if isinstance(data, list):
+            for i,_ in enumerate(data):
+                if isinstance(data[i], _expr.Expr):
+                    data[i] = int(_infer_value_simulated(data[i], {}).asnumpy())
+        return data
+
     def maxpool_2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
-
-        if isinstance(pool_size, list):
-            for i in range(len(pool_size)):
-                if isinstance(pool_size[i], _expr.Constant):
-                    pool_size[i] = int(_infer_value_simulated(pool_size[i], {}).asnumpy())
-
-        if isinstance(strides, list):
-            for i in range(len(strides)):
-                if isinstance(strides[i], _expr.Constant):
-                    strides[i] = int(_infer_value_simulated(strides[i], {}).asnumpy())
 
         if dilation != [1, 1]:
             msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
@@ -1326,21 +1324,11 @@ class PyTorchOpConverter:
     def avg_pool2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
-
-        if isinstance(pool_size, list):
-            for i in range(len(pool_size)):
-                if isinstance(pool_size[i], _expr.Constant):
-                    pool_size[i] = int(_infer_value_simulated(pool_size[i], {}).asnumpy())
-
-        if isinstance(strides, list):
-            for i in range(len(strides)):
-                if isinstance(strides[i], _expr.Constant):
-                    strides[i] = int(_infer_value_simulated(strides[i], {}).asnumpy())
 
         def func(x):
             return _op.nn.avg_pool2d(
