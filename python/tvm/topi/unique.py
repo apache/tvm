@@ -136,10 +136,31 @@ def _calc_unique_ir(
 
     if isinstance(counts, tir.Buffer):
         counts_ptr = ib.buffer_ptr(counts)
-        arange_ptr = ib.allocate(counts_ptr.dtype, counts.shape, name="arange_buf", scope="local")
+        # use indices_ptr as a tmp buffer to store tids with inc_scan[tid] != inc_scan[tid-1]
+        unique_seq_indices_ptr = ib.buffer_ptr(indices)
 
     data_length = data.shape[0]
 
+    # if need to return counts
+    if isinstance(counts, tir.Buffer):
+        num_unique = inc_scan_ptr[inc_scan.shape[0] - 1] + 1
+        num_elements = data.shape[0]
+        unique_seq_indices_ptr[num_unique - 1] = num_elements
+        with ib.new_scope():
+            with ib.for_range(0, data_length, kind="parallel") as i:
+                with ib.if_scope(i > 0):
+                    with ib.if_scope(inc_scan_ptr[i] != inc_scan_ptr[i - 1]):
+                        unique_seq_indices_ptr[inc_scan_ptr[i] - 1] = i
+        with ib.new_scope():
+            with ib.for_range(0, num_unique, kind="parallel") as i:
+                unique_idx = i if not index_converter_ptr else index_converter_ptr[i]
+                with ib.if_scope(i == 0):
+                    counts_ptr[unique_idx] = unique_seq_indices_ptr[i]
+                with ib.else_scope():
+                    counts_ptr[unique_idx] = (
+                        unique_seq_indices_ptr[i] - unique_seq_indices_ptr[i - 1]
+                    )
+    # calculate unique elements and inverse indices
     with ib.new_scope():
         with ib.for_range(0, data_length, kind="parallel") as i:
             data_idx = argsorted_indices_ptr[i]
@@ -152,23 +173,6 @@ def _calc_unique_ir(
             with ib.else_scope():
                 with ib.if_scope(inc_scan_ptr[i] != inc_scan_ptr[i - 1]):
                     unique_elements_ptr[unique_idx] = data_ptr[data_idx]
-
-    if isinstance(counts, tir.Buffer):
-        num_unique = inc_scan_ptr[inc_scan.shape[0] - 1] + 1
-        num_elements = data.shape[0]
-        arange_ptr[num_unique - 1] = num_elements
-        with ib.new_scope():
-            with ib.for_range(0, data_length, kind="parallel") as i:
-                with ib.if_scope(i > 0):
-                    with ib.if_scope(inc_scan_ptr[i] != inc_scan_ptr[i - 1]):
-                        arange_ptr[inc_scan_ptr[i] - 1] = i
-        with ib.new_scope():
-            with ib.for_range(0, num_unique, kind="parallel") as i:
-                unique_idx = i if not index_converter_ptr else index_converter_ptr[i]
-                with ib.if_scope(i == 0):
-                    counts_ptr[unique_idx] = arange_ptr[i]
-                with ib.else_scope():
-                    counts_ptr[unique_idx] = arange_ptr[i] - arange_ptr[i - 1]
     return ib.get()
 
 

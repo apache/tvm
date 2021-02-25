@@ -2338,21 +2338,12 @@ def _unique(return_counts=True):
                 _expr.Tuple([unique_sliced, indices, counts_sliced]),
                 3,
             )
-        else:
-            [unique, indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
-            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
-            return _expr.TupleWrapper(
-                _expr.Tuple([unique_sliced, indices]),
-                2,
-            )
-
-    return _impl
-
-
-def _unique_with_counts():
-    def _impl(inputs, attr, params, mod):
-        assert len(inputs) == 1
-        data = inputs[0]
+        [unique, indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
+        unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+        return _expr.TupleWrapper(
+            _expr.Tuple([unique_sliced, indices]),
+            2,
+        )
 
     return _impl
 
