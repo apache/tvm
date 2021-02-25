@@ -41,7 +41,7 @@ namespace runtime {
  *
  * New implementations of this interface should make sure that `Start` and `Stop`
  * are as lightweight as possible. Expensive state synchronization should be
- * done in `SyncAndGetTime`.
+ * done in `SyncAndGetElapsedNanos`.
  */
 class TimerNode : public Object {
  public:
@@ -60,12 +60,12 @@ class TimerNode : public Object {
    *
    * This function is necessary because we want to avoid timing the overhead of
    * doing timing. When using multiple timers, it is recommended to stop all of
-   * them before calling `SyncAndGetTime` on any of them.
+   * them before calling `SyncAndGetElapsedNanos` on any of them.
    *
    * Note: this function should be only called once per object. It may incur
    * a large synchronization overhead (for example, with GPUs).
    */
-  virtual int64_t SyncAndGetTime() = 0;
+  virtual int64_t SyncAndGetElapsedNanos() = 0;
 
   virtual ~TimerNode() {}
 
@@ -94,12 +94,12 @@ class Timer : public ObjectRef {
    *
    * This function is necessary because we want to avoid timing the overhead of
    * doing timing. When using multiple timers, it is recommended to stop all of
-   * them before calling `SyncAndGetTime` on any of them.
+   * them before calling `SyncAndGetElapsedNanos` on any of them.
    *
    * Note: this function should be only called once per object. It may incur
    * a large synchronization overhead (for example, with GPUs).
    */
-  int64_t SyncAndGetTime() { return operator->()->SyncAndGetTime(); }
+  int64_t SyncAndGetElapsedNanos() { return operator->()->SyncAndGetTime(); }
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
 };
 
@@ -123,7 +123,7 @@ Timer DefaultTimer(TVMContext ctx);
  * my_long_running_function();
  * t.Stop();
  * ... // some more computation
- * int64_t nanosecs = t.SyncAndGetTime() // elapsed time in nanoseconds
+ * int64_t nanosecs = t.SyncAndGetElapsedNanos() // elapsed time in nanoseconds
  * \endcode
  *
  * To add a new device-specific timer, register a new function

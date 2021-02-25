@@ -38,7 +38,7 @@ class DefaultTimerNode : public TimerNode {
     TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
     duration_ = std::chrono::high_resolution_clock::now() - start_;
   }
-  virtual int64_t SyncAndGetTime() { return duration_.count(); }
+  virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~DefaultTimerNode() {}
 
   explicit DefaultTimerNode(TVMContext ctx) : ctx_(ctx) {}
@@ -60,7 +60,7 @@ class CPUTimerNode : public TimerNode {
  public:
   virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
   virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
-  virtual int64_t SyncAndGetTime() { return duration_.count(); }
+  virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~CPUTimerNode() {}
 
   static constexpr const char* _type_key = "CPUTimerNode";

@@ -91,7 +91,7 @@ class GraphRuntimeDebug : public GraphRuntime {
           }
           for (size_t index = 0; index < op_execs_.size(); ++index) {
             for (auto t : op_timers[index]) {
-              time_sec_per_op[index] += t.SyncAndGetTime() / 1e9;
+              time_sec_per_op[index] += t.SyncAndGetElapsedNanos() / 1e9;
             }
           }
           tend = std::chrono::high_resolution_clock::now();

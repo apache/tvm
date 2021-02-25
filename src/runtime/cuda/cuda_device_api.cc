@@ -246,7 +246,7 @@ class GPUTimerNode : public TimerNode {
  public:
   virtual void Start() { cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream); }
   virtual void Stop() { cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream); }
-  virtual int64_t SyncAndGetTime() {
+  virtual int64_t SyncAndGetElapsedNanos() {
     cudaEventSynchronize(stop_);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start_, stop_);

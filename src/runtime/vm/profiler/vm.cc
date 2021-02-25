@@ -49,7 +49,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       for (auto kv : op_durations_) {
         std::vector<double> durations;
         for (auto t : kv.second) {
-          durations.push_back(t.SyncAndGetTime() / 1e3);
+          durations.push_back(t.SyncAndGetElapsedNanos() / 1e3);
         }
         op_durations[kv.first] = durations;
       }

@@ -206,7 +206,7 @@ class ROCMTimerNode : public TimerNode {
  public:
   virtual void Start() { hipEventRecord(start_, ROCMThreadEntry::ThreadLocal()->stream); }
   virtual void Stop() { hipEventRecord(stop_, ROCMThreadEntry::ThreadLocal()->stream); }
-  virtual int64_t SyncAndGetTime() {
+  virtual int64_t SyncAndGetElapsedNanos() {
     hipEventSynchronize(stop_);
     float milliseconds = 0;
     hipEventElapsedTime(&milliseconds, start_, stop_);
