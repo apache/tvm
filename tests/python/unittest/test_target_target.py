@@ -216,7 +216,30 @@ def test_target_host_warning():
     attributes fails as expected.
     """
     with pytest.raises(ValueError):
-        tgt = tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
+        tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
+
+
+def test_target_host_merge_0():
+    tgt = tvm.target.Target(tvm.target.Target("cuda --host nvidia/jetson-nano"), None)
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_53"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 32768
+
+
+def test_target_host_merge_1():
+    tgt = tvm.target.Target("cuda --host nvidia/jetson-nano")
+    tgt = tvm.target.Target(tgt, tgt.host)
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_53"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 32768
 
 
 if __name__ == "__main__":
@@ -226,4 +249,14 @@ if __name__ == "__main__":
     test_target_config()
     test_config_map()
     test_composite_target()
+    test_target_tag_0()
+    test_target_tag_1()
     test_list_kinds()
+    test_target_host_tags()
+    test_target_host_tag_dict()
+    test_target_host_single_dict()
+    test_target_host_single_string()
+    test_target_host_single_string_with_tag()
+    test_target_host_warning()
+    test_target_host_merge_0()
+    test_target_host_merge_1()
