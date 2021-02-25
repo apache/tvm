@@ -79,6 +79,20 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <mma.h>\n";
   }
 
+  decl_stream << "\n#ifdef _WIN32\n";
+  decl_stream << "  using uint = unsigned int;\n";
+  decl_stream << "  using uchar = unsigned char;\n";
+  decl_stream << "  using ushort = unsigned short;\n";
+  decl_stream << "  using int64_t = long long;\n";
+  decl_stream << "  using uint64_t = unsigned long long;\n";
+  decl_stream << "#else\n";
+  decl_stream << "  #define uint unsigned int\n";
+  decl_stream << "  #define uchar unsigned char\n";
+  decl_stream << "  #define ushort unsigned short\n";
+  decl_stream << "  #define int64_t long\n";
+  decl_stream << "  #define uint64_t ulong\n";
+  decl_stream << "#endif\n";
+
   return CodeGenC::Finish();
 }
 
@@ -99,7 +113,7 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
 void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    ICHECK_EQ(lanes, 1) << "do not yet support vector types";
+    ICHECK(t.is_scalar()) << "do not yet support vector types";
     os << "void*";
     return;
   }
@@ -108,7 +122,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     switch (t.bits()) {
       case 16:
         enable_fp16_ = true;
-        if (lanes == 1) {
+        if (t.is_scalar()) {
           os << "half";
         } else if (lanes <= 8) {
           // Emit CUDA code to access fp16 vector elements.
@@ -136,7 +150,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         fail = true;
         break;
     }
-    if (!fail && (lanes == 1 || t.bits() == 16)) return;
+    if (!fail && (t.is_scalar() || t.bits() == 16)) return;
     if (!fail && (lanes >= 2 && lanes <= 4)) {
       os << lanes;
       return;
@@ -154,15 +168,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
-      if (t.lanes() != 1) {
-        os << "u";
-      } else {
-        os << "unsigned ";
-      }
+      os << "u";
     }
     switch (t.bits()) {
       case 1: {
-        if (t.lanes() == 1) {
+        if (t.is_scalar()) {
           os << "int";
           return;
         } else if (t.lanes() == 8) {
@@ -179,7 +189,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         }
       }
       case 4: {
-        if (t.lanes() == 1) {
+        if (t.is_scalar()) {
           os << "int";
           return;
         } else if (t.lanes() == 4) {
@@ -220,7 +230,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           enable_int8_ = true;
           os << "int4";
           return;
-        } else if (!t.is_uint() && t.lanes() == 1) {
+        } else if (!t.is_uint() && t.is_scalar()) {
           os << "signed char";
           break;
         } else {
@@ -235,22 +245,16 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         os << "int";
         break;
       case 64: {
-        if (sizeof(long) != 8) {  // NOLINT(*)
-          if (t.lanes() == 1) {
-            os << "long long";
-            break;
-          } else if (t.lanes() == 2) {
-            os << "longlong";
-            break;
-          } else {
-            // No longlong3, longlong4
-            LOG(FATAL) << "Cannot convert type " << t << " to CUDA type on a L32 platform";
-            break;
-          }
-        } else {
-          os << "long";
-          break;
+        if (t.is_scalar()) {
+          os << "int64_t";
+        } else if (t.lanes() == 2) {
+          os << "longlong2";
+        } else if (t.lanes() == 3) {
+          os << "longlong3";
+        } else if (t.lanes() == 4) {
+          os << "longlong4";
         }
+        return;
       }
       default:
         fail = true;

@@ -130,6 +130,12 @@ if(MSVC)
   add_compile_options(/wd4180)
   # DLL interface warning in c++
   add_compile_options(/wd4251)
+  # destructor was implicitly defined as deleted
+  add_compile_options(/wd4624)
+  # unary minus operator applied to unsigned type, result still unsigned
+  add_compile_options(/wd4146)
+  # 'inline': used more than once
+  add_compile_options(/wd4141)
 else(MSVC)
   set(WARNING_FLAG -Wall)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
