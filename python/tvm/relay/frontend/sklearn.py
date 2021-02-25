@@ -29,6 +29,8 @@ from .. import op as _op
 from .common import infer_type as _infer_type
 from .common import infer_value as _infer_value
 
+kDateTimeCols = 7
+
 
 def _SimpleImputer(op, inexpr, dshape, dtype, columns=None):
     """
@@ -149,7 +151,7 @@ def _ColumnTransformer(op, inexpr, dshape, dtype, func_name, columns=None):
         mod = pipe.steps[0][1]
         op_type = column_transformer_op_types[type(mod).__name__]
         if proc_name == "datetime_processing":
-            cols = list(range(dshape[-1] - 7, dshape[-1]))
+            cols = list(range(kDateTimeCols))
         out.append(sklearn_op_to_relay(pipe, inexpr[op_type], dshape, dtype, func_name, cols))
 
     return _op.concatenate(out, axis=1)
@@ -652,7 +654,8 @@ def from_auto_ml(model, shape=None, dtype="float32", func_name="transform"):
     if func_name == "transform":
         inexpr_float = _expr.var("input_float", shape=shape, dtype=dtype)
         inexpr_string = _expr.var("input_string", shape=shape, dtype=dtype)
-        inexpr_datetime = _expr.var("input_datetime", shape=shape, dtype=dtype)
+        inexpr_datetime = _expr.var("input_datetime", shape=(shape[0], kDateTimeCols), dtype=dtype)
+
         inexpr = [inexpr_float, inexpr_string, inexpr_datetime]
 
         if type(model.feature_transformer.steps[0][1]).__name__ != "ColumnTransformer":
