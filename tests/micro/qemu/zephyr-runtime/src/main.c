@@ -97,7 +97,7 @@ int g_utvm_timer_running = 0;
 #define PIN DT_GPIO_PIN(LED0_NODE, gpios)
 #define FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
 
-static struct device* led_pin;
+static const struct device* led_pin;
 #endif  // CONFIG_LED
 
 tvm_crt_error_t TVMPlatformTimerStart() {
