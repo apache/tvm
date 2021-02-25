@@ -231,15 +231,15 @@ def test_target_host_merge_0():
 
 
 def test_target_host_merge_1():
-    tgt = tvm.target.Target("cuda --host nvidia/jetson-nano")
+    tgt = tvm.target.Target("cuda --host llvm")
     tgt = tvm.target.Target(tgt, tgt.host)
     assert tgt.kind.name == "cuda"
-    assert tgt.host.kind.name == "cuda"
-    assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
-    assert tgt.host.attrs["max_threads_per_block"] == 1024
-    assert tgt.host.attrs["thread_warp_size"] == 32
-    assert tgt.host.attrs["registers_per_block"] == 32768
+    assert tgt.host.kind.name == "llvm"
+
+
+def test_target_host_merge_2():
+    with pytest.raises(ValueError):
+        tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
 
 
 if __name__ == "__main__":
@@ -260,3 +260,4 @@ if __name__ == "__main__":
     test_target_host_warning()
     test_target_host_merge_0()
     test_target_host_merge_1()
+    test_target_host_merge_2()
