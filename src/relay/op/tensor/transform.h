@@ -101,28 +101,33 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   }
 
   // Calculate shape
-  std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
-  int data_length = static_cast<int>(tensor_tuple->fields.size());
-  // Decide if this is dynamic concat
+  std::vector<IndexExpr> oshape(ndim);
+  const size_t data_length = tensor_tuple->fields.size();
+
+  // Accumulate the concat axis output dim or decide if this is dynamic concat
   bool is_dynamic_concat = false;
   std::vector<TensorType> input_tensors;
-  for (int i = 0; i < data_length; ++i) {
+  IndexExpr concat_output_dim = first->shape[axis];
+  for (size_t i = 0; i < data_length; ++i) {
     const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);
     input_tensors.push_back(e);
     if (e->shape[axis].as<AnyNode>()) {
       is_dynamic_concat = true;
-      oshape[axis] = Any();
-      break;
-    } else {
+      concat_output_dim = Any();
+    } else if (i > 0 && !is_dynamic_concat) {
       // accumulate axis dimension
-      if (i > 0 && !oshape[axis].as<AnyNode>()) {
-        oshape[axis] += e->shape[i];
-      }
+      concat_output_dim += e->shape[axis];
     }
   }
 
+  oshape[axis] = concat_output_dim;
+
   for (int i = 0; i < ndim; ++i) {
-    if (i == axis) continue;
+    if (i == axis) {
+      // The concat axis is already handled above.
+      // The rest of the body sets the output shape for non-concat axes
+      continue;
+    }
     std::vector<IndexExpr> non_any;
     for (int j = 0; j < data_length; ++j) {
       const auto& e = input_tensors[j];
@@ -138,7 +143,10 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
           "on non-concatenating axes");
     }
 
-    if (non_any_size > 0 && is_dynamic_concat) {
+    if (non_any_size == data_length) {
+      // All static case
+      oshape[i] = non_any[0];
+    } else if (non_any_size > 0 && is_dynamic_concat) {
       // For non-concat axes, we want to enforce static shape constraint.
       // However, if the concat axis is static, the output shape would become static while
       // the input could be partially static/dynamic. To prevent runtime segfaults due to the lack
