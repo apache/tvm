@@ -99,7 +99,7 @@ class Timer : public ObjectRef {
    * Note: this function should be only called once per object. It may incur
    * a large synchronization overhead (for example, with GPUs).
    */
-  int64_t SyncAndGetElapsedNanos() { return operator->()->SyncAndGetTime(); }
+  int64_t SyncAndGetElapsedNanos() { return operator->()->SyncAndGetElapsedNanos(); }
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
 };
 
