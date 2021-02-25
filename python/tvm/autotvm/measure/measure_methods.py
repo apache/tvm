@@ -578,7 +578,7 @@ def run_through_rpc(
             # Partition the evaluation into micro-batches
             cur_number = 0
             batc_pfms = []
-            while cur_number<number*repeat:
+            while cur_number < number*repeat:
                 cur_number += micro_batch_size
                 # Limitation:
                 # We can not get PackFunction directly in the remote mode as it is wrapped
@@ -595,10 +595,10 @@ def run_through_rpc(
                 )
                 cost = np.mean(time_f(*args).results)
                 costs.append(cost)
-                batc_pfms.append(flop/cost)
+                batc_pfms.append(flop / cost)
                 # Calculate the cofficient of variation with current all micro-batches
-                cv = np.std(batc_pfms)/np.mean(batc_pfms)
-                if cur_number>micro_batch_size*2 and cv<max_converge_coef:
+                cv = np.std(batc_pfms) / np.mean(batc_pfms)
+                if cur_number > micro_batch_size*2 and cv < max_converge_coef:
                     break
         else:
             time_f = func.time_evaluator(
