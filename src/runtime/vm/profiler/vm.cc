@@ -46,12 +46,12 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       ICHECK_EQ(args.size(), 1U);
       std::vector<std::pair<Index, double>> op_acc_time;
       std::unordered_map<Index, std::vector<double>> op_durations;
-      for (auto kv : op_durations_) {
-        std::vector<double> durations;
+      for (auto kv : op_timers_) {
+        std::vector<double> durations_us;
         for (auto t : kv.second) {
-          durations.push_back(t.SyncAndGetElapsedNanos() / 1e3);
+          durations_us.push_back(t.SyncAndGetElapsedNanos() / 1e3);
         }
-        op_durations[kv.first] = durations;
+        op_durations[kv.first] = durations_us;
       }
       for (auto kv : op_durations) {
         auto val =
@@ -93,7 +93,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
     });
   } else if (name == "reset") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      op_durations_.clear();
+      op_timers_.clear();
       op_invokes_.clear();
     });
   } else {
@@ -130,7 +130,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
   t.Stop();
 
-  op_durations_[packed_index].push_back(t);
+  op_timers_[packed_index].push_back(t);
   op_invokes_[packed_index] += 1;
 }
 
