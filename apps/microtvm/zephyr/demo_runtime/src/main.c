@@ -51,15 +51,7 @@
 
 #include "crt_config.h"
 
-//K_SEM_DEFINE(tx_sem, 0, 1); // XXX MDW NEEDED?
-
 static const struct device* tvm_uart;
-
-// XXX MDW needed?
-//int write_hook(int c) {
-//  uart_poll_out(tvm_uart, c);
-//  return 0;
-//}
 
 #ifdef CONFIG_LED
 /* The devicetree node identifier for the "led0" alias. */
@@ -78,6 +70,7 @@ static size_t g_transmit_data_size = 0;
 static volatile size_t g_transmitted_bytes = 0;
 static volatile bool g_transmit_complete = true;
 
+// Used by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
   gpio_pin_set(led_pin, PIN, 1);
@@ -117,12 +110,32 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
   for (;;) ;
 }
 
-uint32_t g_utvm_start_time;
+// Used by TVM to generate random data.
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  uint32_t random;  // one unit of random data.
+
+  // Fill parts of `buffer` which are as large as `random`.
+  size_t num_full_blocks = num_bytes / sizeof(random);
+  for (int i = 0; i < num_full_blocks; ++i) {
+    random = sys_rand32_get();
+    memcpy(&buffer[i * sizeof(random)], &random, sizeof(random));
+  }
+
+  // Fill any leftover tail which is smaller than `random`.
+  size_t num_tail_bytes = num_bytes % sizeof(random);
+  if (num_tail_bytes > 0) {
+    random = sys_rand32_get();
+    memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
+  }
+
+  return kTvmErrorNoError;
+}
 
 #define MILLIS_TIL_EXPIRY 200
 #define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
 K_TIMER_DEFINE(g_utvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
 
+uint32_t g_utvm_start_time;
 int g_utvm_timer_running = 0;
 
 // Used to start system timer.
@@ -192,11 +205,13 @@ tvm_crt_error_t TVMPlatformTimerStop(double* res_us) {
 // Memory pool for use by TVMPlatformMemoryAllocate.
 K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 216, 4);
 
+// Used by TVM to allocate memory.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
   *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
+// Used by TVM to deallocate memory.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
   k_free(ptr);
   return kTvmErrorNoError;
@@ -207,9 +222,9 @@ struct uart_rx_buf_t {
   struct ring_buf buf;
   uint32_t buffer[RING_BUF_SIZE];
 };
-
 struct uart_rx_buf_t uart_rx_buf;
 
+// UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
   while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
     struct uart_rx_buf_t* buf = (struct uart_rx_buf_t*)user_data;
@@ -230,12 +245,14 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
   }
 }
 
+// Used to initialize the UART receiver.
 void uart_rx_init(struct uart_rx_buf_t* buf, const struct device* dev) {
   ring_buf_init(&buf->buf, RING_BUF_SIZE, buf->buffer);
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)buf);
   uart_irq_rx_enable(dev);
 }
 
+// Used to read data from the UART.
 int uart_rx_buf_read(struct uart_rx_buf_t* buf, uint8_t* data, size_t data_size_bytes) {
   unsigned int key = irq_lock();
   int bytes_read = ring_buf_get(&buf->buf, data, data_size_bytes);
@@ -243,6 +260,7 @@ int uart_rx_buf_read(struct uart_rx_buf_t* buf, uint8_t* data, size_t data_size_
   return bytes_read;
 }
 
+// The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
 #ifdef CONFIG_LED
@@ -257,11 +275,12 @@ void main(void) {
   gpio_pin_set(led_pin, PIN, 1);
 #endif
 
-  /* Claim console device. */
+  // Claim console device.
   tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
   const struct device* shadow_tvm_uart = tvm_uart;
   uart_rx_init(&uart_rx_buf, tvm_uart);
 
+  // Initialize uTVM RPC server, which will receive commands from the UART and execute them.
   utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
   TVMLogf("uTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
@@ -278,6 +297,7 @@ void main(void) {
       size_t bytes_remaining = bytes_read;
       uint8_t* cursor = buf;
       while (bytes_remaining > 0) {
+        // Pass the received bytes to the RPC server.
         tvm_crt_error_t err = UTvmRpcServerLoop(server, &cursor, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
@@ -298,24 +318,4 @@ void main(void) {
 #endif
 }
 
-// Used by TVM to generate random data.
-tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
-  uint32_t random;  // one unit of random data.
-
-  // Fill parts of `buffer` which are as large as `random`.
-  size_t num_full_blocks = num_bytes / sizeof(random);
-  for (int i = 0; i < num_full_blocks; ++i) {
-    random = sys_rand32_get();
-    memcpy(&buffer[i * sizeof(random)], &random, sizeof(random));
-  }
-
-  // Fill any leftover tail which is smaller than `random`.
-  size_t num_tail_bytes = num_bytes % sizeof(random);
-  if (num_tail_bytes > 0) {
-    random = sys_rand32_get();
-    memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
-  }
-
-  return kTvmErrorNoError;
-}
 
