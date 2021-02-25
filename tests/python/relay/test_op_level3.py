@@ -1394,18 +1394,15 @@ def test_sparse_to_dense():
             np.array([2, 2], dtype=np.int64),
         ),
         (
-            np.ones((0, 2), dtype=np.int64),
-            np.array([], dtype=np.int64),
-            np.array([3, 6], dtype=np.int64),
-            np.array([-1, 2], dtype=np.int64),
+            np.ones((0, 2), dtype=np.int32),
+            np.array([], dtype=np.int32),
+            np.array([3, 6], dtype=np.int32),
+            np.array([-1, 2], dtype=np.int32),
         ),
     ],
 )
-@pytest.mark.parametrize("dtype", [np.int32, np.int64])
 @pytest.mark.parametrize("use_dyn", [True, False])
-def test_sparse_reshape(
-    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, dtype, use_dyn
-):
+def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn):
     def ref_sparse_reshape(
         sparse_indices: np.ndarray,
         prev_shape: np.ndarray,
@@ -1511,10 +1508,10 @@ def test_sparse_reshape(
         )
 
     verify_sparse_reshape(
-        sparse_indices_np.astype(dtype),
-        sparse_values_np.astype(dtype),
-        prev_shape_np.astype(dtype),
-        new_shape_np.astype(dtype),
+        sparse_indices_np,
+        sparse_values_np,
+        prev_shape_np,
+        new_shape_np,
     )
 
 
