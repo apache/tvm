@@ -67,7 +67,7 @@ def get_tvm_output(
     graph_def, input_data, target, ctx, output_shape=None, output_dtype="float32", opset=None
 ):
     """ Generic function to execute and get tvm output"""
-    target = "llvm"
+    #target = "llvm"
 
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
@@ -75,7 +75,7 @@ def get_tvm_output(
     with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod, target, params=params)
 
-    ctx = tvm.cpu(0)
+    #ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
     if isinstance(input_data, list):
@@ -3353,18 +3353,22 @@ def test_resize():
         model = helper.make_model(graph, producer_name="resize_test")
 
         verify_with_ort(model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True)
-
+    
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
-    # downsampling
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+
     # scales are specified instead of sizes
     verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
