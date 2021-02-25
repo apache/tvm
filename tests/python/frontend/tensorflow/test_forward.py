@@ -2837,6 +2837,55 @@ def test_forward_nms():
         _test_forward_nms((2000, 4), (2000,), 0.4, 0.6, 7)
 
 
+def _test_forward_combined_nms(
+    bx_shape,
+    score_shape,
+    iou_threshold,
+    score_threshold,
+    out_size,
+    total_size,
+    clip_boxes=False,
+    dtype="float32",
+):
+    boxes = np.random.uniform(-1, 2, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+    max_output_size = np.int32(out_size)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, scores.shape, name="in_data_2")
+    in_data_3 = tf.placeholder(tf.int32, name="in_data_3")
+    tf.image.combined_non_max_suppression(
+        boxes=in_data_1,
+        scores=in_data_2,
+        max_output_size_per_class=in_data_3,
+        max_total_size=total_size,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold,
+        pad_per_class=False,
+        clip_boxes=clip_boxes,
+        name="nms",
+    )
+    compare_tf_with_tvm(
+        [boxes, scores, max_output_size],
+        ["in_data_1:0", "in_data_2:0", "in_data_3:0"],
+        [
+            "nms/CombinedNonMaxSuppression:0",
+            "nms/CombinedNonMaxSuppression:1",
+            "nms/CombinedNonMaxSuppression:2",
+            "nms/CombinedNonMaxSuppression:3",
+        ],
+        mode="vm",
+    )
+
+
+def test_forward_combined_nms():
+    """ CombinedNonMaxSuppression """
+    _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 1), 0.7, 0.5, 64, 64)
+    _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 20), 0.7, 0.5, 64, 10)
+    _test_forward_combined_nms((1, 64, 20, 4), (1, 64, 20), 0.7, 0.5, 64, 64, clip_boxes=True)
+    _test_forward_combined_nms((2, 200, 1, 4), (2, 200, 1), 0.4, 0.6, 100, 100)
+
+
 #######################################################################
 # LSTM
 # ----
