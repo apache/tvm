@@ -151,7 +151,7 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       // However, if the concat axis is static, the output shape would become static while
       // the input could be partially static/dynamic. To prevent runtime segfaults due to the lack
       // of runtime input shape checking for such cases, static shape constraint is only enforced
-      // when the output shape is dynamic.
+      // when the output concat axis is dynamic.
       //
       // Examples (both concat on the first axis):
       // * [(?, 3), (?, ?)] -> (?, 3)
