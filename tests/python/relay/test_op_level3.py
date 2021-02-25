@@ -1401,8 +1401,11 @@ def test_sparse_to_dense():
         ),
     ],
 )
+@pytest.mark.parametrize("dtype", [np.int32, np.int64])
 @pytest.mark.parametrize("use_dyn", [True, False])
-def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn):
+def test_sparse_reshape(
+    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, dtype, use_dyn
+):
     def ref_sparse_reshape(
         sparse_indices: np.ndarray,
         prev_shape: np.ndarray,
@@ -1493,14 +1496,26 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
         func = relay.Function([sparse_indices, prev_shape, new_shape], z)
 
         ref_res = ref_sparse_reshape(sparse_indices_np, prev_shape_np, new_shape_np)
+        outputs = run_infer_type(z)
+        new_sparse_indices_infer_type, new_shape_infer_type = (
+            outputs.checked_type.fields[0].dtype,
+            outputs.checked_type.fields[1].dtype,
+        )
 
+        assert new_sparse_indices_infer_type == sparse_indices_np.dtype
+        assert new_shape_infer_type == new_shape_np.dtype
         verify_func(
             func,
             [sparse_indices_np, prev_shape_np, new_shape_np],
             ref_res,
         )
 
-    verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
+    verify_sparse_reshape(
+        sparse_indices_np.astype(dtype),
+        sparse_values_np.astype(dtype),
+        prev_shape_np.astype(dtype),
+        new_shape_np.astype(dtype),
+    )
 
 
 def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
