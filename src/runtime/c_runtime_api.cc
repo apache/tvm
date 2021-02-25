@@ -169,7 +169,7 @@ void DeviceAPI::SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src,
 // {message1}
 // {message2}
 // {Stack trace:}    // stack traces follow by this line
-//   {trace 0}       // two spaces in the begining.
+//   {trace 0}       // two spaces in the beginning.
 //   {trace 1}
 //   {trace 2}
 //--------------------------------------------------------

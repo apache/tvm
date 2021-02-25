@@ -428,12 +428,19 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
     if (
-        "system-lib" in target_host.attrs
-        and target_host.attrs["system-lib"].value == 1
-        and target_host.kind.name == "c"
+        target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
+        and target_host.attrs.get("system-lib", 0).value == 1
     ):
-        create_csource_metadata_module = tvm._ffi.get_global_func(
-            "runtime.CreateCSourceMetadataModule"
-        )
-        return create_csource_metadata_module([rt_mod_host], target_host)
+        if target_host.kind.name == "c":
+            create_csource_crt_metadata_module = tvm._ffi.get_global_func(
+                "runtime.CreateCSourceCrtMetadataModule"
+            )
+            return create_csource_crt_metadata_module([rt_mod_host], target_host)
+
+        if target_host.kind.name == "llvm":
+            create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
+                "runtime.CreateLLVMCrtMetadataModule"
+            )
+            return create_llvm_crt_metadata_module([rt_mod_host], target_host)
+
     return rt_mod_host

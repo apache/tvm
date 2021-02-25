@@ -16,30 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*!
- * \file tir/ir/functor_common.h
- * \brief Common utils for implementing functors
+ * \file source_module.h
+ * \brief Source code module
  */
-#ifndef TVM_TIR_IR_FUNCTOR_COMMON_H_
-#define TVM_TIR_IR_FUNCTOR_COMMON_H_
+
+#ifndef TVM_TARGET_SOURCE_SOURCE_MODULE_H_
+#define TVM_TARGET_SOURCE_SOURCE_MODULE_H_
+
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/module.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
-namespace tir {
+namespace codegen {
 
-// Implementation of Visitors
-template <typename T, typename F>
-inline void VisitArray(const Array<T>& arr, F fvisit) {
-  for (size_t i = 0; i < arr.size(); i++) {
-    fvisit(arr[i]);
-  }
-}
+/*!
+ * \brief Create C-runtime targeted metadata module for "c" backend.
+ * \param modules Array of modules included in the compilation output.
+ * \param target TVM target.
+ */
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
+                                               tvm::Target target);
 
-template <typename T, typename F>
-inline Array<T> MutateArray(Array<T> arr, F fmutate) {
-  arr.MutateByApply(fmutate);
-  return arr;
-}
-
-}  // namespace tir
+}  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_TIR_IR_FUNCTOR_COMMON_H_
+
+#endif  // TVM_TARGET_SOURCE_SOURCE_MODULE_H_

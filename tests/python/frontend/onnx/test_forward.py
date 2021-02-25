@@ -1008,6 +1008,42 @@ def test_onehot():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
+    out_shape = [a_shape[0], b_shape[1]]
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+    input_names = ["a", "b"]
+    input_nodes = [
+        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+    ]
+    input_values = [a_array, b_array]
+    if c_shape is not None:
+        c_array = np.random.uniform(size=c_shape).astype("float32")
+        input_names.append("c")
+        input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
+        input_values.append(c_array)
+
+    gemm_node = helper.make_node("Gemm", input_names, ["out"])
+
+    graph = helper.make_graph(
+        [gemm_node],
+        "gemm_test",
+        inputs=input_nodes,
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="gemm_test")
+    verify_with_ort_with_inputs(model, input_values, freeze_params=freeze_params)
+
+
+@tvm.testing.uses_gpu
+def test_gemm():
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True)
+
+
 @tvm.testing.uses_gpu
 def test_matmul():
     a_shape = (4, 3)
@@ -3502,7 +3538,7 @@ def test_roi_align():
 # @tvm.testing.uses_gpu
 def test_non_max_suppression():
     def verify_nms(
-        boxes, scores, max_ouput_boxes_per_class, iou_threshold, score_threshold, output_dims
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
     ):
         input_names = ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold"]
         input_nodes = [
@@ -4065,6 +4101,7 @@ if __name__ == "__main__":
     test_clip()
     test_clip_min_max_as_inputs()
     test_onehot()
+    test_gemm()
     test_matmul()
     test_gather()
     test_gatherelements()

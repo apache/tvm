@@ -132,14 +132,14 @@ def vitis_ai_compiler(ref):
         layers = xgraph.get_layers()
 
         # Get the output tensor names using XGraph and output Relay ids
-        out_tensor_names = []
+        out_tensor_names = ["unknown_name"] * len(output_relay_ids)
         for layer in layers:
             if not layer.internal:
                 for relay_id in layer.attrs["relay_id"]:
                     if relay_id in output_relay_ids:
-                        out_tensor_names.append(layer.name)
+                        out_tensor_names[output_relay_ids.index(relay_id)] = layer.name
                         break
-        if not out_tensor_names:
+        if any([name == "unkown_name" for name in out_tensor_names]):
             raise ValueError(
                 "During codegeneration the loading of subexpression \
                              failed due to output tensor name mismatch in Relay PyXIR interface."

@@ -537,7 +537,7 @@ class QemuStartupFailureError(Exception):
 
 
 class QemuFdTransport(file_descriptor.FdTransport):
-    """An FdTransport subclass that escapes written data to accomodate the QEMU monitor.
+    """An FdTransport subclass that escapes written data to accommodate the QEMU monitor.
 
     It's supposedly possible to disable the monitor, but Zephyr controls most of the command-line
     arguments for QEMU and there are too many options which implictly enable the monitor, so this
