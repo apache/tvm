@@ -117,6 +117,12 @@ Timer DefaultTimer(TVMContext ctx);
  * \param ctx The device context to time.
  * \return A `Timer` that has already been started.
  *
+ * Use this function to time runtime of arbitrary regions of code on a specific
+ * device. The code that you want to time should be running on the device
+ * otherwise the timer will not return correct results. This is a lower level
+ * interface than TimeEvaluator and only runs the timed code once
+ * (TimeEvaluator runs the code multiple times).
+ *
  * Example usage:
  * \code{.cpp}
  * Timer t = StartTimer(TVMContext::cpu());
