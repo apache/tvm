@@ -1072,7 +1072,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
     const auto& target = (*targets.begin()).second;
     Pass major_pass = transform::AutoSchedulerLayoutRewrite();
     bool enable_layout_rewrite_targets =
-      target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
+        target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
       With<Target> tctx(target);
       pass_seqs.push_back(major_pass);
