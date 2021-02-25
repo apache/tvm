@@ -27,6 +27,7 @@
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <tvm/runtime/crt/error_reporting/error_module.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -114,8 +115,18 @@ uint8_t memory[512 * 1024];
 
 static char** g_argv = NULL;
 
+static ErrorModule* g_error = nullptr;
+
 int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValue* out_ret_value,
                           int* out_ret_tcode, void* resource_handle) {
+  execvp(g_argv[0], g_argv);
+  return -1;
+}
+
+int testonly_error_reporting(TVMValue* args, int* type_codes, int num_args, TVMValue* out_ret_value,
+                          int* out_ret_tcode, void* resource_handle) {
+  printf("g_argv[0]: %s", g_argv[0]);
+  ErrorModuleSetError(g_error, error_source_t::kTVMPlatform, 0x0101);
   execvp(g_argv[0], g_argv);
   perror("utvm runtime: error restarting");
   return -1;
@@ -123,6 +134,13 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
+  if (g_error == nullptr) {
+    g_error = UtvmRpcServerErrorModuleInit();
+    printf("Initializing g_error");
+  }
+  
+  printf("Testing main:");
+
   int status = MemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
   if (status != 0) {
     fprintf(stderr, "error initiailizing memory manager\n");
@@ -138,6 +156,11 @@ int main(int argc, char** argv) {
 
   if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
                             0)) {
+    fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
+    return 2;
+  }
+
+  if (TVMFuncRegisterGlobal("tvm.testing.error_module", (TVMFunctionHandle)&testonly_error_reporting, 0)) {
     fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
     return 2;
   }

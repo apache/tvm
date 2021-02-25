@@ -66,6 +66,15 @@ tvm_crt_error_t Session::StartMessage(MessageType message_type, size_t message_s
     header.session_id = 0;
   }
 
+//TODO: double check this
+#ifdef TVM_CRT_ERROR_MODULE_ENABLE
+  if (message_type == MessageType::kTerminateSession) {
+    header.session_id = 0;
+  }
+#endif
+
+
+
   tvm_crt_error_t to_return = framer_->StartPacket(message_size_bytes + sizeof(SessionHeader));
   if (to_return != 0) {
     return to_return;
@@ -100,10 +109,23 @@ tvm_crt_error_t Session::Initialize(uint8_t initial_session_nonce) {
   return TerminateSession();
 }
 
+tvm_crt_error_t Session::Initialize(uint8_t initial_session_nonce, ErrorModule* error_ptr) {
+  local_nonce_ = initial_session_nonce;
+  return TerminateSession(error_ptr);
+}
+
 tvm_crt_error_t Session::TerminateSession() {
   SetSessionId(0, 0);
   state_ = State::kNoSessionEstablished;
   return SendInternal(MessageType::kTerminateSession, nullptr, 0);
+}
+
+tvm_crt_error_t Session::TerminateSession(ErrorModule* error_ptr) {
+  SetSessionId(0, 0);
+  state_ = State::kNoSessionEstablished;
+  uint8_t message[16];
+  uint8_t message_size_byte = ErrorModuleGenerateMessage(error_ptr, message);
+  return SendInternal(MessageType::kTerminateSession, message, message_size_byte);
 }
 
 tvm_crt_error_t Session::SendMessage(MessageType message_type, const uint8_t* message_data,
@@ -153,7 +175,12 @@ void Session::SessionReceiver::PacketDone(bool is_valid) {
     case MessageType::kTerminateSession:
       if (session_->state_ == State::kSessionEstablished) {
         session_->state_ = State::kNoSessionEstablished;
+      #ifdef TVM_CRT_ERROR_MODULE_ENABLE
+        session_->message_received_func_(session_->message_received_func_context_,
+                                         header.message_type, session_->receive_buffer_);
+      #else
         session_->OnSessionTerminatedMessage();
+      #endif
       }
       session_->receive_buffer_has_complete_message_ = false;
       break;

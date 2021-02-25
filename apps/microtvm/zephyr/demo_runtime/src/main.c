@@ -34,14 +34,15 @@
 #include <fatal.h>
 #include <kernel.h>
 #include <power/reboot.h>
-#include <random/rand32.h>
 #include <stdio.h>
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <tvm/runtime/crt/error_reporting/error_module.h>
 #include <unistd.h>
 #include <zephyr.h>
+#include <random/rand32.h>
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -61,6 +62,9 @@ static const struct device* led0_pin;
 
 static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
+ErrorModule __noinit g_error_module;
+uint32_t __noinit abort_error;
+// static ErrorModule* g_error;
 
 // Called by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
@@ -83,28 +87,28 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 
 // This is invoked by Zephyr from an exception handler, which will be invoked
 // if the device crashes. Here, we turn on the LED and spin.
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t* esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  for (;;)
-    ;
+  for (;;) ;
 }
 
 // Called by TVM when a message needs to be formatted.
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
-                                va_list args) {
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
+                                const char* fmt, va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
 // Called by TVM when an internal invariant is violated, and execution cannot continue.
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  sys_reboot(SYS_REBOOT_COLD);
+  // UtvmErrorReport(g_error);
+  TVMLogf("Reboot");
+  sys_reboot(SYS_REBOOT_WARM);
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  for (;;)
-    ;
+  for (;;) ;
 }
 
 // Called by TVM to generate random data.
@@ -124,21 +128,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
     random = sys_rand32_get();
     memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
   }
-  return kTvmErrorNoError;
-}
 
-// Heap for use by TVMPlatformMemoryAllocate.
-K_HEAP_DEFINE(tvm_heap, 216 * 1024);
-
-// Called by TVM to allocate memory.
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  *out_ptr = k_heap_alloc(&tvm_heap, num_bytes, K_NO_WAIT);
-  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
-}
-
-// Called by TVM to deallocate memory.
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  k_heap_free(&tvm_heap, ptr);
   return kTvmErrorNoError;
 }
 
@@ -153,7 +143,7 @@ int g_utvm_timer_running = 0;
 tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     TVMLogf("timer already running");
-    return kTvmErrorPlatformTimerBadState;
+    return kTvmErrorSystemErrorMask | 1;
   }
 
 #ifdef CONFIG_LED
@@ -213,12 +203,29 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
+// Memory pool for use by TVMPlatformMemoryAllocate.
+// K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 216, 4);
+//for testing error reporting
+K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 80, 4);
+
+// Called by TVM to allocate memory.
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
+  *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
+  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
+}
+
+// Called by TVM to deallocate memory.
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
+  k_free(ptr);
+  return kTvmErrorNoError;
+}
+
 // Ring buffer used to store data read from the UART on rx interrupt.
 #define RING_BUF_SIZE_BYTES 4 * 1024
 RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // Small buffer used to read data from the UART into the ring buffer.
-static uint8_t uart_data[8];
+static uint8_t uart_data[32];
 
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
@@ -238,7 +245,7 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
         if (bytes_read != bytes_written) {
           TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
         }
-        // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
+        //CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
         //         bytes_written);
       }
     }
@@ -269,8 +276,7 @@ void main(void) {
   int ret;
   led0_pin = device_get_binding(LED0);
   if (led0_pin == NULL) {
-    for (;;)
-      ;
+    for (;;) ;
   }
   ret = gpio_pin_configure(led0_pin, LED0_PIN, GPIO_OUTPUT_ACTIVE | LED0_FLAGS);
   if (ret < 0) {
@@ -285,7 +291,13 @@ void main(void) {
 
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
+
+  //Initialize microTVM RPC server Error Module
+  // g_error = UtvmRpcServerErrorModuleInit();
+  TVMLogf("g_error_module.magic_num in main: %d", g_error_module.magic_num);
   TVMLogf("microTVM Zephyr runtime - running");
+  TVMLogf("abort_error in main: %d", abort_error);
+
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
@@ -293,6 +305,7 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to UTvmRpcServerLoop().
   while (true) {
+    //uint8_t buf[256];
     int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
       size_t bytes_remaining = bytes_read;
@@ -312,9 +325,28 @@ void main(void) {
         }
       }
     }
+
+    #ifdef TEST_ERROR_MODULE
+    // check if session established
+    if (UtvmRpcServerSessionIsEstablished(server)) {
+      TVMLogf("abort error before set: %d", abort_error);
+      abort_error = 45;
+      TVMLogf("Abort error before reset: %d", abort_error);
+      TVMLogf("g_error_module before set: %d, %d, %d", g_error_module.magic_num, g_error_module.source, g_error_module.reason);
+      ErrorModuleSetError(&g_error_module, kTVMPlatform, kTvmErrorFramingPayloadOverflow);
+      TVMLogf("g_error_module after set: %d, %d, %d", g_error_module.magic_num, g_error_module.source, g_error_module.reason);
+      if (ErrorModuleIsValid(&g_error_module)) {
+        TVMLogf("Error is valid now");
+      }
+      TVMLogf("Before calling reboot");
+      TVMPlatformAbort(kTvmErrorFramingPayloadOverflow);
+    }
+    #endif
   }
 
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);
 #endif
 }
+
+

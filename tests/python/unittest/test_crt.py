@@ -125,11 +125,12 @@ def test_compile_runtime_llvm():
 @tvm.testing.requires_micro
 def test_reset():
     """Test when the remote end resets during a session."""
+
     import tvm.micro
     from tvm.micro import transport
 
     workspace = tvm.micro.Workspace()
-
+    import pdb; pdb.set_trace()
     with _make_add_sess(workspace) as sess:
         try:
             sess._rpc.get_function("tvm.testing.reset_server")()
@@ -137,6 +138,21 @@ def test_reset():
         except tvm.micro.SessionTerminatedError:
             pass
 
+@tvm.testing.requires_micro
+def test_error_reporting():
+    """Test error reporting using ErrorModule."""
+
+    import tvm.micro
+    from tvm.micro import transport
+
+    workspace = tvm.micro.Workspace()
+    import pdb; pdb.set_trace()
+    with _make_add_sess(workspace) as sess:
+        try:
+            sess._rpc.get_function("tvm.testing.reset_server")()
+            assert False, "expected to raise SessionTerminatedError; did not raise"
+        except tvm.micro.SessionTerminatedError:
+            pass
 
 @tvm.testing.requires_micro
 def test_graph_executor():

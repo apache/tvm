@@ -25,8 +25,11 @@
 
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/runtime/crt/error_reporting/error_module.h>
+#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
+#include <checksum.h>
 
 #include <algorithm>
 #include <chrono>
@@ -329,15 +332,48 @@ class MicroTransportChannel : public RPCChannel {
 
   void HandleMessageReceived(MessageType message_type, FrameBuffer* buf) {
     size_t message_size_bytes;
+    uint8_t message[1024];
     switch (message_type) {
       case MessageType::kStartSessionInit:
+        LOG(ERROR) << "kStartSessionInit";
         break;
 
       case MessageType::kStartSessionReply:
+        LOG(ERROR) << "kStartSessionReply";
         state_ = State::kSessionEstablished;
         break;
 
       case MessageType::kTerminateSession:
+        LOG(ERROR) << "kTerminateSession";
+        message_size_bytes = buf->ReadAvailable();
+        LOG(ERROR) << "Msg Length: " << message_size_bytes;
+        if (message_size_bytes > sizeof(message) - 1) {
+          LOG(ERROR) << "Remote message is too long" << message_size_bytes
+                     << " bytes";
+          return;
+        }
+
+        // Handle error message
+        if (message_size_bytes > 0) {
+          ICHECK_EQ(buf->Read(message, sizeof(message) - 1), message_size_bytes);
+          session_.ClearReceiveBuffer();
+          
+          if (message[0] == kErrorModuleMagicNumber) {
+            // Check CRC
+            uint16_t crc_16 = ((message[4] << 8) & 0xFF00) + (message[5] & 0x00FF);
+            if (crc_ccitt_1d0f(message, 4) == crc_16) {
+              uint16_t reason = ((message[2] << 8) & 0xFF00) + (message[3] & 0x00FF);
+              ErrorModule* received_error = (ErrorModule*)malloc(sizeof(ErrorModule));
+              received_error->source = (error_source_t)message[1];
+              received_error->reason = reason;
+              LOG(ERROR) << ErrorModuleGetErrorMessage(received_error);
+            } else {
+              LOG(FATAL) << "CRC not matched.";
+            }
+          }
+        }
+
+        // Update state
         if (state_ == State::kReset) {
           state_ = State::kSessionTerminated;
         } else if (state_ == State::kSessionTerminated) {
@@ -349,7 +385,6 @@ class MicroTransportChannel : public RPCChannel {
         break;
 
       case MessageType::kLog:
-        uint8_t message[1024];
         message_size_bytes = buf->ReadAvailable();
         if (message_size_bytes == 0) {
           return;
@@ -363,13 +398,39 @@ class MicroTransportChannel : public RPCChannel {
         message[message_size_bytes] = 0;
         LOG(INFO) << "remote: " << message;
         session_.ClearReceiveBuffer();
-        return;
+        break;
 
       case MessageType::kNormal:
         did_receive_message_ = true;
         message_buffer_ = buf;
         break;
+      
+      default:
+        LOG(FATAL) << "RPC unknown message";
+        break;
     }
+  }
+
+  std::string ErrorModuleGetErrorMessage(ErrorModule* error_ptr) {
+    std::string message = "microTVM error: source => ";
+    switch (error_ptr->source) {
+      case error_source_t::kTVMPlatform:
+        message.append("TVMPlatform");
+        break;
+      
+      case error_source_t::kZephyr:
+        message.append("Zephyr");
+        break;
+    }
+    
+    uint16_t reason = error_ptr->reason;
+    uint8_t category = ((reason & 0xFF00) >> 8);
+    uint8_t code = reason & 0x00FF;
+    message.append(": reason=> category: ");
+    message.append(std::to_string(category));
+    message.append(",\tcode: ");
+    message.append(std::to_string(code));
+    return message;
   }
 
   State state_;

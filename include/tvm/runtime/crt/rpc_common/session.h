@@ -30,6 +30,7 @@
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
+#include <tvm/runtime/crt/error_reporting/error_module.h>
 
 namespace tvm {
 namespace runtime {
@@ -106,10 +107,24 @@ class Session {
   tvm_crt_error_t Initialize(uint8_t initial_session_nonce);
 
   /*!
+   * \brief Send a session terminate message, usually done at startup to interrupt a hanging remote.
+   * \param initial_session_nonce Initial nonce that should be used on the first session start
+   *      message. Callers should ensure this is different across device resets.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
+   */
+  tvm_crt_error_t Initialize(uint8_t initial_session_nonce, ErrorModule* error_ptr);
+
+  /*!
    * \brief Terminate any previously-established session.
    * \return kTvmErrorNoError on success, or an error code otherwise.
    */
   tvm_crt_error_t TerminateSession();
+
+  /*!
+   * \brief Terminate any previously-established session.
+   * \return kTvmErrorNoError on success, or an error code otherwise.
+   */
+  tvm_crt_error_t TerminateSession(ErrorModule* error_ptr);
 
   /*!
    * \brief Start a new session regardless of state. Sends kStartSessionMessage.

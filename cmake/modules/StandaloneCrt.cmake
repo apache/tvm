@@ -49,6 +49,8 @@ if(USE_MICRO)
          "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
          "src/runtime/crt/utvm_rpc_common *.cc -> src/runtime/crt/utvm_rpc_common"
+         "src/runtime/crt/error_reporting *.c -> src/runtime/crt/error_reporting"
+         "src/runtime/crt/error_reporting *.c -> src/runtime/crt/utvm_rpc_common"
          "src/runtime/crt/utvm_rpc_server *.cc -> src/runtime/crt/utvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
@@ -97,7 +99,7 @@ if(USE_MICRO)
     set(make_quiet )
     endif(${VERBOSE})
 
-    list(APPEND crt_libraries memory graph_executor utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
+    list(APPEND crt_libraries memory graph_executor utvm_rpc_server utvm_rpc_common error_reporting common)  # NOTE: listed in link order.
     foreach(crt_lib_name IN LISTS crt_libraries)
       list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
     endforeach()

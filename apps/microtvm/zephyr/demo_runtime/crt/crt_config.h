@@ -59,6 +59,9 @@
 /*! \brief Number of pages on device. */
 #define TVM_CRT_MAX_PAGES 300
 
+/*! \brief Enable ErrorModule in Session*/
+#define TVM_CRT_ERROR_MODULE_ENABLE
+
 // #define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_CONFIG_H_

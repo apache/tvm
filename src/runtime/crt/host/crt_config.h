@@ -51,6 +51,9 @@
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
+/*! \brief Enable ErrorModule in Session*/
+#define TVM_CRT_ERROR_MODULE_ENABLE
+
 // #define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

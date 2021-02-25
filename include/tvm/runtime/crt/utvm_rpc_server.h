@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <tvm/runtime/crt/error_codes.h>
+#include <tvm/runtime/crt/error_reporting/error_module.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,6 +70,23 @@ utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* w
  */
 tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server, uint8_t** new_data,
                                   size_t* new_data_size_bytes);
+
+/*! \brief Initialize the TVM RPC ErrorModule.
+*
+*   \return A pointer to the Error Module. The pointer is allocated in the same memory space as
+*           the TVM workspace.
+*/
+ErrorModule* UtvmRpcServerErrorModuleInit();
+
+/*! \brief Sends ErrorModule as a message to host.
+*   
+*   \param error_ptr Pointer to ErrorModule.
+*/
+void UtvmErrorReport(ErrorModule* error_ptr);
+
+//TODO: check if this needed.
+bool UtvmRpcServerSessionIsEstablished(utvm_rpc_server_t server_ptr);
+
 
 #ifdef __cplusplus
 }

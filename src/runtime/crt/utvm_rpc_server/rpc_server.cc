@@ -42,6 +42,8 @@
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <tvm/runtime/crt/error_reporting/error_module.h>
+#include <checksum.h>
 
 #include "../../minrpc/minrpc_server.h"
 #include "crt_config.h"
@@ -120,12 +122,18 @@ class MicroRPCServer {
 
   void* operator new(size_t count, void* ptr) { return ptr; }
 
-  void Initialize() {
+  void Initialize(ErrorModule* error_ptr, uint32_t error_test) {
     uint8_t initial_session_nonce = Session::kInvalidNonce;
     tvm_crt_error_t error =
         TVMPlatformGenerateRandom(&initial_session_nonce, sizeof(initial_session_nonce));
     CHECK_EQ(kTvmErrorNoError, error, "generating random session id");
-    CHECK_EQ(kTvmErrorNoError, session_.Initialize(initial_session_nonce), "rpc server init");
+
+    // if (ErrorModuleIsValid(error_ptr)) {
+    if (error_test == 45) {
+      CHECK_EQ(kTvmErrorNoError, session_.Initialize(initial_session_nonce, error_ptr), "rpc server init");
+    } else {
+      CHECK_EQ(kTvmErrorNoError, session_.Initialize(initial_session_nonce), "rpc server init");
+    }
   }
 
   /*! \brief Process one message from the receive buffer, if possible.
@@ -164,6 +172,10 @@ class MicroRPCServer {
     }
   }
 
+  Session* GetSession() {
+    return &session_;
+  }
+
  private:
   FrameBuffer receive_buffer_;
   SerialWriteStream send_stream_;
@@ -199,6 +211,10 @@ extern "C" {
 
 static utvm_rpc_server_t g_rpc_server = nullptr;
 
+// ErrorModule g_error_module __attribute__((section(".noinit")));
+extern ErrorModule g_error_module;
+extern uint32_t abort_error;
+
 utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* write_func_ctx) {
   tvm::runtime::micro_rpc::g_write_func = write_func;
   tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
@@ -224,7 +240,18 @@ utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* w
   auto rpc_server = new (rpc_server_memory) tvm::runtime::micro_rpc::MicroRPCServer(
       receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
   g_rpc_server = static_cast<utvm_rpc_server_t>(rpc_server);
-  rpc_server->Initialize();
+  
+  rpc_server->Initialize(&g_error_module, abort_error);
+  
+  TVMLogf("abort_error after init in RPC server: %d", abort_error);
+  TVMLogf("g_error after init in RPC server: %d, %d, %d", g_error_module.magic_num, g_error_module.source, g_error_module.reason);
+  
+  if (ErrorModuleIsValid(&g_error_module)) {
+    
+  } else {
+    TVMLogf("ErrorModule not valid in RPC server.");
+  }
+
   return g_rpc_server;
 }
 
@@ -263,6 +290,38 @@ tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server_ptr, uint8_t** new_da
   tvm::runtime::micro_rpc::MicroRPCServer* server =
       static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
   return server->Loop(new_data, new_data_size_bytes);
+}
+
+ErrorModule* UtvmRpcServerErrorModuleInit() {
+  return &g_error_module;
+}
+
+bool UtvmRpcServerSessionIsEstablished(utvm_rpc_server_t server_ptr) {
+  tvm::runtime::micro_rpc::MicroRPCServer* server =
+      static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
+  return server->GetSession()->IsEstablished();
+}
+
+void UtvmErrorReport(ErrorModule* error_ptr) {
+  if (error_ptr == nullptr) {
+    TVMLogf("ErrorModule pointer null");
+    return;
+  }
+  TVMLogf("report: %d, %d, %d, %d", error_ptr->magic_num, error_ptr->source, error_ptr->reason, error_ptr->crc);
+  uint8_t message_buffer[16];
+  size_t num_bytes = ErrorModuleGenerateMessage(error_ptr, message_buffer);
+
+  if (g_rpc_server != nullptr) {
+    static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(g_rpc_server)
+        ->GetSession()->SendMessage(tvm::runtime::micro_rpc::MessageType::kTerminateSession,
+        reinterpret_cast<uint8_t*>(message_buffer), num_bytes);
+  } else {
+    tvm::runtime::micro_rpc::SerialWriteStream write_stream;
+    tvm::runtime::micro_rpc::Framer framer{&write_stream};
+    tvm::runtime::micro_rpc::Session session{&framer, nullptr, nullptr, nullptr};
+    session.SendMessage(tvm::runtime::micro_rpc::MessageType::kNormal,
+                        reinterpret_cast<uint8_t*>(message_buffer), num_bytes);
+  }
 }
 
 }  // extern "C"
