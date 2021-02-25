@@ -377,8 +377,8 @@ void VirtualMachine::RunLoop() {
     if (started) {
       inst_end = std::chrono::high_resolution_clock::now();
       double inst_duration =
-        std::chrono::duration_cast<std::chrono::duration<double>>(inst_end - inst_begin)\
-        .count() * 1e6;
+        std::chrono::duration<double, std::micro>(inst_end - inst_begin)\
+        .count();
       CollectMetrics(last_inst, inst_duration);
       inst_begin = std::chrono::high_resolution_clock::now();
     } else {
