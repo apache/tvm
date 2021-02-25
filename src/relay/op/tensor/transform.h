@@ -129,7 +129,7 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       continue;
     }
     std::vector<IndexExpr> non_any;
-    for (int j = 0; j < data_length; ++j) {
+    for (size_t j = 0; j < data_length; ++j) {
       const auto& e = input_tensors[j];
       if (!e->shape[i].as<AnyNode>()) {
         non_any.push_back(e->shape[i]);
