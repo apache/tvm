@@ -28,9 +28,9 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
+#include <chrono>
 #include <stack>
 #include <unordered_set>
-#include <chrono>
 
 #include "../runtime/object_internal.h"
 
@@ -304,9 +304,7 @@ void PrintPassProfile() {
   }
 }
 
-TVM_REGISTER_GLOBAL("transform.print_pass_profiles").set_body_typed([]() {
-  PrintPassProfile();
-});
+TVM_REGISTER_GLOBAL("transform.print_pass_profiles").set_body_typed([]() { PrintPassProfile(); });
 
 TVM_REGISTER_GLOBAL("transform.clear_pass_profiles").set_body_typed([]() {
   PassProfileThreadLocalStore::Get()->root.children.clear();
