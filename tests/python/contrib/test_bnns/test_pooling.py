@@ -184,7 +184,9 @@ def test_pooling():
         params = None
         for enable_bnns in [False, True]:
             outputs.append(
-                build_and_run(func, inputs, 1, params, device, enable_bnns=enable_bnns, config=config)[0]
+                build_and_run(
+                    func, inputs, 1, params, device, enable_bnns=enable_bnns, config=config
+                )[0]
             )
 
         verify(outputs, atol=0.001, rtol=0.001, config=config)
@@ -224,7 +226,9 @@ def test_global_pooling():
 
         for enable_bnns in [False, True]:
             outputs.append(
-                build_and_run(func, inputs, 1, None, device, enable_bnns=enable_bnns, config=config)[0]
+                build_and_run(
+                    func, inputs, 1, None, device, enable_bnns=enable_bnns, config=config
+                )[0]
             )
 
         verify(outputs, atol=0.001, rtol=0.001, config=config)

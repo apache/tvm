@@ -276,7 +276,9 @@ def instance_norm_check(expr):
     rank = len(data_typ.shape)
     if rank < 3 or rank > 4 or data_typ.dtype != "float32":
         return False
-    if not isinstance(args[1], tvm.relay.expr.Constant) or not isinstance(args[2], tvm.relay.expr.Constant):
+    if not isinstance(args[1], tvm.relay.expr.Constant) or not isinstance(
+        args[2], tvm.relay.expr.Constant
+    ):
         return False
     if attrs.axis == 0 and rank == 3 or attrs.axis == 1 and rank == 4:
         return True

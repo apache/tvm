@@ -207,9 +207,8 @@ class TView {
       unsqueezed_shape[axis] = 1;
     }
     for (int i = 0, orig_idx = 0; i < unsqueezed_rank; ++i) {
-        if (unsqueezed_shape[i] == 1)
-            continue;
-        unsqueezed_shape[i] = view_desc_.size[orig_idx++];
+      if (unsqueezed_shape[i] == 1) continue;
+      unsqueezed_shape[i] = view_desc_.size[orig_idx++];
     }
     std::copy(unsqueezed_shape, unsqueezed_shape + unsqueezed_rank, res.view_desc_.size);
     res.view_desc_.layout = Tensor::getPlainLayout(unsqueezed_rank);
@@ -381,11 +380,11 @@ class TwoInputPrimitive : public Primitive {
 
     size_t mb = src_view.get_batch_size();
 
-    return BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(),
-                                           src_view.get_stride(), src2_view.get_data_hdl(),
-                                           src2_view.get_stride(), dst_view.get_data_hdl(),
-                                           dst_view.get_stride());
+    return BNNSFilterApplyTwoInputBatch(filter, mb, src_view.get_data_hdl(), src_view.get_stride(),
+                                        src2_view.get_data_hdl(), src2_view.get_stride(),
+                                        dst_view.get_data_hdl(), dst_view.get_stride());
   }
+
  protected:
   const TView src2_view;
 };

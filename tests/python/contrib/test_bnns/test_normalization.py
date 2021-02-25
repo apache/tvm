@@ -33,7 +33,9 @@ from .infrastructure import (
 )
 
 
-def _get_model(shape, b_shape, s_shape, dtype, var_names, axis=1, epsilon=1e-5, center=True, scale=True):
+def _get_model(
+    shape, b_shape, s_shape, dtype, var_names, axis=1, epsilon=1e-5, center=True, scale=True
+):
     """Return a model and any parameters it may have"""
     src = relay.var(next(var_names), shape=shape, dtype=dtype)
     params = {}
@@ -125,12 +127,9 @@ def test_normalization():
                         var_names=iter(inputs),
                         axis=axis,
                         center=center,
-                        scale=scale
+                        scale=scale,
                     )
                     for enable_bnns in [False, True]:
-                        print('shape: ', shape)
-                        print('axis: ', axis)
-                        print('bnns_!: ', enable_bnns)
                         outputs.append(
                             build_and_run(
                                 func,
@@ -189,7 +188,7 @@ def test_codegen_normalization():
                         var_names=iter(inputs),
                         axis=axis,
                         center=center,
-                        scale=scale
+                        scale=scale,
                     )
 
                     offload_on_bnns = check_normalization(len(shape), axis)
@@ -204,5 +203,3 @@ def test_codegen_normalization():
 if __name__ == "__main__":
     test_normalization()
     test_codegen_normalization()
-
-

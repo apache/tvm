@@ -208,7 +208,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     return tensors_eid_[eid];
   }
 
-  void Conv2d(const size_t& nid, const bool has_bias = false, const std::string activation_type = "none") {
+  void Conv2d(const size_t& nid, const bool has_bias = false,
+              const std::string activation_type = "none") {
     auto node = nodes_[nid];
 
     // Setup attributes.
@@ -253,9 +254,9 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     BNNSActivation activation = {BNNSActivationFunctionIdentity};
     if (activation_type == "relu")
-        activation = {BNNSActivationFunctionRectifiedLinear};
+      activation = {BNNSActivationFunctionRectifiedLinear};
     else if (activation_type == "sigmoid")
-        activation = {BNNSActivationFunctionSigmoid};
+      activation = {BNNSActivationFunctionSigmoid};
 
     BNNSLayerParametersConvolution conv_param = {
         src_view.get_bnns_view(),
@@ -410,8 +411,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     ICHECK_EQ(src_rank, dst_rank);
     ICHECK_LE(src_rank, 4);
     if (src_rank < 4) {
-        src_view = src_view.unsqueeze(4);
-        dst_view = dst_view.unsqueeze(4);
+      src_view = src_view.unsqueeze(4);
+      dst_view = dst_view.unsqueeze(4);
     }
     src_view = src_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
     dst_view = dst_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
@@ -420,11 +421,9 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     BNNSActivation activation = {BNNSActivationFunctionIdentity};
 
     auto b_desc = bias_view.get_bnns_view();
-    if (!center)
-        b_desc = {};
+    if (!center) b_desc = {};
     auto s_desc = scale_view.get_bnns_view();
-    if (!scale)
-        s_desc = {};
+    if (!scale) s_desc = {};
 
     // NOTE: Axis option is ignored in BNNS. The result doesn't depends on value of axis.
     BNNSLayerParametersNormalization layerParameters = {src_view.get_bnns_view(),  // i_desc
@@ -441,7 +440,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     BNNSFilterType filter_type = BNNSInstanceNorm;
     auto common_filter_param = getCommonFilterParams();
-    auto filter = BNNSFilterCreateLayerNormalization(filter_type, &layerParameters, &common_filter_param);
+    auto filter =
+        BNNSFilterCreateLayerNormalization(filter_type, &layerParameters, &common_filter_param);
     ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
 
     std::vector<BNNSFilter> filters{filter};
@@ -472,8 +472,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     dst_view = dst_view.extract_outer_dim().with_layout(BNNSDataLayoutImageCHW);
     BNNSActivation activation = {BNNSActivationFunctionIdentity};
     BNNSPoolingFunction pf = {BNNSPoolingFunctionMax};
-    if (avg_pooling)
-      pf = {BNNSPoolingFunctionAverageCountExcludePadding};
+    if (avg_pooling) pf = {BNNSPoolingFunctionAverageCountExcludePadding};
 
     // Setup attributes.
     size_t k_height = 0;
@@ -511,7 +510,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
                                                   0,                         // y_dilation_stride
                                                   x_padding,                 // x_padding
                                                   y_padding,                 // y_padding
-                                                  {}};                       // pad left, right, up, down padding
+                                                  {}};  // pad left, right, up, down padding
 
     auto common_filter_param = getCommonFilterParams();
     auto filter = BNNSFilterCreateLayerPooling(&layerParameters, &common_filter_param);
