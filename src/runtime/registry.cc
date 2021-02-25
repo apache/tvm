@@ -47,12 +47,26 @@ struct Registry::Manager {
 
   Manager() {}
 
+#ifdef TVM_C_API_MEM_MGMT
+  ~Manager() {
+    for (auto& it : fmap) {
+      delete it.second;
+      it.second = nullptr;
+    }
+  }
+#endif
+
   static Manager* Global() {
+#ifdef TVM_C_API_MEM_MGMT
+    static Manager inst;
+    return &inst;
+#else
     // We deliberately leak the Manager instance, to avoid leak sanitizers
     // complaining about the entries in Manager::fmap being leaked at program
     // exit.
     static Manager* inst = new Manager();
     return inst;
+#endif
   }
 };
 
