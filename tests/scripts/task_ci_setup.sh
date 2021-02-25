@@ -20,6 +20,9 @@ set -e
 set -u
 set -o pipefail
 
+# bump ulimit because frontend tests are deeply recursive
+ulimit -S -s 16384
+
 # Script to setup additional python env.
 #
 # Use the following command to install the
