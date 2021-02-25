@@ -835,7 +835,7 @@ class PyTorchOpConverter:
     @staticmethod
     def convert_const_list(data):
         if isinstance(data, list):
-            for i,_ in enumerate(data):
+            for i, _ in enumerate(data):
                 if isinstance(data[i], _expr.Expr):
                     data[i] = int(_infer_value_simulated(data[i], {}).asnumpy())
         return data

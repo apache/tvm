@@ -747,6 +747,7 @@ def test_forward_maxpool2d():
     verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
     verify_model(MaxPool2DWithIntStrides().float().eval(), input_data=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
