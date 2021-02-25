@@ -525,6 +525,8 @@ class BaseGraphTuner(object):
                 continue
 
             records = []
+            target = Target(target, target_host)
+            target_host = target.host
             task = autotvm.task.create(
                 "layout_transform", args=args, target=self._target, target_host=target_host
             )

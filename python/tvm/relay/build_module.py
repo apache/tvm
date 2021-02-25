@@ -129,7 +129,8 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        self._build(mod, target, target_host)
+        target = Target(target, target_host)
+        self._build(mod, target, target.host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -252,6 +253,8 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
 
     target = _update_target(target)
 
+    target = Target(target, target_host)
+    target_host = target.host
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:

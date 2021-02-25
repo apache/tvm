@@ -25,6 +25,7 @@ import logging
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
+from tvm.target import Target
 from .task import create
 from .topi_integration import TaskExtractEnv
 
@@ -89,6 +90,8 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
+    target = Target(target, target_host)
+    target_host = target.host
     return extract_from_multiple_program([mod], [params], target, target_host, ops)
 
 
@@ -152,6 +155,8 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
     tasks = []
     for task_name, args in env.get_tasks():
         try:
+            target = Target(target, target_host)
+            target_host = target.host
             tsk = create(task_name, args, target=target, target_host=target_host)
             tasks.append(tsk)
         except topi.InvalidShapeError:
