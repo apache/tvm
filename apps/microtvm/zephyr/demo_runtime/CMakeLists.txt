@@ -1,8 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.13.1)
+
+set(ENV{QEMU_BIN_PATH} "${CMAKE_SOURCE_DIR}/qemu-hack")
+
+set(QEMU_PIPE "\${QEMU_PIPE}")  # QEMU_PIPE is set by the calling TVM instance.
+
 find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
-project(microtvm_zephyr_demo_runtime)
+project(microtvm_zephyr_runtime)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 file(GLOB TVM_SOURCES ${CMAKE_SOURCE_DIR}/__tvm*.c)
