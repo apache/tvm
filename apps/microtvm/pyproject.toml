@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# This `pyproject.toml` file is used to allow MicroTVM
+# to run within a Poetry-managed environment.
+
 [tool.black]
 line-length = 100
 target-version = ['py36']
@@ -47,12 +50,12 @@ exclude = '''
 )
 '''
 [tool.poetry]
-name = "tvm"
+name = "microtvm"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = ["Andrew Reusch <areusch@octoml.ai>"]
 packages = [
-    { include = "tvm", from = "../../../../python" },
+    { include = "tvm", from = "../../python" },
 ]
 
 [tool.poetry.dependencies]

@@ -62,15 +62,17 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
-    project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
+    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
+    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
     compiler = zephyr.ZephyrCompiler(
-        project_dir=project_dir,
+        project_dir=runtime_path,
         board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
         west_cmd=west_cmd,
     )
 
-    opts = tvm.micro.default_options(f"{project_dir}/crt")
+    opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
     # TODO(weberlo) verify this is necessary
     opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
     opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
