@@ -71,7 +71,7 @@ def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
             batch = YB
 
         if isinstance(x_shape[2], int) and isinstance(y_shape[2], int):
-            assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
+            assert x_shape[2] == y_shape[2], "shapes of x and y are inconsistant"
 
         N = y.shape[1]
         oshape = (batch, M, N)
