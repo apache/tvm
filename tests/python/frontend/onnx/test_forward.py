@@ -3356,15 +3356,27 @@ def test_resize():
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+
     # downsampling
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+
     # scales are specified instead of sizes
     verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
