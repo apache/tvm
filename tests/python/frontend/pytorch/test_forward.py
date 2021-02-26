@@ -2064,7 +2064,12 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
             pt_result = input_model(*input_data)
 
         # Verify the accuracy
-        if not isinstance(pt_result, torch.Tensor):
+        if isinstance(pt_result, tuple):
+            # handle multiple outputs
+            for i in range(len(pt_result)):
+                tvm_res = vm_res[i].asnumpy()
+                tvm.testing.assert_allclose(tvm_res, pt_result[i].numpy(), rtol=1e-5, atol=1e-5)
+        elif not isinstance(pt_result, torch.Tensor):
             tvm_res = vm_res.asnumpy().item()
             assert pt_result == tvm_res
         else:
@@ -3654,6 +3659,23 @@ def test_masked_select():
         verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
 
 
+def test_unique():
+    def test_fn(is_sorted, return_inverse, return_counts):
+        return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
+
+    in_data = torch.randint(0, 20, (10,), dtype=torch.int32)
+    targets = ["llvm", "cuda", "nvptx"]
+    verify_trace_model(test_fn(True, True, True), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    verify_trace_model(test_fn(True, True, False), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    in_data = torch.randint(0, 20, (20,), dtype=torch.int64)
+    verify_trace_model(test_fn(True, True, True), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    verify_trace_model(test_fn(True, True, False), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3789,6 +3811,7 @@ if __name__ == "__main__":
     test_argsort()
     test_logical_and()
     test_masked_select()
+    test_unique()
 
     # Model tests
     test_resnet18()

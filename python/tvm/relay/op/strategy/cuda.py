@@ -1009,3 +1009,15 @@ def cumsum_strategy_cuda(attrs, inputs, out_type, target):
         name="cumsum.cuda",
     )
     return strategy
+
+
+@unique_strategy.register(["cuda", "gpu"])
+def unique_strategy_cuda(attrs, inputs, out_type, target):
+    """unique cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_unique(topi.cuda.unique),
+        wrap_topi_schedule(topi.cuda.schedule_scan),
+        name="unique.cuda",
+    )
+    return strategy

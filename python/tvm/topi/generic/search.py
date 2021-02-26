@@ -86,3 +86,19 @@ def schedule_interpolate(outs):
 
 def schedule_sparse_fill_empty_rows(outs):
     return _default_schedule(outs, False)
+
+
+def schedule_unique(outs):
+    """Schedule for unique operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of unique.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
