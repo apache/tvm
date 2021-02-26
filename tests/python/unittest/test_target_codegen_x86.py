@@ -52,21 +52,14 @@ def test_fp16_to_fp32():
             not_matches = [l for l in assembly if re.search(not_match, l)]
             assert not not_matches
 
-    fp16_to_fp32(
-        "llvm -mcpu=skylake-avx512", 15, match="vcvtph2ps.*ymm", not_match="vcvtph2ps.*zmm"
-    )
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 16, match="vcvtph2ps.*zmm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 17, match="vcvtph2ps.*zmm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 49, match="vcvtph2ps.*zmm")
-    fp16_to_fp32(
-        "llvm -mcpu=skylake-avx512 -mattr=-avx512f",
-        49,
-        match="vcvtph2ps.*ymm",
-        not_match="vcvtph2ps.*zmm",
-    )
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 15, match="vcvtph2ps.*mm")
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 16, match="vcvtph2ps.*mm")
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 17, match="vcvtph2ps.*mm")
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 49, match="vcvtph2ps.*mm")
+    fp16_to_fp32("llvm -mcpu=skylake-avx512 -mattr=-avx512f", 49, match="vcvtph2ps.*mm")
     fp16_to_fp32("llvm -mcpu=skylake-avx512 -mattr=-f16c,-avx512f", 49, not_match="vcvtph2ps")
-    fp16_to_fp32("llvm -mcpu=core-avx2", 8, match="vcvtph2ps.*ymm")
-    fp16_to_fp32("llvm -mcpu=core-avx2", 9, match="vcvtph2ps.*ymm")
+    fp16_to_fp32("llvm -mcpu=core-avx2", 8, match="vcvtph2ps.*mm")
+    fp16_to_fp32("llvm -mcpu=core-avx2", 9, match="vcvtph2ps.*mm")
     fp16_to_fp32("llvm", 9, not_match="vcvtph2ps")
 
 
