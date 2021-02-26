@@ -736,7 +736,16 @@ def test_forward_maxpool2d():
             output, indices = self.pool(args[0])
             return output
 
+    class MaxPool2DWithIntStrides(Module):
+        def forward(self, *args):
+            # Makes kernel_size and strides a Relay expr to test converting back to int
+            x_shape = args[0].shape
+            kernel_size = [torch.tensor(x_shape[1]).int(), torch.tensor(x_shape[1]).int()]
+            strides = [torch.tensor(x_shape[0]).int(), torch.tensor(x_shape[0]).int()]
+            return torch.nn.functional.max_pool2d(args[0], kernel_size=[4, 4], stride=strides)
+
     verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+    verify_model(MaxPool2DWithIntStrides().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
