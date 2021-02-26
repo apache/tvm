@@ -80,6 +80,8 @@ def build(mod, target, target_host=None):
     """
     if target_host == "":
         target_host = None
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
     return tvm.driver.build(mod, target=target, target_host=target_host)
 
 

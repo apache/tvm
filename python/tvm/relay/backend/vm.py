@@ -65,6 +65,8 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
+    target = Target(target, target_host)
+    target_host = target.host
     compiler.lower(mod, target, target_host)
     compiler.codegen()
     return compiler.get_exec()
@@ -130,6 +132,10 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
+
+        target = Target(target, target_host)
+        target_host = target.host
+
         tophub_context = self._tophub_context(target)
         with tophub_context:
             self._lower(mod, target, target_host)
@@ -167,6 +173,10 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
+
+        target = Target(target, target_host)
+        target_host = target.host
+
         if params:
             self.set_params(params)
         return self._optimize(mod, target, target_host), self.get_params()

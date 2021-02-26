@@ -20,6 +20,7 @@ Provides support to auto-tuning networks using AutoTVM.
 import os.path
 import logging
 import time
+import tvm
 
 from urllib.parse import urlparse
 
@@ -242,6 +243,8 @@ def drive_tune(args):
             )
 
     target, extra_targets = common.target_from_cli(args.target)
+    target = tvm.target.Target(target, args.target_host)
+    target_host = target.host
     mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
 
     for codegen_from_cli in extra_targets:
@@ -298,7 +301,7 @@ def drive_tune(args):
             mod=mod,
             params=params,
             target=target,
-            target_host=args.target_host,
+            target_host=target_host,
             alter_layout=args.desired_layout,
             hardware_params=hardware_params,
             include_simple_tasks=args.include_simple_tasks,
@@ -321,7 +324,7 @@ def drive_tune(args):
             mod=mod,
             params=params,
             target=target,
-            target_host=args.target_host,
+            target_host=target_host,
             alter_layout=args.desired_layout,
         )
 
@@ -364,6 +367,9 @@ def autotvm_get_tuning_tasks(mod, params, target, target_host=None, alter_layout
     """
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
+
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
 
     tasks = autotvm.task.extract_from_program(
         mod["main"],
@@ -412,6 +418,9 @@ def autoscheduler_get_tuning_tasks(
     """
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
+
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(

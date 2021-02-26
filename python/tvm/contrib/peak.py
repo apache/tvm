@@ -106,6 +106,9 @@ def measure_bandwidth_sum(
     s[y].bind(yi, te.thread_axis("threadIdx.x"))
     s[y].unroll(k)
 
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
+
     try:
         func = tvm.build(s, [x, y], target, target_host=target_host)
 
@@ -152,6 +155,9 @@ def measure_bandwidth_all_types(
         a list of (type_name, GBPS) pairs
     """
     max_threads = target.max_num_threads
+
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
 
     result = []
     for base_type in ["float"]:
@@ -228,6 +234,9 @@ def measure_compute_mad(
         n //= 2
 
     max_threads = target.max_num_threads
+
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
 
     base_type = str(base_type) + str(bits)
     dtype = base_type if lanes == 1 else base_type + "x" + str(lanes)
@@ -313,6 +322,9 @@ def measure_compute_all_types(
     result: list
         a list of (type_name, GFLOPS/GIOPS) pairs
     """
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
+
     result = []
     for base_type in ["float", "int"]:
         for bits in [16, 32, 64]:
@@ -357,7 +369,8 @@ def measure_peak_all(target, target_host, host, port):
     port: int
     """
 
-    target = tvm.target.Target(target)
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
     remote = rpc.connect(host, port)
     n_times = 20
 

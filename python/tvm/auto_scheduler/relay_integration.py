@@ -108,10 +108,8 @@ def extract_tasks(
     """
     # pylint: disable=import-outside-toplevel
 
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-    if isinstance(target_host, str):
-        target_host = tvm.target.Target(target_host)
+    target = tvm.target.Target(target, target_host)
+    target_host = target.host
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(

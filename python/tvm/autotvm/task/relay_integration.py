@@ -151,12 +151,14 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
 
         logger.disabled = old_state
 
+    # merge target and target host
+    target = Target(target, target_host)
+    target_host = target.host
+
     # create tasks for target
     tasks = []
     for task_name, args in env.get_tasks():
         try:
-            target = Target(target, target_host)
-            target_host = target.host
             tsk = create(task_name, args, target=target, target_host=target_host)
             tasks.append(tsk)
         except topi.InvalidShapeError:

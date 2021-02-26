@@ -242,6 +242,11 @@ def test_target_host_merge_2():
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
 
 
+def test_target_host_merge_3():
+    with pytest.raises(ValueError):
+        tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
+
+
 if __name__ == "__main__":
     test_target_dispatch()
     test_target_string_parse()
@@ -261,3 +266,4 @@ if __name__ == "__main__":
     test_target_host_merge_0()
     test_target_host_merge_1()
     test_target_host_merge_2()
+    test_target_host_merge_3()

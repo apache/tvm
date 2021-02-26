@@ -397,6 +397,10 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
+
+    target = tvm.target.Target(target, task.target_host)
+    task.target_host = target.host
+
     with target:
         s, args = task.instantiate(config)
 

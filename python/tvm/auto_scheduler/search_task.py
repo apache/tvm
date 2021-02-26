@@ -228,6 +228,9 @@ class SearchTask(Object):
         if isinstance(target_host, str):
             target_host = Target(target_host)
 
+        target = Target(target, target_host)
+        target_host = target.host
+
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
 
@@ -322,8 +325,8 @@ class SearchTask(Object):
         return {
             "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
-            "target": self.target,
-            "target_host": self.target_host,
+            "target": Target(self.target, self.target_host),
+            "target_host": Target(self.target, self.target_host).host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
         }
@@ -346,8 +349,8 @@ class SearchTask(Object):
             _ffi_api.SearchTask,
             state["compute_dag"],
             state["workload_key"],
-            state["target"],
-            state["target_host"],
+            Target(state["target"], state["target_host"]),
+            Target(state["target"], state["target_host"]).host,
             state["hardware_params"],
             state["layout_rewrite_option"],
         )
