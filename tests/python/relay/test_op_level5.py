@@ -67,13 +67,19 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-5)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-4)
 
-    for layout in ["NHWC", "NCHW"]:
-        verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "half_pixel")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "asymmetric")
-        verify_resize((3, 4, 5, 6), 5, "nearest_neighbor", layout, "asymmetric")
+    for method in ["nearest_neighbor", "bilinear"]:
+        for coord_trans in ["asymmetric", "half_pixel", "align_corners"]:
+            for layout in ["NHWC", "NCHW"]:
+                # TODO: Topi test does not have a function to produce numpy output for resize with
+                # nearest_neighbors and align_corners. Enable when topi test has this option
+                if coord_trans == "align_corners" and method == "nearest_neighbor":
+                    continue
+                verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
+                verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
+                verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
+                verify_resize((3, 4, 5, 6), 5, method, layout, coord_trans)
 
 
 def test_resize3d_infer_type():

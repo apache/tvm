@@ -59,6 +59,9 @@ def verify_resize(
             a_np, (out_height, out_width), layout, coord_trans
         )
     else:
+        # TODO: Nearest neighbor case doesn't do anything with coordinate transform mode, and also
+        # nearest_neighbors and align_corners combination in topi doesn't match the output of this
+        # function.
         scale_h = out_height / in_height
         scale_w = out_width / in_width
         b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
@@ -88,15 +91,14 @@ def test_resize():
     verify_resize(4, 16, 32, 32, 50, 50, "NHWC")
     # Scale NHWC + Align Corners
     verify_resize(6, 32, 64, 64, 20, 20, "NHWC")
-    # Nearest + Fractional
-    verify_resize(4, 16, 32, 32, 50, 50, "NCHW", "asymmetric", method="nearest_neighbor")
-    verify_resize(4, 16, 32, 32, 50, 50, "NHWC", "asymmetric", method="nearest_neighbor")
-    # half_pixel
-    verify_resize(4, 16, 16, 16, 32, 32, "NCHW", "half_pixel", method="bilinear")
-    verify_resize(4, 16, 16, 16, 32, 32, "NHWC", "half_pixel", method="bilinear")
-    # Bilinear + Fractional
-    verify_resize(4, 16, 32, 32, 50, 50, "NCHW", "asymmetric", method="bilinear")
-    verify_resize(4, 16, 32, 32, 50, 50, "NHWC", "asymmetric", method="bilinear")
+    for method in ["nearest_neighbor", "bilinear"]:
+        for coord_trans in ["asymmetric", "half_pixel", "align_corners"]:
+            for layout in ["NCHW", "NHWC"]:
+                # TODO: When topi test has an option for align corners and nearest neighbor that
+                # produces correct results, re-enable it.
+                if coord_trans == "align_corners" and method == "nearest_neighbor":
+                    continue
+                verify_resize(4, 16, 32, 32, 50, 50, layout, coord_trans, method=method)
 
 
 def verify_resize3d(
