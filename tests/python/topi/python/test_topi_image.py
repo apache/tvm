@@ -100,6 +100,7 @@ def test_resize():
                     continue
                 verify_resize(4, 16, 32, 32, 50, 50, layout, coord_trans, method=method)
 
+
 def verify_resize3d(
     batch,
     in_channel,
