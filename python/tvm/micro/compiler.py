@@ -218,6 +218,12 @@ class Compiler(metaclass=abc.ABCMeta):
         return self.flasher_factory.override_kw(**kw).instantiate()
 
 
+class CompilerFactory(class_factory.ClassFactory):
+    """A ClassFactory for Compiler instances."""
+
+    SUPERCLASS = Compiler
+
+
 class IncompatibleTargetError(Exception):
     """Raised when source files specify a target that differs from the compiler target."""
 
