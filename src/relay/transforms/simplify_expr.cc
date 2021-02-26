@@ -132,6 +132,8 @@ class SimplifyConvPad : public SimplifyPattern {
     std::string data_layout = attrs->data_layout;
     std::set<char> image_dims({'H', 'W', 'D'});
     Array<PrimExpr> padding;
+    // If we're padding a non-spatial dimension, don't simplify
+    // Convolution can only pad on spatial axes
     for (size_t i = 0; i < param->pad_width.size(); ++i) {
       if (!image_dims.count(data_layout[i])) {
         for (size_t j = 0; j < param->pad_width[i].size(); ++j) {
