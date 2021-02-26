@@ -20,9 +20,10 @@ Provides support to auto-tuning networks using AutoTVM.
 import os.path
 import logging
 import time
-import tvm
 
 from urllib.parse import urlparse
+
+import tvm
 
 from tvm import autotvm, auto_scheduler
 from tvm.autotvm.tuner import GATuner
