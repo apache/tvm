@@ -66,6 +66,7 @@ _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
 
+
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
 
@@ -113,6 +114,22 @@ def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
 
 
 _reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows_strategy)
+
+# sparse_reshape
+@_reg.register_compute("sparse_reshape")
+def compute_reshape(attrs, inputs, output_type):
+    """Compute definition of sparse_reshape"""
+
+    return topi.sparse_reshape(
+        inputs[0],
+        inputs[1],
+        inputs[2],
+        output_type.fields[0].shape,
+        output_type.fields[1].shape,
+    )
+
+
+_reg.register_strategy("sparse_reshape", strategy.sparse_reshape_strategy)
 
 # scatter_add
 @_reg.register_compute("scatter_add")
@@ -513,6 +530,24 @@ def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
 @_reg.register_shape_func("sparse_fill_empty_rows", True)
 def sparse_fill_empty_rows_func(attrs, inputs, _):
     return _sparse_fill_empty_rows_shape_func(inputs[0], inputs[2])
+
+
+@script
+def _sparse_reshape_shape_func(sparse_indices_shape, prev_shape_shape, new_shape_shape):
+    indices_shape = output_tensor((2,), "int64")
+    indices_shape[0] = int64(sparse_indices_shape[0])
+    indices_shape[1] = int64(new_shape_shape[0])
+    shape_tensor = output_tensor((1,), "int64")
+    shape_tensor[0] = int64(new_shape_shape[0])
+    return (indices_shape, shape_tensor)
+
+
+@_reg.register_shape_func("sparse_reshape", False)
+def sparse_reshape_shape_func(attrs, inputs, _):
+    """
+    Shape func for sparse_reshape.
+    """
+    return _sparse_reshape_shape_func(inputs[0], inputs[1], inputs[2])
 
 
 @script

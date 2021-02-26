@@ -1312,6 +1312,229 @@ def test_sparse_to_dense():
 
 
 @tvm.testing.uses_gpu
+@pytest.mark.parametrize(
+    "sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np",
+    [
+        (
+            np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([2, 3, 6], dtype=np.int32),
+            np.array([9, -1], dtype=np.int32),
+        ),
+        (
+            np.array(
+                [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 1, 2, 3],
+                    [0, 1, 0, 3, 5],
+                    [1, 0, 0, 4, 6],
+                    [1, 2, 3, 6, 8],
+                ],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7, 9], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([9, 4], dtype=np.int32),
+            np.array([2, -1, 6], dtype=np.int32),
+        ),
+        (
+            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([9, 4], dtype=np.int64),
+            np.array([-1], dtype=np.int64),
+        ),
+        (
+            np.array([[0], [5], [10], [20], [24]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([25], dtype=np.int32),
+            np.array([5, 5], dtype=np.int32),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([500, 20], dtype=np.int32),
+            np.array([500, -1], dtype=np.int32),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([250, 40], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int32),
+            np.array([], dtype=np.int32),
+            np.array([4], dtype=np.int32),
+            np.array([2, -1], dtype=np.int32),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, 2], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 2), dtype=np.int32),
+            np.array([], dtype=np.int32),
+            np.array([3, 6], dtype=np.int32),
+            np.array([-1, 2], dtype=np.int32),
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn):
+    def ref_sparse_reshape(
+        sparse_indices: np.ndarray,
+        prev_shape: np.ndarray,
+        new_shape: np.ndarray,
+    ):
+        """
+        This function calculates the expected output of sparseshape operator given the inputs.
+        """
+
+        new_sparse_indices = np.ones(
+            (sparse_indices.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
+        )
+        multipliers = np.ones(prev_shape.shape[0])
+        dividers = np.ones(new_shape.shape[0])
+        total_ele = np.prod(prev_shape)
+        division_total_ele = 1
+        for i in range(new_shape.shape[0]):
+            if new_shape[i] == -1:
+                continue
+            division_total_ele *= new_shape[i]
+        for i in range(prev_shape.shape[0] - 2, -1, -1):
+            multipliers[i] = prev_shape[i + 1] * multipliers[i + 1]
+
+        for i in range(len(new_shape)):
+            if new_shape[i] == -1:
+                new_shape[i] = total_ele // division_total_ele
+
+        if np.array_equal(prev_shape, new_shape):
+            return sparse_indices, prev_shape
+
+        for i in range(new_shape.shape[0] - 2, -1, -1):
+            dividers[i] = new_shape[i + 1] * dividers[i + 1]
+
+        for row_num, sparse_row in enumerate(sparse_indices):
+            flat_idx = 0
+            if len(sparse_indices.shape) != 1:
+                for i, ele in enumerate(sparse_row):
+                    flat_idx += sparse_row[i] * multipliers[i]
+            else:
+                flat_idx += sparse_row
+            if len(new_sparse_indices.shape) != 1:
+                for i in range(new_sparse_indices.shape[1]):
+                    new_sparse_indices[row_num][i] = flat_idx // dividers[i]
+                    flat_idx = flat_idx % dividers[i]
+            else:
+                new_sparse_indices[row_num] = flat_idx
+
+        return new_sparse_indices, new_shape
+
+    def verify_sparse_reshape(
+        sparse_indices_np: np.ndarray,
+        sparse_values_np: np.ndarray,
+        prev_shape_np: np.ndarray,
+        new_shape_np: np.ndarray,
+    ):
+        """
+        This function verifies the relay output of sparse_reshape with its expected output.
+        """
+        if use_dyn:
+            sparse_indices = relay.var(
+                "sparse_indices",
+                shape=[relay.Any(), relay.Any()],
+                dtype=str(sparse_indices_np.dtype),
+            )
+            prev_shape = relay.var(
+                "prev_shape",
+                shape=[relay.Any()],
+                dtype=str(prev_shape_np.dtype),
+            )
+            new_shape = relay.var(
+                "new_shape",
+                shape=[relay.Any()],
+                dtype=str(new_shape_np.dtype),
+            )
+        else:
+            sparse_indices = relay.var(
+                "sparse_indices",
+                relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
+            )
+            prev_shape = relay.var(
+                "prev_shape", relay.TensorType(prev_shape_np.shape, str(prev_shape_np.dtype))
+            )
+            new_shape = relay.var(
+                "new_shape", relay.TensorType(new_shape_np.shape, str(new_shape_np.dtype))
+            )
+        z = relay.op.sparse_reshape(sparse_indices, prev_shape, new_shape).astuple()
+
+        func = relay.Function([sparse_indices, prev_shape, new_shape], z)
+
+        ref_res = ref_sparse_reshape(sparse_indices_np, prev_shape_np, new_shape_np)
+        outputs = run_infer_type(z)
+        new_sparse_indices_infer_type, new_shape_infer_type = (
+            outputs.checked_type.fields[0].dtype,
+            outputs.checked_type.fields[1].dtype,
+        )
+
+        assert new_sparse_indices_infer_type == sparse_indices_np.dtype
+        assert new_shape_infer_type == new_shape_np.dtype
+        verify_func(
+            func,
+            [sparse_indices_np, prev_shape_np, new_shape_np],
+            ref_res,
+        )
+
+    verify_sparse_reshape(
+        sparse_indices_np,
+        sparse_values_np,
+        prev_shape_np,
+        new_shape_np,
+    )
+
+
+def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
+    assert isinstance(data, list)
+    for target, ctx in target_ctx:
+        for kind in ["vm"]:
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate()(*data)
+            if isinstance(op_res, tvm.runtime.container.ADT):
+                assert len(op_res) == len(
+                    ref_res
+                ), "Outputs from TVM and Python implementation must be equal "
+
+                for op_result, ref_result in zip(op_res, ref_res):
+                    tvm.testing.assert_allclose(op_result.asnumpy(), ref_result, rtol=1e-5)
+            else:
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            relay.backend.compile_engine.get().clear()
+
+
+@tvm.testing.uses_gpu
 def test_adv_index():
     def verify_adv_index(data_shape, index_shapes):
         dtype = "float32"
