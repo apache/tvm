@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
-import tvm
+import sys
 import pytest
+import tvm
 from tvm import te
 from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, hexagon
 
@@ -248,22 +249,4 @@ def test_target_host_merge_3():
 
 
 if __name__ == "__main__":
-    test_target_dispatch()
-    test_target_string_parse()
-    test_target_create()
-    test_target_config()
-    test_config_map()
-    test_composite_target()
-    test_target_tag_0()
-    test_target_tag_1()
-    test_list_kinds()
-    test_target_host_tags()
-    test_target_host_tag_dict()
-    test_target_host_single_dict()
-    test_target_host_single_string()
-    test_target_host_single_string_with_tag()
-    test_target_host_warning()
-    test_target_host_merge_0()
-    test_target_host_merge_1()
-    test_target_host_merge_2()
-    test_target_host_merge_3()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
