@@ -3772,5 +3772,52 @@ RELAY_REGISTER_OP("cumsum")
     .add_type_rel("Cumsum", CumsumRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
+TVM_REGISTER_NODE_TYPE(UniqueAttrs);
+
+bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // types: [data, result]
+  ICHECK_EQ(types.size(), 2) << "Unique: expect 2 types but " << types.size() << " provided";
+  ICHECK_EQ(num_inputs, 1) << "Unique: expect 1 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Unique: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  const int ndim = static_cast<int>(data->shape.size());
+  ICHECK_EQ(ndim, 1) << "Unique: input must be 1-D tensor";
+  ICHECK_EQ(data->dtype.is_int(), true) << "Unique: input must have int32 or int64 dtype";
+  std::vector<Type> fields;
+  fields.push_back(TensorType(data->shape, data->dtype));               // unique
+  fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
+  fields.push_back(TensorType(Array<PrimExpr>{1}, DataType::Int(32)));  // num_unique
+  const auto* param = attrs.as<UniqueAttrs>();
+  if (param->return_counts) {
+    fields.push_back(TensorType(data->shape, DataType::Int(32)));  // counts
+  }
+  reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeUnique(Expr data, bool sorted, bool return_counts) {
+  auto attrs = make_object<UniqueAttrs>();
+  attrs->sorted = sorted;
+  attrs->return_counts = return_counts;
+  static const Op& op = Op::Get("unique");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.unique").set_body_typed(MakeUnique);
+
+RELAY_REGISTER_OP("unique")
+    .describe(
+        R"code(This operation returns the unique elements and the new index of each item in a given 1-D array.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_type_rel("unique", UniqueRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 }  // namespace relay
 }  // namespace tvm

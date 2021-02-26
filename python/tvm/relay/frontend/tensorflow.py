@@ -2471,6 +2471,30 @@ def _LSTMBlockCell():
     return _impl
 
 
+def _unique(return_counts=True):
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 1
+        data = inputs[0]
+        if return_counts:
+            [unique, indices, num_uniq, counts] = _op.unique(
+                data, is_sorted=False, return_counts=True
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+            return _expr.TupleWrapper(
+                _expr.Tuple([unique_sliced, indices, counts_sliced]),
+                3,
+            )
+        [unique, indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
+        unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+        return _expr.TupleWrapper(
+            _expr.Tuple([unique_sliced, indices]),
+            2,
+        )
+
+    return _impl
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2650,6 +2674,8 @@ _convert_map = {
     "TopKV2": _topk(),
     "Transpose": _transpose(),
     "TruncateMod": _elemwise("mod"),
+    "Unique": _unique(False),
+    "UniqueWithCounts": _unique(True),
     "Unpack": _unpack(),
     "UnravelIndex": _unravel_index(),
     "Where": _where(),

@@ -1453,5 +1453,58 @@ def test_scatter_nd(target, ctx):
     verify_scatter_nd_with_stack(data, indices, shape, out)
 
 
+def test_unique():
+    def calc_numpy_unique(data, is_sorted=False):
+        uniq, index, inverse, counts = np.unique(
+            data, return_index=True, return_inverse=True, return_counts=True
+        )
+        num_uniq = np.array([len(uniq)]).astype("int32")
+        if not is_sorted:
+            order = np.argsort(index)
+            reverse_order = np.argsort(order)
+            uniq = uniq[order].astype(data.dtype)
+            inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
+            counts = counts[order].astype("int32")
+        return [uniq.astype(data.dtype), inverse.astype("int32"), counts, num_uniq]
+
+    def verify_unique(n, dtype, is_dyn=False, is_sorted=False, return_counts=False):
+        if is_dyn:
+            x = relay.var("x", relay.TensorType([relay.Any()], dtype))
+        else:
+            x = relay.var("x", relay.TensorType([n], dtype))
+        outs = relay.unique(x, is_sorted, return_counts)
+        outs = outs.astuple()
+        func = relay.Function([x], outs)
+        x_data = np.random.randint(50, size=n).astype(dtype)
+
+        if is_dyn:
+            backends = ["vm", "debug"]
+        else:
+            backends = ["graph", "debug"]
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in backends:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                tvm_res = intrp.evaluate()(x_data)
+                np_res = calc_numpy_unique(x_data, is_sorted)
+                num_unique = np_res[3][0]
+                assert num_unique == tvm_res[2].asnumpy()[0]
+                # unique
+                tvm.testing.assert_allclose(tvm_res[0].asnumpy()[:num_unique], np_res[0], rtol=1e-5)
+                # inverse_indices
+                tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_res[1], rtol=1e-5)
+                # counts
+                if return_counts:
+                    tvm.testing.assert_allclose(
+                        tvm_res[3].asnumpy()[:num_unique], np_res[2], rtol=1e-5
+                    )
+
+    for dtype in ["int32", "int64"]:
+        for i in range(8):
+            is_dyn, is_sorted, return_counts = bool(i & 1), bool(i & 2), bool(i & 4)
+            verify_unique(10, dtype, is_dyn, is_sorted, return_counts)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

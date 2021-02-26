@@ -43,6 +43,7 @@ from .scatter_add import *
 from .argwhere import *
 from .cumsum import *
 from .einsum import *
+from .unique import *
 from . import generic
 from . import nn
 from . import x86

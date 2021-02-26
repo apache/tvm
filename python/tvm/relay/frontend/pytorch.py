@@ -2157,6 +2157,24 @@ class PyTorchOpConverter:
         is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
         return _expr.const(is_float)
 
+    def unique(self, inputs, input_types):
+        assert len(inputs) == 4
+        [data, is_sorted, return_inverse, return_counts] = inputs
+        if not is_sorted:
+            logging.warning("TVM always assumes sorted=True for torch.unique")
+            is_sorted = True
+        if return_counts:
+            [unique, indices, num_uniq, counts] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=True
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, indices, counts_sliced)
+        else:
+            [unique, indices, num_uniq] = _op.unique(data, is_sorted=is_sorted, return_counts=False)
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, indices)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2363,6 +2381,7 @@ class PyTorchOpConverter:
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
+            "aten::_unique2": self.unique,
         }
 
     def update_convert_map(self, custom_map):

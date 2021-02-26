@@ -1463,3 +1463,57 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         -> [1, 1, 2, 2, 3, 4, 4]
     """
     return _make.cumsum(data, axis, dtype, exclusive)
+
+
+def unique(data, is_sorted=True, return_counts=False):
+    """
+    Find the unique elements of a 1-D tensor. Please note `output` and `counts` are all padded to
+    have the same length of `data` and element with index >= num_unique[0] has undefined value.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        A 1-D tensor of integers.
+
+    sorted : bool
+        Whether to sort the unique elements in ascending order before returning as output.
+
+    return_counts : bool
+        Whether to return the count of each unique element.
+
+    Returns
+    -------
+    output : relay.Expr
+        A 1-D tensor containing the unique elements of the input data tensor.
+
+    indices : relay.Expr
+        A 1-D tensor containing the index of each data element in the output tensor.
+
+    num_unique : relay.Expr
+        A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
+
+    counts (optional) : relay.Expr
+        A 1-D tensor containing the count of each unique element in the output.
+
+    Examples
+    --------
+    .. code-block:: python
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+
+        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
+
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
+        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
+        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique     =  [5]
+    """
+    if return_counts:
+        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
+    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)

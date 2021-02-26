@@ -1432,3 +1432,24 @@ def cumsum_strategy(attrs, inputs, out_type, target):
         name="cumsum.generic",
     )
     return strategy
+
+
+def wrap_compute_unique(topi_compute):
+    """Wrap unique topi compute"""
+
+    def _compute_unique(attrs, inputs, _):
+        return topi_compute(inputs[0], attrs.sorted, attrs.return_counts)
+
+    return _compute_unique
+
+
+@override_native_generic_func("unique_strategy")
+def unique_strategy(attrs, inputs, out_type, target):
+    """unique generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_unique(topi.unique),
+        wrap_topi_schedule(topi.generic.schedule_unique),
+        name="unique.generic",
+    )
+    return strategy
