@@ -55,17 +55,6 @@ def list_shape_of(tensor, ndim):
     ]
 
 
-def concat_dynamic_shape(shape_list):
-    new_shape = []
-    for dim in shape_list:
-        if isinstance(dim, (int, tvm.tir.IntImm)):
-            new_shape.append(_op.expand_dims(_op.const(dim, "int32"), axis=0))
-        else:  # expected to be tensor[1]
-            new_shape.append(dim)
-
-    return _op.concatenate(_op.Tuple(new_shape), axis=0)
-
-
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
