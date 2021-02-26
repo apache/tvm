@@ -21,7 +21,6 @@ import tvm
 import tvm.topi.testing
 import numpy as np
 import pytest
-from numpy.random import MT19937, RandomState, SeedSequence
 from tvm import relay
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.target.datatype import (
@@ -66,7 +65,7 @@ def get_cat_image(dimensions):
 
 # we use a random seed to generate input_data
 # to guarantee stable tests
-rs = RandomState(MT19937(SeedSequence(123456789)))
+np.random.seed(0)
 
 
 def convert_ndarray(dst_dtype, array):
@@ -341,7 +340,7 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         t1 = relay.TensorType(shape, src_dtype)
         x = relay.var("x", t1)
         z = op(x)
-        x_data = rs.rand(*shape).astype(t1.dtype)
+        x_data = np.random.rand(*shape).astype(t1.dtype)
 
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
@@ -372,8 +371,8 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         x = relay.var("x", t1)
         y = relay.var("y", t2)
         z = opfunc(x, y)
-        x_data = rs.rand(*shape1).astype(t1.dtype)
-        y_data = rs.rand(*shape2).astype(t2.dtype)
+        x_data = np.random.rand(*shape1).astype(t1.dtype)
+        y_data = np.random.rand(*shape2).astype(t2.dtype)
         module = tvm.IRModule.from_expr(relay.Function([x, y], z))
 
         compare(module, (x_data, y_data), src_dtype, dst_dtype, rtol, atol)
@@ -416,8 +415,8 @@ def run_conv2d(src_dtype, dst_dtype, rtol=1e-7, atol=1e-4):
         w = relay.var("w", shape=kshape, dtype=src_dtype)
         y = relay.nn.conv2d(x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
         module = tvm.IRModule.from_expr(relay.Function([x, w], y))
-        data = rs.uniform(-scale, scale, size=dshape).astype(src_dtype)
-        kernel = rs.uniform(-scale, scale, size=kshape).astype(src_dtype)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(src_dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(src_dtype)
 
         compare(module, (data, kernel), src_dtype, dst_dtype, rtol, atol)
 
@@ -497,7 +496,7 @@ def run_batchnorm(src_dtype, dst_dtype, rtol=1e-6, atol=1e-6):
     bn = batch_norm_infer(data=x, epsilon=2e-5, scale=False, name="bn_x")
     f = relay.Function(relay.analysis.free_vars(bn), bn)
 
-    x_data = rs.rand(*shape).astype(t.dtype)
+    x_data = np.random.rand(*shape).astype(t.dtype)
     module = tvm.IRModule.from_expr(f)
 
     zero_data = np.zeros((32), "float32")

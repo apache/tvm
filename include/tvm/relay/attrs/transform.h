@@ -452,6 +452,18 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   }
 };
 
+/*! \brief Attributes used in unique operator */
+struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
+  bool sorted;
+  bool return_counts;
+  TVM_DECLARE_ATTRS(UniqueAttrs, "relay.attrs.UniqueAttrs") {
+    TVM_ATTR_FIELD(sorted).describe("Whether the unique elements are sorted").set_default(true);
+    TVM_ATTR_FIELD(return_counts)
+        .describe("Whether to return an additional tensor with counts of each unique elements")
+        .set_default(false);
+  }
+};  // struct UniqueAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
