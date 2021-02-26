@@ -32,7 +32,7 @@ logger = logging.getLogger("TVMC")
 # to be used in the PassContext (if any), and a function
 # responsible for partitioning to that target.
 REGISTERED_CODEGEN = {
-    "acl": {
+    "compute-library": {
         "config_key": None,
         "pass_pipeline": partition_for_arm_compute_lib,
     },

@@ -1008,29 +1008,40 @@ def test_onehot():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_gemm():
-    a_shape = (4, 3)
-    b_shape = (3, 4)
+def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
     out_shape = [a_shape[0], b_shape[1]]
-
     a_array = np.random.uniform(size=a_shape).astype("float32")
     b_array = np.random.uniform(size=b_shape).astype("float32")
+    input_names = ["a", "b"]
+    input_nodes = [
+        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+    ]
+    input_values = [a_array, b_array]
+    if c_shape is not None:
+        c_array = np.random.uniform(size=c_shape).astype("float32")
+        input_names.append("c")
+        input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
+        input_values.append(c_array)
 
-    gemm_node = helper.make_node("Gemm", ["a", "b"], ["out"])
+    gemm_node = helper.make_node("Gemm", input_names, ["out"])
 
     graph = helper.make_graph(
         [gemm_node],
         "gemm_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
-        ],
+        inputs=input_nodes,
         outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
     )
 
     model = helper.make_model(graph, producer_name="gemm_test")
-    verify_with_ort_with_inputs(model, [a_array, b_array])
+    verify_with_ort_with_inputs(model, input_values, freeze_params=freeze_params)
+
+
+@tvm.testing.uses_gpu
+def test_gemm():
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True)
 
 
 @tvm.testing.uses_gpu

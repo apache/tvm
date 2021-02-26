@@ -385,23 +385,28 @@ class PyTorchOpConverter:
 
     def slice(self, inputs, input_types):
         axis_dtype = "int64"
-        index_size_limit = 2 ** 63 - 1
+        index_size_limit = sys.maxsize
         data = inputs[0]
         dshape = self.infer_shape(data)
         ndim = len(dshape)
-        end = []
-        for dim in dshape:
-            if isinstance(dim, tvm.tir.Any):
-                end = _op.shape_of(data)
-                break
-            end.append(int(dim))
-
-        begin = [0] * ndim
         dim = int(inputs[1])
-        stride = int(inputs[4])
-        begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
+        stride = inputs[4]
+
+        target_begin, is_begin_const = try_infer_value(
+            inputs[2], lambda ret: np.asscalar(ret.astype(np.int))
+        )
+        target_end, is_end_const = try_infer_value(
+            inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+        )
+
+        # A fast path when slicing is nop.
+        if target_begin == 0 and target_end >= index_size_limit and stride == 1:
+            return data
 
         # Process begin
+        begin = [0] * ndim
+        begin[dim] = target_begin
+
         if not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
@@ -414,27 +419,15 @@ class PyTorchOpConverter:
             if str(btype) != axis_dtype:
                 begin = _op.cast(begin, axis_dtype)
 
-        if isinstance(inputs[3], str) and inputs[3].isdigit():
-            target_end = int(inputs[3])
-        else:
-            if isinstance(inputs[3], _expr.Expr):
-                target_end, _ = try_infer_value(
-                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
-                )
-            else:
-                target_end = inputs[3]
-
-            if isinstance(target_end, int) and target_end >= index_size_limit:
-                # Quick path for original data.
-                if (
-                    isinstance(begin, _expr.Constant)
-                    and begin.data.asnumpy().tolist()[dim] == 0
-                    and stride == 1
-                ):
-                    return data
-                target_end = dshape[dim]
-
         # Process end
+        if isinstance(target_end, int) and target_end >= index_size_limit:
+            target_end = dshape[dim]
+
+        if any([isinstance(d, tvm.tir.Any) for d in dshape]):
+            end = _op.shape_of(data)
+        else:
+            end = dshape
+
         if isinstance(target_end, int):
             if isinstance(end, list):
                 end[dim] = target_end
@@ -474,7 +467,7 @@ class PyTorchOpConverter:
                 end = _op.cast(end, axis_dtype)
 
         strides = [1] * ndim
-        strides[dim] = int(inputs[4])
+        strides[dim] = stride
 
         return _op.transform.strided_slice(
             data, begin=begin, end=end, strides=strides, slice_mode="end"
@@ -832,11 +825,19 @@ class PyTorchOpConverter:
         output_size = inputs[1]
         return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
+    @staticmethod
+    def convert_const_list(data):
+        if isinstance(data, list):
+            for i, _ in enumerate(data):
+                if isinstance(data[i], _expr.Expr):
+                    data[i] = int(_infer_value_simulated(data[i], {}).asnumpy())
+        return data
+
     def maxpool_2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -1316,8 +1317,8 @@ class PyTorchOpConverter:
     def avg_pool2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
@@ -2164,6 +2165,24 @@ class PyTorchOpConverter:
         is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
         return _expr.const(is_float)
 
+    def unique(self, inputs, input_types):
+        assert len(inputs) == 4
+        [data, is_sorted, return_inverse, return_counts] = inputs
+        if not is_sorted:
+            logging.warning("TVM always assumes sorted=True for torch.unique")
+            is_sorted = True
+        if return_counts:
+            [unique, indices, num_uniq, counts] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=True
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, indices, counts_sliced)
+        else:
+            [unique, indices, num_uniq] = _op.unique(data, is_sorted=is_sorted, return_counts=False)
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, indices)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2370,6 +2389,7 @@ class PyTorchOpConverter:
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
+            "aten::_unique2": self.unique,
         }
 
     def update_convert_map(self, custom_map):
