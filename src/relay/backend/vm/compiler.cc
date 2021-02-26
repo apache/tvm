@@ -376,11 +376,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     CompileMatch(match);
   }
 
-  void VisitExpr_(const LetNode* let_node) {
-    DLOG(INFO) << PrettyPrint(let_node->value);
-    this->VisitExpr(let_node->value);
-    var_register_map_.insert({let_node->var, this->last_register_});
-    this->VisitExpr(let_node->body);
+  void VisitExpr_(const LetNode* l) final {
+    Expr let_binding = GetRef<Expr>(l);
+    const LetNode* let;
+    while ((let = let_binding.as<LetNode>())) {
+      VisitExpr(let->value);
+      var_register_map_.insert({let->var, this->last_register_});
+      let_binding = let->body;
+    }
+
+    VisitExpr(let_binding);
   }
 
   void VisitExpr_(const TupleGetItemNode* get_node) {
