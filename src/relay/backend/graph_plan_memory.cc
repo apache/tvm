@@ -205,13 +205,13 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   }
 
   // Run storage allocation for a function.
-  Map<Expr, Array<IntegerArray> > Plan(const Function& func) {
+  Map<Expr, runtime::ADT> Plan(const Function& func) {
     prototype_ = StorageAllocaInit(&arena_).GetInitTokenMap(func);
     this->Run(func);
 
     // The value of smap contains two integer arrays where the first array
     // contains the planned storage ids and the second holds the device types.
-    Map<Expr, Array<IntegerArray> > smap;
+    Map<Expr, runtime::ADT> smap;
     int num_annotated_nodes = 0;
     int num_nodes = 0;
 
@@ -226,7 +226,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         storage_ids.push_back(tok->storage_id);
         device_types.push_back(tok->device_type);
       }
-      smap.Set(GetRef<Expr>(kv.first), Array<IntegerArray>({storage_ids, device_types}));
+      std::vector<ObjectRef> fields{IntegerArray{storage_ids}, IntegerArray{device_types}};
+      smap.Set(GetRef<Expr>(kv.first), runtime::ADT::Tuple(fields));
     }
     // Either all or none of the nodes should be annotated.
     if (num_annotated_nodes != 0 && num_annotated_nodes != num_nodes) {
@@ -384,7 +385,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   std::unordered_map<const ExprNode*, std::vector<StorageToken*> > prototype_;
 };
 
-Map<Expr, Array<IntegerArray> > GraphPlanMemory(const Function& func) {
+Map<Expr, runtime::ADT> GraphPlanMemory(const Function& func) {
   return StorageAllocator().Plan(func);
 }
 

@@ -253,13 +253,13 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     ICHECK_EQ(storage_device_info.size(), 2);
     // storage
     std::vector<int64_t> storage_info;
-    for (auto& v : storage_device_info[0]) {
+    for (auto& v : Downcast<IntegerArray>(storage_device_info[0])) {
       storage_info.push_back(v->value);
     }
     node->attrs_["storage_id"] = std::move(storage_info);
     // type
     std::vector<int64_t> device_types;
-    for (auto& v : storage_device_info[1]) {
+    for (auto& v : Downcast<IntegerArray>(storage_device_info[1])) {
       device_types.push_back(v->value);
     }
     size_t num_unknown_devices = std::count(device_types.begin(), device_types.end(), 0);
@@ -320,7 +320,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     auto node = GraphInputNode::make_node_ptr(name, GraphAttrs());
     auto to_return = AddNode(node, expr);
     CHECK_EQ(to_return.size(), 1) << "Expected exactly 1 parameter node created";
-    param_storage_ids_[name] = storage_device_map_[expr][0][0]->value;
+    param_storage_ids_[name] = Downcast<IntegerArray>(storage_device_map_[expr][0])[0]->value;
     params_[name] = op->data;
     return to_return;
   }
@@ -382,7 +382,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
 
     ICHECK_GE(storage_device_map_.count(expr), 0);
     auto& device_type = storage_device_map_[expr][1];
-    auto call_dev_type = device_type[0]->value;
+    auto call_dev_type = Downcast<IntegerArray>(device_type)[0]->value;
     // Normal Relay Function
     if (targets_.size() == 1) {
       // homogeneous execution.
@@ -548,7 +548,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
   std::unordered_map<std::string, runtime::NDArray> params_;
   std::unordered_map<std::string, int64_t> param_storage_ids_;
   /*! \brief plan memory of device result */
-  Map<Expr, Array<IntegerArray>> storage_device_map_;
+  Map<Expr, runtime::ADT> storage_device_map_;
   /*! \brief lowered funcs */
   std::unordered_map<std::string, IRModule> lowered_funcs_;
   /*! \brief name map */
