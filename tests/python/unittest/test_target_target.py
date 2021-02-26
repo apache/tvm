@@ -216,7 +216,9 @@ def test_target_host_warning():
     Confirm that constructing a target with invalid
     attributes fails as expected.
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="Adding a host to a target whose host field has been defined"
+    ):
         tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
 
 
@@ -239,12 +241,14 @@ def test_target_host_merge_1():
 
 
 def test_target_host_merge_2():
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="Adding a host to a target whose host field has been defined"
+    ):
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
 
 
 def test_target_host_merge_3():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"target \(host\) has to be a string or dictionary."):
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
 
 
