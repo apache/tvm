@@ -21,6 +21,10 @@ from .runtime.module import Module
 from . import get_global_func
 
 
+class LibInfoUnavailableError(Exception):
+    """Raised when libinfo is not available e.g. because libtvm_runtime.so is used."""
+
+
 def libinfo():
     """Returns a dictionary containing compile-time info, including cmake flags and git commit hash
 
@@ -29,6 +33,10 @@ def libinfo():
     info: Dict[str, str]
         The dictionary of compile-time info.
     """
+    local_dict = globals()
+    if 'GetLibInfo' not in local_dict:
+        raise LibInfoUnavailableError()
+
     return {k: v for k, v in GetLibInfo().items()}  # pylint: disable=unnecessary-comprehension
 
 
