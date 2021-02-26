@@ -250,13 +250,19 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     size_t count = storage_device_map_.count(expr);
     ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
     auto storage_device_info = storage_device_map_[expr];
-    ICHECK_EQ(storage_device_info.size(), 2);
+    ICHECK_EQ(storage_device_info.size(), 3);
     // storage
     std::vector<int64_t> storage_info;
     for (auto& v : Downcast<IntegerArray>(storage_device_info[0])) {
       storage_info.push_back(v->value);
     }
     node->attrs_["storage_id"] = std::move(storage_info);
+    // storage scope
+    std::vector<std::string> storage_scope;
+    for (auto& v : Downcast<Array<String>>(storage_device_info[2])) {
+      storage_scope.push_back(std::string(v));
+    }
+    node->attrs_["storage_scope"] = std::move(storage_scope);
     // type
     std::vector<int64_t> device_types;
     for (auto& v : Downcast<IntegerArray>(storage_device_info[1])) {
@@ -472,12 +478,14 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     size_t num_entry = 0;
     ShapeVector shapes;
     std::vector<size_t> storage_ids;
+    std::vector<std::string> storage_scopes;
     std::vector<size_t> device_types;
     std::vector<std::string> dltypes;
     std::vector<size_t> node_row_ptr{0};
     for (auto node : nodes_) {
       const auto& shape_vec = dmlc::get<ShapeVector>(node->attrs_["shape"]);
       const auto& storage_id = dmlc::get<std::vector<int64_t>>(node->attrs_["storage_id"]);
+      const auto& storage_scope = dmlc::get<std::vector<std::string>>(node->attrs_["storage_scope"]);
       const auto& dtype_vec = dmlc::get<std::vector<std::string>>(node->attrs_["dtype"]);
 
       ICHECK_EQ(node->num_outputs_, shape_vec.size());
@@ -486,6 +494,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       shapes.insert(shapes.end(), shape_vec.begin(), shape_vec.end());
       dltypes.insert(dltypes.end(), dtype_vec.begin(), dtype_vec.end());
       storage_ids.insert(storage_ids.end(), storage_id.begin(), storage_id.end());
+      storage_scopes.insert(storage_scopes.end(), storage_scope.begin(), storage_scope.end());
       if (node->attrs_.count("device_index")) {
         const auto& dev_types = dmlc::get<std::vector<int64_t>>(node->attrs_["device_index"]);
         device_types.insert(device_types.end(), dev_types.begin(), dev_types.end());
@@ -501,6 +510,8 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     attrs["shape"].emplace_back(shapes);
     attrs["storage_id"].emplace_back(std::string("list_int"));
     attrs["storage_id"].emplace_back(storage_ids);
+    attrs["storage_scope"].emplace_back(std::string("list_str"));
+    attrs["storage_scope"].emplace_back(storage_scopes);
     if (device_types.size()) {
       attrs["device_index"].emplace_back(std::string("list_int"));
       attrs["device_index"].emplace_back(device_types);
