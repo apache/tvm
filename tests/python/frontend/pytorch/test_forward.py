@@ -1957,7 +1957,7 @@ def test_custom_conversion_map():
 
 
 @tvm.testing.uses_gpu
-def test_segmentaton_models():
+def test_segmentation_models():
     class SegmentationModelWrapper(Module):
         def __init__(self, model):
             super().__init__()
@@ -3811,6 +3811,7 @@ if __name__ == "__main__":
     test_forward_unbind()
     test_forward_nonzero()
     test_forward_scatter()
+    test_forward_index_put()
     test_numel()
     test_bincount()
     test_cumsum()
@@ -3836,7 +3837,7 @@ if __name__ == "__main__":
 
     test_custom_conversion_map()
 
-    test_segmentaton_models()
+    test_segmentation_models()
     test_3d_models()
 
     # Quantization test
