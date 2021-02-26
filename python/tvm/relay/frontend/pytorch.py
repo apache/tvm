@@ -473,6 +473,19 @@ class PyTorchOpConverter:
             data, begin=begin, end=end, strides=strides, slice_mode="end"
         )
 
+    def narrow(self, inputs, input_types):
+        # Inputs are:
+        # 0 - the tensor to narrow
+        # 1 - the dimension along which to narrow
+        # 2 - the starting dimension
+        # 3 - the distance to the ending dimension
+        # Lets find the ending dimension
+        end = self.add(inputs[2:4], input_types[2:4])
+        stride = 1
+        slice_input = inputs[:3] + [end, stride]
+        slice_types = input_types + ["int32"]
+        return self.slice(slice_input, slice_types)
+
     def split(self, inputs, input_types):
         data = inputs[0]
         split_size = int(inputs[1])
@@ -2222,6 +2235,7 @@ class PyTorchOpConverter:
             "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
+            "aten::narrow": self.narrow,
             "aten::split": self.split,
             "aten::split_with_sizes": self.split_with_sizes,
             "aten::select": self.select,
