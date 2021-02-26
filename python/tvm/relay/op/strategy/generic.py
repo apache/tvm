@@ -1105,6 +1105,33 @@ def wrap_compute_sparse_fill_empty_rows(topi_compute):
     return _compute_sparse_fill_empty_rows
 
 
+# sparse_reshape
+@override_native_generic_func("sparse_reshape_strategy")
+def sparse_reshape_strategy(attrs, outs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_reshape(topi.sparse_reshape),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="sparse_reshape.generic",
+    )
+    return strategy
+
+
+def wrap_compute_sparse_reshape(topi_compute):
+    """Wrap sparse_reshape compute"""
+
+    def _compute_sparse_reshape(attrs, inputs, output_type):
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            inputs[2],
+            output_type.fields[0].shape,
+            output_type.fields[1].shape,
+        )
+
+    return _compute_sparse_reshape
+
+
 # roi_pool
 @generic_func
 def schedule_roi_pool(attrs, outs, target):

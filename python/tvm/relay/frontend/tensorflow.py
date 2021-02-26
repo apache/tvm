@@ -1157,6 +1157,15 @@ def _sparse_fill_empty_rows():
     return _impl
 
 
+def _sparse_reshape():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
+        return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2650,6 +2659,7 @@ _convert_map = {
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
     "SparseFillEmptyRows": _sparse_fill_empty_rows(),
+    "SparseReshape": _sparse_reshape(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),

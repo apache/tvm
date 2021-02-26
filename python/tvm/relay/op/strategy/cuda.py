@@ -764,6 +764,17 @@ def sparse_dense_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@sparse_reshape_strategy.register(["cuda", "gpu"])
+def sparse_reshape_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_reshape(topi.cuda.sparse_reshape),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="sparse_reshape.cuda",
+    )
+    return strategy
+
+
 @sparse_dense_padded_strategy.register(["cuda", "gpu"])
 def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     """sparse dense cuda strategy"""
