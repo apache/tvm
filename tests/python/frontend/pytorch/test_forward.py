@@ -1506,6 +1506,31 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+def test_forward_narrow():
+    torch.set_grad_enabled(False)
+    input_shape = [3, 3]
+
+    class Narrow1(Module):
+        def forward(self, *args):
+            return torch.narrow(args[0], 0, 0, 2)
+
+    class Narrow2(Module):
+        def forward(self, *args):
+            return torch.narrow(args[0], 1, 1, 2)
+
+    class Narrow3(Module):
+        def forward(self, *args):
+            begin = torch.tensor(2) - torch.tensor(1)
+            length = torch.tensor(1) * torch.tensor(2)
+            return torch.narrow(args[0], 1, begin, length)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Narrow1(), input_data=input_data)
+    verify_model(Narrow2(), input_data=input_data)
+    verify_model(Narrow3(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_mean():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -3758,6 +3783,7 @@ if __name__ == "__main__":
     test_forward_avgpool3d()
     test_forward_dropout()
     test_forward_slice()
+    test_forward_narrow()
     test_forward_mean()
     test_forward_expand()
     test_forward_pow()
