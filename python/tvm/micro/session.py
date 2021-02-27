@@ -34,8 +34,6 @@ from .transport import IoTimeoutError
 from .transport import TransportLogger
 from . import build
 from . import compiler
-from . import micro_binary
-from . import micro_library
 
 try:
     from .base import _rpc_connect
@@ -249,7 +247,9 @@ RPC_SESSION = None
 
 
 @register_func("tvm.micro.create_micro_session")
-def create_micro_session(build_result_filename : str, build_result_bin : bytes, flasher_factory_json : bytes):
+def create_micro_session(
+    build_result_filename: str, build_result_bin: bytes, flasher_factory_json: bytes
+):
     """Unarchive the provided MicroBinary, flash it to device, and open a microTVM RPC session.
 
     This function is meant to be called as a TVM RPC Session Constructor (i.e. by passing it to
@@ -280,12 +280,13 @@ def create_micro_session(build_result_filename : str, build_result_bin : bytes, 
             "established"
         )
 
-    with tempfile.NamedTemporaryFile(prefix=build_result_filename, mode='w+b') as temp_f:
+    with tempfile.NamedTemporaryFile(prefix=build_result_filename, mode="w+b") as temp_f:
         temp_f.write(build_result_bin)
         temp_f.flush()
 
         binary = micro_binary.MicroBinary.unarchive(
-            temp_f.name, os.path.join(tempfile.mkdtemp(), 'binary'))
+            temp_f.name, os.path.join(tempfile.mkdtemp(), "binary")
+        )
         flasher_obj = compiler.FlasherFactory.from_json(flasher_factory_json).instantiate()
 
         RPC_SESSION = Session(binary=binary, flasher=flasher_obj)
@@ -293,11 +294,14 @@ def create_micro_session(build_result_filename : str, build_result_bin : bytes, 
         return RPC_SESSION._rpc._sess
 
 
-
 @register_func("tvm.micro.compile_and_create_micro_session")
-def compile_and_create_micro_session(compiler_factory_json : bytes, mod_src_tar : bytes,
-                                     compiler_options_json : str, lib_paths_json : str,
-                                     workspace_kw_json : str):
+def compile_and_create_micro_session(
+    compiler_factory_json: bytes,
+    mod_src_tar: bytes,
+    compiler_options_json: str,
+    lib_paths_json: str,
+    workspace_kw_json: str,
+):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
 
     Parameters
@@ -331,32 +335,32 @@ def compile_and_create_micro_session(compiler_factory_json : bytes, mod_src_tar 
     compiler_inst = compiler.CompilerFactory.from_json(compiler_factory_json).instantiate()
     compiler_options = json.loads(compiler_options_json)
 
-    mod_src_dir = workspace.relpath(os.path.join('src', 'module'))
+    mod_src_dir = workspace.relpath(os.path.join("src", "module"))
     os.makedirs(mod_src_dir)
-    tar_f = tarfile.open(fileobj=io.BytesIO(mod_src_tar), mode='r:*')
+    tar_f = tarfile.open(fileobj=io.BytesIO(mod_src_tar), mode="r:*")
     tar_f.extractall(mod_src_dir)
 
-    mod_build_dir = workspace.relpath(os.path.join('lib', 'module'))
+    mod_build_dir = workspace.relpath(os.path.join("lib", "module"))
     os.makedirs(mod_build_dir)
     mod_src_paths = [os.path.join(mod_src_dir, n) for n in tar_f.getnames()]
-    mod_lib = compiler_inst.library(mod_build_dir,
-                                    mod_src_paths,
-                                    compiler_options['generated_lib_opts'])
+    mod_lib = compiler_inst.library(
+        mod_build_dir, mod_src_paths, compiler_options["generated_lib_opts"]
+    )
 
     libs = []
     for lib_path in lib_paths:
         # Split off the .micro-library extension
         lib_dir_name = os.path.splitext(os.path.basename(lib_path))[0]
-        lib_dir = workspace.relpath(os.path.join('lib', lib_dir_name))
+        lib_dir = workspace.relpath(os.path.join("lib", lib_dir_name))
 
         libs.append(micro_library.MicroLibrary.unarchive(lib_path, lib_dir))
 
     libs.append(mod_lib)
 
-    runtime_build_dir = workspace.relpath(os.path.join('runtime'))
+    runtime_build_dir = workspace.relpath(os.path.join("runtime"))
     os.makedirs(runtime_build_dir)
-    print('build binary', runtime_build_dir)
-    binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options['bin_opts'])
+    print("build binary", runtime_build_dir)
+    binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
 
     RPC_SESSION = Session(binary=binary, flasher=compiler_inst.flasher())
     RPC_SESSION.__enter__()

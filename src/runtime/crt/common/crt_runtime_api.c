@@ -590,7 +590,7 @@ int TVMContribRandomFill(TVMValue* args, int* type_codes, int num_args, TVMValue
     return kTvmErrorFunctionCallWrongArgType;
   }
 
-  DLTensor* tensor = (DLTensor*) args[0].v_handle;
+  DLTensor* tensor = (DLTensor*)args[0].v_handle;
   TVMNDArray arr = {*tensor};
   return TVMNDArray_RandomFill(&arr);
 }

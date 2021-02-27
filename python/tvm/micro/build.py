@@ -23,7 +23,7 @@ import logging
 import os
 
 from .._ffi import libinfo
-from tvm import rpc as _rpc
+from .. import rpc as _rpc
 
 
 _LOG = logging.getLogger(__name__)
@@ -80,8 +80,7 @@ def autotvm_module_loader(
     workspace_kw : Optional[dict]
         Keyword args passed to the Workspace constructor.
     """
-
-    if type(template_project_dir) is not str:
+    if not isinstance(template_project_dir, str):
         raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
     @contextlib.contextmanager

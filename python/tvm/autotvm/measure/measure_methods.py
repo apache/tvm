@@ -90,8 +90,9 @@ class LocalBuilder(Builder):
         If False, do not fork when building. Requires n_parallel=1.
     """
 
-    def __init__(self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default",
-                 do_fork=False):
+    def __init__(
+        self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default", do_fork=False
+    ):
         super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
         if isinstance(build_func, str):
@@ -105,8 +106,10 @@ class LocalBuilder(Builder):
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
         if not do_fork:
-            assert n_parallel in (None, 1), (
-                f"if do_fork=False, need n_parallel=None or 1; got {n_parallel}")
+            assert n_parallel in (
+                None,
+                1,
+            ), f"if do_fork=False, need n_parallel=None or 1; got {n_parallel}"
         self.executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
         self.tmp_dir = tempfile.mkdtemp()
 
