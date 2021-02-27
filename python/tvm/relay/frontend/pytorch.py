@@ -1004,8 +1004,7 @@ class PyTorchOpConverter:
         return _op.nn.relu(data)
 
     def contiguous(self, inputs, input_types):
-        data = inputs[0]
-        return _op.tensor.copy(data)
+        return inputs[0]
 
     def batch_norm(self, inputs, input_types):
         data = inputs[0]
