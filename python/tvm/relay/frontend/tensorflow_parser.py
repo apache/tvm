@@ -169,8 +169,8 @@ class TFParser(object):
     def _build_signature_def(self, frozen_graph, input_nodes, output_nodes):
         try:
             from tensorflow.core.protobuf import meta_graph_pb2
-        except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+        except ImportError as err:
+            raise ImportError("Unable to import tensorflow which is required {}".format(err))
         signature = meta_graph_pb2.SignatureDef()
         for input_tensor in input_nodes:
             op_name = input_tensor.name.split(":")[0]
@@ -198,17 +198,15 @@ class TFParser(object):
                 signature.outputs[output_tensor].name = output_tensor
         return signature
 
-
     def _run_grappler(self, config, graph_def, graph, signature_def):
         try:
             from tensorflow.python.grappler import tf_optimizer
             from tensorflow.python.training.saver import export_meta_graph
-        except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+        except ImportError as err:
+            raise ImportError("Unable to import tensorflow which is required {}".format(err))
         meta_graph = export_meta_graph(graph_def=graph_def, graph=graph)
         meta_graph.signature_def["not_used_key"].CopyFrom(signature_def)
         return tf_optimizer.OptimizeGraph(config, meta_graph)
-
 
     def parse(self):
         """
@@ -227,11 +225,13 @@ class TFParser(object):
             try:
                 from tensorflow.python.framework import convert_to_constants
                 from tensorflow.core.protobuf import config_pb2
-            except ImportError as e:
-                raise ImportError("Unable to import tensorflow which is required {}".format(e))
+            except ImportError as err:
+                raise ImportError("Unable to import tensorflow which is required {}".format(err))
             concrete_func = self._tf_input
             graph = convert_to_constants.convert_variables_to_constants_v2(concrete_func).graph
-            signature = self._build_signature_def(graph, concrete_func.inputs, concrete_func.outputs)
+            signature = self._build_signature_def(
+                graph, concrete_func.inputs, concrete_func.outputs
+            )
             graph_def = graph.as_graph_def()
 
             # Some optimization

@@ -27,7 +27,6 @@ import tvm
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
 from tvm.relay.transform import InferType
-from tvm.topi.utils import get_const_tuple
 
 from ... import analysis
 from ... import expr as _expr
@@ -38,7 +37,6 @@ from ...expr_functor import ExprMutator, ExprVisitor
 from ..common import AttrCvt, get_relay_op
 from ..common import infer_type as _infer_type
 from ..common import infer_shape as _infer_shape
-from ..common import infer_channels as _infer_channels
 from ..common import infer_value as _infer_value
 from . import tensorflow_util as util
 from . import tensorflow_ops as tf_op
@@ -487,7 +485,7 @@ _convert_map = {
     "Round": AttrCvt("round"),
     "Rsqrt": tf_op.impl_rsqrt(),
     "Select": tf_op.impl_where(),
-    'SelectV2': tf_op.impl_where(),
+    "SelectV2": tf_op.impl_where(),
     "Selu": tf_op.impl_selu(),
     "Shape": tf_op.impl_shape(),
     "Sigmoid": AttrCvt("sigmoid"),

@@ -18,7 +18,6 @@
 # pylint: disable=import-outside-toplevel, redefined-builtin
 """TF: Tensorflow frontend operator inventory"""
 import warnings
-from collections import defaultdict
 
 # Numpy support
 import numpy as np
@@ -28,7 +27,6 @@ from tvm.topi.utils import get_const_tuple
 
 from ... import expr as _expr
 from ... import op as _op
-from ...ty import Any
 from ..common import AttrCvt, get_relay_op
 from ..common import infer_type as _infer_type
 from ..common import infer_shape as _infer_shape
@@ -36,7 +34,10 @@ from ..common import infer_channels as _infer_channels
 from ..common import infer_value as _infer_value
 from . import tensorflow_util as util
 
+
 def impl_rsqrt():
+    """ Rsqrt """
+
     def _impl(inputs, attr, params, mod):
         inputs.append(tvm.relay.const(-0.5, attr["T"].name))
         return AttrCvt(op_name="power")(inputs, attr)
@@ -66,6 +67,8 @@ def impl_argx(func, func_name):
 
 
 def impl_elemwise(name):
+    """ Elementwise op """
+
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
         return get_relay_op(name)(*inputs)
@@ -74,6 +77,8 @@ def impl_elemwise(name):
 
 
 def impl_pool3d(name):
+    """ Pool3D """
+
     def _impl(inputs, attr, params, mod):
         attr["data_format"] = attr["data_format"].decode("utf-8")
         flip_layout = False
@@ -135,6 +140,8 @@ def impl_pool3d(name):
 
 
 def impl_pooling(name):
+    """ Pool """
+
     def _impl(inputs, attr, params, mod):
 
         attr["data_format"] = attr["data_format"].decode("utf-8")
@@ -209,6 +216,8 @@ def impl_pooling(name):
 
 
 def impl_conv(opname):
+    """ Convolution """
+
     def _impl(inputs, attr, params, mod):
         attr["data_format"] = attr["data_format"].decode("utf-8")
         flip_layout = False
@@ -377,6 +386,8 @@ def impl_conv(opname):
 
 # Dilation2d
 def impl_dilation2d():
+    """ Dilation 2D """
+
     def _impl(inputs, attr, params, mod):
         if "data_format" not in attr:
             attr["data_format"] = "NHWC"
@@ -457,6 +468,8 @@ def impl_dilation2d():
 
 
 def impl_conv3d(opname):
+    """ Convolution 3D """
+
     def _impl(inputs, attr, params, mod):
         attr["data_format"] = attr["data_format"].decode("utf-8")
         flip_layout = False
@@ -610,6 +623,8 @@ def impl_conv3d(opname):
 
 
 def impl_nms(return_scores=False):
+    """ NMS """
+
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         try:
@@ -684,6 +699,8 @@ def impl_nms(return_scores=False):
 
 
 def impl_combined_nms():
+    """ Combined NMS """
+
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         boxes = inputs[0]
@@ -787,6 +804,8 @@ def impl_combined_nms():
 
 
 def impl_decode_image():
+    """ Decode Image """
+
     def _impl(inputs, attr, params, mod):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
         warnings.warn("DecodeJpeg: It's a pass through, please handle preprocessing before input")
@@ -796,6 +815,8 @@ def impl_decode_image():
 
 
 def impl_unravel_index():
+    """ Unravel Index """
+
     def _impl(inputs, attr, params, mod):
         return _op.unravel_index(inputs[0], inputs[1])
 
@@ -803,6 +824,8 @@ def impl_unravel_index():
 
 
 def impl_crop_and_resize():
+    """ Crop and Resize """
+
     def _impl(inputs, attr, params, mod):
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
         # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
@@ -826,6 +849,8 @@ def impl_crop_and_resize():
 
 
 def impl_cast():
+    """ Cast """
+
     def _impl(inputs, attr, params, mod):
         return inputs[0].astype(attr["DstT"].name)
 
@@ -833,6 +858,8 @@ def impl_cast():
 
 
 def impl_expand_dims():
+    """ Expand Dims """
+
     def _impl(inputs, attr, params, mod):
         dim_input = inputs.pop(1)
         axis = util.get_num_param(params, dim_input)
@@ -846,6 +873,8 @@ def impl_expand_dims():
 
 
 def impl_expm1():
+    """ Expm1 """
+
     # op description: https://www.tensorflow.org/api_docs/python/tf/math/expm1
     def _impl(inputs, attr, params, mod):
         exp_out = get_relay_op("exp")(inputs[0])
@@ -855,6 +884,8 @@ def impl_expm1():
 
 
 def impl_resize(method):
+    """ Resize """
+
     def _impl(inputs, attr, params, mod):
         if attr["_output_shapes"][0] is not None:
             size = attr["_output_shapes"][0][1:3]
@@ -883,6 +914,8 @@ def impl_resize(method):
 
 
 def impl_check_numerics():
+    """ Check Numerics """
+
     def _impl(inputs, attr, params, mod):
         # Making a copy node assuming no need to verify
         return AttrCvt(op_name="copy", ignores=["message"])(inputs, attr)
@@ -891,6 +924,8 @@ def impl_check_numerics():
 
 
 def impl_assert():
+    """ Assert """
+
     # ToDo: In general people want asserts to be gone from TensorFlow graphs
     # when they are optimizing them, so converting it to a no-op is
     # reasonable. However, it would be nice to have the option to keep them
@@ -899,6 +934,8 @@ def impl_assert():
 
 
 def impl_no_op():
+    """ No Op """
+
     def _impl(inputs, attr, params, mod):
         # ToDo: This should really be an op that returns nothing, which could
         # be represented as an empty tuple. It turns out that TVM
@@ -913,6 +950,8 @@ def impl_no_op():
 
 
 def impl_matmul():
+    """ MatMul """
+
     def _impl(inputs, attr, params, mod):
         channels = _infer_channels(inputs[1], not attr["transpose_b"])
         if attr["transpose_a"]:
@@ -927,6 +966,8 @@ def impl_matmul():
 
 
 def impl_batch_matmul():
+    """ Batch MatMul """
+
     def _impl(inputs, attr, params, mod):
         input_x = inputs[0]
         input_y = inputs[1]
@@ -961,6 +1002,7 @@ def impl_batch_matmul():
 
 
 def impl_sparse_tensor_dense_matmul():
+    """ Sparse Tensor Dense MatMul """
     def _impl(inputs, attr, params, mod):
         # Loading this by default causes TVM to not be loadable from other languages.
         # Sparse utility from scipy
@@ -1047,6 +1089,8 @@ def impl_sparse_tensor_dense_matmul():
 
 
 def impl_sparse_fill_empty_rows():
+    """ Sparse Fill Empty Rows """
+
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         sparse_indices = inputs[0]
@@ -1069,6 +1113,8 @@ def impl_sparse_fill_empty_rows():
 
 
 def impl_sparse_reshape():
+    """ Sparse Reshape """
+
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
         new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
@@ -1078,6 +1124,8 @@ def impl_sparse_reshape():
 
 
 def impl_identity():
+    """ Identity """
+
     def _impl(inputs, attr, params, mod):
         return inputs[0]
 
@@ -1085,6 +1133,8 @@ def impl_identity():
 
 
 def impl_identityn():
+    """ Identityn """
+
     def _impl(inputs, attr, params, mod):
         return inputs
 
@@ -1092,6 +1142,8 @@ def impl_identityn():
 
 
 def impl_concatV2():
+    """ ConcatV2 """
+
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(len(inputs) - 1)
         axis = int(util.get_num_param(params, pop_node))
@@ -1103,6 +1155,8 @@ def impl_concatV2():
 
 
 def impl_concat():
+    """ Concat """
+
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(0)
         axis = int(util.get_num_param(params, pop_node))
@@ -1112,6 +1166,8 @@ def impl_concat():
 
 
 def impl_pack():
+    """ Pack """
+
     def _impl(inputs, attr, params, mod):
         axis = int(attr["axis"])
         inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
@@ -1121,6 +1177,8 @@ def impl_pack():
 
 
 def impl_tile():
+    """ Tile """
+
     def _impl(inputs, attr, params, mod):
         reps_input = inputs.pop()
         if isinstance(reps_input, _expr.Call):
@@ -1138,6 +1196,8 @@ def impl_tile():
 
 
 def impl_slice():
+    """ Slice """
+
     def _impl(inputs, attr, params, mod):
         try:
             begin = util.get_list_param(params, inputs[1])
@@ -1173,6 +1233,8 @@ def impl_slice():
 
 
 def impl_reshape():
+    """ Reshape """
+
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(1)
 
@@ -1199,6 +1261,8 @@ def impl_reshape():
 
 
 def impl_depth_to_space():
+    """ Depth To Space """
+
     def _impl(inputs, attr, params, mod):
         block_size = int(attr["block_size"])
         layout = attr["data_format"].decode("utf-8")
@@ -1208,6 +1272,8 @@ def impl_depth_to_space():
 
 
 def impl_space_to_depth():
+    """ Space To Depth """
+
     def _impl(inputs, attr, params, mod):
         block_size = int(attr["block_size"])
         layout = attr["data_format"].decode("utf-8")
@@ -1217,6 +1283,8 @@ def impl_space_to_depth():
 
 
 def impl_sparse_to_dense():
+    """ Sparse To Depth """
+
     def _impl(inputs, attr, params, mod):
         sparse_indices = inputs[0]
         output_shape = inputs[1]
@@ -1229,6 +1297,8 @@ def impl_sparse_to_dense():
 
 
 def impl_bias_add():
+    """ Bias Add """
+
     def _impl(inputs, attr, params, mod):
         # Must expand for proper broadcasting in NCHW.
         if "data_format" in attr and attr["data_format"].decode("utf-8") == "NCHW":
@@ -1241,6 +1311,8 @@ def impl_bias_add():
 
 
 def impl_broadcast_to():
+    """ Broadcast To """
+
     def _impl(inputs, attr, params, mod):
         if isinstance(inputs[1], _expr.Var):
             shape = params[inputs[1].name_hint]
@@ -1253,6 +1325,8 @@ def impl_broadcast_to():
 
 
 def impl_squeeze():
+    """ Squeeze """
+
     def _impl(inputs, attr, params, mod):
         if len(attr["squeeze_dims"]) == 0:
             attr["squeeze_dims"] = None
@@ -1264,6 +1338,8 @@ def impl_squeeze():
 
 
 def impl_fused_batch_norm():
+    """ Fused Batch Norm """
+
     def _impl(inputs, attr, params, mod):
         # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
         # Relay:       (data, gamma, beta, moving_mean, moving_varience)
@@ -1303,6 +1379,8 @@ def impl_fused_batch_norm():
 
 
 def impl_batch_norm():
+    """ Batch Norm """
+
     def _impl(inputs, attr, params, mod):
         # Rearrange inputs from
         # (data, moving_mean, moving_variance, beta, gamma)
@@ -1328,6 +1406,8 @@ def impl_batch_norm():
 
 
 def impl_relu6():
+    """ Relu6 """
+
     def _impl(inputs, attr, params, mod):
         return _op.clip(inputs[0], a_min=0, a_max=6)
 
@@ -1335,6 +1415,8 @@ def impl_relu6():
 
 
 def impl_shape():
+    """ Shape """
+
     def _impl(inputs, attr, params, mod):
         is_symbolic_shape = False
         input_shape = _infer_shape(inputs[0], mod)
@@ -1353,6 +1435,8 @@ def impl_shape():
 
 
 def impl_fill():
+    """ Fill """
+
     def _impl(inputs, attr, params, mod):
         try:
             output_shape = _infer_value(inputs[0], params, mod).asnumpy().tolist()
@@ -1365,6 +1449,8 @@ def impl_fill():
 
 
 def impl_lrn():
+    """ LRN """
+
     def _impl(inputs, attr, params, mod):
         attr_new = {}
         depth_radius = attr.get("depth_radius", 5)
@@ -1380,6 +1466,8 @@ def impl_lrn():
 
 
 def impl_sum():
+    """ SUM """
+
     def _impl(inputs, attr, params, mod):
         axis = util.get_tuple_param(params, inputs[1])
         return AttrCvt(
@@ -1393,6 +1481,8 @@ def impl_sum():
 
 
 def impl_reduce(op):
+    """ Reduce """
+
     def _impl(inputs, attr, params, mod):
         axis = util.get_list_param(params, inputs[1])
         axis = tuple(axis)
@@ -1409,6 +1499,8 @@ def impl_reduce(op):
 
 
 def impl_euclidean_norm():
+    """ Euclidean Norm """
+
     def _impl(inputs, attr, params, mod):
         axis = tuple(util.get_list_param(params, inputs[1]))
         keep_dims = bool(attr.get("keep_dims", False))
@@ -1420,6 +1512,8 @@ def impl_euclidean_norm():
 
 
 def impl_square():
+    """ Square """
+
     def _impl(inputs, attr, params, mod):
         return _op.multiply(inputs[0], inputs[0])
 
@@ -1460,6 +1554,8 @@ def impl_gather_nd():
 
 
 def impl_stridedSlice():
+    """ Strided Slice """
+
     def _impl(inputs, attr, params, mod):
         """Strided Slice.
         Operator description: https://www.tensorflow.org/api_docs/python/tf/strided_slice
@@ -1621,6 +1717,8 @@ def impl_stridedSlice():
 
 
 def impl_pad(name):
+    """ Pad """
+
     def _impl(inputs, attr, params, mod):
         try:
             padlist = util.get_param(params, inputs[1])
@@ -1651,6 +1749,8 @@ def impl_pad(name):
 
 
 def impl_mirror_pad():
+    """ Mirror Pad """
+
     def _impl(inputs, attr, params, mod):
         padlist = util.get_param(params, inputs[1])
         paddings = tuple(tuple(l) for l in padlist)
@@ -1667,6 +1767,8 @@ def impl_mirror_pad():
 
 
 def impl_transpose():
+    """ Transpose """
+
     def _impl(inputs, attr, params, mod):
         # If perm is not specified, axes is left empty,
         # otherwise its value is get from params
@@ -1680,6 +1782,8 @@ def impl_transpose():
 
 
 def impl_where():
+    """ Where """
+
     def _impl(inputs, attr, params, mod):
         if len(inputs) == 1:
             return AttrCvt(op_name="argwhere")(inputs, attr)
@@ -1689,6 +1793,8 @@ def impl_where():
 
 
 def impl_clip_by_value():
+    """ Clip By Value """
+
     def _impl(inputs, attr, params, mod):
         a_min = util.get_num_param(params, inputs[1])
         a_max = util.get_num_param(params, inputs[2])
@@ -1698,6 +1804,8 @@ def impl_clip_by_value():
 
 
 def impl_reverse_v2():
+    """ Reverse V2 """
+
     def _impl(inputs, attr, params, mod):
         axis = util.get_num_param(params, inputs[1])
         return AttrCvt(op_name="reverse", ignores=["Tidx"], extras={"axis": int(axis)})(
@@ -1708,6 +1816,8 @@ def impl_reverse_v2():
 
 
 def impl_rank():
+    """ Rank """
+
     def _impl(inputs, attr, params, mod):
         input_shape = _infer_shape(inputs[0], mod)
 
@@ -1719,6 +1829,8 @@ def impl_rank():
 
 
 def impl_range():
+    """ Range """
+
     def _impl(inputs, attr, params, mod):
         try:
             start = util.get_param(params, inputs[0])[0]
@@ -1781,6 +1893,8 @@ def impl_range():
 
 
 def impl_elu():
+    """ Elu """
+
     def _impl(inputs, attr, params, mod):
         dtype = attr["T"].name
         alpha = tvm.relay.const(-1.0, dtype)
@@ -1792,6 +1906,8 @@ def impl_elu():
 
 
 def impl_selu():
+    """ SElu """
+
     def _impl(inputs, attr, params, mod):
         dtype = attr["T"].name
         alpha = tvm.relay.const(-1.6732632423543772848170429916717, dtype)
@@ -1805,6 +1921,8 @@ def impl_selu():
 
 
 def impl_mean():
+    """ Mean """
+
     def _impl(inputs, attr, params, mod):
         axis = util.get_tuple_param(params, inputs[1])
         return AttrCvt(
@@ -1818,6 +1936,8 @@ def impl_mean():
 
 
 def impl_broadcast(name):
+    """ Broadcast """
+
     def _impl(inputs, attr, params, mod):
         return AttrCvt(op_name=name, ignores=["name", "incompatible_shape_error", "Tidx"])(
             inputs, attr
@@ -1827,6 +1947,8 @@ def impl_broadcast(name):
 
 
 def impl_split(has_size_vector):
+    """ Split """
+
     # TF documentation https://www.tensorflow.org/api_docs/python/tf/split
     def _impl(inputs, attr, params, mod):
         try:
@@ -1863,6 +1985,8 @@ def impl_split(has_size_vector):
 
 
 def impl_unpack():
+    """ UnPack """
+
     def _impl(inputs, attr, params, mod):
         input_node = inputs[0]
         axis = attr["axis"]
@@ -1881,6 +2005,8 @@ def impl_unpack():
 
 
 def impl_softmax():
+    """ Softmax """
+
     def _impl(inputs, attr, params, mod):
         return AttrCvt(op_name="softmax", transforms={"axis": ("axis", 1)})([inputs[0]], attr)
 
@@ -1888,6 +2014,8 @@ def impl_softmax():
 
 
 def impl_softsign():
+    """ Softsign """
+
     # op description: https://www.tensorflow.org/api_docs/python/tf/math/softsign
     def _impl(inputs, attr, params, mod):
         abs_out = get_relay_op("abs")(inputs[0])
@@ -1898,6 +2026,8 @@ def impl_softsign():
 
 
 def impl_softplus():
+    """ Softplus """
+
     # op description: https://www.tensorflow.org/api_docs/python/tf/math/softplus
     def _impl(inputs, attr, params, mod):
         exp_out = AttrCvt("exp")(inputs, attr)
@@ -1910,6 +2040,8 @@ def impl_softplus():
 
 
 def impl_topk():
+    """ TopK """
+
     def _impl(inputs, attr, params, mod):
         k_input = inputs.pop(1)
         try:
@@ -1939,6 +2071,8 @@ def impl_topk():
 
 
 def impl_floordiv():
+    """ Floor Div """
+
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 2
         return AttrCvt("floor_divide")(inputs, attr)
@@ -1947,6 +2081,8 @@ def impl_floordiv():
 
 
 def impl_floormod():
+    """ Floor Mod """
+
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 2
         return AttrCvt("floor_mod")(inputs, attr)
@@ -1955,6 +2091,8 @@ def impl_floormod():
 
 
 def impl_logical(name):
+    """ Logical """
+
     def _impl(inputs, attr, params, mod):
         return AttrCvt(op_name=name)(inputs, attr)
 
@@ -1962,6 +2100,8 @@ def impl_logical(name):
 
 
 def impl_space_to_batch_nd():
+    """ Space To Batch ND """
+
     def _impl(inputs, attr, params, mod):
         try:
             block_shape = util.get_list_param(params, inputs[1])
@@ -1987,6 +2127,8 @@ def impl_space_to_batch_nd():
 
 
 def impl_batch_to_space_nd():
+    """ Batch To Space ND """
+
     def _impl(inputs, attr, params, mod):
         try:
             block_shape = util.get_list_param(params, inputs[1])
@@ -2012,6 +2154,8 @@ def impl_batch_to_space_nd():
 
 
 def impl_atan2():
+    """ ATan2 """
+
     def _impl(inputs, attr, params, mod):
         divide = impl_elemwise("divide")(inputs, attr, params, mod)
         return get_relay_op("atan")(divide)
@@ -2020,6 +2164,8 @@ def impl_atan2():
 
 
 def impl_prod():
+    """ Prod """
+
     def _impl(inputs, attr, params, mod):
         axis = util.get_num_param(params, inputs[1])
         keepdims = attr["keep_dims"]
@@ -2029,6 +2175,8 @@ def impl_prod():
 
 
 def impl_log1p():
+    """ Log1p """
+
     # op description: https://www.tensorflow.org/api_docs/python/tf/math/log1p
     def _impl(inputs, attr, params, mod):
         one = tvm.relay.const(1, attr["T"].name)
@@ -2039,6 +2187,8 @@ def impl_log1p():
 
 
 def impl_one_hot():
+    """ One Hot """
+
     def _impl(inputs, attr, params, mod):
         depth = int(util.get_num_param(params, inputs[1]))
         dtype = attr["T"].name
@@ -2058,6 +2208,8 @@ def impl_one_hot():
 
 
 def impl_squared_difference():
+    """ Squared Difference """
+
     def _impl(inputs, attr, params, mod):
         difference = _op.subtract(inputs[0], inputs[1])
         return _op.multiply(difference, difference)
@@ -2066,6 +2218,8 @@ def impl_squared_difference():
 
 
 def impl_size():
+    """ Size """
+
     def _impl(inputs, attr, params, mod):
         new_attr = attr
         new_attr["out_type"] = attr["out_type"].name
@@ -2075,6 +2229,8 @@ def impl_size():
 
 
 def impl_add_n():
+    """ AddN """
+
     def _impl(inputs, attr, params, mod):
         if not isinstance(inputs, tuple):
             inputs = list(inputs)
@@ -2088,6 +2244,8 @@ def impl_add_n():
 
 
 def impl_unique(return_counts=True):
+    """ Unique """
+
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 1
         data = inputs[0]

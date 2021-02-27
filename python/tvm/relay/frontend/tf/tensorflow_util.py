@@ -17,16 +17,15 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 # pylint: disable=import-outside-toplevel, redefined-builtin
 """TF: Tensorflow frontend utils"""
-import warnings
-from collections import defaultdict
-
 import numpy as np
 import tvm
 
-import tvm.relay.expr as _expr
+from ... import expr as _expr
 
 
 def get_pad_pair(input1d, kernel1d, stride1d):
+    """Extract pad values"""
+
     if input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
     else:
@@ -39,6 +38,8 @@ def get_pad_pair(input1d, kernel1d, stride1d):
 
 
 def math_name_picker(surfix):
+    """Make math function name"""
+
     def _impl(attr):
         return "broadcast_" + surfix
 
@@ -46,6 +47,8 @@ def math_name_picker(surfix):
 
 
 def dimension_picker(prefix, surfix=""):
+    """Extracts dimensions"""
+
     def _impl(attr):
         kernel = attr["kernel_shape"]
         if len(kernel) == 2:
@@ -60,6 +63,8 @@ def dimension_picker(prefix, surfix=""):
 
 
 def dimension_constraint():
+    """Check dimentions validity"""
+
     def _dim_check(attrs):
         if len(attrs["kernel_shape"]) in (2, 3):
             return True
@@ -69,24 +74,34 @@ def dimension_constraint():
 
 
 def get_param(params, input_node):
+    """Get param"""
+
     if isinstance(input_node, _expr.Constant):
         return np.atleast_1d(input_node.data.asnumpy())
     return params[input_node.name_hint].asnumpy()
 
 
 def get_num_param(params, input_node):
+    """Get neumeric params"""
+
     return get_param(params, input_node).item()
 
 
 def get_list_param(params, input_node):
+    """Get list param"""
+
     return get_param(params, input_node).tolist()
 
 
 def get_tuple_param(params, input_node):
+    """get tule param"""
+
     return tuple(get_param(params, input_node))
 
 
 def need_prelude_for_shape_inference(op):
+    """Prelude check"""
+
     return "TensorArray" in op
 
 
@@ -94,6 +109,7 @@ def get_more_static_shape(shape0, shape1):
     """Compare two shapes with the same rank,
     and return the one with fewer symbolic dimension.
     """
+
     assert len(shape0) == len(shape1)
     num_sym_dim0 = 0
     num_sym_dim1 = 0
