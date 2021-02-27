@@ -106,8 +106,19 @@ int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* sha
 
 int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) { return TVMPlatformMemoryFree(ptr, ctx); }
 
+static bool IsContiguous(const DLTensor* arr) {
+  if (arr->strides == nullptr) return true;
+  int64_t expected_stride = 1;
+  for (int32_t i = arr->ndim; i != 0; --i) {
+    int32_t k = i - 1;
+    if (arr->strides[k] != expected_stride) return false;
+    expected_stride *= arr.shape[k];
+  }
+  return true;
+}
+
 int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
-  assert(from->strides == NULL && to->strides == NULL);
+  assert(IsContiguous(from) && IsContiguous(to));
   size_t size = 1;
   for (int i = 0; i < from->ndim; ++i) {
     size *= from->shape[i];
