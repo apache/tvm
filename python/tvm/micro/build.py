@@ -225,7 +225,6 @@ def build_static_runtime(
     os.makedirs(mod_build_dir)
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
 
-
     libs = []
     for mod_or_src_dir in (extra_libs or []) + get_runtime_libs():
         if isinstance(mod_or_src_dir, MicroLibrary):
@@ -261,10 +260,12 @@ def build_static_runtime(
     return compiler.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
 
 
-def autotvm_module_loader(compiler_factory : CompilerFactory,
-                          compiler_options : dict=None,
-                          extra_libs : typing.Optional[typing.List[typing.Union[MicroLibrary, str]]]=None,
-                          workspace_kw : typing.Optional[dict]=None):
+def autotvm_module_loader(
+    compiler_factory: CompilerFactory,
+    compiler_options: dict = None,
+    extra_libs: typing.Optional[typing.List[typing.Union[MicroLibrary, str]]] = None,
+    workspace_kw: typing.Optional[dict] = None,
+):
     """Configure a new adapter.
 
     Parameters
@@ -299,7 +300,7 @@ def autotvm_module_loader(compiler_factory : CompilerFactory,
     compiler = compiler_factory.instantiate()
     for lib_src_dir in (extra_libs or []) + get_runtime_libs():
         lib_name = os.path.basename(lib_src_dir)
-        lib_build_dir = workspace.relpath(os.path.join('build', lib_name))
+        lib_build_dir = workspace.relpath(os.path.join("build", lib_name))
         os.makedirs(lib_build_dir)
 
         lib_srcs = []
@@ -307,29 +308,37 @@ def autotvm_module_loader(compiler_factory : CompilerFactory,
             if RUNTIME_SRC_REGEX.match(p):
                 lib_srcs.append(os.path.join(lib_src_dir, p))
 
-        lib_archive_dir = workspace.relpath(os.path.join('archive', lib_name))
+        lib_archive_dir = workspace.relpath(os.path.join("archive", lib_name))
         os.makedirs(lib_archive_dir)
         lib_archive_path = os.path.join(lib_archive_dir, f"{lib_name}.micro-library")
-        common_libs.append(compiler.library(
-            lib_build_dir, lib_srcs, compiler_options['lib_opts']).archive(lib_archive_path))
+        common_libs.append(
+            compiler.library(lib_build_dir, lib_srcs, compiler_options["lib_opts"]).archive(
+                lib_archive_path
+            )
+        )
 
     @contextlib.contextmanager
     def module_loader(remote_kw, build_result):
-        with open(build_result.filename, 'rb') as build_result_f:
+        with open(build_result.filename, "rb") as build_result_f:
             build_result_bin = build_result_f.read()
 
-        tracker = _rpc.connect_tracker(remote_kw['host'], remote_kw['port'])
+        tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
 
-        remote = tracker.request(remote_kw['device_key'], priority=remote_kw['priority'],
-                                 session_timeout=remote_kw['timeout'],
-                                 session_constructor_args=['tvm.micro.compile_and_create_micro_session',
-                                                           compiler_factory.to_json,
-                                                           build_result_bin,
-                                                           json.dumps(compiler_options),
-                                                           json.dumps(common_libs),
-                                                           json.dumps(workspace_kw)])
+        remote = tracker.request(
+            remote_kw["device_key"],
+            priority=remote_kw["priority"],
+            session_timeout=remote_kw["timeout"],
+            session_constructor_args=[
+                "tvm.micro.compile_and_create_micro_session",
+                compiler_factory.to_json,
+                build_result_bin,
+                json.dumps(compiler_options),
+                json.dumps(common_libs),
+                json.dumps(workspace_kw),
+            ],
+        )
 
-        system_lib = remote.get_function('runtime.SystemLib')()
+        system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
 
     return module_loader

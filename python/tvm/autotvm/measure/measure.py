@@ -54,11 +54,15 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
     """
 
     def __repr__(self):
-        error_no_str = (str(self.error_no)
-                        if self.error_no not in MeasureErrorNo
-                        else str(MeasureErrorNo(self.error_no)))
-        return (f'{self.__class__.__name__}(costs={self.costs!r}, error_no={error_no_str}, '
-                f'all_cost={self.all_cost}, timestamp={self.timestamp!r})')
+        error_no_str = (
+            str(self.error_no)
+            if self.error_no not in MeasureErrorNo
+            else str(MeasureErrorNo(self.error_no))
+        )
+        return (
+            f"{self.__class__.__name__}(costs={self.costs!r}, error_no={error_no_str}, "
+            f"all_cost={self.all_cost}, timestamp={self.timestamp!r})"
+        )
 
 
 class MeasureErrorNo(enum.IntEnum):
@@ -110,9 +114,13 @@ class Builder(object):
         self.task = task
         self.build_kwargs = build_kwargs if build_kwargs is not None else {}
         if any(k in self.build_kwargs for k in self.user_build_kwargs):
-            logging.warn('Overriding these runner-supplied kwargs with user-supplied:\n%s',
-                         '\n'.join(f' * {k}: from {build_kwargs[k]!r} to {self.user_build_kwargs[k]!r}'
-                                   for k in sorted([k for k in build_kwargs if k in self.user_build_kwargs])))
+            logging.warn(
+                "Overriding these runner-supplied kwargs with user-supplied:\n%s",
+                "\n".join(
+                    f" * {k}: from {build_kwargs[k]!r} to {self.user_build_kwargs[k]!r}"
+                    for k in sorted([k for k in build_kwargs if k in self.user_build_kwargs])
+                ),
+            )
         for k, v in self.user_build_kwargs.items():
             self.build_kwargs[k] = v
 

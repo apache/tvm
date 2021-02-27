@@ -146,7 +146,7 @@ int TVMNDArray_RandomFill(TVMNDArray* arr) {
     return kTvmErrorFunctionCallInvalidArg;
   }
 
-  return TVMPlatformGenerateRandom(arr->dl_tensor.data, (size_t) num_bytes);
+  return TVMPlatformGenerateRandom(arr->dl_tensor.data, (size_t)num_bytes);
 }
 
 int TVMNDArray_Release(TVMNDArray* arr) {

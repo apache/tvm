@@ -5,7 +5,7 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#_log2
+# _log2
 #   http://0.apache.0 << org_log2/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
@@ -37,7 +37,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 model = keras.models.Sequential()
-model.add(keras.layers.Conv2D(2,  3, input_shape=(16, 16, 3)))
+model.add(keras.layers.Conv2D(2, 3, input_shape=(16, 16, 3)))
 model.build()
 
 model.summary()
@@ -52,10 +52,13 @@ model.summary()
 import tvm
 from tvm import relay
 import numpy as np
-inputs = {i.name.split(':', 2)[0]: [x if x is not None else 1 for x in i.shape.as_list()]
-          for i in model.inputs}
+
+inputs = {
+    i.name.split(":", 2)[0]: [x if x is not None else 1 for x in i.shape.as_list()]
+    for i in model.inputs
+}
 inputs = {k: [v[0], v[3], v[1], v[2]] for k, v in inputs.items()}
-tvm_model, params = relay.frontend.from_keras(model, inputs, layout='NCHW')
+tvm_model, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
 print(tvm_model)
 
 
@@ -79,7 +82,7 @@ TARGET = tvm.target.target.micro("host")
 #  .. code-block:: python
 #
 TARGET = tvm.target.target.micro("stm32f746xx")
-BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
+BOARD = "nucleo_f746zg"  # or "stm32f746g_disco"
 
 
 #########################
@@ -94,11 +97,12 @@ BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
 
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
-pass_context = tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True})
+pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
 with pass_context:
-#with tvm.transform.PassContext(opt_level=3):
-  tasks = tvm.autotvm.task.extract_from_program(tvm_model['main'], {}, TARGET)
+    # with tvm.transform.PassContext(opt_level=3):
+    tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, TARGET)
 assert len(tasks) > 0
 
 
@@ -150,25 +154,35 @@ import os
 import subprocess
 import tvm.micro
 from tvm.micro.contrib import zephyr
+
 workspace = tvm.micro.Workspace(debug=True)
-repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
+repo_root = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
+).strip()
 project_dir = f"{repo_root}/tests/micro/qemu/zephyr-runtime"
 compiler = tvm.micro.CompilerFactory(
     zephyr.ZephyrCompiler,
     init_args=tuple(),
-    init_kw=dict(project_dir=project_dir,
-                 board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
-                 zephyr_toolchain_variant="zephyr"))
+    init_kw=dict(
+        project_dir=project_dir,
+        board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
+        zephyr_toolchain_variant="zephyr",
+    ),
+)
 opts = tvm.micro.default_options(os.path.join(project_dir, "crt"))
 
 module_loader = tvm.micro.autotvm_module_loader(
-  compiler, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")], compiler_options=opts,
-  workspace_kw={'debug': True})
+    compiler,
+    extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
+    compiler_options=opts,
+    workspace_kw={"debug": True},
+)
 builder = tvm.autotvm.LocalBuilder(
-#    build_func=adapter.StaticRuntime,
+    #    build_func=adapter.StaticRuntime,
     n_parallel=1,
-    build_kwargs={'build_option': {'tir.disable_vectorize': True}},
-    do_fork=False)  # do_fork=False needed to persist stateful builder.
+    build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+    do_fork=False,
+)  # do_fork=False needed to persist stateful builder.
 runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
 measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
@@ -180,14 +194,16 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 # Now we can run autotuning separately on each extracted task.
 NUM_TRIALS = 10
 for task in tasks:
-  tuner = tvm.autotvm.tuner.GATuner(task)
-  tuner.tune(n_trial=NUM_TRIALS,
-             measure_option=measure_option,
-             callbacks=[
-               tvm.autotvm.callback.log_to_file('autotune.log'),
-               tvm.autotvm.callback.progress_bar(NUM_TRIALS, si_prefix='M'),
-             ],
-             si_prefix='M')
+    tuner = tvm.autotvm.tuner.GATuner(task)
+    tuner.tune(
+        n_trial=NUM_TRIALS,
+        measure_option=measure_option,
+        callbacks=[
+            tvm.autotvm.callback.log_to_file("autotune.log"),
+            tvm.autotvm.callback.progress_bar(NUM_TRIALS, si_prefix="M"),
+        ],
+        si_prefix="M",
+    )
 
 
 ############################
