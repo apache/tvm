@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_NDARRAY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/serializer.h>
@@ -133,10 +134,12 @@ class NDArray : public ObjectRef {
    * \brief Create an empty NDArray.
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
-   * \param ctx The context of the Array.
+   * \param ctx The context of the array.
+   * \param mem_scope The memory scope of the array.
    * \return The created Array
    */
-  TVM_DLL static NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx);
+  TVM_DLL static NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx,
+                               Optional<String> mem_scope = NullOpt);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *

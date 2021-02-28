@@ -23,6 +23,7 @@ import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
 from tvm._ffi.runtime_ctypes import DataType, TVMContext, TVMArray, TVMArrayHandle
 from tvm._ffi.runtime_ctypes import DataTypeCode, tvm_shape_index_t
+from . import _ffi_api
 
 try:
     # pylint: disable=wrong-import-position
@@ -253,42 +254,41 @@ def numpyasarray(np_data):
     return arr, shape
 
 
-def empty(shape, dtype="float32", ctx=context(1, 0)):
+def empty(shape, dtype="float32", ctx=context(1, 0), mem_scope=None):
     """Create an empty array given shape and device
 
     Parameters
     ----------
     shape : tuple of int
-        The shape of the array
+        The shape of the array.
 
     dtype : type or str
         The data type of the array.
 
     ctx : TVMContext
-        The context of the array
+        The context of the array.
+
+    mem_scope : Optional[str]
+        The memory scope of the array.
 
     Returns
     -------
     arr : tvm.nd.NDArray
         The array tvm supported.
     """
-    shape = c_array(tvm_shape_index_t, shape)
-    ndim = ctypes.c_int(len(shape))
-    handle = TVMArrayHandle()
+    shape_imm = []
+    for s in shape:
+        if isinstance(s, tvm.tir.IntImm):
+            shape_imm.append(s.value)
+        else:
+            shape_imm.append(int(s))
+    arr = np.array(shape_imm, "int64")
+    ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
+    shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
+    ndim = len(shape_imm)
     dtype = DataType(dtype)
-    check_call(
-        _LIB.TVMArrayAlloc(
-            shape,
-            ndim,
-            ctypes.c_int(dtype.type_code),
-            ctypes.c_int(dtype.bits),
-            ctypes.c_int(dtype.lanes),
-            ctx.device_type,
-            ctx.device_id,
-            ctypes.byref(handle),
-        )
-    )
-    return _make_array(handle, False, False)
+    arr = _ffi_api.TVMArrayAllocWithScope(shape_ptr, ndim, dtype, ctx, mem_scope)
+    return arr
 
 
 def from_dlpack(dltensor):
