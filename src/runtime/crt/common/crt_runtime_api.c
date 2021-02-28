@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/func_registry.h>
@@ -107,12 +108,12 @@ int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* sha
 int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) { return TVMPlatformMemoryFree(ptr, ctx); }
 
 static bool IsContiguous(const DLTensor* arr) {
-  if (arr->strides == nullptr) return true;
+  if (arr->strides == NULL) return true;
   int64_t expected_stride = 1;
   for (int32_t i = arr->ndim; i != 0; --i) {
     int32_t k = i - 1;
     if (arr->strides[k] != expected_stride) return false;
-    expected_stride *= arr.shape[k];
+    expected_stride *= arr->shape[k];
   }
   return true;
 }
