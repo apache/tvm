@@ -175,7 +175,7 @@ mod, params = relay.frontend.from_tflite(
 # Now we create a build config for relay. turning off two options
 # and then calling relay.build which will result in a C source
 # file. When running on a simulated target, choose "host" below:
-TARGET = tvm.target.target.micro("host")
+#TARGET = tvm.target.target.micro("host")
 
 # %%
 # Compiling for physical hardware
@@ -188,8 +188,9 @@ TARGET = tvm.target.target.micro("host")
 #
 #  .. code-block:: python
 #
-#     TARGET = tvm.target.target.micro("stm32f746xx")
-#     BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
+TARGET = tvm.target.target.micro("host")
+#BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
+BOARD = "qemu_x86"
 
 ######################################################################
 # Now, compile the model for the target:
@@ -206,8 +207,8 @@ with tvm.transform.PassContext(
 #
 # First, compile a static microTVM runtime for the targeted device. In this case, the host simulated
 # device is used.
-compiler = tvm.micro.DefaultCompiler(target=TARGET)
-opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+#compiler = tvm.micro.DefaultCompiler(target=TARGET)
+#opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
 
 # %%
 # Compiling for physical hardware
@@ -215,18 +216,17 @@ opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
 #
 #  .. code-block:: python
 #
-#     import subprocess
-#     from tvm.micro.contrib import zephyr
-#
-#     repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
-#     project_dir = f"{repo_root}/tests/micro/qemu/zephyr-runtime"
-#     compiler = zephyr.ZephyrCompiler(
-#         project_dir=project_dir,
-#         board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
-#         zephyr_toolchain_variant="zephyr",
-#     )
-#
-#     opts = tvm.micro.default_options(f"{project_dir}/crt")
+import subprocess
+from tvm.micro.contrib import zephyr
+
+repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
+project_dir = f"{repo_root}/apps/microtvm/zephyr/demo_runtime"
+compiler = zephyr.ZephyrCompiler(
+     project_dir=project_dir,
+     board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
+     zephyr_toolchain_variant="zephyr",
+)
+opts = tvm.micro.default_options(f"{project_dir}/crt")
 
 workspace = tvm.micro.Workspace()
 micro_binary = tvm.micro.build_static_runtime(
