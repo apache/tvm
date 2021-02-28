@@ -133,6 +133,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
   std::unordered_map<const ExprNode*, std::vector<StorageToken*> > GetInitTokenMap(
       const Function& func) {
     node_device_map_ = CollectDeviceInfo(func);
+    node_storage_map_ = CollectStorageInfo(func);
     this->Run(func);
     return std::move(token_map_);
   }
