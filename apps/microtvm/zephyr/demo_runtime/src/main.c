@@ -53,33 +53,12 @@
 
 static const struct device* tvm_uart;
 
-// XXX MDW - TODO: Clean up the LED stuff in here to remove the 4 LEDs.
-
 #ifdef CONFIG_LED
 #define LED0_NODE DT_ALIAS(led0)
 #define LED0 DT_GPIO_LABEL(LED0_NODE, gpios)
 #define LED0_PIN DT_GPIO_PIN(LED0_NODE, gpios)
 #define LED0_FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
 static const struct device* led0_pin;
-
-#define LED1_NODE DT_ALIAS(led1)
-#define LED1 DT_GPIO_LABEL(LED1_NODE, gpios)
-#define LED1_PIN DT_GPIO_PIN(LED1_NODE, gpios)
-#define LED1_FLAGS DT_GPIO_FLAGS(LED1_NODE, gpios)
-static const struct device* led1_pin;
-
-#define LED2_NODE DT_ALIAS(led2)
-#define LED2 DT_GPIO_LABEL(LED2_NODE, gpios)
-#define LED2_PIN DT_GPIO_PIN(LED2_NODE, gpios)
-#define LED2_FLAGS DT_GPIO_FLAGS(LED2_NODE, gpios)
-static const struct device* led2_pin;
-
-#define LED3_NODE DT_ALIAS(led3)
-#define LED3 DT_GPIO_LABEL(LED3_NODE, gpios)
-#define LED3_PIN DT_GPIO_PIN(LED3_NODE, gpios)
-#define LED3_FLAGS DT_GPIO_FLAGS(LED3_NODE, gpios)
-static const struct device* led3_pin;
-
 #endif  // CONFIG_LED
 
 static size_t g_num_bytes_requested = 0;
@@ -93,7 +72,7 @@ static volatile bool g_transmit_complete = true;
 // Used by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
-//  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
   g_num_bytes_requested += size;
 
@@ -103,7 +82,7 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
   }
 
 #ifdef CONFIG_LED
-//  gpio_pin_set(led0_pin, LED0_PIN, 0);
+  gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
 
   return size;
@@ -114,7 +93,6 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
-  gpio_pin_set(led2_pin, LED2_PIN, 1);
 #endif
   for (;;) ;
 }
@@ -125,13 +103,11 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-static volatile tvm_crt_error_t fatal_error;
 // Used by TVM when an abort operation occurs.
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  fatal_error = error;   // Save it in a global for debugging.
-  //sys_reboot(SYS_REBOOT_COLD);
+  sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
-  gpio_pin_set(led3_pin, LED3_PIN, 1);
+  gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
   for (;;) ;
 }
@@ -172,7 +148,7 @@ tvm_crt_error_t TVMPlatformTimerStart() {
   }
 
 #ifdef CONFIG_LED
-//  gpio_pin_set(led0_pin, LED0_PIN, 1);
+  gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
   k_timer_start(&g_utvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
   g_utvm_start_time = k_cycle_get_32();
@@ -189,7 +165,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* res_us) {
 
   uint32_t stop_time = k_cycle_get_32();
 #ifdef CONFIG_LED
-//  gpio_pin_set(led0_pin, LED0_PIN, 0);
+  gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
 
   // compute how long the work took
@@ -263,9 +239,6 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
         // Read a small chunk of data from the UART.
         int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
         if (bytes_read < 0) {
-#ifdef CONFIG_LED
-          gpio_pin_set(led2_pin, LED2_PIN, 1);
-#endif
           TVMPlatformAbort((tvm_crt_error_t)0xbeef1);
         } else if (bytes_read == 0) {
           break;
@@ -273,10 +246,6 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
         // Write it into the ring buffer.
         int bytes_written = ring_buf_put(&buf->buf, uart_data, bytes_read);
         if (bytes_read != bytes_written) {
-#ifdef CONFIG_LED
-          gpio_pin_set(led1_pin, LED1_PIN, 1);
-          gpio_pin_set(led2_pin, LED2_PIN, 1);
-#endif
           TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
         }
         //CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
@@ -318,36 +287,6 @@ void main(void) {
     TVMPlatformAbort((tvm_crt_error_t)0xbeef4);
   }
   gpio_pin_set(led0_pin, LED0_PIN, 1);
-
-  led1_pin = device_get_binding(LED1);
-  if (led1_pin == NULL) {
-    for (;;) ;
-  }
-  ret = gpio_pin_configure(led1_pin, LED1_PIN, GPIO_OUTPUT_ACTIVE | LED1_FLAGS);
-  if (ret < 0) {
-    TVMPlatformAbort((tvm_crt_error_t)0xbeef4);
-  }
-  gpio_pin_set(led1_pin, LED1_PIN, 1);
-
-  led2_pin = device_get_binding(LED2);
-  if (led2_pin == NULL) {
-    for (;;) ;
-  }
-  ret = gpio_pin_configure(led2_pin, LED2_PIN, GPIO_OUTPUT_ACTIVE | LED2_FLAGS);
-  if (ret < 0) {
-    TVMPlatformAbort((tvm_crt_error_t)0xbeef4);
-  }
-  gpio_pin_set(led2_pin, LED2_PIN, 1);
-
-  led3_pin = device_get_binding(LED3);
-  if (led3_pin == NULL) {
-    for (;;) ;
-  }
-  ret = gpio_pin_configure(led3_pin, LED3_PIN, GPIO_OUTPUT_ACTIVE | LED3_FLAGS);
-  if (ret < 0) {
-    TVMPlatformAbort((tvm_crt_error_t)0xbeef4);
-  }
-  gpio_pin_set(led3_pin, LED3_PIN, 1);
 #endif
 
   // Claim console device.
@@ -360,9 +299,6 @@ void main(void) {
   TVMLogf("uTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
-  gpio_pin_set(led1_pin, LED1_PIN, 0);
-  gpio_pin_set(led2_pin, LED2_PIN, 0);
-  gpio_pin_set(led3_pin, LED3_PIN, 0);
 #endif
 
   // The main application loop. We continuously read commands from the UART
@@ -377,17 +313,10 @@ void main(void) {
         // Pass the received bytes to the RPC server.
         tvm_crt_error_t err = UTvmRpcServerLoop(server, &cursor, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
-#ifdef CONFIG_LED
-          gpio_pin_set(led0_pin, LED0_PIN, 1);
-          gpio_pin_set(led2_pin, LED2_PIN, 1);
-#endif
           TVMPlatformAbort(err);
         }
        if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
           if (g_num_bytes_written != g_num_bytes_requested) {
-#ifdef CONFIG_LED
-            gpio_pin_set(led1_pin, LED1_PIN, 1);
-#endif
             TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
           }
           g_num_bytes_written = 0;
