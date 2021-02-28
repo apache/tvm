@@ -598,6 +598,225 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
+// BufferRegion
+BufferRegion::BufferRegion(Buffer buffer, Array<Range> region) {
+  ObjectPtr<BufferRegionNode> node = make_object<BufferRegionNode>();
+  node->buffer = std::move(buffer);
+  node->region = std::move(region);
+  data_ = std::move(node);
+}
+
+BufferRegion BufferRegion::FullRegion(Buffer buffer) {
+  Array<Range> region;
+  for (PrimExpr extent : buffer->shape) {
+    region.push_back(Range::FromMinExtent(0, extent));
+  }
+  return BufferRegion(buffer, region);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferRegion").set_body_typed([](Buffer buffer, Array<Range> region) {
+  return BufferRegion(buffer, region);
+});
+
+TVM_REGISTER_NODE_TYPE(BufferRegionNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BufferRegionNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BufferRegionNode*>(node.get());
+      p->stream << op->buffer->name;
+      p->stream << "[";
+      for (size_t i = 0; i < op->region.size(); ++i) {
+        const auto& range = op->region[i];
+        p->Print(range->min);
+        if (!is_one(range->extent)) {
+          p->stream << ":";
+          p->Print(range->min + range->extent);
+        }
+        if (i != op->region.size() - 1) p->stream << ", ";
+      }
+      p->stream << "]";
+    });
+
+// MatchBufferRegion
+MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
+  ObjectPtr<MatchBufferRegionNode> node = make_object<MatchBufferRegionNode>();
+  node->buffer = std::move(buffer);
+  node->source = std::move(source);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.MatchBufferRegion").set_body_typed([](Buffer buffer, BufferRegion source) {
+  return MatchBufferRegion(buffer, source);
+});
+
+TVM_REGISTER_NODE_TYPE(MatchBufferRegionNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<MatchBufferRegionNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const MatchBufferRegionNode*>(node.get());
+      p->PrintIndent();
+      p->stream << op->buffer->name << " = match_buffer_region(";
+      p->Print(op->source);
+      p->stream << ")\n";
+    });
+
+// Block
+Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRegion> writes,
+             String name_hint, Stmt body, Optional<Stmt> init, Array<Buffer> alloc_buffers,
+             Array<MatchBufferRegion> match_buffers, Map<String, ObjectRef> annotations,
+             Span span) {
+  ObjectPtr<BlockNode> node = make_object<BlockNode>();
+  node->iter_vars = std::move(iter_vars);
+  node->reads = std::move(reads);
+  node->writes = std::move(writes);
+  node->name_hint = std::move(name_hint);
+  node->body = std::move(body);
+  node->init = std::move(init);
+  node->alloc_buffers = std::move(alloc_buffers);
+  node->match_buffers = std::move(match_buffers);
+  node->annotations = std::move(annotations);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.Block")
+    .set_body_typed([](Array<IterVar> iter_vars, Array<BufferRegion> reads,
+                       Array<BufferRegion> writes, String name_hint, Stmt body, Optional<Stmt> init,
+                       Array<Buffer> alloc_buffers, Array<MatchBufferRegion> match_buffers,
+                       Map<String, ObjectRef> annotations, Span span) {
+      return Block(iter_vars, reads, writes, name_hint, body, init, alloc_buffers, match_buffers,
+                   annotations, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(BlockNode);
+
+void PrintBlockTitle(const BlockNode* op, ReprPrinter* p) {
+  p->stream << "block " << op->name_hint << "(";
+  for (size_t i = 0; i < op->iter_vars.size(); i++) {
+    p->Print(op->iter_vars[i]);
+    if (i < op->iter_vars.size() - 1) p->stream << ", ";
+  }
+  p->stream << ")";
+}
+
+void PrintBlockSignature(const BlockNode* op, ReprPrinter* p) {
+  // print read/write regions
+  p->PrintIndent();
+  p->stream << "reads(";
+  p->Print(op->reads);
+  p->stream << ")\n";
+  p->PrintIndent();
+  p->stream << "writes(";
+  p->Print(op->writes);
+  p->stream << ")\n";
+  // Print alloc_buffers
+  for (const auto& alloc_buf : op->alloc_buffers) {
+    p->PrintIndent();
+    p->stream << alloc_buf->name << " = alloc_buffer(" << alloc_buf->dtype << "[";
+    for (size_t i = 0; i < alloc_buf->shape.size(); ++i) {
+      if (i > 0) p->stream << ", ";
+      p->Print(alloc_buf->shape[i]);
+    }
+    p->stream << "])\n";
+  }
+  // Print match_buffer_regions
+  for (const auto& match_buf : op->match_buffers) {
+    p->Print(match_buf);
+  }
+  if (!op->annotations.empty()) {
+    p->PrintIndent();
+    p->stream << "annotations(" << op->annotations << ")\n";
+  }
+}
+
+void PrintBlockBody(const BlockNode* op, ReprPrinter* p) {
+  // Print init
+  if (op->init.defined()) {
+    p->PrintIndent();
+    p->stream << "with init() {\n";
+    p->indent += 2;
+    p->Print(op->init.value());
+    p->indent -= 2;
+    p->PrintIndent();
+    p->stream << "}\n";
+  }
+  // Print body
+  p->Print(op->body);
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BlockNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BlockNode*>(node.get());
+      p->PrintIndent();
+      PrintBlockTitle(op, p);
+      p->stream << "{\n";
+      p->indent += 2;
+
+      // Print block elements (e.g. reads/writes, etc)
+      PrintBlockSignature(op, p);
+      // Print block init and body
+      PrintBlockBody(op, p);
+
+      p->indent -= 2;
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
+// BlockRealize
+BlockRealize::BlockRealize(Array<PrimExpr> values, PrimExpr predicate, Block block, Span span) {
+  CHECK_EQ(block->iter_vars.size(), values.size())
+      << "ValueError: BlockRealize needs to have the same number of iter_vars and binding values";
+  CHECK(predicate.dtype().is_bool()) << "TypeError: Expect Block.predicate to be a bool expression";
+  ObjectPtr<BlockRealizeNode> node = make_object<BlockRealizeNode>();
+  node->iter_values = std::move(values);
+  node->predicate = std::move(predicate);
+  node->block = std::move(block);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.BlockRealize")
+    .set_body_typed([](Array<PrimExpr> iter_values, PrimExpr predicate, Block block, Span span) {
+      return BlockRealize(iter_values, predicate, block, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(BlockRealizeNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BlockRealizeNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BlockRealizeNode*>(node.get());
+      auto* block_op = op->block.get();
+      p->PrintIndent();
+      PrintBlockTitle(block_op, p);
+      p->stream << "{\n";
+      p->indent += 2;
+
+      // Print binding iter_values
+      for (size_t i = 0; i < block_op->iter_vars.size(); ++i) {
+        p->PrintIndent();
+        p->stream << "bind(";
+        p->Print(block_op->iter_vars[i]->var);
+        p->stream << ", ";
+        p->Print(op->iter_values[i]);
+        p->stream << ")\n";
+      }
+      // Print predicate
+      if (!is_one(op->predicate)) {
+        p->PrintIndent();
+        p->stream << "where(";
+        p->Print(op->predicate);
+        p->stream << ")\n";
+      }
+      // Print block elements (e.g. reads/writes, etc)
+      PrintBlockSignature(block_op, p);
+      // Print block init and body
+      PrintBlockBody(block_op, p);
+
+      p->indent -= 2;
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
 PrimExpr TypeAnnotation(DataType dtype, Span span) {
   static auto op = Op::Get("tir.type_annotation");
   return tir::Call(dtype, op, {}, span);

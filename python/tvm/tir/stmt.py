@@ -26,11 +26,15 @@ Each statement node have subfields that can be visited from python side.
     assert isinstance(st, tvm.tir.stmt.Store)
     assert(st.buffer_var == a)
 """
+from typing import List, Optional, Mapping
 from enum import IntEnum
 import tvm._ffi
 
 from tvm.runtime import Object
+from tvm.ir import Span, PrimExpr, Range
 from . import _ffi_api
+from .buffer import Buffer
+from .expr import IterVar
 
 
 class Stmt(Object):
@@ -427,6 +431,164 @@ class Prefetch(Stmt):
 
     def __init__(self, buffer, bounds, span=None):
         self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds, span)
+
+
+@tvm._ffi.register_object("tir.BufferRegion")
+class BufferRegion(Object):
+    """BufferRegion node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer of the buffer region
+
+    region : List[Range]
+        The region array of the buffer region
+    """
+
+    buffer: Buffer
+    region: List[Range]
+
+    def __init__(self, buffer: Buffer, region: List[Range]):
+        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)
+
+
+@tvm._ffi.register_object("tir.MatchBufferRegion")
+class MatchBufferRegion(Object):
+    """MatchBufferRegion node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The target buffer
+
+    source : BufferRegion
+        The region of source buffer
+    """
+
+    buffer: Buffer
+    source: BufferRegion
+
+    def __init__(self, buffer: Buffer, source: BufferRegion):
+        self.__init_handle_by_constructor__(_ffi_api.MatchBufferRegion, buffer, source)
+
+
+@tvm._ffi.register_object("tir.Block")
+class Block(Stmt):
+    """Block node.
+
+    Parameters
+    ----------
+    iter_vars : List[IterVar]
+        The block Variable.
+
+    reads : List[BufferRegion]
+        The read buffer regions of the block.
+
+    writes: List[BufferRegion]
+        The write buffer regions of the block.
+
+    name_hint: str
+        the name_hint of the block.
+
+    body: Stmt
+        The body of the block.
+
+    init: Optional[Stmt]
+        The init block of the reduction block
+
+    alloc_buffers: Optional[list[Buffer]]
+        The buffer allocations
+
+    match_buffers: Optional[List[MatchBufferRegion]]
+        The subregion buffer match
+
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints.
+
+    span : Optional[Span]
+        The location of this block in the source code.
+    """
+
+    iter_vars: List[IterVar]
+    reads: List[BufferRegion]
+    writes: List[BufferRegion]
+    name_hint: str
+    body: Stmt
+    init: Optional[Stmt]
+    alloc_buffers: Optional[List[Buffer]]
+    match_buffers: Optional[List[MatchBufferRegion]]
+    annotations: Optional[Mapping[str, Object]]
+    span: Optional[Span]
+
+    def __init__(
+        self,
+        iter_vars: List[IterVar],
+        reads: List[BufferRegion],
+        writes: List[BufferRegion],
+        name_hint: str,
+        body: Stmt,
+        init: Optional[Stmt] = None,
+        alloc_buffers: Optional[List[Buffer]] = None,
+        match_buffers: Optional[List[MatchBufferRegion]] = None,
+        annotations: Optional[Mapping[str, Object]] = None,
+        span: Optional[Span] = None,
+    ):
+        if alloc_buffers is None:
+            alloc_buffers = []
+        if match_buffers is None:
+            match_buffers = []
+        if annotations is None:
+            annotations = {}
+        self.__init_handle_by_constructor__(
+            _ffi_api.Block,
+            iter_vars,
+            reads,
+            writes,
+            name_hint,
+            body,
+            init,
+            alloc_buffers,
+            match_buffers,
+            annotations,
+            span,
+        )
+
+
+@tvm._ffi.register_object("tir.BlockRealize")
+class BlockRealize(Stmt):
+    """BlockRealize node.
+
+    Parameters
+    ----------
+    iter_values : List[PrimExpr]
+        The binding values of the block var.
+
+    predicate : PrimExpr
+        The predicate of the block.
+
+    block : Block
+        The block to realize
+
+    span : Optional[Span]
+        The location of this block_realize in the source code.
+    """
+
+    iter_values: List[PrimExpr]
+    predicate: PrimExpr
+    block: Block
+    span: Optional[Span]
+
+    def __init__(
+        self,
+        iter_values: List[PrimExpr],
+        predicate: PrimExpr,
+        block: Block,
+        span: Optional[Span] = None,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BlockRealize, iter_values, predicate, block, span
+        )
 
 
 def stmt_seq(*args):
