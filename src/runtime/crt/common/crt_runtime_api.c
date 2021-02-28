@@ -22,10 +22,10 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/func_registry.h>
