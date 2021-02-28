@@ -127,6 +127,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
   }
 
+ protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
@@ -166,6 +167,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
   }
 
+ public:
   TVMStreamHandle CreateStream(TVMContext ctx) {
     CUDA_CALL(cudaSetDevice(ctx.device_id));
     cudaStream_t retval;

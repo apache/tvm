@@ -24,6 +24,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/support/logging.h>
 
 #include "runtime_base.h"
@@ -58,36 +59,39 @@ inline void VerifyDataType(DLDataType dtype) {
   ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
-inline size_t GetDataAlignment(const DLTensor& arr) {
-  size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
-  if (align < kAllocAlignment) return kAllocAlignment;
-  return align;
-}
-
 void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
   ICHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
   ICHECK(IsContiguous(*handle)) << "ArrayCopyFromBytes only support contiguous array for now";
-  DeviceAPI::Get(handle->ctx)
-      ->CopyDataFromTo(data, 0, handle->data, static_cast<size_t>(handle->byte_offset), nbytes,
-                       cpu_ctx, handle->ctx, handle->dtype, nullptr);
+
+  DLTensor from;
+  from.data = const_cast<void*>(data);
+  from.ctx = DLContext{kDLCPU, 0};
+  from.ndim = handle->ndim;
+  from.dtype = handle->dtype;
+  from.shape = handle->shape;
+  from.strides = nullptr;
+  from.byte_offset = 0;
+  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(&from, handle, nullptr);
   // Synchronize in case data become unavailable later.
   DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
 }
 
 void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
   ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
   ICHECK(IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
-  DeviceAPI::Get(handle->ctx)
-      ->CopyDataFromTo(handle->data, static_cast<size_t>(handle->byte_offset), data, 0, nbytes,
-                       handle->ctx, cpu_ctx, handle->dtype, nullptr);
+
+  DLTensor to;
+  to.data = const_cast<void*>(data);
+  to.ctx = DLContext{kDLCPU, 0};
+  to.ndim = handle->ndim;
+  to.dtype = handle->dtype;
+  to.shape = handle->shape;
+  to.strides = nullptr;
+  to.byte_offset = 0;
+
+  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(const_cast<DLTensor*>(handle), &to, nullptr);
   // Synchronize in case data become unavailable later.
   DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
 }
@@ -186,13 +190,11 @@ NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
 
 DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutable()); }
 
-NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx,
+                       Optional<String> mem_scope) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
-  // setup memory content
-  size_t size = GetDataSize(ret.get_mutable()->dl_tensor);
-  size_t alignment = GetDataAlignment(ret.get_mutable()->dl_tensor);
-  ret.get_mutable()->dl_tensor.data =
-      DeviceAPI::Get(ret->ctx)->AllocDataSpace(ret->ctx, size, alignment, ret->dtype);
+  ret.get_mutable()->dl_tensor.data = DeviceAPI::Get(ret->ctx)->AllocDataSpace(
+      ret->ctx, shape.size(), shape.data(), ret->dtype, mem_scope);
   return ret;
 }
 
@@ -236,9 +238,7 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   // api manager.
   TVMContext ctx = from->ctx.device_type != kDLCPU ? from->ctx : to->ctx;
 
-  DeviceAPI::Get(ctx)->CopyDataFromTo(from->data, static_cast<size_t>(from->byte_offset), to->data,
-                                      static_cast<size_t>(to->byte_offset), from_size, from->ctx,
-                                      to->ctx, from->dtype, stream);
+  DeviceAPI::Get(ctx)->CopyDataFromTo(const_cast<DLTensor*>(from), to, stream);
 }
 
 std::vector<int64_t> NDArray::Shape() const { return get_mutable()->shape_; }
@@ -278,6 +278,17 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   *out = NDArray::Internal::MoveToFFIHandle(ndarray);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, TVMRetValue* ret) {
+  int64_t* shape_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
+  int ndim = args[1];
+  std::vector<int64_t> shape(shape_ptr, shape_ptr + ndim);
+  DataType dtype = args[2];
+  TVMContext ctx = args[3];
+  Optional<String> mem_scope = args[4];
+  auto ndarray = NDArray::Empty(shape, dtype, ctx, mem_scope);
+  *ret = ndarray;
+});
 
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();
