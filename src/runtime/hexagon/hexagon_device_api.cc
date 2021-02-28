@@ -35,9 +35,6 @@ class HexagonDeviceAPI : public DeviceAPI {
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
   void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
-                      DLDataType type_hint, TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint = {}) final;
   void FreeWorkspace(TVMContext ctx, void* ptr) final;
@@ -48,6 +45,11 @@ class HexagonDeviceAPI : public DeviceAPI {
     static HexagonDeviceAPI* inst = new HexagonDeviceAPI();
     return inst;
   }
+
+ protected:
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                      size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                      DLDataType type_hint, TVMStreamHandle stream) final;
 };
 
 // HexagonDeviceAPI.
