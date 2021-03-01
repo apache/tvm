@@ -400,7 +400,13 @@ class PyTorchOpConverter:
         )
 
         # A fast path when slicing is nop.
-        if target_begin == 0 and target_end >= index_size_limit and stride == 1:
+        if (
+            is_begin_const
+            and is_end_const
+            and target_begin == 0
+            and target_end >= index_size_limit
+            and stride == 1
+        ):
             return data
 
         # Process begin
