@@ -51,7 +51,7 @@ def check_symbolic_shape(shape):
 def list_shape_of(tensor, ndim):
     shape_tensor = _op.shape_of(tensor)
     return [
-        _op.strided_slice(shape_tensor, begin=[i], end=[i+1], strides=[1]) for i in range(ndim)
+        _op.strided_slice(shape_tensor, begin=[i], end=[i + 1], strides=[1]) for i in range(ndim)
     ]
 
 
