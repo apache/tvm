@@ -93,13 +93,11 @@ class Eliminator : private ExprMutator {
       }
     };
     auto post_visit = [this](const LetNode* op) {
-      // Rely on the Memoizer to cache pre-visit values
-      Expr value = this->VisitExpr(op->value);
-      // Visit body and cache the op
       Expr body = this->VisitExpr(op->body);
       auto expr = GetRef<Expr>(op);
       Var v = op->var;
       if (HasLet(v)) {
+        Expr value = this->VisitExpr(op->value);
         this->memo_[expr] = Let(v, value, body);
       } else {
         this->memo_[expr] = body;
@@ -143,7 +141,10 @@ class CalcDep : protected MixedModeVisitor {
 
   void VisitExpr_(const LetNode* l) final {
     auto pre_visit = [](const LetNode* op) {};
-    auto post_visit = [this](const LetNode* op) { this->VisitExpr(op->body); };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
     ExpandANormalForm(l, pre_visit, post_visit);
   }
 
