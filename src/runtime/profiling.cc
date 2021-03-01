@@ -25,6 +25,9 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 
+#include <chrono>
+#include <map>
+
 namespace tvm {
 namespace runtime {
 
@@ -76,6 +79,19 @@ TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
   return Timer(make_object<CPUTimerNode>());
 });
 
-TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(StartTimer);
+Timer Timer::Start(TVMContext ctx) {
+  auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(ctx.device_type));
+  if (f == nullptr) {
+    Timer t = DefaultTimer(ctx);
+    t->Start();
+    return t;
+  } else {
+    Timer t = f->operator()(ctx);
+    t->Start();
+    return t;
+  }
+}
+
+TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 }  // namespace runtime
 }  // namespace tvm

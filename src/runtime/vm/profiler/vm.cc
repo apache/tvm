@@ -126,7 +126,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   auto nd_array = Downcast<NDArray>(arg);
   auto ctx = nd_array->ctx;
 
-  Timer t = StartTimer(ctx);
+  Timer t = Timer::Start(ctx);
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
   t.Stop();
 

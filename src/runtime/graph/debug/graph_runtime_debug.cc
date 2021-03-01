@@ -159,7 +159,7 @@ class GraphRuntimeDebug : public GraphRuntime {
 
   Timer RunOpHost(int index) {
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-    Timer t = StartTimer(ctx);
+    Timer t = Timer::Start(ctx);
     op_execs_[index]();
     t.Stop();
     return t;

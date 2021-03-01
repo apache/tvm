@@ -24,14 +24,11 @@
 #ifndef TVM_RUNTIME_PROFILING_H_
 #define TVM_RUNTIME_PROFILING_H_
 
-#include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
-#include <chrono>
-#include <map>
 #include <string>
 
 namespace tvm {
@@ -79,11 +76,37 @@ class TimerNode : public Object {
  */
 class Timer : public ObjectRef {
  public:
-  /*! \brief Start the timer.
+  /*!
+   * \brief Get a device specific timer.
+   * \param ctx The device context to time.
+   * \return A `Timer` that has already been started.
    *
-   * Note: this function should only be called once per object.
+   * Use this function to time runtime of arbitrary regions of code on a specific
+   * device. The code that you want to time should be running on the device
+   * otherwise the timer will not return correct results. This is a lower level
+   * interface than TimeEvaluator and only runs the timed code once
+   * (TimeEvaluator runs the code multiple times).
+   *
+   * A default timer is used if a device specific one does not exist. This
+   * timer performs synchronization between the device and CPU, which can lead
+   * to overhead in the reported results.
+   *
+   * Example usage:
+   * \code{.cpp}
+   * Timer t = StartTimer(TVMContext::cpu());
+   * my_long_running_function();
+   * t.Stop();
+   * ... // some more computation
+   * int64_t nanosecs = t.SyncAndGetElapsedNanos() // elapsed time in nanoseconds
+   * \endcode
+   *
+   * To add a new device-specific timer, register a new function
+   * "profiler.timer.my_device" (where `my_device` is the `DeviceName` of your
+   * device). This function should accept a `TVMContext` and return a new `Timer`
+   * that has already been started.
    */
-  void Start() { operator->()->Start(); }
+  static TVM_DLL Timer Start(TVMContext ctx);
+
   /*! \brief Stop the timer.
    *
    * Note: this function should only be called once per object.
@@ -111,44 +134,6 @@ class Timer : public ObjectRef {
  * which can lead to overhead in the reported results.
  */
 Timer DefaultTimer(TVMContext ctx);
-
-/*!
- * \brief Get a device specific timer.
- * \param ctx The device context to time.
- * \return A `Timer` that has already been started.
- *
- * Use this function to time runtime of arbitrary regions of code on a specific
- * device. The code that you want to time should be running on the device
- * otherwise the timer will not return correct results. This is a lower level
- * interface than TimeEvaluator and only runs the timed code once
- * (TimeEvaluator runs the code multiple times).
- *
- * Example usage:
- * \code{.cpp}
- * Timer t = StartTimer(TVMContext::cpu());
- * my_long_running_function();
- * t.Stop();
- * ... // some more computation
- * int64_t nanosecs = t.SyncAndGetElapsedNanos() // elapsed time in nanoseconds
- * \endcode
- *
- * To add a new device-specific timer, register a new function
- * "profiler.timer.my_device" (where `my_device` is the `DeviceName` of your
- * device). This function should accept a `TVMContext` and return a new `Timer`
- * that has already been started.
- */
-inline Timer StartTimer(TVMContext ctx) {
-  auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(ctx.device_type));
-  if (f == nullptr) {
-    Timer t = DefaultTimer(ctx);
-    t.Start();
-    return t;
-  } else {
-    Timer t = f->operator()(ctx);
-    t.Start();
-    return t;
-  }
-}
 
 }  // namespace runtime
 }  // namespace tvm
