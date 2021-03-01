@@ -61,10 +61,10 @@ bool BiasAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (axis < 0) {
     axis = data->shape.size() + axis;
   }
-  if (axis >= static_cast<int>(data->shape.size())) {
+  if (axis >= static_cast<int>(data->shape.size()) || axis < 0) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "The axis in bias_add must be in range for the shape; "
-                                     << "attempted to access index " << axis << " of "
+                                     << "attempted to access index " << param->axis << " of "
                                      << PrettyPrint(data->shape));
     return false;
   }
