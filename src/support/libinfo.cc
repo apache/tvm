@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/node/container.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
