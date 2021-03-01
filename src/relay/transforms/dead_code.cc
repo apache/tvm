@@ -87,7 +87,11 @@ class Eliminator : private ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* op) final {
-    auto pre_visit = [this](const LetNode* op) { Expr value = this->VisitExpr(op->value); };
+    auto pre_visit = [this](const LetNode* op) {
+      if (HasLet(op->var)) {
+        Expr value = this->VisitExpr(op->value);
+      }
+    };
     auto post_visit = [this](const LetNode* op) {
       // Rely on the Memoizer to cache pre-visit values
       Expr value = this->VisitExpr(op->value);
