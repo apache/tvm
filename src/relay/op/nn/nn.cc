@@ -591,7 +591,8 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_support_level(1)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .add_type_rel("Dropout", DropoutRel);
+    .add_type_rel("Dropout", DropoutRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true);
 
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
