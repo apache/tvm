@@ -176,12 +176,6 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   virtual void LoadExecutable(const Executable* exec);
 
-  /*!
-   * \brief Load serialized parameters.
-   * \param params The serialized parameters.
-   */
-  virtual void LoadParams(const std::string& params);
-
  protected:
   /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);

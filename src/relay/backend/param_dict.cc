@@ -46,7 +46,5 @@ TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict").set_body_typed([](const Map<St
     });
 TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict").set_body_typed([](const String& s) { return ::tvm::runtime::LoadParams(s);});
 
-TVM_REGISTER_NODE_TYPE(NamedNDArrayNode);
-
 }  // namespace relay
 }  // namespace tvm
