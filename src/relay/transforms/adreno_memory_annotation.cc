@@ -107,8 +107,11 @@ class StorageInfo {
         }
       }
 
-      if (call->attrs.as<Conv2DAttrs>()) {
-        primitive_supports_texture_ = true;
+      if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
+        if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o")
+        {
+          primitive_supports_texture_ = true;
+        }
       }
       for (auto& arg : call->args) {
         Visit(arg);
