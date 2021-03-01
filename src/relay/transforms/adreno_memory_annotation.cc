@@ -42,6 +42,8 @@ class StorageInfo {
     StorageInfo storage_info;
     storage_info.pre_visitor_ = PreDfsOrderVisitor();
     storage_info.pre_visitor_.Visit(expr);
+    // TODO(csullivan): A unit test for legalization
+    storage_info.pre_visitor_.LegalizeProducerStorage();
     for (auto& it : storage_info.pre_visitor_.storage_scope_) {
       storage_info.storage_map_.Set(GetRef<Expr>(it.first), String(it.second));
     }
@@ -115,6 +117,33 @@ class StorageInfo {
 
     void VisitExpr_(const VarNode* vn) final {
       BackwardPropagateConsumerScope(vn);
+    }
+
+    void LegalizeProducerStorage() {
+      for (auto& kv : consumer_storage_scopes_) {
+        const ExprNode* producer = kv.first;
+        // For any producers which have multiple consumers we
+        // must ensure that all of those consumers expect the
+        // same storage type. If not, default to global scope
+        // for the producer
+        if (kv.second.size() > 1) {
+          bool all_consumers_support_texture = true;
+          for (auto& consumer_scope : kv.second) {
+            if (consumer_scope != "texture") {
+              all_consumers_support_texture = false;
+              break;
+            }
+          }
+          if (all_consumers_support_texture)
+          {
+            storage_scope_[producer] = "texture";
+          }
+          else
+          {
+            storage_scope_[producer] = "global";
+          }
+        }
+      }
     }
 
     bool primitive_supports_texture_ = false;
