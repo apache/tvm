@@ -171,16 +171,8 @@ compiler = zephyr.ZephyrCompiler(
 ######################################################################
 # Do the actual build.
 opts = tvm.micro.default_options(f"{UTVM_ZEPHYR_RUNTIME_DIR}/crt")
-opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
-opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
 
-micro_bin = tvm.micro.build_static_runtime(
-    workspace,
-    compiler,
-    lowered.lib,
-    lib_opts=opts["lib_opts"],
-    bin_opts=opts["bin_opts"],
-)
+micro_bin = tvm.micro.build_static_runtime(workspace, compiler, lowered.lib, opts)
 
 ######################################################################
 # Next, we create a ``tvm.micro.Session`` which handles the details

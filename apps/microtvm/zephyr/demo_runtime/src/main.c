@@ -64,11 +64,6 @@ static const struct device* led0_pin;
 static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
 
-static const uint8_t* g_transmit_data = NULL;
-static size_t g_transmit_data_size = 0;
-static volatile size_t g_transmitted_bytes = 0;
-static volatile bool g_transmit_complete = true;
-
 // Used by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
@@ -291,7 +286,6 @@ void main(void) {
 
   // Claim console device.
   tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
-  const struct device* shadow_tvm_uart = tvm_uart;
   uart_rx_init(&uart_rx_buf, tvm_uart);
 
   // Initialize uTVM RPC server, which will receive commands from the UART and execute them.
