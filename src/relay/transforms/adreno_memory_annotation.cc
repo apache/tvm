@@ -71,6 +71,7 @@ class StorageInfo {
         for (auto& consumer_scope : consumer_scopes_it->second) {
           if (consumer_scope != "texture") {
             all_consumers_support_texture = false;
+            break;
           }
         }
         if (all_consumers_support_texture)
@@ -93,9 +94,13 @@ class StorageInfo {
           if (primitive_supports_texture_)
           {
             storage_scope_[call] = "texture";
-            for (auto& arg : call->args) {
-              consumer_storage_scopes_[arg.get()].push_back("texture");
-            }
+          }
+          else
+          {
+            storage_scope_[call] = "global";
+          }
+          for (auto& arg : call->args) {
+            consumer_storage_scopes_[arg.get()].push_back(storage_scope_[call]);
           }
         }
       }
