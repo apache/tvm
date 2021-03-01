@@ -83,7 +83,7 @@ class Eliminator : private ExprMutator {
 
   Expr VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
-    return (expr_map_.count(v) == 0 || HasLet(v)) ? v : VisitExpr(expr_map_.at(v));
+    return (expr_map_.count(v) == 0 || HasLet(v)) ? v : VisitExpr(expr_map_[v]);
   }
 
   Expr VisitExpr_(const LetNode* op) final {
@@ -104,7 +104,7 @@ class Eliminator : private ExprMutator {
       }
     };
     ExpandANormalForm(op, pre_visit, post_visit);
-    return memo_.at(GetRef<Expr>(op));
+    return memo_[GetRef<Expr>(op)];
   }
 };
 
