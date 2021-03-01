@@ -294,7 +294,8 @@ class TextureFlattener : public StmtExprMutator {
     {
       Stmt body = this->VisitStmt(op->body);
       ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
-      ICHECK_EQ(static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
+      int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
+      ICHECK(vec_length == 4 || vec_length == 1) << "FCD of texture must be vector of length 1 or 4 (RGBA)";
 
       Array<PrimExpr> shape;
       auto width = IntImm(DataType::Int(32), 1);
