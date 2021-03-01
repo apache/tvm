@@ -203,15 +203,15 @@ with tvm.micro.Session(binary=micro_bin, flasher=flasher) as sess:
     digit_9 = np.expand_dims(digit_9, axis=0)
 
     # Set the input tensor of the model to the digit-2 test image.
-    gmodule.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_2))
+    mod.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_2))
 
     # Run inference and get the result.
-    gmodule.run()
-    output = gmodule.get_output(0).asnumpy()
+    mod.run()
+    output = mod.get_output(0).asnumpy()
     print(f"Top result for digit-2 is: {np.argmax(output)}")
 
     # Do likewise for the digit-9 image.
-    gmodule.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_9))
-    gmodule.run()
-    output = gmodule.get_output(0).asnumpy()
+    mod.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_9))
+    mod.run()
+    output = mod.get_output(0).asnumpy()
     print(f"Top result for digit-9 is: {np.argmax(output)}")
