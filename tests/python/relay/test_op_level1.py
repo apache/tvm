@@ -209,6 +209,7 @@ def test_bias_add_type_failure():
             return
         else:
             assert False
+
     for axis in (0, -1, -3, 1):
         assert_failure(relay.nn.bias_add(relay.const(1), relay.const(2), axis=axis))
 
