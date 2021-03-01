@@ -90,7 +90,7 @@ import numpy as np
 # For this tutorial, we use a pretrained ONNX model implementing
 # the MNIST handwritten digit recognition on 28x28 px input images.
 
-MODEL_FILE = "models/mnist-8.onnx"
+MODEL_FILE = "../../tests/micro/zephyr/testdata/mnist-8.onnx"
 MODEL_SHAPE = (1, 1, 28, 28)
 INPUT_TENSOR_NAME = "Input3"
 
@@ -184,8 +184,8 @@ with tvm.micro.Session(binary=micro_bin, flasher=flasher) as sess:
     mod = tvm.micro.create_local_graph_runtime(graph_json_str, sess.get_system_lib(), sess.context)
 
     # Load test images.
-    DIGIT_2_IMAGE = "data/digit-2.jpg"
-    DIGIT_9_IMAGE = "data/digit-9.jpg"
+    DIGIT_2_IMAGE = "../../tests/micro/zephyr/testdata/digit-2.jpg"
+    DIGIT_9_IMAGE = "../../tests/micro/zephyr/testdata/digit-9.jpg"
 
     digit_2 = Image.open(DIGIT_2_IMAGE).resize((28, 28))
     digit_9 = Image.open(DIGIT_9_IMAGE).resize((28, 28))
