@@ -332,12 +332,12 @@ def PrintIR(header="", show_meta_data=False):
     return _ffi_transform_api.PrintIR(header, show_meta_data)
 
 
-def print_pass_profiles():
-    """Prints all the stored pass profiling data. The format of each output line is
+def render_pass_profiles():
+    """Returns a string render of the pass profiling data. The format of each output line is
     `{name}: {time} [{time excluding sub-passes}] ({% of total}; {% of parent})`.
     The indentation of each line corresponds to nesting of passes.
     """
-    _ffi_transform_api.print_pass_profiles()
+    return _ffi_transform_api.render_pass_profiles()
 
 
 def clear_pass_profiles():

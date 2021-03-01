@@ -29,6 +29,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <chrono>
+#include <iomanip>
 #include <stack>
 #include <unordered_set>
 
@@ -256,13 +257,13 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   return std::move(ret);
 }
 
-void PrintPassProfile() {
+String RenderPassProfiles() {
   PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
   CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
 
   if (entry->root.children.empty()) {
     LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";
-    return;
+    return String();
   }
 
   // (depth, parent_duration, pass)
@@ -277,6 +278,9 @@ void PrintPassProfile() {
     profiles.push(std::make_tuple(0, top_dur, &*it));
   }
 
+  std::ostringstream os;
+  os << std::fixed;
+
   while (profiles.size() > 0) {
     size_t depth;
     PassProfile::Duration parent_duration;
@@ -286,7 +290,7 @@ void PrintPassProfile() {
 
     // indent depth
     for (size_t i = 0; i < depth; ++i) {
-      std::cout << "\t";
+      os << "\t";
     }
 
     // calculate time spent in pass itself (excluding sub-passes), and push children
@@ -299,12 +303,16 @@ void PrintPassProfile() {
     double parent_pct = profile->duration.count() / parent_duration.count() * 100.0;
     double total_pct = profile->duration.count() / top_dur.count() * 100.0;
 
-    printf("%s: %.0fus [%.0fus] (%.2f%%; %.2f%%)\n", profile->name.c_str(),
-           profile->duration.count(), self_duration.count(), total_pct, parent_pct);
+    os << profile->name << ": ";
+    os << std::setprecision(0);
+    os << profile->duration.count() << "us [" << self_duration.count() << "us] ";
+    os << std::setprecision(2) << "(" << total_pct << "%; " << parent_pct << "%)\n";
   }
+
+  return os.str();
 }
 
-TVM_REGISTER_GLOBAL("transform.print_pass_profiles").set_body_typed([]() { PrintPassProfile(); });
+TVM_REGISTER_GLOBAL("transform.render_pass_profiles").set_body_typed(RenderPassProfiles);
 
 TVM_REGISTER_GLOBAL("transform.clear_pass_profiles").set_body_typed([]() {
   PassProfileThreadLocalStore::Get()->root.children.clear();

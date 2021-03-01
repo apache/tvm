@@ -27,15 +27,15 @@ def test_pass_profiler():
     mod = tvm.IRModule.from_expr(e3 + e2)
 
     tvm.transform.enable_pass_profiling()
-    
+
     mod = tvm.relay.transform.AnnotateSpans()(mod)
     mod = tvm.relay.transform.ToANormalForm()(mod)
     mod = tvm.relay.transform.InferType()(mod)
 
-    print()
-    print("pass profiling data")
-    print("===================")
-    tvm.transform.print_pass_profiles()
-    
+    profiles = tvm.transform.render_pass_profiles()
+    assert "AnnotateSpans" in profiles
+    assert "ToANormalForm" in profiles
+    assert "InferType" in profiles
+
     tvm.transform.clear_pass_profiles()
     tvm.transform.disable_pass_profiling()
