@@ -171,8 +171,21 @@ compiler = zephyr.ZephyrCompiler(
 ######################################################################
 # Do the actual build.
 opts = tvm.micro.default_options(f"{UTVM_ZEPHYR_RUNTIME_DIR}/crt")
+<<<<<<< HEAD
 
 micro_bin = tvm.micro.build_static_runtime(workspace, compiler, lowered.lib, opts)
+=======
+opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
+opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
+
+micro_bin = tvm.micro.build_static_runtime(
+    workspace,
+    compiler,
+    lowered.lib,
+    lib_opts=opts["lib_opts"],
+    bin_opts=opts["bin_opts"],
+)
+>>>>>>> d04e04ddddb435e3a0f4fc5707e027850dc80345
 
 ######################################################################
 # Next, we create a ``tvm.micro.Session`` which handles the details
@@ -195,6 +208,7 @@ with tvm.micro.Session(binary=micro_bin, flasher=flasher) as sess:
     digit_9 = np.expand_dims(digit_9, axis=0)
 
     # Set the input tensor of the model to the digit-2 test image.
+<<<<<<< HEAD
     mod.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_2))
 
     # Run inference and get the result.
@@ -206,4 +220,17 @@ with tvm.micro.Session(binary=micro_bin, flasher=flasher) as sess:
     mod.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_9))
     mod.run()
     output = mod.get_output(0).asnumpy()
+=======
+    gmodule.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_2))
+
+    # Run inference and get the result.
+    gmodule.run()
+    output = gmodule.get_output(0).asnumpy()
+    print(f"Top result for digit-2 is: {np.argmax(output)}")
+
+    # Do likewise for the digit-9 image.
+    gmodule.set_input(INPUT_TENSOR_NAME, tvm.nd.array(digit_9))
+    gmodule.run()
+    output = gmodule.get_output(0).asnumpy()
+>>>>>>> d04e04ddddb435e3a0f4fc5707e027850dc80345
     print(f"Top result for digit-9 is: {np.argmax(output)}")
