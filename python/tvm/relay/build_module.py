@@ -129,8 +129,11 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        target = Target(target, target_host)
-        target_host = target.host
+        # Assume the target host of all targets in heterogenous target are identical
+        for k, v in target.items():
+            target[k] = Target(target[k], target_host)
+            target_host = target[k].host
+
         self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
@@ -251,9 +254,9 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-
+    print(target)
     target = _update_target(target)
-
+    print(target)
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
