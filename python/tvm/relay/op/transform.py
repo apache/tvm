@@ -1478,6 +1478,7 @@ def segment_sum(data, indices, num_segments=None):
                 [4, -3, 2, -1],
                 [5, 6, 7, 8]]
         indices = [0, 0, 1]
+        result = segment_sum(data, indices)
         result = [[5, -1, 5, 3],[5, 6, 7, 8]]
 
         data = [[1, 2, 3, 4],
@@ -1485,6 +1486,7 @@ def segment_sum(data, indices, num_segments=None):
                 [5, 6, 7, 8]]
         indices = [0, 0, 2]
         num_segments = 3
+        result = segment_sum(data, indices, num_segments)
         result = [[5, -1, 5, 3],[0, 0, 0, 0], [5, 6, 7, 8]]
     """
 
