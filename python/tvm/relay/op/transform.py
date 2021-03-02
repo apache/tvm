@@ -1463,7 +1463,8 @@ def segment_sum(data, indices, num_segments=None):
     data : relay.Expr
         Input floating point data
     indices : relay.Expr
-        A 1-D tensor containing the indices of the rows to calculate the output sum upon
+        A 1-D tensor containing the indices of the rows to calculate the output sum upon.
+        This tensor doesn't need to be sorted
     num_segments : Optional[int]
         An integer describing the shape of the zeroth dimension. If unspecified, its calculated
         equivalent to the number of unique indices
@@ -1484,10 +1485,10 @@ def segment_sum(data, indices, num_segments=None):
         data = [[1, 2, 3, 4],
                 [4, -3, 2, -1],
                 [5, 6, 7, 8]]
-        indices = [0, 0, 2]
+        indices = [2, 0, 0]
         num_segments = 3
         result = segment_sum(data, indices, num_segments)
-        result = [[5, -1, 5, 3],[0, 0, 0, 0], [5, 6, 7, 8]]
+        result = [[5, 6, 7, 8],[0, 0, 0, 0], [5, -1, 5, 3]]
     """
 
     if num_segments:
