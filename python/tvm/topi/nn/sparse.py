@@ -362,8 +362,21 @@ def sparse_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
 
 
 def try_get_sparse_input(args):
-    """Analise the input data from the given args. Return is a Dict[Tensor, str] that maps the
-    input Tensor to a buffer name.
+    """Analise the input data from the given args.
+
+    Parameters
+    ----------
+    args : List[Tensor]
+        Input/output Tensor of a TVM subgraph.
+
+    Returns
+    -------
+    A Dict[Tensor, str] that maps the input Tensor to a buffer name.
+
+    Note
+    ----
+    The buffer name is specially designed, and these buffer should be provided in
+    `SearchTask.add_task_input()`.
     """
     sparse_prefix = sparse_data = sparse_indices = sparse_indptr = None
 

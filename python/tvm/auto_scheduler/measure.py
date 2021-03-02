@@ -721,7 +721,22 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
 
 
 def _prepare_input_map(args):
-    """This function deals with special task inputs."""
+    """This function deals with special task inputs.
+
+    Parameters
+    ----------
+    args : List[Tensor]
+        Input/output Tensor of a TVM subgraph.
+
+    Returns
+    -------
+    A Dict[Tensor, str] that maps the input Tensor to a buffer name.
+
+    Note
+    ----
+    The buffer name is specially designed, and these buffer should be provided in
+    `SearchTask.add_task_input()`.
+    """
     # pylint: disable=import-outside-toplevel
     from tvm import topi  # lazily import to avoid recursive dependency
 

@@ -128,7 +128,7 @@ Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 #   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
 #   - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
 
-target = tvm.target.Target("llvm")
+target = tvm.target.Target("llvm -mcpu=core-avx2")
 
 task = tvm.auto_scheduler.SearchTask(
     func=sparse_dense,

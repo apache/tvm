@@ -180,7 +180,26 @@ class TuningOptions(Object):
 TASK_INPUT_BUFFER_TABLE = {}
 
 
+def _save_buffer_to_file(buffer_name, buffer_data):
+    """Save the current Tensor buffer to a numpy file.
+
+    File name will be: {buffer_name}.{buffer_shape}_{buffer_data_type}
+    """
+    np_data = buffer_data.asnumpy()
+
+    buffer_name += "."
+    for i in np_data.shape:
+        buffer_name += "%d_" % (i)
+    buffer_name += "%s" % (np_data.dtype)
+
+    np_data.tofile(buffer_name, " ")
+
+
 def _try_load_buffer_from_file(buffer_name):
+    """Try to load buffer from a numpy file, if not found, return None.
+
+    File name has a same format as `_save_buffer_to_file`.
+    """
     filelist = os.listdir()
 
     for file in filelist:
@@ -195,29 +214,41 @@ def _try_load_buffer_from_file(buffer_name):
     return None
 
 
-def _save_buffer_to_file(buffer_name, buffer_data):
-    np_data = buffer_data.asnumpy()
+def register_task_input_buffer(
+    workload_key,
+    input_name,
+    input_data,
+    overwrite=False,
+    save_to_file=False,
+):
+    """Register special buffer for measurement.
 
-    buffer_name += "."
-    for i in np_data.shape:
-        buffer_name += "%d_" % (i)
-    buffer_name += "%s" % (np_data.dtype)
+    Parameters
+    ----------
+    workload_key : str
+        The workload key of the SearchTask.
 
-    np_data.tofile(buffer_name, " ")
+    input_name : str
+        The name of input buffer.
 
+    input_data : Tensor
+        The input Tensor data.
 
-def register_task_input_buffer(workload_key, input_name, input_data, overwrite=False):
-    """Register special buffer for measurement
-    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    overwrite : bool = False
+        Whether overwrite the data if a name has already in the global table.
+
+    save_to_file : bool = False
+        Whether record this buffer to a local file. This can be reused to continue the last tuning
+        process.
     """
     global TASK_INPUT_BUFFER_TABLE
 
-    if not workload_key in TASK_INPUT_BUFFER_TABLE:
+    if workload_key not in TASK_INPUT_BUFFER_TABLE:
         TASK_INPUT_BUFFER_TABLE[workload_key] = {}
     input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
     if not overwrite:
-        if not input_name in input_table.keys():
+        if input_name not in input_table.keys():
             # Try to load buffer data from local file
             tensor_from_file = _try_load_buffer_from_file(input_name)
             if tensor_from_file:
@@ -232,23 +263,36 @@ def register_task_input_buffer(workload_key, input_name, input_data, overwrite=F
             return input_table[input_name]
 
     input_table[input_name] = input_data
-    _save_buffer_to_file(input_name, input_data)
+    if save_to_file:
+        _save_buffer_to_file(input_name, input_data)
     return input_data
 
 
 @tvm._ffi.register_func("auto_scheduler.search_task.get_task_input_buffer")
 def get_task_input_buffer(workload_key, input_name):
     """Get special buffer for measurement.
-    This can be used for sparse workloads when we cannot use random tensors for measurment.
+
     The buffers are registered by `register_task_input_buffer`.
+
+    Parameters
+    ----------
+    workload_key : str
+        The workload key of the SearchTask.
+
+    input_name : str
+        The name of input buffer.
+
+    Returns
+    -------
+    The registered input buffer.
     """
     global TASK_INPUT_BUFFER_TABLE
 
-    if not workload_key in TASK_INPUT_BUFFER_TABLE:
+    if workload_key not in TASK_INPUT_BUFFER_TABLE:
         TASK_INPUT_BUFFER_TABLE[workload_key] = {}
     input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
-    if not input_name in input_table.keys():
+    if input_name not in input_table.keys():
         # Try to load buffer data from local file
         tensor_from_file = _try_load_buffer_from_file(input_name)
         if tensor_from_file:
@@ -259,7 +303,7 @@ def get_task_input_buffer(workload_key, input_name):
 
     raise ValueError(
         "%s not found in TASK_INPUT_BUFFER_TABLE, " % (input_name)
-        + "should provide with SearchTask.AddTaskInput()"
+        + "should provide with SearchTask.add_task_input()"
     )
 
 
@@ -430,17 +474,27 @@ class SearchTask(Object):
             return func.imported_modules[0].get_source()
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
-    def add_task_input(self, input_name, input_data, overwrite=False):
+    def add_task_input(self, input_name, input_data, overwrite=False, save_to_file=False):
         """Add a input Tensor to this task.
 
         Parameters
         ----------
         input_name : str
-            ...
+            The name of input buffer.
+
         input_data : Tensor
-            ...
+            The input Tensor data.
+
+        overwrite : bool = False
+            Whether overwrite the data if a name has already in the global table.
+
+        save_to_file : bool = False
+            Whether record this buffer to a local file. This can be reused to continue the last
+            tuning process.
         """
-        register_task_input_buffer(self.workload_key, input_name, input_data, overwrite)
+        register_task_input_buffer(
+            self.workload_key, input_name, input_data, overwrite, save_to_file
+        )
         _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
 
     def __getstate__(self):
