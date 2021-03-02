@@ -244,21 +244,23 @@ TVM_REGISTER_GLOBAL("device_api.cpu_pinned").set_body([](TVMArgs args, TVMRetVal
 
 class GPUTimerNode : public TimerNode {
  public:
-  virtual void Start() { cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream); }
-  virtual void Stop() { cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream); }
+  virtual void Start() {
+    CUDA_CALL(cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream));
+  }
+  virtual void Stop() { CUDA_CALL(cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream)); }
   virtual int64_t SyncAndGetElapsedNanos() {
-    cudaEventSynchronize(stop_);
+    CUDA_CALL(cudaEventSynchronize(stop_));
     float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start_, stop_);
+    CUDA_CALL(cudaEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
   virtual ~GPUTimerNode() {
-    cudaEventDestroy(start_);
-    cudaEventDestroy(stop_);
+    CUDA_CALL(cudaEventDestroy(start_));
+    CUDA_CALL(cudaEventDestroy(stop_));
   }
   GPUTimerNode() {
-    cudaEventCreate(&start_);
-    cudaEventCreate(&stop_);
+    CUDA_CALL(cudaEventCreate(&start_));
+    CUDA_CALL(cudaEventCreate(&stop_));
   }
 
   static constexpr const char* _type_key = "GPUTimerNode";

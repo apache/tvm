@@ -204,21 +204,23 @@ TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv
 
 class ROCMTimerNode : public TimerNode {
  public:
-  virtual void Start() { hipEventRecord(start_, ROCMThreadEntry::ThreadLocal()->stream); }
-  virtual void Stop() { hipEventRecord(stop_, ROCMThreadEntry::ThreadLocal()->stream); }
+  virtual void Start() {
+    ROCM_CALL(hipEventRecord(start_, ROCMThreadEntry::ThreadLocal()->stream));
+  }
+  virtual void Stop() { ROCM_CALL(hipEventRecord(stop_, ROCMThreadEntry::ThreadLocal()->stream)); }
   virtual int64_t SyncAndGetElapsedNanos() {
-    hipEventSynchronize(stop_);
+    ROCM_CALL(hipEventSynchronize(stop_));
     float milliseconds = 0;
-    hipEventElapsedTime(&milliseconds, start_, stop_);
+    ROCM_CALL(hipEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
   virtual ~ROCMTimerNode() {
-    hipEventDestroy(start_);
-    hipEventDestroy(stop_);
+    ROCM_CALL(hipEventDestroy(start_));
+    ROCM_CALL(hipEventDestroy(stop_));
   }
   ROCMTimerNode() {
-    hipEventCreate(&start_);
-    hipEventCreate(&stop_);
+    ROCM_CALL(hipEventCreate(&start_));
+    ROCM_CALL(hipEventCreate(&stop_));
   }
 
   static constexpr const char* _type_key = "ROCMTimerNode";
