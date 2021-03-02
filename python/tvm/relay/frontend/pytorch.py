@@ -401,8 +401,8 @@ class PyTorchOpConverter:
 
         # A fast path when slicing is nop.
         if (
-            is_begin_const
-            and is_end_const
+            isinstance(target_begin, int)
+            and isinstance(target_end, int)
             and target_begin == 0
             and target_end >= index_size_limit
             and stride == 1
