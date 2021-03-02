@@ -535,6 +535,7 @@ def test_vectorize_while_fail():
 
     try:
         tvm.lower(s, [A, B, C], "llvm")
+        assert False
     except tvm.error.TVMError as e:
         error_msg = str(e).split("\n")[-1]
         expected = "A while loop inside a vectorized loop not supported"
