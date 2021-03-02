@@ -120,7 +120,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
             tmp_vec_len = (size - 1) // n_stmts
             assert (
                 tmp_vec_len == vec_len
-            ), "The lenght of feature vector is wrong. " "Expected %d but got %d." % (
+            ), "The length of feature vector is wrong. Expected %d but got %d." % (
                 vec_len,
                 tmp_vec_len,
             )
