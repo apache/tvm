@@ -21,6 +21,8 @@ import logging
 
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
 from tvm.relay.op.contrib.ethosn import partition_for_ethosn
+from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
+from tvm.contrib.target import vitis_ai
 
 from .common import TVMCException
 
@@ -39,6 +41,10 @@ REGISTERED_CODEGEN = {
     "ethos-n77": {
         "config_key": "relay.ext.ethos-n.options",
         "pass_pipeline": partition_for_ethosn,
+    },
+    "vitis-ai": {
+        "config_key": "relay.ext.vitis_ai.options",
+        "pass_pipeline": partition_for_vitis_ai,
     },
 }
 

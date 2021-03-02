@@ -71,37 +71,66 @@ def vitis_ai_compiler(ref):
 
     pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
 
-    # The target Vitis-AI accelerator device
-    target = (
-        str(pass_context.config["relay.ext.vitis_ai.options.target"])
-        if "relay.ext.vitis_ai.options.target" in pass_context.config
+    cfg = (
+        pass_context.config["relay.ext.vitis_ai.options"]
+        if "relay.ext.vitis_ai.options" in pass_context.config
         else None
     )
 
-    # (Optional configs) The build and work directories to be used by Vitis-AI
-    vai_build_dir = (
-        str(pass_context.config["relay.ext.vitis_ai.options.build_dir"])
-        if "relay.ext.vitis_ai.options.build_dir" in pass_context.config
-        else tvm.contrib.utils.tempdir().relpath("")
-    )
-    vai_work_dir = (
-        str(pass_context.config["relay.ext.vitis_ai.options.work_dir"])
-        if "relay.ext.vitis_ai.options.work_dir" in pass_context.config
-        else tvm.contrib.utils.tempdir().relpath("")
-    )
+    # Backward compatibility with old pass context configs
+    if cfg is None:
+        warnings.warn(
+            "You are using a deprecated way of passing build configs (e.g."
+            " `relay.ext.vitis_ai.options.target`). Check out the Vitis AI "
+            " documentation here: https://tvm.apache.org/docs/deploy/vitis_ai.html"
+            " to switch to recommended way for passing build configs."
+        )
 
-    # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to
-    #   compile and quantize a model on the host and deploy it at the edge
-    export_runtime_module = (
-        str(pass_context.config["relay.ext.vitis_ai.options.export_runtime_module"])
-        if "relay.ext.vitis_ai.options.export_runtime_module" in pass_context.config
-        else ""
-    )
-    load_runtime_module = (
-        str(pass_context.config["relay.ext.vitis_ai.options.load_runtime_module"])
-        if "relay.ext.vitis_ai.options.load_runtime_module" in pass_context.config
-        else ""
-    )
+        # The target Vitis-AI accelerator device
+        target = (
+            str(pass_context.config["relay.ext.vitis_ai.options.target"])
+            if "relay.ext.vitis_ai.options.target" in pass_context.config
+            else None
+        )
+
+        # (Optional configs) The build and work directories to be used by Vitis-AI
+        vai_build_dir = (
+            str(pass_context.config["relay.ext.vitis_ai.options.build_dir"])
+            if "relay.ext.vitis_ai.options.build_dir" in pass_context.config
+            else tvm.contrib.utils.tempdir().relpath("")
+        )
+        vai_work_dir = (
+            str(pass_context.config["relay.ext.vitis_ai.options.work_dir"])
+            if "relay.ext.vitis_ai.options.work_dir" in pass_context.config
+            else tvm.contrib.utils.tempdir().relpath("")
+        )
+
+        # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to
+        #   compile and quantize a model on the host and deploy it at the edge
+        export_runtime_module = (
+            str(pass_context.config["relay.ext.vitis_ai.options.export_runtime_module"])
+            if "relay.ext.vitis_ai.options.export_runtime_module" in pass_context.config
+            else ""
+        )
+        load_runtime_module = (
+            str(pass_context.config["relay.ext.vitis_ai.options.load_runtime_module"])
+            if "relay.ext.vitis_ai.options.load_runtime_module" in pass_context.config
+            else ""
+        )
+    else:
+        target = cfg.target if cfg.target else None
+        # (Optional configs) The build and work directories to be used by Vitis AI
+        vai_build_dir = (
+            cfg.build_dir if cfg.build_dir != "" else tvm.contrib.utils.tempdir().relpath("")
+        )
+
+        # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to
+        #   compile and quantize a model on the host and deploy it at the edge
+        vai_work_dir = (
+            cfg.work_dir if cfg.work_dir != "" else tvm.contrib.utils.tempdir().relpath("")
+        )
+        export_runtime_module = cfg.export_runtime_module
+        load_runtime_module = cfg.load_runtime_module
 
     # Config checks
     if load_runtime_module and target is not None:

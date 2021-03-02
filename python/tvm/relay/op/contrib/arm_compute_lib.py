@@ -43,7 +43,7 @@ def is_arm_compute_runtime_enabled():
     return False
 
 
-def partition_for_arm_compute_lib(mod, params=None):
+def partition_for_arm_compute_lib(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Compute Library.
 

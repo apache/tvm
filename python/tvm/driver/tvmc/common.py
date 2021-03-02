@@ -133,7 +133,7 @@ def tokenize_target(target):
 
     target_pattern = (
         r"(\-{0,2}[\w\-]+\=?"
-        r"(?:[\w\+\-]+(?:,[\w\+\-])*|[\'][\w\+\-,\s]+[\']|[\"][\w\+\-,\s]+[\"])*|,)"
+        r"(?:[\w\+\-.]+(?:,[\w\+\-])*|[\'][\w\+\-,\s]+[\']|[\"][\w\+\-,\s]+[\"])*|,)"
     )
 
     return re.findall(target_pattern, target)

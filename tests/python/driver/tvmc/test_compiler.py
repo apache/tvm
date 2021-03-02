@@ -17,6 +17,7 @@
 import argparse
 import os
 import shutil
+import importlib
 from os import path
 
 from unittest import mock
@@ -27,6 +28,15 @@ import tvm
 from tvm.relay.op.contrib.ethosn import ethosn_available
 
 from tvm.driver import tvmc
+
+
+def vitis_ai_available():
+    """Return whether Vitis AI tools are available"""
+    pyxir_spec = importlib.util.find_spec("pyxir")
+    if not tvm.get_global_func("tvm.vitis_ai_runtime.from_xgraph", True) or pyxir_spec is None:
+        print("Skip because Vitis AI tools are not available")
+        return False
+    return True
 
 
 def test_save_dumps(tmpdir_factory):
@@ -208,6 +218,26 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
     assert type(dumps) is dict
 
 
+@pytest.mark.skipif(
+    not vitis_ai_available(),
+    reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
+)
+def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+
+    graph, lib, params, dumps = tvmc.compiler.compile_model(
+        tflite_mobilenet_v1_1_quant,
+        target="vitis-ai -target=DPUCZDX8G-zcu104 -export_runtime_module=vitis_ai.rtmod, llvm",
+        dump_code="relay",
+    )
+
+    # check for output types
+    assert type(graph) is str
+    assert type(lib) is tvm.runtime.module.Module
+    assert type(params) is dict
+    assert type(dumps) is dict
+
+
 @mock.patch("tvm.relay.build")
 @mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
 @mock.patch("tvm.driver.tvmc.frontends.load_model")
@@ -215,7 +245,7 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
 def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_relay):
     mock_codegen = {}
     mock_codegen["config_key"] = "relay.ext.mock.options"
-    mock_codegen["pass_pipeline"] = lambda *args: None
+    mock_codegen["pass_pipeline"] = lambda *args, **kwargs: None
 
     mock_fe.return_value = (None, None)
     mock_ct.return_value = mock_codegen

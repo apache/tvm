@@ -196,7 +196,7 @@ Hardware setup and docker build
       pip3 install -e . --user
 
 Edge (DPUCZDX8G)
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 
 For edge deployment we make use of two systems referred to as host and
@@ -451,18 +451,16 @@ TVM.
    from tvm.contrib.target import vitis_ai
    from tvm.contrib import utils, graph_runtime
    from tvm.relay.build_module import bind_params_by_name
-   from tvm.relay.op.contrib.vitis_ai import annotation
+   from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 
 After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
 target and partition the graph.
 
 .. code:: python
-
-   mod["main"] = bind_params_by_name(mod["main"], params)
-   mod = annotation(mod, params, target)
-   mod = relay.transform.MergeCompilerRegions()(mod)
-   mod = relay.transform.PartitionGraph()(mod)
+   
+   target='DPUCADX8G'
+   mod = partition_for_vitis_ai(mod, params, target)
 
 Now, we can build the TVM runtime library for executing the model. The
 TVM target is 'llvm' as the operations that can't be handled by the DPU
@@ -473,9 +471,8 @@ build call.
 .. code:: python
 
    tvm_target = 'llvm'
-   target='DPUCADX8G'
 
-   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target}):
+   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options': {'target': target}}):
       lib = relay.build(mod, tvm_target, params=params)
 
 As one more step before we can accelerate a model with Vitis-AI in TVM
@@ -553,7 +550,7 @@ TVM.
    from tvm.contrib.target import vitis_ai
    from tvm.contrib import utils, graph_runtime
    from tvm.relay.build_module import bind_params_by_name
-   from tvm.relay.op.contrib.vitis_ai import annotation
+   from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 
 After importing a convolutional neural network model using the usual
 Relay API's, annotate the Relay expression for the given Vitis-AI DPU
@@ -585,11 +582,10 @@ target and partition the graph.
                                    relay.transform.FoldConstant()])
    with tvm.transform.PassContext(opt_level=3):
        mod = seq(mod)
-            
+   
+   target = 'DPUCZDX8G-zcu104'
    # Annotate and partition the Relay expression for the given target
-   mod = annotation(mod, params, target)
-   mod = relay.transform.MergeCompilerRegions()(mod)
-   mod = relay.transform.PartitionGraph()(mod)
+   mod = partition_for_vitis_ai(mod, params, target)
    
    # After partitioning we recommend transforming the remaining convolutions
    #    (that will be executed on CPU, if any) back to NCHW data layout
@@ -618,11 +614,13 @@ can be included.
 .. code:: python
 
    tvm_target = 'llvm'
-   target='DPUCZDX8G-zcu104'
    export_rt_mod_file = "vitis_ai.rtmod"
-
-   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target,
-   						        'relay.ext.vitis_ai.options.export_runtime_module': export_rt_mod_file}):
+   
+   build_options = {
+      'target': target,
+      'export_runtime_module': export_rt_mod_file
+   }
+   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options': build_options}):
       lib = relay.build(mod, tvm_target, params=params)
 
 We will quantize and compile the model for execution on the DPU using on-the-fly
@@ -663,9 +661,11 @@ in the TVM build.
         'fcompile': contrib.cc.create_shared,
         'cc': "/usr/aarch64-linux-gnu/bin/ld"
    }
-
-   with tvm.transform.PassContext(opt_level=3,
-                                  config={'relay.ext.vitis_ai.options.load_runtime_module': export_rt_mod_file}):
+   
+   build_options = {
+        'load_runtime_module': export_rt_mod_file
+   }
+   with tvm.transform.PassContext(opt_level=3, config={'relay.ext.vitis_ai.options': build_options}):
         lib_arm = relay.build(mod, tvm_target, params=params)
 
    lib_dpuv2.export_library('tvm_dpu_arm.so', **lib_kwargs)

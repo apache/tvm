@@ -66,6 +66,7 @@ VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const std::string
   pyxir::RunOptionsHolder run_options(new pyxir::runtime::RunOptions());
   run_options->on_the_fly_quantization = true;
   run_options->build_dir = build_dir;
+  run_options->export_runtime_module_path = export_rt_mod_path_;
   if (!work_dir.empty()) run_options->work_dir = work_dir;
   rt_mod_ =
       pyxir::build_rt(xgraph, target, in_tensor_names_, out_tensor_names_, "vai", run_options);

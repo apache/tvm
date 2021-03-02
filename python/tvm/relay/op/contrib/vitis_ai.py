@@ -24,8 +24,9 @@ import pyxir.frontend.tvm
 
 from tvm import relay
 import tvm._ffi
-from tvm.relay.expr import Tuple, TupleGetItem
 from tvm.relay import transform
+from tvm.relay.expr import Tuple, TupleGetItem
+from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 
@@ -33,9 +34,10 @@ from tvm.relay.op.annotation import compiler_begin, compiler_end
 class VitisAIAnnotationPass:
     """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators"""
 
-    def __init__(self, compiler, relay_ids):
+    def __init__(self, compiler, target, params):
         self.compiler = compiler
-        self.relay_ids = relay_ids
+        self.target = target
+        self.params = params
 
     def transform_function(self, func, mod, ctx):
         """Transform function for annotating Relay module"""
@@ -80,25 +82,61 @@ class VitisAIAnnotationPass:
                 else:
                     return super().visit_call(call)
 
+        xgraph = pyxir.frontend.tvm.from_relay(mod, self.params, postprocessing=None)
+        xgraph = pyxir.partition(xgraph, targets=[self.target])
+
+        layers = xgraph.get_layers()
+        relay_ids = [
+            list(np.array(layer.attrs["relay_id"]).flatten())
+            for layer in layers
+            if layer.target == self.target
+        ]
+        self.relay_ids = [item for sublist in relay_ids for item in sublist]
+
         return Annotator().visit(func)
 
 
 def annotation(mod, params, target):
-    """Annotate Relay expression for Vitis-AI DPU accelerators"""
+    """Annotate Relay expression for offloading operators to Vitis AI DPU accelerators
+    NOTE: This function does the same as the next one (`partition_for_vitis_ai`) but is
+    still here for backward compatibility"""
     # We need type information for supporting models that contain operations that don't
     #   have a Relay to XLayer translation
     mod = relay.transform.InferType()(mod)
-
-    xgraph = pyxir.frontend.tvm.from_relay(mod, params, postprocessing=None)
-    xgraph = pyxir.partition(xgraph, targets=[target])
-
-    layers = xgraph.get_layers()
-    relay_ids = [
-        list(np.array(layer.attrs["relay_id"]).flatten())
-        for layer in layers
-        if layer.target == target
-    ]
-    relay_ids_flatten = [item for sublist in relay_ids for item in sublist]
-    mod = VitisAIAnnotationPass("vitis_ai", relay_ids_flatten)(mod)
-
+    mod = VitisAIAnnotationPass("vitis_ai", target, params)(mod)
     return mod
+
+
+def partition_for_vitis_ai(mod, params=None, target=None, **opts):
+    """Partition the Relay expression for offloading operators to Vitis AI DPU
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+    target : str
+        The DPU identifier (e.g. DPUCZDX8G-zcu104, DPUCADX8G)
+
+    Returns
+    -------
+    ret : annotated and partitioned module.
+    """
+
+    if target is None:
+        raise ValueError("Please pass Vitis AI DPU target to partitioning function")
+
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    seq = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            VitisAIAnnotationPass("vitis_ai", target, params),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+
+    return seq(mod)
