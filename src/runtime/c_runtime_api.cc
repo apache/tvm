@@ -144,6 +144,50 @@ void* DeviceAPI::AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hin
   return AllocDataSpace(ctx, size, kTempAllocaAlignment, type_hint);
 }
 
+static size_t GetDataAlignment(const DLDataType dtype) {
+  size_t align = (dtype.bits / 8) * dtype.lanes;
+  if (align < kAllocAlignment) return kAllocAlignment;
+  return align;
+}
+
+void* DeviceAPI::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape, DLDataType dtype,
+                                Optional<String> mem_scope) {
+  if (!mem_scope.defined() || mem_scope.value() == "global") {
+    // by default, we can always redirect to the flat memory allocations
+    DLTensor temp;
+    temp.data = nullptr;
+    temp.ctx = ctx;
+    temp.ndim = ndim;
+    temp.dtype = dtype;
+    temp.shape = const_cast<int64_t*>(shape);
+    temp.strides = nullptr;
+    temp.byte_offset = 0;
+    size_t size = GetDataSize(temp);
+    size_t alignment = GetDataAlignment(temp.dtype);
+    return AllocDataSpace(ctx, size, alignment, dtype);
+  }
+  LOG(FATAL) << "Device does not support allocate data space with "
+             << "specified memory scope: " << mem_scope.value();
+  return nullptr;
+}
+
+void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
+  // by default, we can always redirect to the flat memory copy operation.
+  size_t nbytes = GetDataSize(*from);
+  ICHECK_EQ(nbytes, GetDataSize(*to));
+
+  ICHECK(IsContiguous(*from) && IsContiguous(*to))
+      << "CopyDataFromTo only support contiguous array for now";
+  CopyDataFromTo(from->data, from->byte_offset, to->data, to->byte_offset, nbytes, from->ctx,
+                 to->ctx, from->dtype, stream);
+}
+
+void DeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                               size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                               DLDataType type_hint, TVMStreamHandle stream) {
+  LOG(FATAL) << "Device does not support CopyDataFromTo.";
+}
+
 void DeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) { FreeDataSpace(ctx, ptr); }
 
 TVMStreamHandle DeviceAPI::CreateStream(TVMContext ctx) {
@@ -553,19 +597,29 @@ int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDa
   API_END();
 }
 
+int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
+                                     DLDataType dtype, const char* mem_scope, void** out_data) {
+  API_BEGIN();
+  Optional<String> scope;
+  if (mem_scope != nullptr) {
+    scope = String(std::string(mem_scope));
+  }
+  out_data[0] = DeviceAPIManager::Get(ctx)->AllocDataSpace(ctx, ndim, shape, dtype, scope);
+  API_END();
+}
+
 int TVMDeviceFreeDataSpace(DLContext ctx, void* ptr) {
   API_BEGIN();
   DeviceAPIManager::Get(ctx)->FreeDataSpace(ctx, ptr);
   API_END();
 }
 
-int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                            size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
-                            DLDataType type_hint, TVMStreamHandle stream) {
+int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   API_BEGIN();
+  TVMContext ctx_from = from->ctx;
+  TVMContext ctx_to = to->ctx;
   TVMContext ctx = ctx_from.device_type != kDLCPU ? ctx_from : ctx_to;
-  DeviceAPIManager::Get(ctx)->CopyDataFromTo(from, from_offset, to, to_offset, num_bytes, ctx_from,
-                                             ctx_to, type_hint, stream);
+  DeviceAPIManager::Get(ctx)->CopyDataFromTo(from, to, stream);
   API_END();
 }
 

@@ -1956,6 +1956,228 @@ def test_forward_sparse_fill_empty_rows(
 
 
 #######################################################################
+# SparseReshape
+# ------------
+
+
+def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, use_dyn=False):
+    with tf.Graph().as_default():
+        if use_dyn:
+            indices = tf.placeholder(shape=(None, None), dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=(None), dtype=values_np.dtype, name="values")
+            prev_shape = tf.placeholder(shape=(None), dtype=prev_shape_np.dtype, name="prev_shape")
+            new_shape = tf.placeholder(shape=(None), dtype=new_shape_np.dtype, name="new_shape")
+        else:
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
+            prev_shape = tf.placeholder(
+                shape=prev_shape_np.shape, dtype=prev_shape_np.dtype, name="prev_shape"
+            )
+            new_shape = tf.placeholder(
+                shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
+            )
+        sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=prev_shape)
+
+        _ = tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        compare_tf_with_tvm(
+            [indices_np, values_np, prev_shape_np, new_shape_np],
+            [indices.name, values.name, prev_shape.name, new_shape.name],
+            ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np",
+    [
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, -1], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, 2], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 2), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([3, 6], dtype=np.int64),
+            np.array([-1, 2], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6], dtype=np.int64),
+            np.array([-1, 9], dtype=np.int64),
+        ),
+        (
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 1, 2, 3],
+                    [0, 1, 0, 3, 5],
+                    [1, 0, 0, 4, 6],
+                    [1, 2, 3, 6, 8],
+                ],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7, 9], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([9, 4], dtype=np.int64),
+            np.array([-1], dtype=np.int64),
+        ),
+        (
+            np.array([[0], [5], [10], [20], [24]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([25], dtype=np.int64),
+            np.array([5, 5], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([500, -1], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([250, 40], dtype=np.int64),
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_forward_sparse_reshape(
+    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn
+):
+    """ sparse_reshape op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn)
+
+
+# tensorflow.compat.v1.sparse_to_dense
+# ---------------
+def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
+    with tf.Graph().as_default():
+        indices = tf.placeholder(
+            shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices"
+        )
+        values = tf.placeholder(
+            shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values"
+        )
+        oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
+
+        if default_value == None:
+            output = tf.sparse_to_dense(indices, oshape, values)
+            compare_tf_with_tvm(
+                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name
+            )
+        else:
+            dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
+            output = tf.sparse_to_dense(indices, oshape, values, dv)
+            compare_tf_with_tvm(
+                [sparse_indices, sparse_values, default_value],
+                ["indices:0", "values:0", "default_value:0"],
+                output.name,
+            )
+
+
+def test_forward_sparse_to_dense():
+    # scalar
+    _test_sparse_to_dense(
+        sparse_indices=np.int32(1),
+        sparse_values=np.int32(3),
+        default_value=np.int32(0),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # vector
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3, 3, 3]).astype("int32"),
+        default_value=np.int32(0),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # vector nXd
+    _test_sparse_to_dense(
+        sparse_indices=np.array([[0, 0], [1, 2]]).astype("int32"),
+        sparse_values=np.array([1, 2]).astype("int32"),
+        default_value=np.int32(0),
+        output_shape=np.array([3, 4]).astype("int32"),
+    )
+
+    _test_sparse_to_dense(
+        sparse_indices=np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
+        sparse_values=np.array([1, 2]).astype("int32"),
+        default_value=np.int32(4),
+        output_shape=np.array([2, 3, 4]).astype("int32"),
+    )
+
+    # floats
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
+        default_value=np.float32(3.5),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # default value not specified
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
+        default_value=None,
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+
+#######################################################################
+# tensorflow.sparse.to_dense
+# ---------------
+def _test_sparse_to_dense_v2(indices, values, A_shape, dtype, default_value=None):
+    with tf.Graph().as_default():
+        A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
+
+        result = tf.sparse.to_dense(A_sp, default_value=default_value)
+
+        compare_tf_with_tvm([], [], result.name)
+
+
+def test_forward_sparse_to_dense_v2():
+    _test_sparse_to_dense_v2([[1]], [3.0], [5], "float32")
+    _test_sparse_to_dense_v2([[1]], [3.0], [5], "float32", 0.3)
+    _test_sparse_to_dense_v2([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32")
+    _test_sparse_to_dense_v2([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32", 1.3)
+    _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32")
+    _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32", 1.9)
+
+
+#######################################################################
 # StridedSlice
 # ------------
 
@@ -2835,6 +3057,55 @@ def test_forward_nms():
         _test_forward_nms((20, 4), (20,), 0.5, 0.6, 10)
         _test_forward_nms((1000, 4), (1000,), 0.3, 0.7, 1000)
         _test_forward_nms((2000, 4), (2000,), 0.4, 0.6, 7)
+
+
+def _test_forward_combined_nms(
+    bx_shape,
+    score_shape,
+    iou_threshold,
+    score_threshold,
+    out_size,
+    total_size,
+    clip_boxes=False,
+    dtype="float32",
+):
+    boxes = np.random.uniform(-1, 2, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+    max_output_size = np.int32(out_size)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, scores.shape, name="in_data_2")
+    in_data_3 = tf.placeholder(tf.int32, name="in_data_3")
+    tf.image.combined_non_max_suppression(
+        boxes=in_data_1,
+        scores=in_data_2,
+        max_output_size_per_class=in_data_3,
+        max_total_size=total_size,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold,
+        pad_per_class=False,
+        clip_boxes=clip_boxes,
+        name="nms",
+    )
+    compare_tf_with_tvm(
+        [boxes, scores, max_output_size],
+        ["in_data_1:0", "in_data_2:0", "in_data_3:0"],
+        [
+            "nms/CombinedNonMaxSuppression:0",
+            "nms/CombinedNonMaxSuppression:1",
+            "nms/CombinedNonMaxSuppression:2",
+            "nms/CombinedNonMaxSuppression:3",
+        ],
+        mode="vm",
+    )
+
+
+def test_forward_combined_nms():
+    """ CombinedNonMaxSuppression """
+    _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 1), 0.7, 0.5, 64, 64)
+    _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 20), 0.7, 0.5, 64, 10)
+    _test_forward_combined_nms((1, 64, 20, 4), (1, 64, 20), 0.7, 0.5, 64, 64, clip_boxes=True)
+    _test_forward_combined_nms((2, 200, 1, 4), (2, 200, 1), 0.4, 0.6, 100, 100)
 
 
 #######################################################################
@@ -4307,83 +4578,6 @@ def test_forward_identityn(data_np_list):
 
 
 #######################################################################
-# Sparse To Dense
-# ---------------
-def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
-    with tf.Graph().as_default():
-        indices = tf.placeholder(
-            shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices"
-        )
-        values = tf.placeholder(
-            shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values"
-        )
-        oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
-
-        if default_value == None:
-            output = tf.sparse_to_dense(indices, oshape, values)
-            compare_tf_with_tvm(
-                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name
-            )
-        else:
-            dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
-            output = tf.sparse_to_dense(indices, oshape, values, dv)
-            compare_tf_with_tvm(
-                [sparse_indices, sparse_values, default_value],
-                ["indices:0", "values:0", "default_value:0"],
-                output.name,
-            )
-
-
-def test_forward_sparse_to_dense():
-    # scalar
-    _test_sparse_to_dense(
-        sparse_indices=np.int32(1),
-        sparse_values=np.int32(3),
-        default_value=np.int32(0),
-        output_shape=np.array([5]).astype("int32"),
-    )
-
-    # vector
-    _test_sparse_to_dense(
-        sparse_indices=np.array([0, 1, 4]).astype("int32"),
-        sparse_values=np.array([3, 3, 3]).astype("int32"),
-        default_value=np.int32(0),
-        output_shape=np.array([5]).astype("int32"),
-    )
-
-    # vector nXd
-    _test_sparse_to_dense(
-        sparse_indices=np.array([[0, 0], [1, 2]]).astype("int32"),
-        sparse_values=np.array([1, 2]).astype("int32"),
-        default_value=np.int32(0),
-        output_shape=np.array([3, 4]).astype("int32"),
-    )
-
-    _test_sparse_to_dense(
-        sparse_indices=np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
-        sparse_values=np.array([1, 2]).astype("int32"),
-        default_value=np.int32(4),
-        output_shape=np.array([2, 3, 4]).astype("int32"),
-    )
-
-    # floats
-    _test_sparse_to_dense(
-        sparse_indices=np.array([0, 1, 4]).astype("int32"),
-        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
-        default_value=np.float32(3.5),
-        output_shape=np.array([5]).astype("int32"),
-    )
-
-    # default value not specified
-    _test_sparse_to_dense(
-        sparse_indices=np.array([0, 1, 4]).astype("int32"),
-        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
-        default_value=None,
-        output_shape=np.array([5]).astype("int32"),
-    )
-
-
-#######################################################################
 # infinity ops
 # ------------
 def _verify_infiniteness_ops(tf_op, name):
@@ -4916,6 +5110,71 @@ def test_forward_dynmaic_rnn_lstmblockcell():
         # Compare result
         for i in range(len(tf_output)):
             tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+
+
+#######################################################################
+# Unique
+# ------------
+
+
+def _test_unique(n, dtype, is_dyn):
+    tf.reset_default_graph()
+    np_data = np.random.randint(100, size=n).astype(dtype)
+    with tf.Graph().as_default():
+        if is_dyn:
+            in_data = tf.placeholder(dtype, [n], name="in_data")
+        else:
+            in_data = tf.constant(np_data, dtype, name="in_data")
+        tf.unique(in_data)
+        if is_dyn:
+            compare_tf_with_tvm(np_data, "in_data:0", ["Unique:0", "Unique:1"], mode="vm")
+        else:
+            compare_tf_with_tvm(None, "", ["Unique:0", "Unique:1"])
+
+
+def test_forward_unique():
+    """test Unique"""
+
+    for dtype in ["int32", "int64"]:
+        for is_dyn in [False, True]:
+            _test_unique(50, dtype, is_dyn)
+            _test_unique(100, dtype, is_dyn)
+
+
+#######################################################################
+# Unique with counts
+# ------------
+
+
+def _test_unique_with_counts(n, dtype, is_dyn):
+    tf.reset_default_graph()
+    np_data = np.random.randint(100, size=n).astype(dtype)
+    with tf.Graph().as_default():
+        if is_dyn:
+            in_data = tf.placeholder(dtype, [n], name="in_data")
+        else:
+            in_data = tf.constant(np_data, dtype, name="in_data")
+        tf.unique_with_counts(in_data)
+        if is_dyn:
+            compare_tf_with_tvm(
+                np_data,
+                "in_data:0",
+                ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"],
+                mode="vm",
+            )
+        else:
+            compare_tf_with_tvm(
+                None, "", ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"]
+            )
+
+
+def test_forward_unique_with_counts():
+    """test UniqueWithCounts"""
+
+    for dtype in ["int32", "int64"]:
+        for is_dyn in [False, True]:
+            _test_unique_with_counts(10, dtype, is_dyn)
+            _test_unique_with_counts(20, dtype, is_dyn)
 
 
 if __name__ == "__main__":
