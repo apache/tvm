@@ -143,6 +143,13 @@ class TVM_DLL DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
+
+  virtual void StreamBeginCapture(TVMContext ctx, TVMStreamHandle stream) {}
+
+  virtual void StreamRunCapture(TVMContext ctx, TVMStreamHandle stream, TVMObjectHandle captured) {}
+
+  virtual TVMObjectHandle StreamEndCapture(TVMContext ctx, TVMStreamHandle stream) {}
+
   /*!
    * \brief Synchronize 2 streams of execution.
    *

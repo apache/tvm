@@ -102,6 +102,9 @@ set(USE_GRAPH_RUNTIME ON)
 # Whether enable additional graph debug functions
 set(USE_GRAPH_RUNTIME_DEBUG OFF)
 
+# Whether enable tiny graph runtime for cudaGraph Launch
+set(USE_GRAPH_RUNTIME_CUGRAPH OFF)
+
 # Whether enable additional vm profiler functions
 set(USE_VM_PROFILER OFF)
 

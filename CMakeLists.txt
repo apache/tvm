@@ -36,6 +36,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_GRAPH_RUNTIME_CUGRAPH "Build with tiny graph runtime cuGraph launch mode" OFF)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
@@ -321,6 +322,15 @@ if(USE_GRAPH_RUNTIME)
     set_source_files_properties(${RUNTIME_GRAPH_SRCS}
       PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
   endif(USE_GRAPH_RUNTIME_DEBUG)
+
+  if(USE_GRAPH_RUNTIME_CUGRAPH)
+    message(STATUS "Build with Graph runtime cuGraph support...")
+    file(GLOB RUNTIME_CUGRAPH_SRCS src/runtime/graph/cugraph/*.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_CUGRAPH_SRCS})
+    set_source_files_properties(${RUNTIME_GRAPH_SRCS}
+      PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_CUGRAPH")
+  endif(USE_GRAPH_RUNTIME_CUGRAPH)
+
 endif(USE_GRAPH_RUNTIME)
 
 if(USE_VM_PROFILER)
