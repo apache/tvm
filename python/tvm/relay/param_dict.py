@@ -52,7 +52,7 @@ def save_param_dict(params):
        # Pass in byte array to module to directly set parameters
        graph_runtime_mod.load_params(param_bytes)
     """
-    transformed = {k: tvm.nd.array(v) for (k,v) in params.items()}
+    transformed = {k: tvm.nd.array(v) for (k, v) in params.items()}
     return _save_param_dict(transformed)
 
 
