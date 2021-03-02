@@ -71,8 +71,6 @@ class TimerNode : public Object {
 };
 
 /*! \brief Timer for a specific device.
- *
- * You should not construct this class directly. Instead use `StartTimer`.
  */
 class Timer : public ObjectRef {
  public:
@@ -93,7 +91,7 @@ class Timer : public ObjectRef {
    *
    * Example usage:
    * \code{.cpp}
-   * Timer t = StartTimer(TVMContext::cpu());
+   * Timer t = Timer::Start(TVMContext::cpu());
    * my_long_running_function();
    * t.Stop();
    * ... // some more computation

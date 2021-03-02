@@ -31,7 +31,7 @@ TEST(DefaultTimer, Basic) {
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
 
-  Timer t = StartTimer(ctx);
+  Timer t = Timer::Start(ctx);
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   t.Stop();
   int64_t elapsed = t.SyncAndGetElapsedNanos();
