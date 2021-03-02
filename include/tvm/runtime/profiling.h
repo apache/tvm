@@ -102,6 +102,29 @@ class Timer : public ObjectRef {
    * "profiler.timer.my_device" (where `my_device` is the `DeviceName` of your
    * device). This function should accept a `TVMContext` and return a new `Timer`
    * that has already been started.
+   *
+   * For example, this is how the CPU timer is implemented:
+   * \code{.cpp}
+   *  class CPUTimerNode : public TimerNode {
+   *   public:
+   *    virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
+   *    virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
+   *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
+   *    virtual ~CPUTimerNode() {}
+   *
+   *    static constexpr const char* _type_key = "CPUTimerNode";
+   *    TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
+   *
+   *   private:
+   *    std::chrono::high_resolution_clock::time_point start_;
+   *    std::chrono::duration<int64_t, std::nano> duration_;
+   *  };
+   *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
+   *
+   *  TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
+   *    return Timer(make_object<CPUTimerNode>());
+   *  });
+   * \endcode
    */
   static TVM_DLL Timer Start(TVMContext ctx);
 
