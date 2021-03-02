@@ -23,7 +23,7 @@ import tvm
 from tvm import relay, te
 
 from .. import nn
-from ..utils import traverse_inline, get_const_tuple, prod, get_const_int
+from ..utils import traverse_inline, get_const_tuple, prod, get_const_int, ceil_div
 
 
 def sparse_dense(data, weight_data, weight_indices, weight_indptr, sparse_lhs=False):
@@ -162,9 +162,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     default_function_kernel1 for the multiply.
     """
 
-    def ceil_div(a, b):
-        return (a + (b - 1)) // b
-
     def gen_ir(data, w_data, w_indices, w_indptr, out):
         # pylint: disable=invalid-name
         # TODO(tkonolige): use tensorcores for block multiply
@@ -295,7 +292,14 @@ def is_valid_for_sparse_dense_padded(data, weight_data):
     """
     # pylint:disable=invalid-name
     warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
-    m = get_const_tuple(data.checked_type.shape)[1]
+    # If there are multiple alter_ops in a model, the first alteration does not
+    # run type inference for the subsequent ones. In this case, we don't have
+    # the shape information, so we run the inferencer manually.
+    try:
+        m = get_const_tuple(data.checked_type.shape)[1]
+    except ValueError:
+        data_infered = relay.transform.InferType()(tvm.IRModule.from_expr(data))["main"]
+        m = get_const_tuple(data_infered.ret_type.shape)[1]
     if len(weight_data.shape) == 1:
         bs_m = 1
     else:

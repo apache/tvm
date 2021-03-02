@@ -21,7 +21,7 @@
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-from ..expr import TupleWrapper, const, Expr, Tuple
+from ..expr import TupleWrapper, const, Constant, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -86,7 +86,7 @@ def reinterpret(data, dtype):
 
 
 def expand_dims(data, axis, num_newaxis=1):
-    """Insert `num_newaxis` axises at the position given by `axis`.
+    """Insert `num_newaxis` axes at the position given by `axis`.
 
     Parameters
     ----------
@@ -216,6 +216,8 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Constant):
+        newshape = list(newshape.data.asnumpy())
     if isinstance(newshape, Expr):
         return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
@@ -321,7 +323,7 @@ def scatter_nd(data, indices, out_shape):
     indices : relay.Expr
         The index locations to update.
 
-    out_shape : relay.Expr
+    out_shape : Union[Tuple[int], List[int]]
         Output shape of the scatter.
 
     Returns
@@ -431,6 +433,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.full(fill_value, shape, dtype)
     if isinstance(shape, int):
@@ -614,6 +618,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
+    if isinstance(reps, Constant):
+        reps = list(reps.data.asnumpy())
     if isinstance(reps, Expr):
         return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
@@ -753,6 +759,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.broadcast_to(data, shape)
     if isinstance(shape, int):
@@ -884,6 +892,12 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         The computed result.
     """
     strides = strides or [1]
+    if isinstance(begin, Constant):
+        begin = list(begin.data.asnumpy())
+    if isinstance(end, Constant):
+        end = list(end.data.asnumpy())
+    if isinstance(strides, Constant):
+        strides = list(strides.data.asnumpy())
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
@@ -1170,6 +1184,8 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 1, 0],
              [0, 0, 1]]
     """
+    if isinstance(depth, Constant):
+        depth = depth.data.asnumpy().item()
     if isinstance(depth, Expr):
         return _dyn_make.one_hot(indices, on_value, off_value, depth, axis, dtype)
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
@@ -1320,3 +1336,224 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+
+def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    """
+    Fill rows in a sparse matrix that do no contain any values. Values are placed in the first
+    column of empty rows. The sparse array is in COO format.
+    It returns a TupleWrapper with 3 outputs
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, ndims] of integers containing location of sparse values, where N is
+        the number of sparse values and n_dim is the number of dimensions of the dense_shape.
+        The first column of this relay parameter must be sorted in ascending order.
+    sparse_values : relay.Expr
+        A 1-D tensor[N] containing the sparse values for the sparse indices.
+    dense_shape : relay.Expr
+        A 1-D tensor[ndims] which contains shape of the dense output tensor.
+    default_value : relay.Expr
+        A 1-D tensor[1] containing the default value for the remaining locations.
+    Returns
+    -------
+    new_sparse_indices : relay.Expr
+        A 2-D tensor[?, ndims] of integers containing location of new sparse
+        indices. The first column outputs must be sorted in ascending order.
+    new_sparse_values : relay.Expr
+        A 1-D tensor[?] containing the sparse values for the sparse indices.
+    empty_row_indicator : relay.Expr
+        A 1-D tensor[dense_shape[0]] filled with zeros and ones
+        indicating whether the particular row is empty or full respectively
+
+    Note
+    ----
+    This op exactly follows the documentation here:
+    https://www.tensorflow.org/api_docs/python/tf/sparse/fill_empty_rows
+    There are two exceptions:
+    1. Input Sparse Indices are expected to be in row-major order.
+    2. Empty Row Indicator has int64 output type with 1(for True) and 0(for False).
+
+    Examples
+    -------
+    .. code-block:: python
+        sparse_indices = [[0, 1],
+                         [0, 3],
+                         [2, 0],
+                         [3, 1]]
+        sparse_values = [1, 2, 3, 4]
+        default_value = [10]
+        dense_shape = [5, 6]
+        new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index =
+                            relay.sparse_fill_empty_rows(
+                            sparse_indices,
+                            sparse_values,
+                            default_value,
+                            dense_shape)
+        new_sparse_indices = [[0, 1],
+                             [0, 3],
+                             [1, 0],
+                             [2, 0],
+                             [3, 1],
+                             [4, 0]]
+        empty_row_indicator = [False, True, False, False, True]
+        new_sparse_values = [1, 2, 10, 3, 4, 10]
+
+    """
+    new_sparse_indices, new_sparse_values, empty_row_indicator = TupleWrapper(
+        _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 3
+    )
+    new_sparse_indices = cast_like(new_sparse_indices, sparse_indices)
+    new_sparse_values = cast_like(new_sparse_values, sparse_values)
+    empty_row_indicator = cast(empty_row_indicator, "bool")
+
+    return Tuple((new_sparse_indices, new_sparse_values, empty_row_indicator))
+
+
+def sparse_reshape(sparse_indices, prev_shape, new_shape):
+    """
+    Reshape a Sparse Tensor. The sparse array is in COO format.
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+    prev_shape : relay.Expr
+        A 1-D tensor containing the previous shape of the dense tensor
+    new_shape : relay.Expr
+        A 1-D tensor containing the new shape of the dense tensor
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    Examples
+    --------
+    .. code-block:: python
+        sparse_indices = [[0, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0],
+                            [1, 0, 0],
+                            [1, 2, 3]]
+        prev_shape = [2, 3, 4]
+        new_shape = [9, -1]
+        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
+                            prev_shape,
+                            new_shape)
+        new_sparse_indices = [[0, 0],
+                              [0, 1],
+                              [1, 2],
+                              [4, 2],
+                              [8, 1]]
+        new_shape = [9, 4]
+    """
+    return TupleWrapper(_make.sparse_reshape(sparse_indices, prev_shape, new_shape), 2)
+
+
+def cumsum(data, axis=None, dtype=None, exclusive=None):
+    """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
+    a given axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : int, optional
+        If set to 1 will return exclusive sum in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
+
+    Returns
+    -------
+    result : relay.Expr
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+
+    Examples
+    --------
+    .. code-block:: python
+        a = [[1,2,3], [4,5,6]]
+
+        cumsum(a)  # if axis is not provided, cumsum is done over the flattened input.
+        -> [ 1,  3,  6, 10, 15, 21]
+
+        cumsum(a, dtype="float32")
+        -> [  1.,   3.,   6.,  10.,  15.,  21.]
+
+        cumsum(a, axis=0)  # sum over rows for each of the 3 columns
+        -> [[1, 2, 3],
+            [5, 7, 9]]
+
+        cumsum(a, axis=1)
+        -> [[ 1,  3,  6],
+            [ 4,  9, 15]]
+
+        a = [1, 0, 1, 0, 1, 1, 0]  # a is a boolean array
+        cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
+        -> [1, 1, 2, 2, 3, 4, 4]
+    """
+    return _make.cumsum(data, axis, dtype, exclusive)
+
+
+def unique(data, is_sorted=True, return_counts=False):
+    """
+    Find the unique elements of a 1-D tensor. Please note `output` and `counts` are all padded to
+    have the same length of `data` and element with index >= num_unique[0] has undefined value.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        A 1-D tensor of integers.
+
+    sorted : bool
+        Whether to sort the unique elements in ascending order before returning as output.
+
+    return_counts : bool
+        Whether to return the count of each unique element.
+
+    Returns
+    -------
+    output : relay.Expr
+        A 1-D tensor containing the unique elements of the input data tensor.
+
+    indices : relay.Expr
+        A 1-D tensor containing the index of each data element in the output tensor.
+
+    num_unique : relay.Expr
+        A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
+
+    counts (optional) : relay.Expr
+        A 1-D tensor containing the count of each unique element in the output.
+
+    Examples
+    --------
+    .. code-block:: python
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+
+        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
+
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
+        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
+        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique     =  [5]
+    """
+    if return_counts:
+        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
+    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)

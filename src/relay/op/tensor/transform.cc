@@ -157,9 +157,7 @@ Expr MakeReinterpret(Expr data, DataType dtype) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 2>(MakeReinterpret, args, rv);
-});
+TVM_REGISTER_GLOBAL("relay._make.reinterpret").set_body_typed(MakeReinterpret);
 
 RELAY_REGISTER_OP("reinterpret")
     .describe(R"code(Reinterpret the data into a new data type.
@@ -229,7 +227,7 @@ Expr MakeExpandDims(Expr data, int axis, int num_newaxis) {
 TVM_REGISTER_GLOBAL("relay.op._make.expand_dims").set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("expand_dims")
-    .describe(R"code(Insert `num_newaxis` axises at the position given by `axis`
+    .describe(R"code(Insert `num_newaxis` axes at the position given by `axis`
 
 - **data**: The input data to the operator.
 
@@ -1148,6 +1146,9 @@ Expr MakeScatterND(Expr data, Expr indices, const Array<Integer> out_shape) {
 
 TVM_REGISTER_GLOBAL("relay.op._make.scatter_nd").set_body_typed(MakeScatterND);
 
+// scatter_nd operator has extern schedules for CPU and GPU devices.
+// Fusing extern schedules with Injective schedules leads to errors.
+// So, converting the scatter_nd to Opaque to prevent compilation failures
 RELAY_REGISTER_OP("scatter_nd")
     .describe(R"code(Scatter elements or slices from data and store to a tensor
 whose shape is defined by indices.
@@ -1160,7 +1161,7 @@ Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}) and indices with sh
     .add_argument("indices", "Tensor", "The indices tensor.")
     .set_support_level(3)
     .add_type_rel("ScatterND", ScatterNDRel)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
@@ -1585,6 +1586,100 @@ RELAY_REGISTER_OP("repeat")
     .add_type_rel("Repeat", RepeatRel)
     .set_attr<FTVMCompute>("FTVMCompute", RepeatCompute)
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
+
+bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                            const TypeReporter& reporter) {
+  // types: [sparse_indices, sparse_values, dense_shape, default_value, result]
+  ICHECK_EQ(types.size(), 5) << "SparseFillEmptyRowsRel expects 5 inputs but " << types.size()
+                             << "provided";
+  std::vector<Type> fields;
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto ndims = sparse_indices->shape[1];
+  fields.push_back(TensorType(Array<PrimExpr>{Any(), ndims}, tvm::DataType::Int(64)));
+  fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  reporter->Assign(types[types.size() - 1], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr dense_shape,
+                             Expr default_value) {
+  static const Op& op = Op::Get("sparse_fill_empty_rows");
+  return Call(op, {sparse_indices, sparse_values, dense_shape, default_value}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows")
+    .set_body_typed(MakeSparseFillEmptyRows);
+
+RELAY_REGISTER_OP("sparse_fill_empty_rows")
+    .describe(
+        R"code(Fill empty rows of a sparse tensor with a default value.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .add_argument("sparse_indices", "Tensor",
+                  "A 2-D int64 tensor of shape [N, ndims], which specifies the indices of the"
+                  "elements in the sparse tensor that contain nonzero values. COO Format")
+    .add_argument(
+        "sparse_values", "Tensor",
+        "A 1-D tensor[N] which supplies the values for each element in indices. COO Format")
+    .add_argument("dense_shape", "Tensor",
+                  "A 1-D int64 tensor of shape [ndims], which specifies the dense_shape of the"
+                  "sparse tensor. Takes a list indicating the number of elements in each "
+                  "dimension")
+    .add_argument("default_value", "Tensor",
+                  "The value to fill for empty rows, with the same type as sparse_values")
+    .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // types: [sparse_indices, prev_shape, new_shape, result]
+  ICHECK_EQ(types.size(), 4) << "SparseReshapeRel expects 4 types but " << types.size()
+                             << " provided";
+  ICHECK_EQ(num_inputs, 3) << "SparseReshapeRel expects 4 inputs but " << num_inputs << " provided";
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto prev_shape = types[1].as<TensorTypeNode>();
+  auto new_shape = types[2].as<TensorTypeNode>();
+  if (sparse_indices == nullptr || prev_shape == nullptr || new_shape == nullptr) {
+    return false;
+  }
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+  CHECK(prev_shape->dtype.is_int()) << "prev_shape must be tensor of integers";
+  CHECK(new_shape->dtype.is_int()) << "new_shape must be tensor of integers";
+  ICHECK_EQ(sparse_indices->shape.size(), 2) << "sparse_indices must be 2-D tensor";
+  ICHECK_EQ(prev_shape->shape.size(), 1) << "prev_shape must be 1-D tensor";
+  ICHECK_EQ(new_shape->shape.size(), 1) << "new_shape must be 1-D tensor";
+  std::vector<Type> fields;
+  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
+  fields.push_back(TensorType(new_sparse_indices_shape, sparse_indices->dtype));
+  fields.push_back(TensorType(new_shape->shape, new_shape->dtype));
+  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeSparseReshape(Expr sparse_indices, Expr prev_shape, Expr new_shape) {
+  static const Op& op = Op::Get("sparse_reshape");
+  return Call(op, {sparse_indices, prev_shape, new_shape}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_reshape").set_body_typed(MakeSparseReshape);
+
+RELAY_REGISTER_OP("sparse_reshape")
+    .describe(R"code(Return new sparse indices of the reshaped tensor
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .add_argument("sparse_indices", "Tensor",
+                  "A 2-D tensor of shape [N, ndims], which specifies the indices of the"
+                  "elements in the sparse tensor that contain nonzero values.  COO Format")
+    .add_argument("prev_shape", "Tensor",
+                  "A 1-D tensor of shape [ndims], which specifies the previous dense shape of the"
+                  "sparse tensor")
+    .add_argument("new_shape", "Tensor",
+                  "A 1-D tensor of shape [ndims], which specifies the desired dense shape of the"
+                  "sparse tensor")
+    .add_type_rel("sparse_reshape", SparseReshapeRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_support_level(3);
 
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
@@ -3674,5 +3769,105 @@ RELAY_REGISTER_OP("adv_index")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
+TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+
+bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // types: [data, output]
+  ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "cumsum: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  const auto* param = attrs.as<CumsumAttrs>();
+
+  auto dtype = param->dtype;
+  if (dtype.is_void()) {
+    dtype = data->dtype;
+  }
+
+  if (param->axis.defined()) {
+    reporter->Assign(types[1], TensorType(data->shape, dtype));
+  } else {
+    auto prod = data->shape[0];
+    for (size_t i = 1; i < data->shape.size(); ++i) {
+      prod = prod * data->shape[i];
+    }
+    reporter->Assign(types[1], TensorType({prod}, dtype));
+  }
+
+  return true;
+}
+
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive) {
+  auto attrs = make_object<CumsumAttrs>();
+  attrs->dtype = dtype;
+  attrs->axis = axis;
+  attrs->exclusive = exclusive;
+  static const Op& op = Op::Get("cumsum");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.cumsum").set_body_typed(MakeCumsum);
+
+RELAY_REGISTER_OP("cumsum")
+    .describe(
+        R"doc(Return the cumulative sum of the elements along a given axis.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Cumsum", CumsumRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+TVM_REGISTER_NODE_TYPE(UniqueAttrs);
+
+bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // types: [data, result]
+  ICHECK_EQ(types.size(), 2) << "Unique: expect 2 types but " << types.size() << " provided";
+  ICHECK_EQ(num_inputs, 1) << "Unique: expect 1 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Unique: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  const int ndim = static_cast<int>(data->shape.size());
+  ICHECK_EQ(ndim, 1) << "Unique: input must be 1-D tensor";
+  ICHECK_EQ(data->dtype.is_int(), true) << "Unique: input must have int32 or int64 dtype";
+  std::vector<Type> fields;
+  fields.push_back(TensorType(data->shape, data->dtype));               // unique
+  fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
+  fields.push_back(TensorType(Array<PrimExpr>{1}, DataType::Int(32)));  // num_unique
+  const auto* param = attrs.as<UniqueAttrs>();
+  if (param->return_counts) {
+    fields.push_back(TensorType(data->shape, DataType::Int(32)));  // counts
+  }
+  reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeUnique(Expr data, bool sorted, bool return_counts) {
+  auto attrs = make_object<UniqueAttrs>();
+  attrs->sorted = sorted;
+  attrs->return_counts = return_counts;
+  static const Op& op = Op::Get("unique");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.unique").set_body_typed(MakeUnique);
+
+RELAY_REGISTER_OP("unique")
+    .describe(
+        R"code(This operation returns the unique elements and the new index of each item in a given 1-D array.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_type_rel("unique", UniqueRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 }  // namespace relay
 }  // namespace tvm

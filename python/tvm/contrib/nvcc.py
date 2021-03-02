@@ -89,6 +89,12 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     cmd += ["-o", file_target]
     cmd += [temp_code]
 
+    cxx_compiler_path = tvm.support.libinfo().get("TVM_CXX_COMPILER_PATH")
+    if cxx_compiler_path != "":
+        # This tells nvcc where to find the c++ compiler just in case it is not in the path.
+        # On Windows it is not in the path by default.
+        cmd += ["-ccbin", cxx_compiler_path]
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
@@ -186,7 +192,7 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver in (9.0, 9.1, 10.0, 10.1, 10.2, 11.0, 11.1):
+    if cuda_ver in (9.0, 9.1, 10.0, 10.1, 10.2, 11.0, 11.1, 11.2):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):

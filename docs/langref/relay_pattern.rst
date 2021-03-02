@@ -246,6 +246,24 @@ are matched:
 
         assert pat.match(relay.expr.If(cond, x, y))
 
+
+A Relay ``Let`` expression can be matched if all of its variable, value, and body
+are matched:
+
+.. code-block:: python
+
+  def test_match_let():
+      x = is_var("x")
+      y = is_var("y")
+      let_var = is_var("let")
+      pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+      x = relay.var("x")
+      y = relay.var("y")
+      lv = relay.var("let")
+      cond = x < y
+      assert pat.match(relay.expr.Let(lv, cond, lv))
+
 Matching Diamonds and Post-Dominator Graphs
 *******************************************
 
@@ -310,6 +328,7 @@ The high level design is to introduce a language of patterns for now we propose 
             | is_tuple()
             | is_tuple_get_item(pattern, index = None)
             | is_if(cond, tru, fls)
+            | is_let(var, value, body)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
             | FunctionPattern(params, body)
@@ -366,6 +385,16 @@ Function Pattern
 ****************
 
 Match a Function with a body and parameters
+
+If Pattern
+**********
+
+Match an If with condition, true branch, and false branch
+
+Let Pattern
+***********
+
+Match a Let with a variable, value, and body
 
 Applications
 ============

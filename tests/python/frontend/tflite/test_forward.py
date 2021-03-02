@@ -583,6 +583,24 @@ def _test_stridedslice(
 def test_forward_stridedslice():
     """test StridedSlice"""
     for quantized in [False, True]:
+        _test_stridedslice(
+            (1, 3, 3),
+            [0, 0, 0],
+            [3, 3, 3],
+            [1, 1, 1],
+            "float32",
+            shrink_axis_mask=7,
+            quantized=quantized,
+        )
+        _test_stridedslice(
+            (1, 3, 3),
+            [0, 0, 0],
+            [3, 3, 3],
+            [1, 1, 1],
+            "float32",
+            shrink_axis_mask=5,
+            quantized=quantized,
+        )
         _test_stridedslice((2), [1], [1], [1], "float32", shrink_axis_mask=1, quantized=quantized)
         _test_stridedslice(
             (3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], "float32", quantized=quantized
@@ -4136,6 +4154,27 @@ def test_forward_mediapipe_hand_landmark():
         tvm.testing.assert_allclose(
             np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]), rtol=1e-5, atol=1e-5
         )
+
+
+#######################################################################
+# Test check for Tensorflow "dynamic range quantization" optimization
+# --------------
+def test_prevent_tensorflow_dynamic_range():
+    """
+    Should prevent runnung "dynamic range quantization" optimized TFLite graph
+    """
+    data_array = np.random.randint(0, 2, (1, 1024, 1024)).astype(dtype=np.float32)
+    filter_array = np.random.randint(0, 2, (1024, 1024)).astype(dtype=np.float32)
+    data_in = tf.keras.layers.Input(shape=data_array.shape[1:])
+    dense = tf.keras.layers.Dense(units=filter_array.shape[-1], use_bias=False)(data_in)
+    keras_model = tf.keras.models.Model(data_in, dense)
+    keras_model.layers[1].set_weights([filter_array])
+
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    tflite_model = converter.convert()
+    with pytest.raises(tvm.error.OpNotImplemented):
+        tvm_output = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
 
 
 #######################################################################

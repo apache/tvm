@@ -176,17 +176,45 @@ class OperatorConverter(object):
     def check_unsupported_ops(self):
         """Check unsupported TFLite ops in our converter."""
         unsupported_ops_set = set()
-
+        dynamic_range_ops_set = set()
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
             if op_code_str not in self.convert_map:
                 unsupported_ops_set.add(op_code_str)
+                continue
+
+            # Trying to exclude "dynamic range quantization" optimized ops as not supported in TVM
+            qnn_in_cnt = len(
+                [_.qnn_params for _ in self.get_input_tensors(op)[0:1] if _.qnn_params is not None]
+            )
+            qnn_weight_cnt = len(
+                [_.qnn_params for _ in self.get_input_tensors(op)[1:] if _.qnn_params is not None]
+            )
+            qnn_out_cnt = len(
+                [_.qnn_params for _ in self.get_output_tensors(op) if _.qnn_params is not None]
+            )
+
+            if qnn_in_cnt == 0 and qnn_out_cnt == 0 and qnn_weight_cnt > 0:
+                dynamic_range_ops_set.add(op_code_str)
+
+        raise_msg = ""
 
         if unsupported_ops_set:
-            msg = "The following operators are not supported in frontend " "TFLite: {}"
+            msg = "The following operators are not supported in frontend " "TFLite: {}\n"
             ops = str(list(unsupported_ops_set)).strip("[,]")
-            raise tvm.error.OpNotImplemented(msg.format(ops))
+            raise_msg += msg.format(ops)
+
+        if dynamic_range_ops_set:
+            msg = (
+                "The following operators are likely to have dynamic range quantization: {}. "
+                "If you are running an optimized graph, please turn off dynamic range quantization "
+                "or use full integer quantization"
+            )
+            raise_msg += msg.format(str(list(dynamic_range_ops_set)).strip("[,]"))
+
+        if len(raise_msg) > 0:
+            raise tvm.error.OpNotImplemented(raise_msg)
 
     def convert_op_to_relay(self):
         """Convert TFLite ops to relay ops"""
@@ -353,7 +381,7 @@ class OperatorConverter(object):
         data = tensor_wrapper.buffer.DataAsNumpy()
 
         if tensor_wrapper.tensor.ShapeLength() != 0:
-            shape = to_int_list(tensor_wrapper.tensor.ShapeAsNumpy())
+            shape = to_int_list(self.get_tensor_shape(tensor_wrapper))
         else:
             shape = []
 
@@ -1417,7 +1445,7 @@ class OperatorConverter(object):
         axis = gather_options.Axis()
 
         # Check the indices are with in bounds.
-        data_shape = to_int_list(input_tensors[0].tensor.ShapeAsNumpy())
+        data_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
         data_dim = len(data_shape)
 
         axis = data_dim + axis if axis < 0 else axis
@@ -1535,7 +1563,7 @@ class OperatorConverter(object):
         new_axis_mask = options.NewAxisMask()
         shrink_axis_mask = options.ShrinkAxisMask()
 
-        data_shape = to_int_list(input_tensors[0].tensor.ShapeAsNumpy())
+        data_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
         data_dim = len(data_shape)
         stride_dim = len(stride)
 
@@ -1613,13 +1641,18 @@ class OperatorConverter(object):
 
         # Create final output shape.
         final_output = []
+        final_len = len(fshape_indices)
         for gather_index in fshape_indices:
             if gather_index == -1:
                 final_output.append(1)
+                final_len += 1
             elif gather_index == -2:
-                pass
+                final_len -= 1
             else:
                 final_output.append(out_shape[gather_index])
+
+        if final_len == 0:
+            return _op.squeeze(out, axis=tuple(range(len(fshape_indices))))
 
         if not final_output:
             return out
@@ -1792,7 +1825,7 @@ class OperatorConverter(object):
         output_tensor_type = output_tensor.tensor.Type()
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
-        weight_tensor_shape = to_int_list(weight_tensor.tensor.ShapeAsNumpy())
+        weight_tensor_shape = to_int_list(self.get_tensor_shape(weight_tensor))
 
         # Weight should have only 2 dimensions(TFLite convention)
         assert len(weight_tensor_shape) == 2, "Weight should be only 2-dim"
@@ -1987,16 +2020,16 @@ class OperatorConverter(object):
         padding = conv_options.Padding()
         fused_activation_fn = conv_options.FusedActivationFunction()
 
-        _, input_h, input_w, input_c = to_int_list(input_tensor.tensor.ShapeAsNumpy())
+        _, input_h, input_w, input_c = to_int_list(self.get_tensor_shape(input_tensor))
 
         if is_depthwise_conv:
             # TFLite depthwise convolution kernel layout is:
             # 1 KH KW C(input_c * depth_multiplier)
-            _, kernel_h, kernel_w, in_channels = to_int_list(weight_tensor.tensor.ShapeAsNumpy())
+            _, kernel_h, kernel_w, in_channels = to_int_list(self.get_tensor_shape(weight_tensor))
             assert in_channels == input_c * depth_multiplier
         else:
             output_channels, kernel_h, kernel_w, _ = to_int_list(
-                weight_tensor.tensor.ShapeAsNumpy()
+                self.get_tensor_shape(weight_tensor)
             )
 
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
@@ -2219,7 +2252,7 @@ class OperatorConverter(object):
         size = list(self.get_tensor_value(input_tensors[2]))
         # strided_slice(Relay) needs the slice's end indices, not the size
         end = size
-        input_tensor_shape = to_int_list(input_tensor.tensor.ShapeAsNumpy())
+        input_tensor_shape = to_int_list(self.get_tensor_shape(input_tensor))
         input_tensor_rank = len(input_tensor_shape)
         for i in range(input_tensor_rank):
             if size[i] == -1:
@@ -2381,7 +2414,8 @@ class OperatorConverter(object):
 
         in_expr = self.get_expr(input_tensor_idx)
 
-        _, input_h, input_w, _ = to_int_list(input_tensor.tensor.ShapeAsNumpy())
+        _, input_h, input_w, _ = to_int_list(self.get_tensor_shape(input_tensor))
+
         if padding == Padding.VALID:
             pass
         elif padding == Padding.SAME:
@@ -2771,12 +2805,13 @@ class OperatorConverter(object):
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
-        _, input_h, input_w, input_c = to_int_list(input_tensor.tensor.ShapeAsNumpy())
+        _, input_h, input_w, input_c = to_int_list(self.get_tensor_shape(input_tensor))
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
         out_channels, kernel_h, kernel_w, in_channels = to_int_list(
-            weights_tensor.tensor.ShapeAsNumpy()
+            self.get_tensor_shape(weights_tensor)
         )
+
         assert (
             input_c == in_channels
         ), "Input channel in the filter should match to channel in the input"
@@ -3204,7 +3239,7 @@ class OperatorConverter(object):
             ), "TFLite MATRIX_DIAG requires diagonal and output tensors' \
                     scale and zero points to be equal"
 
-        shape = to_int_list(diagonal.tensor.ShapeAsNumpy())
+        shape = to_int_list(self.get_tensor_shape(diagonal))
         shape = np.append(shape, shape[-1])
         dtype = self.get_tensor_type_str(diagonal.tensor.Type())
 
@@ -3264,6 +3299,15 @@ class OperatorConverter(object):
             type_str = self.get_tensor_type_str(tensor.tensor.Type())
             expr = self.exp_tab.new_const(self.get_tensor_value(tensor, is_sparse), dtype=type_str)
         return expr
+
+    def get_tensor_shape(self, tensor_wrapper):
+        """ Returns tensor shape. Infers shape if the shape is empty. """
+        assert isinstance(tensor_wrapper, TensorWrapper), "Expecting TensorWrapper here"
+        return (
+            tensor_wrapper.tensor.ShapeAsNumpy()
+            if tensor_wrapper.tensor.ShapeLength() > 0
+            else _infer_shape(self.get_tensor_expr(tensor_wrapper))
+        )
 
 
 # pylint: disable=no-else-return
@@ -3495,7 +3539,45 @@ def get_tensor_name(subgraph, tensor_idx):
     return subgraph.Tensors(tensor_idx).Name().decode("utf-8")
 
 
-def from_tflite(model, shape_dict, dtype_dict):
+def _decode_type(n):
+    _tflite_m = {
+        0: "float32",
+        1: "float16",
+        2: "int32",
+        3: "uint8",
+        4: "int64",
+        5: "string",
+        6: "bool",
+        7: "int16",
+        8: "complex64",
+        9: "int8",
+    }
+    return _tflite_m[n]
+
+
+def _input_type(model):
+    subgraph_count = model.SubgraphsLength()
+    assert subgraph_count > 0
+    shape_dict = {}
+    dtype_dict = {}
+    for subgraph_index in range(subgraph_count):
+        subgraph = model.Subgraphs(subgraph_index)
+        inputs_count = subgraph.InputsLength()
+        assert inputs_count >= 1
+        for input_index in range(inputs_count):
+            input_ = subgraph.Inputs(input_index)
+            assert subgraph.TensorsLength() > input_
+            tensor = subgraph.Tensors(input_)
+            input_shape = tuple(tensor.ShapeAsNumpy())
+            tensor_type = tensor.Type()
+            input_name = tensor.Name().decode("utf8")
+            shape_dict[input_name] = input_shape
+            dtype_dict[input_name] = _decode_type(tensor_type)
+
+    return shape_dict, dtype_dict
+
+
+def from_tflite(model, shape_dict=None, dtype_dict=None):
     """Convert from tflite model into compatible relay Function.
 
     Parameters
@@ -3533,6 +3615,12 @@ def from_tflite(model, shape_dict, dtype_dict):
 
         assert isinstance(model, tflite.Model.Model)
 
+    _shape_dict, _dtype_dict = _input_type(model)
+    if shape_dict is not None:
+        _shape_dict.update(shape_dict)
+    if dtype_dict is not None:
+        _dtype_dict.update(dtype_dict)
+
     # keep the same as tflite
     assert model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
     subgraph = model.Subgraphs(0)
@@ -3544,8 +3632,8 @@ def from_tflite(model, shape_dict, dtype_dict):
     exp_tab = ExprTable()
     for model_input in model_inputs:
         model_input_name = get_tensor_name(subgraph, model_input)
-        shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
-        dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
+        shape = _shape_dict[model_input_name] if model_input_name in _shape_dict else None
+        dtype = _dtype_dict[model_input_name] if model_input_name in _dtype_dict else "float32"
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model

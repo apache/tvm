@@ -678,6 +678,10 @@ def test_vm_optimize():
     comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, target="llvm", params=params)
 
+    free_vars = relay.analysis.free_vars(opt_mod["main"].body)
+    # Paremeters should all be bound, so the only free var is data
+    assert len(free_vars) == 1
+
 
 @tvm.testing.uses_gpu
 def test_loop_free_var():

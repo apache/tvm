@@ -25,7 +25,15 @@ source tests/scripts/setup-pytest-env.sh
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
-TVM_FFI=ctypes python3 -m pytest tests/python/all-platform-minimal-test
-TVM_FFI=cython python3 -m pytest tests/python/all-platform-minimal-test
-TVM_FFI=ctypes python3 -m pytest tests/python/unittest
-TVM_FFI=cython python3 -m pytest tests/python/unittest
+# NOTE: also set by task_python_unittest_gpuonly.sh.
+if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
+    TVM_UNITTEST_TESTSUITE_NAME=python-unittest
+fi
+
+# First run minimal test on both ctypes and cython.
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
+run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
+
+# Then run all unittests on both ctypes and cython.
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest
+run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest

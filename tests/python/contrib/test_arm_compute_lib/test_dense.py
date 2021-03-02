@@ -101,7 +101,7 @@ def _get_qnn_model(
     out = relay.qnn.op.requantize(
         out,
         relay.const(input_sc * kernel_sc, "float32"),  # input scale
-        relay.const(input_zp * kernel_zp, "int32"),  # input zero point
+        relay.const(0, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output scale
         relay.const(output_zp, "int32"),  # output zero point
         out_dtype="uint8",
@@ -182,20 +182,18 @@ def test_dense():
 
     device = Device()
     np.random.seed(0)
-
     dtype = "float32"
     trials = [
-        [(1, 128), (16, 128), 16, True, 1],
-        [(1, 128), (16, 128), 16, False, 1],
-        [(32, 32), (32, 32), 32, True, 1],
-        [(32, 32), (32, 32), 32, False, 1],
-        [(1, 64), (1, 64), 1, True, 0],
-        [(1, 64), (1, 64), 1, False, 0],
-        [(11, 2), (2, 2), 2, True, 0],
-        [(11, 2), (2, 2), 2, False, 0],
+        [(1, 128), (16, 128), 16, True],
+        [(1, 128), (16, 128), 16, False],
+        [(32, 32), (32, 32), 32, True],
+        [(32, 32), (32, 32), 32, False],
+        [(1, 64), (1, 64), 1, True],
+        [(1, 64), (1, 64), 1, False],
+        [(11, 2), (2, 2), 2, True],
+        [(11, 2), (2, 2), 2, False],
     ]
-
-    for shape, weight_shape, units, composite, acl_partitions in trials:
+    for shape, weight_shape, units, composite in trials:
         outputs = []
         inputs = {"a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype))}
         func, params = _get_model(
@@ -210,11 +208,8 @@ def test_dense():
                     params,
                     device,
                     enable_acl=acl,
-                    tvm_ops=(1 - acl_partitions) * (2 - int(not composite)),
-                    acl_partitions=acl_partitions,
                 )[0]
             )
-
         config = {
             "shape": shape,
             "weight_shape": weight_shape,
@@ -230,27 +225,25 @@ def test_codegen_dense():
         return
 
     np.random.seed(0)
-
     dtype = "float32"
     trials = [
-        [(1, 128), (16, 128), 16, True, 1],
-        [(1, 128), (16, 128), 16, False, 1],
-        [(32, 32), (32, 32), 32, True, 1],
-        [(32, 32), (32, 32), 32, False, 1],
-        [(1, 64), (1, 64), 1, True, 0],
-        [(1, 64), (1, 64), 1, False, 0],
+        [(1, 128), (16, 128), 16, True],
+        [(1, 128), (16, 128), 16, False],
+        [(32, 32), (32, 32), 32, True],
+        [(32, 32), (32, 32), 32, False],
+        [(1, 64), (1, 64), 1, True],
+        [(1, 64), (1, 64), 1, False],
+        [(11, 2), (2, 2), 2, True],
+        [(11, 2), (2, 2), 2, False],
     ]
-
-    for shape, weight_shape, units, composite, acl_partitions in trials:
+    for shape, weight_shape, units, composite in trials:
         inputs = {"a"}
 
         args = (shape, weight_shape, units, dtype)
 
         func, params = _get_model(*args, var_names=iter(inputs), has_bias=composite)
         exp_codegen = _get_expected_codegen(*args, has_bias=composite)
-        verify_codegen(
-            func, exp_codegen, acl_partitions, (1 - acl_partitions) * (2 - int(not composite))
-        )
+        verify_codegen(func, exp_codegen)
 
 
 def test_qnn_dense():
@@ -264,19 +257,20 @@ def test_qnn_dense():
 
     dtype = "uint8"
     trials = [
-        [(4, 4), (4, 4), 4, True, 0],
-        [(4, 4), (4, 4), 4, False, 0],
-        [(16, 16), (4, 16), 4, True, 1],
-        [(16, 16), (4, 16), 4, False, 1],
-        [(1, 128), (16, 128), 16, True, 1],
-        [(1, 128), (16, 128), 16, False, 1],
-        [(32, 32), (32, 32), 32, True, 1],
-        [(32, 32), (32, 32), 32, False, 1],
-        [(1, 64), (1, 64), 1, True, 0],
-        [(1, 64), (1, 64), 1, False, 0],
+        [(1, 2), (2, 2), 2, True],
+        [(1, 2), (2, 2), 2, False],
+        [(4, 4), (4, 4), 4, True],
+        [(4, 4), (4, 4), 4, False],
+        [(16, 16), (4, 16), 4, True],
+        [(16, 16), (4, 16), 4, False],
+        [(1, 128), (16, 128), 16, True],
+        [(1, 128), (16, 128), 16, False],
+        [(32, 32), (32, 32), 32, True],
+        [(32, 32), (32, 32), 32, False],
+        [(1, 64), (1, 64), 1, True],
+        [(1, 64), (1, 64), 1, False],
     ]
-
-    for shape, weight_shape, units, composite, acl_partitions in trials:
+    for shape, weight_shape, units, composite in trials:
         outputs = []
         inputs = {"a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))}
         input_zp = 100
@@ -310,8 +304,6 @@ def test_qnn_dense():
                     1,
                     params,
                     device,
-                    tvm_ops=(1 - acl_partitions) * (3 - int(not composite)),
-                    acl_partitions=acl_partitions,
                     enable_acl=acl,
                 )[0]
             )
@@ -340,15 +332,20 @@ def test_codegen_qnn_dense():
 
     dtype = "uint8"
     trials = [
-        [(1, 128), (16, 128), 16, True, 1],
-        [(1, 128), (16, 128), 16, False, 1],
-        [(32, 32), (32, 32), 32, True, 1],
-        [(32, 32), (32, 32), 32, False, 1],
-        [(1, 64), (1, 64), 1, True, 0],
-        [(1, 64), (1, 64), 1, False, 0],
+        [(1, 2), (2, 2), 2, True],
+        [(1, 2), (2, 2), 2, False],
+        [(4, 4), (4, 4), 4, True],
+        [(4, 4), (4, 4), 4, False],
+        [(16, 16), (4, 16), 4, True],
+        [(16, 16), (4, 16), 4, False],
+        [(1, 128), (16, 128), 16, True],
+        [(1, 128), (16, 128), 16, False],
+        [(32, 32), (32, 32), 32, True],
+        [(32, 32), (32, 32), 32, False],
+        [(1, 64), (1, 64), 1, True],
+        [(1, 64), (1, 64), 1, False],
     ]
-
-    for shape, weight_shape, units, composite, acl_partitions in trials:
+    for shape, weight_shape, units, composite in trials:
         inputs = {"a"}
         args = (shape, weight_shape, units, dtype)
 
@@ -372,9 +369,7 @@ def test_codegen_qnn_dense():
             has_bias=composite,
         )
         exp_codegen = _get_expected_codegen(*args, has_bias=composite)
-        verify_codegen(
-            func, exp_codegen, acl_partitions, (1 - acl_partitions) * (3 - int(not composite))
-        )
+        verify_codegen(func, exp_codegen)
 
 
 if __name__ == "__main__":

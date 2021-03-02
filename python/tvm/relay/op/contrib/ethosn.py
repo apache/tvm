@@ -17,7 +17,11 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM) -N NPU supported operators."""
 from enum import Enum
+
 import tvm.ir
+from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
+
 from ...dataflow_pattern import wildcard, is_op, is_constant
 from ... import qnn as _qnn
 from .register import register_pattern_table
@@ -40,6 +44,37 @@ def ethosn_available():
         return Available.UNAVAILABLE
     hw = tvm.get_global_func("relay.ethos-n.query")()
     return Available.SW_AND_HW if hw else Available.SW_ONLY
+
+
+def partition_for_ethosn(mod, params=None):
+    """Partition the graph greedily offloading supported
+    operators to Arm Ethos-N NPU.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+
+    Returns
+    -------
+    ret : annotated and partitioned module.
+    """
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    seq = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            transform.MergeComposite(pattern_table()),
+            transform.AnnotateTarget("ethos-n"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+
+    return seq(mod)
 
 
 @register_pattern_table("ethos-n")

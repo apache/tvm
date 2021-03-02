@@ -21,9 +21,11 @@ import copy
 import logging
 import os
 import re
+import typing
 from tvm.contrib import utils
 
 from .micro_library import MicroLibrary
+from .._ffi import libinfo
 
 
 _LOG = logging.getLogger(__name__)
@@ -55,15 +57,62 @@ class Workspace:
 CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
 
 
-TVM_ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+STANDALONE_CRT_DIR = None
 
 
-CRT_ROOT_DIR = os.path.join(TVM_ROOT_DIR, "src", "runtime", "crt")
+class CrtNotFoundError(Exception):
+    """Raised when the standalone CRT dirtree cannot be found."""
 
 
-RUNTIME_LIB_SRC_DIRS = [os.path.join(CRT_ROOT_DIR, n) for n in CRT_RUNTIME_LIB_NAMES] + [
-    os.path.join(TVM_ROOT_DIR, "3rdparty/libcrc/src")
-]
+def get_standalone_crt_dir() -> str:
+    """Find the standalone_crt directory.
+
+    Though the C runtime source lives in the tvm tree, it is intended to be distributed with any
+    binary build of TVM. This source tree is intended to be integrated into user projects to run
+    models targeted with --runtime=c.
+
+    Returns
+    -------
+    str :
+        The path to the standalone_crt
+    """
+    global STANDALONE_CRT_DIR
+    if STANDALONE_CRT_DIR is None:
+        for path in libinfo.find_lib_path():
+            crt_path = os.path.join(os.path.dirname(path), "standalone_crt")
+            if os.path.isdir(crt_path):
+                STANDALONE_CRT_DIR = crt_path
+                break
+
+        else:
+            raise CrtNotFoundError()
+
+    return STANDALONE_CRT_DIR
+
+
+def get_standalone_crt_lib(name: str) -> str:
+    """Find a source library directory in the standalone_crt.
+
+    The standalone C runtime is split into various libraries (one per directory underneath
+    src/runtime/crt). This convenience function returns the full path to one of those libraries
+    located in get_standalone_crt_dir().
+
+    Parameters
+    ----------
+    name : str
+        Name of the library subdirectory underneath src/runtime/crt.
+
+    Returns
+    -------
+    str :
+         The full path to the the library.
+    """
+    return os.path.join(get_standalone_crt_dir(), "src", "runtime", "crt", name)
+
+
+def get_runtime_libs() -> str:
+    """Return abspath to all CRT directories which contain source (i.e. not header) files."""
+    return [get_standalone_crt_lib(n) for n in CRT_RUNTIME_LIB_NAMES]
 
 
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
@@ -72,52 +121,73 @@ RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 _COMMON_CFLAGS = ["-Wall", "-Werror"]
 
 
-_CRT_DEFAULT_OPTIONS = {
-    "cflags": ["-std=c11"] + _COMMON_CFLAGS,
-    "ccflags": ["-std=c++11"] + _COMMON_CFLAGS,
-    "ldflags": ["-std=c++11"],
-    "include_dirs": [
-        f"{TVM_ROOT_DIR}/include",
-        f"{TVM_ROOT_DIR}/3rdparty/dlpack/include",
-        f"{TVM_ROOT_DIR}/3rdparty/libcrc/include",
-        f"{TVM_ROOT_DIR}/3rdparty/dmlc-core/include",
-        f"{CRT_ROOT_DIR}/include",
-    ],
-}
+def _build_default_compiler_options(standalone_crt_dir: typing.Optional[str] = None) -> str:
+    """Return a dict containing base compile flags for the CRT under gcc common to .
+
+    Parameters
+    ----------
+    standalone_crt_dir : Optional[str]
+        If given, the path to the standalone_crt
+    """
+    if standalone_crt_dir is None:
+        standalone_crt_dir = get_standalone_crt_dir()
+    return {
+        "cflags": ["-std=c11"] + _COMMON_CFLAGS,
+        "ccflags": ["-std=c++11"] + _COMMON_CFLAGS,
+        "ldflags": ["-std=c++11"],
+        "include_dirs": [os.path.join(standalone_crt_dir, "include")],
+    }
 
 
-_CRT_GENERATED_LIB_OPTIONS = copy.copy(_CRT_DEFAULT_OPTIONS)
+def default_options(crt_config_include_dir, standalone_crt_dir=None):
+    """Return default opts passed to Compile commands.
 
+    Parameters
+    ----------
+    crt_config_include_dir : str
+        Path to a directory containing crt_config.h for the target. This will be appended
+        to the include path for cflags and ccflags.
+    standalone_crt_dir : Optional[str]
 
-# Disable due to limitation in the TVM C codegen, which generates lots of local variable
-# declarations at the top of generated code without caring whether they're used.
-# Example:
-#   void* arg0 = (((TVMValue*)args)[0].v_handle);
-#   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
-_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-Wno-unused-variable")
-_CRT_GENERATED_LIB_OPTIONS["ccflags"].append("-Wno-unused-variable")
+    Returns
+    -------
+    Dict :
+        A dictionary containing 3 subkeys, each whose value is _build_default_compiler_options()
+        plus additional customization.
+         - "bin_opts" - passed as "options" to Compiler.binary() when building MicroBinary.
+         - "lib_opts" - passed as "options" to Compiler.library() when building bundled CRT
+           libraries (or otherwise, non-generated libraries).
+         - "generated_lib_opts" - passed as "options" to Compiler.library() when building the
+           generated library.
+    """
+    bin_opts = _build_default_compiler_options(standalone_crt_dir)
+    bin_opts["include_dirs"].append(crt_config_include_dir)
 
-
-# Many TVM-intrinsic operators (i.e. expf, in particular)
-_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-fno-builtin")
-
-
-def default_options(target_include_dir):
-    """Return default opts passed to Compile commands."""
-    bin_opts = copy.deepcopy(_CRT_DEFAULT_OPTIONS)
-    bin_opts["include_dirs"].append(target_include_dir)
-    lib_opts = copy.deepcopy(bin_opts)
+    lib_opts = _build_default_compiler_options(standalone_crt_dir)
     lib_opts["cflags"] = ["-Wno-error=incompatible-pointer-types"]
-    return {"bin_opts": bin_opts, "lib_opts": lib_opts}
+    lib_opts["include_dirs"].append(crt_config_include_dir)
+
+    generated_lib_opts = copy.copy(lib_opts)
+
+    # Disable due to limitation in the TVM C codegen, which generates lots of local variable
+    # declarations at the top of generated code without caring whether they're used.
+    # Example:
+    #   void* arg0 = (((TVMValue*)args)[0].v_handle);
+    #   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
+    generated_lib_opts["cflags"].append("-Wno-unused-variable")
+    generated_lib_opts["ccflags"].append("-Wno-unused-variable")
+
+    # Many TVM-intrinsic operators (i.e. expf, in particular)
+    generated_lib_opts["cflags"].append("-fno-builtin")
+
+    return {"bin_opts": bin_opts, "lib_opts": lib_opts, "generated_lib_opts": generated_lib_opts}
 
 
 def build_static_runtime(
     workspace,
     compiler,
     module,
-    lib_opts=None,
-    bin_opts=None,
-    generated_lib_opts=None,
+    compiler_options,
     extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
@@ -130,15 +200,11 @@ def build_static_runtime(
     module : IRModule
         Module to statically link.
 
-    lib_opts : Optional[dict]
-        The `options` parameter passed to compiler.library().
-
-    bin_opts : Optional[dict]
-        The `options` parameter passed to compiler.binary().
-
-    generated_lib_opts : Optional[dict]
-        The `options` parameter passed to compiler.library() when compiling the generated TVM C
-        source module.
+    compiler_options : dict
+        The return value of tvm.micro.default_options(), with any keys overridden to inject
+        compiler options specific to this build. If not given, tvm.micro.default_options() is
+        used. This dict contains the `options` parameter passed to Compiler.library() and
+        Compiler.binary() at various stages in the compilation process.
 
     extra_libs : Optional[List[MicroLibrary|str]]
         If specified, extra libraries to be compiled into the binary. If a MicroLibrary, it is
@@ -151,18 +217,12 @@ def build_static_runtime(
     MicroBinary :
         The compiled runtime.
     """
-    lib_opts = _CRT_DEFAULT_OPTIONS if lib_opts is None else lib_opts
-    bin_opts = _CRT_DEFAULT_OPTIONS if bin_opts is None else bin_opts
-    generated_lib_opts = (
-        _CRT_GENERATED_LIB_OPTIONS if generated_lib_opts is None else generated_lib_opts
-    )
-
     mod_build_dir = workspace.relpath(os.path.join("build", "module"))
     os.makedirs(mod_build_dir)
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
 
     libs = []
-    for mod_or_src_dir in (extra_libs or []) + RUNTIME_LIB_SRC_DIRS:
+    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs():
         if isinstance(mod_or_src_dir, MicroLibrary):
             libs.append(mod_or_src_dir)
             continue
@@ -177,7 +237,7 @@ def build_static_runtime(
             if RUNTIME_SRC_REGEX.match(p):
                 lib_srcs.append(os.path.join(lib_src_dir, p))
 
-        libs.append(compiler.library(lib_build_dir, lib_srcs, lib_opts))
+        libs.append(compiler.library(lib_build_dir, lib_srcs, compiler_options["lib_opts"]))
 
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
     os.makedirs(mod_src_dir)
@@ -185,10 +245,12 @@ def build_static_runtime(
         module.export_library(
             mod_build_dir,
             workspace_dir=mod_src_dir,
-            fcompile=lambda bdir, srcs, **kwargs: compiler.library(bdir, srcs, generated_lib_opts),
+            fcompile=lambda bdir, srcs, **kwargs: compiler.library(
+                bdir, srcs, compiler_options["generated_lib_opts"]
+            ),
         )
     )
 
     runtime_build_dir = workspace.relpath(f"build/runtime")
     os.makedirs(runtime_build_dir)
-    return compiler.binary(runtime_build_dir, libs, bin_opts)
+    return compiler.binary(runtime_build_dir, libs, compiler_options["bin_opts"])

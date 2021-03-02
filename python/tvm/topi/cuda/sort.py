@@ -18,16 +18,11 @@
 """Sort related operators """
 import tvm
 from tvm import te
-from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
-
-
-def swap(arr, axis):
-    """ swap arr[axis] and arr[-1] """
-    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+from ..utils import ceil_div, swap
 
 
 def _schedule_sort(outs):
@@ -59,10 +54,6 @@ def _schedule_sort(outs):
     for out in outs:
         traverse(out.op)
     return s
-
-
-def ceil_div(a, b):
-    return tvm.tir.indexdiv(a + b - 1, b)
 
 
 def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
@@ -887,10 +878,3 @@ def stable_sort_by_key_thrust(keys, values, for_scatter=False):
         tag="stable_sort_by_key",
     )
     return out[0], out[1]
-
-
-def is_thrust_available():
-    """
-    Test if thrust based sorting ops are available.
-    """
-    return get_global_func("tvm.contrib.thrust.sort", allow_missing=True) is not None

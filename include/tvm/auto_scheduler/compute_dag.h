@@ -263,6 +263,13 @@ class ComputeDAG : public ObjectRef {
   String PrintStepsAsPython(const Array<Step>& transform_steps) const;
 
   /*!
+   * \brief Print the compute DAG to a string. This is also used to generate the ComputeDAG hash.
+   * \param simple_mode Simple mode will only include the op names and brief compute.
+   * \return The ComputeDAG in a string.
+   */
+  String PrintDAG(bool simple_mode = false) const;
+
+  /*!
    * \brief Fill the correct bound information for a given state by calling ir_pass::InferBound.
    * The states can lose complete bound information after some transform steps (e.g., compute_at).
    * We can call this function to infer and fill all the bound information.

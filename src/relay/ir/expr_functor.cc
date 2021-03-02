@@ -532,5 +532,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
     *ret = Bind(Downcast<Type>(input), args[1]);
   }
 });
+
+void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
+                       std::function<void(const LetNode*)> post_visit) {
+  std::stack<const LetNode*> stack;
+  stack.push(op);
+  bool is_anormal = true;
+  while (is_anormal) {
+    const LetNode* current_op = stack.top();
+    pre_visit(current_op);
+    if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+      stack.push(new_op);
+    } else {
+      is_anormal = false;
+    }
+  }
+  while (stack.size()) {
+    const LetNode* current_op = stack.top();
+    stack.pop();
+    post_visit(current_op);
+  }
+}
+
 }  // namespace relay
 }  // namespace tvm

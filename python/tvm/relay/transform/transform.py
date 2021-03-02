@@ -240,6 +240,23 @@ def LazyGradientInit():
     return _ffi_api.LazyGradientInit()
 
 
+def FoldConstantExpr(expr, mod):
+    """Fold the constant expressions in a Relay program.
+    Parameters
+    ----------
+    expr: Expr
+        The expression to fold
+    mod: IRModule
+        The module the expr lives in (for global calls)
+
+    Returns
+    -------
+    new_expr: Expr
+        The expr after Constant Folding
+    """
+    return _ffi_api.FoldConstantExpr(expr, mod)
+
+
 def FoldConstant():
     """Fold the constant expressions in a Relay program.
 
@@ -968,7 +985,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     """
 
     if opt_level is None:
-        raise ValueError("Please provide opt_level for the funtion pass.")
+        raise ValueError("Please provide opt_level for the function pass.")
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):

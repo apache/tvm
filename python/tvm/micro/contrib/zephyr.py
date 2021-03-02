@@ -55,7 +55,7 @@ class SubprocessEnv(object):
         for k, v in self.default_overrides.items():
             env[k] = v
 
-        return subprocess.check_output(cmd, env=env, **kw)
+        return subprocess.check_output(cmd, env=env, **kw, universal_newlines=True)
 
 
 class ProjectNotFoundError(Exception):
@@ -191,7 +191,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         with open(os.path.join(output, "main.c"), "w"):
             pass
 
-        # expecetd not to exist after populate_tvm_libs
+        # expected not to exist after populate_tvm_libs
         build_dir = os.path.join(output, "__tvm_build")
         os.mkdir(build_dir)
         self._subprocess_env.run(
@@ -203,6 +203,25 @@ class ZephyrCompiler(tvm.micro.Compiler):
             ["make", f"-j{num_cpus}", "VERBOSE=1", project_name], cwd=build_dir
         )
         return tvm.micro.MicroLibrary(build_dir, [f"lib{project_name}.a"])
+
+    def _print_make_statistics(self, output):
+        output = output.splitlines()
+        lines = iter(output)
+        for line in lines:
+            if line.startswith("Memory region"):
+                # print statistics header
+                _LOG.info(line)
+                _LOG.info("--------------------- ---------- ------------ ---------")
+                line = next(lines)
+                # while there is a region print it
+                try:
+                    while ":" in line:
+                        _LOG.info(line)
+                        line = next(lines)
+                    else:
+                        break
+                except StopIteration:
+                    pass
 
     def binary(self, output, objects, options=None, link_main=True, main_options=None):
         assert link_main, "Must pass link_main=True"
@@ -224,7 +243,9 @@ class ZephyrCompiler(tvm.micro.Compiler):
         cmake_args.append(f'-DTVM_LIBS={";".join(copied_libs)}')
         self._subprocess_env.run(cmake_args, cwd=output)
 
-        self._subprocess_env.run(["make"], cwd=output)
+        make_output = self._subprocess_env.run(["make"], cwd=output)
+
+        self._print_make_statistics(make_output)
 
         return tvm.micro.MicroBinary(
             output,
@@ -241,11 +262,12 @@ class ZephyrCompiler(tvm.micro.Compiler):
     def flasher_factory(self):
         return compiler.FlasherFactory(
             ZephyrFlasher,
-            (self._west_cmd,),
+            (self._board,),
             dict(
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
                 subprocess_env=self._subprocess_env.default_overrides,
+                west_cmd=self._west_cmd,
             ),
         )
 
@@ -291,7 +313,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
     def __init__(
         self,
-        west_cmd,
+        board,
         zephyr_base=None,
         project_dir=None,
         subprocess_env=None,
@@ -300,6 +322,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         flash_args=None,
         debug_rpc_session=None,
         serial_timeouts=None,
+        west_cmd=None,
     ):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
@@ -310,6 +333,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         finally:
             sys.path.pop(0)
 
+        self._board = board
         self._zephyr_base = zephyr_base
         self._project_dir = project_dir
         self._west_cmd = west_cmd
@@ -414,6 +438,20 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         build_dir = os.path.dirname(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
         )
+
+        # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
+        # This is because readback protection is enabled by default when this device is flashed.
+        # Otherwise, flashing may fail with an error such as the following:
+        #  ERROR: The operation attempted is unavailable due to readback protection in
+        #  ERROR: your device. Please use --recover to unlock the device.
+        if (
+            self._board.startswith("nrf5340dk")
+            and self._get_flash_runner(cmake_entries) == "nrfjprog"
+        ):
+            recover_args = ["nrfjprog", "--recover"]
+            recover_args.extend(self._get_nrf_device_args())
+            self._subprocess_env.run(recover_args, cwd=build_dir)
+
         west_args = (
             self._west_cmd
             + ["flash", "--build-dir", build_dir, "--skip-rebuild"]
@@ -499,7 +537,7 @@ class QemuStartupFailureError(Exception):
 
 
 class QemuFdTransport(file_descriptor.FdTransport):
-    """An FdTransport subclass that escapes written data to accomodate the QEMU monitor.
+    """An FdTransport subclass that escapes written data to accommodate the QEMU monitor.
 
     It's supposedly possible to disable the monitor, but Zephyr controls most of the command-line
     arguments for QEMU and there are too many options which implictly enable the monitor, so this

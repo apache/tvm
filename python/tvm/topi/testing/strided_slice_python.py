@@ -26,7 +26,7 @@ def strided_slice_python(data, begin, end, strides, slice_mode="end"):
         Input data
 
     begin : list
-        Begining of the slices.
+        Beginning of the slices.
 
     end : list
         End of the slices.
@@ -81,7 +81,7 @@ def strided_set_python(data, v, begin, end, strides):
         Value data
 
     begin : list
-        Begining of the slices.
+        Beginning of the slices.
 
     end : list
         End of the slices.

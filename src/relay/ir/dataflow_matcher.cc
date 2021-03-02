@@ -55,10 +55,11 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const LetPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
@@ -158,9 +159,15 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
-      auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
-      if (op_map.count(op)) {
-        matches = MatchRetValue(attr_value, op_map[op]);
+      if (Op::HasAttrMap(attr_name)) {
+        auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
+        if (op_map.count(op)) {
+          matches &= MatchRetValue(attr_value, op_map[op]);
+        } else {
+          matches = false;
+        }
+      } else {
+        matches = false;
       }
     }
   } else if (auto* op = expr.as<CallNode>()) {
@@ -193,6 +200,8 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
         break;
       }
     }
+  } else {
+    matches = false;
   }
   return matches;
 }
@@ -419,6 +428,14 @@ bool DFPatternMatcher::VisitDFPattern_(const IfPatternNode* op, const Expr& expr
     auto false_branch = if_node->false_branch;
     return VisitDFPattern(op->cond, cond) && VisitDFPattern(op->true_branch, true_branch) &&
            VisitDFPattern(op->false_branch, false_branch);
+  }
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const LetPatternNode* op, const Expr& expr) {
+  if (const auto* let_node = expr.as<LetNode>()) {
+    return VisitDFPattern(op->var, let_node->var) && VisitDFPattern(op->value, let_node->value) &&
+           VisitDFPattern(op->body, let_node->body);
   }
   return false;
 }
@@ -717,11 +734,12 @@ class PatternGrouper {
           // Exit due to overlapping partitions
           return;
         } else if (kv.second != body) {
-          // if the node isn't the ouput of the group
+          // if the node isn't the output of the group
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
             // and the node is used by nodes outside of the group
-            if (memo.count(output->ref_) == 0) {
+            if (memo.count(output->ref_) == 0 &&
+                !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
               // Exit because nodes in this pattern's body are used outside the pattern
               // fusing it would be invalid
               return;

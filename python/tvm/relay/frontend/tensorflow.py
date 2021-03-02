@@ -268,6 +268,13 @@ def _pooling(name):
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
             attr["padding"] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 8
+            if flip_layout or attr["data_format"] == "NHWC":
+                attr["padding"] = [paddings[2], paddings[4], paddings[3], paddings[5]]
+            else:
+                attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
             msg = 'Value {} in attribute "padding" of operator Pooling is ' "not valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -278,7 +285,7 @@ def _pooling(name):
         out = AttrCvt(
             op_name=_dimension_picker(name),
             transforms={"kernel_shape": "pool_size", "data_format": "layout"},
-            ignores=["ksize"],
+            ignores=["ksize", "explicit_paddings"],
             extras={"ceil_mode": False},
             custom_check=_dimension_constraint(),
         )(inputs, attr)
@@ -418,6 +425,13 @@ def _conv(opname):
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             attr["padding"] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 8
+            if flip_layout or attr["data_format"] == "NHWC":
+                attr["padding"] = [paddings[2], paddings[4], paddings[3], paddings[5]]
+            else:
+                attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -626,7 +640,27 @@ def _conv3d(opname):
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             attr["padding"] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
-
+        elif attr["padding"] == "EXPLICIT":
+            paddings = attr["explicit_paddings"]
+            assert len(paddings) == 10
+            if flip_layout or attr["data_format"] == "NDHWC":
+                attr["padding"] = [
+                    paddings[2],
+                    paddings[4],
+                    paddings[6],
+                    paddings[3],
+                    paddings[5],
+                    paddings[7],
+                ]
+            else:
+                attr["padding"] = [
+                    paddings[4],
+                    paddings[6],
+                    paddings[8],
+                    paddings[5],
+                    paddings[7],
+                    paddings[9],
+                ]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
@@ -735,6 +769,109 @@ def _nms(return_scores=False):
             return _expr.TupleWrapper(_expr.Tuple([ret, ret_scores, size]), 3)
 
         return ret
+
+    return _impl
+
+
+def _combined_nms():
+    def _impl(inputs, attr, params, mod):
+        # Get parameter values
+        boxes = inputs[0]
+        scores = inputs[1]
+        try:
+            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
+        except Exception:
+            try:
+                max_output_size = (
+                    _infer_value(inputs[2], params, mod).asnumpy().astype("int64").tolist()[0]
+                )
+            except Exception:
+                max_output_size = inputs[2]
+        max_total_size = inputs[3]
+        iou_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0]
+        score_threshold = np.atleast_1d(inputs[5].data.asnumpy())[0]
+        if attr["pad_per_class"]:
+            raise tvm.error.OpAttributeUnImplemented(
+                "pad_per_class for CombinedNonMaxSuppression is not supported"
+            )
+        boxes_shape = _infer_shape(inputs[0], mod)
+        scores_shape = _infer_shape(inputs[1], mod)
+        batch_size = boxes_shape[0]
+        num_anchors = boxes_shape[1]
+        q = boxes_shape[2]
+        num_classes = scores_shape[2]
+
+        if q != num_classes:
+            # When q is 1, it means same box coords are used for all classes.
+            boxes = _op.broadcast_to(boxes, (batch_size, num_anchors, num_classes, 4))
+        boxes = _op.reshape(boxes, newshape=[batch_size, num_anchors * num_classes, 4])
+        scores = _op.reshape(scores, newshape=[batch_size, num_anchors * num_classes, 1])
+
+        # In TF, class is specified by memory layout only.
+        ids = _op.arange(_op.const(num_classes, dtype="float32"))
+        ids = _op.broadcast_to(ids, (batch_size, num_anchors, num_classes))
+        ids = _op.reshape(ids, newshape=[batch_size, num_anchors * num_classes, 1])
+
+        data = _op.concatenate([ids, scores, boxes], -1)
+        ct, data, indices = _op.vision.get_valid_counts(
+            data, score_threshold=score_threshold, id_index=0, score_index=1
+        )
+        nms_ret = _op.vision.non_max_suppression(
+            data=data,
+            valid_count=ct,
+            indices=indices,
+            max_output_size=max_output_size,
+            iou_threshold=iou_threshold,
+            force_suppress=False,
+            top_k=-1,
+            coord_start=2,
+            score_index=1,
+            id_index=0,
+            return_indices=False,
+            invalid_to_bottom=True,
+        )
+        # Dynamic slice to max_total_size
+        neg_one = _expr.const([-1])
+        slice_end = _op.concatenate(
+            [neg_one, _op.expand_dims(max_total_size, axis=0), neg_one], axis=0
+        )
+        nms_ret = _op.strided_slice(
+            nms_ret, begin=[0, 0, 0], end=slice_end, strides=[1, 1, 1], slice_mode="size"
+        )
+
+        # Slice output into boxes, scores, classes
+        nmsed_boxes = _op.strided_slice(
+            nms_ret, begin=[0, 0, 2], end=[-1, -1, 4], slice_mode="size"
+        )
+        if attr["clip_boxes"]:
+            nmsed_boxes = _op.maximum(nmsed_boxes, _expr.const(0, dtype="float32"))
+            nmsed_boxes = _op.minimum(nmsed_boxes, _expr.const(1, dtype="float32"))
+        nmsed_scores = _op.strided_slice(
+            nms_ret, begin=[0, 0, 1], end=[-1, -1, 1], slice_mode="size"
+        )
+        nmsed_scores = _op.squeeze(nmsed_scores, axis=[2])
+        nmsed_classes = _op.strided_slice(
+            nms_ret, begin=[0, 0, 0], end=[-1, -1, 1], slice_mode="size"
+        )
+        nmsed_classes = _op.squeeze(nmsed_classes, axis=[2])
+        # Get number of valid boxes
+        nms_count = _op.sum(
+            _op.cast(_op.greater(nmsed_scores, _expr.const(0, dtype="float32")), "int32"), axis=1
+        )
+
+        # TVM uses -1 for invalid outputs while TF uses 0
+        box_range = _op.arange(_expr.const(0, dtype="int32"), max_total_size, dtype="int32")
+        shape = _op.strided_slice(_op.shape_of(nmsed_boxes), begin=[0], end=[2])
+        box_range = _op.broadcast_to(box_range, shape)
+        valid_mask = _op.cast(_op.less(box_range, _op.expand_dims(nms_count, axis=1)), "float32")
+        nmsed_boxes = nmsed_boxes * _op.expand_dims(valid_mask, axis=2)
+        # Could instead use mask for scores, classes if negative values are possible.
+        nmsed_scores = _op.maximum(nmsed_scores, _expr.const(0, dtype="float32"))
+        nmsed_classes = _op.maximum(nmsed_classes, _expr.const(0, dtype="float32"))
+
+        return _expr.TupleWrapper(
+            _expr.Tuple([nmsed_boxes, nmsed_scores, nmsed_classes, nms_count]), 4
+        )
 
     return _impl
 
@@ -926,13 +1063,6 @@ def _sparse_tensor_dense_matmul():
 
         data = inputs[3]
 
-        # By default, in tensorflow the first input ,i.e., data is sparse
-        sparse_lhs = True
-
-        # If both are true means First input was dense and second was sparse
-        if attr.get("adjoint_a") and attr.get("adjoint_b"):
-            sparse_lhs = False
-
         rows = [x[0] for x in indices_tensor]
         cols = [x[1] for x in indices_tensor]
 
@@ -941,9 +1071,53 @@ def _sparse_tensor_dense_matmul():
             (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
         )
 
-        if sparse_lhs:
+        # As per tensorflow implementation, we have 4 possible input combination
+        # and the first input(A) is always sparse and second input(B) is always dense.
+        # Case 1: A , B , adjoint_a=False, adjoint_b=False  --> A * B
+        # Case 2: A , B , adjoint_a=True,   adjoint_b=False  --> A.T * B
+        # Case 3: A , B , adjoint_a=False, adjoint_b=True    --> A * B.T
+        # Case 4: A , B , adjoint_a=True,   adjoint_b=True    --> A.T * B.T
+        #
+        # Topi implementation for sparse_dense(matmul) has 2 possible input
+        # combination where first input(A) is always dense
+        # and second input(B) is always sparse.
+        # Case 1: A , B, sparse_lhs = False  --> A * B.T
+        # Case 2: A , B, sparse_lhs = True    --> B * A.T
+        #
+        # The mapping would be as below:
+        # TF Case 1: A , B , adjoint_a=False, adjoint_b=False
+        #           --> In TF: A * B   --> In Topi: A * B.T.T
+        #           --> sparse_dense(transpose(B), A, sparse_lhs=True)
+        #
+        # TF Case 2: A , B , adjoint_a=True, adjoint_b=False
+        #           --> In TF: A.T * B   --> In Topi: A.T * B.T.T
+        #           --> sparse_dense(transpose(B), transpose(A), sparse_lhs=True)
+        #
+        # TF Case 3: A , B , adjoint_a=False, adjoint_b=True
+        #           --> In TF: A * B.T   --> In Topi: A * B
+        #           --> sparse_dense(B, A, sparse_lhs=True)
+        #
+        # TF Case 4: A , B , adjoint_a=True, adjoint_b=True
+        #           --> In TF: A.T * B.T   --> In Topi: (B * A.T).T
+        #           --> transpose(sparse_dense(B, transpose(A), sparse_lhs=False))
+
+        # By default, in tensorflow the first input ,i.e., data is sparse
+        sparse_lhs = True
+
+        # TF Case 1:
+        if not attr.get("adjoint_a") and not attr.get("adjoint_b"):
             data = _op.transpose(data)
+        # TF Case 2:
+        elif attr.get("adjoint_a") and not attr.get("adjoint_b"):
+            data = _op.transpose(data)
+            weight_sp = csr_matrix(weight_sp.transpose())
+        # TF Case 3:
+        elif not attr.get("adjoint_a") and attr.get("adjoint_b"):
+            pass
+        # TF Case 4:
+        # attr.get("adjoint_a") and attr.get("adjoint_b"):
         else:
+            sparse_lhs = False
             weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
@@ -953,24 +1127,41 @@ def _sparse_tensor_dense_matmul():
         ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs], sparse_lhs)
 
         if not sparse_lhs:
+            # TF Case 4
             ret = _op.transpose(ret)
 
-        # Case 1. If both are true means first input was dense and second was sparse
-        # Case 2. If both are false means first input was sparse and second was dense
-        # TODO(ANSHUMAN87): Support other adjoint option too
-        if not (
-            (attr.get("adjoint_a") and attr.get("adjoint_b"))
-            or ((not attr.get("adjoint_a")) and (not attr.get("adjoint_b")))
-        ):
-            raise tvm.error.OpAttributeUnImplemented(
-                "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
-                "or with adjoint_a=False and adjoint_b=False"
-                " is supported, but adjoint_a={} and adjoint_b={} was supplied.".format(
-                    attr.get("adjoint_a"), attr.get("adjoint_b")
-                )
-            )
-
         return ret
+
+    return _impl
+
+
+def _sparse_fill_empty_rows():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        sparse_indices = inputs[0]
+        sparse_values = inputs[1]
+        sparse_indices_num_cols = _infer_shape(sparse_indices, mod)[1]
+        first_column = _op.split(sparse_indices, sparse_indices_num_cols, axis=1)[0]
+        sorted_indices = _op.argsort(_op.squeeze(first_column))
+        sorted_sparse_indices = _op.take(sparse_indices, sorted_indices, axis=0)
+        sorted_sparse_values = _op.take(sparse_values, sorted_indices, axis=0)
+        new_sparse_indices, new_sparse_values, empty_row_indicator = _op.sparse_fill_empty_rows(
+            sorted_sparse_indices, sorted_sparse_values, inputs[2], inputs[3]
+        )
+
+        return _expr.TupleWrapper(
+            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]),
+            3,
+        )
+
+    return _impl
+
+
+def _sparse_reshape():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
+        return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
 
     return _impl
 
@@ -978,6 +1169,13 @@ def _sparse_tensor_dense_matmul():
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
+
+    return _impl
+
+
+def _identityn():
+    def _impl(inputs, attr, params, mod):
+        return inputs
 
     return _impl
 
@@ -1393,9 +1591,9 @@ def _squeeze():
     def _impl(inputs, attr, params, mod):
         if len(attr["squeeze_dims"]) == 0:
             attr["squeeze_dims"] = None
-        return AttrCvt(op_name="squeeze", transforms={"squeeze_dims": "axis"}, ignores=["T"])(
-            inputs, attr
-        )
+        return AttrCvt(
+            op_name="squeeze", transforms={"squeeze_dims": "axis"}, ignores=["T", "_cloned"]
+        )(inputs, attr)
 
     return _impl
 
@@ -1890,6 +2088,16 @@ def _range():
                 # Symbolic delta
                 delta = inputs[2]
 
+        # if all attributes are constant, evalute the range function and return relay.const
+        if all(
+            [
+                isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)),
+                isinstance(limit, (np.int32, np.int64, int, np.float32, np.float64, float)),
+                isinstance(delta, (np.int32, np.int64, int, np.float32, np.float64, float)),
+            ]
+        ):
+            return tvm.relay.const(list(range(int(start), int(limit), int(delta))))
+
         dtype = attr["Tidx"].name if "Tidx" in attr else str(start.dtype)
         if isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)):
             start = _expr.const(start, dtype=dtype)
@@ -2272,6 +2480,30 @@ def _LSTMBlockCell():
     return _impl
 
 
+def _unique(return_counts=True):
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 1
+        data = inputs[0]
+        if return_counts:
+            [unique, indices, num_uniq, counts] = _op.unique(
+                data, is_sorted=False, return_counts=True
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+            return _expr.TupleWrapper(
+                _expr.Tuple([unique_sliced, indices, counts_sliced]),
+                3,
+            )
+        [unique, indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
+        unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+        return _expr.TupleWrapper(
+            _expr.Tuple([unique_sliced, indices]),
+            2,
+        )
+
+    return _impl
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2355,8 +2587,10 @@ _convert_map = {
     "Greater": _broadcast("greater"),
     "GreaterEqual": _broadcast("greater_equal"),
     "Identity": _identity(),
+    "IdentityN": _identityn(),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
+    "IsNan": AttrCvt("isnan"),
     "LeakyRelu": AttrCvt("leaky_relu"),
     "LeftShift": AttrCvt("left_shift"),
     "Less": _broadcast("less"),
@@ -2385,6 +2619,7 @@ _convert_map = {
     "NonMaxSuppressionV3": _nms(),
     "NonMaxSuppressionV4": _nms(),
     "NonMaxSuppressionV5": _nms(True),
+    "CombinedNonMaxSuppression": _combined_nms(),
     "NoOp": _no_op(),
     "NotEqual": _broadcast("not_equal"),
     "OneHot": _one_hot(),
@@ -2423,6 +2658,8 @@ _convert_map = {
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
+    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
+    "SparseReshape": _sparse_reshape(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
@@ -2447,6 +2684,8 @@ _convert_map = {
     "TopKV2": _topk(),
     "Transpose": _transpose(),
     "TruncateMod": _elemwise("mod"),
+    "Unique": _unique(False),
+    "UniqueWithCounts": _unique(True),
     "Unpack": _unpack(),
     "UnravelIndex": _unravel_index(),
     "Where": _where(),

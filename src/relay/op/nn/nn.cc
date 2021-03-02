@@ -61,8 +61,13 @@ bool BiasAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (axis < 0) {
     axis = data->shape.size() + axis;
   }
-  ICHECK_LE(axis, static_cast<int>(data->shape.size()))
-      << "axis " << param->axis << " is out of range";
+  if (axis >= static_cast<int>(data->shape.size())) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "The axis in bias_add must be in range for the shape; "
+                                     << "attempted to access index " << axis << " of "
+                                     << PrettyPrint(data->shape));
+    return false;
+  }
 
   // assign output type
   reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
@@ -185,6 +190,33 @@ RELAY_REGISTER_OP("nn.dense")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
     .add_type_rel("Dense", DenseRel<DenseAttrs>);
+
+// relay.nn.contrib_dense_pack
+// Positional relay function to create dense_pack operator used by frontend FFI.
+Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
+  auto attrs = make_object<DenseAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("nn.contrib_dense_pack");
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_dense_pack").set_body_typed(MakeDensePack);
+
+RELAY_REGISTER_OP("nn.contrib_dense_pack")
+    .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
+
+- **data**: `(x1, x2, ..., xn, input_dim)`
+- **weight**: `(units // pack_weight_tile, input_dim, pack_weight_tile)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<DenseAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("weight", "3D Tensor", "Packed weight matrix.")
+    .set_support_level(10)
+    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
 
 // relay.leaky_relu
 TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
@@ -559,7 +591,8 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_support_level(1)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .add_type_rel("Dropout", DropoutRel);
+    .add_type_rel("Dropout", DropoutRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true);
 
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
@@ -718,10 +751,7 @@ Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 7>(MakeInstanceNorm, args, rv);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm").set_body_typed(MakeInstanceNorm);
 
 RELAY_REGISTER_OP("nn.instance_norm")
     .describe(R"code(Instance Normalization (Ulyanov and et al., 2016)
@@ -785,10 +815,7 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon, b
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm").set_body_typed(MakeLayerNorm);
 
 RELAY_REGISTER_OP("nn.layer_norm")
     .describe(R"code(
@@ -831,10 +858,7 @@ Expr MakeGroupNorm(Expr data, Expr gamma, Expr beta, int num_groups, int axis, d
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 8>(MakeGroupNorm, args, rv);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm").set_body_typed(MakeGroupNorm);
 
 RELAY_REGISTER_OP("nn.group_norm")
     .describe(R"code(
