@@ -1547,7 +1547,8 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
         ),
     ],
 )
-def test_segment_sum(data_np, indices_np, num_segments):
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_segment_sum(data_np, indices_np, num_segments, use_dyn):
     def ref_segment_sum(
         data: np.ndarray,
         indices: np.ndarray,
@@ -1570,11 +1571,25 @@ def test_segment_sum(data_np, indices_np, num_segments):
         """
         This function verifies the relay output of sparse_reshape with its expected output.
         """
-        data = relay.var(
-            "data",
-            relay.TensorType(data_np.shape, str(data_np.dtype)),
-        )
-        indices = relay.var("indices", relay.TensorType(indices_np.shape, str(indices_np.dtype)))
+        if use_dyn:
+            data = relay.var(
+                "data",
+                shape=[relay.Any() for _ in data_np.shape],
+                dtype=str(data_np.dtype),
+            )
+            indices = relay.var(
+                "indices",
+                shape=[relay.Any()],
+                dtype=str(indices_np.dtype),
+            )
+        else:
+            data = relay.var(
+                "data",
+                relay.TensorType(data_np.shape, str(data_np.dtype)),
+            )
+            indices = relay.var(
+                "indices", relay.TensorType(indices_np.shape, str(indices_np.dtype))
+            )
         z = relay.op.segment_sum(data, indices, num_segments)
 
         func = relay.Function([data, indices], z)
