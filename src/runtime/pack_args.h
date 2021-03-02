@@ -40,7 +40,6 @@ namespace tvm {
 namespace runtime {
 /*!
  * \brief argument union type of 32bit.
- * Choose 32 bit because most GPU API do not work well with 64 bit.
  */
 union ArgUnion {
   int32_t v_int32;
@@ -48,6 +47,9 @@ union ArgUnion {
   float v_float32;
 };
 
+/*!
+ * \brief argument union type of 64 bit, for use by Vulkan and Metal runtime.
+ */
 union ArgUnion64 {
   int32_t v_int32[2];
   uint32_t v_uint32[2];

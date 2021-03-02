@@ -180,7 +180,7 @@ class MetalWrappedFunc {
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const {
+  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const {
     metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
     int device_id = t->context.device_id;
     if (scache_[device_id] == nil) {
@@ -197,7 +197,7 @@ class MetalWrappedFunc {
     }
     if (num_pack_args_ != 0) {
       [encoder setBytes:pack_args
-                 length:num_pack_args_ * sizeof(ArgUnion)
+                 length:num_pack_args_ * sizeof(ArgUnion64)
                 atIndex:num_buffer_args_];
     }
     // launch
