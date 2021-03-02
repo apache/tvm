@@ -511,9 +511,8 @@ def test_vectorized_casts():
 
         # schedule
         s = tvm.te.create_schedule(C.op)
-        ob, ib = s[C].split(s[C].op.axis[0], nparts=n // factor)
-        _, iib = s[C].split(ib, factor=factor)
-        s[C].vectorize(iib)
+        ob, ib = s[C].split(s[C].op.axis[0], factor=factor)
+        s[C].vectorize(ib)
         s[C].bind(ob, tx)
         func = tvm.build(s, [A, B, C], "cuda")
 
