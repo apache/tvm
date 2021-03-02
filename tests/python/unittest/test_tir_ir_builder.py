@@ -495,53 +495,6 @@ def test_while_binary_search():
     check_target("nvptx", searchsorted_ir_gpu)
 
 
-def test_vectorize_while_fail():
-    """A while loop inside a vectorized loop should fail."""
-
-    n = 64
-    num_iter = 10
-
-    def test_ir(A, B, C):
-        ib = tvm.tir.ir_builder.create()
-        n = C.shape[0]
-        A = ib.buffer_ptr(A)
-        B = ib.buffer_ptr(B)
-        C = ib.buffer_ptr(C)
-        i = ib.allocate("int32", (1,), name="i", scope="local")
-        i[0] = 0
-
-        with ib.for_range(0, n) as j:
-            C[j] = 0.0
-
-        with ib.for_range(0, n, kind="vectorize") as j:
-            with ib.while_loop(i[0] < num_iter):
-                C[j] += A[j] + B[j]
-                i[0] += 1
-
-        return ib.get()
-
-    dtype = "float32"
-    A = te.placeholder((n,), name="A", dtype=dtype)
-    B = te.placeholder((n,), name="B", dtype=dtype)
-
-    C = te.extern(
-        (n,),
-        [A, B],
-        lambda ins, outs: test_ir(ins[0], ins[1], outs[0]),
-        name="while_vectorize",
-        dtype=dtype,
-    )
-    s = te.create_schedule(C.op)
-
-    try:
-        tvm.lower(s, [A, B, C], "llvm")
-        assert False
-    except tvm.error.TVMError as e:
-        error_msg = str(e).split("\n")[-1]
-        expected = "A while loop inside a vectorized loop not supported"
-        assert expected in error_msg
-
-
 if __name__ == "__main__":
     test_prefetch()
     test_if()
@@ -552,4 +505,3 @@ if __name__ == "__main__":
     test_while_collatz()
     test_while_mandel()
     test_while_binary_search()
-    test_vectorize_while_fail()
