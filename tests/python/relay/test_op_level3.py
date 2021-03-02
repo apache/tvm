@@ -1542,7 +1542,7 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
         ),
         (
             np.random.random((9, 4, 5, 7)),
-            np.array([2, 0, 1, 0, 3, 2, 5, 4, 4], dtype=np.int32),
+            np.array([5, 0, 1, 0, 3, 6, 8, 7, 7], dtype=np.int32),
             9,
         ),
     ],

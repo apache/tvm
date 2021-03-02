@@ -1452,17 +1452,21 @@ def sparse_reshape(sparse_indices, prev_shape, new_shape):
 
 def segment_sum(data, indices, num_segments=None):
     """
-    Computes the sum along segments of a tensor.
+    Computes the sum along segments of a tensor. This op is much better understood with
+    visualization articulated in the following links and examples at the end of this docstring.
+
+    https://www.tensorflow.org/api_docs/python/tf/raw_ops/UnsortedSegmentSum?hl=fr
+    https://caffe2.ai/docs/sparse-operations.html#null__unsorted-segment-reduction-ops
 
     Parameters
     ----------
-    sparse_indices : relay.Expr
-        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
-        number of sparse values and n_dim is the number of dimensions of the dense_shape
-    prev_shape : relay.Expr
-        A 1-D tensor containing the previous shape of the dense tensor
-    new_shape : relay.Expr
-        A 1-D tensor containing the new shape of the dense tensor
+    data : relay.Expr
+        Input floating point data
+    indices : relay.Expr
+        A 1-D tensor containing the indices of the rows to calculate the output sum upon
+    num_segments : Optional[int]
+        An integer describing the shape of the zeroth dimension. If unspecified, its calculated
+        equivalent to the number of unique indices
     Returns
     -------
     result: relay.Expr
@@ -1470,26 +1474,22 @@ def segment_sum(data, indices, num_segments=None):
     Examples
     --------
     .. code-block:: python
-        sparse_indices = [[0, 0, 0],
-                            [0, 0, 1],
-                            [0, 1, 0],
-                            [1, 0, 0],
-                            [1, 2, 3]]
-        prev_shape = [2, 3, 4]
-        new_shape = [9, -1]
-        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
-                            prev_shape,
-                            new_shape)
-        new_sparse_indices = [[0, 0],
-                              [0, 1],
-                              [1, 2],
-                              [4, 2],
-                              [8, 1]] 
-        new_shape = [9, 4]
+        data = [[1, 2, 3, 4],
+                [4, -3, 2, -1],
+                [5, 6, 7, 8]]
+        indices = [0, 0, 1]
+        result = [[5, -1, 5, 3],[5, 6, 7, 8]]
+
+        data = [[1, 2, 3, 4],
+                [4, -3, 2, -1],
+                [5, 6, 7, 8]]
+        indices = [0, 0, 2]
+        num_segments = 3
+        result = [[5, -1, 5, 3],[0, 0, 0, 0], [5, 6, 7, 8]]
     """
-    
+
     if num_segments:
-        num_unique = const([num_segments]) 
+        num_unique = const([num_segments])
     else:
         _, _, num_unique = unique(reshape(indices, -1))
     data_offrow_shape = strided_slice(_make.shape_of(data, "int64"), [1], [-1], slice_mode="size")
