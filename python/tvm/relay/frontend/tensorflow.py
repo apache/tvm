@@ -1166,6 +1166,14 @@ def _sparse_reshape():
     return _impl
 
 
+def _math_segment_sum():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 2, "There should be 2 input tensors"
+        return get_relay_op("segment_sum")(inputs[0], inputs[1])
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2660,6 +2668,7 @@ _convert_map = {
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
     "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "SparseReshape": _sparse_reshape(),
+    "SegmentSum": _math_segment_sum(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
