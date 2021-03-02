@@ -481,6 +481,15 @@ TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream
  */
 TVM_DLL int TVMSetStream(int device_type, int device_id, TVMStreamHandle handle);
 
+
+TVM_DLL int TVMStreamBeginCapture(int device_type, int device_id, TVMStreamHandle stream);
+
+TVM_DLL int TVMStreamRunCapture(int device_type, int device_id, TVMStreamHandle stream,
+                                TVMObjectHandle captured);
+
+TVM_DLL int TVMStreamEndCapture(int device_type, int device_id, TVMStreamHandle stream,
+                                TVMObjectHandle *cuda_graph);
+
 /*!
  * \brief Wait until all computations on stream completes.
  *

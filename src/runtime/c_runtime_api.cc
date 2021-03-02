@@ -563,6 +563,37 @@ int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_END();
 }
 
+int TVMStreamBeginCapture(int device_type, int device_id,
+                          TVMStreamHandle stream) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->StreamBeginCapture(ctx, stream);
+  API_END();
+}
+
+int TVMStreamEndCapture(int device_type, int device_id,
+                        TVMStreamHandle stream,
+                        TVMObjectHandle *cuda_graph) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  *cuda_graph = DeviceAPIManager::Get(ctx)->StreamEndCapture(ctx, stream);
+  API_END();
+}
+
+int TVMStreamRunCapture(int device_type, int device_id,
+                        TVMStreamHandle stream, TVMObjectHandle captured) {
+  API_BEGIN();
+  TVMContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  DeviceAPIManager::Get(ctx)->StreamRunCapture(ctx, stream, captured);
+  API_END();
+}
+
 int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   TVMContext ctx;
