@@ -1516,7 +1516,7 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
     )
 
 
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 @pytest.mark.parametrize(
     "data_np, indices_np, num_segments",
     [
