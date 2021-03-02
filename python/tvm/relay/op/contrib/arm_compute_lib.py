@@ -18,11 +18,11 @@
 """Arm Compute Library supported operators."""
 import tvm
 
+from tvm import relay
 from tvm._ffi import register_func
 from tvm.relay.expr import const
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr
 from .register import register_pattern_table
@@ -111,9 +111,9 @@ def preprocess_module(mod):
 
         return convert_conv
 
-    with TempOpAttr(
+    with OpAttrContext(
         "nn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.nn.conv2d)
-    ), TempOpAttr(
+    ), OpAttrContext(
         "qnn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.qnn.op.conv2d)
     ):
         seq = tvm.transform.Sequential(
