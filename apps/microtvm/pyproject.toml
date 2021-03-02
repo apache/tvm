@@ -53,7 +53,7 @@ exclude = '''
 name = "microtvm"
 version = "0.1.0"
 description = ""
-authors = ["Andrew Reusch <areusch@octoml.ai>"]
+authors = []
 packages = [
     { include = "tvm", from = "../../python" },
 ]
@@ -69,9 +69,6 @@ tornado = "^6"
 typed_ast = "^1.4"
 pyyaml = "^5.4.1"
 pyserial = "^3.5"
-pyelftools = "^0.27"
-
-
 
 # AutoTVM
 xgboost = {version = "^1.1", optional = true}
