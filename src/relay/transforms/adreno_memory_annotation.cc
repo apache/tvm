@@ -65,21 +65,21 @@ class StorageInfo {
     }
 
    private:
+    std::string GetConsumerScope(const std::vector<std::string>& consumer_scopes) const {
+      std::string ref_scope = consumer_scopes.front();
+      for (auto& consumer_scope : consumer_scopes) {
+        if (consumer_scope != ref_scope) {
+          return "global";
+        }
+      }
+      return ref_scope;
+    }
+
     void BackwardPropagateConsumerScope(const ExprNode* expr) {
       auto consumer_scopes_it = consumer_storage_scopes_.find(expr);
       if (consumer_scopes_it != consumer_storage_scopes_.end())
       {
-        bool all_consumers_support_texture = true;
-        for (auto& consumer_scope : consumer_scopes_it->second) {
-          if (consumer_scope != "texture") {
-            all_consumers_support_texture = false;
-            break;
-          }
-        }
-        if (all_consumers_support_texture)
-        {
-          storage_scope_[expr] = "texture";
-        }
+        storage_scope_[expr] = GetConsumerScope(consumer_scopes_it->second);
       }
     }
 
@@ -130,21 +130,7 @@ class StorageInfo {
         // same storage type. If not, default to global scope
         // for the producer
         if (kv.second.size() > 1) {
-          bool all_consumers_support_texture = true;
-          for (auto& consumer_scope : kv.second) {
-            if (consumer_scope != "texture") {
-              all_consumers_support_texture = false;
-              break;
-            }
-          }
-          if (all_consumers_support_texture)
-          {
-            storage_scope_[producer] = "texture";
-          }
-          else
-          {
-            storage_scope_[producer] = "global";
-          }
+          storage_scope_[producer] = GetConsumerScope(kv.second);
         }
       }
     }
