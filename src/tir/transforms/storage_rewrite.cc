@@ -432,6 +432,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
+
   Stmt VisitStmt_(const ForNode* op) final {
     ICHECK(op->kind != ForKind::kVectorized) << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
@@ -441,18 +442,6 @@ class StoragePlanRewriter : public StmtExprMutator {
       op = stmt.as<ForNode>();
       return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
                  op->thread_binding, op->annotations);
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
-
-  Stmt VisitStmt_(const WhileNode* op) final {
-    // remake all the allocation at the attach scope.
-    if (attach_map_.count(op)) {
-      auto& svec = attach_map_[op];
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<WhileNode>();
-      return While(op->condition, MakeAttach(svec, op->body));
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
