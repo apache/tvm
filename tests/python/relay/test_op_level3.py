@@ -1605,10 +1605,6 @@ def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
                 for op_result, ref_result in zip(op_res, ref_res):
                     tvm.testing.assert_allclose(op_result.asnumpy(), ref_result, rtol=1e-5)
             else:
-                # print(op_res.asnumpy(), ref_res, *data)
-                # import pdb
-
-                # pdb.set_trace()
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
