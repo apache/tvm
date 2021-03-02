@@ -89,8 +89,8 @@ std::string CodeGenCUDA::Finish() {
   decl_stream << "  #define uint unsigned int\n";
   decl_stream << "  #define uchar unsigned char\n";
   decl_stream << "  #define ushort unsigned short\n";
-  decl_stream << "  #define int64_t long\n";
-  decl_stream << "  #define uint64_t ulong\n";
+  decl_stream << "  #define int64_t long long\n";
+  decl_stream << "  #define uint64_t unsigned long long\n";
   decl_stream << "#endif\n";
 
   return CodeGenC::Finish();
@@ -141,7 +141,21 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         }
         break;
       case 32:
-        os << "float";
+        if (lanes <= 4) {
+          os << "float";
+        } else if (lanes <= 8) {
+          // Emit CUDA code to access fp32 vector elements for 4 < lanes <= 8.
+          //
+          // float8 is stored as ulonglong4
+          //
+          // f8.v1 is emitted as *(float2*)(&(ul4.x)).x
+          // f8.v2 is emitted as *(float2*)(&(ul4.x)).y
+          //
+          ICHECK_EQ(lanes % 2, 0) << "only support even lane for float type with lanes > 4";
+          os << "ulonglong" << lanes / 2;
+        } else {
+          fail = true;
+        }
         break;
       case 64:
         os << "double";
@@ -151,6 +165,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         break;
     }
     if (!fail && (t.is_scalar() || t.bits() == 16)) return;
+    if (!fail && (lanes > 4 && lanes <= 8 && t.bits() == 32)) return;
     if (!fail && (lanes >= 2 && lanes <= 4)) {
       os << lanes;
       return;
@@ -238,12 +253,54 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           break;
         }
       }
-      case 16:
-        os << "short";
+      case 16: {
+        if (t.is_scalar()) {
+          os << "short";
+        } else if (t.lanes() <= 4) {
+          os << "short" << lanes;
+        } else if (t.lanes() <= 8) {
+          // Emit CUDA code to access int16 vector elements.
+          //
+          // short4 is stored as int2
+          //
+          // s4.x is emitted as *(short2*)(&(i2.x)).x
+          // s4.y is emitted as *(short2*)(&(i2.x)).y
+          // s4.z is emitted as *(short2*)(&(i2.y)).x
+          // s4.w is emitted as *(short2*)(&(i2.y)).y
+          //
+          ICHECK_EQ(t.lanes() % 2, 0) << "only support even lane for shorT type with lanes > 4";
+          os << "int" << t.lanes() / 2;
+        } else {
+          fail = true;
+        }
+        if (!fail) {
+          return;
+        }
         break;
-      case 32:
-        os << "int";
+      }
+      case 32: {
+        if (t.is_scalar()) {
+          os << "int";
+        } else if (t.lanes() <= 4) {
+          os << "int" << t.lanes();
+        } else if (t.lanes() <= 8) {
+          // Emit CUDA code to access int32 vector elements for 4 < lanes <= 8.
+          //
+          // int8 is stored as longlong4
+          //
+          // i8.v1 is emitted as *(int2*)(&(l4.x)).x
+          // i8.v2 is emitted as *(int2*)(&(l4.x)).y
+          //
+          ICHECK_EQ(lanes % 2, 0) << "only support even lane for int32 type with lanes > 4";
+          os << "longlong" << lanes / 2;
+        } else {
+          fail = true;
+        }
+        if (!fail) {
+          return;
+        }
         break;
+      }
       case 64: {
         if (t.is_scalar()) {
           os << "int64_t";
@@ -314,21 +371,36 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
   }
 
   static const char access[] = {'x', 'y', 'z', 'w'};
-  ICHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
-  if ((t.is_int()) && t.bits() == 8) {
+  ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
+    std::string type_name = t.is_int() ? "char" : "unsigned char";
     if (t.lanes() == 2 || t.lanes() == 3) {
       os << vec << "." << access[i % t.lanes()];
     } else {
-      os << "((char)(" << vec << " >> " << i * 8 << "))";
-    }
-  } else if ((t.is_uint()) && t.bits() == 8) {
-    if (t.lanes() == 2 || t.lanes() == 3) {
-      os << vec << "." << access[i % t.lanes()];
-    } else {
-      os << "((unsigned char)(" << vec << " >> " << i * 8 << "))";
+      std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
+      os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
     }
   } else if (t.is_float16()) {
     os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+  } else if (t.lanes() > 4 && t.lanes() <= 8) {
+    std::string type_name;
+    if (t.bits() == 16) {
+      if (t.is_int()) {
+        type_name = "short";
+      } else if (t.is_uint()) {
+        type_name = "ushort";
+      }
+    } else if (t.bits() == 32) {
+      if (t.is_int()) {
+        type_name = "int";
+      } else if (t.is_uint()) {
+        type_name = "uint";
+      } else if (t.is_float()) {
+        type_name = "float";
+      }
+    }
+    ICHECK(!type_name.empty());
+    os << "((" << type_name << "2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
   } else {
     os << vec << "." << access[i];
   }
@@ -338,22 +410,43 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
                                     const std::string& value) {
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
-  ICHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
+  ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (t.lanes() == 2 || t.lanes() == 3) {
       stream << vec << '.' << access[i % t.lanes()] << "="
              << "(" << value << ");\n";
     } else {
-      stream << vec << "=";
+      std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
+      stream << ac << "=";
       // Do not read the first undef lane.
       if (i != 0) {
-        stream << vec << " & ~(0x000000ff << " << i * 8 << ") |";
+        stream << ac << " & ~(0x000000ff << " << i % 4 * 8 << ") |";
       }
-      stream << "(" << value << " << " << i * 8 << ");\n";
+      stream << "(" << value << " << " << i % 4 * 8 << ");\n";
     }
   } else if (t.is_float16()) {
     stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
            << value << ";\n";
+  } else if (t.lanes() > 4 && t.lanes() <= 8) {
+    std::string type_name;
+    if (t.bits() == 16) {
+      if (t.is_int()) {
+        type_name = "short";
+      } else if (t.is_uint()) {
+        type_name = "ushort";
+      }
+    } else if (t.bits() == 32) {
+      if (t.is_int()) {
+        type_name = "int";
+      } else if (t.is_uint()) {
+        type_name = "uint";
+      } else if (t.is_float()) {
+        type_name = "float";
+      }
+    }
+    ICHECK(!type_name.empty());
+    stream << "((" << type_name << "2*)(&(" << vec << "." << access[i / 2] << ")))->"
+           << access[i % 2] << " = " << value << ";\n";
   } else {
     stream << vec << "." << access[i] << " = " << value << ";\n";
   }
