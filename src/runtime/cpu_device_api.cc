@@ -98,19 +98,17 @@ class CPUDeviceAPI final : public DeviceAPI {
     return inst;
   }
 
-<<<<<<< HEAD
   /*! \brief Optional custom memalign function. */
   MemalignFunctionPtr custom_memalign_fn_ = nullptr;
   /*! \brief Optional custom free function. */
   FreeFunctionPtr custom_free_fn_ = nullptr;
-=======
+
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
   }
->>>>>>> 26733095f... [Runtime] Special Memory Scope Support (#7488)
 };
 
 struct CPUWorkspacePool : public WorkspacePool {
