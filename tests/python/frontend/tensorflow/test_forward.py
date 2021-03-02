@@ -2196,7 +2196,7 @@ def _test_math_segment_sum(data_np, segment_ids_np, use_dyn=False):
         ),
         (
             np.random.random((6, 4, 5)),
-            np.array([0, 0, 1, 2, 2, 3], dtype=np.int32),
+            np.array([0, 0, 1, 2, 2, 3], dtype=np.int64),
         ),
         (
             np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
@@ -2204,7 +2204,7 @@ def _test_math_segment_sum(data_np, segment_ids_np, use_dyn=False):
         ),
         (
             np.random.random((9, 4, 5, 7)),
-            np.array([0, 0, 0, 1, 2, 3, 4, 4, 5], dtype=np.int32),
+            np.array([0, 0, 0, 1, 2, 3, 4, 4, 5], dtype=np.int64),
         ),
     ],
 )

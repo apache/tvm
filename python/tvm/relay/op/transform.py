@@ -1501,8 +1501,7 @@ def segment_sum(data, segment_ids, num_segments=None):
         num_unique = const([num_segments])
     else:
         _, _, num_unique = unique(reshape(segment_ids, -1))
-    data_offrow_shape = strided_slice(_make.shape_of(data, "int64"), [1], [-1], slice_mode="size")
-    data_offrow_shape = cast_like(data_offrow_shape, segment_ids)
+    data_offrow_shape = strided_slice(_make.shape_of(data, "int32"), [1], [-1], slice_mode="size")
     new_shape = _make.concatenate(Tuple([num_unique, data_offrow_shape]), 0)
     segment_ids_tiled_shape = _make.concatenate(
         Tuple([reverse(data_offrow_shape, 0), const([1])]), 0
