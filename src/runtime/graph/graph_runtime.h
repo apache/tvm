@@ -184,6 +184,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     int device_type;
     int param_data_entry;
     NDArray linked_param;
+    std::string scope;
     //    PoolEntry(int s, int dev_type, void* pre_linked_param) :
     //        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
