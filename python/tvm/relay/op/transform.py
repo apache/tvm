@@ -1450,24 +1450,30 @@ def sparse_reshape(sparse_indices, prev_shape, new_shape):
     return TupleWrapper(_make.sparse_reshape(sparse_indices, prev_shape, new_shape), 2)
 
 
-def segment_sum(data, indices, num_segments=None):
+def segment_sum(data, segment_ids, num_segments=None):
     """
-    Computes the sum along segments of a tensor. This op is much better understood with
-    visualization articulated in the following links and examples at the end of this docstring.
+    Computes the sum along segment_ids along axis 0. If multiple segment_ids reference the same
+    location their contributions add up.
+    result[index] = Σi... data[i...] where index = segment_ids[i]
+    This op is much better understood with visualization articulated in the following links and
+    examples at the end of this docstring.
 
-    https://www.tensorflow.org/api_docs/python/tf/raw_ops/UnsortedSegmentSum?hl=fr
+    https://www.tensorflow.org/api_docs/python/tf/math/unsorted_segment_sum
     https://caffe2.ai/docs/sparse-operations.html#null__unsorted-segment-reduction-ops
 
     Parameters
     ----------
     data : relay.Expr
-        Input floating point data
-    indices : relay.Expr
-        A 1-D tensor containing the indices of the rows to calculate the output sum upon.
-        This tensor doesn't need to be sorted
+        Input Tensor. It can be of any type and multi-dimensional
+    segment_ids : relay.Expr
+        A 1-D int32/int64 tensor containing the segment_ids of the rows to calculate the output
+        sum upon. It defines a mapping from the zeroth dimension of data onto segment_ids. The
+        segment_ids tensor should be the size of the first dimension, d0, with consecutive IDs
+        in the range 0 to k, where k<d0. In particular, a segmentation of a matrix tensor is a
+        mapping of rows to segments. This tensor doesn't need to be sorted
     num_segments : Optional[int]
         An integer describing the shape of the zeroth dimension. If unspecified, its calculated
-        equivalent to the number of unique indices
+        equivalent to the number of unique segment_ids
     Returns
     -------
     result: relay.Expr
@@ -1478,31 +1484,33 @@ def segment_sum(data, indices, num_segments=None):
         data = [[1, 2, 3, 4],
                 [4, -3, 2, -1],
                 [5, 6, 7, 8]]
-        indices = [0, 0, 1]
-        result = segment_sum(data, indices)
+        segment_ids = [0, 0, 1]
+        result = segment_sum(data, segment_ids)
         result = [[5, -1, 5, 3],[5, 6, 7, 8]]
 
         data = [[1, 2, 3, 4],
                 [4, -3, 2, -1],
                 [5, 6, 7, 8]]
-        indices = [2, 0, 0]
+        segment_ids = [2, 0, 0]
         num_segments = 3
-        result = segment_sum(data, indices, num_segments)
+        result = segment_sum(data, segment_ids, num_segments)
         result = [[5, 6, 7, 8],[0, 0, 0, 0], [5, -1, 5, 3]]
     """
 
     if num_segments:
         num_unique = const([num_segments])
     else:
-        _, _, num_unique = unique(reshape(indices, -1))
+        _, _, num_unique = unique(reshape(segment_ids, -1))
     data_offrow_shape = strided_slice(_make.shape_of(data, "int64"), [1], [-1], slice_mode="size")
-    data_offrow_shape = cast_like(data_offrow_shape, indices)
+    data_offrow_shape = cast_like(data_offrow_shape, segment_ids)
     new_shape = _make.concatenate(Tuple([num_unique, data_offrow_shape]), 0)
-    indices_tiled_shape = _make.concatenate(Tuple([reverse(data_offrow_shape, 0), const([1])]), 0)
-    expanded_indices = tile(indices, indices_tiled_shape)
-    scatter_add_indices = transpose(expanded_indices)
+    segment_ids_tiled_shape = _make.concatenate(
+        Tuple([reverse(data_offrow_shape, 0), const([1])]), 0
+    )
+    expanded_segment_ids = tile(segment_ids, segment_ids_tiled_shape)
+    scatter_add_segment_ids = transpose(expanded_segment_ids)
     src = cast_like(_dyn_make.zeros(new_shape, "float64"), data)
-    return scatter_add(src, scatter_add_indices, data, axis=0)
+    return scatter_add(src, scatter_add_segment_ids, data, axis=0)
 
 
 def cumsum(data, axis=None, dtype=None, exclusive=None):

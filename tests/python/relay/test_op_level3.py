@@ -1518,7 +1518,7 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
 
 @tvm.testing.uses_gpu
 @pytest.mark.parametrize(
-    "data_np, indices_np, num_segments",
+    "data_np, segment_ids_np, num_segments",
     [
         (
             np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
@@ -1532,7 +1532,7 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
         ),
         (
             np.random.random((6, 4, 5)),
-            np.array([2, 0, 1, 0, 3, 2], dtype=np.int32),
+            np.array([2, 0, 1, 0, 3, 2], dtype=np.int64),
             None,
         ),
         (
@@ -1542,34 +1542,34 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
         ),
         (
             np.random.random((9, 4, 5, 7)),
-            np.array([5, 0, 1, 0, 3, 6, 8, 7, 7], dtype=np.int32),
+            np.array([5, 0, 1, 0, 3, 6, 8, 7, 7], dtype=np.int64),
             9,
         ),
     ],
 )
 @pytest.mark.parametrize("use_dyn", [True, False])
-def test_segment_sum(data_np, indices_np, num_segments, use_dyn):
+def test_segment_sum(data_np, segment_ids_np, num_segments, use_dyn):
     def ref_segment_sum(
         data: np.ndarray,
-        indices: np.ndarray,
+        segment_ids: np.ndarray,
         num_segments: Optional[int] = None,
     ):
         """
-        This function calculates the expected output of sparseshape operator given the inputs.
+        This function calculates the expected output of segment_sum operator given the inputs.
         """
         if not num_segments:
-            num_segments = np.unique(indices).shape[0]
+            num_segments = np.unique(segment_ids).shape[0]
 
         result = np.zeros((num_segments,) + data.shape[1:], data.dtype)
-        for i, index in enumerate(indices):
+        for i, index in enumerate(segment_ids):
             result[index] += data[i]
         return result
 
     def verify_segment_sum(
-        data_np: np.ndarray, indices_np: np.ndarray, num_segments: Optional[int]
+        data_np: np.ndarray, segment_ids_np: np.ndarray, num_segments: Optional[int]
     ):
         """
-        This function verifies the relay output of sparse_reshape with its expected output.
+        This function verifies the relay output of segment_sum with its expected output.
         """
         if use_dyn:
             data = relay.var(
@@ -1577,32 +1577,32 @@ def test_segment_sum(data_np, indices_np, num_segments, use_dyn):
                 shape=[relay.Any() for _ in data_np.shape],
                 dtype=str(data_np.dtype),
             )
-            indices = relay.var(
-                "indices",
+            segment_ids = relay.var(
+                "segment_ids",
                 shape=[relay.Any()],
-                dtype=str(indices_np.dtype),
+                dtype=str(segment_ids_np.dtype),
             )
         else:
             data = relay.var(
                 "data",
                 relay.TensorType(data_np.shape, str(data_np.dtype)),
             )
-            indices = relay.var(
-                "indices", relay.TensorType(indices_np.shape, str(indices_np.dtype))
+            segment_ids = relay.var(
+                "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
             )
-        z = relay.op.segment_sum(data, indices, num_segments)
+        z = relay.op.segment_sum(data, segment_ids, num_segments)
 
-        func = relay.Function([data, indices], z)
-        ref_res = ref_segment_sum(data_np, indices_np, num_segments=num_segments)
+        func = relay.Function([data, segment_ids], z)
+        ref_res = ref_segment_sum(data_np, segment_ids_np, num_segments=num_segments)
         segment_sum_result = run_infer_type(z)
         assert segment_sum_result.checked_type.dtype == data_np.dtype
         verify_func(
             func,
-            [data_np, indices_np],
+            [data_np, segment_ids_np],
             ref_res,
         )
 
-    verify_segment_sum(data_np, indices_np, num_segments)
+    verify_segment_sum(data_np, segment_ids_np, num_segments)
 
 
 def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
