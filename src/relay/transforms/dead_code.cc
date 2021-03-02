@@ -140,12 +140,13 @@ class CalcDep : protected MixedModeVisitor {
   }
 
   void VisitExpr_(const LetNode* l) final {
-    auto pre_visit = [](const LetNode* op) {};
-    auto post_visit = [this](const LetNode* op) {
-      this->VisitExpr(op->body);
-      this->visit_counter_[op] += 1;
-    };
-    ExpandANormalForm(l, pre_visit, post_visit);
+    Expr let_binding = GetRef<Expr>(l);
+    const LetNode* let;
+    while ((let = let_binding.as<LetNode>())) {
+      let_binding = let->body;
+      visit_counter_[l] += 1;
+    }
+    VisitExpr(let_binding);
   }
 
   void VisitExpr_(const VarNode* v) final {
