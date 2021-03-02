@@ -1174,6 +1174,19 @@ def _math_segment_sum():
     return _impl
 
 
+def _sparse_segment_sum():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) <= 4, "There should be less than equal to 4 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        if len(inputs) == 3:
+            num_segments = None
+        else:
+            num_segments = inputs[3]
+        return _op.segment_sum(data, inputs[2], num_segments)
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2669,6 +2682,7 @@ _convert_map = {
     "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "SparseReshape": _sparse_reshape(),
     "SegmentSum": _math_segment_sum(),
+    "SparseSegmentSum": _sparse_segment_sum(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
