@@ -1066,6 +1066,23 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
   }
 
   pass_seqs.push_back(transform::FuseOps());
+  // Do layout rewrite for auto-scheduler.
+  transform::PassContext pass_ctx = PassContext::Current();
+  if (backend::IsAutoSchedulerEnabled() && targets.size() == 1) {
+    const auto& target = (*targets.begin()).second;
+    Pass major_pass = transform::AutoSchedulerLayoutRewrite();
+    bool enable_layout_rewrite_targets =
+        target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
+    if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+      With<Target> tctx(target);
+      pass_seqs.push_back(major_pass);
+      // Defuse ops to fold constants, then fuse them again
+      pass_seqs.push_back(transform::DefuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      pass_seqs.push_back(transform::FuseOps());
+    }
+  }
+
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::InferType());
   pass_seqs.push_back(transform::LambdaLift());
@@ -1082,7 +1099,6 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
   pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);
-  transform::PassContext pass_ctx = PassContext::Current();
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
     const auto& it = targets.begin();
