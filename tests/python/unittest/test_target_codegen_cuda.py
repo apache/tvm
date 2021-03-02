@@ -498,7 +498,7 @@ def test_cuda_floormod_with_vectorization():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_vectorized_casts():
-    def check(t0, t1):
+    def check(t0, t1, factor):
         if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -511,8 +511,8 @@ def test_vectorized_casts():
 
         # schedule
         s = tvm.te.create_schedule(C.op)
-        ob, ib = s[C].split(s[C].op.axis[0], nparts=32)
-        _, iib = s[C].split(ib, factor=4)
+        ob, ib = s[C].split(s[C].op.axis[0], nparts=128//factor)
+        _, iib = s[C].split(ib, factor=factor)
         s[C].vectorize(iib)
         s[C].bind(ob, tx)
         func = tvm.build(s, [A, B, C], "cuda")
@@ -538,9 +538,14 @@ def test_vectorized_casts():
             return True
         return False
 
-    types = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
-    for t0, t1 in [(x, y) for x in types for y in types if not skip(x, y)]:
-        check(t0, t1)
+    types_4 = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32", "float64", "int64", "uint64"]
+    types_8 = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
+    for t0, t1 in [(x, y) for x in types_4 for y in types_4 if not skip(x, y)]:
+        check(t0, t1, 4)
+    for t0, t1 in [(x, y) for x in types_8 for y in types_8 if not skip(x, y)]:
+        check(t0, t1, 8)
+    check('int8', 'uint8', 16)
+    check('uint8', 'int8', 16)
 
 
 def sched(B):
