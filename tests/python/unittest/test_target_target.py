@@ -248,7 +248,7 @@ def test_target_host_merge_2():
 
 
 def test_target_host_merge_3():
-    with pytest.raises(ValueError, match=r"target \(host\) has to be a string or dictionary."):
+    with pytest.raises(ValueError, match=r"target host has to be a string or dictionary."):
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
 
 
