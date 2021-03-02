@@ -430,7 +430,7 @@ class SearchTask(Object):
             return func.imported_modules[0].get_source()
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
-    def add_task_input(self, input_name, input_data):
+    def add_task_input(self, input_name, input_data, overwrite=False):
         """Add a input Tensor to this task.
 
         Parameters
@@ -440,7 +440,7 @@ class SearchTask(Object):
         input_data : Tensor
             ...
         """
-        register_task_input_buffer(self.workload_key, input_name, input_data)
+        register_task_input_buffer(self.workload_key, input_name, input_data, overwrite)
         _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
 
     def __getstate__(self):

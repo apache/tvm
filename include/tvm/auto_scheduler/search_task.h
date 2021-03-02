@@ -152,16 +152,16 @@ class SearchTask : public ObjectRef {
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
    * \param layout_rewrite_option The layout rewrite option used for measuring programs.
-   * \param task_inputs ....
+   * \param task_inputs A map that stores some user defined input data used in program measuring.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
              Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option,
              Map<String, runtime::NDArray> task_inputs);
 
   /*!
-   * \brief Add a input Tensor to this task.
-   * \param input_name ......
-   * \param input_data ......
+   * \brief Add a input Tensor to this task, will be used in program measuring.
+   * \param input_name The name of input Tensor.
+   * \param input_data The input Tensor.
    */
   void AddTaskInput(String input_name, runtime::NDArray input_data);
 
