@@ -81,7 +81,7 @@ TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
 TVM_REGISTER_OBJECT_TYPE(ArrayNode);
 
-TVM_REGISTER_GLOBAL("node.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
   std::vector<ObjectRef> data;
   for (int i = 0; i < args.size(); ++i) {
     if (args[i].type_code() != kTVMNullptr) {
@@ -93,7 +93,7 @@ TVM_REGISTER_GLOBAL("node.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Array<ObjectRef>(data);
 });
 
-TVM_REGISTER_GLOBAL("node.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
   int64_t i = args[1];
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
@@ -103,7 +103,7 @@ TVM_REGISTER_GLOBAL("node.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* 
   *ret = n->at(i);
 });
 
-TVM_REGISTER_GLOBAL("node.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   ICHECK(ptr->IsInstance<ArrayNode>());
@@ -112,7 +112,7 @@ TVM_REGISTER_GLOBAL("node.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret
 
 TVM_REGISTER_OBJECT_TYPE(MapNode);
 
-TVM_REGISTER_GLOBAL("node.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args.size() % 2, 0);
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> data;
   for (int i = 0; i < args.num_args; i += 2) {
@@ -124,7 +124,7 @@ TVM_REGISTER_GLOBAL("node.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Map<ObjectRef, ObjectRef>(std::move(data));
 });
 
-TVM_REGISTER_GLOBAL("node.MapSize").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.MapSize").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   ICHECK(ptr->IsInstance<MapNode>());
@@ -132,7 +132,7 @@ TVM_REGISTER_GLOBAL("node.MapSize").set_body([](TVMArgs args, TVMRetValue* ret) 
   *ret = static_cast<int64_t>(n->size());
 });
 
-TVM_REGISTER_GLOBAL("node.MapGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.MapGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   ICHECK(ptr->IsInstance<MapNode>());
@@ -144,7 +144,7 @@ TVM_REGISTER_GLOBAL("node.MapGetItem").set_body([](TVMArgs args, TVMRetValue* re
   *ret = (*it).second;
 });
 
-TVM_REGISTER_GLOBAL("node.MapCount").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.MapCount").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   ICHECK(ptr->IsInstance<MapNode>());
@@ -154,7 +154,7 @@ TVM_REGISTER_GLOBAL("node.MapCount").set_body([](TVMArgs args, TVMRetValue* ret)
   *ret = cnt;
 });
 
-TVM_REGISTER_GLOBAL("node.MapItems").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.MapItems").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   auto* n = static_cast<const MapNode*>(ptr);

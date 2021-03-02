@@ -48,13 +48,13 @@ where
 // TODO(@jroesch): convert to use generics instead of casting inside
 // the implementation.
 external! {
-   #[name("node.MapSize")]
+   #[name("runtime.MapSize")]
    fn map_size(map: ObjectRef) -> i64;
-   #[name("node.MapGetItem")]
+   #[name("runtime.MapGetItem")]
    fn map_get_item(map_object: ObjectRef, key: ObjectRef) -> ObjectRef;
-   #[name("node.MapCount")]
+   #[name("runtime.MapCount")]
    fn map_count(map: ObjectRef, key: ObjectRef) -> ObjectRef;
-   #[name("node.MapItems")]
+   #[name("runtime.MapItems")]
    fn map_items(map: ObjectRef) -> Array<ObjectRef>;
 }
 
@@ -81,8 +81,8 @@ where
     V: IsObjectRef,
 {
     pub fn from_data(data: Vec<ArgValue>) -> Result<Map<K, V>> {
-        let func = Function::get("node.Map").expect(
-            "node.Map function is not registered, this is most likely a build or linking error",
+        let func = Function::get("runtime.Map").expect(
+            "runtime.Map function is not registered, this is most likely a build or linking error",
         );
 
         let map_data: ObjectPtr<Object> = func.invoke(data)?.try_into()?;
