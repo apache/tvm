@@ -1450,6 +1450,58 @@ def sparse_reshape(sparse_indices, prev_shape, new_shape):
     return TupleWrapper(_make.sparse_reshape(sparse_indices, prev_shape, new_shape), 2)
 
 
+def segment_sum(data, indices, num_segments=None):
+    """
+    Computes the sum along segments of a tensor.
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+    prev_shape : relay.Expr
+        A 1-D tensor containing the previous shape of the dense tensor
+    new_shape : relay.Expr
+        A 1-D tensor containing the new shape of the dense tensor
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    Examples
+    --------
+    .. code-block:: python
+        sparse_indices = [[0, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0],
+                            [1, 0, 0],
+                            [1, 2, 3]]
+        prev_shape = [2, 3, 4]
+        new_shape = [9, -1]
+        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
+                            prev_shape,
+                            new_shape)
+        new_sparse_indices = [[0, 0],
+                              [0, 1],
+                              [1, 2],
+                              [4, 2],
+                              [8, 1]] 
+        new_shape = [9, 4]
+    """
+    
+    if num_segments:
+        num_unique = const([num_segments]) 
+    else:
+        _, _, num_unique = unique(reshape(indices, -1))
+    data_offrow_shape = strided_slice(_make.shape_of(data, "int64"), [1], [-1], slice_mode="size")
+    data_offrow_shape = cast_like(data_offrow_shape, indices)
+    new_shape = _make.concatenate(Tuple([num_unique, data_offrow_shape]), 0)
+    indices_tiled_shape = _make.concatenate(Tuple([reverse(data_offrow_shape, 0), const([1])]), 0)
+    expanded_indices = tile(indices, indices_tiled_shape)
+    scatter_add_indices = transpose(expanded_indices)
+    src = cast_like(_dyn_make.zeros(new_shape, "float64"), data)
+    return scatter_add(src, scatter_add_indices, data, axis=0)
+
+
 def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.

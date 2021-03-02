@@ -24,6 +24,7 @@ from tvm import relay
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
+from typing import Optional
 import tvm.testing
 
 
@@ -1515,6 +1516,80 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
     )
 
 
+# @tvm.testing.uses_gpu
+@pytest.mark.parametrize(
+    "data_np, indices_np, num_segments",
+    [
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 0, 1, 1, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([2, 0, 1, 0, 3, 2], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([2, 0, 1, 0, 3, 2, 5, 4, 4], dtype=np.int32),
+            9,
+        ),
+    ],
+)
+def test_segment_sum(data_np, indices_np, num_segments):
+    def ref_segment_sum(
+        data: np.ndarray,
+        indices: np.ndarray,
+        num_segments: Optional[int] = None,
+    ):
+        """
+        This function calculates the expected output of sparseshape operator given the inputs.
+        """
+        if not num_segments:
+            num_segments = np.unique(indices).shape[0]
+
+        result = np.zeros((num_segments,) + data.shape[1:], data.dtype)
+        for i, index in enumerate(indices):
+            result[index] += data[i]
+        return result
+
+    def verify_segment_sum(
+        data_np: np.ndarray, indices_np: np.ndarray, num_segments: Optional[int]
+    ):
+        """
+        This function verifies the relay output of sparse_reshape with its expected output.
+        """
+        data = relay.var(
+            "data",
+            relay.TensorType(data_np.shape, str(data_np.dtype)),
+        )
+        indices = relay.var("indices", relay.TensorType(indices_np.shape, str(indices_np.dtype)))
+        z = relay.op.segment_sum(data, indices, num_segments)
+
+        func = relay.Function([data, indices], z)
+        ref_res = ref_segment_sum(data_np, indices_np, num_segments=num_segments)
+        segment_sum_result = run_infer_type(z)
+        assert segment_sum_result.checked_type.dtype == data_np.dtype
+        verify_func(
+            func,
+            [data_np, indices_np],
+            ref_res,
+        )
+
+    verify_segment_sum(data_np, indices_np, num_segments)
+
+
 def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
     assert isinstance(data, list)
     for target, ctx in target_ctx:
@@ -1530,6 +1605,10 @@ def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
                 for op_result, ref_result in zip(op_res, ref_res):
                     tvm.testing.assert_allclose(op_result.asnumpy(), ref_result, rtol=1e-5)
             else:
+                # print(op_res.asnumpy(), ref_res, *data)
+                # import pdb
+
+                # pdb.set_trace()
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
