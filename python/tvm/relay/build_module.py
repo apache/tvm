@@ -267,7 +267,15 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
+
+        # exclude external params
+        external_prefixes = set([_.type_key for _ in bld_mod.mod["get_external_modules"]()])
+        local_params = {
+            k: v for k, v in params.items() if not k.startswith(tuple(external_prefixes))
+        }
+        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
+            graph_json, mod, mod_name, local_params
+        )
         return mod
 
 
