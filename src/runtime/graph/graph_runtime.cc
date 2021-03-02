@@ -193,7 +193,6 @@ void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
  * \param param_blob A binary blob of parameter.
  */
 void GraphRuntime::LoadParams(const std::string& param_blob) {
-  std::cout << "param blob " << param_blob << std::endl;
   dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
   this->LoadParams(&strm);
 }
