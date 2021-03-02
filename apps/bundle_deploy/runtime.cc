@@ -35,3 +35,4 @@
 #include "../../src/runtime/thread_pool.cc"
 #include "../../src/runtime/threading_backend.cc"
 #include "../../src/runtime/workspace_pool.cc"
+#include "../../src/runtime/container.cc"
