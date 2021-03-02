@@ -276,6 +276,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         if (!fail) {
           return;
         }
+        break;
       }
       case 32: {
         if (t.is_scalar()) {
