@@ -75,16 +75,22 @@ class StorageInfo {
       return ref_scope;
     }
 
-    void BackwardPropagateConsumerScope(const ExprNode* expr) {
+    void BackwardPropagateConsumerScope(const ExprNode* expr, std::string scope_suffix = "") {
       auto consumer_scopes_it = consumer_storage_scopes_.find(expr);
       if (consumer_scopes_it != consumer_storage_scopes_.end())
       {
         storage_scope_[expr] = GetConsumerScope(consumer_scopes_it->second);
+        if (storage_scope_[expr] == "texture")
+        {
+          if (!scope_suffix.empty()) {
+            storage_scope_[expr] += (":" + scope_suffix);
+          }
+        }
       }
     }
 
     void VisitExpr_(const ConstantNode* cn) final {
-      BackwardPropagateConsumerScope(cn);
+      BackwardPropagateConsumerScope(cn, "weight");
     }
 
     void VisitExpr_(const CallNode* call) final {
