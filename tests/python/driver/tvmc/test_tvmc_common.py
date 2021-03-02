@@ -258,10 +258,10 @@ def test_parse_single_target_with_opts():
 
 
 def test_parse_multiple_target():
-    targets = tvmc.common.parse_target("acl, llvm -device=arm_cpu --system-lib")
+    targets = tvmc.common.parse_target("compute-library, llvm -device=arm_cpu --system-lib")
 
     assert len(targets) == 2
-    assert "acl" == targets[0]["name"]
+    assert "compute-library" == targets[0]["name"]
     assert "llvm" == targets[1]["name"]
 
 

@@ -120,6 +120,25 @@ TEST(IRF, StmtVisitor) {
   };
   v(fmaketest());
   ICHECK_EQ(v.count, 3);
+
+  {
+    // tests for block and block_realize
+    Stmt body = fmaketest();
+    DataType dtype = DataType::Float(32);
+    Var buf_var("b", PointerType(PrimType(dtype)));
+    Buffer buffer = decl_buffer({16});
+    BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
+    MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
+
+    // construct block and block_realize
+    Block block =
+        Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
+    Stmt block_realize = BlockRealize({}, const_true(), block);
+
+    v.count = 0;
+    v(block_realize);
+    ICHECK_EQ(v.count, 9);
+  }
 }
 
 TEST(IRF, StmtMutator) {
@@ -228,6 +247,28 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(body));
     // the seq get flattened
     ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
+  }
+
+  {
+    // tests for block and block_realize
+    Stmt body = fmakealloc();
+    DataType dtype = DataType::Float(32);
+    Var buf_var("b", PointerType(PrimType(dtype)));
+    Buffer buffer = decl_buffer({16});
+    BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
+    MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
+    // construct block and block_realize
+    Block block =
+        Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
+    Stmt block_realize = BlockRealize({}, const_true(), block);
+    body = v(std::move(block_realize));
+    // the body should be changed
+    Block new_block = body.as<BlockRealizeNode>()->block;
+    ICHECK(new_block->body.as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(new_block->init.as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
+    ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
+    ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
   }
 }
 

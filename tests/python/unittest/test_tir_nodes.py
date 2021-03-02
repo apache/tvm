@@ -364,6 +364,87 @@ def test_intimm_cond():
     assert x == 1
 
 
+def test_block_blockrealize():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    vx = tvm.tir.IterVar((16, 16), "vx", 0)
+    vx_var = vx.var
+    vy = tvm.tir.IterVar((16, 16), "vy", 2)
+    vy_var = vy.var
+    A = tvm.tir.decl_buffer((16), "float32")
+    B = tvm.tir.decl_buffer((16, 16), "float32")
+    alloc_buffer = tvm.tir.decl_buffer((16, 16), "float32")
+    match_buffer = tvm.tir.decl_buffer((16, 16), "float32")
+    init_body = tvm.tir.BufferStore(A, 0.0, [vx_var])
+    body = tvm.tir.BufferStore(
+        A,
+        tvm.tir.BufferLoad(A, [vx_var]) + tvm.tir.BufferLoad(B, [vx_var, vy_var]),
+        [vx_var],
+    )
+    reads = [
+        tvm.tir.BufferRegion(
+            B, [tvm.ir.Range.from_min_extent(vx_var, 1), tvm.ir.Range.from_min_extent(vy_var, 1)]
+        )
+    ]
+    writes = [tvm.tir.BufferRegion(A, [tvm.ir.Range.from_min_extent(vx_var, 1)])]
+    match_buffer_region = tvm.tir.MatchBufferRegion(
+        match_buffer, tvm.tir.BufferRegion(B, [tvm.ir.Range(0, 16), tvm.ir.Range(0, 16)])
+    )
+
+    block = tvm.tir.Block(
+        [vx, vy],
+        reads,
+        writes,
+        "block",
+        body,
+        init=init_body,
+        alloc_buffers=[alloc_buffer],
+        match_buffers=[match_buffer_region],
+        annotations={"attr_key": "attr_value"},
+    )
+
+    # Checking Block
+    assert isinstance(block, tvm.tir.Block)
+    # Checking iter_vars
+    assert block.iter_vars[0] == vx
+    assert block.iter_vars[1] == vy
+    # Checking reads/writes region
+    assert isinstance(block.reads[0], tvm.tir.BufferRegion)
+    assert block.reads[0].buffer == B
+    assert block.reads[0].region[0].min == vx_var
+    assert block.reads[0].region[1].min == vy_var
+    assert isinstance(block.writes[0], tvm.tir.BufferRegion)
+    assert block.writes[0].buffer == A
+    assert block.writes[0].region[0].min == vx_var
+    assert block.writes[0].region[0].extent == 1
+    # Checking name_hint
+    assert block.name_hint == "block"
+    # Checking body
+    assert block.body == body
+    # Checking init
+    assert block.init == init_body
+    # Checking alloc_buffers
+    assert block.alloc_buffers[0] == alloc_buffer
+    # Checking match_buffers
+    assert block.match_buffers[0].buffer == match_buffer
+    assert isinstance(block.match_buffers[0].source, tvm.tir.BufferRegion)
+    assert block.match_buffers[0].source.buffer == B
+    assert block.match_buffers[0].source.region[0].min == 0
+    assert block.match_buffers[0].source.region[0].extent == 16
+
+    # Checking BlockRealize
+    block_realize = tvm.tir.BlockRealize([x, y], tvm.tir.const(True, "bool"), block)
+    assert isinstance(block_realize, tvm.tir.BlockRealize)
+    assert block_realize.iter_values[0] == x
+    assert block_realize.iter_values[1] == y
+    assert block_realize.predicate == tvm.tir.const(True, "bool")
+    assert block_realize.block == block
+
+    # make sure we can print
+    str(block)
+    str(block_realize)
+
+
 if __name__ == "__main__":
     test_intimm_cond()
     test_buffer_load_store()
@@ -389,3 +470,4 @@ if __name__ == "__main__":
     test_isnan()
     test_equality()
     test_equality_string_imm()
+    test_block_blockrealize()
