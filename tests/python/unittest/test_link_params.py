@@ -347,6 +347,7 @@ def test_c_link_params():
             np.testing.assert_allclose(unlinked_output.asnumpy(), linked_output.asnumpy())
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_crt_link_params():
     import tvm.micro

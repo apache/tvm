@@ -84,6 +84,7 @@ def _make_ident_sess(workspace):
     return _make_sess_from_op(workspace, "ident", sched, [A, B])
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_compile_runtime():
     """Test compiling the on-device runtime."""
@@ -104,6 +105,7 @@ def test_compile_runtime():
         assert (C_data.asnumpy() == np.array([6, 7])).all()
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_compile_runtime_llvm():
     """Test targeting the on-device runtime with the llvm backend."""
@@ -121,6 +123,7 @@ def test_compile_runtime_llvm():
         TARGET = old_target
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_reset():
     """Test when the remote end resets during a session."""
@@ -137,6 +140,7 @@ def test_reset():
             pass
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_graph_runtime():
     """Test use of the graph runtime with microTVM."""
@@ -170,6 +174,7 @@ def test_graph_runtime():
         assert (out.asnumpy() == np.array([6, 10])).all()
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_std_math_functions():
     """Verify that standard math functions can be used."""
@@ -202,6 +207,7 @@ def test_std_math_functions():
         np.testing.assert_allclose(B_data.asnumpy(), np.array([7.389056, 20.085537]))
 
 
+@pytest.mark.skip(reason="We don't currently use uTVM")
 @tvm.testing.requires_micro
 def test_platform_timer():
     """Verify the platform timer can be used to time remote functions."""
