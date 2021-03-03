@@ -180,6 +180,19 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
   --condition_counter_;
 }
 
+void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
+  ++condition_counter_;
+  this->VisitExpr(op->condition);
+  scope_.push_back(std::vector<StmtEntry>());
+  this->VisitStmt(op->body);
+  StmtEntry s;
+  s.stmt = op;
+  s.access = Summarize(std::move(scope_.back()), nullptr);
+  scope_.pop_back();
+  scope_.back().emplace_back(std::move(s));
+  --condition_counter_;
+}
+
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
     const LoadNode* l = op->args[0].as<LoadNode>();
