@@ -226,14 +226,14 @@ class RFEICostModel(CostModel):
 
         return True
 
-    def predict(self, xs):
+    def predict(self, xs, output_margin=False):
         predicts, _ = self._prediction_variation(xs)
         return predicts
 
     def _prediction_variation(self, x_to_predict):
         """Use Bayesian Optimization to predict the y and get the prediction_variation"""
         feas = self._get_feature(x_to_predict)
-        preds = np.array([tree.predict(feas) for tree in self.prior]).T
+        preds = np.array([tree.predict(feas) for tree in self.prior]).T.tolist()
         eis = []
         variances = []
         for pred in preds:
@@ -244,7 +244,8 @@ class RFEICostModel(CostModel):
             with np.errstate(divide="ignore"):
                 Z = (mu - best_flops) / sigma
                 ei = (mu - best_flops) * norm.cdf(Z) + sigma * norm.pdf(Z)
-                ei[sigma == 0.0] == max(0.0, mu - best_flops)
+                if sigma == 0.0:
+                    ei = max(0.0, mu - best_flops)
             eis.append(ei)
         prediction_variation = sum(variances) / len(variances)
         return np.array(eis), prediction_variation
