@@ -1193,6 +1193,19 @@ def _sparse_segment_sum_with_num_segments():
     return _impl
 
 
+def row_wise_divide(multi_dim_tensor, one_dim_vector):
+    # To enable row-wise division of multi_dim_tensor and one_dim_vector, it must be tiled to the
+    # appropriate shape first
+    multi_dim_tensor_offrow_shape = _op.strided_slice(
+        _op.shape_of(multi_dim_tensor, "int32"), [1], [-1], slice_mode="size"
+    )
+    one_dim_vector_tiled_shape = _op.concatenate(
+        [_op.reverse(multi_dim_tensor_offrow_shape, 0), _expr.const([1])], axis=0
+    )
+    one_dim_vector_tiled = _op.transpose(_op.tile(one_dim_vector, one_dim_vector_tiled_shape))
+    return _op.divide(multi_dim_tensor, one_dim_vector_tiled)
+
+
 def _sparse_segment_sum_sqrtn():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
@@ -1211,18 +1224,7 @@ def _sparse_segment_sum_sqrtn():
         # Calculate regular segment sum
         segment_sum = _op.segment_sum(data, inputs[2])
 
-        # To enable row-wise division of segment_sum and real_sqrt_counts, it must be tiled to the
-        # appropriate shape first
-        segment_sum_offrow_shape = _op.strided_slice(
-            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
-        )
-        strided_sqrt_counts_tiled_shape = _op.concatenate(
-            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
-        )
-        strided_sqrt_counts_tiled = _op.transpose(
-            _op.tile(real_sqrt_counts, strided_sqrt_counts_tiled_shape)
-        )
-        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+        return row_wise_divide(segment_sum, real_sqrt_counts)
 
     return _impl
 
@@ -1250,18 +1252,7 @@ def _sparse_segment_sum_sqrtn_with_num_segments():
         # Calculate regular segment sum
         segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
 
-        # To enable row-wise division of segment_sum and real_sqrt_counts, it must be tiled to the
-        # appropriate shape first
-        segment_sum_offrow_shape = _op.strided_slice(
-            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
-        )
-        strided_sqrt_counts_tiled_shape = _op.concatenate(
-            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
-        )
-        strided_sqrt_counts_tiled = _op.transpose(
-            _op.tile(real_sqrt_counts, strided_sqrt_counts_tiled_shape)
-        )
-        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+        return row_wise_divide(segment_sum, real_sqrt_counts)
 
     return _impl
 
@@ -1283,18 +1274,7 @@ def _sparse_segment_mean():
         # Calculate regular segment sum
         segment_sum = _op.segment_sum(data, inputs[2])
 
-        # To enable row-wise division of segment_sum and real_sqrt_counts, it must be tiled to the
-        # appropriate shape first
-        segment_sum_offrow_shape = _op.strided_slice(
-            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
-        )
-        strided_sqrt_counts_tiled_shape = _op.concatenate(
-            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
-        )
-        strided_sqrt_counts_tiled = _op.transpose(
-            _op.tile(real_counts, strided_sqrt_counts_tiled_shape)
-        )
-        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+        return row_wise_divide(segment_sum, real_counts)
 
     return _impl
 
@@ -1321,18 +1301,7 @@ def _sparse_segment_mean_with_num_segments():
         # Calculate regular segment sum
         segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
 
-        # To enable row-wise division of segment_sum and real_sqrt_counts, it must be tiled to the
-        # appropriate shape first
-        segment_sum_offrow_shape = _op.strided_slice(
-            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
-        )
-        strided_sqrt_counts_tiled_shape = _op.concatenate(
-            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
-        )
-        strided_sqrt_counts_tiled = _op.transpose(
-            _op.tile(real_counts, strided_sqrt_counts_tiled_shape)
-        )
-        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+        return row_wise_divide(segment_sum, real_counts)
 
     return _impl
 
