@@ -1545,6 +1545,16 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
             np.array([5, 0, 1, 0, 3, 6, 8, 7, 7], dtype=np.int64),
             9,
         ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 2], dtype=np.int32),
+            4,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            100,
+        ),
     ],
 )
 @pytest.mark.parametrize("use_dyn", [True, False])
@@ -1595,7 +1605,7 @@ def test_segment_sum(data_np, segment_ids_np, num_segments, use_dyn):
         func = relay.Function([data, segment_ids], z)
         ref_res = ref_segment_sum(data_np, segment_ids_np, num_segments=num_segments)
         segment_sum_result = run_infer_type(z)
-        # assert segment_sum_result.checked_type.dtype == data_np.dtype
+        assert segment_sum_result.checked_type.dtype == data_np.dtype
         verify_func(
             func,
             [data_np, segment_ids_np],

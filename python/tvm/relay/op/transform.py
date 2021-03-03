@@ -1499,8 +1499,11 @@ def segment_sum(data, segment_ids, num_segments=None):
 
     one_tensor = cast_like(const([1]), segment_ids)
     if num_segments:
-        max_segments = const([num_segments])
-        max_segments = cast_like(max_segments, segment_ids)
+        if isinstance(num_segments, int):
+            max_segments = const([num_segments])
+            max_segments = cast_like(max_segments, segment_ids)
+        else:
+            max_segments = cast_like(num_segments, segment_ids)
     else:
         max_segments = _make.add(reshape(_make.max(segment_ids, [0], False, False), -1), one_tensor)
 

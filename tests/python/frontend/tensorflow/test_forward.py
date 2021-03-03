@@ -257,8 +257,6 @@ def compare_tf_with_tvm(
             for i in range(len(tf_output)):
                 if not isinstance(tf_output[i], np.ndarray):
                     assert len(tvm_output[i].shape) == 0
-                # print("TF Output Shape : ", tf_output[i].shape)
-                # print("TVM Output Shape :", tvm_output[i].shape)
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
         sess.close()
@@ -2207,35 +2205,59 @@ def _test_sparse_segment_sum_sqrt_n(
     "data_np, indices_np, segment_ids_np, num_segments",
     [
         (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            9,
+        ),
+        (
             np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
             np.array([0, 3, 4], dtype=np.int32),
             np.array([0, 1, 1], dtype=np.int32),
             None,
         ),
-        # (
-        #     np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
-        #     np.array([0, 1], dtype=np.int32),
-        #     np.array([0, 2], dtype=np.int32),
-        #     None,
-        # ),
-        # (
-        #     np.random.random((6, 4, 5)),
-        #     np.array([0, 2, 4, 3, 1], dtype=np.int32),
-        #     np.array([0, 0, 1, 5, 5], dtype=np.int32),
-        #     None,
-        # ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float32),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
+            4,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 2, 4, 3, 1], dtype=np.int32),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            100,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 2, 4, 3, 1], dtype=np.int32),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            None,
+        ),
         (
             np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
             np.array([0, 1, 2], dtype=np.int32),
             np.array([0, 0, 1], dtype=np.int32),
             None,
         ),
-        # (
-        #     np.random.random((9, 4, 5, 7)),
-        #     np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
-        #     np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
-        #     None,
-        # ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 5, 5, 5, 5], dtype=np.int32),
+            6,
+        ),
     ],
 )
 @pytest.mark.parametrize("use_dyn", [True, False])
