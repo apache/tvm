@@ -743,11 +743,17 @@ def _prepare_input_map(args):
     # A dict that maps the input tensor arg to a buffer name
     tensor_input_map = {}
 
-    # Case 0: Check sparse op
+    # Case 0: Check placeholder name
+    for arg in args:
+        if isinstance(arg.op, tvm.te.PlaceholderOp):
+            if arg.op.name != "placeholder":
+                tensor_input_map[arg] = arg.op.name
+
+    # Case 1: Check sparse op
     sparse_input_map = topi.nn.sparse.try_get_sparse_input(args)
     tensor_input_map.update(sparse_input_map)
 
-    # Case 1: Check ...
+    # Case 2: Check ...
     # Process any other special buffers here and update them to tensor_input_map
 
     return tensor_input_map

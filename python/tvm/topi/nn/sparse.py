@@ -457,6 +457,9 @@ def try_get_sparse_input(args):
     except Exception:
         return {}
 
+    if sparse_data is None or sparse_indices is None or sparse_indptr is None:
+        return {}
+
     sparse_input_map = {}
     sparse_input_map[sparse_data] = sparse_prefix + "W_data"
     sparse_input_map[sparse_indices] = sparse_prefix + "W_indices"
