@@ -2079,40 +2079,6 @@ def test_forward_sparse_reshape(
     # ------------------------------------------------------------------
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn)
 
-
-#######################################################################
-# Sparse SegmentSum
-# ------------
-
-
-# def _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn=False):
-#     with tf.Graph().as_default():
-#         if use_dyn:
-#             data = tf.placeholder(
-#                 shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
-#             )
-#             indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
-#             segment_ids = tf.placeholder(
-#                 shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
-#             )
-#         else:
-#             data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
-#             indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
-#             segment_ids = tf.placeholder(
-#                 shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
-#             )
-
-#         _ = tf.sparse.segment_sum(
-#             data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sum"
-#         )
-#         compare_tf_with_tvm(
-#             [data_np, indices_np, segment_ids_np],
-#             [data.name, indices.name, segment_ids.name],
-#             ["sparse_segment_sum:0"],
-#             mode="vm",
-#         )
-
-
 #######################################################################
 # Sparse Segment Variants
 # ------------
