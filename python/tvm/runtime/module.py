@@ -34,6 +34,10 @@ from . import _ffi_api
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
+class UnsupportedInModelLibraryFormatError(Exception):
+    """Raised when export_model_library_format does not support the given Module tree."""
+
+
 class Module(object):
     """Runtime Module."""
 
@@ -104,6 +108,9 @@ class Module(object):
         if not isinstance(name, string_types):
             raise ValueError("Can only take string as function name")
         return self.get_function(name)
+
+    def __eq__(self, other):
+        return self.handle.value == other.handle.value
 
     def __call__(self, *args):
         if self._entry:
@@ -233,15 +240,26 @@ class Module(object):
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
+    def _collect_from_import_tree(self, filter_func):
+        """Helper function to collect modules from the tree matching a filter_func, then return it.
+
+        Parameters
+        ----------
+        filter_func : Callable[[Module], bool]
+            A function which is invoked for each Module discovered in the import tree (including self).
+
+        Returns
+        -------
+        list[Module] :
+            A list of matching Module.
+        """
         visited, stack, dso_modules = set(), [], []
         # append root module
         visited.add(self)
         stack.append(self)
         while stack:
             module = stack.pop()
-            if module._dso_exportable():
+            if filter_func(module):
                 dso_modules.append(module)
             for m in module.imported_modules:
                 if m not in visited:
@@ -249,8 +267,9 @@ class Module(object):
                     stack.append(m)
         return dso_modules
 
-    def _dso_exportable(self):
-        return self.type_key == "llvm" or self.type_key == "c"
+    def _collect_dso_modules(self):
+        is_dso_exportable = lambda m: (m.type_key == "llvm" or m.type_key == "c")
+        return self._collect_from_import_tree(is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
         """Export the module and its imported device code one library.
@@ -379,6 +398,13 @@ class Module(object):
             Path to the codegen directory on disk.
         """
         dso_modules = self._collect_dso_modules()
+        dso_module_handles = [m.handle.value for m in dso_modules]
+        non_dso_modules = self._collect_from_import_tree(lambda m: m not in dso_modules)
+        if non_dso_modules:
+            raise UnsupportedInModelLibraryFormatError(
+                f"Don't know how to export non-c or non-llvm modules; found: {non_dso_modules!r}, {dso_modules!r}, {dso_module_handles!r}"
+            )
+
         mod_indices = {"lib": 0, "src": 0}
         host_codegen_dir = os.path.join(codegen_dir, "host")
         for mod in dso_modules:
@@ -387,11 +413,15 @@ class Module(object):
                 mod_indices["src"] += 1
                 parent_dir = os.path.join(host_codegen_dir, "src")
                 file_name = os.path.join(parent_dir, f"lib{index}.c")
-            else:
+            elif mod.type_key == "llvm":
                 index = mod_indices["lib"]
                 mod_indices["lib"] += 1
                 parent_dir = os.path.join(host_codegen_dir, "lib")
                 file_name = os.path.join(parent_dir, f"lib{index}.o")
+            else:
+                assert (
+                    False
+                ), f"do not expect module with type_key={mod.type_key} from _collect_dso_modules"
 
             if not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)

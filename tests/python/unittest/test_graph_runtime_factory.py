@@ -26,6 +26,7 @@ import pytest
 
 import tvm
 import tvm.relay
+import tvm.runtime.module
 from tvm.contrib import utils
 
 
@@ -157,6 +158,22 @@ def test_export_model_library_format_llvm():
         with open(os.path.join(extract_dir, "parameters", "add.params"), "rb") as params_f:
             params = tvm.relay.load_param_dict(params_f.read())
             assert "p0" in params
+
+
+def test_export_model():
+    module = tvm.support.FrontendTestModule()
+    factory = tvm.get_global_func("tvm.graph_runtime_factory.create")(
+        '"graph_json"', module, "test_module"
+    )
+
+    temp_dir = utils.tempdir()
+    mlf_tar_path = temp_dir.relpath("lib.tar")
+    with pytest.raises(tvm.runtime.module.UnsupportedInModelLibraryFormatError) as exc:
+        factory.export_model_library_format(mlf_tar_path)
+
+        assert str(exc.exception) == (
+            "Don't know how to export non-c or non-llvm modules; found: ffi_testing"
+        )
 
 
 if __name__ == "__main__":
