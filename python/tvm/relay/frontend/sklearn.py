@@ -29,7 +29,7 @@ from .. import op as _op
 from .common import infer_type as _infer_type
 from .common import infer_value as _infer_value
 
-kDateTimeCols = 7
+kNumDateTimeCols = 7
 
 
 def _SimpleImputer(op, inexpr, dshape, dtype, columns=None):
@@ -151,8 +151,16 @@ def _ColumnTransformer(op, inexpr, dshape, dtype, func_name, columns=None):
         mod = pipe.steps[0][1]
         op_type = column_transformer_op_types[type(mod).__name__]
         if proc_name == "datetime_processing":
-            cols = list(range(kDateTimeCols))
-        out.append(sklearn_op_to_relay(pipe, inexpr[op_type], dshape, dtype, func_name, cols))
+            for i in range(len(cols)):
+                date_cols = i * kNumDateTimeCols + np.arange(kNumDateTimeCols, dtype=np.int)
+                date_shape = (dshape[0], kNumDateTimeCols)
+                out.append(
+                    sklearn_op_to_relay(
+                        pipe, inexpr[op_type], date_shape, dtype, func_name, date_cols
+                    )
+                )
+        else:
+            out.append(sklearn_op_to_relay(pipe, inexpr[op_type], dshape, dtype, func_name, cols))
 
     return _op.concatenate(out, axis=1)
 
@@ -520,7 +528,7 @@ def _DateTimeVectorizer(op, inexpr, dshape, dtype, columns=None):
     Converts array-like data with datetime.datetime or strings describing datetime objects into
     numeric features
     """
-    if columns:
+    if columns is not None:
         column_indices = _op.const(columns)
         inexpr = _op.take(inexpr, indices=column_indices, axis=1)
 
@@ -654,16 +662,23 @@ def from_auto_ml(model, shape=None, dtype="float32", func_name="transform"):
     if func_name == "transform":
         inexpr_float = _expr.var("input_float", shape=shape, dtype=dtype)
         inexpr_string = _expr.var("input_string", shape=shape, dtype=dtype)
-        inexpr_datetime = _expr.var("input_datetime", shape=(shape[0], kDateTimeCols), dtype=dtype)
 
-        inexpr = [inexpr_float, inexpr_string, inexpr_datetime]
+        inexpr = [inexpr_float, inexpr_string]
 
-        if type(model.feature_transformer.steps[0][1]).__name__ != "ColumnTransformer":
+        column_transformer = model.feature_transformer.steps[0][1]
+        if type(column_transformer).__name__ != "ColumnTransformer":
             raise NameError(
                 "The First Transformer must be an ColumnTransformer, but {} is given".format(
                     type(model.feature_transformer.steps[0][1]).__name__
                 )
             )
+
+        for proc_name, _, _ in column_transformer.transformers_:
+            if proc_name == "datetime_processing":
+                inexpr_datetime = _expr.var(
+                    "input_datetime", shape=(shape[0], kNumDateTimeCols), dtype=dtype
+                )
+                inexpr.append(inexpr_datetime)
 
         outexpr = inexpr
         for _, transformer in model.feature_transformer.steps:
