@@ -70,9 +70,9 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "numpy",
                 "psutil",
                 "scipy",
+                "sklearn",
                 "synr",
                 "tornado",
-                "sklearn"
             ],
         ),
     ),
