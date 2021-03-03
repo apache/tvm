@@ -1194,8 +1194,10 @@ def _sparse_segment_sum_with_num_segments():
 
 
 def row_wise_divide(multi_dim_tensor, one_dim_vector):
-    # To enable row-wise division of multi_dim_tensor and one_dim_vector, it must be tiled to the
-    # appropriate shape first
+    """
+    This function enables row-wise division of multi_dim_tensor and one_dim_vector.
+    To achieve this, it is first tiled to the appropriate shape and then elemwise_division
+    """
     multi_dim_tensor_offrow_shape = _op.strided_slice(
         _op.shape_of(multi_dim_tensor, "int32"), [1], [-1], slice_mode="size"
     )
@@ -1207,8 +1209,11 @@ def row_wise_divide(multi_dim_tensor, one_dim_vector):
 
 
 def count_all_indices(segment_ids, counts_dtype, num_segments=None):
-    # This snippet calculates the sqrt count of each index among all valid
-    # indices(from 0 to max of [segment ids, num_segments])
+    """
+    This snippet calculates the sqrt count of each index among all valid indices
+    Valid indices are from 0 to max of [segment ids, num_segments]
+    """
+
     max_segments = _op.reshape(_op.max(segment_ids), -1) + _expr.const([1])
     if num_segments:
         max_segments = _op.maximum(max_segments, _expr.const([num_segments]))
