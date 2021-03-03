@@ -20,6 +20,7 @@ from .model_based_tuner import ModelOptimizer, ModelBasedTuner
 from .sa_model_optimizer import SimulatedAnnealingOptimizer
 from .rf_cost_model import RFEICostModel
 
+
 class RFEITuner(ModelBasedTuner):
     """Tuner that uses RandomForestRegressor+ExpectedImprovement as cost model
 
@@ -48,7 +49,7 @@ class RFEITuner(ModelBasedTuner):
 
         For cross-device or cross-operator tuning, you can use 'curve' only.
     num_threads: int, optional
-        The number of threads.  
+        The number of threads.
     optimizer: str or ModelOptimizer, optional
         If is 'sa', use a default simulated annealing optimizer.
         Otherwise it should be a ModelOptimizer object.
@@ -63,33 +64,34 @@ class RFEITuner(ModelBasedTuner):
     uncertainty_aware: bool, optional
         If it is false, disable the dynamic uncertainty-aware searching process.
     """
+
     def __init__(
-        self, 
-        task, 
+        self,
+        task,
         plan_size=32,
-        feature_type='itervar',
+        feature_type="itervar",
         num_threads=None,
-        optimizer='sa', 
-        diversity_filter_ratio=None, 
-        log_interval=50, 
-        uncertainty_aware=True):
-        
-        
+        optimizer="sa",
+        diversity_filter_ratio=None,
+        log_interval=50,
+        uncertainty_aware=True,
+    ):
+
         cost_model = RFEICostModel(
-            task,
-            feature_type=feature_type,
-            num_threads=num_threads,
-            log_interval=log_interval//2)
-        if optimizer == 'sa':
-            optimizer = SimulatedAnnealingOptimizer(task, log_interval=log_interval, parallel_size=plan_size*2)
+            task, feature_type=feature_type, num_threads=num_threads, log_interval=log_interval // 2
+        )
+        if optimizer == "sa":
+            optimizer = SimulatedAnnealingOptimizer(
+                task, log_interval=log_interval, parallel_size=plan_size * 2
+            )
         else:
             assert isinstance(optimizer, ModelOptimizer), (
                 "Optimizer must be " "a supported name string" "or a ModelOptimizer object."
             )
         super(RFEITuner, self).__init__(
             task, cost_model, optimizer, plan_size, diversity_filter_ratio, uncertainty_aware
-            )
-        
+        )
+
     def tune(self, *args, **kwargs):  # pylint: disable=arguments-differ
         super(RFEITuner, self).tune(*args, **kwargs)
 

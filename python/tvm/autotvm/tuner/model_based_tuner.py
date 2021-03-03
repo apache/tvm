@@ -198,7 +198,15 @@ class ModelBasedTuner(Tuner):
         Whether to dynamically control the EE balance during the search
     """
 
-    def __init__(self, task, cost_model, model_optimizer, plan_size, diversity_filter_ratio=None, uncertainty_aware=False):
+    def __init__(
+        self,
+        task,
+        cost_model,
+        model_optimizer,
+        plan_size,
+        diversity_filter_ratio=None,
+        uncertainty_aware=False,
+    ):
         super(ModelBasedTuner, self).__init__(task)
 
         # space
@@ -286,12 +294,12 @@ class ModelBasedTuner(Tuner):
                 maximums = self.model_optimizer.find_maximums(
                     self.cost_model, self.plan_size, self.visited
                 )
-            
+
             # Update the dynamic_ep which controls the EE balance
             if self.uncertainty_aware:
                 samples = np.array(sample_ints(0, len(self.space), 20))
                 _, prediction_variation = self.cost_model._prediction_variation(samples)
-                self.dynamic_ep = min(1, prediction_variation/self.best_flops)
+                self.dynamic_ep = min(1, prediction_variation / self.best_flops)
             self.trials = maximums
             self.trial_pt = 0
             self.train_ct += 1

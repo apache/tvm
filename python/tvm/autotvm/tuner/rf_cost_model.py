@@ -75,12 +75,22 @@ class RFEICostModel(CostModel):
     """
 
     def __init__(
-        self, task, feature_type, num_threads=None, log_interval=25, upper_model=None, n_estimators=10, random_state=2, max_features=10
+        self,
+        task,
+        feature_type,
+        num_threads=None,
+        log_interval=25,
+        upper_model=None,
+        n_estimators=10,
+        random_state=2,
+        max_features=10,
     ):
         self.task = task
         self.target = task.target
         self.space = task.config_space
-        self.prior = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state, max_features=max_features)
+        self.prior = RandomForestRegressor(
+            n_estimators=n_estimators, random_state=random_state, max_features=max_features
+        )
         self.fea_type = feature_type
         self.num_threads = num_threads
         self.log_interval = log_interval
@@ -231,12 +241,12 @@ class RFEICostModel(CostModel):
             sigma = pred.std()
             best_flops = self.best_flops
             variances.append(sigma)
-            with np.errstate(divide='ignore'):
+            with np.errstate(divide="ignore"):
                 Z = (mu - best_flops) / sigma
                 ei = (mu - best_flops) * norm.cdf(Z) + sigma * norm.pdf(Z)
-                ei[sigma == 0.0] == max(0.0, mu-best_flops)
+                ei[sigma == 0.0] == max(0.0, mu - best_flops)
             eis.append(ei)
-        prediction_variation = sum(variances)/len(variances)
+        prediction_variation = sum(variances) / len(variances)
         return np.array(eis), prediction_variation
 
     def load_basemodel(self, base_model):
@@ -245,9 +255,7 @@ class RFEICostModel(CostModel):
         self.base_model.upper_model = self
 
     def spawn_base_model(self):
-        return RFEICostModel(
-            self.task, self.fea_type, self.num_threads, self.log_interval, self
-        )
+        return RFEICostModel(self.task, self.fea_type, self.num_threads, self.log_interval, self)
 
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
@@ -392,11 +400,3 @@ def _extract_curve_feature_log(arg):
         return x, y
     except Exception:  # pylint: disable=broad-except
         return None
-
-
-
-
-
-
-
-

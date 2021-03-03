@@ -205,8 +205,8 @@ class RPCRunner(Runner):
         If given, a context manager that loads the module to be timed into the remote runtime.
         If not given, default_module_loader is used.
     max_converge_coef: float/None, optional
-        Whether to enable adaptive evaluator, which will early stop the evaluation 
-        when the coefficient of variation among micro-batches 
+        Whether to enable adaptive evaluator, which will early stop the evaluation
+        when the coefficient of variation among micro-batches
         is smaller than this threshold value. When set none, disable this feature
     """
 
@@ -286,7 +286,14 @@ class RPCRunner(Runner):
 
     def run(self, measure_inputs, build_results):
         results = []
-        remote_args = (self.key, self.host, self.port, self.priority, self.timeout)
+        # remote_args = (self.key, self.host, self.port, self.priority, self.timeout)
+        remote_args = {
+            "device_key": self.key,
+            "host": self.host,
+            "port": self.port,
+            "priority": self.priority,
+            "timeout": self.timeout,
+        }  # device_key, host=None, port=None, priority=1, timeout=60):
 
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
@@ -359,8 +366,8 @@ class LocalRunner(RPCRunner):
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
     max_converge_coef: float/None, optional
-        Whether to enable adaptive evaluator, which will early stop the evaluation 
-        when the coefficient of variation among micro-batches 
+        Whether to enable adaptive evaluator, which will early stop the evaluation
+        when the coefficient of variation among micro-batches
         is smaller than this threshold value. When set none, disable this feature
     Note
     ----
@@ -555,8 +562,8 @@ def run_through_rpc(
     module_loader: ModuleLoader
         A function that returns a ContextManager used to establish and teardown the remote session.
     max_converge_coef: float/None, optional
-        Whether to enable adaptive evaluator, which will early stop the evaluation 
-        when the coefficient of variation among micro-batches 
+        Whether to enable adaptive evaluator, which will early stop the evaluation
+        when the coefficient of variation among micro-batches
         is smaller than this threshold value. When set none, disable this feature
     """
     if isinstance(build_result, MeasureResult):
@@ -568,7 +575,7 @@ def run_through_rpc(
         # upload built module
         with module_loader(remote_kwargs, build_result) as (remote, mod):
             ctx = remote.context(str(measure_input.target), 0)
-            
+
             f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
 
             try:
@@ -583,7 +590,6 @@ def run_through_rpc(
                 for arg in args:
                     random_fill(arg)
             ctx.sync()
-
             # Use max_converge_coef to get the measured costs
             costs = []
             if max_converge_coef:
@@ -591,13 +597,14 @@ def run_through_rpc(
                 # Partition the evaluation into micro-batches
                 cur_number = 0
                 batc_pfms = []
-                while cur_number < number*repeat:
+                flop = measure_input.task.flop
+                while cur_number < number * repeat:
                     cur_number += micro_batch_size
-                    time_f = func.time_evaluator(
-                        func.entry_name,
+                    time_f = mod.time_evaluator(
+                        mod.entry_name,
                         ctx,
-                        number=micro_batch_size,
-                        repeat=1,
+                        number=number,
+                        repeat=repeat,
                         min_repeat_ms=min_repeat_ms,
                         f_preproc=f_prepare,
                     )
@@ -606,7 +613,7 @@ def run_through_rpc(
                     batc_pfms.append(flop / cost)
                     # Calculate the cofficient of variation with current all micro-batches
                     cv = np.std(batc_pfms) / np.mean(batc_pfms)
-                    if cur_number > micro_batch_size*2 and cv < max_converge_coef:
+                    if cur_number > micro_batch_size * 2 and cv < max_converge_coef:
                         break
             else:
                 # Limitation:
@@ -614,8 +621,8 @@ def run_through_rpc(
                 # under the std::function. We could lift the restriction later once we fold
                 # the PackedFunc as an object. Currently, we pass function name to work
                 # around it.
-                time_f = func.time_evaluator(
-                    func.entry_name,
+                time_f = mod.time_evaluator(
+                    mod.entry_name,
                     ctx,
                     number=number,
                     repeat=repeat,
