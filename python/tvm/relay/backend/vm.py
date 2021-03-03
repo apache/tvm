@@ -65,7 +65,7 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    target = Target(target, target_host)
+    target = tvm.target.Target(target, target_host)
     target_host = target.host
     compiler.lower(mod, target, target_host)
     compiler.codegen()
@@ -133,8 +133,9 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        target = Target(target, target_host)
-        target_host = target.host
+        for k in target:
+            target[k] = tvm.target.Target(target[k], target_host)
+            target_host = target[k].host
 
         tophub_context = self._tophub_context(target)
         with tophub_context:
