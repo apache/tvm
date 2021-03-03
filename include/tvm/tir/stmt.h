@@ -862,6 +862,53 @@ class For : public Stmt {
 };
 
 /*!
+ * \brief A While loop
+ *
+ * \code
+ *
+ *  while (condition)
+ *    body
+ *
+ * \endcode
+ */
+class WhileNode : public StmtNode {
+ public:
+  /*! \brief The termination condition. */
+  PrimExpr condition;
+  /*! \brief The body of the while loop. */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("condition", &condition);
+    v->Visit("body", &body);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(condition, other->condition) && equal.DefEqual(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(condition);
+    hash_reduce.DefHash(body);
+  }
+
+  static constexpr const char* _type_key = "tir.While";
+  TVM_DECLARE_FINAL_OBJECT_INFO(WhileNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to WhileNode.
+ * \sa WhileNode
+ */
+class While : public Stmt {
+ public:
+  TVM_DLL While(PrimExpr condition, Stmt body, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(While, Stmt, WhileNode);
+};
+
+/*!
  * \brief A prefetch hint for a buffer
  */
 class PrefetchNode : public StmtNode {

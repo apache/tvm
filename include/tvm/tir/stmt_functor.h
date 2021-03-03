@@ -86,6 +86,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -111,6 +112,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
+    IR_STMT_FUNCTOR_DISPATCH(WhileNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
@@ -152,6 +154,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
@@ -245,6 +248,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
+  Stmt VisitStmt_(const WhileNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
