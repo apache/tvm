@@ -349,11 +349,8 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(IRModule mod) const {
-    const PassNode* node = operator->();
-    ICHECK(node != nullptr);
-    return node->operator()(std::move(mod));
-  }
+  IRModule operator()(IRModule mod) const;
+
   /*!
    * \brief Transform mod using a functor under a given pass context.
    *
@@ -362,11 +359,7 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const {
-    const PassNode* node = operator->();
-    ICHECK(node != nullptr);
-    return node->operator()(std::move(mod), pass_ctx);
-  }
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
 };

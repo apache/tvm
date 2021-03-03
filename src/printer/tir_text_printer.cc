@@ -494,6 +494,13 @@ Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitStmt_(const WhileNode* op) {
+  Doc doc;
+  doc << "while (" << Print(op->condition) << ")";
+  doc << PrintBody(op->body);
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitStmt_(const PrefetchNode* op) {
   Doc doc;
   doc << "prefetch(" << Print(op->buffer) << ", " << Print(op->bounds) << ")";

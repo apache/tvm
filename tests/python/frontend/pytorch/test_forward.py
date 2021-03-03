@@ -1497,12 +1497,21 @@ def test_forward_slice():
         def forward(self, x):
             return x[0::2, 0::2] + x[1::2, 1::2]
 
+    class DynamicLengthSlice(torch.nn.Module):
+        def forward(self, values, length):
+            return values[0:length]
+
     input_data = torch.rand(input_shape).float()
     verify_model(Slice1(), input_data=input_data)
     verify_model(Slice2(), input_data=input_data)
     verify_model(Slice3(), input_data=input_data)
     verify_model(SliceWithStride(), input_data=torch.randn(1, 4))
     verify_model(SliceWithStride2(), input_data=torch.randn(4, 4))
+
+    inp = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    slice_len = torch.tensor(2)
+    targets = ["llvm", "cuda"]
+    verify_trace_model(DynamicLengthSlice(), [inp, slice_len], targets)
 
 
 @tvm.testing.uses_gpu
