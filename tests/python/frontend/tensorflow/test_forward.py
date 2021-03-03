@@ -2085,41 +2085,41 @@ def test_forward_sparse_reshape(
 # ------------
 
 
-def _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn=False):
-    with tf.Graph().as_default():
-        if use_dyn:
-            data = tf.placeholder(
-                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
-            )
-            indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
-            segment_ids = tf.placeholder(
-                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
-            )
-        else:
-            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
-            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
-            segment_ids = tf.placeholder(
-                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
-            )
+# def _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn=False):
+#     with tf.Graph().as_default():
+#         if use_dyn:
+#             data = tf.placeholder(
+#                 shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
+#             )
+#             indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
+#             segment_ids = tf.placeholder(
+#                 shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
+#             )
+#         else:
+#             data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+#             indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+#             segment_ids = tf.placeholder(
+#                 shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+#             )
 
-        _ = tf.sparse.segment_sum(
-            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sum"
-        )
-        compare_tf_with_tvm(
-            [data_np, indices_np, segment_ids_np],
-            [data.name, indices.name, segment_ids.name],
-            ["sparse_segment_sum:0"],
-            mode="vm",
-        )
+#         _ = tf.sparse.segment_sum(
+#             data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sum"
+#         )
+#         compare_tf_with_tvm(
+#             [data_np, indices_np, segment_ids_np],
+#             [data.name, indices.name, segment_ids.name],
+#             ["sparse_segment_sum:0"],
+#             mode="vm",
+#         )
 
 
 #######################################################################
-# Sparse SegmentSumSqrtN
+# Sparse Segment Variants
 # ------------
 
 
-def _test_sparse_segment_sum_sqrt_n(
-    data_np, indices_np, segment_ids_np, num_segments, use_dyn=False
+def _test_sparse_segment_variant(
+    tf_op, data_np, indices_np, segment_ids_np, num_segments, use_dyn=False
 ):
     with tf.Graph().as_default():
         if use_dyn:
@@ -2137,41 +2137,13 @@ def _test_sparse_segment_sum_sqrt_n(
                 shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
             )
 
-        _ = tf.sparse.segment_sqrt_n(
-            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sum_sqrt_n"
+        _ = tf_op(
+            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_variant"
         )
         compare_tf_with_tvm(
             [data_np, indices_np, segment_ids_np],
             [data.name, indices.name, segment_ids.name],
-            ["sparse_segment_sum_sqrt_n:0"],
-            mode="vm",
-        )
-
-
-def _test_sparse_segment_mean(data_np, indices_np, segment_ids_np, num_segments, use_dyn=False):
-    with tf.Graph().as_default():
-        if use_dyn:
-            data = tf.placeholder(
-                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
-            )
-            indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
-            segment_ids = tf.placeholder(
-                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
-            )
-        else:
-            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
-            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
-            segment_ids = tf.placeholder(
-                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
-            )
-
-        _ = tf.sparse.segment_mean(
-            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_mean"
-        )
-        compare_tf_with_tvm(
-            [data_np, indices_np, segment_ids_np],
-            [data.name, indices.name, segment_ids.name],
-            ["sparse_segment_mean:0"],
+            ["sparse_segment_variant:0"],
             mode="vm",
         )
 
@@ -2236,13 +2208,24 @@ def _test_sparse_segment_mean(data_np, indices_np, segment_ids_np, num_segments,
     ],
 )
 @pytest.mark.parametrize("use_dyn", [True, False])
+@pytest.mark.parametrize(
+    "tf_op",
+    [
+        tf.sparse.segment_sum,
+        tf.sparse.segment_sqrt_n,
+        tf.sparse.segment_mean,
+    ],
+)
 def test_forward_sparse_segment_sum_variants(
-    data_np, indices_np, segment_ids_np, num_segments, use_dyn
+    tf_op,
+    data_np,
+    indices_np,
+    segment_ids_np,
+    num_segments,
+    use_dyn,
 ):
     """sparse segment sum variants tests"""
-    _test_sparse_segment_sum_sqrt_n(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
-    _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
-    _test_sparse_segment_mean(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
+    _test_sparse_segment_variant(tf_op, data_np, indices_np, segment_ids_np, num_segments, use_dyn)
 
 
 #######################################################################
