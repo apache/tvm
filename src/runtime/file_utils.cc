@@ -26,7 +26,6 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/serializer.h>
 #include <tvm/support/logging.h>
-#include <tvm/node/container.h>
 
 #include <fstream>
 #include <unordered_map>
@@ -188,7 +187,7 @@ Map<String, NDArray> LoadParams(dmlc::Stream* strm) {
 void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params) {
   std::vector<std::string> names;
   std::vector<const DLTensor*> arrays;
-  for(auto& p : params) {
+  for (auto& p : params) {
     names.push_back(p.first);
     arrays.push_back(p.second.operator->());
   }

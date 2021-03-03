@@ -30,6 +30,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 #include "../../runtime/file_utils.h"
 
 namespace tvm {
@@ -37,14 +38,17 @@ namespace relay {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict").set_body_typed([](const Map<String, NDArray>& params){
-    std::string s = ::tvm::runtime::SaveParams(params);
-    // copy return array so it is owned by the ret value
-    TVMRetValue rv;
-    rv = TVMByteArray{s.data(), s.size()};
-    return rv;
+TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict")
+    .set_body_typed([](const Map<String, NDArray>& params) {
+      std::string s = ::tvm::runtime::SaveParams(params);
+      // copy return array so it is owned by the ret value
+      TVMRetValue rv;
+      rv = TVMByteArray{s.data(), s.size()};
+      return rv;
     });
-TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict").set_body_typed([](const String& s) { return ::tvm::runtime::LoadParams(s);});
+TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict").set_body_typed([](const String& s) {
+  return ::tvm::runtime::LoadParams(s);
+});
 
 }  // namespace relay
 }  // namespace tvm

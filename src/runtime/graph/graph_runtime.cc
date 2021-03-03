@@ -22,8 +22,6 @@
  */
 #include "graph_runtime.h"
 
-#include "../file_utils.h"
-
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
@@ -39,6 +37,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "../file_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -199,7 +199,7 @@ void GraphRuntime::LoadParams(const std::string& param_blob) {
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   Map<String, NDArray> params = ::tvm::runtime::LoadParams(strm);
-  for(auto& p : params) {
+  for (auto& p : params) {
     uint32_t eid = this->entry_id(input_nodes_[GetInputIndex(p.first)], 0);
     data_entry_[eid].CopyFrom(p.second);
   }

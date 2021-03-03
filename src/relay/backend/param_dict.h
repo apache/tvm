@@ -32,9 +32,7 @@
 #include <string>
 
 namespace tvm {
-namespace relay {
-
-}  // namespace relay
+namespace relay {}  // namespace relay
 }  // namespace tvm
 
 #endif  // TVM_RELAY_BACKEND_PARAM_DICT_H_

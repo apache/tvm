@@ -22,21 +22,20 @@
  * \brief The Relay virtual machine runtime.
  */
 
-#include "../file_utils.h"
-
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm/vm.h>
 #include <tvm/support/logging.h>
-#include <tvm/node/container.h>
 
 #include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+
+#include "../file_utils.h"
 
 using namespace tvm::runtime;
 

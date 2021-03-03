@@ -28,7 +28,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <tvm/node/container.h>
 
 #include "meta_data.h"
 
