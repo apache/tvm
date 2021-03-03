@@ -2113,61 +2113,8 @@ def _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, 
         )
 
 
-@pytest.mark.parametrize(
-    "data_np, indices_np, segment_ids_np, num_segments",
-    [
-        (
-            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
-            np.array([0, 3, 4], dtype=np.int32),
-            np.array([0, 1, 1], dtype=np.int32),
-            None,
-        ),
-        (
-            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
-            np.array([0, 1], dtype=np.int32),
-            np.array([0, 2], dtype=np.int32),
-            4,
-        ),
-        (
-            np.random.random((6, 4, 5)),
-            np.array([0, 2, 4, 3, 1], dtype=np.int32),
-            np.array([0, 0, 1, 5, 5], dtype=np.int32),
-            100,
-        ),
-        (
-            np.random.random((6, 4, 5)),
-            np.array([0, 2, 4, 3, 1], dtype=np.int32),
-            np.array([0, 0, 1, 5, 5], dtype=np.int32),
-            None,
-        ),
-        (
-            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
-            np.array([0, 1, 2], dtype=np.int32),
-            np.array([0, 0, 1], dtype=np.int32),
-            None,
-        ),
-        (
-            np.random.random((9, 4, 5, 7)),
-            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
-            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
-            9,
-        ),
-        (
-            np.random.random((9, 4, 5, 7)),
-            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
-            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
-            None,
-        ),
-    ],
-)
-@pytest.mark.parametrize("use_dyn", [True, False])
-def test_forward_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn):
-    """sparse segment sum test"""
-    _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
-
-
 #######################################################################
-# Sparse SegmentSum
+# Sparse SegmentSumSqrtN
 # ------------
 
 
@@ -2205,21 +2152,9 @@ def _test_sparse_segment_sum_sqrt_n(
     "data_np, indices_np, segment_ids_np, num_segments",
     [
         (
-            np.random.random((9, 4, 5, 7)),
-            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
-            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
-            9,
-        ),
-        (
             np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
             np.array([0, 3, 4], dtype=np.int32),
             np.array([0, 1, 1], dtype=np.int32),
-            None,
-        ),
-        (
-            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
-            np.array([0, 1], dtype=np.int32),
-            np.array([0, 2], dtype=np.int32),
             None,
         ),
         (
@@ -2250,6 +2185,18 @@ def _test_sparse_segment_sum_sqrt_n(
             np.random.random((9, 4, 5, 7)),
             np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
             np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            9,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
             None,
         ),
         (
@@ -2261,11 +2208,12 @@ def _test_sparse_segment_sum_sqrt_n(
     ],
 )
 @pytest.mark.parametrize("use_dyn", [True, False])
-def test_forward_sparse_segment_sum_sqrt_n(
+def test_forward_sparse_segment_sum_variants(
     data_np, indices_np, segment_ids_np, num_segments, use_dyn
 ):
-    """sparse segment sum test"""
+    """sparse segment sum variants tests"""
     _test_sparse_segment_sum_sqrt_n(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
+    _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
 
 
 #######################################################################
