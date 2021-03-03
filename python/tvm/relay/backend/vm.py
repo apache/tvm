@@ -175,8 +175,9 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        target = Target(target, target_host)
-        target_host = target.host
+        for k in target:
+            target[k] = tvm.target.Target(target[k], target_host)
+            target_host = target[k].host
 
         if params:
             self.set_params(params)
