@@ -388,6 +388,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return IfThenElse(condition, then_case, else_case);
     }
   }
+  // While
+  Stmt VisitStmt_(const WhileNode* op) final {
+    LOG(FATAL) << "A while loop inside a vectorized loop not supported.";
+    return Stmt();
+  }
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
@@ -441,7 +446,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // ProducerStore
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
-    LOG(FATAL) << "ProducerProvide is cannot appear in a TIR PrimFunc";
+    LOG(FATAL) << "ProducerProvide cannot appear in a TIR PrimFunc";
     return Stmt();
   }
 

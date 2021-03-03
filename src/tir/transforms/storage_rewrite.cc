@@ -192,6 +192,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final { VisitNewScope(op); }
 
+  void VisitStmt_(const WhileNode* op) final { VisitNewScope(op); }
+
   void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
   // linearized access sequence.
@@ -244,6 +246,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
       VisitStmt_(static_cast<const ForNode*>(stmt));
     } else if (stmt->IsInstance<IfThenElseNode>()) {
       VisitStmt_(static_cast<const IfThenElseNode*>(stmt));
+    } else if (stmt->IsInstance<WhileNode>()) {
+      VisitStmt_(static_cast<const WhileNode*>(stmt));
     } else if (stmt->IsInstance<StoreNode>()) {
       VisitStmt_(static_cast<const StoreNode*>(stmt));
     } else {
@@ -350,16 +354,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // start rewrite
     stmt = operator()(std::move(stmt));
     if (attach_map_.count(nullptr)) {
-      std::vector<Stmt> nest;
-      for (StorageEntry* e : attach_map_.at(nullptr)) {
-        // ICHECK_EQ(e->scope.rank, 0);
-        if (e->new_alloc.defined()) {
-          nest.emplace_back(AttrStmt(e->alloc_var, attr::storage_scope,
-                                     StringImm(e->scope.to_string()), Evaluate(0)));
-          nest.push_back(e->new_alloc);
-        }
-      }
-      stmt = MergeNest(nest, stmt);
+      return MakeAttach(attach_map_.at(nullptr), stmt);
     }
     return stmt;
   }
@@ -437,6 +432,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
+
   Stmt VisitStmt_(const ForNode* op) final {
     ICHECK(op->kind != ForKind::kVectorized) << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
