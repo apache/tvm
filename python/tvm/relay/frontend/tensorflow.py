@@ -1193,6 +1193,51 @@ def _sparse_segment_sum_with_num_segments():
     return _impl
 
 
+def _sparse_segment_sum_sqrtn():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        _, _, num_unique, counts = _op.unique(inputs[2], return_counts=True)
+        segment_sum = _op.segment_sum(data, inputs[2])
+        strided_sqrt_counts = _op.sqrt(
+            _op.cast_like(_op.strided_slice(counts, [0], num_unique, slice_mode="end"), segment_sum)
+        )
+        segment_sum_offrow_shape = _op.strided_slice(
+            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
+        )
+        strided_sqrt_counts_tiled_shape = _op.concatenate(
+            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
+        )
+        strided_sqrt_counts_tiled = _op.transpose(
+            _op.tile(strided_sqrt_counts, strided_sqrt_counts_tiled_shape)
+        )
+        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+
+    return _impl
+
+
+def _sparse_segment_sum_sqrtn_with_num_segments():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        num_segments = int(inputs[3].data.asnumpy().item())
+        _, _, num_unique, counts = _op.unique(inputs[2], return_counts=True)
+        strided_sqrt_counts = _op.sqrt(_op.strided_slice(counts, [0], num_unique, slice_mode="end"))
+        segment_sum = _op.segment_sum(data, inputs[2], num_segments)
+        data_offrow_shape = _op.strided_slice(
+            _make.shape_of(data, "int32"), [1], [-1], slice_mode="size"
+        )
+        strided_sqrt_counts_tiled_shape = _op.concatenate(
+            [_op.transpose(data_offrow_shape), _expr.const([1])], axis=0
+        )
+        strided_sqrt_counts_tiled = _op.transpose(
+            _op.tile(strided_sqrt_counts, strided_sqrt_counts_tiled_shape)
+        )
+        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2690,6 +2735,8 @@ _convert_map = {
     "SegmentSum": _math_segment_sum(),
     "SparseSegmentSum": _sparse_segment_sum(),
     "SparseSegmentSumWithNumSegments": _sparse_segment_sum_with_num_segments(),
+    "SparseSegmentSqrtN": _sparse_segment_sum_sqrtn(),
+    "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sum_sqrtn_with_num_segments(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),

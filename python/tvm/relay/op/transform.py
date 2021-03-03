@@ -1497,14 +1497,18 @@ def segment_sum(data, segment_ids, num_segments=None):
         result = [[5, 6, 7, 8],[0, 0, 0, 0], [5, -1, 5, 3]]
     """
 
+    one_tensor = cast_like(const([1]), segment_ids)
     if num_segments:
-        num_unique = const([num_segments])
+        max_segments = const([num_segments])
+        max_segments = cast_like(max_segments, segment_ids)
     else:
-        _, _, num_unique = unique(reshape(segment_ids, -1))
+        max_segments = _make.add(reshape(_make.max(segment_ids, [0], False, False), -1), one_tensor)
+
     data_offrow_shape = strided_slice(_make.shape_of(data, "int32"), [1], [-1], slice_mode="size")
-    new_shape = _make.concatenate(Tuple([num_unique, data_offrow_shape]), 0)
+    data_offrow_shape = cast_like(data_offrow_shape, max_segments)
+    new_shape = _make.concatenate(Tuple([max_segments, data_offrow_shape]), 0)
     segment_ids_tiled_shape = _make.concatenate(
-        Tuple([reverse(data_offrow_shape, 0), const([1])]), 0
+        Tuple([reverse(data_offrow_shape, 0), one_tensor]), 0
     )
     expanded_segment_ids = tile(segment_ids, segment_ids_tiled_shape)
     scatter_add_segment_ids = transpose(expanded_segment_ids)
