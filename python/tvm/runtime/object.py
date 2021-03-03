@@ -44,7 +44,7 @@ def _new_object(cls):
 class Object(ObjectBase):
     """Base class for all tvm's runtime objects."""
 
-    __slots__ = []
+    __slots__ = ["handle"]
 
     def __repr__(self):
         return _ffi_node_api.AsRepr(self)
