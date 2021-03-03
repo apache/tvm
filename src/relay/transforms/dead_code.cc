@@ -46,10 +46,16 @@ class FindDef : private ExprVisitor {
   VarMap<Expr> expr_map_;
 
   void VisitExpr_(const LetNode* l) final {
-    ICHECK_EQ(expr_map_.count(l->var), 0);
-    expr_map_[l->var] = l->value;
-    VisitExpr(l->value);
-    VisitExpr(l->body);
+    auto pre_visit = [this](const LetNode* op) {
+      ICHECK_EQ(expr_map_.count(op->var), 0);
+      expr_map_[op->var] = op->value;
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
+    ExpandANormalForm(l, pre_visit, post_visit);
   }
 
   friend CalcDep;
@@ -81,12 +87,24 @@ class Eliminator : private ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* op) final {
-    Var v = op->var;
-    if (HasLet(v)) {
-      return Let(v, VisitExpr(op->value), VisitExpr(op->body));
-    } else {
-      return VisitExpr(op->body);
-    }
+    auto pre_visit = [this](const LetNode* op) {
+      if (HasLet(op->var)) {
+        Expr value = this->VisitExpr(op->value);
+      }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+      Var v = op->var;
+      if (HasLet(v)) {
+        Expr value = this->VisitExpr(op->value);
+        this->memo_[expr] = Let(v, value, body);
+      } else {
+        this->memo_[expr] = body;
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
   }
 };
 
@@ -121,7 +139,15 @@ class CalcDep : protected MixedModeVisitor {
     }
   }
 
-  void VisitExpr_(const LetNode* l) final { VisitExpr(l->body); }
+  void VisitExpr_(const LetNode* l) final {
+    Expr let_binding = GetRef<Expr>(l);
+    const LetNode* let;
+    while ((let = let_binding.as<LetNode>())) {
+      let_binding = let->body;
+      visit_counter_[l] += 1;
+    }
+    VisitExpr(let_binding);
+  }
 
   void VisitExpr_(const VarNode* v) final {
     Var var = GetRef<Var>(v);
