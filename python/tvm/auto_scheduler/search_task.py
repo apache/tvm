@@ -303,7 +303,7 @@ def get_task_input_buffer(workload_key, input_name):
 
     raise ValueError(
         "%s not found in TASK_INPUT_BUFFER_TABLE, " % (input_name)
-        + "should provide with SearchTask.add_task_input()"
+        + "should provide with `SearchTask(..., task_inputs={...})`"
     )
 
 

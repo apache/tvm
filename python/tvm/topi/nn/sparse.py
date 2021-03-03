@@ -376,7 +376,7 @@ def try_get_sparse_input(args):
     Note
     ----
     The buffer name is specially designed, and these buffer should be provided in
-    `SearchTask.add_task_input()`.
+    `SearchTask(..., task_inputs={...})`.
     """
     sparse_prefix = sparse_data = sparse_indices = sparse_indptr = None
 

@@ -121,7 +121,7 @@ class SearchTaskNode : public Object {
   HardwareParams hardware_params;
   /*! \brief The layout rewrite option used for measuring programs. */
   LayoutRewriteOption layout_rewrite_option;
-  /*! \brief A map that stores some user defined input data used in program measuring. */
+  /*! \brief Names of some user defined input data used in program measuring. */
   Array<String> task_inputs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -152,7 +152,7 @@ class SearchTask : public ObjectRef {
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
    * \param layout_rewrite_option The layout rewrite option used for measuring programs.
-   * \param task_inputs A map that stores some user defined input data used in program measuring.
+   * \param task_inputs Names of some user defined input data used in program measuring.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
              Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option,

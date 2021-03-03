@@ -735,7 +735,7 @@ def _prepare_input_map(args):
     Note
     ----
     The buffer name is specially designed, and these buffer should be provided in
-    `SearchTask.add_task_input()`.
+    `SearchTask(..., task_inputs={...})`.
     """
     # pylint: disable=import-outside-toplevel
     from tvm import topi  # lazily import to avoid recursive dependency
@@ -763,7 +763,7 @@ def _timed_eval_func(
     enable_cpu_cache_flush,
     verbose,
 ):
-    from .search_task import get_task_input_buffer
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     inp = MeasureInput.deserialize(inp_serialized)
     task_inputs = inp.task.task_inputs
@@ -962,7 +962,7 @@ def _timed_rpc_run(
     enable_cpu_cache_flush,
     verbose,
 ):
-    from .search_task import get_task_input_buffer
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     inp = MeasureInput.deserialize(inp_serialized)
     task_inputs = inp.task.task_inputs
