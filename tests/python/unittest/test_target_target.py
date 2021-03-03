@@ -246,7 +246,7 @@ def test_target_host_merge_2():
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
 
 
-# @pytest.mark.skip(reason="Causing infinite loop for reason to be investigated")
+@pytest.mark.skip(reason="Causing infinite loop because of pytest and handle issue")
 def test_target_host_merge_3():
     with pytest.raises(ValueError, match=r"target host has to be a string or dictionary."):
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
