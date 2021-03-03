@@ -769,6 +769,7 @@ def _timed_eval_func(
     enable_cpu_cache_flush,
     verbose,
 ):
+    # pylint: disable=import-outside-toplevel
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     inp = MeasureInput.deserialize(inp_serialized)
@@ -968,6 +969,7 @@ def _timed_rpc_run(
     enable_cpu_cache_flush,
     verbose,
 ):
+    # pylint: disable=import-outside-toplevel
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     inp = MeasureInput.deserialize(inp_serialized)
