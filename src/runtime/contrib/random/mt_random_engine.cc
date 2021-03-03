@@ -126,8 +126,10 @@ class RandomEngine {
     } else {
       runtime::NDArray local = runtime::NDArray::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      FillData(&local.ToDLPack()->dl_tensor, size);
-      runtime::NDArray::CopyFromTo(&local.ToDLPack()->dl_tensor, data);
+      DLManagedTensor* dmt = local.ToDLPack();
+      FillData(&dmt->dl_tensor, size);
+      runtime::NDArray::CopyFromTo(&dmt->dl_tensor, data);
+      dmt->deleter(dmt);
     }
   }
 
