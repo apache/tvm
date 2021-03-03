@@ -128,7 +128,7 @@ Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 #   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
 #   - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
 
-target = tvm.target.Target("llvm -mcpu=core-avx2")
+target = tvm.target.Target("llvm")
 
 # Register the sparse data to task inputs
 prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
@@ -336,5 +336,3 @@ print(
 #        }
 #      }
 #    }
-#
-#    Execution time of this operator: 0.990 ms
