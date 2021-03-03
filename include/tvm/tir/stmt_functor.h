@@ -26,8 +26,8 @@
 #ifndef TVM_TIR_STMT_FUNCTOR_H_
 #define TVM_TIR_STMT_FUNCTOR_H_
 
-#include <tvm/node/container.h>
 #include <tvm/node/functor.h>
+#include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt.h>
