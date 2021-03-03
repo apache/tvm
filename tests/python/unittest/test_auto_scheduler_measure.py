@@ -367,10 +367,11 @@ def test_measure_special_inputs_map_by_name():
 
     # This workload cannot use random input for the `Index` input
     task = auto_scheduler.SearchTask(
-        func=foo, target="llvm",
+        func=foo,
+        target="llvm",
         task_inputs={
             "Index": tvm.nd.array(np.array([5], dtype="int32")),
-        }
+        },
     )
 
     minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)

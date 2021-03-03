@@ -43,12 +43,15 @@ def test_search_task_add_task_input():
     test_input_1 = tvm.runtime.ndarray.empty((10, 20))
     test_input_2 = tvm.runtime.ndarray.empty((30, 40, 50))
     task = auto_scheduler.SearchTask(
-        func="matmul_auto_scheduler_test", args=(N, N, N), target=target,
+        func="matmul_auto_scheduler_test",
+        args=(N, N, N),
+        target=target,
         task_inputs={
             "test_input_0": test_input_0,
             "test_input_1": test_input_1,
             "test_input_2": test_input_2,
-        }, task_inputs_overwrite=True
+        },
+        task_inputs_overwrite=True,
     )
 
     assert len(task.task_inputs) == 3
@@ -77,10 +80,11 @@ def test_search_task_record():
     # Log with 1 task input
     test_input_0 = tvm.runtime.ndarray.empty((64, 64))
     task = auto_scheduler.SearchTask(
-        func="matmul_auto_scheduler_test", args=(N, N, N), target=target,
-        task_inputs={
-            "test_input_0": test_input_0
-        }, task_inputs_overwrite=True
+        func="matmul_auto_scheduler_test",
+        args=(N, N, N),
+        target=target,
+        task_inputs={"test_input_0": test_input_0},
+        task_inputs_overwrite=True,
     )
     task_record = auto_scheduler._ffi_api.SerializeSearchTask(task)
     new_task = auto_scheduler._ffi_api.DeserializeSearchTask(task_record)
@@ -94,11 +98,14 @@ def test_search_task_record():
     # Log with multiple task inputs
     test_input_1 = tvm.runtime.ndarray.empty((64, 64))
     task = auto_scheduler.SearchTask(
-        func="matmul_auto_scheduler_test", args=(N, N, N), target=target,
+        func="matmul_auto_scheduler_test",
+        args=(N, N, N),
+        target=target,
         task_inputs={
             "test_input_0": test_input_0,
             "test_input_1": test_input_1,
-        }, task_inputs_overwrite=True
+        },
+        task_inputs_overwrite=True,
     )
     task_record = auto_scheduler._ffi_api.SerializeSearchTask(task)
     new_task = auto_scheduler._ffi_api.DeserializeSearchTask(task_record)
@@ -142,10 +149,13 @@ def test_recover_measure_input_with_task_input():
     # Log with 1 task input
     test_input_0 = tvm.runtime.ndarray.empty((64, 64))
     task = auto_scheduler.SearchTask(
-        func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm",
+        func=matmul_auto_scheduler_test,
+        args=(512, 512, 512),
+        target="llvm",
         task_inputs={
             "test_input_0": test_input_0,
-        }, task_inputs_overwrite=True
+        },
+        task_inputs_overwrite=True,
     )
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
@@ -162,11 +172,14 @@ def test_recover_measure_input_with_task_input():
     # Log with multiple task inputs
     test_input_1 = tvm.runtime.ndarray.empty((64, 64))
     task = auto_scheduler.SearchTask(
-        func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm",
+        func=matmul_auto_scheduler_test,
+        args=(512, 512, 512),
+        target="llvm",
         task_inputs={
             "test_input_0": test_input_0,
             "test_input_1": test_input_1,
-        }, task_inputs_overwrite=True
+        },
+        task_inputs_overwrite=True,
     )
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
