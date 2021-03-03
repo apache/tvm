@@ -2138,12 +2138,40 @@ def _test_sparse_segment_sum_sqrt_n(
             )
 
         _ = tf.sparse.segment_sqrt_n(
-            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sum"
+            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sum_sqrt_n"
         )
         compare_tf_with_tvm(
             [data_np, indices_np, segment_ids_np],
             [data.name, indices.name, segment_ids.name],
-            ["sparse_segment_sum:0"],
+            ["sparse_segment_sum_sqrt_n:0"],
+            mode="vm",
+        )
+
+
+def _test_sparse_segment_mean(data_np, indices_np, segment_ids_np, num_segments, use_dyn=False):
+    with tf.Graph().as_default():
+        if use_dyn:
+            data = tf.placeholder(
+                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
+            )
+            indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
+            segment_ids = tf.placeholder(
+                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+        else:
+            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            segment_ids = tf.placeholder(
+                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+
+        _ = tf.sparse.segment_mean(
+            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_mean"
+        )
+        compare_tf_with_tvm(
+            [data_np, indices_np, segment_ids_np],
+            [data.name, indices.name, segment_ids.name],
+            ["sparse_segment_mean:0"],
             mode="vm",
         )
 
@@ -2158,7 +2186,7 @@ def _test_sparse_segment_sum_sqrt_n(
             None,
         ),
         (
-            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float32),
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
             np.array([0, 1], dtype=np.int32),
             np.array([0, 2], dtype=np.int32),
             4,
@@ -2176,7 +2204,7 @@ def _test_sparse_segment_sum_sqrt_n(
             None,
         ),
         (
-            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float64),
             np.array([0, 1, 2], dtype=np.int32),
             np.array([0, 0, 1], dtype=np.int32),
             None,
@@ -2214,6 +2242,7 @@ def test_forward_sparse_segment_sum_variants(
     """sparse segment sum variants tests"""
     _test_sparse_segment_sum_sqrt_n(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
     _test_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
+    _test_sparse_segment_mean(data_np, indices_np, segment_ids_np, num_segments, use_dyn)
 
 
 #######################################################################

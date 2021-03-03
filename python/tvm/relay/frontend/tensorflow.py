@@ -1204,7 +1204,7 @@ def _sparse_segment_sum_sqrtn():
         max_ones = _op.reshape(
             _op.max(_op.concatenate([max_segments, _op.shape_of(inputs[2])], 0)), -1
         )
-        counts = _op.segment_sum(_op.ones(max_ones, "int32"), inputs[2])
+        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2])
         real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
         real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
 
@@ -1243,7 +1243,7 @@ def _sparse_segment_sum_sqrtn_with_num_segments():
             ),
             -1,
         )
-        counts = _op.segment_sum(_op.ones(max_ones, "int32"), inputs[2], num_segments)
+        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2], num_segments)
         real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
         real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
 
@@ -1260,6 +1260,77 @@ def _sparse_segment_sum_sqrtn_with_num_segments():
         )
         strided_sqrt_counts_tiled = _op.transpose(
             _op.tile(real_sqrt_counts, strided_sqrt_counts_tiled_shape)
+        )
+        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+
+    return _impl
+
+
+def _sparse_segment_mean():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        # This snippet calculates the sqrt count of each index among all valid
+        # indices(from 0 to max of segment ids)
+
+        max_segments = _op.reshape(_op.max(inputs[2]), -1) + _expr.const([1])
+        max_ones = _op.reshape(
+            _op.max(_op.concatenate([max_segments, _op.shape_of(inputs[2])], 0)), -1
+        )
+        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2])
+        real_counts = _op.clip(counts, 1.0, 2147483647.0)  # Clip max doesn't work over int32
+
+        # Calculate regular segment sum
+        segment_sum = _op.segment_sum(data, inputs[2])
+
+        # To enable row-wise division of segment_sum and real_sqrt_counts, it must be tiled to the
+        # appropriate shape first
+        segment_sum_offrow_shape = _op.strided_slice(
+            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
+        )
+        strided_sqrt_counts_tiled_shape = _op.concatenate(
+            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
+        )
+        strided_sqrt_counts_tiled = _op.transpose(
+            _op.tile(real_counts, strided_sqrt_counts_tiled_shape)
+        )
+        return _op.divide(segment_sum, strided_sqrt_counts_tiled)
+
+    return _impl
+
+
+def _sparse_segment_mean_with_num_segments():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        num_segments = int(inputs[3].data.asnumpy().item())
+        # This snippet calculates the sqrt count of each index among all valid
+        # indices(from 0 to max of [segment ids, num_segments])
+        max_segments = _op.reshape(_op.max(inputs[2]), -1) + _expr.const([1])
+        max_ones = _op.reshape(
+            _op.max(
+                _op.concatenate(
+                    [max_segments, _op.shape_of(inputs[2]), _expr.const([num_segments])], 0
+                )
+            ),
+            -1,
+        )
+        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2], num_segments)
+        real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
+
+        # Calculate regular segment sum
+        segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
+
+        # To enable row-wise division of segment_sum and real_sqrt_counts, it must be tiled to the
+        # appropriate shape first
+        segment_sum_offrow_shape = _op.strided_slice(
+            _op.shape_of(segment_sum, "int32"), [1], [-1], slice_mode="size"
+        )
+        strided_sqrt_counts_tiled_shape = _op.concatenate(
+            [_op.reverse(segment_sum_offrow_shape, 0), _expr.const([1])], axis=0
+        )
+        strided_sqrt_counts_tiled = _op.transpose(
+            _op.tile(real_counts, strided_sqrt_counts_tiled_shape)
         )
         return _op.divide(segment_sum, strided_sqrt_counts_tiled)
 
@@ -2765,6 +2836,8 @@ _convert_map = {
     "SparseSegmentSumWithNumSegments": _sparse_segment_sum_with_num_segments(),
     "SparseSegmentSqrtN": _sparse_segment_sum_sqrtn(),
     "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sum_sqrtn_with_num_segments(),
+    "SparseSegmentMean": _sparse_segment_mean(),
+    "SparseSegmentMeanWithNumSegments": _sparse_segment_mean_with_num_segments(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
