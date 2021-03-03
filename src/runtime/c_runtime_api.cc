@@ -204,6 +204,20 @@ void DeviceAPI::SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src,
   LOG(FATAL) << "Device does not support stream api.";
 }
 
+void DeviceAPI::StreamBeginCapture(TVMContext ctx, TVMStreamHandle stream) {
+  LOG(FATAL) << "Device does not support graph capture";
+}
+
+void DeviceAPI::StreamRunCapture(TVMContext ctx, TVMStreamHandle stream, TVMObjectHandle captured) {
+  LOG(FATAL) << "Device does not support graph run";
+}
+
+TVMObjectHandle DeviceAPI::StreamEndCapture(TVMContext ctx, TVMStreamHandle stream) {
+  LOG(FATAL) << "Device does not support graph capture";
+  return nullptr;
+}
+
+
 //--------------------------------------------------------
 // Error handling mechanism
 // -------------------------------------------------------

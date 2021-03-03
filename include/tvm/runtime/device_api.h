@@ -144,11 +144,30 @@ class TVM_DLL DeviceAPI {
    */
   virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
 
-  virtual void StreamBeginCapture(TVMContext ctx, TVMStreamHandle stream) {}
+  /*!
+   * \brief Set the stream in capture mode
+   *
+   * \param ctx The context to perform operation.
+   * \param stream The stream to be set.
+   */
+  virtual void StreamBeginCapture(TVMContext ctx, TVMStreamHandle stream);
 
-  virtual void StreamRunCapture(TVMContext ctx, TVMStreamHandle stream, TVMObjectHandle captured) {}
+  /*!
+   * \brief Run a captured graph on stream
+   *
+   * \param ctx The context to perform operation.
+   * \param stream The stream to be set.
+   * \param captured The captured graph returned by StreamEndCapture
+   */
+  virtual void StreamRunCapture(TVMContext ctx, TVMStreamHandle stream, TVMObjectHandle captured);
 
-  virtual TVMObjectHandle StreamEndCapture(TVMContext ctx, TVMStreamHandle stream) {}
+  /*!
+   * \brief Stop the stream graph capture, return captured
+   *
+   * \param ctx The context to perform operation.
+   * \param stream The stream to be set.
+   */
+  virtual TVMObjectHandle StreamEndCapture(TVMContext ctx, TVMStreamHandle stream);
 
   /*!
    * \brief Synchronize 2 streams of execution.
