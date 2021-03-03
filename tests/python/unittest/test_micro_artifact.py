@@ -17,6 +17,7 @@
 
 """Unit tests for the artifact module."""
 
+import pytest
 import json
 import os
 import shutil
@@ -24,6 +25,8 @@ import tvm
 
 from tvm.contrib import utils
 
+pytest.importorskip("tvm.micro")
+from tvm.micro import artifact
 
 FILE_LIST = ["label1", "label2", "label12", "unlabelled"]
 

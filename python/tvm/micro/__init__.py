@@ -23,5 +23,10 @@ from .compiler import Compiler, DefaultCompiler, Flasher
 from .debugger import GdbRemoteDebugger
 from .micro_library import MicroLibrary
 from .micro_binary import MicroBinary
-from .session import create_local_graph_runtime, Session, SessionTerminatedError
+from .session import (
+    create_local_graph_runtime,
+    create_local_debug_runtime,
+    Session,
+    SessionTerminatedError,
+)
 from .transport import TransportLogger, DebugWrapperTransport, SubprocessTransport

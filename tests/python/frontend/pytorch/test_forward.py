@@ -736,7 +736,16 @@ def test_forward_maxpool2d():
             output, indices = self.pool(args[0])
             return output
 
+    class MaxPool2DWithIntStrides(Module):
+        def forward(self, *args):
+            # Makes kernel_size and strides a Relay expr to test converting back to int
+            x_shape = args[0].shape
+            kernel_size = [torch.tensor(x_shape[1]).int(), torch.tensor(x_shape[1]).int()]
+            strides = [torch.tensor(x_shape[0]).int(), torch.tensor(x_shape[0]).int()]
+            return torch.nn.functional.max_pool2d(args[0], kernel_size=[4, 4], stride=strides)
+
     verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+    verify_model(MaxPool2DWithIntStrides().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1497,6 +1506,31 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+def test_forward_narrow():
+    torch.set_grad_enabled(False)
+    input_shape = [3, 3]
+
+    class Narrow1(Module):
+        def forward(self, *args):
+            return torch.narrow(args[0], 0, 0, 2)
+
+    class Narrow2(Module):
+        def forward(self, *args):
+            return torch.narrow(args[0], 1, 1, 2)
+
+    class Narrow3(Module):
+        def forward(self, *args):
+            begin = torch.tensor(2) - torch.tensor(1)
+            length = torch.tensor(1) * torch.tensor(2)
+            return torch.narrow(args[0], 1, begin, length)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Narrow1(), input_data=input_data)
+    verify_model(Narrow2(), input_data=input_data)
+    verify_model(Narrow3(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_mean():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1948,7 +1982,7 @@ def test_custom_conversion_map():
 
 
 @tvm.testing.uses_gpu
-def test_segmentaton_models():
+def test_segmentation_models():
     class SegmentationModelWrapper(Module):
         def __init__(self, model):
             super().__init__()
@@ -2064,7 +2098,12 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
             pt_result = input_model(*input_data)
 
         # Verify the accuracy
-        if not isinstance(pt_result, torch.Tensor):
+        if isinstance(pt_result, tuple):
+            # handle multiple outputs
+            for i in range(len(pt_result)):
+                tvm_res = vm_res[i].asnumpy()
+                tvm.testing.assert_allclose(tvm_res, pt_result[i].numpy(), rtol=1e-5, atol=1e-5)
+        elif not isinstance(pt_result, torch.Tensor):
             tvm_res = vm_res.asnumpy().item()
             assert pt_result == tvm_res
         else:
@@ -3654,6 +3693,23 @@ def test_masked_select():
         verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
 
 
+def test_unique():
+    def test_fn(is_sorted, return_inverse, return_counts):
+        return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
+
+    in_data = torch.randint(0, 20, (10,), dtype=torch.int32)
+    targets = ["llvm", "cuda", "nvptx"]
+    verify_trace_model(test_fn(True, True, True), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    verify_trace_model(test_fn(True, True, False), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    in_data = torch.randint(0, 20, (20,), dtype=torch.int64)
+    verify_trace_model(test_fn(True, True, True), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    verify_trace_model(test_fn(True, True, False), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3727,6 +3783,7 @@ if __name__ == "__main__":
     test_forward_avgpool3d()
     test_forward_dropout()
     test_forward_slice()
+    test_forward_narrow()
     test_forward_mean()
     test_forward_expand()
     test_forward_pow()
@@ -3780,6 +3837,7 @@ if __name__ == "__main__":
     test_forward_unbind()
     test_forward_nonzero()
     test_forward_scatter()
+    test_forward_index_put()
     test_numel()
     test_bincount()
     test_cumsum()
@@ -3789,6 +3847,7 @@ if __name__ == "__main__":
     test_argsort()
     test_logical_and()
     test_masked_select()
+    test_unique()
 
     # Model tests
     test_resnet18()
@@ -3804,7 +3863,7 @@ if __name__ == "__main__":
 
     test_custom_conversion_map()
 
-    test_segmentaton_models()
+    test_segmentation_models()
     test_3d_models()
 
     # Quantization test

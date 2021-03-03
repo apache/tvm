@@ -116,11 +116,13 @@ class XGBModel(PythonBasedModel):
             if xgb is None:
                 xgb = __import__("xgboost")
         except ImportError:
+            # add "from Node" to silence
+            # "During handling of the above exception, another exception occurred"
             raise ImportError(
                 "XGBoost is required for XGBModel. "
                 "Please install its python package first. "
                 "Help: (https://xgboost.readthedocs.io/en/latest/) "
-            )
+            ) from None
 
         self.xgb_params = {
             "max_depth": 10,
