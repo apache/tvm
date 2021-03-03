@@ -59,7 +59,6 @@
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/container.h>
 #include <tvm/runtime/container.h>
 #include <tvm/support/with.h>
 

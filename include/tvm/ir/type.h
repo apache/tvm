@@ -50,8 +50,8 @@
 #define TVM_IR_TYPE_H_
 
 #include <tvm/ir/span.h>
-#include <tvm/node/container.h>
 #include <tvm/node/node.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 

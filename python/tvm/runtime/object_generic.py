@@ -64,7 +64,7 @@ def convert_to_object(value, span=None):
         return _ffi_api.String(value)
     if isinstance(value, (list, tuple)):
         value = [convert_to_object(x) for x in value]
-        return _ffi_node_api.Array(*value)
+        return _ffi_api.Array(*value)
     if isinstance(value, dict):
         vlist = []
         for item in value.items():
@@ -72,7 +72,7 @@ def convert_to_object(value, span=None):
                 raise ValueError("key of map must already been a container type")
             vlist.append(item[0])
             vlist.append(convert_to_object(item[1]))
-        return _ffi_node_api.Map(*vlist)
+        return _ffi_api.Map(*vlist)
     if isinstance(value, ObjectGeneric):
         return value.asobject()
     if value is None:
