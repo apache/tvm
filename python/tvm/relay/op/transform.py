@@ -1454,7 +1454,7 @@ def segment_sum(data, segment_ids, num_segments=None):
     """
     Computes the sum along segment_ids along axis 0. If multiple segment_ids reference the same
     location their contributions add up.
-    result[index] = Σi... data[i...] where index = segment_ids[i]
+    result[index, j, k, ...] = Σi... data[i, j, k,..] where index = segment_ids[i]
     This op is much better understood with visualization articulated in the following links and
     examples at the end of this docstring.
 
