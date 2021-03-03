@@ -1206,19 +1206,25 @@ def row_wise_divide(multi_dim_tensor, one_dim_vector):
     return _op.divide(multi_dim_tensor, one_dim_vector_tiled)
 
 
+def count_all_indices(segment_ids, counts_dtype, num_segments=None):
+    # This snippet calculates the sqrt count of each index among all valid
+    # indices(from 0 to max of [segment ids, num_segments])
+    max_segments = _op.reshape(_op.max(segment_ids), -1) + _expr.const([1])
+    if num_segments:
+        max_segments = _op.maximum(max_segments, _expr.const([num_segments]))
+    max_ones = _op.maximum(max_segments, _op.shape_of(segment_ids))
+    counts = _op.segment_sum(
+        _op.ones(max_ones, counts_dtype), segment_ids, num_segments=num_segments
+    )
+    real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
+    return real_counts
+
+
 def _sparse_segment_sum_sqrtn():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        # This snippet calculates the sqrt count of each index among all valid
-        # indices(from 0 to max of segment ids)
-
-        max_segments = _op.reshape(_op.max(inputs[2]), -1) + _expr.const([1])
-        max_ones = _op.reshape(
-            _op.max(_op.concatenate([max_segments, _op.shape_of(inputs[2])], 0)), -1
-        )
-        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2])
-        real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
+        real_counts = count_all_indices(inputs[2], attr["T"].name)
         real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
 
         # Calculate regular segment sum
@@ -1234,19 +1240,7 @@ def _sparse_segment_sum_sqrtn_with_num_segments():
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
         num_segments = int(inputs[3].data.asnumpy().item())
-        # This snippet calculates the sqrt count of each index among all valid
-        # indices(from 0 to max of [segment ids, num_segments])
-        max_segments = _op.reshape(_op.max(inputs[2]), -1) + _expr.const([1])
-        max_ones = _op.reshape(
-            _op.max(
-                _op.concatenate(
-                    [max_segments, _op.shape_of(inputs[2]), _expr.const([num_segments])], 0
-                )
-            ),
-            -1,
-        )
-        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2], num_segments)
-        real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
+        real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
         real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
 
         # Calculate regular segment sum
@@ -1261,15 +1255,7 @@ def _sparse_segment_mean():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        # This snippet calculates the sqrt count of each index among all valid
-        # indices(from 0 to max of segment ids)
-
-        max_segments = _op.reshape(_op.max(inputs[2]), -1) + _expr.const([1])
-        max_ones = _op.reshape(
-            _op.max(_op.concatenate([max_segments, _op.shape_of(inputs[2])], 0)), -1
-        )
-        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2])
-        real_counts = _op.clip(counts, 1.0, 2147483647.0)  # Clip max doesn't work over int32
+        real_counts = count_all_indices(inputs[2], attr["T"].name)
 
         # Calculate regular segment sum
         segment_sum = _op.segment_sum(data, inputs[2])
@@ -1284,19 +1270,7 @@ def _sparse_segment_mean_with_num_segments():
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
         num_segments = int(inputs[3].data.asnumpy().item())
-        # This snippet calculates the sqrt count of each index among all valid
-        # indices(from 0 to max of [segment ids, num_segments])
-        max_segments = _op.reshape(_op.max(inputs[2]), -1) + _expr.const([1])
-        max_ones = _op.reshape(
-            _op.max(
-                _op.concatenate(
-                    [max_segments, _op.shape_of(inputs[2]), _expr.const([num_segments])], 0
-                )
-            ),
-            -1,
-        )
-        counts = _op.segment_sum(_op.ones(max_ones, attr["T"].name), inputs[2], num_segments)
-        real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
+        real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
 
         # Calculate regular segment sum
         segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
