@@ -25,8 +25,6 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from scipy.stats import norm
 from .. import feature
-from ..utils import get_rank
-from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
 
 logger = logging.getLogger("autotvm")
@@ -85,6 +83,8 @@ class RFEICostModel(CostModel):
         random_state=2,
         max_features=10,
     ):
+        super(RFEICostModel, self).__init__()
+
         self.task = task
         self.target = task.target
         self.space = task.config_space
