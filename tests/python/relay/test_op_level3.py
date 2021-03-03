@@ -1024,7 +1024,26 @@ def test_scatter():
 
 
 @tvm.testing.uses_gpu
-def test_scatter_add():
+@pytest.mark.parametrize(
+    "dshape, ishape, axis, dtype",
+    [
+        ((10,), (10,), 0, "int32"),
+        ((1000,), (1000,), 0, "float32"),
+        ((1000,), (1000,), 0, "int32"),
+        ((10, 5), (10, 5), -2, "float32"),
+        ((10, 5), (10, 5), -1, "float32"),
+        ((10, 5), (3, 5), 0, "float32"),
+        ((12, 4), (7, 2), 1, "float32"),
+        ((2, 3, 4), (1, 3, 4), 0, "float32"),
+        ((2, 3, 4), (2, 1, 4), 1, "float32"),
+        ((2, 3, 4), (2, 3, 1), 2, "float32"),
+        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32"),
+        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32"),
+        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32"),
+    ],
+)
+def test_scatter_add(dshape, ishape, axis, dtype):
     def ref_scatter_add(data, indices, updates, axis=0):
         output = np.copy(data)
         for index in np.ndindex(*indices.shape):
@@ -1034,9 +1053,9 @@ def test_scatter_add():
         return output
 
     def verify_scatter_add(dshape, ishape, axis=0, dtype="float32"):
-        d = relay.var("d", relay.TensorType(dshape, dtype))
-        i = relay.var("i", relay.TensorType(ishape, "int64"))
-        u = relay.var("u", relay.TensorType(ishape, dtype))
+        d = relay.var("d", relay.TensorType(shape=[relay.Any() for _ in dshape], dtype=dtype))
+        i = relay.var("i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype="int64"))
+        u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
         z = relay.op.scatter_add(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
@@ -1046,31 +1065,14 @@ def test_scatter_add():
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                if target == "nvptx" and dtype == "float32" and len(dshape) == 1:
-                    # scatter_add 1D on GPU is implemented via atomic.
-                    # Floating point atomic requires LLVM 9 or newer for nvptx backend.
-                    # But LLVM on CI is LLVM 8.
-                    continue
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    verify_scatter_add((10,), (10,), 0, dtype="int32")
-    verify_scatter_add((1000,), (1000,))
-    verify_scatter_add((1000,), (1000,), 0, dtype="int32")
-    verify_scatter_add((10, 5), (10, 5), -2)
-    verify_scatter_add((10, 5), (10, 5), -1)
-    verify_scatter_add((10, 5), (3, 5), 0)
-    verify_scatter_add((12, 4), (7, 2), 1)
-    verify_scatter_add((2, 3, 4), (1, 3, 4), 0)
-    verify_scatter_add((2, 3, 4), (2, 1, 4), 1)
-    verify_scatter_add((2, 3, 4), (2, 3, 1), 2)
-    verify_scatter_add((2, 3, 4, 5), (1, 3, 4, 5), 0)
-    verify_scatter_add((6, 3, 4, 5), (2, 3, 4, 5), 1)
-    verify_scatter_add((2, 3, 8, 5), (2, 3, 1, 1), 2)
-    verify_scatter_add((16, 16, 4, 5), (16, 16, 4, 5), 3)
+        verify_func(
+            func,
+            [data_np, indices_np, updates_np],
+            ref_res,
+        )
+
+    verify_scatter_add(dshape, ishape, axis, dtype)
 
 
 @tvm.testing.uses_gpu
