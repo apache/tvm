@@ -130,17 +130,18 @@ Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 
 target = tvm.target.Target("llvm -mcpu=core-avx2")
 
+# Register the sparse data to special buffer
+prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
 task = tvm.auto_scheduler.SearchTask(
     func=sparse_dense,
     args=(M, N, K, W_sp_np.data.shape, W_sp_np.indices.shape, W_sp_np.indptr.shape, "float32"),
     target=target,
+    task_inputs={
+        prefix + "W_data": runtime.ndarray.array(W_sp_np.data),
+        prefix + "W_indices": runtime.ndarray.array(W_sp_np.indices),
+        prefix + "W_indptr": runtime.ndarray.array(W_sp_np.indptr),
+    }
 )
-
-# Register the sparse data to special buffer
-prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
-task.add_task_input(prefix + "W_data", runtime.ndarray.array(W_sp_np.data))
-task.add_task_input(prefix + "W_indices", runtime.ndarray.array(W_sp_np.indices))
-task.add_task_input(prefix + "W_indptr", runtime.ndarray.array(W_sp_np.indptr))
 
 # Inspect the computational graph
 print("Computational DAG:")

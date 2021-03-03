@@ -223,7 +223,7 @@ def recover_measure_input(inp, rebuild_state=False):
         target_host=task.target_host,
         hardware_params=task.hardware_params,
         layout_rewrite_option=task.layout_rewrite_option,
-        task_inputs=task.task_inputs,
+        task_inputs=list(task.task_inputs),
     )
 
     if rebuild_state:
@@ -763,6 +763,8 @@ def _timed_eval_func(
     enable_cpu_cache_flush,
     verbose,
 ):
+    from .search_task import get_task_input_buffer
+
     inp = MeasureInput.deserialize(inp_serialized)
     task_inputs = inp.task.task_inputs
     tic = time.time()
@@ -802,7 +804,7 @@ def _timed_eval_func(
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
                     if tensor_name in task_inputs:
-                        args.append(task_inputs[tensor_name])
+                        args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
                     else:
                         raise ValueError(
                             "%s not found in task_inputs, " % (tensor_name)
@@ -960,6 +962,8 @@ def _timed_rpc_run(
     enable_cpu_cache_flush,
     verbose,
 ):
+    from .search_task import get_task_input_buffer
+
     inp = MeasureInput.deserialize(inp_serialized)
     task_inputs = inp.task.task_inputs
     tic = time.time()
@@ -1004,7 +1008,7 @@ def _timed_rpc_run(
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
                     if tensor_name in task_inputs:
-                        args.append(task_inputs[tensor_name])
+                        args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
                     else:
                         raise ValueError(
                             "%s not found in task_inputs, " % (tensor_name)

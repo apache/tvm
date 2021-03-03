@@ -335,7 +335,8 @@ class SearchTask(Object):
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
         op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
         network.
-    task_inputs : Optional[Dict[str, Tensor]]
+    task_inputs : Union[Dict[str, tvm.nd.NDArray], List[str]]
+        A dict maps the input names to input tensors or a list of input names.
         Some special Tensor used as inputs in program measuring. Usually we do not need to care
         about it, but for special workloads like Sparse computation the Sparse Tensor input are
         meaningful that we cannot use random input directly.
@@ -371,7 +372,7 @@ class SearchTask(Object):
         target_host=None,
         hardware_params=None,
         layout_rewrite_option=None,
-        task_inputs={},
+        task_inputs=None,
         task_inputs_overwrite=False,
         task_inputs_save_to_file=False,
     ):
@@ -394,12 +395,20 @@ class SearchTask(Object):
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
 
         task_input_names = []
-        for input_name in task_inputs:
-            register_task_input_buffer(
-                workload_key, input_name, task_inputs[input_name], task_inputs_overwrite,
-                task_inputs_save_to_file
-            )
-            task_input_names.append(input_name)
+        if isinstance(task_inputs, list):
+            task_input_names = task_inputs
+        elif isinstance(task_inputs, dict):
+            for input_name in task_inputs:
+                register_task_input_buffer(
+                    workload_key,
+                    input_name,
+                    task_inputs[input_name],
+                    task_inputs_overwrite,
+                    task_inputs_save_to_file,
+                )
+                task_input_names.append(input_name)
+        elif task_inputs is not None:
+            raise ValueError("task_inputs should be a dict or a list.")
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
