@@ -514,6 +514,34 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->StartLabel(merge_label);
 }
 
+void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
+  spirv::Label head_label = builder_->NewLabel();
+  spirv::Label body_label = builder_->NewLabel();
+  spirv::Label continue_label = builder_->NewLabel();
+  spirv::Label merge_label = builder_->NewLabel();
+  builder_->MakeInst(spv::OpBranch, head_label);
+
+  // Loop head
+  builder_->StartLabel(head_label);
+  spirv::Value loop_cond = MakeValue(op->condition);
+  uint32_t control = spv::LoopControlMaskNone;
+  builder_->MakeInst(spv::OpLoopMerge, merge_label, continue_label, control);
+  builder_->MakeInst(spv::OpBranchConditional, loop_cond, body_label, merge_label,
+                     weight_likely_branch_, 1);
+
+  // loop body
+  builder_->StartLabel(body_label);
+  this->VisitStmt(op->body);
+  builder_->MakeInst(spv::OpBranch, continue_label);
+
+  // loop continue
+  builder_->StartLabel(continue_label);
+  builder_->MakeInst(spv::OpBranch, head_label);
+
+  // loop merge
+  builder_->StartLabel(merge_label);
+}
+
 void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
