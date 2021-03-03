@@ -2079,6 +2079,7 @@ def test_forward_sparse_reshape(
     # ------------------------------------------------------------------
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn)
 
+
 #######################################################################
 # Sparse Segment Variants
 # ------------
