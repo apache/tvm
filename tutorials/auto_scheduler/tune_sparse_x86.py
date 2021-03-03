@@ -219,7 +219,8 @@ def apply_func(search_policy, state, stage_id):
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use :code:`RecordToFile` to dump measurement records into a file `matmul.json`.
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a file
+#   `sparse_dense.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
 # * see :any:`auto_scheduler.TuningOptions` for more parameters
@@ -228,7 +229,7 @@ def apply_func(search_policy, state, stage_id):
 
 log_file = "sparse_dense.json"
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=2,
+    num_measure_trials=10,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     verbose=2,
 )
@@ -250,7 +251,10 @@ search_policy = auto_scheduler.SketchPolicy(
 # file and apply it.
 
 # Run auto-tuning (search)
-task.tune(tune_option, search_policy)
+# Notice: We do not run the tuning in our webpage server since it takes too long.
+# Uncomment the following line to run it by yourself.
+# task.tune(tune_option, search_policy)
+
 # Apply the best schedule
 sch, args = task.apply_best(log_file)
 
@@ -292,3 +296,45 @@ print(
         * 1000
     )
 )
+
+######################################################################
+# .. note:: Tuning result example
+#
+#   .. code-block:: c
+#
+#    ----------------------------------------------------------------------
+#    Lowered TIR:
+#    primfn(placeholder_5: handle, placeholder_6: handle, placeholder_7: handle, placeholder_8: handle, placeholder_9: handle, compute_1: handle) -> ()
+#      attr = {"global_symbol": "main", "tir.noalias": True}
+#      buffers = {placeholder_2: Buffer(placeholder_10: Pointer(float32), float32, [9831, 16, 1], []),
+#                 placeholder_4: Buffer(placeholder_11: Pointer(int32), int32, [33], []),
+#                 placeholder_3: Buffer(placeholder_12: Pointer(float32), float32, [512, 512], []),
+#                 compute: Buffer(compute_2: Pointer(float32), float32, [512, 512], []),
+#                 placeholder_1: Buffer(placeholder_13: Pointer(float32), float32, [512, 512], []),
+#                 placeholder: Buffer(placeholder_14: Pointer(int32), int32, [9831], [])}
+#      buffer_map = {placeholder_7: placeholder, placeholder_9: placeholder_1, placeholder_6: placeholder_2, compute_1: compute, placeholder_5: placeholder_3, placeholder_8: placeholder_4} {
+#      for (i0.outer.i1.outer.fused: int32, 0, 1024) "parallel" {
+#        attr [compute_3: Pointer(float32)] "storage_scope" = "global";
+#        allocate(compute_3, float32, [256]) {
+#          for (nb_j.inner: int32, 0, 2) {
+#            for (i.inner.init: int32, 0, 8) {
+#              for (j.init: int32, 0, 16) {
+#                compute_3[(((i.inner.init*32) + (nb_j.inner*16)) + j.init)] = 0f32
+#              }
+#            }
+#            for (elem_idx: int32, 0, ((int32*)placeholder_11[(((floormod(i0.outer.i1.outer.fused, 16)*2) + nb_j.inner) + 1)] - (int32*)placeholder_11[((floormod(i0.outer.i1.outer.fused, 16)*2) + nb_j.inner)])) {
+#              for (i.inner: int32, 0, 8) {
+#                for (j: int32, 0, 16) {
+#                  compute_3[(((i.inner*32) + (nb_j.inner*16)) + j)] = ((float32*)compute_3[(((i.inner*32) + (nb_j.inner*16)) + j)] + ((float32*)placeholder_10[((((int32*)placeholder_11[((floormod(i0.outer.i1.outer.fused, 16)*2) + nb_j.inner)]*16) + (elem_idx*16)) + j)]*max((float32*)placeholder_12[(((floordiv(i0.outer.i1.outer.fused, 16)*4096) + (i.inner*512)) + (int32*)placeholder_14[((int32*)placeholder_11[((floormod(i0.outer.i1.outer.fused, 16)*2) + nb_j.inner)] + elem_idx)])], 0f32)))
+#                }
+#              }
+#            }
+#          }
+#          for (i0.inner: int32, 0, 8) {
+#            compute_2[ramp((((floordiv(i0.outer.i1.outer.fused, 16)*4096) + (i0.inner*512)) + (floormod(i0.outer.i1.outer.fused, 16)*32)), 1, 32)] = max(((float32x32*)compute_3[ramp((i0.inner*32), 1, 32)] + (float32x32*)placeholder_13[ramp((((floordiv(i0.outer.i1.outer.fused, 16)*4096) + (i0.inner*512)) + (floormod(i0.outer.i1.outer.fused, 16)*32)), 1, 32)]), broadcast(0f32, 32))
+#          }
+#        }
+#      }
+#    }
+#
+#    Execution time of this operator: 0.990 ms
