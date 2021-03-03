@@ -24,6 +24,7 @@ import numpy as np
 import torch
 import torchvision
 from torch.nn import Module
+from torch.nn import functional as F
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -1457,6 +1458,39 @@ def test_forward_dense():
         [("input", input_shape)],
     )
     assert not any([op.name == "multiply" for op in list_ops(mod["main"])])
+
+
+@tvm.testing.uses_gpu
+def test_forward_linear():
+    torch.set_grad_enabled(False)
+
+    class Linear(Module):
+        def forward(self, input, weight, bias):
+            return F.linear(input, weight, bias)
+
+    class LinearNoBias(Module):
+        def forward(self, input, weight):
+            return F.linear(input, weight)
+
+    input2d = torch.rand([2, 2]).float()
+    weight1d = torch.rand([2]).float()
+    weight2d = torch.rand([2, 2]).float()
+    bias1d = torch.rand([2]).float()
+    bias2d = torch.rand([2, 2]).float()
+    # 2D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input2d, weight2d, bias1d])
+    # 2D input, 2D weight, 2D bias
+    verify_model(Linear(), input_data=[input2d, weight2d, bias2d])
+    # 2D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input2d, weight2d])
+    # 2D input, 1D weight, 1D bias is not supported by torch.linear()
+    # 2D input, 1D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input2d, weight1d])
+    # TODO: Add the following cases when matmul(1D, _) is supported by TVM
+    # 1D input, 2D weight, 1D bias
+    # 1D input, 2D weight, no bias
+    # 1D input, 1D weight, scalar bias
+    # 1D input, 1D weight, no bias
 
 
 @tvm.testing.uses_gpu
