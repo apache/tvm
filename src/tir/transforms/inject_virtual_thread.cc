@@ -333,6 +333,13 @@ class VTInjector : public StmtExprMutator {
     }
   }
 
+  // While
+  Stmt VisitStmt_(const WhileNode* op) final {
+    // TODO(masahi): What should we do for While nodes?
+    LOG(FATAL) << "WhileNode in InjectVirtualThread not supported yet";
+    return Stmt();
+  }
+
   // Seq
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     ICHECK_EQ(max_loop_depth_, 0);
