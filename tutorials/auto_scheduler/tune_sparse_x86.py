@@ -28,7 +28,7 @@ not been well-supported by auto-scheduler's default sketch rules and result in p
 Fortunately, auto-scheduler currently allows user to provide a CustomSketch to cover these cases.
 
 We use sparse matrix multiplication as an example in this tutorial to demonstrate how to implement
-and plug a custom sketch rule to the auto-scheduler search policy.
+and plug a custom sketch rule to the auto-scheduler's search policy.
 
 Note that this tutorial will not run on Windows or recent versions of macOS. To
 get it to run, you will need to wrap the body of this tutorial in a :code:`if
@@ -101,7 +101,7 @@ def sparse_dense(M, N, K, w_data_shape, w_indices_shape, w_indptr_shape, dtype):
 #
 # To solve this problem, we register these as special buffers, and load them when process program
 # measuring.
-# See the :any:`auto_scheduler.measure` code for more details.
+# See the `tvm.auto_scheduler.measure.py` for more details.
 
 # Define the basic shapes of this sparse computation
 M = K = N = 512

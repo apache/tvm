@@ -1468,7 +1468,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
           Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
           task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
                             inputs[i]->task->target_host, inputs[i]->task->hardware_params,
-                            inputs[i]->task->layout_rewrite_option, {});
+                            inputs[i]->task->layout_rewrite_option, inputs[i]->task->task_inputs);
         } catch (std::exception& e) {
           // Cannot build ComputeDAG from workload key, the task may have not been registered in
           // this search round

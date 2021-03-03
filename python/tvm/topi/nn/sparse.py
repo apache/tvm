@@ -362,7 +362,7 @@ def sparse_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
 
 
 def try_get_sparse_input(args):
-    """Analise the input data from the given args.
+    """Analyze the input data from the given args.
 
     Parameters
     ----------

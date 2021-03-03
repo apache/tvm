@@ -231,7 +231,7 @@ def register_task_input_buffer(
     input_name : str
         The name of input buffer.
 
-    input_data : Tensor
+    input_data : tvm.nd.NDArray
         The input Tensor data.
 
     overwrite : bool = False
@@ -339,6 +339,11 @@ class SearchTask(Object):
         Some special Tensor used as inputs in program measuring. Usually we do not need to care
         about it, but for special workloads like Sparse computation the Sparse Tensor input are
         meaningful that we cannot use random input directly.
+    task_inputs_overwrite : bool = False
+        Whether overwrite the data if a name has already in the global table.
+    task_inputs_save_to_file : bool = False
+        Whether record this buffer to a local file. This can be reused to continue the last
+        tuning process.
 
     Examples
     --------
@@ -366,7 +371,9 @@ class SearchTask(Object):
         target_host=None,
         hardware_params=None,
         layout_rewrite_option=None,
-        task_inputs=None,
+        task_inputs={},
+        task_inputs_overwrite=False,
+        task_inputs_save_to_file=False,
     ):
         assert (
             func is not None or workload_key is not None
@@ -386,6 +393,14 @@ class SearchTask(Object):
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
 
+        task_input_names = []
+        for input_name in task_inputs:
+            register_task_input_buffer(
+                workload_key, input_name, task_inputs[input_name], task_inputs_overwrite,
+                task_inputs_save_to_file
+            )
+            task_input_names.append(input_name)
+
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             compute_dag,
@@ -394,7 +409,7 @@ class SearchTask(Object):
             target_host,
             hardware_params,
             layout_rewrite_option,
-            task_inputs or {},
+            task_input_names,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -474,29 +489,6 @@ class SearchTask(Object):
             return func.imported_modules[0].get_source()
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
-    def add_task_input(self, input_name, input_data, overwrite=False, save_to_file=False):
-        """Add a input Tensor to this task.
-
-        Parameters
-        ----------
-        input_name : str
-            The name of input buffer.
-
-        input_data : Tensor
-            The input Tensor data.
-
-        overwrite : bool = False
-            Whether overwrite the data if a name has already in the global table.
-
-        save_to_file : bool = False
-            Whether record this buffer to a local file. This can be reused to continue the last
-            tuning process.
-        """
-        register_task_input_buffer(
-            self.workload_key, input_name, input_data, overwrite, save_to_file
-        )
-        _ffi_api.SearchTaskAddTaskInput(self, input_name, input_data)
-
     def __getstate__(self):
         return {
             "compute_dag": self.compute_dag,
@@ -505,7 +497,7 @@ class SearchTask(Object):
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
-            "task_inputs": [i[0] for i in self.task_inputs.items()],
+            "task_inputs": self.task_inputs,
         }
 
     def __setstate__(self, state):
@@ -522,9 +514,6 @@ class SearchTask(Object):
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
-        task_inputs = {}
-        for data_name in state["task_inputs"]:
-            task_inputs[data_name] = get_task_input_buffer(state["workload_key"], data_name)
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             state["compute_dag"],
@@ -533,7 +522,7 @@ class SearchTask(Object):
             state["target_host"],
             state["hardware_params"],
             state["layout_rewrite_option"],
-            task_inputs,
+            state["task_inputs"],
         )
 
 

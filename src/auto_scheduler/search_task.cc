@@ -115,7 +115,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
                        LayoutRewriteOption layout_rewrite_option,
-                       Map<String, runtime::NDArray> task_inputs) {
+                       Array<String> task_inputs) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -132,13 +132,6 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
   data_ = std::move(node);
 }
 
-void SearchTask::AddTaskInput(String data_name, runtime::NDArray data) {
-  if (operator->()->task_inputs.count(data_name)) {
-    LOG(WARNING) << data_name << " already in memory";
-  }
-  static_cast<SearchTaskNode*>(get_mutable())->task_inputs.Set(data_name, data);
-}
-
 TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
     .set_body_typed([](int num_cores, int vector_unit_bytes, int cache_line_bytes,
                        int max_shared_memory_per_block, int max_local_memory_per_block,
@@ -151,14 +144,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
-                       int layout_rewrite_option, Map<String, runtime::NDArray> task_inputs) {
+                       int layout_rewrite_option, Array<String> task_inputs) {
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
                         LayoutRewriteOption(layout_rewrite_option), task_inputs);
-    });
-
-TVM_REGISTER_GLOBAL("auto_scheduler.SearchTaskAddTaskInput")
-    .set_body_typed([](SearchTask search_task, String input_name, runtime::NDArray input_data) {
-      search_task.AddTaskInput(input_name, input_data);
     });
 
 }  // namespace auto_scheduler
