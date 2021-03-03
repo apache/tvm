@@ -239,12 +239,14 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     if (op->args[1]->dtype.is_float()) {
 #if TVM_LLVM_VERSION >= 90
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
+                                       llvm::MaybeAlign::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);
 #else
       LOG(FATAL) << "Floating point atomic requires LLVM 9 or newer";
 #endif
     }
     return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
+                                     llvm::MaybeAlign::MaybeAlign(),
                                      llvm::AtomicOrdering::Monotonic);
   }
   return CodeGenLLVM::CreateIntrinsic(op);
