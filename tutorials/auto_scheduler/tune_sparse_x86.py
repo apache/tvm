@@ -140,7 +140,7 @@ task = tvm.auto_scheduler.SearchTask(
         prefix + "W_data": runtime.ndarray.array(W_sp_np.data),
         prefix + "W_indices": runtime.ndarray.array(W_sp_np.indices),
         prefix + "W_indptr": runtime.ndarray.array(W_sp_np.indptr),
-    }
+    },
 )
 
 # Inspect the computational graph
