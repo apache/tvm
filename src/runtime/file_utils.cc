@@ -23,6 +23,7 @@
 #include "file_utils.h"
 
 #include <dmlc/json.h>
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/serializer.h>
 #include <tvm/support/logging.h>
 
