@@ -204,20 +204,6 @@ void DeviceAPI::SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src,
   LOG(FATAL) << "Device does not support stream api.";
 }
 
-void DeviceAPI::StreamBeginCapture(TVMContext ctx, TVMStreamHandle stream) {
-  LOG(FATAL) << "Device does not support graph capture";
-}
-
-void DeviceAPI::StreamRunCapture(TVMContext ctx, TVMStreamHandle stream, TVMObjectHandle captured) {
-  LOG(FATAL) << "Device does not support graph run";
-}
-
-TVMObjectHandle DeviceAPI::StreamEndCapture(TVMContext ctx, TVMStreamHandle stream) {
-  LOG(FATAL) << "Device does not support graph capture";
-  return nullptr;
-}
-
-
 //--------------------------------------------------------
 // Error handling mechanism
 // -------------------------------------------------------
@@ -574,37 +560,6 @@ int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
   DeviceAPIManager::Get(ctx)->SetStream(ctx, stream);
-  API_END();
-}
-
-int TVMStreamBeginCapture(int device_type, int device_id,
-                          TVMStreamHandle stream) {
-  API_BEGIN();
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  DeviceAPIManager::Get(ctx)->StreamBeginCapture(ctx, stream);
-  API_END();
-}
-
-int TVMStreamEndCapture(int device_type, int device_id,
-                        TVMStreamHandle stream,
-                        TVMObjectHandle *cuda_graph) {
-  API_BEGIN();
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  *cuda_graph = DeviceAPIManager::Get(ctx)->StreamEndCapture(ctx, stream);
-  API_END();
-}
-
-int TVMStreamRunCapture(int device_type, int device_id,
-                        TVMStreamHandle stream, TVMObjectHandle captured) {
-  API_BEGIN();
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  DeviceAPIManager::Get(ctx)->StreamRunCapture(ctx, stream, captured);
   API_END();
 }
 
