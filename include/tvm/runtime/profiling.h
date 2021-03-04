@@ -71,6 +71,8 @@ class TimerNode : public Object {
 };
 
 /*! \brief Timer for a specific device.
+ *
+ * This is a managed reference to a TimerNode.
  */
 class Timer : public ObjectRef {
  public:
