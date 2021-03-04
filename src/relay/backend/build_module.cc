@@ -235,8 +235,15 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target_host Host target device
    */
   void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+    // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
+    for (const auto &iter : targets) {
+      // Construct a new target with target host filed if available
+      targets_.Set(iter.first, Target(iter.second, target_host_));
+      target_host_ = targets_[iter.first]->GetHost().value();
+    }
+
     BuildRelay(mod, params_);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
@@ -480,6 +487,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     // llvm if "codegen.LLVMModuleCreate" is accessible.
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
     if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
+
+    // Update all the targets in the _targets TargetsMap
+    for (const auto &iter : targets_) {
+      // Construct a new target with target host filed if available
+      targets_.Set(iter.first, Target(iter.second, target_host));
+      target_host = targets_[iter.first]->GetHost().value();
+    }
 
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {

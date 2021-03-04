@@ -414,6 +414,11 @@ Map<String, ObjectRef> TargetNode::Export() const {
   return result;
 }
 
+Optional<Target> TargetNode::GetHost() const {
+  if (!this->host.defined()) return NullOpt;
+  return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+}
+
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */

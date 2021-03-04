@@ -35,6 +35,7 @@
 namespace tvm {
 
 class TargetInternal;
+class Target;
 
 /*!
  * \brief Compilation target.
@@ -60,6 +61,8 @@ class TargetNode : public Object {
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
   TVM_DLL Map<String, ObjectRef> Export() const;
+  /*! \return The Optional<Target> typed target host of the TargetNode */
+  TVM_DLL Optional<Target> GetHost() const;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("kind", &kind);
