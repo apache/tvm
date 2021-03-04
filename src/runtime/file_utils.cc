@@ -25,6 +25,7 @@
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/serializer.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/support/logging.h>
 
 #include <fstream>

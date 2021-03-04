@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
-from . import _ffi_api
+from . import _ffi_api, ndarray
 
 
 def save_param_dict(params):
@@ -47,7 +47,7 @@ def save_param_dict(params):
        # Pass in byte array to module to directly set parameters
        tvm.runtime.load_param_dict(param_bytes)
     """
-    transformed = {k: tvm.nd.array(v) for (k, v) in params.items()}
+    transformed = {k: ndarray.array(v) for (k, v) in params.items()}
     return _ffi_api.SaveParams(transformed)
 
 
