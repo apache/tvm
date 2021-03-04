@@ -103,9 +103,37 @@ Expr MixedModeMutator::VisitExpr(const Expr& expr) {
 class PostOrderRewriter : public MixedModeMutator {
  public:
   explicit PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
+
   Expr DispatchVisitExpr(const Expr& expr) final {
     auto post = ExprFunctor::VisitExpr(expr);
     return rewriter_->Rewrite(expr, post);
+  }
+
+  Expr VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->Mutate(op->var);
+      Expr value = this->Mutate(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      Var var = Downcast<Var>(this->memo_[op->var]);
+      Expr value = this->memo_[op->value];
+      Expr body;
+      if (this->memo_.count(op->body)) {
+        body = this->memo_[op->body];
+      } else {
+        body = this->Mutate(op->body);
+      }
+      Expr expr = GetRef<Expr>(op);
+      Expr post;
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        post = expr;
+      } else {
+        post = Let(var, value, body);
+      }
+      this->memo_[expr] = this->rewriter_->Rewrite(expr, post);
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
   }
 
  protected:
