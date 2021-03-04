@@ -73,6 +73,8 @@ class TimerNode : public Object {
 /*! \brief Timer for a specific device.
  *
  * This is a managed reference to a TimerNode.
+ *
+ * \sa TimerNode
  */
 class Timer : public ObjectRef {
  public:
@@ -95,9 +97,9 @@ class Timer : public ObjectRef {
    * \code{.cpp}
    * Timer t = Timer::Start(TVMContext::cpu());
    * my_long_running_function();
-   * t.Stop();
+   * t->Stop();
    * ... // some more computation
-   * int64_t nanosecs = t.SyncAndGetElapsedNanos() // elapsed time in nanoseconds
+   * int64_t nanosecs = t->SyncAndGetElapsedNanos() // elapsed time in nanoseconds
    * \endcode
    *
    * To add a new device-specific timer, register a new function
@@ -130,22 +132,6 @@ class Timer : public ObjectRef {
    */
   static TVM_DLL Timer Start(TVMContext ctx);
 
-  /*! \brief Stop the timer.
-   *
-   * Note: this function should only be called once per object.
-   */
-  void Stop() { operator->()->Stop(); }
-  /*! \brief Synchronize timer state and return elapsed time between `Start` and `Stop`.
-   * \return The time in nanoseconds between `Start` and `Stop`.
-   *
-   * This function is necessary because we want to avoid timing the overhead of
-   * doing timing. When using multiple timers, it is recommended to stop all of
-   * them before calling `SyncAndGetElapsedNanos` on any of them.
-   *
-   * Note: this function should be only called once per object. It may incur
-   * a large synchronization overhead (for example, with GPUs).
-   */
-  int64_t SyncAndGetElapsedNanos() { return operator->()->SyncAndGetElapsedNanos(); }
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
 };
 
