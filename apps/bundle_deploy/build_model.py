@@ -70,7 +70,7 @@ def build_module(opts):
         with open(
             os.path.join(build_dir, file_format_str.format(name="params", ext="bin")), "wb"
         ) as f_params:
-            f_params.write(relay.save_param_dict(params))
+            f_params.write(runtime.save_param_dict(params))
 
 
 def build_test_module(opts):
@@ -113,7 +113,7 @@ def build_test_module(opts):
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_params", ext="bin")), "wb"
         ) as f_params:
-            f_params.write(relay.save_param_dict(lowered_params))
+            f_params.write(runtime.save_param_dict(lowered_params))
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_data", ext="bin")), "wb"
         ) as fp:

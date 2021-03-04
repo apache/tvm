@@ -94,4 +94,4 @@ with open("./mobilenet.json", "w") as fo:
     fo.write(graph)
 
 with open("./mobilenet.params", "wb") as fo:
-    fo.write(relay.save_param_dict(params))
+    fo.write(runtime.save_param_dict(params))

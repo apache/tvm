@@ -60,7 +60,7 @@ def build_graph_lib(model_file, opt_level):
         f_graph.write(graph_json)
 
     with open(os.path.join(out_dir, "graph.params"), "wb") as f_params:
-        f_params.write(relay.save_param_dict(params))
+        f_params.write(runtime.save_param_dict(params))
 
 
 if __name__ == "__main__":

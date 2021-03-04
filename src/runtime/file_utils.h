@@ -108,12 +108,6 @@ Map<String, NDArray> LoadParams(const std::string& param_blob);
  * \return Map of parameter name to parameter value.
  */
 Map<String, NDArray> LoadParams(dmlc::Stream* strm);
-// /*!
-//  * \brief Load parameters from a file.
-//  * \param filename File to load parameters from.
-//  * \return Map of parameter name to parameter value.
-//  */
-// Map<String, NDArray> LoadParamsFromFile(const std::string& filename);
 /*!
  * \brief Serialize parameters to a byte array.
  * \param params Parameters to save.
@@ -126,12 +120,6 @@ std::string SaveParams(const Map<String, NDArray>& params);
  * \param params Parameters to save.
  */
 void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params);
-// /*!
-//  * \brief Save parameters to a file.
-//  * \param filename File to save parameters to.
-//  * \param params Parameters to save.
-//  */
-// void SaveParams(const std::string& filename, const Map<String, NDArray>& params);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_FILE_UTILS_H_

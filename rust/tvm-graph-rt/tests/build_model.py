@@ -47,7 +47,7 @@ def main():
     with open(osp.join(CWD, "graph.json"), "w") as f_resnet:
         f_resnet.write(graph)
     with open(osp.join(CWD, "graph.params"), "wb") as f_params:
-        f_params.write(relay.save_param_dict(params))
+        f_params.write(runtime.save_param_dict(params))
 
 
 if __name__ == "__main__":

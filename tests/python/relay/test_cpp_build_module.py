@@ -86,7 +86,7 @@ def test_fp16_build():
 
     # test
     rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
-    rt.load_params(relay.save_param_dict(params))
+    rt.load_params(runtime.save_param_dict(params))
     rt.run()
     out = rt.get_output(0)
 

@@ -196,7 +196,7 @@ def import_graphdef(
             with open(os.path.join(abs_path, relay_file), "w") as fo:
                 fo.write(tvm.ir.save_json(mod))
             with open(os.path.join(abs_path, relay_params), "wb") as fo:
-                fo.write(relay.save_param_dict(params))
+                fo.write(runtime.save_param_dict(params))
 
     return mod, params, shape_dict
 

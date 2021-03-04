@@ -265,7 +265,7 @@ def test_tensorrt_serialize_graph_runtime():
     def compile_graph(mod, params):
         with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
             graph, lib, params = relay.build(mod, params=params, target="cuda")
-            params = relay.save_param_dict(params)
+            params = runtime.save_param_dict(params)
         return graph, lib, params
 
     def run_graph(graph, lib, params):
