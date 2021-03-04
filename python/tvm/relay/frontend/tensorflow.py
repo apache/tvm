@@ -1167,6 +1167,125 @@ def _sparse_reshape():
     return _impl
 
 
+def _math_segment_sum():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 2, "There should be 2 input tensors"
+        return get_relay_op("segment_sum")(inputs[0], inputs[1])
+
+    return _impl
+
+
+def _sparse_segment_sum():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        return _op.segment_sum(data, inputs[2])
+
+    return _impl
+
+
+def _sparse_segment_sum_with_num_segments():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        num_segments = int(inputs[3].data.asnumpy().item())
+        return _op.segment_sum(data, inputs[2], num_segments)
+
+    return _impl
+
+
+def row_wise_divide(multi_dim_tensor, one_dim_vector):
+    """
+    This function enables row-wise division of multi_dim_tensor and one_dim_vector.
+    To achieve this, it is first tiled to the appropriate shape and then elemwise_division
+    """
+    multi_dim_tensor_offrow_shape = _op.strided_slice(
+        _op.shape_of(multi_dim_tensor, "int32"), [1], [-1], slice_mode="size"
+    )
+    one_dim_vector_tiled_shape = _op.concatenate(
+        [_op.reverse(multi_dim_tensor_offrow_shape, 0), _expr.const([1])], axis=0
+    )
+    one_dim_vector_tiled = _op.transpose(_op.tile(one_dim_vector, one_dim_vector_tiled_shape))
+    return _op.divide(multi_dim_tensor, one_dim_vector_tiled)
+
+
+def count_all_indices(segment_ids, counts_dtype, num_segments=None):
+    """
+    This snippet calculates the sqrt count of each index among all valid indices
+    Valid indices are from 0 to max of [segment ids, num_segments]
+    """
+
+    max_segments = _op.reshape(_op.max(segment_ids), -1) + _expr.const([1])
+    if num_segments:
+        max_segments = _op.maximum(max_segments, _expr.const([num_segments]))
+    max_ones = _op.maximum(max_segments, _op.shape_of(segment_ids))
+    counts = _op.segment_sum(
+        _op.ones(max_ones, counts_dtype), segment_ids, num_segments=num_segments
+    )
+    real_counts = _op.clip(counts, 1, 2147483647)  # Clip max doesn't work over int32
+    return real_counts
+
+
+def _sparse_segment_sum_sqrtn():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        real_counts = count_all_indices(inputs[2], attr["T"].name)
+        real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
+
+        # Calculate regular segment sum
+        segment_sum = _op.segment_sum(data, inputs[2])
+
+        return row_wise_divide(segment_sum, real_sqrt_counts)
+
+    return _impl
+
+
+def _sparse_segment_sum_sqrtn_with_num_segments():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        num_segments = int(inputs[3].data.asnumpy().item())
+        real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
+        real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
+
+        # Calculate regular segment sum
+        segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
+
+        return row_wise_divide(segment_sum, real_sqrt_counts)
+
+    return _impl
+
+
+def _sparse_segment_mean():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        real_counts = count_all_indices(inputs[2], attr["T"].name)
+
+        # Calculate regular segment sum
+        segment_sum = _op.segment_sum(data, inputs[2])
+
+        return row_wise_divide(segment_sum, real_counts)
+
+    return _impl
+
+
+def _sparse_segment_mean_with_num_segments():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        data = _op.take(inputs[0], inputs[1], axis=0)
+        num_segments = int(inputs[3].data.asnumpy().item())
+        real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
+
+        # Calculate regular segment sum
+        segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
+
+        return row_wise_divide(segment_sum, real_counts)
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2661,6 +2780,13 @@ _convert_map = {
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
     "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "SparseReshape": _sparse_reshape(),
+    "SegmentSum": _math_segment_sum(),
+    "SparseSegmentSum": _sparse_segment_sum(),
+    "SparseSegmentSumWithNumSegments": _sparse_segment_sum_with_num_segments(),
+    "SparseSegmentSqrtN": _sparse_segment_sum_sqrtn(),
+    "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sum_sqrtn_with_num_segments(),
+    "SparseSegmentMean": _sparse_segment_mean(),
+    "SparseSegmentMeanWithNumSegments": _sparse_segment_mean_with_num_segments(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),

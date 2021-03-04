@@ -24,6 +24,7 @@ from tvm import relay
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
+from typing import Optional
 import tvm.testing
 
 
@@ -1023,7 +1024,25 @@ def test_scatter():
 
 
 @tvm.testing.uses_gpu
-def test_scatter_add():
+@pytest.mark.parametrize(
+    "dshape, ishape, axis, dtype",
+    [
+        ((10,), (10,), 0, "int32"),
+        ((1000,), (1000,), 0, "int32"),
+        ((10, 5), (10, 5), -2, "float32"),
+        ((10, 5), (10, 5), -1, "float32"),
+        ((10, 5), (3, 5), 0, "float32"),
+        ((12, 4), (7, 2), 1, "float32"),
+        ((2, 3, 4), (1, 3, 4), 0, "float32"),
+        ((2, 3, 4), (2, 1, 4), 1, "float32"),
+        ((2, 3, 4), (2, 3, 1), 2, "float32"),
+        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32"),
+        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32"),
+        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32"),
+    ],
+)
+def test_scatter_add(dshape, ishape, axis, dtype):
     def ref_scatter_add(data, indices, updates, axis=0):
         output = np.copy(data)
         for index in np.ndindex(*indices.shape):
@@ -1033,9 +1052,9 @@ def test_scatter_add():
         return output
 
     def verify_scatter_add(dshape, ishape, axis=0, dtype="float32"):
-        d = relay.var("d", relay.TensorType(dshape, dtype))
-        i = relay.var("i", relay.TensorType(ishape, "int64"))
-        u = relay.var("u", relay.TensorType(ishape, dtype))
+        d = relay.var("d", relay.TensorType(shape=[relay.Any() for _ in dshape], dtype=dtype))
+        i = relay.var("i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype="int64"))
+        u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
         z = relay.op.scatter_add(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
@@ -1045,31 +1064,14 @@ def test_scatter_add():
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                if target == "nvptx" and dtype == "float32" and len(dshape) == 1:
-                    # scatter_add 1D on GPU is implemented via atomic.
-                    # Floating point atomic requires LLVM 9 or newer for nvptx backend.
-                    # But LLVM on CI is LLVM 8.
-                    continue
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    verify_scatter_add((10,), (10,), 0, dtype="int32")
-    verify_scatter_add((1000,), (1000,))
-    verify_scatter_add((1000,), (1000,), 0, dtype="int32")
-    verify_scatter_add((10, 5), (10, 5), -2)
-    verify_scatter_add((10, 5), (10, 5), -1)
-    verify_scatter_add((10, 5), (3, 5), 0)
-    verify_scatter_add((12, 4), (7, 2), 1)
-    verify_scatter_add((2, 3, 4), (1, 3, 4), 0)
-    verify_scatter_add((2, 3, 4), (2, 1, 4), 1)
-    verify_scatter_add((2, 3, 4), (2, 3, 1), 2)
-    verify_scatter_add((2, 3, 4, 5), (1, 3, 4, 5), 0)
-    verify_scatter_add((6, 3, 4, 5), (2, 3, 4, 5), 1)
-    verify_scatter_add((2, 3, 8, 5), (2, 3, 1, 1), 2)
-    verify_scatter_add((16, 16, 4, 5), (16, 16, 4, 5), 3)
+        verify_func(
+            func,
+            [data_np, indices_np, updates_np],
+            ref_res,
+        )
+
+    verify_scatter_add(dshape, ishape, axis, dtype)
 
 
 @tvm.testing.uses_gpu
@@ -1513,6 +1515,105 @@ def test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_
         prev_shape_np,
         new_shape_np,
     )
+
+
+@tvm.testing.uses_gpu
+@pytest.mark.parametrize(
+    "data_np, segment_ids_np, num_segments",
+    [
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 0, 1, 1, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([2, 0, 1, 0, 3, 2], dtype=np.int64),
+            None,
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([5, 0, 1, 0, 3, 6, 8, 7, 7], dtype=np.int64),
+            9,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 2], dtype=np.int32),
+            4,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            100,
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_segment_sum(data_np, segment_ids_np, num_segments, use_dyn):
+    def ref_segment_sum(
+        data: np.ndarray,
+        segment_ids: np.ndarray,
+        num_segments: Optional[int] = None,
+    ):
+        """
+        This function calculates the expected output of segment_sum operator given the inputs.
+        """
+        if not num_segments:
+            num_segments = np.unique(segment_ids).shape[0]
+
+        result = np.zeros((num_segments,) + data.shape[1:], data.dtype)
+        for i, index in enumerate(segment_ids):
+            result[index] += data[i]
+        return result
+
+    def verify_segment_sum(
+        data_np: np.ndarray, segment_ids_np: np.ndarray, num_segments: Optional[int]
+    ):
+        """
+        This function verifies the relay output of segment_sum with its expected output.
+        """
+        if use_dyn:
+            data = relay.var(
+                "data",
+                shape=[relay.Any() for _ in data_np.shape],
+                dtype=str(data_np.dtype),
+            )
+            segment_ids = relay.var(
+                "segment_ids",
+                shape=[relay.Any()],
+                dtype=str(segment_ids_np.dtype),
+            )
+        else:
+            data = relay.var(
+                "data",
+                relay.TensorType(data_np.shape, str(data_np.dtype)),
+            )
+            segment_ids = relay.var(
+                "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
+            )
+        z = relay.op.segment_sum(data, segment_ids, num_segments)
+
+        func = relay.Function([data, segment_ids], z)
+        ref_res = ref_segment_sum(data_np, segment_ids_np, num_segments=num_segments)
+        segment_sum_result = run_infer_type(z)
+        assert segment_sum_result.checked_type.dtype == data_np.dtype
+        verify_func(
+            func,
+            [data_np, segment_ids_np],
+            ref_res,
+        )
+
+    verify_segment_sum(data_np, segment_ids_np, num_segments)
 
 
 def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
