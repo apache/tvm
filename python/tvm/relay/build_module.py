@@ -25,7 +25,7 @@ from tvm.ir import IRModule
 
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
-from .. import nd as _nd, autotvm
+from .. import nd as _nd, autotvm, register_func
 from ..target import Target
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
@@ -192,6 +192,20 @@ class BuildModule(object):
         for key, value in params.items():
             ret[key] = value.data
         return ret
+
+
+@register_func("tvm.relay.module_export_library")
+def _module_export(module, file_name):  # fcompile, addons, kwargs?
+    return module.export_library(file_name)
+
+
+@register_func("tvm.relay.build")
+def _build_module_no_factory(mod, target=None, target_host=None, params=None, mod_name="default"):
+    """A wrapper around build which discards the Python GraphFactoryRuntime.
+    This wrapper is suitable to be used from other programming languages as
+    the runtime::Module can be freely passed between language boundaries.
+    """
+    return build(mod, target, target_host, params, mod_name).module
 
 
 def build(mod, target=None, target_host=None, params=None, mod_name="default"):
