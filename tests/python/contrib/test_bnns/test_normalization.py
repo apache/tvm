@@ -18,7 +18,7 @@
 
 import numpy as np
 import math
-
+import pytest
 import tvm
 from tvm import relay
 from tvm import testing
@@ -92,10 +92,8 @@ def _get_expected_codegen(shape, axis, center, scale, dtype, offload_on_bnns):
     return inputs
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_normalization():
-    if skip_runtime_test():
-        return
-
     device = Device()
     np.random.seed(0)
     dtype = "float32"
@@ -147,10 +145,8 @@ def test_normalization():
                     verify(outputs, atol=0.001, rtol=0.01, config=config)
 
 
+@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
 def test_codegen_normalization():
-    if skip_codegen_test():
-        return
-
     np.random.seed(0)
 
     dtype = "float32"

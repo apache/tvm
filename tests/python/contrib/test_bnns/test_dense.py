@@ -18,7 +18,7 @@
 
 import numpy as np
 import math
-
+import pytest
 import tvm
 from tvm import relay
 from .infrastructure import (
@@ -107,10 +107,8 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False, has
     return inputs
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_dense():
-    if skip_runtime_test():
-        return
-
     device = Device()
     np.random.seed(0)
 
@@ -160,10 +158,8 @@ def test_dense():
         verify(outputs, atol=0.001, rtol=0.01, config=config)
 
 
+@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
 def test_codegen_dense():
-    if skip_codegen_test():
-        return
-
     np.random.seed(0)
 
     dtype = ["float32"]

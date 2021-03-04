@@ -18,7 +18,7 @@
 
 import numpy as np
 import math
-
+import pytest
 import tvm
 from tvm import relay
 from tvm import testing
@@ -50,10 +50,8 @@ def _get_model(a_shape, b_shape, dtype, var_names, is_a_constant=False, is_b_con
     return out, params
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_matmul():
-    if skip_runtime_test():
-        return
-
     device = Device()
     np.random.seed(0)
     dtype = "float32"

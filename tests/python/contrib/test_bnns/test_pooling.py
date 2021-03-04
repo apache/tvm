@@ -17,7 +17,7 @@
 """BNNS integration pooling tests."""
 
 import numpy as np
-
+import pytest
 import tvm
 from tvm import relay
 from tvm import testing
@@ -132,10 +132,8 @@ def _get_expected_global_pooling_codegen(shape, dtype, typef):
     return [input, node]
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_pooling():
-    if skip_runtime_test():
-        return
-
     device = Device()
     np.random.seed(0)
 
@@ -192,10 +190,8 @@ def test_pooling():
         verify(outputs, atol=0.001, rtol=0.001, config=config)
 
 
+@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_global_pooling():
-    if skip_runtime_test():
-        return
-
     device = Device()
     np.random.seed(0)
 
@@ -234,10 +230,8 @@ def test_global_pooling():
         verify(outputs, atol=0.001, rtol=0.001, config=config)
 
 
+@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
 def test_codegen_pooling():
-    if skip_codegen_test():
-        return
-
     dtype = "float32"
 
     trials = [
@@ -266,10 +260,8 @@ def test_codegen_pooling():
         verify_codegen(func, exp_codegen, 1)
 
 
+@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
 def test_codegen_global_pooling():
-    if skip_codegen_test():
-        return
-
     dtype = "float32"
 
     trials = [
