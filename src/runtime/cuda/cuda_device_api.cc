@@ -201,35 +201,6 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDAThreadEntry::ThreadLocal()->stream = static_cast<cudaStream_t>(stream);
   }
 
-  void StreamBeginCapture(TVMContext ctx, TVMStreamHandle stream) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id))
-    CUDA_CALL(cudaStreamBeginCapture(static_cast<cudaStream_t>(stream), cudaStreamCaptureModeGlobal));
-  }
-
-  TVMObjectHandle StreamEndCapture(TVMContext ctx, TVMStreamHandle stream) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id))
-
-    cudaGraph_t graph;
-    CUDA_CALL(cudaStreamEndCapture(static_cast<cudaStream_t>(stream), &graph));
-
-    cudaGraphNode_t *nodes = NULL;
-    size_t numNodes = 0;
-    CUDA_CALL(cudaGraphGetNodes(graph, nodes, &numNodes));
-    LOG(INFO) << "Num of nodes in the cuda graph created using stream capture API = " << numNodes;
-
-    cudaGraphExec_t graphExec;
-    CUDA_CALL(cudaGraphInstantiate(&graphExec, graph, NULL, NULL, 0));
-    return static_cast<TVMObjectHandle>(graphExec);
-  }
-
-  void StreamRunCapture(TVMContext ctx, TVMStreamHandle stream, TVMObjectHandle captured) {
-    cudaGraphExec_t graphExec = static_cast<cudaGraphExec_t>(captured);
-
-    cudaStream_t cuStream = static_cast<cudaStream_t>(stream);
-    CUDA_CALL(cudaGraphLaunch(graphExec, cuStream));
-    CUDA_CALL(cudaStreamSynchronize(cuStream));
-  }
-
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
