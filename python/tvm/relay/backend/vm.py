@@ -65,8 +65,9 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    for k in target:
+        target[k] = tvm.target.Target(target[k], target_host)
+        target_host = target[k].host
     compiler.lower(mod, target, target_host)
     compiler.codegen()
     return compiler.get_exec()
