@@ -655,7 +655,8 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
     data, weights = inputs
     b, i = get_const_tuple(data.shape)
     o, _ = get_const_tuple(weights.shape)
-    if out_type.dtype == "int8":
+    if data.dtype in ("int8", "uint8") and weights.dtype in ("int8", "uint8"):
+        assert data.dtype == weights.dtype
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_int8),
             wrap_topi_schedule(topi.cuda.schedule_dense_int8),
