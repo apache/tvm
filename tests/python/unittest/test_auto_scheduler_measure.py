@@ -27,7 +27,7 @@ import tempfile
 import tvm.testing
 import pickle
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
+from test_auto_scheduler_common import matmul_auto_scheduler_test
 from tvm.auto_scheduler import workload_registry
 
 

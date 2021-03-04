@@ -17,8 +17,6 @@
 
 """Test search policy"""
 
-import random
-import multiprocessing
 import numpy as np
 import tempfile
 
@@ -32,7 +30,6 @@ from test_auto_scheduler_common import (
     zero_rank_compute_auto_scheduler_test,
     zero_rank_reduce_auto_scheduler_test,
 )
-import multiprocessing
 
 
 def test_search_task_add_task_input():
