@@ -46,6 +46,9 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
         auto* prim = ptr->element_type.as<PrimTypeNode>();
         ICHECK(prim);
         DataType value_type = prim->dtype;
+        if (value_type == DataType::UInt(1)) {
+          value_type = DataType::UInt(8);
+        }
         spirv::Value arg_value =
             builder_->BufferArgument(builder_->GetSType(value_type), 0, num_buffer);
         storage_info_[arg.get()].UpdateContentType(value_type);
@@ -369,11 +372,17 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
     mask |= spv::MemoryAccessVolatileMask;
   }
   if (op->dtype.lanes() == 1) {
-    ICHECK_EQ(info.content_type, op->dtype)
-        << "Vulkan only allow one type access to the same buffer";
     spirv::Value index = MakeValue(op->index);
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
-    return builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
+    spirv::Value loaded = builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
+    if (op->dtype == DataType::UInt(1)) {
+      auto bool_ty = builder_->GetSType(DataType::UInt(1));
+      return builder_->Cast(bool_ty, loaded);
+    } else {
+      ICHECK_EQ(info.content_type, op->dtype)
+          << "Vulkan only allow one type access to the same buffer";
+      return loaded;
+    }
   } else {
     if (op->dtype.element_of() == info.content_type) {
       // because content type is element type, we can only do scalarize load.
