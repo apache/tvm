@@ -208,6 +208,27 @@ def test_any_concat():
     ref = np.concatenate(x_np, axis=0)
     check_result(x_np, mod, ref)
 
+    def test_oshape(in_vars, axis, oshape):
+        z = relay.op.concatenate(in_vars, axis=axis)
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function(in_vars, z)
+        typed_mod = relay.transform.InferType()(mod)
+        assert typed_mod["main"].body.checked_type == relay.TensorType(oshape, dtype="float32")
+
+    x = [relay.var("x", shape=(relay.Any(), 3), dtype="float32") for _ in range(3)]
+    x.append(relay.var("x", shape=(relay.Any(), relay.Any()), dtype="float32"))
+
+    test_oshape(x, 0, (relay.Any(), 3))
+    test_oshape(x, 1, (relay.Any(), relay.Any()))
+
+    # [(1, 3), (1, ?)] -> (2, ?)
+    x = [
+        relay.var("x", shape=(1, 3), dtype="float32"),
+        relay.var("x", shape=(1, relay.Any()), dtype="float32"),
+    ]
+    test_oshape(x, 0, (2, relay.Any()))
+    test_oshape(x, 1, (1, relay.Any()))
+
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var("x", shape=x_shape, dtype="float32")

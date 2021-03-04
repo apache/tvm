@@ -85,6 +85,10 @@ class VitisAIAnnotationPass:
 
 def annotation(mod, params, target):
     """Annotate Relay expression for Vitis-AI DPU accelerators"""
+    # We need type information for supporting models that contain operations that don't
+    #   have a Relay to XLayer translation
+    mod = relay.transform.InferType()(mod)
+
     xgraph = pyxir.frontend.tvm.from_relay(mod, params, postprocessing=None)
     xgraph = pyxir.partition(xgraph, targets=[target])
 

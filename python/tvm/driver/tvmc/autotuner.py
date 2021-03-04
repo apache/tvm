@@ -29,7 +29,7 @@ from tvm.autotvm.tuner import GridSearchTuner
 from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 
-from . import common, frontends
+from . import common, composite_target, frontends
 from .common import TVMCException
 from .main import register_parser
 
@@ -210,6 +210,13 @@ def add_tune_parser(subparsers):
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file")
+    parser.add_argument(
+        "--input-shapes",
+        help="specify non-generic shapes for model to run, format is "
+        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
+        type=common.parse_shape_string,
+        default=None,
+    )
 
 
 def drive_tune(args):
@@ -234,8 +241,13 @@ def drive_tune(args):
                 "need to provide an RPC tracker key (--rpc-key) for remote tuning"
             )
 
-    target = common.target_from_cli(args.target)
-    mod, params = frontends.load_model(args.FILE, args.model_format)
+    target, extra_targets = common.target_from_cli(args.target)
+    mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
+
+    for codegen_from_cli in extra_targets:
+        codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
+        partition_function = codegen["pass_pipeline"]
+        mod = partition_function(mod, params)
 
     # min_repeat_ms should be:
     # a. the value provided by the user, if any, or

@@ -17,7 +17,7 @@
 """Image operations."""
 from . import _make
 from ..dyn.image import _make as _dyn_make
-from ...expr import Expr
+from ...expr import Expr, Constant
 
 
 def resize(
@@ -66,6 +66,8 @@ def resize(
     result: relay.Expr
         The resized result.
     """
+    if isinstance(size, Constant):
+        size = list(size.data.asnumpy().astype("int32"))
     if isinstance(size, Expr):
         return _dyn_make.resize(
             data, size, layout, method, coordinate_transformation_mode, out_dtype

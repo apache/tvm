@@ -560,6 +560,23 @@ TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignme
                                     DLDataType type_hint, void** out_data);
 
 /*!
+ * \brief Allocate a data space on device with special memory scope.
+ * \note The memory could use a special multi-dimensional memory layout.
+ *       That is why we pass shape and dtype instead of raw number of bytes.
+ * \param ctx The device context to perform operation.
+ * \param ndim The number of dimension of the tensor.
+ * \param shape The shape of the tensor.
+ * \param dtype The type of elements.
+ * \param mem_scope The memory scope of the tensor,
+ *        can be nullptr, which indicate the default global DRAM
+ * \param out_data The allocated device pointer.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
+                                             DLDataType dtype, const char* mem_scope,
+                                             void** out_data);
+
+/*!
  * \brief Free a data space on device.
  * \param ctx The device context to perform operation.
  * \param ptr The data space.
@@ -569,22 +586,14 @@ TVM_DLL int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr);
 
 /*!
  * \brief Copy data from one place to another.
- * \param from The source array.
- * \param from_offset The byte offeset in the from.
- * \param to The target array.
- * \param to_offset The byte offset in the to.
- * \param num_bytes The size of the memory in bytes
- * \param ctx_from The source context
- * \param ctx_to The target context
- * \param type_hint The type of elements, only neded by certain backends.
- *                  can be useful for cross device endian converison.
+ * \note This API is designed to support special memory with shape dependent layout.
+ *       We pass in DLTensor* with shape information to support these cases.
+ * \param from The source tensor.
+ * \param to The target tensor.
  * \param stream Optional stream object.
  * \return 0 when success, -1 when failure happens.
  */
-TVM_DLL int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to,
-                                    size_t to_offset, size_t num_bytes, TVMContext ctx_from,
-                                    TVMContext ctx_to, DLDataType type_hint,
-                                    TVMStreamHandle stream);
+TVM_DLL int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream);
 
 /*!
  * \brief Check that an object is derived from another.

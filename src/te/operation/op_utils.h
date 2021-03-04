@@ -73,7 +73,7 @@ std::vector<Stmt> MakeIfNest(const std::vector<PrimExpr>& predicates);
  */
 Stmt ReplaceTensor(Stmt stmt, const std::unordered_map<Tensor, Tensor>& replace);
 /*!
- * \brief Replace the tensor reference (especially in Call's) in stmt by the replace map.
+ * \brief Replace the tensor reference (especially in Call's) in primExpr by the replace map.
  * \param expr The expression to be processed.
  * \param replace The replacement rule.
  */
@@ -86,6 +86,14 @@ PrimExpr ReplaceTensor(PrimExpr expr, const std::unordered_map<Tensor, Tensor>& 
  * \return Substituted result.
  */
 Stmt Substitute(Stmt stmt, const std::unordered_map<IterVar, PrimExpr>& value_map);
+
+/*!
+ * \brief Substitute the variables of primExpr by value map.
+ * \param expr the expression to be processed.
+ * \param value_map The value map.
+ * \return Substituted result.
+ */
+PrimExpr Substitute(PrimExpr expr, const std::unordered_map<IterVar, PrimExpr>& value_map);
 
 /*!
  * \brief Converts Halide ForKind to its corresponding IterVarType

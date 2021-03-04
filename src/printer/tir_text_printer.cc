@@ -301,7 +301,7 @@ Doc TIRTextPrinter::VisitExpr_(const NotNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const SelectNode* op) {
   Doc doc;
   doc << "select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
-      << Print(op->false_value);
+      << Print(op->false_value) << ")";
   return doc;
 }
 
@@ -490,6 +490,13 @@ Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   if (op->kind != ForKind::kSerial) {
     doc << " " << Doc::StrLiteral(ForKind2String(op->kind));
   }
+  doc << PrintBody(op->body);
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const WhileNode* op) {
+  Doc doc;
+  doc << "while (" << Print(op->condition) << ")";
   doc << PrintBody(op->body);
   return doc;
 }

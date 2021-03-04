@@ -385,23 +385,34 @@ class PyTorchOpConverter:
 
     def slice(self, inputs, input_types):
         axis_dtype = "int64"
-        index_size_limit = 2 ** 63 - 1
+        index_size_limit = sys.maxsize
         data = inputs[0]
         dshape = self.infer_shape(data)
         ndim = len(dshape)
-        end = []
-        for dim in dshape:
-            if isinstance(dim, tvm.tir.Any):
-                end = _op.shape_of(data)
-                break
-            end.append(int(dim))
-
-        begin = [0] * ndim
         dim = int(inputs[1])
-        stride = int(inputs[4])
-        begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
+        stride = inputs[4]
+
+        target_begin, is_begin_const = try_infer_value(
+            inputs[2], lambda ret: np.asscalar(ret.astype(np.int))
+        )
+        target_end, is_end_const = try_infer_value(
+            inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+        )
+
+        # A fast path when slicing is nop.
+        if (
+            isinstance(target_begin, int)
+            and isinstance(target_end, int)
+            and target_begin == 0
+            and target_end >= index_size_limit
+            and stride == 1
+        ):
+            return data
 
         # Process begin
+        begin = [0] * ndim
+        begin[dim] = target_begin
+
         if not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
@@ -414,27 +425,15 @@ class PyTorchOpConverter:
             if str(btype) != axis_dtype:
                 begin = _op.cast(begin, axis_dtype)
 
-        if isinstance(inputs[3], str) and inputs[3].isdigit():
-            target_end = int(inputs[3])
-        else:
-            if isinstance(inputs[3], _expr.Expr):
-                target_end, _ = try_infer_value(
-                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
-                )
-            else:
-                target_end = inputs[3]
-
-            if isinstance(target_end, int) and target_end >= index_size_limit:
-                # Quick path for original data.
-                if (
-                    isinstance(begin, _expr.Constant)
-                    and begin.data.asnumpy().tolist()[dim] == 0
-                    and stride == 1
-                ):
-                    return data
-                target_end = dshape[dim]
-
         # Process end
+        if isinstance(target_end, int) and target_end >= index_size_limit:
+            target_end = dshape[dim]
+
+        if any([isinstance(d, tvm.tir.Any) for d in dshape]):
+            end = _op.shape_of(data)
+        else:
+            end = dshape
+
         if isinstance(target_end, int):
             if isinstance(end, list):
                 end[dim] = target_end
@@ -474,11 +473,24 @@ class PyTorchOpConverter:
                 end = _op.cast(end, axis_dtype)
 
         strides = [1] * ndim
-        strides[dim] = int(inputs[4])
+        strides[dim] = stride
 
         return _op.transform.strided_slice(
             data, begin=begin, end=end, strides=strides, slice_mode="end"
         )
+
+    def narrow(self, inputs, input_types):
+        # Inputs are:
+        # 0 - the tensor to narrow
+        # 1 - the dimension along which to narrow
+        # 2 - the starting dimension
+        # 3 - the distance to the ending dimension
+        # Lets find the ending dimension
+        end = self.add(inputs[2:4], input_types[2:4])
+        stride = 1
+        slice_input = inputs[:3] + [end, stride]
+        slice_types = input_types + ["int32"]
+        return self.slice(slice_input, slice_types)
 
     def split(self, inputs, input_types):
         data = inputs[0]
@@ -832,11 +844,19 @@ class PyTorchOpConverter:
         output_size = inputs[1]
         return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
+    @staticmethod
+    def convert_const_list(data):
+        if isinstance(data, list):
+            for i, _ in enumerate(data):
+                if isinstance(data[i], _expr.Expr):
+                    data[i] = int(_infer_value_simulated(data[i], {}).asnumpy())
+        return data
+
     def maxpool_2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
@@ -990,8 +1010,7 @@ class PyTorchOpConverter:
         return _op.nn.relu(data)
 
     def contiguous(self, inputs, input_types):
-        data = inputs[0]
-        return _op.tensor.copy(data)
+        return inputs[0]
 
     def batch_norm(self, inputs, input_types):
         data = inputs[0]
@@ -1316,8 +1335,8 @@ class PyTorchOpConverter:
     def avg_pool2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
@@ -1354,6 +1373,20 @@ class PyTorchOpConverter:
             ceil_mode=ceil_mode,
             count_include_pad=count_include_pad,
         )
+
+    def linear(self, inputs, input_types):
+        # https://pytorch.org/docs/stable/nn.functional.html#linear
+        # 0 - input
+        # 1 - weight
+        bias = inputs[2]
+        mm_out = self.matmul(inputs[:2], input_types[:2])
+        if isinstance(bias, _expr.Expr):
+            bias_ndims = len(self.infer_shape_with_prelude(bias))
+            if bias_ndims == 1:
+                return _op.nn.bias_add(mm_out, bias)
+            mm_dtype = self.infer_type_with_prelude(mm_out).dtype
+            return self.add([mm_out, bias], [mm_dtype, input_types[2]])
+        return mm_out
 
     def dropout(self, inputs, input_types):
         data = inputs[0]
@@ -1928,6 +1961,32 @@ class PyTorchOpConverter:
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
 
+    def deform_conv2d(self, inputs, input_types):
+        data = inputs[0]
+        weight = inputs[1]
+        offset = inputs[2]
+        strides = (inputs[4], inputs[5])
+        padding = (inputs[6], inputs[7])
+        dilation = (inputs[8], inputs[9])
+        groups = inputs[10]
+        deformable_groups = inputs[11]
+        weight_shape = self.infer_shape(weight)
+        output_channels = weight_shape[0]
+        kernel_size = (weight_shape[2], weight_shape[3])
+
+        return _op.nn.deformable_conv2d(
+            data,
+            offset,
+            weight,
+            strides,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+            output_channels,
+            kernel_size,
+        )
+
     def unbind(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
@@ -1983,6 +2042,32 @@ class PyTorchOpConverter:
         index = inputs[2]
         src = inputs[3]
         return _op.transform.scatter(data, index, src, axis)
+
+    def index_put(self, inputs, input_types):
+        in_tensor = inputs[0]
+        indices = inputs[1]
+        values = inputs[2]
+        accumulate = inputs[3]
+        # accumulate parameter is ignored.
+        # torch.index_put default is False but Relay.scatter_nd accumulates values.
+        # We assume there is no duplicate indices in torch.index_put input
+        if not accumulate:
+            logging.warning(
+                "torch.index_put accumulate parameter is False. "
+                "TVM uses tvm.relay.scatter_nd operator which accumulates values. "
+                "Make sure there is no duplicate indices in torch.index_put input."
+            )
+        # Relay scatter_nd does not support input tensor
+        # We assume that torch.index_put is used with empty zero-values input tensor
+        # scatter_nd will create empty zero-values tensor with a given shape
+        out_shape = self.infer_shape(in_tensor)
+        logging.warning(
+            "tvm.relay.scatter_nd operator does not support input tensor parameter. "
+            "TVM assumes that torch.index_put is used with empty zero-values input tensor"
+        )
+        # Combine array of index tensors into one index tensor with shape (N,_)
+        index_tensor = _op.stack(indices, axis=0)
+        return _op.transform.scatter_nd(values, index_tensor, out_shape)
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
@@ -2112,6 +2197,24 @@ class PyTorchOpConverter:
         is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
         return _expr.const(is_float)
 
+    def unique(self, inputs, input_types):
+        assert len(inputs) == 4
+        [data, is_sorted, return_inverse, return_counts] = inputs
+        if not is_sorted:
+            logging.warning("TVM always assumes sorted=True for torch.unique")
+            is_sorted = True
+        if return_counts:
+            [unique, indices, num_uniq, counts] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=True
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, indices, counts_sliced)
+        else:
+            [unique, indices, num_uniq] = _op.unique(data, is_sorted=is_sorted, return_counts=False)
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, indices)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2151,6 +2254,7 @@ class PyTorchOpConverter:
             "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
+            "aten::narrow": self.narrow,
             "aten::split": self.split,
             "aten::split_with_sizes": self.split_with_sizes,
             "aten::select": self.select,
@@ -2199,6 +2303,7 @@ class PyTorchOpConverter:
             "aten::softplus": self.softplus,
             "aten::avg_pool2d": self.avg_pool2d,
             "aten::avg_pool3d": self.avg_pool3d,
+            "aten::linear": self.linear,
             "aten::dropout": self.dropout,
             "aten::dropout_": self.dropout,
             "aten::feature_dropout": self.dropout,
@@ -2292,6 +2397,7 @@ class PyTorchOpConverter:
             "torchvision::nms": self.nms,
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
+            "torchvision::deform_conv2d": self.deform_conv2d,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
@@ -2299,6 +2405,8 @@ class PyTorchOpConverter:
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::index_put": self.index_put,
+            "aten::index_put_": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
             "aten::IntImplicit": self.identity,
@@ -2315,6 +2423,7 @@ class PyTorchOpConverter:
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
+            "aten::_unique2": self.unique,
         }
 
     def update_convert_map(self, custom_map):

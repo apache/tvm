@@ -30,7 +30,7 @@ from .workload_registry import make_workload_key
 from .compute_dag import ComputeDAG, LayoutRewriteOption
 from .cost_model import XGBModel
 from .search_policy import SketchPolicy
-from .workload_registry import register_workload_tensors
+from .workload_registry import WORKLOAD_FUNC_REGISTRY, register_workload_tensors
 from . import _ffi_api
 
 
@@ -335,11 +335,12 @@ class SearchTask(Object):
         except Exception:  # pylint: disable=broad-except
             raise RuntimeError("Invalid workload key %s" % state["workload_key"])
 
-        # The workload from a compute DAG does not have arguments and is not registered
-        # by default so we register it here. If the workload has already been registered,
-        # the later registration overrides the prvious one.
-        if len(workload) == 1:
-            register_workload_tensors(workload[0], state["compute_dag"].tensors)
+        # workload[0] is either the compute function name or the ComputeDAG hash.
+        # The compute functions are already registered when importing TVM, so here
+        # we only register the ComputeDAG workloads. If the same workload has
+        # already been registered, the later registration overrides the prvious one.
+        if workload[0] not in WORKLOAD_FUNC_REGISTRY:
+            register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
