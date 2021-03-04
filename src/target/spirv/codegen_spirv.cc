@@ -45,13 +45,15 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
       if (auto* ptr = arg->type_annotation.as<PointerTypeNode>()) {
         auto* prim = ptr->element_type.as<PrimTypeNode>();
         ICHECK(prim);
-        DataType value_type = prim->dtype;
-        if (value_type == DataType::UInt(1)) {
-          value_type = DataType::UInt(8);
+        DataType value_storage_type = prim->dtype;
+        if (value_storage_type == DataType::UInt(1)) {
+          // We need a physically addressable buffer type to support boolean tensors.
+          // The loaded byte is cast to bool inside the LoadNode visitor below.
+          value_storage_type = DataType::UInt(8);
         }
         spirv::Value arg_value =
-            builder_->BufferArgument(builder_->GetSType(value_type), 0, num_buffer);
-        storage_info_[arg.get()].UpdateContentType(value_type);
+            builder_->BufferArgument(builder_->GetSType(value_storage_type), 0, num_buffer);
+        storage_info_[arg.get()].UpdateContentType(value_storage_type);
         var_map_[arg.get()] = arg_value;
       } else {
         LOG(FATAL) << "require all handles to be typed";
@@ -376,6 +378,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
     spirv::Value loaded = builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
     if (op->dtype == DataType::UInt(1)) {
+      // A bool tensor is backed by a byte buffer, we cast to bool here.
       auto bool_ty = builder_->GetSType(DataType::UInt(1));
       return builder_->Cast(bool_ty, loaded);
     } else {

@@ -21,17 +21,14 @@ from tvm.topi.math import cast
 import numpy as np
 
 
-tx = te.thread_axis("threadIdx.x")
-ty = te.thread_axis("threadIdx.y")
-bx = te.thread_axis("blockIdx.x")
-by = te.thread_axis("blockIdx.y")
-
-
 def test_bool_load():
     def do_copy(A, B, n):
         ib = tvm.tir.ir_builder.create()
         A = ib.buffer_ptr(A)
         B = ib.buffer_ptr(B)
+
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
 
         max_threads = 32
         ib.scope_attr(bx, "thread_extent", tvm.tir.indexdiv(n + max_threads - 1, max_threads))
