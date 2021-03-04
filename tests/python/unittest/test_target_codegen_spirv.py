@@ -28,7 +28,7 @@ by = te.thread_axis("blockIdx.y")
 
 
 def test_bool_load():
-    def searchsorted_ir_gpu(A, B, n):
+    def do_copy(A, B, n):
         ib = tvm.tir.ir_builder.create()
         A = ib.buffer_ptr(A)
         B = ib.buffer_ptr(B)
@@ -44,8 +44,7 @@ def test_bool_load():
         return ib.get()
 
     n = 1024
-    in_dtype = "bool"
-    A = te.placeholder((n,), name="A", dtype=in_dtype)
+    A = te.placeholder((n,), name="A", dtype="bool")
     B = te.placeholder((n,), name="B", dtype="int32")
 
     target = "vulkan"
@@ -56,8 +55,8 @@ def test_bool_load():
     B = te.extern(
         A.shape,
         [A],
-        lambda ins, outs: searchsorted_ir_gpu(ins[0], outs[0], n),
-        name="searchsorted_ir",
+        lambda ins, outs: do_copy(ins[0], outs[0], n),
+        name="bool_copy_ir",
         dtype="int32",
     )
     s = te.create_schedule(B.op)
@@ -67,7 +66,6 @@ def test_bool_load():
 
     ctx = tvm.context(target, 0)
     a_np = np.random.uniform(size=n) > 0.5
-    a_np = a_np.astype(in_dtype)
     b_np = np.zeros((n,), dtype="int32")
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(b_np, ctx)
