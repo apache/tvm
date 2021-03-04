@@ -17,30 +17,4 @@
  * under the License.
  */
 
-use tvm_macros::Object;
-
-use super::span::Span;
-
-use crate::ir::relay::ExprNode;
-use crate::runtime::{IsObject, IsObjectRef, ObjectRef};
-
-// TODO(@jroesch): define DictAttrs
-pub type DictAttrs = ObjectRef;
-
-#[repr(C)]
-#[derive(Object, Debug)]
-#[ref_name = "BaseFunc"]
-#[type_key = "BaseFunc"]
-pub struct BaseFuncNode {
-    pub base: ExprNode,
-    pub attrs: DictAttrs,
-}
-
-impl BaseFuncNode {
-    pub fn base<T: IsObject>() -> BaseFuncNode {
-        BaseFuncNode {
-            base: ExprNode::base::<T>(Span::null()),
-            attrs: <ObjectRef as IsObjectRef>::null(),
-        }
-    }
-}
+pub mod graph_rt;

@@ -1051,10 +1051,11 @@ def _batch_matmul():
 
 
 def _sparse_tensor_dense_matmul():
-    # Sparse utility from scipy
-    from scipy.sparse import csr_matrix
-
     def _impl(inputs, attr, params, mod):
+        # Loading this by default causes TVM to not be loadable from other languages.
+        # Sparse utility from scipy
+        from scipy.sparse import csr_matrix
+
         assert len(inputs) == 4, "There should be 4 input tensors"
 
         indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()

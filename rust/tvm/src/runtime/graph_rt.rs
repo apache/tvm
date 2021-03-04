@@ -34,13 +34,23 @@ pub struct GraphRt {
 }
 
 impl GraphRt {
+    /// Create a graph runtime directly from a runtime module.
+    pub fn from_module(module: Module, ctx: Context) -> Result<GraphRt> {
+        let default: Box<dyn Fn(Context) -> Result<Module>> =
+            module.get_function("default", false)?.into();
+
+        Ok(Self {
+            module: default(ctx)?,
+        })
+    }
+
     /// Create a graph runtime from the deprecated graph, lib, ctx triple.
     pub fn create_from_parts(graph: &str, lib: Module, ctx: Context) -> Result<Self> {
         let runtime_create_fn = Function::get("tvm.graph_runtime.create").unwrap();
 
         let runtime_create_fn_ret = runtime_create_fn.invoke(vec![
             graph.into(),
-            (&lib).into(),
+            lib.into(),
             (&ctx.device_type).into(),
             // NOTE you must pass the device id in as i32 because that's what TVM expects
             (ctx.device_id as i32).into(),
