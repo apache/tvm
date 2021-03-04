@@ -130,9 +130,13 @@ class BuildModule(object):
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
         # Assume the target host of all targets in heterogenous target are identical
-        for k in target:
-            target[k] = Target(target[k], target_host)
-            target_host = target[k].host
+        if isinstance(target, dict):
+            for k in target:
+                target[k] = Target(target[k], target_host)
+                target_host = target[k].host
+        else:
+            target = Target(target, target_host)
+            target_host = target.host
 
         self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
@@ -261,9 +265,14 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
         target_host = Target(target_host)
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
-    for k in target:
-        target[k] = Target(target[k], target_host)
-        target_host = target[k].host
+
+    if isinstance(target, dict):
+        for k in target:
+            target[k] = Target(target[k], target_host)
+            target_host = target[k].host
+    else:
+        target = Target(target, target_host)
+        target_host = target.host
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub

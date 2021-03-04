@@ -65,9 +65,13 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    for k in target:
-        target[k] = tvm.target.Target(target[k], target_host)
-        target_host = target[k].host
+    if isinstance(target, dict):
+        for k in target:
+            target[k] = tvm.target.Target(target[k], target_host)
+            target_host = target[k].host
+    else:
+        target = tvm.target.Target(target, target_host)
+        target_host = target.host
     compiler.lower(mod, target, target_host)
     compiler.codegen()
     return compiler.get_exec()
@@ -134,9 +138,13 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        for k in target:
-            target[k] = tvm.target.Target(target[k], target_host)
-            target_host = target[k].host
+        if isinstance(target, dict):
+            for k in target:
+                target[k] = tvm.target.Target(target[k], target_host)
+                target_host = target[k].host
+        else:
+            target = tvm.target.Target(target, target_host)
+            target_host = target.host
 
         tophub_context = self._tophub_context(target)
         with tophub_context:
@@ -176,9 +184,13 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        for k in target:
-            target[k] = tvm.target.Target(target[k], target_host)
-            target_host = target[k].host
+        if isinstance(target, dict):
+            for k in target:
+                target[k] = tvm.target.Target(target[k], target_host)
+                target_host = target[k].host
+        else:
+            target = tvm.target.Target(target, target_host)
+            target_host = target.host
 
         if params:
             self.set_params(params)
