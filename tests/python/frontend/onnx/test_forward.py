@@ -3112,6 +3112,7 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
     kwargs = {}
     if p is not None:
         kwargs['p'] = p
+
     if pads is None:
         pool_node = helper.make_node(
             "LpPool",
@@ -3120,7 +3121,7 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
             kernel_shape=kernel_shape,
             auto_pad=auto_pad,
             strides=strides,
-            **kwargs
+            **kwargs,
         )
     else:
         pool_node = helper.make_node(
@@ -3130,7 +3131,7 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
             kernel_shape=kernel_shape,
             pads=pads,
             strides=strides,
-            **kwargs
+            **kwargs,
         )
 
     graph = helper.make_graph(
