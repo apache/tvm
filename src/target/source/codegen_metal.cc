@@ -47,7 +47,7 @@ CodeGenMetal::CodeGenMetal() {
   decl_stream << "#include <metal_stdlib>\n";
   decl_stream << "using namespace metal;\n\n";
   decl_stream << "union __TVMArgUnion {\n"
-              << " int v_int;\n"
+              << " int v_long;\n"
               << "};\n\n";
 }
 
@@ -104,8 +104,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
       if (v.dtype().bits() == 32) {
         decl_stream << "  ";
         PrintType(v.dtype(), decl_stream);
-        decl_stream << " " << vid << ";\n";
-        vref << varg << "." << vid;
+        decl_stream << " " << vid << "[2];\n";
+        vref << varg << "." << vid << "[0]";
       } else {
         // For non 32bit type, ref through arg union.
         decl_stream << "  __TVMArgUnion " << vid << ";\n";
