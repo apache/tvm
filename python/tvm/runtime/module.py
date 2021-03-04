@@ -246,7 +246,8 @@ class Module(object):
         Parameters
         ----------
         filter_func : Callable[[Module], bool]
-            A function which is invoked for each Module discovered in the import tree (including self).
+            A function which is invoked for each Module discovered in the import tree (including
+            self).
 
         Returns
         -------
@@ -402,7 +403,7 @@ class Module(object):
         non_dso_modules = self._collect_from_import_tree(lambda m: m not in dso_modules)
         if non_dso_modules:
             raise UnsupportedInModelLibraryFormatError(
-                f"Don't know how to export non-c or non-llvm modules; found: {non_dso_modules!r}, {dso_modules!r}, {dso_module_handles!r}"
+                f"Don't know how to export non-c or non-llvm modules; found: {non_dso_modules!r}"
             )
 
         mod_indices = {"lib": 0, "src": 0}
