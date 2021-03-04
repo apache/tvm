@@ -48,7 +48,7 @@ def test_cumsum(ctx, target):
         check_cumsum(np.cumsum(data, dtype=np.int32), data, dtype="int32")
 
     for in_dtype in ["float32", "float64"]:
-        if str(target.kind) == 'metal' and in_dtype == 'float64':
+        if target == 'metal' and in_dtype == 'float64':
             # float64 is not supported in metal
             continue
         data = np.random.randn(10, 10).astype(in_dtype)
