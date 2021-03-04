@@ -9,7 +9,7 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
+ * Unless required by applicable law or 11 to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
@@ -65,9 +65,9 @@ struct GraphCodegen {
   }
   ~GraphCodegen() {}
 
-  void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
+  void Init(runtime::Module* m, TargetsMap targets) { CallFunc<void>("init", m, targets); }
 
-  void Codegen(const Function& func) { CallFunc("codegen", func); }
+  void Codegen(const Function& func) { CallFunc<void>("codegen", func); }
 
   std::string GetJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
 
@@ -104,15 +104,27 @@ struct GraphCodegen {
  protected:
   tvm::runtime::Module mod;
   template <typename R, typename... Args>
-  R CallFunc(const std::string& name, Args... args) {
-    auto pf = mod.GetFunction(name, false);
-    return pf(std::forward<Args>(args)...);
-  }
+  class CallFunc_ {
+   public:
+    R operator()(const std::string& name, Args... args) {
+      auto pf = mod.GetFunction(name, false);
+      return pf(std::forward<Args>(args)...);
+    }
+  };
+
   template <typename... Args>
-  void CallFunc(const std::string& name, Args... args) {
-    auto pf = mod.GetFunction(name, false);
-    pf(std::forward<Args>(args)...);
-    return;
+  class CallFunc_<void, Args...> {
+   public:
+    void operator()(const std::string& name, Args... args) {
+      auto pf = mod.GetFunction(name, false);
+      pf(std::forward<Args>(args)...);
+      return;
+    }
+  };
+
+  template <typename R, typename... Args>
+  R CallFunc(const std::string& name, Args... args) {
+    return CallFunc_<R, Args...>()(name, std::forward<Args>(args)...);
   }
 };
 
