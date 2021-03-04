@@ -91,7 +91,7 @@ class GraphRuntimeDebug : public GraphRuntime {
           }
           for (size_t index = 0; index < op_execs_.size(); ++index) {
             for (auto t : op_timers[index]) {
-              time_sec_per_op[index] += t.SyncAndGetElapsedNanos() / 1e9;
+              time_sec_per_op[index] += t->SyncAndGetElapsedNanos() / 1e9;
             }
           }
           tend = std::chrono::high_resolution_clock::now();
@@ -161,7 +161,7 @@ class GraphRuntimeDebug : public GraphRuntime {
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
     Timer t = Timer::Start(ctx);
     op_execs_[index]();
-    t.Stop();
+    t->Stop();
     return t;
   }
 

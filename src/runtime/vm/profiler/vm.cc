@@ -49,7 +49,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       for (auto kv : op_timers_) {
         std::vector<double> durations_us;
         for (auto t : kv.second) {
-          durations_us.push_back(t.SyncAndGetElapsedNanos() / 1e3);
+          durations_us.push_back(t->SyncAndGetElapsedNanos() / 1e3);
         }
         op_durations[kv.first] = durations_us;
       }
@@ -128,7 +128,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
 
   Timer t = Timer::Start(ctx);
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  t.Stop();
+  t->Stop();
 
   op_timers_[packed_index].push_back(t);
   op_invokes_[packed_index] += 1;
