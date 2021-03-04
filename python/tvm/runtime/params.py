@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
-import . import _ffi_api
+from . import _ffi_api
 
 
 def save_param_dict(params):
