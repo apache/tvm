@@ -106,16 +106,16 @@ struct GraphCodegen {
   // specialization
   template <typename R, typename... Args>
   struct CallFunc_ {
-    R operator()(tvm::runtime::Module& mod, const std::string& name, Args... args) {
-      auto pf = mod.GetFunction(name, false);
+    R operator()(tvm::runtime::Module* mod, const std::string& name, Args... args) {
+      auto pf = mod->GetFunction(name, false);
       return pf(std::forward<Args>(args)...);
     }
   };
 
   template <typename... Args>
   struct CallFunc_<void, Args...> {
-    void operator()(tvm::runtime::Module& mod, const std::string& name, Args... args) {
-      auto pf = mod.GetFunction(name, false);
+    void operator()(tvm::runtime::Module* mod, const std::string& name, Args... args) {
+      auto pf = mod->GetFunction(name, false);
       pf(std::forward<Args>(args)...);
       return;
     }
@@ -123,7 +123,7 @@ struct GraphCodegen {
 
   template <typename R, typename... Args>
   R CallFunc(const std::string& name, Args... args) {
-    return CallFunc_<R, Args...>()(mod, name, std::forward<Args>(args)...);
+    return CallFunc_<R, Args...>()(&mod, name, std::forward<Args>(args)...);
   }
 };
 
