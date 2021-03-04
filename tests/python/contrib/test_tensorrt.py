@@ -71,6 +71,14 @@ def assert_result_dict_holds(result_dict):
             tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
+def set_func_attr(func, compile_name, symbol_name):
+    func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Compiler", compile_name)
+    func = func.with_attr("global_symbol", symbol_name)
+    return func
+
+
 def run_and_verify_func(config, target="cuda"):
     """Test a Relay func by compiling, running, and comparing TVM and TRT outputs.
 
@@ -1109,13 +1117,6 @@ def test_dynamic_offload():
     kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
 
     def get_expected():
-        def set_func_attr(func, compile_name, symbol_name):
-            func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-            func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-            func = func.with_attr("Compiler", compile_name)
-            func = func.with_attr("global_symbol", symbol_name)
-            return func
-
         # Create a nested TRT function that matches the expected output
         mod = tvm.IRModule()
         var1 = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
@@ -1329,6 +1330,33 @@ def test_maskrcnn_resnet50() -> None:
             rtol=tol_val,
             atol=tol_val,
         )
+
+
+def test_empty_subgraph():
+    if skip_codegen_test():
+        return
+    x_shape = (1, 3, 5)
+    mod = tvm.IRModule()
+    # Empty tensorrt subgraph.
+    var1 = relay.var("tensorrt_0_i0", shape=(x_shape), dtype="float32")
+    f1 = GlobalVar("tensorrt_0")
+    func = relay.Function([var1], var1)
+    func = set_func_attr(func, "tensorrt", "tensorrt_0")
+    mod[f1] = func
+    mod = relay.transform.InferType()(mod)
+
+    # Create the main function
+    x = relay.var("x", shape=x_shape, dtype="float32")
+    out = f1(relay.nn.relu(x))
+    f = relay.Function([x], out)
+    mod["main"] = f
+
+    x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
+    for mode in ["graph", "vm"]:
+        with tvm.transform.PassContext(opt_level=3):
+            exec = relay.create_executor(mode, mod=mod, ctx=tvm.gpu(0), target="cuda")
+            if not skip_runtime_test():
+                results = exec.evaluate()(x_data)
 
 
 if __name__ == "__main__":
