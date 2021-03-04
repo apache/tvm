@@ -33,8 +33,8 @@ TEST(DefaultTimer, Basic) {
 
   Timer t = Timer::Start(ctx);
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  t.Stop();
-  int64_t elapsed = t.SyncAndGetElapsedNanos();
+  t->Stop();
+  int64_t elapsed = t->SyncAndGetElapsedNanos();
   CHECK_GT(elapsed, 9 * 1e6);
 }
 }  // namespace runtime
