@@ -527,28 +527,30 @@ def test_sparse_dense_padded_alter_op():
 
 
 def test_sparse_add_csr():
-    M, K, density = 3, 49, 0.2
-    X_np = np.random.randn(M, K).astype("float32")
-    Y_sp_np = sp.random(M, K, density=density, format="csr", dtype="float32")
-    Y_np = Y_sp_np.todense()
-    Z_np = X_np + Y_np
+    for indices_dtype in ["int32", "int64"]:
+        for data_dtype in ["float32", "float64"]:
+            M, K, density = 3, 49, 0.2
+            X_np = np.random.randn(M, K).astype(data_dtype)
+            Y_sp_np = sp.random(M, K, density=density, format="csr", dtype=data_dtype)
+            Y_np = Y_sp_np.todense()
+            Z_np = X_np + Y_np
 
-    Y_data = te.placeholder(shape=Y_sp_np.data.shape, dtype=str(Y_sp_np.data.dtype))
-    Y_indices = te.placeholder(shape=Y_sp_np.indices.shape, dtype=str(Y_sp_np.indices.dtype))
-    Y_indptr = te.placeholder(shape=Y_sp_np.indptr.shape, dtype=str(Y_sp_np.indptr.dtype))
-    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
-    Z = topi.nn.sparse_add(X, Y_data, Y_indices, Y_indptr)
-    s = te.create_schedule(Z.op)
-    func = tvm.build(s, [X, Y_data, Y_indices, Y_indptr, Z])
-    Z_tvm = tvm.nd.array(np.zeros(Z_np.shape, dtype=Z_np.dtype))
-    func(
-        tvm.nd.array(X_np),
-        tvm.nd.array(Y_sp_np.data),
-        tvm.nd.array(Y_sp_np.indices),
-        tvm.nd.array(Y_sp_np.indptr),
-        Z_tvm,
-    )
-    tvm.testing.assert_allclose(Z_tvm.asnumpy(), Z_np, atol=1e-4, rtol=1e-4)
+            Y_data = te.placeholder(shape=Y_sp_np.data.shape, dtype=data_dtype)
+            Y_indices = te.placeholder(shape=Y_sp_np.indices.shape, dtype=indices_dtype)
+            Y_indptr = te.placeholder(shape=Y_sp_np.indptr.shape, dtype=indices_dtype)
+            X = te.placeholder(shape=X_np.shape, dtype=data_dtype)
+            Z = topi.nn.sparse_add(X, Y_data, Y_indices, Y_indptr)
+            s = te.create_schedule(Z.op)
+            func = tvm.build(s, [X, Y_data, Y_indices, Y_indptr, Z])
+            Z_tvm = tvm.nd.array(np.zeros(Z_np.shape, dtype=Z_np.dtype))
+            func(
+                tvm.nd.array(X_np.astype(data_dtype)),
+                tvm.nd.array(Y_sp_np.data.astype(data_dtype)),
+                tvm.nd.array(Y_sp_np.indices.astype(indices_dtype)),
+                tvm.nd.array(Y_sp_np.indptr.astype(indices_dtype)),
+                Z_tvm,
+            )
+            tvm.testing.assert_allclose(Z_tvm.asnumpy(), Z_np, atol=1e-4, rtol=1e-4)
 
 
 if __name__ == "__main__":

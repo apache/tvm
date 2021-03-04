@@ -2165,10 +2165,10 @@ def sparse_add(dense_mat, sparse_mat):
     Parameters
     ----------
     dense_mat : tvm.relay.Expr
-        The input dense matrix for the matrix multiplication
+        The input dense matrix for the matrix addition
 
     sparse_mat : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
-        The input sparse matrix for the matrix multiplication.
+        The input sparse matrix(CSR) for the matrix addition.
 
     Returns
     -------

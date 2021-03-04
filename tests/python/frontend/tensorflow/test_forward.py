@@ -2364,7 +2364,9 @@ def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
     # TODO(ANSHUMAN87): support both sparse input case
 
     with tf.Graph().as_default():
-        A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
+        A_sp = tf.sparse.SparseTensor(
+            indices=indices, values=np.array(values).astype(dtype), dense_shape=A_shape
+        )
         B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
 
         # TODO(ANSHUMAN87): support user input threashold values
@@ -2391,11 +2393,11 @@ def test_sparse_add():
     #     [0, 0, 0, 0]]
     #
     # ------------------------------------------------------------------
-
-    _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], "float32")
-    _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], "float32", True)
-    _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32")
-    _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32", True)
+    for dtype_inp in ["float32", "float64", "int32"]:
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp, True)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp, True)
 
 
 #######################################################################

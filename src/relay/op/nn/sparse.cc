@@ -199,7 +199,7 @@ RELAY_REGISTER_OP("nn.sparse_transpose")
 // relay.nn.sparse_add
 bool SparseAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 5);
+  ICHECK_EQ(types.size(), 5) << "expecting 4 inputs and 1 output.";
   const auto* dense_data = types[0].as<TensorTypeNode>();
   const auto* sparse_data = types[1].as<TensorTypeNode>();
   ICHECK(reporter->Assert(sparse_data->dtype == dense_data->dtype))

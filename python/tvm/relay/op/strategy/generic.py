@@ -822,13 +822,6 @@ def sparse_add_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-@generic_func
-def schedule_sparse_add(attrs, outs, target):
-    """schedule sparse_add"""
-    with target:
-        return topi.generic.schedule_sparse_add(outs)
-
-
 # sparse_transpose
 @generic_func
 def schedule_sparse_transpose(attrs, outs, target):

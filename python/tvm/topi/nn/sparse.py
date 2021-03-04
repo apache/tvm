@@ -477,16 +477,16 @@ def sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr):
     Parameters
     ----------
     dense_data : tvm.te.Tensor
-        2-D with shape [M, N], float32
+        2-D with shape [M, N]
 
     sparse_data : tvm.te.Tensor
-        1-D with shape [nnz] (CSR) or
+        1-D with shape [nnz] (CSR)
 
     sparse_indices : tvm.te.Tensor
-        1-D with shape [nnz] (CSR) or
+        1-D with shape [nnz] (CSR)
 
     sparse_indptr : tvm.te.Tensor
-        1-D with shape [M + 1] (CSR) or
+        1-D with shape [M + 1] (CSR)
 
     Returns
     -------
@@ -510,11 +510,11 @@ def _sparse_add_csr(dense_data_inp, sparse_data_inp, sparse_indices_inp, sparse_
 
         out_data_ptr = irb.buffer_ptr(out_data)
 
-        with irb.for_range(0, oshape[0], kind="serial", name="row") as row:
-            with irb.for_range(0, oshape[1], kind="serial", name="col") as col:
+        with irb.for_range(0, oshape[0], kind="vectorize", name="row") as row:
+            with irb.for_range(0, oshape[1], kind="parallel", name="col") as col:
                 out_data_ptr[row, col] = dense_data_ptr[row, col]
 
-        with irb.for_range(0, oshape[0], kind="serial", name="row") as row:
+        with irb.for_range(0, oshape[0], kind="parallel", name="row") as row:
             offset = sparse_indptr_ptr[row]
             diff = sparse_indptr_ptr[row + 1] - sparse_indptr_ptr[row]
             with irb.for_range(0, diff, kind="serial", name="idx") as idx:
@@ -535,5 +535,5 @@ def _sparse_add_csr(dense_data_inp, sparse_data_inp, sparse_indices_inp, sparse_
             sparse_indices_inp.dtype,
             sparse_indptr_inp.dtype,
         ],
-        name="out",
+        name="sparse_add_csr_output",
     )
