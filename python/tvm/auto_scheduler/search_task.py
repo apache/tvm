@@ -164,8 +164,8 @@ class TuningOptions(Object):
         )
 
 
-# The map stores special registered buffer for measurement
-#  This can be used for sparse workloads when we cannot use random tensors for measurment.
+# The map stores special registered buffer for measurement.
+# This can be used for sparse workloads when we cannot use random tensors for measurment.
 # {
 #     "workload_key_0": {
 #         "task_input_0": Tensor(...),
@@ -183,7 +183,7 @@ TASK_INPUT_BUFFER_TABLE = {}
 def _save_buffer_to_file(buffer_name, buffer_data):
     """Save the current Tensor buffer to a numpy file.
 
-    File name will be: {buffer_name}.{buffer_shape}_{buffer_data_type}
+    File name will be: {buffer_name}_{buffer_shape}_{buffer_data_type}.npy
     """
     np_data = buffer_data.asnumpy()
 
@@ -191,6 +191,7 @@ def _save_buffer_to_file(buffer_name, buffer_data):
     for i in np_data.shape:
         buffer_name += "%d_" % (i)
     buffer_name += "%s" % (np_data.dtype)
+    buffer_name += ".npy"
 
     np_data.tofile(buffer_name, " ")
 
@@ -204,7 +205,7 @@ def _try_load_buffer_from_file(buffer_name):
 
     for file in filelist:
         if file.startswith(buffer_name) and file.count("."):
-            meta_info = file.split(".")[-1].split("_")
+            meta_info = file.split(".")[-2].split("_")
             shape = [int(i) for i in meta_info[:-1]]
             dtype = meta_info[-1]
             buffer_data = np.fromfile(file, dtype=dtype, sep=" ")
@@ -235,11 +236,17 @@ def register_task_input_buffer(
         The input Tensor data.
 
     overwrite : bool = False
-        Whether overwrite the data if a name has already in the global table.
+        Whether to overwrite the data if a name has already registered.
 
     save_to_file : bool = False
-        Whether record this buffer to a local file. This can be reused to continue the last tuning
-        process.
+        Whether to save the data to a local file as well. This can be reused to resume the last
+        tuning process.
+
+    Returns
+    -------
+    tvm.nd.NDArray
+        The actual registered Tensor data of this input_name. With `overwrite` set to False, will
+        return the original one if the name has already registered before.
     """
     global TASK_INPUT_BUFFER_TABLE
 
@@ -284,7 +291,8 @@ def get_task_input_buffer(workload_key, input_name):
 
     Returns
     -------
-    The registered input buffer.
+    tvm.nd.NDArray
+        The registered input buffer.
     """
     global TASK_INPUT_BUFFER_TABLE
 
@@ -341,9 +349,9 @@ class SearchTask(Object):
         about it, but for special workloads like Sparse computation the Sparse Tensor input are
         meaningful that we cannot use random input directly.
     task_inputs_overwrite : bool = False
-        Whether overwrite the data if a name has already in the global table.
+        Whether to overwrite the data if a name has already in the global table.
     task_inputs_save_to_file : bool = False
-        Whether record this buffer to a local file. This can be reused to continue the last
+        Whether to save the data to a local file as well. This can be reused to resume the last
         tuning process.
 
     Examples
@@ -506,7 +514,7 @@ class SearchTask(Object):
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
-            "task_inputs": self.task_inputs,
+            "task_input_names": self.task_input_names,
         }
 
     def __setstate__(self, state):
@@ -531,7 +539,7 @@ class SearchTask(Object):
             state["target_host"],
             state["hardware_params"],
             state["layout_rewrite_option"],
-            state["task_inputs"],
+            state["task_input_names"],
         )
 
 

@@ -223,7 +223,7 @@ def recover_measure_input(inp, rebuild_state=False):
         target_host=task.target_host,
         hardware_params=task.hardware_params,
         layout_rewrite_option=task.layout_rewrite_option,
-        task_inputs=list(task.task_inputs),
+        task_inputs=list(task.task_input_names),
     )
 
     if rebuild_state:
@@ -721,7 +721,8 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
 
 
 def _prepare_input_map(args):
-    """This function deals with special task inputs.
+    """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
+    to a specific buffer name in the global buffer map.
 
     Parameters
     ----------
@@ -730,10 +731,11 @@ def _prepare_input_map(args):
 
     Returns
     -------
-    A Dict[Tensor, str] that maps the input Tensor to a buffer name.
+    Dict[Tensor, str] : 
+        Map from the input Tensor to its buffer name.
 
-    Note
-    ----
+    Notes
+    -----
     The buffer name is specially designed, and these buffer should be provided in
     `SearchTask(..., task_inputs={...})`.
     """
@@ -773,7 +775,7 @@ def _timed_eval_func(
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     inp = MeasureInput.deserialize(inp_serialized)
-    task_inputs = inp.task.task_inputs
+    task_input_names = inp.task.task_input_names
     tic = time.time()
     error_no = 0
     error_msg = None
@@ -805,17 +807,17 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
 
-            tensor_input_map = _prepare_input_map(build_res.args) if task_inputs else {}
+            tensor_input_map = _prepare_input_map(build_res.args) if task_input_names else {}
             args = []
             for arg in build_res.args:
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
-                    if tensor_name in task_inputs:
+                    if tensor_name in task_input_names:
                         args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
                     else:
                         raise ValueError(
                             "%s not found in task_inputs, " % (tensor_name)
-                            + "should provide with SearchTask.AddTaskInput()"
+                            + "should provide with `SearchTask(..., task_inputs={...})`"
                         )
                 else:
                     empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
@@ -973,7 +975,7 @@ def _timed_rpc_run(
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     inp = MeasureInput.deserialize(inp_serialized)
-    task_inputs = inp.task.task_inputs
+    task_input_names = inp.task.task_input_names
     tic = time.time()
     error_no = 0
     error_msg = None
@@ -1010,17 +1012,17 @@ def _timed_rpc_run(
                 random_fill
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
-            tensor_input_map = _prepare_input_map(build_res.args) if task_inputs else {}
+            tensor_input_map = _prepare_input_map(build_res.args) if task_input_names else {}
             args = []
             for arg in build_res.args:
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
-                    if tensor_name in task_inputs:
+                    if tensor_name in task_input_names:
                         args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
                     else:
                         raise ValueError(
                             "%s not found in task_inputs, " % (tensor_name)
-                            + "should provide with SearchTask.AddTaskInput()"
+                            + "should provide with `SearchTask(..., task_inputs={...})`"
                         )
                 else:
                     empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)

@@ -50,10 +50,10 @@ def test_search_task_add_task_input():
         task_inputs_overwrite=True,
     )
 
-    assert len(task.task_inputs) == 3
-    assert task.task_inputs[0] == "test_input_0"
-    assert task.task_inputs[1] == "test_input_1"
-    assert task.task_inputs[2] == "test_input_2"
+    assert len(task.task_input_names) == 3
+    assert task.task_input_names[0] == "test_input_0"
+    assert task.task_input_names[1] == "test_input_1"
+    assert task.task_input_names[2] == "test_input_2"
 
 
 def test_search_task_record():
@@ -88,8 +88,8 @@ def test_search_task_record():
     assert str(task.target) == str(new_task.target)
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
-    assert len(new_task.task_inputs) == 1
-    assert new_task.task_inputs[0] == "test_input_0"
+    assert len(new_task.task_input_names) == 1
+    assert new_task.task_input_names[0] == "test_input_0"
 
     # Log with multiple task inputs
     test_input_1 = tvm.runtime.ndarray.empty((64, 64))
@@ -109,9 +109,9 @@ def test_search_task_record():
     assert str(task.target) == str(new_task.target)
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
-    assert len(new_task.task_inputs) == 2
-    assert new_task.task_inputs[0] == "test_input_0"
-    assert new_task.task_inputs[1] == "test_input_1"
+    assert len(new_task.task_input_names) == 2
+    assert new_task.task_input_names[0] == "test_input_0"
+    assert new_task.task_input_names[1] == "test_input_1"
 
     # Log with version 0.5
     v5_log = """["[\\\"matmul_auto_scheduler_test\\\", 64, 64, 64]", "llvm -keys=cpu -link-params=0", [6, 64, 64, 0, 0, 0, 0, 0], "", 1]"""
@@ -120,7 +120,7 @@ def test_search_task_record():
     assert str(task.target) == str(new_task.target)
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
-    assert len(new_task.task_inputs) == 0
+    assert len(new_task.task_input_names) == 0
 
 
 def test_recover_measure_input_with_task_input():
@@ -162,8 +162,8 @@ def test_recover_measure_input_with_task_input():
     assert str(task.target) == str(new_task.target)
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
-    assert len(new_task.task_inputs) == 1
-    assert new_task.task_inputs[0] == "test_input_0"
+    assert len(new_task.task_input_names) == 1
+    assert new_task.task_input_names[0] == "test_input_0"
 
     # Log with multiple task inputs
     test_input_1 = tvm.runtime.ndarray.empty((64, 64))
@@ -186,9 +186,9 @@ def test_recover_measure_input_with_task_input():
     assert str(task.target) == str(new_task.target)
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
-    assert len(new_task.task_inputs) == 2
-    assert new_task.task_inputs[0] == "test_input_0"
-    assert new_task.task_inputs[1] == "test_input_1"
+    assert len(new_task.task_input_names) == 2
+    assert new_task.task_input_names[0] == "test_input_0"
+    assert new_task.task_input_names[1] == "test_input_1"
 
     # Log with version 0.5
     v5_log = """{"i": [["[\\\"matmul_auto_scheduler_test\\\", 512, 512, 512]", "llvm -keys=cpu -link-params=0", [6, 64, 64, 0, 0, 0, 0, 0], "", 1], [[], []]], "r": [[0.1], 0, 0.2, 1], "v": "v0.6"}"""
@@ -198,7 +198,7 @@ def test_recover_measure_input_with_task_input():
     assert str(task.target) == str(new_task.target)
     assert str(task.target_host) == str(new_task.target_host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
-    assert len(new_task.task_inputs) == 0
+    assert len(new_task.task_input_names) == 0
 
 
 if __name__ == "__main__":

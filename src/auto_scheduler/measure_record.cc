@@ -171,7 +171,7 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     writer->WriteArrayItem(static_cast<int>(data.layout_rewrite_option));
     writer->WriteArraySeperator();
     writer->BeginArray(false);
-    for (const auto& i : data.task_inputs) {
+    for (const auto& i : data.task_input_names) {
       writer->WriteArrayItem(std::string(i));
     }
     writer->EndArray();
@@ -211,7 +211,7 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
           s = reader->NextArrayItem();
           while (s) {
             reader->Read(&str_value);
-            data->task_inputs.push_back(str_value);
+            data->task_input_names.push_back(str_value);
             s = reader->NextArrayItem();
           }
           // Process the end of array
