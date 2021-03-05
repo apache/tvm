@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/transforms/simplify_expr.cc
- * \brief A pass for simplifying the Relay expression.
+ * \file src/relay/transforms/fold_explicit_padding.cc
+ * \brief A pass for folding explicit pads into other ops.
  */
 
 #include <tvm/relay/dataflow_matcher.h>
@@ -33,7 +33,6 @@
 
 namespace tvm {
 namespace relay {
-
 
 /*!
  * \brief SimplifyConvPad matches a pad followed by a conv/convtranspose/pool/etc
