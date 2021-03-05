@@ -34,7 +34,6 @@
 #ifndef TVM_NODE_NODE_H_
 #define TVM_NODE_NODE_H_
 
-#include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_equal.h>

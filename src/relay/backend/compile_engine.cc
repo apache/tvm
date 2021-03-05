@@ -692,6 +692,17 @@ class CompileEngineImpl : public CompileEngineNode {
     return items;
   }
 
+  // List all items in the shape_func_cache.
+  Array<ObjectRef> ListShapeFuncItems() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    Array<ObjectRef> items;
+    for (auto& kv : shape_func_cache_) {
+      items.push_back(kv.first);
+      items.push_back(kv.second);
+    }
+    return items;
+  }
+
   /*!
    * \brief Get the cache key of the function that is being lowered currently
    * \return the cache key
@@ -881,6 +892,13 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems").set_body_typed([](C
   ICHECK(ptr != nullptr);
   return ptr->ListItems();
 });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListShapeFuncItems")
+    .set_body_typed([](CompileEngine self) {
+      CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+      ICHECK(ptr != nullptr);
+      return ptr->ListShapeFuncItems();
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGetCurrentCCacheKey")
     .set_body_typed([](CompileEngine self) {

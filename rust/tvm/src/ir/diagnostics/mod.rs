@@ -35,7 +35,7 @@ use tvm_macros::{external, Object};
 pub mod codespan;
 
 external! {
-    #[name("node.ArrayGetItem")]
+    #[name("runtime.ArrayGetItem")]
     fn get_renderer() -> DiagnosticRenderer;
 
     #[name("diagnostics.DiagnosticRenderer")]

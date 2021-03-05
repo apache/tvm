@@ -28,7 +28,7 @@ from ...runtime import ndarray
 from .. import param_dict
 
 
-class GraphRuntimeFactoryModule(object):
+class GraphRuntimeFactoryModule:
     """Graph runtime factory module.
     This is a module of graph runtime factory
 

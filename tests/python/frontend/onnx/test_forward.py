@@ -1830,23 +1830,26 @@ def test_unary_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_unary_ops(op, x, rtol=1e-5, atol=1e-5):
+    def verify_unary_ops(op, x, rtol=1e-5, atol=1e-5, dtype="float32"):
+        x = x.astype(dtype)
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         z = helper.make_node(op, ["in1"], ["out"])
         graph = helper.make_graph(
             [z],
             "_test",
             inputs=[
-                helper.make_tensor_value_info("in1", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("in1", ONNX_DTYPE, list(in_shape)),
             ],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(out_shape))],
         )
         model = helper.make_model(graph, producer_name="_test")
         verify_with_ort_with_inputs(model, [x], rtol=rtol, atol=atol)
 
-    x = np.random.uniform(size=in_shape).astype(dtype)
+    x = np.random.uniform(size=in_shape)
     verify_unary_ops("Neg", x)
     verify_unary_ops("Abs", x)
     verify_unary_ops("Reciprocal", x)
+    verify_unary_ops("Reciprocal", x, dtype="float16")
     verify_unary_ops("Sqrt", x)
     verify_unary_ops("Relu", x)
     verify_unary_ops("Exp", x)
@@ -3356,15 +3359,27 @@ def test_resize():
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+
     # downsampling
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+
     # scales are specified instead of sizes
     verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [

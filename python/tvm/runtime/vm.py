@@ -113,7 +113,7 @@ class Executable(object):
             # define a simple network.
             x = relay.var('x', shape=(10, 10))
             f = relay.Function([x], x + x)
-            mod = relay.Module({"main": f})
+            mod = tvm.IRModule({"main": f})
             # create a Relay VM.
             ctx = tvm.cpu()
             target = "llvm"
@@ -128,7 +128,7 @@ class Executable(object):
             loaded_lib = tvm.runtime.load_module(path_lib)
             loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
             # deserialize.
-            des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_code)
+            des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_lib)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
             des_vm = tvm.runtime.vm.VirtualMachine(des_exec, ctx)

@@ -87,26 +87,36 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, const TVMValue* a
   this->EncodeReturn(std::move(rv), encode_return);
 }
 
-void LocalSession::CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset,
-                                size_t nbytes, TVMContext ctx_to, DLDataType type_hint) {
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
-  this->GetDeviceAPI(ctx_to)->CopyDataFromTo(from, from_offset, to, to_offset, nbytes, cpu_ctx,
-                                             ctx_to, type_hint, nullptr);
+void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
+  ICHECK_EQ(nbytes, GetDataSize(*to));
+  DLTensor from;
+  from.data = from_bytes;
+  from.ctx = {kDLCPU, 0};
+  from.ndim = to->ndim;
+  from.shape = to->shape;
+  from.dtype = to->dtype;
+  from.strides = nullptr;
+  from.byte_offset = 0;
+  TVMContext ctx_to = to->ctx;
+  this->GetDeviceAPI(ctx_to)->CopyDataFromTo(&from, to, nullptr);
   // Copy can happen asynchrously
   // synchronize to make sure that copy is completed
   this->GetDeviceAPI(ctx_to)->StreamSync(ctx_to, nullptr);
 }
 
-void LocalSession::CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset,
-                                  size_t nbytes, TVMContext ctx_from, DLDataType type_hint) {
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
+void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
+  ICHECK_EQ(nbytes, GetDataSize(*from));
+  DLTensor to;
+  to.data = to_bytes;
+  to.ctx = {kDLCPU, 0};
+  to.ndim = from->ndim;
+  to.shape = from->shape;
+  to.dtype = from->dtype;
+  to.strides = nullptr;
+  to.byte_offset = 0;
 
-  this->GetDeviceAPI(ctx_from)->CopyDataFromTo(from, from_offset, to, to_offset, nbytes, ctx_from,
-                                               cpu_ctx, type_hint, nullptr);
+  TVMContext ctx_from = from->ctx;
+  this->GetDeviceAPI(ctx_from)->CopyDataFromTo(from, &to, nullptr);
   // Copy can happen asynchrously
   // synchronize to make sure that copy is completed
   this->GetDeviceAPI(ctx_from)->StreamSync(ctx_from, nullptr);

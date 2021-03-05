@@ -1956,6 +1956,305 @@ def test_forward_sparse_fill_empty_rows(
 
 
 #######################################################################
+# SparseReshape
+# ------------
+
+
+def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, use_dyn=False):
+    with tf.Graph().as_default():
+        if use_dyn:
+            indices = tf.placeholder(shape=(None, None), dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=(None), dtype=values_np.dtype, name="values")
+            prev_shape = tf.placeholder(shape=(None), dtype=prev_shape_np.dtype, name="prev_shape")
+            new_shape = tf.placeholder(shape=(None), dtype=new_shape_np.dtype, name="new_shape")
+        else:
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            values = tf.placeholder(shape=values_np.shape, dtype=values_np.dtype, name="values")
+            prev_shape = tf.placeholder(
+                shape=prev_shape_np.shape, dtype=prev_shape_np.dtype, name="prev_shape"
+            )
+            new_shape = tf.placeholder(
+                shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
+            )
+        sp_input = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=prev_shape)
+
+        _ = tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        compare_tf_with_tvm(
+            [indices_np, values_np, prev_shape_np, new_shape_np],
+            [indices.name, values.name, prev_shape.name, new_shape.name],
+            ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np",
+    [
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, -1], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, 2], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 2), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([3, 6], dtype=np.int64),
+            np.array([-1, 2], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6], dtype=np.int64),
+            np.array([-1, 9], dtype=np.int64),
+        ),
+        (
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 1, 2, 3],
+                    [0, 1, 0, 3, 5],
+                    [1, 0, 0, 4, 6],
+                    [1, 2, 3, 6, 8],
+                ],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7, 9], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([9, 4], dtype=np.int64),
+            np.array([-1], dtype=np.int64),
+        ),
+        (
+            np.array([[0], [5], [10], [20], [24]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([25], dtype=np.int64),
+            np.array([5, 5], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([500, -1], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([250, 40], dtype=np.int64),
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_forward_sparse_reshape(
+    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn
+):
+    """ sparse_reshape op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn)
+
+
+#######################################################################
+# Sparse Segment Variants
+# ------------
+
+
+def _test_sparse_segment_variant(
+    tf_op, data_np, indices_np, segment_ids_np, num_segments, use_dyn=False
+):
+    with tf.Graph().as_default():
+        if use_dyn:
+            data = tf.placeholder(
+                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
+            )
+            indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
+            segment_ids = tf.placeholder(
+                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+        else:
+            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            segment_ids = tf.placeholder(
+                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+
+        _ = tf_op(
+            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_variant"
+        )
+        compare_tf_with_tvm(
+            [data_np, indices_np, segment_ids_np],
+            [data.name, indices.name, segment_ids.name],
+            ["sparse_segment_variant:0"],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "data_np, indices_np, segment_ids_np, num_segments",
+    [
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 3, 4], dtype=np.int32),
+            np.array([0, 1, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
+            4,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 2, 4, 3, 1], dtype=np.int32),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            100,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 2, 4, 3, 1], dtype=np.int32),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float64),
+            np.array([0, 1, 2], dtype=np.int32),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            9,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 5, 5, 5, 5], dtype=np.int32),
+            6,
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+@pytest.mark.parametrize(
+    "tf_op",
+    [
+        tf.sparse.segment_sum,
+        tf.sparse.segment_sqrt_n,
+        tf.sparse.segment_mean,
+    ],
+)
+def test_forward_sparse_segment_sum_variants(
+    tf_op,
+    data_np,
+    indices_np,
+    segment_ids_np,
+    num_segments,
+    use_dyn,
+):
+    """sparse segment sum variants tests"""
+    _test_sparse_segment_variant(tf_op, data_np, indices_np, segment_ids_np, num_segments, use_dyn)
+
+
+#######################################################################
+# Math SegmentSum
+# ------------
+
+
+def _test_math_segment_sum(data_np, segment_ids_np, use_dyn=False):
+    with tf.Graph().as_default():
+        if use_dyn:
+            data = tf.placeholder(
+                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
+            )
+            segment_ids = tf.placeholder(
+                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+        else:
+            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+            segment_ids = tf.placeholder(
+                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+
+        _ = tf.math.segment_sum(data, segment_ids, name="segment_sum")
+        compare_tf_with_tvm(
+            [data_np, segment_ids_np],
+            [data.name, segment_ids.name],
+            ["segment_sum:0"],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "data_np, segment_ids_np",
+    [
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 0, 0, 1, 1, 1], dtype=np.int32),
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 0, 1], dtype=np.int32),
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 0, 1, 2, 2, 3], dtype=np.int64),
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
+            np.array([0, 0, 1], dtype=np.int32),
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 0, 0, 1, 2, 3, 4, 4, 5], dtype=np.int64),
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_forward_math_segment_sum(data_np, segment_ids_np, use_dyn):
+    """math segment sum test"""
+    _test_math_segment_sum(data_np, segment_ids_np, use_dyn)
+
+
 # tensorflow.compat.v1.sparse_to_dense
 # ---------------
 def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
@@ -4986,6 +5285,71 @@ def test_forward_dynmaic_rnn_lstmblockcell():
         # Compare result
         for i in range(len(tf_output)):
             tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+
+
+#######################################################################
+# Unique
+# ------------
+
+
+def _test_unique(n, dtype, is_dyn):
+    tf.reset_default_graph()
+    np_data = np.random.randint(100, size=n).astype(dtype)
+    with tf.Graph().as_default():
+        if is_dyn:
+            in_data = tf.placeholder(dtype, [n], name="in_data")
+        else:
+            in_data = tf.constant(np_data, dtype, name="in_data")
+        tf.unique(in_data)
+        if is_dyn:
+            compare_tf_with_tvm(np_data, "in_data:0", ["Unique:0", "Unique:1"], mode="vm")
+        else:
+            compare_tf_with_tvm(None, "", ["Unique:0", "Unique:1"])
+
+
+def test_forward_unique():
+    """test Unique"""
+
+    for dtype in ["int32", "int64"]:
+        for is_dyn in [False, True]:
+            _test_unique(50, dtype, is_dyn)
+            _test_unique(100, dtype, is_dyn)
+
+
+#######################################################################
+# Unique with counts
+# ------------
+
+
+def _test_unique_with_counts(n, dtype, is_dyn):
+    tf.reset_default_graph()
+    np_data = np.random.randint(100, size=n).astype(dtype)
+    with tf.Graph().as_default():
+        if is_dyn:
+            in_data = tf.placeholder(dtype, [n], name="in_data")
+        else:
+            in_data = tf.constant(np_data, dtype, name="in_data")
+        tf.unique_with_counts(in_data)
+        if is_dyn:
+            compare_tf_with_tvm(
+                np_data,
+                "in_data:0",
+                ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"],
+                mode="vm",
+            )
+        else:
+            compare_tf_with_tvm(
+                None, "", ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"]
+            )
+
+
+def test_forward_unique_with_counts():
+    """test UniqueWithCounts"""
+
+    for dtype in ["int32", "int64"]:
+        for is_dyn in [False, True]:
+            _test_unique_with_counts(10, dtype, is_dyn)
+            _test_unique_with_counts(20, dtype, is_dyn)
 
 
 if __name__ == "__main__":

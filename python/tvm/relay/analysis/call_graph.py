@@ -17,8 +17,8 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, unused-import
 """Call graph used in Relay."""
 
-from tvm.ir import IRModule
-from tvm.runtime import Object
+from ...ir import IRModule
+from ...runtime import Object
 from ..expr import GlobalVar
 from . import _ffi_api
 

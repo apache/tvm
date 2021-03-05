@@ -177,33 +177,37 @@ class AsyncLocalSession : public LocalSession {
     }
   }
 
-  void AsyncCopyToRemote(void* local_from, size_t local_from_offset, void* remote_to,
-                         size_t remote_to_offset, size_t nbytes, TVMContext remote_ctx_to,
-                         DLDataType type_hint, FAsyncCallback on_complete) final {
-    TVMContext cpu_ctx;
-    cpu_ctx.device_type = kDLCPU;
-    cpu_ctx.device_id = 0;
+  void AsyncCopyToRemote(void* local_from_bytes, DLTensor* remote_to, uint64_t nbytes,
+                         FAsyncCallback on_complete) final {
     try {
-      this->GetDeviceAPI(remote_ctx_to)
-          ->CopyDataFromTo(local_from, local_from_offset, remote_to, remote_to_offset, nbytes,
-                           cpu_ctx, remote_ctx_to, type_hint, nullptr);
-      this->AsyncStreamWait(remote_ctx_to, nullptr, on_complete);
+      DLTensor local_from;
+      local_from.data = local_from_bytes;
+      local_from.ctx = TVMContext{kDLCPU, 0};
+      local_from.ndim = remote_to->ndim;
+      local_from.shape = remote_to->shape;
+      local_from.dtype = remote_to->dtype;
+      local_from.strides = nullptr;
+      local_from.byte_offset = 0;
+      this->GetDeviceAPI(remote_to->ctx)->CopyDataFromTo(&local_from, remote_to, nullptr);
+      this->AsyncStreamWait(remote_to->ctx, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
     }
   }
 
-  void AsyncCopyFromRemote(void* remote_from, size_t remote_from_offset, void* local_to,
-                           size_t local_to_offset, size_t nbytes, TVMContext remote_ctx_from,
-                           DLDataType type_hint, FAsyncCallback on_complete) final {
-    TVMContext cpu_ctx;
-    cpu_ctx.device_type = kDLCPU;
-    cpu_ctx.device_id = 0;
+  void AsyncCopyFromRemote(DLTensor* remote_from, void* local_to_bytes, uint64_t nbytes,
+                           FAsyncCallback on_complete) final {
     try {
-      this->GetDeviceAPI(remote_ctx_from)
-          ->CopyDataFromTo(remote_from, remote_from_offset, local_to, local_to_offset, nbytes,
-                           remote_ctx_from, cpu_ctx, type_hint, nullptr);
-      this->AsyncStreamWait(remote_ctx_from, nullptr, on_complete);
+      DLTensor local_to;
+      local_to.data = local_to_bytes;
+      local_to.ctx = TVMContext{kDLCPU, 0};
+      local_to.ndim = remote_from->ndim;
+      local_to.shape = remote_from->shape;
+      local_to.dtype = remote_from->dtype;
+      local_to.strides = nullptr;
+      local_to.byte_offset = 0;
+      this->GetDeviceAPI(remote_from->ctx)->CopyDataFromTo(&local_to, remote_from, nullptr);
+      this->AsyncStreamWait(remote_from->ctx, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
     }
