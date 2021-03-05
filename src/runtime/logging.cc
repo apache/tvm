@@ -51,16 +51,21 @@ struct BacktraceInfo {
   std::string error_message;
 };
 
-backtrace_state** GetBacktraceState() {
-  thread_local backtrace_state* state = nullptr;
-  return &state;
+void BacktraceCreateErrorCallback(void* data, const char* msg, int errnum) {
+  std::cerr << "Could not initialize backtrace state: " << msg << std::endl;
 }
 
-std::string DemangleName(const char* name) {
+backtrace_state* BacktraceCreate() {
+    return backtrace_create_state(nullptr, 1, BacktraceCreateErrorCallback, nullptr);
+}
+
+static backtrace_state* _bt_state = BacktraceCreate();
+
+std::string DemangleName(std::string name) {
   int status = 0;
-  size_t length = std::string::npos;
+  size_t length = name.size();
   std::unique_ptr<char, void (*)(void* __ptr)> demangled_name = {
-      abi::__cxa_demangle(name, nullptr, &length, &status), &std::free};
+      abi::__cxa_demangle(name.c_str(), nullptr, &length, &status), &std::free};
   if (demangled_name && status == 0 && length > 0) {
     return demangled_name.get();
   } else {
@@ -69,8 +74,7 @@ std::string DemangleName(const char* name) {
 }
 
 void BacktraceErrorCallback(void* data, const char* msg, int errnum) {
-  auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
-  stack_trace->error_message = msg;
+  // do nothing
 }
 
 void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uintptr_t symval,
@@ -78,7 +82,8 @@ void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uin
   auto str = reinterpret_cast<std::string*>(data);
 
   if (symname != nullptr) {
-    *str = DemangleName(symname);
+    std::string tmp(symname, symsize);
+    *str = DemangleName(tmp.c_str());
   } else {
     std::ostringstream s;
     s << "0x" << std::setfill('0') << std::setw(sizeof(uintptr_t) * 2) << std::hex << pc;
@@ -90,15 +95,14 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
   std::stringstream s;
 
-  std::string symbol_str = "<unknown>";
+  std::unique_ptr<std::string> symbol_str = std::make_unique<std::string>("<unknown>");
   if (symbol != nullptr) {
-    symbol_str = DemangleName(symbol);
+    *symbol_str = DemangleName(symbol);
   } else {
     // see if syminfo gives anything
-    backtrace_state** bt_state = GetBacktraceState();
-    backtrace_syminfo(*bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback, &symbol_str);
+    backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback, symbol_str.get());
   }
-  s << symbol_str;
+  s << *symbol_str;
 
   if (filename != nullptr) {
     s << std::endl << "        at " << filename;
@@ -109,12 +113,12 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   // Skip tvm::backtrace and tvm::LogFatal::~LogFatal at the beginning of the trace as they don't
   // add anything useful to the backtrace.
   if (!(stack_trace->lines.size() == 0 &&
-        (symbol_str.find("tvm::runtime::Backtrace", 0) == 0 ||
-         symbol_str.find("tvm::runtime::detail::LogFatal", 0) == 0))) {
+        (symbol_str->find("tvm::runtime::Backtrace", 0) == 0 ||
+         symbol_str->find("tvm::runtime::detail::LogFatal", 0) == 0))) {
     stack_trace->lines.push_back(s.str());
   }
   // TVMFuncCall denotes the API boundary so we stop there. Exceptions should be caught there.
-  if (symbol_str == "TVMFuncCall" || stack_trace->lines.size() >= stack_trace->max_size) {
+  if (*symbol_str == "TVMFuncCall" || stack_trace->lines.size() >= stack_trace->max_size) {
     return 1;
   }
   return 0;
@@ -124,13 +128,13 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 std::string Backtrace() {
   BacktraceInfo bt;
   bt.max_size = 100;
-  backtrace_state** bt_state = GetBacktraceState();
-  if (*bt_state == nullptr) {
-    // TVM is loaded as a shared library into python, so we cannot supply an
-    // executable path to libbacktrace.
-    *bt_state = backtrace_create_state(nullptr, 1, BacktraceErrorCallback, &bt);
+  if(_bt_state == nullptr) {
+    return "";
   }
-  backtrace_full(*bt_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
+  // libbacktrace eats memory if run on multiple threads at the same time, so we guard against it
+  static std::mutex m;
+  std::lock_guard<std::mutex> lock(m);
+  backtrace_full(_bt_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
 
   std::ostringstream s;
   s << "Stack trace:\n";
