@@ -371,10 +371,11 @@ def try_get_sparse_input(args):
 
     Returns
     -------
-    A Dict[Tensor, str] that maps the input Tensor to a buffer name.
+    Dict[Tensor, str] :
+        Map from the input Tensor to its buffer name.
 
-    Note
-    ----
+    Notes
+    -----
     The buffer name is specially designed, and these buffer should be provided in
     `SearchTask(..., task_inputs={...})`.
     """

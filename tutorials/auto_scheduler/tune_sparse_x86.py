@@ -141,6 +141,7 @@ task = tvm.auto_scheduler.SearchTask(
         prefix + "W_indices": runtime.ndarray.array(W_sp_np.indices),
         prefix + "W_indptr": runtime.ndarray.array(W_sp_np.indptr),
     },
+    task_inputs_save_to_file=True,
 )
 
 # Inspect the computational graph
@@ -253,7 +254,7 @@ search_policy = auto_scheduler.SketchPolicy(
 # Run auto-tuning (search)
 # Notice: We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
-# task.tune(tune_option, search_policy)
+task.tune(tune_option, search_policy)
 
 # Apply the best schedule
 sch, args = task.apply_best(log_file)

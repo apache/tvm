@@ -36,6 +36,7 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+import logging
 
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
@@ -58,6 +59,8 @@ from .workload_registry import (
     deserialize_workload_registry_entry,
 )
 
+# pylint: disable=invalid-name
+logger = logging.getLogger("auto_scheduler")
 
 # The time cost for measurements with errors
 # We use 1e10 instead of sys.float_info.max for better readability in log
@@ -731,7 +734,7 @@ def _prepare_input_map(args):
 
     Returns
     -------
-    Dict[Tensor, str] : 
+    Dict[Tensor, str] :
         Map from the input Tensor to its buffer name.
 
     Notes
@@ -809,11 +812,13 @@ def _timed_eval_func(
 
             tensor_input_map = _prepare_input_map(build_res.args) if task_input_names else {}
             args = []
+            task_inputs_count = 0
             for arg in build_res.args:
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
                     if tensor_name in task_input_names:
                         args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
+                        task_inputs_count += 1
                     else:
                         raise ValueError(
                             "%s not found in task_inputs, " % (tensor_name)
@@ -823,6 +828,10 @@ def _timed_eval_func(
                     empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
                     random_fill(empty_array)
                     args.append(empty_array)
+            if task_inputs_count != len(task_input_names):
+                logger.warning(
+                    "task_inputs not fully matched, check if there's any unexpected error"
+                )
             ctx.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
@@ -1014,11 +1023,13 @@ def _timed_rpc_run(
 
             tensor_input_map = _prepare_input_map(build_res.args) if task_input_names else {}
             args = []
+            task_inputs_count = 0
             for arg in build_res.args:
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
                     if tensor_name in task_input_names:
                         args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
+                        task_inputs_count += 1
                     else:
                         raise ValueError(
                             "%s not found in task_inputs, " % (tensor_name)
@@ -1028,6 +1039,10 @@ def _timed_rpc_run(
                     empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
                     random_fill(empty_array)
                     args.append(empty_array)
+            if task_inputs_count != len(task_input_names):
+                logger.warning(
+                    "task_inputs not fully matched, check if there's any unexpected error"
+                )
             ctx.sync()
             costs = time_f(*args).results
 
