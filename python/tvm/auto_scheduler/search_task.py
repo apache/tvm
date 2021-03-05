@@ -275,7 +275,6 @@ def register_task_input_buffer(
     return input_data
 
 
-@tvm._ffi.register_func("auto_scheduler.search_task.get_task_input_buffer")
 def get_task_input_buffer(workload_key, input_name):
     """Get special buffer for measurement.
 
