@@ -24,8 +24,8 @@
 
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/serializer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/serializer.h>
 #include <tvm/support/logging.h>
 
 #include <fstream>
@@ -214,14 +214,13 @@ std::string SaveParams(const Map<String, NDArray>& params) {
   return bytes;
 }
 
-TVM_REGISTER_GLOBAL("runtime.SaveParams")
-    .set_body_typed([](const Map<String, NDArray>& params) {
-      std::string s = ::tvm::runtime::SaveParams(params);
-      // copy return array so it is owned by the ret value
-      TVMRetValue rv;
-      rv = TVMByteArray{s.data(), s.size()};
-      return rv;
-    });
+TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, NDArray>& params) {
+  std::string s = ::tvm::runtime::SaveParams(params);
+  // copy return array so it is owned by the ret value
+  TVMRetValue rv;
+  rv = TVMByteArray{s.data(), s.size()};
+  return rv;
+});
 TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
   return ::tvm::runtime::LoadParams(s);
 });
