@@ -1249,6 +1249,7 @@ def test_gather(data, axis, indices, ref_res):
 
     verify_gather(data, axis, indices, ref_res)
 
+
 @tvm.testing.uses_gpu
 def test_gather_nd():
     def verify_gather_nd(xshape, yshape, y_data):
