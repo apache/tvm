@@ -238,10 +238,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
-    for (const auto &iter : targets) {
+    for (const auto& it : targets) {
       // Construct a new target with target host filed if available
-      targets_.Set(iter.first, Target(iter.second, target_host_));
-      target_host_ = targets_[iter.first]->GetHost().value();
+      targets_.Set(it.first, Target(it.second, target_host_));
+      target_host_ = targets_[it.first]->GetHost().value();
     }
 
     BuildRelay(mod, params_);
@@ -489,10 +489,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
 
     // Update all the targets in the _targets TargetsMap
-    for (const auto &iter : targets_) {
+    for (const auto& it : targets_) {
       // Construct a new target with target host filed if available
-      targets_.Set(iter.first, Target(iter.second, target_host));
-      target_host = targets_[iter.first]->GetHost().value();
+      targets_.Set(it.first, Target(it.second, target_host));
+      target_host = targets_[it.first]->GetHost().value();
     }
 
     // Generate a placeholder function that attaches linked params as its arguments.

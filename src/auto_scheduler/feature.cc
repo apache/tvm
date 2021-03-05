@@ -1471,9 +1471,9 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
           Target target = inputs[i]->task->target, target_host = inputs[i]->task->target_host;
           target = Target(target, target_host);
           target_host = target->GetHost().value();
-          task = SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
-                            inputs[i]->task->hardware_params,
-                            inputs[i]->task->layout_rewrite_option);
+          task =
+              SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
+                         inputs[i]->task->hardware_params, inputs[i]->task->layout_rewrite_option);
         } catch (std::exception& e) {
           // Cannot build ComputeDAG from workload key, the task may have not been registered in
           // this search round

@@ -255,14 +255,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
-    for (auto& iter : targets) {
-      targets.Set(iter.first, Target(targets[iter.first], target_host));
-      target_host = targets[iter.first]->GetHost().value();
-    }
-    target_host_ = target_host;
     for (const auto& it : targets) {
+      targets.Set(it.first, Target(targets[it.first], target_host));
+      target_host = targets[it.first]->GetHost().value();
       targets_[it.first->value] = it.second;
     }
+    target_host_ = target_host;
   }
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
