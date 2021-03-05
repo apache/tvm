@@ -109,20 +109,15 @@ class PostOrderRewriter : public MixedModeMutator {
     return rewriter_->Rewrite(expr, post);
   }
 
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const LetNode* node) final {
     auto pre_visit = [this](const LetNode* op) {
       Expr var = this->Mutate(op->var);
       Expr value = this->Mutate(op->value);
     };
-    auto post_visit = [this](const LetNode* op) {
-      Var var = Downcast<Var>(this->memo_[op->var]);
-      Expr value = this->memo_[op->value];
-      Expr body;
-      if (this->memo_.count(op->body)) {
-        body = this->memo_[op->body];
-      } else {
-        body = this->Mutate(op->body);
-      }
+    auto post_visit = [this, node](const LetNode* op) {
+      Var var = Downcast<Var>(this->Mutate(op->var));
+      Expr value = this->Mutate(op->value);
+      Expr body = this->Mutate(op->body);
       Expr expr = GetRef<Expr>(op);
       Expr post;
       if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
@@ -130,10 +125,15 @@ class PostOrderRewriter : public MixedModeMutator {
       } else {
         post = Let(var, value, body);
       }
-      this->memo_[expr] = this->rewriter_->Rewrite(expr, post);
+      //  avoid rewriting the first LetNode twice
+      if (op == node) {
+        this->memo_[expr] = post;
+      } else {
+        this->memo_[expr] = this->rewriter_->Rewrite(expr, post);
+      }
     };
-    ExpandANormalForm(op, pre_visit, post_visit);
-    return memo_[GetRef<Expr>(op)];
+    ExpandANormalForm(node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(node)];
   }
 
  protected:
