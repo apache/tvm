@@ -255,6 +255,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
+    for (auto& iter : targets) {
+      targets.Set(iter.first, Target(targets[iter.first], target_host));
+      target_host = targets[iter.first]->GetHost().value();
+    }
+    target_host_ = target_host;
     for (const auto& it : targets) {
       targets_[it.first->value] = it.second;
     }
@@ -895,6 +900,10 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
+  for (auto& iter : targets_) {
+    targets_.Set(iter.first, Target(targets_[iter.first], target_host_));
+    target_host_ = targets[iter.first]->GetHost().value();
+  }
 
   // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModule(mod, targets_, target_host_);
@@ -996,8 +1005,14 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
-                                    const Target& target_host) {
+IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
+                                    const Target& target_host_arg) {
+  TargetsMap targets = targets_arg;
+  Target target_host = target_host_arg;
+  for (auto& iter : targets) {
+    targets.Set(iter.first, Target(targets[iter.first], target_host));
+    target_host = targets[iter.first]->GetHost().value();
+  }
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
     ICHECK(base_func->IsInstance<FunctionNode>())
