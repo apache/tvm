@@ -15,7 +15,7 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-This directory contains units tests for MicroTVM integration with Zephyr.
+This directory contains tests for MicroTVM's integration with Zephyr.
 
 To run the test, you first need to be running in a Python environment with
 all of the appropriate TVM dependencies installed. If you have [Poetry](https://python-poetry.org/)
@@ -27,9 +27,16 @@ $ cd tvm/apps/microtvm/
 $ poetry lock && poetry install && poetry shell
 ```
 
-You can then run this test using:
+You can then run this test (either on real hardware or on a QEMU-emulated
+device) using:
 
 ```
 $ cd tvm/tests/micro/zephyr
-$ pytest test_zephyr.py --microtvm-platforms=nrf5340dk
+$ pytest test_zephyr.py --microtvm-platforms=host       # For QEMU emulation
+$ pytest test_zephyr.py --microtvm-platforms=nrf5340dk  # For nRF5340DK
+```
+
+To see the list of supported values for `--microtvm-platforms`, run:
+```
+$ pytest test_zephyr.py --help
 ```

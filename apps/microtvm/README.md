@@ -21,7 +21,7 @@ microTVM is the effort that allows TVM to build and execute models on bare-metal
 
 The `pyproject.toml` file in this directory can be used to create a
 [Poetry](https://python-poetry.org/) Python environment with all of the required
-dependencies installed. To use it, run:
+dependencies installed for running microTVM. To use it, run:
 
 ```
 $ poetry lock && poetry install

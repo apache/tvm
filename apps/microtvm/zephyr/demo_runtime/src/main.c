@@ -25,9 +25,9 @@
 
 /*
  * This is a sample Zephyr-based application that contains the logic
- * needed to upload and control a uTVM-based model via the UART.
- * This is only intended to be a demonstration, since typically you
- * will want to incorporate this logic into your own application.
+ * needed to control a microTVM-based model via the UART. This is only
+ * intended to be a demonstration, since typically you will want to incorporate
+ * this logic into your own application.
  */
 
 
@@ -64,7 +64,7 @@ static const struct device* led0_pin;
 static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
 
-// Used by TVM to write serial data to the UART.
+// Called by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
@@ -83,8 +83,8 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
   return size;
 }
 
-// This is an error handler which will be invoked if the device crashes.
-// Here, we turn on the LED and spin.
+// This is invoked by Zephyr from an exception handler, which will be invoked
+// if the device crashes. Here, we turn on the LED and spin.
 void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
@@ -92,13 +92,13 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
   for (;;) ;
 }
 
-// Used by TVM when a message needs to be formatted.
+// Called by TVM when a message needs to be formatted.
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
                                 const char* fmt, va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-// Used by TVM when an abort operation occurs.
+// Called by TVM when an internal invariant is violated, and execution cannot continue.
 void TVMPlatformAbort(tvm_crt_error_t error) {
   sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
@@ -107,7 +107,7 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
   for (;;) ;
 }
 
-// Used by TVM to generate random data.
+// Called by TVM to generate random data.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   uint32_t random;  // one unit of random data.
 
@@ -135,7 +135,7 @@ K_TIMER_DEFINE(g_utvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
 uint32_t g_utvm_start_time;
 int g_utvm_timer_running = 0;
 
-// Used to start system timer.
+// Called to start system timer.
 tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     TVMLogf("timer already running");
@@ -151,8 +151,8 @@ tvm_crt_error_t TVMPlatformTimerStart() {
   return kTvmErrorNoError;
 }
 
-// Used to stop system timer.
-tvm_crt_error_t TVMPlatformTimerStop(double* res_us) {
+// Called to stop system timer.
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     TVMLogf("timer not running");
     return kTvmErrorSystemErrorMask | 2;
@@ -190,9 +190,9 @@ tvm_crt_error_t TVMPlatformTimerStop(double* res_us) {
   // if we approach the limits of the HW clock datatype (uint32_t), use the
   // coarse-grained timer result instead
   if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
-    *res_us = timer_res_ms * 1000.0;
+    *elapsed_time_seconds = timer_res_ms / 1000.0;
   } else {
-    *res_us = hw_clock_res_us;
+    *elapsed_time_seconds = hw_clock_res_us / 1e6;
   }
 
   g_utvm_timer_running = 0;
@@ -202,25 +202,21 @@ tvm_crt_error_t TVMPlatformTimerStop(double* res_us) {
 // Memory pool for use by TVMPlatformMemoryAllocate.
 K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 216, 4);
 
-// Used by TVM to allocate memory.
+// Called by TVM to allocate memory.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
   *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
-// Used by TVM to deallocate memory.
+// Called by TVM to deallocate memory.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
   k_free(ptr);
   return kTvmErrorNoError;
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
-#define RING_BUF_SIZE 20 * 1024
-struct uart_rx_buf_t {
-  struct ring_buf buf;
-  uint32_t buffer[RING_BUF_SIZE];
-};
-struct uart_rx_buf_t uart_rx_buf;
+#define RING_BUF_SIZE_BYTES 4 * 1024
+RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // Small buffer used to read data from the UART into the ring buffer.
 static uint8_t uart_data[32];
@@ -228,7 +224,7 @@ static uint8_t uart_data[32];
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
   while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-    struct uart_rx_buf_t* buf = (struct uart_rx_buf_t*)user_data;
+    struct ring_buf* rbuf = (struct ring_buf*)user_data;
     if (uart_irq_rx_ready(dev) != 0) {
       for (;;) {
         // Read a small chunk of data from the UART.
@@ -239,7 +235,7 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
           break;
         }
         // Write it into the ring buffer.
-        int bytes_written = ring_buf_put(&buf->buf, uart_data, bytes_read);
+        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
         if (bytes_read != bytes_written) {
           TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
         }
@@ -251,22 +247,21 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
 }
 
 // Used to initialize the UART receiver.
-void uart_rx_init(struct uart_rx_buf_t* buf, const struct device* dev) {
-  ring_buf_init(&buf->buf, RING_BUF_SIZE, buf->buffer);
-  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)buf);
+void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
+  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
 }
 
 // Used to read data from the UART.
-int uart_rx_buf_read(struct uart_rx_buf_t* buf, uint8_t* data, size_t data_size_bytes) {
+int uart_rx_buf_read(struct ring_buf* rbuf, uint8_t* data, size_t data_size_bytes) {
   unsigned int key = irq_lock();
-  int bytes_read = ring_buf_get(&buf->buf, data, data_size_bytes);
+  int bytes_read = ring_buf_get(rbuf, data, data_size_bytes);
   irq_unlock(key);
   return bytes_read;
 }
 
 // Buffer used to read from the UART rx ring buffer and feed it to the UTvmRpcServerLoop.
-static uint8_t main_rx_buf[RING_BUF_SIZE];
+static uint8_t main_rx_buf[RING_BUF_SIZE_BYTES];
 
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
@@ -286,11 +281,11 @@ void main(void) {
 
   // Claim console device.
   tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
-  uart_rx_init(&uart_rx_buf, tvm_uart);
+  uart_rx_init(&uart_rx_rbuf, tvm_uart);
 
-  // Initialize uTVM RPC server, which will receive commands from the UART and execute them.
+  // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
-  TVMLogf("uTVM Zephyr runtime - running");
+  TVMLogf("microTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
@@ -299,7 +294,7 @@ void main(void) {
   // and dispatch them to UTvmRpcServerLoop().
   while (true) {
     //uint8_t buf[256];
-    int bytes_read = uart_rx_buf_read(&uart_rx_buf, main_rx_buf, sizeof(main_rx_buf));
+    int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
       size_t bytes_remaining = bytes_read;
       uint8_t* cursor = main_rx_buf;

@@ -231,6 +231,7 @@ def test_onnx(platform, west_cmd):
     # We add the -link-params=1 option to ensure the model parameters are compiled in.
     # There is currently a bug preventing the demo_runtime environment from receiving
     # the model weights when set using graph_mod.set_input().
+    # See: https://github.com/apache/tvm/issues/7567
     target = tvm.target.target.micro(model, options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)

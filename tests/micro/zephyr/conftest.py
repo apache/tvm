@@ -16,11 +16,14 @@
 # under the License.
 import pytest
 
+import tvm.target.target
+
 
 def pytest_addoption(parser):
     parser.addoption(
         "--microtvm-platforms",
         default="host",
+        choices=tvm.target.target.MICRO_SUPPORTED_MODELS.keys(),
         help=(
             "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
             "for microTVM tests."
