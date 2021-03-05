@@ -88,7 +88,8 @@ def test_dso_module_load():
     with open(path_runtime_py, "w") as fo:
         fo.write(runtime_py)
 
-    subprocess.check_call("python3 %s %s %s" % (path_runtime_py, path_dso, dtype), shell=True)
+    proc = subprocess.run([sys.executable, path_runtime_py, path_dso, dtype], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert proc.returncode == 0, f'{proc.args} exited with {proc.returncode}: {proc.stdout}'
 
 
 @tvm.testing.requires_gpu
