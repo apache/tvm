@@ -202,7 +202,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
     for idx, arg in enumerate(mod["main"].params[: len(input_names)]):
-        assert arg.name_hint == input_names[idx]
+        assert arg.name_hint in input_names[idx]
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
