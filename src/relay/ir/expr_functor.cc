@@ -109,6 +109,8 @@ class PostOrderRewriter : public MixedModeMutator {
     return rewriter_->Rewrite(expr, post);
   }
 
+  using MixedModeMutator::VisitExpr_;
+
   Expr VisitExpr_(const LetNode* node) final {
     auto pre_visit = [this](const LetNode* op) {
       Expr var = this->Mutate(op->var);
