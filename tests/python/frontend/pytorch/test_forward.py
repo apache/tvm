@@ -3706,13 +3706,13 @@ def test_sort():
 
     inp = torch.randn(100)
     verify_model(test_fn(0, True), [inp])
-    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(-1, False), [inp])
 
     inp = torch.randn(100, 100)
     verify_model(test_fn(0, True), [inp])
-    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(-2, False), [inp])
     verify_model(test_fn(1, True), [inp])
-    verify_model(test_fn(1, False), [inp])
+    verify_model(test_fn(-1, False), [inp])
 
 
 def test_logical_and():
