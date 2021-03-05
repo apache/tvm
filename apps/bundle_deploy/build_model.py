@@ -20,7 +20,7 @@ import argparse
 import os
 from tvm import relay
 import tvm
-from tvm import te
+from tvm import te, runtime
 import logging
 import json
 from tvm.contrib import cc as _cc

@@ -27,7 +27,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay import testing
 from tvm.contrib import graph_runtime, cc
 from PIL import Image

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime

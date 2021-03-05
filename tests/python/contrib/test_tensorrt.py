@@ -22,7 +22,7 @@ import itertools
 import tvm
 import tvm.relay.testing
 
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay.op.contrib import tensorrt
 from tvm.contrib import graph_runtime, utils
 from tvm.runtime.vm import VirtualMachine

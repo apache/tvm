@@ -18,7 +18,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm import relay
+from tvm import relay, runtime
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
 

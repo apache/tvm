@@ -24,7 +24,7 @@ import sys
 
 import onnx
 import tvm
-from tvm import relay
+from tvm import relay, runtime
 
 
 def _get_mod_and_params(model_file):

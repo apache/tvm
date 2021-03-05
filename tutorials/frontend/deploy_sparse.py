@@ -81,7 +81,7 @@ import time
 import itertools
 import numpy as np
 import tensorflow as tf
-from tvm import relay
+from tvm import relay, runtime
 from tvm.contrib import graph_runtime
 from tvm.relay import data_dep_optimization as ddo
 from tensorflow.python.framework.convert_to_constants import (

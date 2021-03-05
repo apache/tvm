@@ -16,7 +16,7 @@
 # under the License.
 
 import os
-from tvm import relay, transform
+from tvm import relay, transform, runtime
 from tvm.contrib.download import download_testdata
 
 
