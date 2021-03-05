@@ -34,7 +34,7 @@ def libinfo():
         The dictionary of compile-time info.
     """
     local_dict = globals()
-    if 'GetLibInfo' not in local_dict:
+    if "GetLibInfo" not in local_dict:
         raise LibInfoUnavailableError()
 
     return {k: v for k, v in GetLibInfo().items()}  # pylint: disable=unnecessary-comprehension
