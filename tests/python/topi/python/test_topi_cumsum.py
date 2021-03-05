@@ -42,13 +42,11 @@ def test_cumsum(ctx, target):
     check_cumsum(np.cumsum(data, dtype=np.int32), data)
     check_cumsum(np.cumsum(data), data, dtype="int64")
 
-    if target != "vulkan":
-        # TODO(masahi): Support bool tensor in SPIRV codegen
-        data = np.random.rand(10) > 0.5
-        check_cumsum(np.cumsum(data, dtype=np.int32), data, dtype="int32")
+    data = np.random.rand(10) > 0.5
+    check_cumsum(np.cumsum(data, dtype=np.int32), data, dtype="int32")
 
     for in_dtype in ["float32", "float64"]:
-        if target == 'metal' and in_dtype == 'float64':
+        if target == "metal" and in_dtype == "float64":
             # float64 is not supported in metal
             continue
         data = np.random.randn(10, 10).astype(in_dtype)
