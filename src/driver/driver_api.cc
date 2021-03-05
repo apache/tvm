@@ -185,9 +185,10 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
-std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target,
-                                                const Target& target_host,
+std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
+                                                const Target& target_host_arg,
                                                 const transform::PassContext& pass_ctx) {
+  Target target = Target(target_arg, target_host_arg), target_host = target->GetHost().value();
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
 
@@ -253,31 +254,47 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
 }
 
 // Build for heterogeneous execution.
-runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_host) {
+runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
   std::vector<runtime::Module> device_modules;
-  Target target_host_val = target_host;
+  Target target_host = target_host_arg;
+  Map<Target, IRModule> updated_inputs;
+
+  // Fetch previous defined target host in targets
+  for (const auto& it : inputs_arg) {
+    auto target = Target(it.first, target_host);
+    updated_inputs.Set(target, it.second);
+    target_host = target->GetHost().value();
+  }
+
   if (!target_host.defined()) {
-    for (const auto& it : inputs) {
+    for (const auto& it : updated_inputs) {
       if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
-        target_host_val = it.first;
+        target_host = it.first;
         break;
       }
     }
   }
 
-  if (!target_host_val.defined()) {
-    target_host_val = DefaultTargetHost(target_host_val);
+  if (!target_host.defined()) {
+    target_host = DefaultTargetHost(target_host);
+  }
+
+  // Update target host for all targets
+  for (const auto& it : inputs_arg) {
+    auto target = Target(it.first, target_host);
+    updated_inputs.Set(target, it.second);
+    target_host = target->GetHost().value();
   }
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-  for (const auto& it : inputs) {
+  for (const auto& it : updated_inputs) {
     if (it.second.defined()) {
-      auto pair = SplitDevHostFuncs(it.second, it.first, target_host_val, pass_ctx);
+      auto pair = SplitDevHostFuncs(it.second, it.first, target_host, pass_ctx);
       auto& mhost = pair.first;
       auto& mdevice = pair.second;
 
@@ -293,7 +310,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_
     }
   }
 
-  runtime::Module mhost = codegen::Build(mhost_all, target_host_val);
+  runtime::Module mhost = codegen::Build(mhost_all, target_host);
   // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
@@ -304,21 +321,25 @@ runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_
 }
 
 // Build for heterogeneous execution when target is a string.
-runtime::Module build(const Map<String, IRModule>& inputs, const Target& target_host) {
-  Map<Target, IRModule> updated_input;
-  for (const auto& it : inputs) {
-    auto target = Target(it.first);
+runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& target_host_arg) {
+  Map<Target, IRModule> updated_inputs;
+  Target target_host = target_host_arg;
+  for (const auto& it : inputs_arg) {
+    auto target = Target(Target(it.first), target_host);
+    target_host = target_host->GetHost().value();
     Optional<String> device = target->GetAttr<String>("device");
     if (device.defined() && device.value() == "vta") {
       target = Target("ext_dev");
     }
-    updated_input.Set(target, it.second);
+    updated_inputs.Set(target, it.second);
   }
-  return build(updated_input, target_host);
+  return build(updated_inputs, target_host);
 }
 
 // Build for homogeneous execution.
-runtime::Module build(const IRModule& funcs, const Target& target, const Target& target_host) {
+runtime::Module build(const IRModule& funcs, const Target& target_arg,
+                      const Target& target_host_arg) {
+  auto target = Target(target_arg, target_host_arg), target_host = target->GetHost().value();
   Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host);
 }
