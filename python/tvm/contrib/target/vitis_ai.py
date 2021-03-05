@@ -121,7 +121,7 @@ def vitis_ai_compiler(ref):
         target = cfg.target if cfg.target else None
         # (Optional configs) The build and work directories to be used by Vitis AI
         vai_build_dir = (
-            cfg.build_dir if cfg.build_dir != "" else tvm.contrib.utils.tempdir().relpath("")
+            cfg.build_dir if cfg.build_dir else tvm.contrib.utils.tempdir().relpath("")
         )
 
         # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to
