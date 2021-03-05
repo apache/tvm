@@ -795,7 +795,6 @@ def _prepare_input_map(args):
     `SearchTask(..., task_inputs={...})`.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import topi  # lazily import to avoid recursive dependency
 
     global TASK_INPUT_CHECK_FUNC_REGISTRY
 
