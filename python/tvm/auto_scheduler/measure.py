@@ -51,6 +51,7 @@ from .utils import (
     call_func_with_timeout,
     check_remote,
     get_const_tuple,
+    get_func_name,
     make_traceback_info,
     request_remote,
 )
@@ -723,6 +724,57 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     return results
 
 
+TASK_INPUT_CHECK_FUNC_REGISTRY = {}
+
+
+def register_task_input_check_func(func_name, f=None, override=False):
+    """Register a function that checks the input buffer map.
+
+    The input function should take a list of Tensor wich indicate the Input/output Tensor of a TVM
+    subgraph and return a Map from the input Tensor to its buffer name.
+
+    Parameters
+    ----------
+    func_name : Union[Function, str]
+        The check function that returns the compute declaration Tensors or its function name.
+    f : Optional[Function]
+        The check function to be registered.
+    override : boolean = False
+        Whether to override existing entry.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      @auto_scheduler.register_task_input_check_func
+      def check_task_input_by_placeholder_name(args : List[Tensor]):
+          tensor_input_map = {}
+          for arg in args:
+              if isinstance(arg.op, tvm.te.PlaceholderOp):
+                  if arg.op.name != "placeholder":
+                      tensor_input_map[arg] = arg.op.name
+          return tensor_input_map
+    """
+    global TASK_INPUT_CHECK_FUNC_REGISTRY
+
+    if callable(func_name):
+        f = func_name
+        func_name = get_func_name(f)
+    if not isinstance(func_name, str):
+        raise ValueError("expect string function name")
+
+    def register(myf):
+        """internal register function"""
+        if func_name in TASK_INPUT_CHECK_FUNC_REGISTRY and not override:
+            raise RuntimeError("%s has been registered already" % func_name)
+        TASK_INPUT_CHECK_FUNC_REGISTRY[func_name] = myf
+        return myf
+
+    if f:
+        return register(f)
+    return register
+
+
 def _prepare_input_map(args):
     """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
     to a specific buffer name in the global buffer map.
@@ -745,6 +797,8 @@ def _prepare_input_map(args):
     # pylint: disable=import-outside-toplevel
     from tvm import topi  # lazily import to avoid recursive dependency
 
+    global TASK_INPUT_CHECK_FUNC_REGISTRY
+
     # A dict that maps the input tensor arg to a buffer name
     tensor_input_map = {}
 
@@ -754,12 +808,10 @@ def _prepare_input_map(args):
             if arg.op.name != "placeholder":
                 tensor_input_map[arg] = arg.op.name
 
-    # Case 1: Check sparse op
-    sparse_input_map = topi.nn.sparse.try_get_sparse_input(args)
-    tensor_input_map.update(sparse_input_map)
-
-    # Case 2: Check ...
-    # Process any other special buffers here and update them to tensor_input_map
+    # Case 1: Check specific tensor inputs
+    for func_name in TASK_INPUT_CHECK_FUNC_REGISTRY:
+        func = TASK_INPUT_CHECK_FUNC_REGISTRY[func_name]
+        tensor_input_map.update(func(args))
 
     return tensor_input_map
 

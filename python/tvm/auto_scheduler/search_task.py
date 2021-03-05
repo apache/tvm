@@ -183,7 +183,7 @@ TASK_INPUT_BUFFER_TABLE = {}
 def _save_buffer_to_file(buffer_name, buffer_data):
     """Save the current Tensor buffer to a numpy file.
 
-    File name will be: {buffer_name}_{buffer_shape}_{buffer_data_type}.npy
+    File name will be: {buffer_name}.{buffer_shape}_{buffer_data_type}.npy
     """
     np_data = buffer_data.asnumpy()
 
@@ -204,7 +204,7 @@ def _try_load_buffer_from_file(buffer_name):
     filelist = os.listdir()
 
     for file in filelist:
-        if file.startswith(buffer_name) and file.count("."):
+        if file.startswith(buffer_name + "."):
             meta_info = file.split(".")[-2].split("_")
             shape = [int(i) for i in meta_info[:-1]]
             dtype = meta_info[-1]

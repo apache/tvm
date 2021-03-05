@@ -18,7 +18,7 @@
 """Sparse operators"""
 from __future__ import absolute_import
 import tvm
-from tvm import te
+from tvm import te, auto_scheduler
 
 from ..utils import get_const_tuple
 
@@ -361,6 +361,7 @@ def sparse_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
     return None
 
 
+@auto_scheduler.register_task_input_check_func
 def try_get_sparse_input(args):
     """Analyze the input data from the given args.
 
