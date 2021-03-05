@@ -127,7 +127,7 @@ def vitis_ai_compiler(ref):
         # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to
         #   compile and quantize a model on the host and deploy it at the edge
         vai_work_dir = (
-            cfg.work_dir if cfg.work_dir != "" else tvm.contrib.utils.tempdir().relpath("")
+            cfg.work_dir if cfg.work_dir else tvm.contrib.utils.tempdir().relpath("")
         )
         export_runtime_module = cfg.export_runtime_module
         load_runtime_module = cfg.load_runtime_module
