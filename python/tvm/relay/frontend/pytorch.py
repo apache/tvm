@@ -3216,5 +3216,16 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         # ListConstruct kept original python list. Convert to tuple.
         ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
+    # Separate data inputs and parameters to make sure data inputs are always in the beginning.
+    func_args = []
+    data_inputs = []
+    for arg in _analysis.free_vars(ret):
+        if arg.name_hint not in tvm_params.keys():
+            data_inputs.append(arg)
+        else:
+            func_args.append(arg)
+    func_args = data_inputs + func_args
+
+    mod["main"] = tvm.relay.Function(func_args, ret)
+
     return transform.RemoveUnusedFunctions()(mod), tvm_params
