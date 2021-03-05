@@ -25,6 +25,7 @@
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/logging.h>
 
@@ -200,5 +201,41 @@ TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv
   DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+class ROCMTimerNode : public TimerNode {
+ public:
+  virtual void Start() {
+    ROCM_CALL(hipEventRecord(start_, ROCMThreadEntry::ThreadLocal()->stream));
+  }
+  virtual void Stop() { ROCM_CALL(hipEventRecord(stop_, ROCMThreadEntry::ThreadLocal()->stream)); }
+  virtual int64_t SyncAndGetElapsedNanos() {
+    ROCM_CALL(hipEventSynchronize(stop_));
+    float milliseconds = 0;
+    ROCM_CALL(hipEventElapsedTime(&milliseconds, start_, stop_));
+    return milliseconds * 1e6;
+  }
+  virtual ~ROCMTimerNode() {
+    ROCM_CALL(hipEventDestroy(start_));
+    ROCM_CALL(hipEventDestroy(stop_));
+  }
+  ROCMTimerNode() {
+    ROCM_CALL(hipEventCreate(&start_));
+    ROCM_CALL(hipEventCreate(&stop_));
+  }
+
+  static constexpr const char* _type_key = "ROCMTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ROCMTimerNode, TimerNode);
+
+ private:
+  hipEvent_t start_;
+  hipEvent_t stop_;
+};
+
+TVM_REGISTER_OBJECT_TYPE(ROCMTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.rocm").set_body_typed([](TVMContext ctx) {
+  return Timer(make_object<ROCMTimerNode>());
+});
+
 }  // namespace runtime
 }  // namespace tvm
