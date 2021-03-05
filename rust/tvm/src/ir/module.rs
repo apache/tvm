@@ -279,8 +279,8 @@ mod tests {
         let name = GlobalTypeVar::new("my_type", TypeKind::Type, Span::null());
         let type_data = TypeData::new(name.clone(), vec![], vec![], Span::null());
         module.add_def(name.clone(), type_data, true)?;
-        let by_gtv = module.lookup_def(name)?;
-        let by_gv = module.lookup_def_str("my_type")?;
+        let _by_gtv = module.lookup_def(name)?;
+        let _by_gv = module.lookup_def_str("my_type")?;
         Ok(())
     }
 
