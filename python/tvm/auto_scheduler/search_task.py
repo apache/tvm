@@ -30,7 +30,7 @@ from .workload_registry import make_workload_key
 from .compute_dag import ComputeDAG, LayoutRewriteOption
 from .cost_model import XGBModel
 from .search_policy import SketchPolicy
-from .workload_registry import register_workload_tensors
+from .workload_registry import WORKLOAD_FUNC_REGISTRY, register_workload_tensors
 from . import _ffi_api
 
 
@@ -228,6 +228,9 @@ class SearchTask(Object):
         if isinstance(target_host, str):
             target_host = Target(target_host)
 
+        if layout_rewrite_option is None:
+            layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
+
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             compute_dag,
@@ -235,7 +238,7 @@ class SearchTask(Object):
             target,
             target_host,
             hardware_params,
-            layout_rewrite_option or LayoutRewriteOption.get_target_default(target),
+            layout_rewrite_option,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -254,13 +257,15 @@ class SearchTask(Object):
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
 
-    def apply_best(self, log_file, layout_rewrite_option=None):
+    def apply_best(self, log_file, include_compatible=False, layout_rewrite_option=None):
         """Apply the history best from a log file and return the schedule.
 
         Parameters
         ----------
         log_file : str
            The name of the log file.
+        include_compatible: bool
+            When set to True, all compatible records in the log file will be considered.
         layout_rewrite_option : Optional[LayoutRewriteOption]
            The layout rewrite option.
 
@@ -269,7 +274,9 @@ class SearchTask(Object):
         -------
             A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
-        inp, _ = load_best_record(log_file, self.workload_key)
+        inp, _ = load_best_record(
+            log_file, self.workload_key, include_compatible=include_compatible
+        )
         if inp is None:
             raise RuntimeError(
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
@@ -328,11 +335,12 @@ class SearchTask(Object):
         except Exception:  # pylint: disable=broad-except
             raise RuntimeError("Invalid workload key %s" % state["workload_key"])
 
-        # The workload from a compute DAG does not have arguments and is not registered
-        # by default so we register it here. If the workload has already been registered,
-        # the later registration overrides the prvious one.
-        if len(workload) == 1:
-            register_workload_tensors(workload[0], state["compute_dag"].tensors)
+        # workload[0] is either the compute function name or the ComputeDAG hash.
+        # The compute functions are already registered when importing TVM, so here
+        # we only register the ComputeDAG workloads. If the same workload has
+        # already been registered, the later registration overrides the prvious one.
+        if workload[0] not in WORKLOAD_FUNC_REGISTRY:
+            register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,

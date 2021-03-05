@@ -59,11 +59,11 @@ class GraphRuntimeDebug : public GraphRuntime {
     // warmup run
     GraphRuntime::Run();
     std::string tkey = module_->type_key();
-    std::vector<double> time_per_op(op_execs_.size(), 0);
+    std::vector<double> time_sec_per_op(op_execs_.size(), 0);
     if (tkey == "rpc") {
       // RPC modules rely on remote timing which implements the logic from the else branch.
       for (size_t index = 0; index < op_execs_.size(); ++index) {
-        time_per_op[index] += RunOpRPC(index, number, repeat, min_repeat_ms);
+        time_sec_per_op[index] += RunOpRPC(index, number, repeat, min_repeat_ms);
       }
     } else {
       for (int i = 0; i < repeat; ++i) {
@@ -71,7 +71,7 @@ class GraphRuntimeDebug : public GraphRuntime {
             tbegin, tend;
         double duration_ms = 0.0;
         do {
-          std::fill(time_per_op.begin(), time_per_op.end(), 0);
+          std::fill(time_sec_per_op.begin(), time_sec_per_op.end(), 0);
           if (duration_ms > 0.0) {
             number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
                                                number * 1.618));  // 1.618 is chosen by random
@@ -80,7 +80,7 @@ class GraphRuntimeDebug : public GraphRuntime {
           for (int k = 0; k < number; k++) {
             for (size_t index = 0; index < op_execs_.size(); ++index) {
               if (op_execs_[index]) {
-                time_per_op[index] += RunOpHost(index);
+                time_sec_per_op[index] += RunOpHost(index);
               }
             }
           }
@@ -92,24 +92,37 @@ class GraphRuntimeDebug : public GraphRuntime {
 
         LOG(INFO) << "Iteration: " << i;
         int op = 0;
-        for (size_t index = 0; index < time_per_op.size(); index++) {
+        for (size_t index = 0; index < time_sec_per_op.size(); index++) {
           if (op_execs_[index]) {
-            time_per_op[index] /= number;
-            LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": " << time_per_op[index]
-                      << " us/iter";
+            time_sec_per_op[index] /= number;
+            LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
+                      << time_sec_per_op[index] * 1e6 << " us/iter";
           }
         }
       }
     }
 
     std::ostringstream os;
-    for (size_t index = 0; index < time_per_op.size(); index++) {
-      os << time_per_op[index] << ",";
+    for (size_t index = 0; index < time_sec_per_op.size(); index++) {
+      os << time_sec_per_op[index] << ",";
     }
     return os.str();
   }
 
   double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
+    // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes which
+    // represent inputs/parameters to the graph. Other types may be supported in the future, but
+    // consideration would be needed as to how to do that over RPC before we support it here.
+    if (nodes_[index].op_type != "tvm_op") {
+      CHECK_EQ(nodes_[index].op_type, "null")
+          << "Don't know how to run op type " << nodes_[index].op_type
+          << " remotely over RPC right now";
+
+      // NOTE: GraphRuntimeDebug expects graph nodes to have an "op" attribute of "tvm_op" or "null"
+      // and "null" is a placeholder node for a parameter or input.
+      return 0;
+    }
+
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
     TVMOpParam param = nodes_[index].param;
     std::string name = param.func_name;

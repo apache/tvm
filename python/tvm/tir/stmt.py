@@ -26,10 +26,15 @@ Each statement node have subfields that can be visited from python side.
     assert isinstance(st, tvm.tir.stmt.Store)
     assert(st.buffer_var == a)
 """
+from typing import List, Optional, Mapping
+from enum import IntEnum
 import tvm._ffi
 
 from tvm.runtime import Object
+from tvm.ir import Span, PrimExpr, Range
 from . import _ffi_api
+from .buffer import Buffer
+from .expr import IterVar
 
 
 class Stmt(Object):
@@ -82,6 +87,22 @@ class AssertStmt(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.AssertStmt, condition, message, body, span)
 
 
+class ForKind(IntEnum):
+    """The kind of the for loop.
+
+    note
+    ----
+    ForKind can change the control flow semantics
+    of the loop and need to be considered in all TIR passes.
+    """
+
+    SERIAL = 0
+    PARALLEL = 1
+    VECTORIZED = 2
+    UNROLLED = 3
+    THREAD_BINDING = 4
+
+
 @tvm._ffi.register_object("tir.For")
 class For(Stmt):
     """For node.
@@ -92,16 +113,60 @@ class For(Stmt):
         The loop variable.
 
     min_val : PrimExpr
-        The begining value.
+        The beginning value.
 
     extent : PrimExpr
         The length of the loop.
 
-    for_type : int
-        The for type.
+    kind : ForKind
+        The type of the for.
 
-    device_api : int
-        The device api type.
+    body : Stmt
+        The body statement.
+
+    thread_binding: Optional[tir.IterVar]
+        The thread this loop binds to. Only valid
+        if kind is ThreadBinding
+
+    annotations: tvm.ir.Map
+        Additional annotation hints.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(
+        self,
+        loop_var,
+        min_val,
+        extent,
+        kind,
+        body,
+        thread_binding=None,
+        annotations=None,
+        span=None,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.For,
+            loop_var,
+            min_val,
+            extent,
+            kind,
+            body,
+            thread_binding,
+            annotations,
+            span,
+        )
+
+
+@tvm._ffi.register_object("tir.While")
+class While(Stmt):
+    """While node.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The termination condition.
 
     body : Stmt
         The body statement.
@@ -110,14 +175,12 @@ class For(Stmt):
         The location of this itervar in the source code.
     """
 
-    Serial = 0
-    Parallel = 1
-    Vectorized = 2
-    Unrolled = 3
-
-    def __init__(self, loop_var, min_val, extent, for_type, device_api, body, span=None):
+    def __init__(self, condition, body, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.For, loop_var, min_val, extent, for_type, device_api, body, span
+            _ffi_api.While,
+            condition,
+            body,
+            span,
         )
 
 
@@ -393,6 +456,164 @@ class Prefetch(Stmt):
 
     def __init__(self, buffer, bounds, span=None):
         self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds, span)
+
+
+@tvm._ffi.register_object("tir.BufferRegion")
+class BufferRegion(Object):
+    """BufferRegion node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer of the buffer region
+
+    region : List[Range]
+        The region array of the buffer region
+    """
+
+    buffer: Buffer
+    region: List[Range]
+
+    def __init__(self, buffer: Buffer, region: List[Range]):
+        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)
+
+
+@tvm._ffi.register_object("tir.MatchBufferRegion")
+class MatchBufferRegion(Object):
+    """MatchBufferRegion node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The target buffer
+
+    source : BufferRegion
+        The region of source buffer
+    """
+
+    buffer: Buffer
+    source: BufferRegion
+
+    def __init__(self, buffer: Buffer, source: BufferRegion):
+        self.__init_handle_by_constructor__(_ffi_api.MatchBufferRegion, buffer, source)
+
+
+@tvm._ffi.register_object("tir.Block")
+class Block(Stmt):
+    """Block node.
+
+    Parameters
+    ----------
+    iter_vars : List[IterVar]
+        The block Variable.
+
+    reads : List[BufferRegion]
+        The read buffer regions of the block.
+
+    writes: List[BufferRegion]
+        The write buffer regions of the block.
+
+    name_hint: str
+        the name_hint of the block.
+
+    body: Stmt
+        The body of the block.
+
+    init: Optional[Stmt]
+        The init block of the reduction block
+
+    alloc_buffers: Optional[list[Buffer]]
+        The buffer allocations
+
+    match_buffers: Optional[List[MatchBufferRegion]]
+        The subregion buffer match
+
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints.
+
+    span : Optional[Span]
+        The location of this block in the source code.
+    """
+
+    iter_vars: List[IterVar]
+    reads: List[BufferRegion]
+    writes: List[BufferRegion]
+    name_hint: str
+    body: Stmt
+    init: Optional[Stmt]
+    alloc_buffers: Optional[List[Buffer]]
+    match_buffers: Optional[List[MatchBufferRegion]]
+    annotations: Optional[Mapping[str, Object]]
+    span: Optional[Span]
+
+    def __init__(
+        self,
+        iter_vars: List[IterVar],
+        reads: List[BufferRegion],
+        writes: List[BufferRegion],
+        name_hint: str,
+        body: Stmt,
+        init: Optional[Stmt] = None,
+        alloc_buffers: Optional[List[Buffer]] = None,
+        match_buffers: Optional[List[MatchBufferRegion]] = None,
+        annotations: Optional[Mapping[str, Object]] = None,
+        span: Optional[Span] = None,
+    ):
+        if alloc_buffers is None:
+            alloc_buffers = []
+        if match_buffers is None:
+            match_buffers = []
+        if annotations is None:
+            annotations = {}
+        self.__init_handle_by_constructor__(
+            _ffi_api.Block,
+            iter_vars,
+            reads,
+            writes,
+            name_hint,
+            body,
+            init,
+            alloc_buffers,
+            match_buffers,
+            annotations,
+            span,
+        )
+
+
+@tvm._ffi.register_object("tir.BlockRealize")
+class BlockRealize(Stmt):
+    """BlockRealize node.
+
+    Parameters
+    ----------
+    iter_values : List[PrimExpr]
+        The binding values of the block var.
+
+    predicate : PrimExpr
+        The predicate of the block.
+
+    block : Block
+        The block to realize
+
+    span : Optional[Span]
+        The location of this block_realize in the source code.
+    """
+
+    iter_values: List[PrimExpr]
+    predicate: PrimExpr
+    block: Block
+    span: Optional[Span]
+
+    def __init__(
+        self,
+        iter_values: List[PrimExpr],
+        predicate: PrimExpr,
+        block: Block,
+        span: Optional[Span] = None,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BlockRealize, iter_values, predicate, block, span
+        )
 
 
 def stmt_seq(*args):

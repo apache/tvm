@@ -22,7 +22,11 @@
  */
 
 #include <thrust/device_ptr.h>
+#include <thrust/device_vector.h>
 #include <thrust/sort.h>
+#include <thrust/gather.h>
+#include <thrust/scan.h>
+#include <thrust/sequence.h>
 
 #include <tvm/runtime/registry.h>
 #include <dlpack/dlpack.h>
@@ -41,21 +45,19 @@ void thrust_sort(DLTensor* input,
                  DLTensor* out_values,
                  DLTensor* out_indices,
                  bool is_ascend,
-                 const std::function<int(int)> &get_sort_len) {
+                 int n_values) {
   thrust::device_ptr<DataType> data_ptr(static_cast<DataType *>(input->data));
   thrust::device_ptr<DataType> values_ptr(static_cast<DataType *>(out_values->data));
   thrust::device_ptr<IndicesType> indices_ptr(static_cast<IndicesType *>(out_indices->data));
 
-  int n_values = input->shape[input->ndim - 1];
-  int n_iter = 1;
-  for (int i = 0; i < input->ndim - 1; ++i) {
-    n_iter *= input->shape[i];
+  size_t size = 1;
+  for (int i = 0; i < input->ndim; ++i) {
+    size *= input->shape[i];
   }
+  thrust::copy(data_ptr, data_ptr + size, values_ptr);
 
-  thrust::copy(data_ptr, data_ptr + n_iter * n_values, values_ptr);
-
-  for (int i = 0 ; i < n_iter; ++i) {
-    n_values = get_sort_len(i);
+  if (size == static_cast<size_t>(input->shape[input->ndim - 1])) {
+    // A fast path for single segment case
     thrust::sequence(indices_ptr, indices_ptr + n_values);
     if (is_ascend) {
       thrust::sort_by_key(values_ptr, values_ptr + n_values, indices_ptr);
@@ -63,8 +65,47 @@ void thrust_sort(DLTensor* input,
       thrust::sort_by_key(values_ptr, values_ptr + n_values, indices_ptr,
                           thrust::greater<DataType>());
     }
-    values_ptr += n_values;
-    indices_ptr += n_values;
+  } else {
+    // segmented sort by key
+    // Follow the back-to-back stable_sort_by_key strategy explained below
+    // https://groups.google.com/g/thrust-users/c/BoLsxO6b4FY
+    thrust::device_vector<int64_t> argsort_order(size);
+    thrust::sequence(argsort_order.begin(), argsort_order.end());
+
+    // First, sort values and store the sorted order in argsort_order.
+    if (is_ascend) {
+      thrust::stable_sort_by_key(values_ptr, values_ptr + size, argsort_order.begin());
+    } else {
+      thrust::stable_sort_by_key(values_ptr, values_ptr + size, argsort_order.begin(),
+                                 thrust::greater<DataType>());
+    }
+
+    // The following is to create the indices array 0, 1, 2, 0, 1, 2 ... 0, 1, 2
+    // without materializing it
+    auto counting_iter = thrust::counting_iterator<int64_t>(0);
+    auto linear_index_to_sort_axis_index = [n_values] __host__ __device__(int64_t i) {
+      return i % n_values;
+    }; // NOLINT(*)
+    auto init_indices_iter = thrust::make_transform_iterator(counting_iter,
+                                                             linear_index_to_sort_axis_index);
+
+    // This will reorder indices 0, 1, 2 ... in the sorted order of values_ptr
+    thrust::gather(argsort_order.begin(), argsort_order.end(), init_indices_iter, indices_ptr);
+
+    thrust::device_vector<int> segment_ids(size);
+    auto linear_index_to_segment_id = [n_values] __host__ __device__(int64_t i) {
+      return i / n_values;
+    }; // NOLINT(*)
+    // We also reorder segment indices 0, 0, 0, 1, 1, 1 ... in the order of values_ptr
+    thrust::transform(argsort_order.begin(), argsort_order.end(), segment_ids.begin(),
+                      linear_index_to_segment_id);
+
+    // The second sort key-ed by segment_ids would bring segment_ids back to 0, 0, 0, 1, 1, 1 ...
+    // values_ptr and indices_ptr will also be sorted in the order of segmend_ids above
+    // Since sorting has been done in a stable way, relative orderings of values and indices
+    // in the segment do not change and hence they remain sorted.
+    auto key_val_zip = thrust::make_zip_iterator(thrust::make_tuple(values_ptr, indices_ptr));
+    thrust::stable_sort_by_key(segment_ids.begin(), segment_ids.end(), key_val_zip);
   }
 }
 
@@ -72,54 +113,54 @@ void thrust_sort_common(DLTensor* input,
                         DLTensor* values_out,
                         DLTensor* indices_out,
                         bool is_ascend,
-                        const std::function<int(int)> &get_sort_len,
+                        int sort_len,
                         std::string data_dtype,
                         std::string out_dtype) {
   if (data_dtype == "float32") {
     if (out_dtype == "int32") {
-      thrust_sort<float, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, int32_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<float, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, int64_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<float, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, float>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<float, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (data_dtype == "float64") {
     if (out_dtype == "int32") {
-      thrust_sort<double, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, int32_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<double, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, int64_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<double, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, float>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<double, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (data_dtype == "int32") {
     if (out_dtype == "int32") {
-      thrust_sort<int32_t, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, int32_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<int32_t, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, int64_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<int32_t, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, float>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<int32_t, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   }  else if (data_dtype == "int64") {
     if (out_dtype == "int32") {
-      thrust_sort<int64_t, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, int32_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<int64_t, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, int64_t>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<int64_t, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, float>(input, values_out, indices_out, is_ascend, sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<int64_t, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, double>(input, values_out, indices_out, is_ascend, sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
@@ -127,25 +168,6 @@ void thrust_sort_common(DLTensor* input,
     LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
   }
 }
-
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort_nms")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_GE(args.num_args, 5);
-  DLTensor* input = args[0];
-  DLTensor* valid_count = args[1];
-  DLTensor* values_out = args[2];
-  DLTensor* indices_out = args[3];
-  bool is_ascend = args[4];
-
-  auto data_dtype = DLDataType2String(input->dtype);
-  auto out_dtype = DLDataType2String(indices_out->dtype);
-
-  thrust::device_ptr<int> valid_count_ptr(static_cast<int *>(valid_count->data));
-  auto get_sort_len = [&valid_count_ptr](int i) { return valid_count_ptr[i]; };
-  thrust_sort_common(input, values_out, indices_out, is_ascend, get_sort_len,
-                     data_dtype, out_dtype);
-});
-
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -159,8 +181,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
   auto out_dtype = DLDataType2String(indices_out->dtype);
 
   int n_values = input->shape[input->ndim - 1];
-  auto get_sort_len = [=](int i) { return n_values; };
-  thrust_sort_common(input, values_out, indices_out, is_ascend, get_sort_len,
+  thrust_sort_common(input, values_out, indices_out, is_ascend, n_values,
                      data_dtype, out_dtype);
 });
 
@@ -242,6 +263,130 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     }
   } else {
     LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
+  }
+});
+
+template<typename InType, typename OutType>
+void thrust_scan(DLTensor* data,
+                 DLTensor* output,
+                 bool exclusive) {
+  thrust::device_ptr<InType> data_ptr(static_cast<InType *>(data->data));
+  thrust::device_ptr<OutType> output_ptr(static_cast<OutType *>(output->data));
+  const auto scan_size = data->shape[data->ndim - 1];
+
+  if (scan_size == 0) return;
+
+  size_t size = 1;
+  for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
+
+  const bool need_cast = std::is_same<InType, OutType>::value == false;
+
+  auto data_cast_ptr = thrust::make_transform_iterator(data_ptr, [] __host__ __device__(InType v) {
+    return static_cast<OutType>(v);
+  }); // NOLINT(*)
+
+  if (size == static_cast<size_t>(data->shape[data->ndim - 1])) {
+    if (exclusive && need_cast) {
+      thrust::exclusive_scan(data_cast_ptr, data_cast_ptr + scan_size, output_ptr);
+    } else if (exclusive && !need_cast) {
+      thrust::exclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    } else if (!exclusive && need_cast) {
+      thrust::inclusive_scan(data_cast_ptr, data_cast_ptr + scan_size, output_ptr);
+    } else {
+      thrust::inclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    }
+  } else {
+    // Use thrust segmented scan to compute scan on the inner most axis
+    // data->shape[0] * data->shape[1] * ... * data->shape[ndim - 2] scans are
+    // computed in parallel
+
+    // This is for constructing a sequence 0, 0, 0,...,1, 1, 1,...,2, 2, 2,...,
+    // without materializing the sequence vector
+    auto counting_iter = thrust::counting_iterator<size_t>(0);
+    // Without __host__ annotation, cub crashes
+    auto linear_index_to_scan_key = [scan_size] __host__ __device__(size_t i) {
+        return i / scan_size;
+    }; // NOLINT(*)
+    auto key_iter = thrust::make_transform_iterator(counting_iter, linear_index_to_scan_key);
+
+    if (exclusive && need_cast) {
+      thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_cast_ptr, output_ptr);
+    } else if (exclusive && !need_cast) {
+      thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    } else if (!exclusive && need_cast) {
+      thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_cast_ptr, output_ptr);
+    } else {
+      thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    }
+  }
+}
+
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ICHECK_EQ(args.num_args, 3);
+  DLTensor* data = args[0];
+  DLTensor* output = args[1];
+  bool exclusive = args[2];
+
+  auto in_dtype = DLDataType2String(data->dtype);
+  auto out_dtype = DLDataType2String(output->dtype);
+
+  if (in_dtype == "bool") {
+    if (out_dtype == "int32") {
+      thrust_scan<bool, int>(data, output, exclusive);
+    } else if (out_dtype == "int64") {
+      thrust_scan<bool, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<bool, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<bool, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32, and float64";
+    }
+  } else if (in_dtype == "int32") {
+    if (out_dtype == "int32") {
+      thrust_scan<int, int>(data, output, exclusive);
+    } else if (out_dtype == "int64") {
+      thrust_scan<int, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<int, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<int, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32, and float64";
+    }
+  } else if (in_dtype == "int64") {
+    if (out_dtype == "int64") {
+      thrust_scan<int64_t, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<int64_t, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<int64_t, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int64, float32, and float64";
+    }
+  } else if (in_dtype == "float32") {
+    if (out_dtype == "float32") {
+      thrust_scan<float, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<float, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are float32, and float64";
+    }
+  } else if (in_dtype == "float64") {
+    if (out_dtype == "float64") {
+      thrust_scan<double, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtype is float64";
+    }
+  } else {
+    LOG(FATAL) << "Unsupported input dtype: " << in_dtype
+               << ". Supported input dtypes are bool, int32, int64, float32, and float64";
   }
 });
 

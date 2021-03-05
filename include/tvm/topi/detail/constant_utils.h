@@ -48,7 +48,8 @@ using namespace tvm::te;
 inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tir::IntImmNode>(); }
 
 /*!
- * \brief Test whether the given Array has every element as constant integer
+ * \brief Test whether the given Array has every element as constant integer.
+ * Undefined elements are also treat as constants.
  *
  * \param array the array to query
  *
@@ -57,7 +58,7 @@ inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tir::IntImm
 inline bool IsConstIntArray(Array<PrimExpr> array) {
   bool is_const_int = true;
   for (auto const& elem : array) {
-    is_const_int &= elem->IsInstance<tvm::tir::IntImmNode>();
+    is_const_int &= !elem.defined() || elem->IsInstance<tvm::tir::IntImmNode>();
   }
   return is_const_int;
 }

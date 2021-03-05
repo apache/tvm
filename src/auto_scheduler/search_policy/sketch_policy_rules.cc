@@ -461,6 +461,33 @@ std::vector<std::pair<State, int>> RuleSpecialComputeLocationGPU::Apply(
   return {std::make_pair(std::move(tmp_s), stage_id - 1)};
 }
 
+/********** RuleCustomSketch **********/
+
+SketchGenerationRule::ConditionKind RuleCustomSketch::MeetCondition(const SketchPolicyNode& policy,
+                                                                    const State& state,
+                                                                    int stage_id) const {
+  auto ret = meet_condition_func_(tvm::runtime::GetRef<SketchPolicy>(&policy), state, stage_id);
+  if (ret.type_code() == 0) {
+    return ConditionKind(static_cast<int>(ret));
+  } else {
+    LOG(WARNING) << "Wrong rule condition value. Apply the rule and skip the rest";
+    return ConditionKind::kApplyAndSkipRest;
+  }
+}
+
+std::vector<std::pair<State, int>> RuleCustomSketch::Apply(const SketchPolicyNode& policy,
+                                                           const State& state, int stage_id) const {
+  Array<Array<ObjectRef>> apply_ret =
+      apply_func_(tvm::runtime::GetRef<SketchPolicy>(&policy), state, stage_id);
+  std::vector<std::pair<State, int>> ret;
+  for (const auto& item : apply_ret) {
+    CHECK_EQ(item.size(), 2);
+    auto next = item[1].as<IntImmNode>();
+    ret.emplace_back(Downcast<State>(item[0]), next->value);
+  }
+  return ret;
+}
+
 /********** Init Population **********/
 
 PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy, State* state,

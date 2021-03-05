@@ -19,7 +19,9 @@ import contextlib
 import copy
 import glob
 import os
-import pty
+import pytest
+
+pytest.importorskip("pty")
 import sys
 import subprocess
 import textwrap
@@ -28,7 +30,6 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
 import tvm.relay
 import tvm.testing
 
@@ -50,18 +51,15 @@ def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
 
 def _make_session(workspace, mod):
     compiler = tvm.micro.DefaultCompiler(target=TARGET)
-    opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+    opts = tvm.micro.default_options(
+        os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+    )
     micro_binary = tvm.micro.build_static_runtime(
-        # the x86 compiler *expects* you to give the exact same dictionary for both
-        # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
-        # the binary compiler is expecting those mutations to be in bin_opts.
-        # TODO(weberlo) fix this very bizarre behavior
         workspace,
         compiler,
         mod,
-        lib_opts=opts["bin_opts"],
-        bin_opts=opts["bin_opts"],
-        extra_libs=[os.path.join(tvm.micro.build.CRT_ROOT_DIR, "memory")],
+        opts,
+        extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
     )
 
     flasher_kw = {
@@ -107,6 +105,23 @@ def test_compile_runtime():
 
 
 @tvm.testing.requires_micro
+def test_compile_runtime_llvm():
+    """Test targeting the on-device runtime with the llvm backend."""
+    global TARGET
+    old_target = TARGET
+    try:
+        # NOTE: test_compile_runtime uses the "c" backend--re run it using the llvm backend.
+        target_str = str(TARGET)
+        assert target_str.startswith("c ")
+        TARGET = tvm.target.Target("llvm " + str(TARGET)[len("c ") :])
+
+        test_compile_runtime()
+
+    finally:
+        TARGET = old_target
+
+
+@tvm.testing.requires_micro
 def test_reset():
     """Test when the remote end resets during a session."""
     import tvm.micro
@@ -127,7 +142,7 @@ def test_graph_runtime():
     """Test use of the graph runtime with microTVM."""
     import tvm.micro
 
-    workspace = tvm.micro.Workspace()
+    workspace = tvm.micro.Workspace(debug=True)
     relay_mod = tvm.parser.fromtext(
         """
       #[version = "0.0.5"]
@@ -159,6 +174,19 @@ def test_graph_runtime():
 def test_std_math_functions():
     """Verify that standard math functions can be used."""
     import tvm.micro
+
+    workspace = tvm.micro.Workspace()
+
+    with _make_add_sess(workspace) as sess:
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        assert (B_data.asnumpy() == np.array([4])).all()
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        assert (C_data.asnumpy() == np.array([0, 0])).all()
+
+        system_lib = sess.get_system_lib()
+        system_lib.get_function("add")(A_data, B_data, C_data)
 
     workspace = tvm.micro.Workspace()
     A = tvm.te.placeholder((2,), dtype="float32", name="A")

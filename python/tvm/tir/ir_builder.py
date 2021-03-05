@@ -206,7 +206,7 @@ class IRBuilder(object):
             value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, name="i", dtype="int32", for_type="serial"):
+    def for_range(self, begin, end, name="i", dtype="int32", kind="serial"):
         """Create a for iteration scope.
 
         Parameters
@@ -224,7 +224,7 @@ class IRBuilder(object):
         dtype : str, optional
             The data type of iteration variable.
 
-        for_type : str, optional
+        kind : str, optional
             The special tag on the for loop.
 
         Returns
@@ -249,19 +249,48 @@ class IRBuilder(object):
         extent = end if begin == 0 else (end - begin)
 
         def _exit_cb():
-            if for_type == "serial":
-                for_type_id = 0
-            elif for_type == "parallel":
-                for_type_id = 1
-            elif for_type == "vectorize":
-                for_type_id = 2
-            elif for_type == "unroll":
-                for_type_id = 3
+            if kind == "serial":
+                kind_id = _stmt.ForKind.SERIAL
+            elif kind == "parallel":
+                kind_id = _stmt.ForKind.PARALLEL
+            elif kind == "vectorize":
+                kind_id = _stmt.ForKind.VECTORIZED
+            elif kind == "unroll":
+                kind_id = _stmt.ForKind.UNROLLED
             else:
-                raise ValueError("Unknown for_type")
-            self.emit(_stmt.For(loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
+                raise ValueError("Unknown kind")
+            self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq()))
 
         return WithScope(loop_var, _exit_cb)
+
+    def while_loop(self, condition):
+        """Create a while loop scope.
+
+        Parameters
+        ----------
+        condition : Expr
+            The termination condition.
+
+        Returns
+        -------
+        loop_scope : With.Scope of Var
+            The while scope.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            ib = tvm.tir.ir_builder.create()
+            iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
+            with ib.while_loop(iterations[0] < 10):
+                iterations[0] += 1
+        """
+        self._seq_stack.append([])
+
+        def _exit_cb():
+            self.emit(_stmt.While(condition, self._pop_seq()))
+
+        return WithScope(None, _exit_cb)
 
     def if_scope(self, cond):
         """Create an if scope.

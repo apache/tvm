@@ -24,7 +24,6 @@ import re
 import subprocess
 
 import tvm.target
-from . import build
 from . import class_factory
 from . import debugger
 from . import transport
@@ -82,6 +81,9 @@ class Compiler(metaclass=abc.ABCMeta):
         target_strs = set()
 
         for obj in sources:
+            if os.path.splitext(obj)[1] not in (".cc", ".c"):
+                continue
+
             with open(obj) as obj_f:
                 for line in obj_f:
                     m = cls.TVM_TARGET_RE.match(line)
@@ -96,7 +98,7 @@ class Compiler(metaclass=abc.ABCMeta):
             )
 
         target_str = next(iter(target_strs))
-        return tvm.target.create(target_str)
+        return tvm.target.Target(target_str)
 
     # Maps regexes identifying CPUs to the default toolchain prefix for that CPU.
     TOOLCHAIN_PREFIX_BY_CPU_REGEX = {
@@ -106,6 +108,12 @@ class Compiler(metaclass=abc.ABCMeta):
     }
 
     def _autodetect_toolchain_prefix(self, target):
+        # Treat absence of -mcpu as if -mcpu=native is specified. The gcc shipped with OS X
+        # complains if -mcpu=native is given, so this approach allows model targets to avoid
+        # specifying this flag e.g. for tutorials.
+        if "mcpu" not in target.attrs:
+            return self.TOOLCHAIN_PREFIX_BY_CPU_REGEX["native"]
+
         matches = []
         for regex, prefix in self.TOOLCHAIN_PREFIX_BY_CPU_REGEX.items():
             if re.match(regex, target.attrs["mcpu"]):
@@ -241,7 +249,8 @@ class DefaultCompiler(Compiler):
             )
 
         prefix = self._autodetect_toolchain_prefix(target)
-        outputs = []
+        outputs = [s for s in sources if os.path.splitext(s)[1] == ".o"]
+        sources = [s for s in sources if s not in outputs]
         for src in sources:
             src_base, src_ext = os.path.splitext(os.path.basename(src))
 
@@ -285,7 +294,9 @@ class DefaultCompiler(Compiler):
         args.extend(["-g", "-o", output_abspath])
 
         if link_main:
-            host_main_srcs = glob.glob(os.path.join(build.CRT_ROOT_DIR, "host", "*.cc"))
+            host_main_srcs = glob.glob(
+                os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host", "*.cc")
+            )
             if main_options:
                 main_lib = self.library(os.path.join(output, "host"), host_main_srcs, main_options)
                 for lib_name in main_lib.library_files:

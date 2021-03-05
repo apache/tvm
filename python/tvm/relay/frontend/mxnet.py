@@ -495,6 +495,19 @@ def _mx_layer_norm(inputs, attrs):
     return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
+def _mx_group_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Group Norm.'
+        )
+    new_attrs = {}
+    new_attrs["axis"] = 1
+    new_attrs["num_groups"] = attrs.get_int("num_groups", 1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.group_norm(*inputs, **new_attrs)
+
+
 def _mx_slice(inputs, attrs):
     new_attrs = {}
     begin = list(attrs.get_int_tuple("begin", None))
@@ -2335,6 +2348,14 @@ def _mx_npi_concatenate(inputs, attrs):
         return _op.concatenate(tuple(inputs), axis=int(axis))
 
 
+def _mx_npi_stack(inputs, attrs):
+    axis = attrs.get_str("axis", "0")
+    if axis == "None":
+        return _op.reshape(_op.stack(tuple(inputs), axis=0), (-1,))
+    else:
+        return _op.stack(tuple(inputs), axis=int(axis))
+
+
 def _mx_npx_reshape(inputs, attrs):
     shape = attrs.get_int_tuple("newshape")
     reverse = attrs.get_bool("reverse", False)
@@ -2591,6 +2612,7 @@ _convert_map = {
     "_contrib_SyncBatchNorm": _mx_batch_norm,
     "InstanceNorm": _mx_instance_norm,
     "LayerNorm": _mx_layer_norm,
+    "GroupNorm": _mx_group_norm,
     "LRN": _mx_lrn,
     "L2Normalization": _mx_l2_normalize,
     "slice": _mx_slice,
@@ -2700,6 +2722,7 @@ _convert_map = {
     "_npi_less_equal": _mx_compare(_op.less_equal, _rename),
     "_npi_tanh": _rename(_op.tanh),
     "_npi_true_divide_scalar": _binop_scalar(_op.divide),
+    "_npi_stack": _mx_npi_stack,
 }
 
 # set identity list

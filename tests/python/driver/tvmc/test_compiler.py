@@ -19,9 +19,12 @@ import os
 import shutil
 from os import path
 
+from unittest import mock
 import pytest
 
 import tvm
+
+from tvm.relay.op.contrib.ethosn import ethosn_available
 
 from tvm.driver import tvmc
 
@@ -39,14 +42,11 @@ def test_save_dumps(tmpdir_factory):
 # End to end tests for compilation
 
 
-def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+def verify_compile_tflite_module(model, shape_dict=None):
     pytest.importorskip("tflite")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        tflite_mobilenet_v1_1_quant,
-        target="llvm",
-        dump_code="ll",
-        alter_layout="NCHW",
+        model, target="llvm", dump_code="ll", alter_layout="NCHW", shape_dict=shape_dict
     )
 
     # check for output types
@@ -54,6 +54,17 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     assert type(lib) is tvm.runtime.module.Module
     assert type(params) is dict
     assert type(dumps) is dict
+
+
+def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer tflite, so skip in case it is not present
+    pytest.importorskip("tflite")
+    # Check default compilation.
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
+    # Check with manual shape override
+    shape_string = "input:[1,224,224,3]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
@@ -65,7 +76,7 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         tflite_mobilenet_v1_1_quant,
-        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
     )
 
@@ -102,7 +113,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
         keras_resnet50,
-        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
     )
 
@@ -114,12 +125,12 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
     assert "asm" in dumps.keys()
 
 
-def test_compile_onnx_module(onnx_resnet50):
+def verify_compile_onnx_module(model, shape_dict=None):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        onnx_resnet50, target="llvm", dump_code="ll"
+        model, target="llvm", dump_code="ll", shape_dict=shape_dict
     )
 
     # check for output types
@@ -128,6 +139,15 @@ def test_compile_onnx_module(onnx_resnet50):
     assert type(params) is dict
     assert type(dumps) is dict
     assert "ll" in dumps.keys()
+
+
+def test_compile_onnx_module(onnx_resnet50):
+    # Test default compilation
+    verify_compile_onnx_module(onnx_resnet50)
+    # Test with manual shape dict
+    shape_string = "data:[1,3,200,200]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    verify_compile_onnx_module(onnx_resnet50, shape_dict)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
@@ -168,3 +188,43 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert type(lib) is tvm.runtime.module.Module
     assert type(params) is dict
     assert type(dumps) is dict
+
+
+@pytest.mark.skipif(
+    not ethosn_available(),
+    reason="--target=ethos-n77 is not available. TVM built with 'USE_ETHOSN OFF'",
+)
+def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+
+    graph, lib, params, dumps = tvmc.compiler.compile_model(
+        tflite_mobilenet_v1_1_quant, target="ethos-n77, llvm", dump_code="relay"
+    )
+
+    # check for output types
+    assert type(graph) is str
+    assert type(lib) is tvm.runtime.module.Module
+    assert type(params) is dict
+    assert type(dumps) is dict
+
+
+@mock.patch("tvm.relay.build")
+@mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
+@mock.patch("tvm.driver.tvmc.frontends.load_model")
+@mock.patch("tvm.transform.PassContext")
+def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_relay):
+    mock_codegen = {}
+    mock_codegen["config_key"] = "relay.ext.mock.options"
+    mock_codegen["pass_pipeline"] = lambda *args: None
+
+    mock_fe.return_value = (None, None)
+    mock_ct.return_value = mock_codegen
+    mock_relay.return_value = mock.MagicMock()
+
+    graph, lib, params, dumps = tvmc.compiler.compile_model(
+        "no_file_needed", target="mockcodegen -testopt=value, llvm"
+    )
+
+    mock_pc.assert_called_once_with(
+        opt_level=3, config={"relay.ext.mock.options": {"testopt": "value"}}
+    )

@@ -21,7 +21,7 @@ from tvm.relay import expr
 from . import _make
 from ..dyn.nn import _make as _dyn_make
 from .utils import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
-from ...expr import const, Expr
+from ...expr import const, Expr, Constant
 
 
 def conv1d(
@@ -1279,6 +1279,10 @@ def upsampling(
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(scale_h, Constant):
+        scale_h = scale_h.data.asnumpy().item()
+    if isinstance(scale_w, Constant):
+        scale_w = scale_w.data.asnumpy().item()
     if isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
         if not isinstance(scale_h, Expr):
             scale_h = const(scale_h, "float64")
@@ -1338,6 +1342,12 @@ def upsampling3d(
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(scale_d, Constant):
+        scale_d = scale_d.data.asnumpy().item()
+    if isinstance(scale_h, Constant):
+        scale_h = scale_h.data.asnumpy().item()
+    if isinstance(scale_w, Constant):
+        scale_w = scale_w.data.asnumpy().item()
     if isinstance(scale_d, Expr) or isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
         if not isinstance(scale_d, Expr):
             scale_d = const(scale_d, "float64")
@@ -1435,6 +1445,39 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
+def contrib_dense_pack(data, weight, units=None, out_dtype=""):
+    """Dense operator.
+    Applies a linear transformation
+
+    .. math::
+
+    `Y = X * W^T`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator,
+        of shape `(d_1, d_2, ..., d_n, units_in)`.
+
+    weight : tvm.relay.Expr
+        The transformed weight expressions, 3-D matrix,
+        of shape `(units // pack_weight_tile, units_in, pack_weight_tile)`.
+
+    units : int, optional
+        Number of hidden units of the dense transformation.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense,
+        of shape `(d_1, d_2, ..., d_n, units)`.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_dense_pack(data, weight, units, out_dtype)
+
+
 def fifo_buffer(data, buffer, axis):
     """FIFO buffer to enable computation reuse in CNNs with sliding indow input
 
@@ -1488,7 +1531,7 @@ def relu(data):
     return _make.relu(data)
 
 
-def leaky_relu(data, alpha):
+def leaky_relu(data, alpha=0.01):
     """This operator takes data as input and does Leaky version
     of a Rectified Linear Unit.
 
@@ -1563,6 +1606,10 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pad_value, Constant):
+        pad_value = pad_value.data.asnumpy().item()
+    if isinstance(pad_width, Constant):
+        pad_width = [list(i) for i in pad_width.data.asnumpy()]
     if isinstance(pad_width, Expr) or (isinstance(pad_value, Expr)):
         if not isinstance(pad_width, Expr):
             pad_width = const(list(pad_width))

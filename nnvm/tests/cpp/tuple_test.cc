@@ -28,18 +28,18 @@ TEST(Tuple, Basic) {
   Tuple<int> y{1, 2, 3, 5, 6};
   x = std::move(y);
 
-  ICHECK_EQ(x.ndim(), 5);
+  CHECK_EQ(x.ndim(), 5);
   Tuple<int> z{1, 2, 3, 5, 6};
   std::ostringstream os;
   os << z;
-  ICHECK_EQ(os.str(), "[1,2,3,5,6]");
+  CHECK_EQ(os.str(), "[1,2,3,5,6]");
   std::istringstream is(os.str());
   is >> y;
-  ICHECK_EQ(x, y);
+  CHECK_EQ(x, y);
   Tuple<nnvm::dim_t> ss{1, 2, 3};
   TShape s = ss;
   s = std::move(ss);
-  ICHECK((s == TShape{1, 2, 3}));
+  CHECK((s == TShape{1, 2, 3}));
 }
 
 int main(int argc, char** argv) {

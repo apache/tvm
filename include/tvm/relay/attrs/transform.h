@@ -54,7 +54,7 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
         "If `axis < 0`, it is the first axis inserted;"
         "If `axis >= 0`, it is the last axis inserted in Python's negative indexing.");
     TVM_ATTR_FIELD(num_newaxis)
-        .describe("Number of axises to be inserted. Should be >= 0.")
+        .describe("Number of axes to be inserted. Should be >= 0.")
         .set_lower_bound(0)
         .set_default(1);
   }
@@ -437,6 +437,32 @@ struct MatrixSetDiagAttrs : public tvm::AttrsNode<MatrixSetDiagAttrs> {
         .describe("Bool, true iff sub-diagonal is right aligned (left-padded).");
   }
 };  // struct MatrixSetDiagAttrs
+
+/*! \brief Attributes used in cumsum operator */
+struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
+  Integer axis;
+  DataType dtype;
+  Integer exclusive;
+  TVM_DECLARE_ATTRS(CumsumAttrs, "relay.attrs.CumsumAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis to sum over").set_default(NullValue<Integer>());
+    TVM_ATTR_FIELD(dtype).describe("Output data type").set_default(NullValue<DataType>());
+    TVM_ATTR_FIELD(exclusive)
+        .describe("The first element is not included")
+        .set_default(NullValue<Integer>());
+  }
+};
+
+/*! \brief Attributes used in unique operator */
+struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
+  bool sorted;
+  bool return_counts;
+  TVM_DECLARE_ATTRS(UniqueAttrs, "relay.attrs.UniqueAttrs") {
+    TVM_ATTR_FIELD(sorted).describe("Whether the unique elements are sorted").set_default(true);
+    TVM_ATTR_FIELD(return_counts)
+        .describe("Whether to return an additional tensor with counts of each unique elements")
+        .set_default(false);
+  }
+};  // struct UniqueAttrs
 
 }  // namespace relay
 }  // namespace tvm

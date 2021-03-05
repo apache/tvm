@@ -112,7 +112,7 @@ class MicroRPCServer {
                  utvm_rpc_channel_write_t write_func, void* write_func_ctx)
       : receive_buffer_{receive_storage, receive_storage_size_bytes},
         framer_{&send_stream_},
-        session_{0xa5, &framer_, &receive_buffer_, &HandleCompleteMessageCb, this},
+        session_{&framer_, &receive_buffer_, &HandleCompleteMessageCb, this},
         io_{&session_, &receive_buffer_},
         unframer_{session_.Receiver()},
         rpc_server_{&io_},
@@ -120,7 +120,13 @@ class MicroRPCServer {
 
   void* operator new(size_t count, void* ptr) { return ptr; }
 
-  void Initialize() { CHECK_EQ(kTvmErrorNoError, session_.Initialize(), "rpc server init"); }
+  void Initialize() {
+    uint8_t initial_session_nonce = Session::kInvalidNonce;
+    tvm_crt_error_t error =
+        TVMPlatformGenerateRandom(&initial_session_nonce, sizeof(initial_session_nonce));
+    CHECK_EQ(kTvmErrorNoError, error, "generating random session id");
+    CHECK_EQ(kTvmErrorNoError, session_.Initialize(initial_session_nonce), "rpc server init");
+  }
 
   /*! \brief Process one message from the receive buffer, if possible.
    *
@@ -242,7 +248,7 @@ void TVMLogf(const char* format, ...) {
   } else {
     tvm::runtime::micro_rpc::SerialWriteStream write_stream;
     tvm::runtime::micro_rpc::Framer framer{&write_stream};
-    tvm::runtime::micro_rpc::Session session{0xa5, &framer, nullptr, nullptr, nullptr};
+    tvm::runtime::micro_rpc::Session session{&framer, nullptr, nullptr, nullptr};
     tvm_crt_error_t err =
         session.SendMessage(tvm::runtime::micro_rpc::MessageType::kLog,
                             reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);

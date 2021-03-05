@@ -39,9 +39,9 @@ pub struct Array<T: IsObjectRef> {
 // TODO(@jroesch): convert to use generics instead of casting inside
 // the implementation.
 external! {
-    #[name("node.ArrayGetItem")]
+    #[name("runtime.ArrayGetItem")]
     fn array_get_item(array: ObjectRef, index: isize) -> ObjectRef;
-    #[name("node.ArraySize")]
+    #[name("runtime.ArraySize")]
     fn array_size(array: ObjectRef) -> i64;
 }
 
@@ -69,8 +69,8 @@ impl<T: IsObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
         let iter = data.into_iter().map(T::into_arg_value).collect();
 
-        let func = Function::get("node.Array").expect(
-            "node.Array function is not registered, this is most likely a build or linking error",
+        let func = Function::get("runtime.Array").expect(
+            "runtime.Array function is not registered, this is most likely a build or linking error",
         );
 
         // let array_data = func.invoke(iter)?;

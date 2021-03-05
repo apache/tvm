@@ -67,13 +67,19 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-5)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-4)
 
-    for layout in ["NHWC", "NCHW"]:
-        verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "half_pixel")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "asymmetric")
-        verify_resize((3, 4, 5, 6), 5, "nearest_neighbor", layout, "asymmetric")
+    for method in ["nearest_neighbor", "bilinear"]:
+        for coord_trans in ["asymmetric", "half_pixel", "align_corners"]:
+            for layout in ["NHWC", "NCHW"]:
+                # TODO: Topi test does not have a function to produce numpy output for resize with
+                # nearest_neighbors and align_corners. Enable when topi test has this option
+                if coord_trans == "align_corners" and method == "nearest_neighbor":
+                    continue
+                verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
+                verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
+                verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
+                verify_resize((3, 4, 5, 6), 5, method, layout, coord_trans)
 
 
 def test_resize3d_infer_type():
@@ -488,6 +494,42 @@ def test_non_max_suppression():
         top_k=2,
     )
 
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [1, 0.7, 30, 60, 50, 80, 5, 6, 7, 8],
+                [0, 0.4, 4, 21, 19, 40, 9, 10, 11, 12],
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [1, 0.5, 100, 60, 70, 110, 17, 18, 19, 20],
+            ]
+        ]
+    ).astype("float32")
+    np_result = np.array(
+        [
+            [
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+            ]
+        ]
+    )
+    dshape = (1, 5, 10)
+    verify_nms(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_max_output_size,
+        dshape,
+        np_result,
+        np_indices_result,
+        force_suppress=True,
+        top_k=2,
+        check_type_only=False,
+    )
+
 
 @tvm.testing.uses_gpu
 def test_multibox_transform_loc():
@@ -583,7 +625,18 @@ def test_multibox_transform_loc():
 
 @tvm.testing.uses_gpu
 def test_roi_align():
-    def verify_roi_align(data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio):
+    def verify_roi_align(
+        data_shape,
+        rois_shape,
+        channel,
+        in_size,
+        pooled_size,
+        spatial_scale,
+        sample_ratio,
+        mode,
+        layout,
+        ref_func,
+    ):
         data = relay.var("data", relay.ty.TensorType(data_shape, "float32"))
         rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
         z = relay.vision.roi_align(
@@ -592,28 +645,37 @@ def test_roi_align():
             pooled_size=(pooled_size, pooled_size),
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
-            layout="NCHW",
+            mode=mode,
+            layout=layout,
         )
         zz = run_infer_type(z)
-        batch, channel, in_size, _ = data_shape
+
         num_roi = rois_shape[0]
-        assert zz.checked_type == relay.ty.TensorType(
-            (num_roi, channel, pooled_size, pooled_size), "float32"
-        )
+
+        if layout == "NCHW":
+            assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, channel, pooled_size, pooled_size), "float32"
+            )
+        else:
+            assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, pooled_size, pooled_size, channel), "float32"
+            )
 
         func = relay.Function([data, rois], z)
         func = run_infer_type(func)
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype("float32") * in_size
-        np_rois[:, 0] = np.random.randint(low=0, high=batch, size=num_roi)
-        ref_res = tvm.topi.testing.roi_align_nchw_python(
+        np_rois[:, 0] = np.random.randint(low=0, high=data_shape[0], size=num_roi)
+        ref_res = ref_func(
             np_data,
             np_rois,
             pooled_size=pooled_size,
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
+            mode=mode,
         )
         for target, ctx in tvm.testing.enabled_targets():
+            print("test on", target)
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_data, np_rois)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
@@ -621,8 +683,64 @@ def test_roi_align():
             op_res2 = intrp2.evaluate(func)(np_data, np_rois)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
 
-    verify_roi_align((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1)
-    verify_roi_align((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2)
+    def verify_roi_align_nchw(
+        data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode
+    ):
+        _, channel, in_size, _ = data_shape
+        return verify_roi_align(
+            data_shape,
+            rois_shape,
+            channel,
+            in_size,
+            pooled_size,
+            spatial_scale,
+            sample_ratio,
+            mode,
+            "NCHW",
+            tvm.topi.testing.roi_align_nchw_python,
+        )
+
+    def verify_roi_align_nhwc(
+        data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode
+    ):
+        _, in_size, _, channel = data_shape
+        return verify_roi_align(
+            data_shape,
+            rois_shape,
+            channel,
+            in_size,
+            pooled_size,
+            spatial_scale,
+            sample_ratio,
+            mode,
+            "NHWC",
+            tvm.topi.testing.roi_align_nhwc_python,
+        )
+
+    verify_roi_align_nchw(
+        (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
+    )
+    verify_roi_align_nchw(
+        (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
+    )
+    verify_roi_align_nchw(
+        (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
+    )
+    verify_roi_align_nchw(
+        (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
+    )
+    verify_roi_align_nhwc(
+        (1, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
+    )
+    verify_roi_align_nhwc(
+        (4, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
+    )
+    verify_roi_align_nhwc(
+        (1, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
+    )
+    verify_roi_align_nhwc(
+        (4, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
+    )
 
 
 @tvm.testing.uses_gpu
@@ -837,11 +955,31 @@ def test_deformable_conv2d():
     test_infer_type(1, 4, 16, 4, 4, 1, "NHWC")
     test_infer_type(2, 4, 16, 4, 1, 2, "NHWC")
 
-    def test_run(batch, in_channel, size, out_channel, deformable_groups, groups):
+    def test_run(batch, in_channel, size, out_channel, deformable_groups, groups, layout):
         kernel_size = (3, 3)
-        data_shape = (batch, in_channel, size, size)
-        offset_shape = (batch, 2 * kernel_size[0] * kernel_size[1] * deformable_groups, size, size)
-        kernel_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+        if layout == "NCHW":
+            kernel_layout = "OIHW"
+            data_shape = (batch, in_channel, size, size)
+            kernel_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+            out_shape = (batch, out_channel, size, size)
+            offset_shape = (
+                batch,
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+                out_shape[2],
+                out_shape[3],
+            )
+        else:
+            kernel_layout = "HWIO"
+            data_shape = (batch, size, size, in_channel)
+            kernel_shape = (kernel_size[0], kernel_size[1], in_channel // groups, out_channel)
+            out_shape = (batch, size, size, out_channel)
+            offset_shape = (
+                batch,
+                out_shape[1],
+                out_shape[2],
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+            )
+
         dtype = "float32"
         data = relay.var("data", shape=data_shape, dtype=dtype)
         offset = relay.var("offset")
@@ -853,6 +991,8 @@ def test_deformable_conv2d():
             strides=(1, 1),
             padding=(1, 1),
             dilation=(1, 1),
+            data_layout=layout,
+            kernel_layout=kernel_layout,
             kernel_size=kernel_size,
             deformable_groups=deformable_groups,
             groups=groups,
@@ -862,25 +1002,40 @@ def test_deformable_conv2d():
         data = np.random.uniform(size=data_shape).astype(dtype)
         offset = np.random.uniform(size=offset_shape).astype(dtype)
         kernel = np.random.uniform(size=kernel_shape).astype(dtype)
-        ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(
-            data,
-            offset,
-            kernel,
-            stride=(1, 1),
-            padding=(1, 1),
-            dilation=(1, 1),
-            deformable_groups=deformable_groups,
-            groups=groups,
-        )
-
+        if layout == "NCHW":
+            ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(
+                data,
+                offset,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
+        else:
+            ref_res = tvm.topi.testing.deformable_conv2d_nhwc_python(
+                data,
+                offset,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
         for target, ctx in tvm.testing.enabled_targets():
+            if target == "cuda" and layout == "NHWC":
+                continue  # Cannot run NHWC layout on cuda target, only on llvm
             for kind in ["graph", "debug"]:
                 intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res1 = intrp1.evaluate(func)(data, offset, kernel)
                 tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-    test_run(1, 4, 16, 4, 1, 1)
-    test_run(2, 4, 16, 4, 4, 1)
+    test_run(1, 4, 16, 4, 1, 1, "NCHW")
+    test_run(1, 4, 16, 4, 1, 1, "NHWC")
+    test_run(2, 4, 16, 4, 4, 1, "NCHW")
+    test_run(2, 4, 16, 4, 4, 1, "NHWC")
 
 
 @tvm.testing.uses_gpu
@@ -1213,7 +1368,6 @@ if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
     test_resize3d_infer_type()
-    test_resize3d()
     test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()

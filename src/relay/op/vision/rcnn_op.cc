@@ -76,12 +76,13 @@ Array<Array<Layout> > ROIAlignInferCorrectLayout(const Attrs& attrs,
 }
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
-                  int sample_ratio, String layout) {
+                  int sample_ratio, String layout, String mode) {
   auto attrs = make_object<ROIAlignAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
   attrs->sample_ratio = sample_ratio;
   attrs->layout = layout;
+  attrs->mode = mode;
   static const Op& op = Op::Get("vision.roi_align");
   return Call(op, {data, rois}, Attrs(attrs), {});
 }

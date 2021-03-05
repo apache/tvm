@@ -58,7 +58,7 @@ inline void UpdateNodeVersion(Node* n) {
   if (fmutate_inputs.count(n->op()) != 0) {
     for (uint32_t i : fmutate_inputs[n->op()](n->attrs)) {
       NodeEntry& e = n->inputs[i];
-      ICHECK(e.node->is_variable()) << "Mutation target can only be Variable";
+      CHECK(e.node->is_variable()) << "Mutation target can only be Variable";
       // increase the version of the variable.
       e.version = ++nnvm::get<VariableParam>(e.node->attrs.parsed).version;
     }
@@ -186,7 +186,7 @@ void Symbol::Print(std::ostream& os) const {
 
 Symbol Symbol::operator[](size_t index) const {
   size_t nreturn = outputs.size();
-  ICHECK_LT(index, nreturn) << "Symbol only accept nonnegative index";
+  CHECK_LT(index, nreturn) << "Symbol only accept nonnegative index";
   if (nreturn == 1) {
     return *this;
   } else {
@@ -240,7 +240,7 @@ std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
 }
 
 std::vector<std::string> Symbol::ListOutputNames() const {
-  static auto& flist_ouputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
+  static auto& flist_outputs = Op::GetAttr<FListOutputNames>("FListOutputNames");
 
   std::vector<std::string> ret;
   ret.reserve(outputs.size());
@@ -250,7 +250,7 @@ std::vector<std::string> Symbol::ListOutputNames() const {
     } else {
       const std::string& hname = head.node->attrs.name;
       std::string rname;
-      FListOutputNames fn = flist_ouputs.get(head.node->op(), nullptr);
+      FListOutputNames fn = flist_outputs.get(head.node->op(), nullptr);
       if (fn != nullptr) {
         rname = fn(head.node->attrs)[head.index];
       } else {
@@ -298,13 +298,13 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   for (size_t i = 0; i < args.size(); ++i) {
     // If the argument isn't a graph, it should have only one output.
     if (garg_idx.empty() || std::find(garg_idx.begin(), garg_idx.end(), i) == garg_idx.end())
-      ICHECK_EQ(args[i]->outputs.size(), 1U)
+      CHECK_EQ(args[i]->outputs.size(), 1U)
           << "Argument " << i << " is a tuple, single value is required";
   }
   for (const auto& kv : kwargs) {
     if (garg_names.empty() ||
         std::find(garg_names.begin(), garg_names.end(), kv.first) == garg_names.end())
-      ICHECK_EQ(kv.second->outputs.size(), 1U)
+      CHECK_EQ(kv.second->outputs.size(), 1U)
           << "Keyword Argument " << kv.first << " is a tuple, single value is required";
   }
   // assign new name
@@ -325,7 +325,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
           sym = arg_vec[idx];
         } else {
           auto it = kwarg_map.find(arg_names[idx]);
-          ICHECK(it != kwarg_map.end());
+          CHECK(it != kwarg_map.end());
           sym = it->second;
           kwarg_map.erase(it);
         }
@@ -346,7 +346,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
 
     if (n_req != kVarg) {
       n->inputs.resize(n_req);
-      ICHECK_LE(arg_vec.size(), n_req)
+      CHECK_LE(arg_vec.size(), n_req)
           << "Incorrect number of arguments, requires " << n_req << ", provided " << arg_vec.size();
       for (size_t i = 0; i < arg_vec.size(); ++i) {
         n->inputs[i] = arg_vec[i]->outputs[0];
@@ -378,7 +378,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
         }
       }
     } else {
-      ICHECK_EQ(kwarg_map.size(), 0U) << "Variable length function do not accept kwargs";
+      CHECK_EQ(kwarg_map.size(), 0U) << "Variable length function do not accept kwargs";
       n->inputs.reserve(arg_vec.size());
       for (const Symbol* s : arg_vec) {
         n->inputs.push_back(s->outputs[0]);
@@ -396,7 +396,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     }
   } else {
     // general composition
-    ICHECK_EQ(args.size(), 0U) << "General composition only support kwargs for now";
+    CHECK_EQ(args.size(), 0U) << "General composition only support kwargs for now";
     size_t nmatched = 0;
     size_t arg_counter = 0;
     std::unordered_map<Node*, const NodeEntry*> replace_map;
@@ -456,7 +456,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     // update outputs in case the composed variable is part of outputs.
     for (size_t i = 0; i < outputs.size(); ++i) {
       if (outputs[i].node->is_variable()) {
-        ICHECK_EQ(args.size(), 0) << "Variable composition only supports keyword arguments";
+        CHECK_EQ(args.size(), 0) << "Variable composition only supports keyword arguments";
         const auto it = kwargs.find(outputs[i].node->attrs.name);
         if (it != kwargs.end()) outputs[i] = it->second->outputs[0];
       }
@@ -473,7 +473,7 @@ Symbol Symbol::operator()(const array_view<const Symbol*>& args,
 }
 
 void Symbol::AddControlDeps(const Symbol& src) {
-  ICHECK_EQ(outputs.size(), 1U) << "AddControlDeps only works for nongrouped symbol";
+  CHECK_EQ(outputs.size(), 1U) << "AddControlDeps only works for nongrouped symbol";
   Node* n = outputs[0].node.get();
   for (const NodeEntry& sp : src.outputs) {
     n->control_deps.push_back(sp.node);
@@ -517,7 +517,7 @@ Symbol Symbol::GetChildren() const {
 void Symbol::SetAttrs(const std::vector<std::pair<std::string, std::string> >& attrs) {
   Node* node = outputs[0].node.get();
   for (const NodeEntry& e : outputs) {
-    ICHECK(node == e.node.get()) << "Symbol.SetAttrs only works for non-grouped symbol";
+    CHECK(node == e.node.get()) << "Symbol.SetAttrs only works for non-grouped symbol";
   }
   for (const auto& kv : attrs) {
     if (kv.first == "name") {

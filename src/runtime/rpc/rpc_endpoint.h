@@ -135,8 +135,7 @@ class RPCEndpoint {
    * \param ctx_to The target context.
    * \param type_hint Hint of content data type.
    */
-  void CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                    TVMContext ctx_to, DLDataType type_hint);
+  void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
@@ -147,8 +146,7 @@ class RPCEndpoint {
    * \param ctx_from The source context.
    * \param type_hint Hint of content data type.
    */
-  void CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                      TVMContext ctx_from, DLDataType type_hint);
+  void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes);
 
   /*!
    * \brief Call a remote defined system function with arguments.

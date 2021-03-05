@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name,unused-argument
 """TVM operator fully connected compute."""
+import tvm
 from tvm import te, auto_scheduler
 from .. import tag
 
@@ -80,3 +82,95 @@ def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layo
         matmul = auto_scheduler.rewrite_compute_body(matmul, auto_scheduler_rewritten_layout)
 
     return matmul
+
+
+@tvm.target.generic_func
+def dense_legalize(attrs, inputs, types):
+    """Legalizes dense op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current dense
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    # pylint: disable=unused-argument
+    return None
+
+
+def dense_pack(data, weight, bias=None, out_dtype=None):
+    """The default implementation of dense_pack in topi.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        2-D with shape [batch, in_dim]
+
+    weight : tvm.te.Tensor
+        2-D with shape [out_dim, in_dim]
+
+    bias : Optional[tvm.te.Tensor]
+        1-D with shape [out_dim]
+
+    out_dtype : Optional[str]
+        The output type. This is used for mixed precision.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        2-D with shape [batch, out_dim]
+    """
+    if out_dtype is None:
+        out_dtype = data.dtype
+    M, K = get_const_tuple(data.shape)  # batch, in_dim
+    N, _, packw_bn = get_const_tuple(weight.shape)  # out_dim
+    N = N * packw_bn
+
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
+    k = te.reduce_axis((0, K), name="k")
+    C = te.compute(
+        (M, N),
+        lambda y, x: te.sum(
+            data[y, k].astype(out_dtype)
+            * weight[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
+            axis=k,
+        ),
+        name="T_dense_pack",
+        tag="dense_pack",
+    )
+    if bias is not None:
+        C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
+    return C
+
+
+@tvm.target.generic_func
+def dense_alter_layout(attrs, inputs, tinfos, out_type):
+    """Change dense layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    # not to change by default
+    return None

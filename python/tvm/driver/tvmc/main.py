@@ -23,7 +23,7 @@ import argparse
 import logging
 import sys
 
-import pkg_resources
+import tvm
 
 from tvm.driver.tvmc.common import TVMCException
 
@@ -75,8 +75,7 @@ def _main(argv):
     logging.getLogger("TVMC").setLevel(40 - args.verbose * 10)
 
     if args.version:
-        version = pkg_resources.get_distribution("tvm").version
-        sys.stdout.write("%s\n" % version)
+        sys.stdout.write("%s\n" % tvm.__version__)
         return 0
 
     if not hasattr(args, "func"):

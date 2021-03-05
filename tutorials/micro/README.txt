@@ -1,4 +1,4 @@
 .. _tutorial-micro:
 
-Micro TVM 
----------
+microTVM
+--------

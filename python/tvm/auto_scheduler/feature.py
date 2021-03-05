@@ -80,7 +80,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
       ... // until i == n - 1
 
       float throughputs[sizes[n]];  // The normalized throughputs for n records
-      int   task_ids[size[n+1];   // The task ids for n records
+      int   task_ids[size[n+1]];    // The task ids for n records
 
     }
     To implement this format, we also store int as float, so we can store all numbers
@@ -120,7 +120,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
             tmp_vec_len = (size - 1) // n_stmts
             assert (
                 tmp_vec_len == vec_len
-            ), "The lenght of feature vector is wrong. " "Expected %d but got %d." % (
+            ), "The length of feature vector is wrong. Expected %d but got %d." % (
                 vec_len,
                 tmp_vec_len,
             )
@@ -135,7 +135,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     # unpack normalized_throughputs
     m = sizes[-2]
     normalized_throughputs = struct.unpack_from("%df" % m, byte_arr, offset=offset)
-    offset += m * SIZE_OF_INT32
+    offset += m * SIZE_OF_FLOAT32
 
     # unpack task_ids
     m = sizes[-1]
@@ -211,7 +211,7 @@ def get_per_store_features_from_measure_pairs(
 
 def get_per_store_features_from_states(
     states: List[Union[State, StateObject]], task: "SearchTask", max_n_bufs: Optional[int] = None
-) -> List[np.ndarray]:
+) -> np.ndarray:
     """Get per-store features from measurement input/result pairs
 
     Parameters
@@ -227,10 +227,6 @@ def get_per_store_features_from_states(
     -------
     features: np.ndarray
         Feature vectors
-    normalized_throughputs: np.ndarray
-        Normalized throughputs
-    task_ids: np.ndarray
-        Task ids
     """
     if isinstance(states[0], State):
         state_objects = [s.state_object for s in states]

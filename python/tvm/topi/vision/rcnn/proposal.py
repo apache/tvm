@@ -208,7 +208,7 @@ def argsort_ir(data_buf, out_index_buf):
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
     idxm = tvm.tir.indexmod
-    with ib.for_range(0, batch, for_type="unroll") as b:
+    with ib.for_range(0, batch, kind="unroll") as b:
         start = b * num_bbox
         for i in range(2):
             with ib.for_range(0, (num_bbox + 1) // 2) as tid:
@@ -231,7 +231,7 @@ def argsort_ir(data_buf, out_index_buf):
 
 
 def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
-    """Non-maximum supression.
+    """Non-maximum suppression.
 
     Parameters
     ----------
@@ -279,7 +279,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
     ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(sorted_bbox_buf)
     p_out = ib.buffer_ptr(out_buf)
-    with ib.for_range(0, batch, for_type="unroll", name="n") as b:
+    with ib.for_range(0, batch, kind="unroll", name="n") as b:
         base_idx = b * num_bbox
         for i in range(num_bbox):
             p_out[base_idx + i] = False
@@ -345,7 +345,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
                         )
                     ):
                         p_out[offset_i] = tvm.tir.Cast("float32", b)
-                        with ib.for_range(0, 4, for_type="unroll") as k:
+                        with ib.for_range(0, 4, kind="unroll") as k:
                             p_out[offset_i + k + 1] = p_sorted_bbox[offset_j + k]
                         i[b] = i[b] + 1
 

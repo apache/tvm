@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-wildcard-import
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -127,6 +128,29 @@ def test_AttrPattern():
     assert op.attrs["TOpPattern"] == K_ELEMWISE
 
 
+def test_IfPattern():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    assert isinstance(pat, IfPattern)
+    assert isinstance(pat.cond, CallPattern)
+    assert isinstance(pat.true_branch, VarPattern)
+    assert isinstance(pat.false_branch, VarPattern)
+
+
+def test_LetPattern():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    assert isinstance(pat, LetPattern)
+    assert isinstance(pat.var, VarPattern)
+    assert isinstance(pat.value, CallPattern)
+    assert isinstance(pat.body, VarPattern)
+
+
 ## MATCHER TESTS
 
 
@@ -196,6 +220,57 @@ def test_no_match_func():
     wc2 = wildcard()
     func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
     assert not func_pattern.match(relay.Function([x, y], x - y))
+
+
+def test_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    cond = x < y
+
+    assert pat.match(relay.expr.If(cond, x, y))
+
+
+def test_no_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+
+    assert not pat.match(relay.expr.If(x > y, x, y))
+    assert not pat.match(relay.expr.If(x < y, y, x))
+
+
+def test_match_let():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    lv = relay.var("let")
+    cond = x < y
+    assert pat.match(relay.expr.Let(lv, cond, lv))
+
+
+def test_no_match_let():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    lv = relay.var("let")
+
+    assert not pat.match(relay.expr.Let(lv, x > y, lv))
+    assert not pat.match(relay.expr.Let(lv, x < y, lv * x))
 
 
 def test_match_option():
@@ -362,6 +437,8 @@ def test_no_match_op_attr():
     x = relay.var("x")
     y = relay.var("y")
     assert not op_pat.match(x - y)
+    z = relay.var("z")
+    assert not op_pat.match(relay.Let(z, x + y, z))
 
 
 def test_match_func_attr():
@@ -389,6 +466,20 @@ def test_match_call_attr():
     y = relay.var("y")
     assert is_conv2d.match(relay.op.nn.conv2d(x, y))
 
+    # non-operator call
+    attr_dict = {"call_attr": "attr"}
+    call_has_attr = wildcard()(wildcard()).has_attr(attr_dict)
+    call_attr = tvm.ir.make_node("DictAttrs", **attr_dict)
+    a = relay.Var("a")
+    b = relay.Var("b")
+    assert call_has_attr.match(relay.Call(a, [b], attrs=call_attr))
+
+    # empty attrs should match anything
+    empty_attrs = tvm.ir.make_node("DictAttrs", **{})
+    call_has_empty_attrs = wildcard()(wildcard()).has_attr({})
+    assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=empty_attrs))
+    assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=call_attr))
+
 
 def test_no_match_call_attr():
     x = relay.var("x")
@@ -399,6 +490,27 @@ def test_no_match_call_attr():
 
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"RandomAttr": "NCHW"})
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # non-operator calls
+    call_has_attr = wildcard()(wildcard()).has_attr({"call_attr": "attr"})
+    wrong_key = tvm.ir.make_node("DictAttrs", **{"wrong": "attr"})
+    wrong_value = tvm.ir.make_node("DictAttrs", **{"call_attr": "wrong"})
+    empty_attrs = tvm.ir.make_node("DictAttrs", **{})
+
+    a = relay.Var("a")
+    b = relay.Var("b")
+    # attrs left undefined
+    assert not call_has_attr.match(relay.Call(a, [b]))
+    # wrong attrs
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=wrong_key))
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=wrong_value))
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=empty_attrs))
+
+
+def test_match_call_attr_dtype():
+    is_cast = is_op("cast")(wildcard()).has_attr({"dtype": "float32"})
+    x = relay.var("x")
+    assert is_cast.match(relay.op.cast(x, "float32"))
 
 
 def test_match_diamond():
@@ -674,6 +786,29 @@ def test_rewrite_func():
     )
     out = rewrite(TestRewrite(), func(x, w) + y)
     assert sub_pattern.match(out)
+
+
+def test_rewrite_func_with_attr():
+    x = relay.var("x")
+    y = relay.var("y")
+    f = relay.Function([x, y], x + y).with_attr("Composite", "add")
+
+    a = relay.var("a")
+    b = relay.var("b")
+    c = relay.Call(f, [a, b])
+    c_abs = relay.abs(c)
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = wildcard().has_attr({"Composite": "add"})(wildcard(), wildcard())
+
+        def callback(self, pre, post, node_map):
+            return post.args[0] + post.args[1]
+
+    out = rewrite(TestRewrite(), c_abs)
+    inlined_add_pattern = is_op("abs")(is_op("add")(wildcard(), wildcard()))
+    assert inlined_add_pattern.match(out)
 
 
 def test_nested_rewrite():
@@ -1361,6 +1496,76 @@ def test_partition_function():
     assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
 
 
+def test_rewrite_function_with_fuzzy_body():
+    """Allow Rewriting a function with a fuzzy body via dominator analysis"""
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], wildcard())
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = pattern
+
+        def callback(self, pre, post, node_map):
+            return x + w
+
+    out = rewrite(TestRewrite(), expr)
+    assert tvm.ir.structural_equal(x + w, x + w)
+
+
+@pytest.mark.skip(
+    """TODO(mbrookhart): The current partitioner can't properly handle 
+                       the partitioned inputs on the fuzzy body"""
+)
+def test_partition_function_with_fuzzy_body():
+    """
+    Allow Rewriting a function with a fuzzy body via dominator analysis
+    """
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], wildcard())
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    x2 = relay.var("x2")
+    w2 = relay.var("w2")
+    b2 = relay.var("b2")
+    func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
+        "PartitionedFromPattern", "FunctionCall_add_"
+    )
+    expr2 = func2(x, w, b) + b
+    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+
+
 def test_match_match():
     add_pattern = is_op("add")(wildcard(), wildcard())
 
@@ -1506,3 +1711,6 @@ if __name__ == "__main__":
     test_partition_option()
     test_match_match()
     test_partition_constant_embedding()
+    test_IfPattern()
+    test_match_if()
+    test_no_match_if()

@@ -46,7 +46,7 @@ class Target(Object):
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
 
-    def __init__(self, tag_or_str_or_dict):
+    def __init__(self, tag_or_str_or_dict, host_tag_or_str_or_dict=None):
         """Construct a TVM target object from
         1) Raw target string
         2) Target config dict
@@ -86,10 +86,22 @@ class Target(Object):
             mfloat-abi : str (optional)
                 An llvm setting that is one of 'hard' or 'soft' indicating whether to use
                 hardware or software floating-point operations.
+            host : Union[str, Dict[str, Any]] (optional)
+                Description for target host. Can be recursive. Similar to tag_or_str_or_dict.
+        host_tag_or_str_or_dict : Optional[Union[str, Dict[str, Any]]]
+            Similar to tag_or_str_or_dict but for target host. Can be one of a literal
+            target host string, a json string describing a configuration, or a dictionary of
+            configuration options. When using a dictionary or json string to configure target,
+            the possible values are same as tag_or_str_or_dict.
         """
         if not isinstance(tag_or_str_or_dict, (dict, str, Target)):
             raise ValueError("target has to be a string or dictionary.")
-        self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
+        if host_tag_or_str_or_dict is not None:
+            self.__init_handle_by_constructor__(
+                _ffi_api.Target, Target(tag_or_str_or_dict), Target(host_tag_or_str_or_dict)
+            )
+        else:
+            self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
 
     def __enter__(self):
         _ffi_api.TargetEnterScope(self)
@@ -146,6 +158,11 @@ class Target(Object):
     @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    @staticmethod
+    def list_kinds():
+        """Returns the list of available target names."""
+        return list(_ffi_api.ListTargetKinds())
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
@@ -232,9 +249,12 @@ def micro(model="unknown", options=None):
         Additional options
     """
     trans_table = {
-        "host": ["-mcpu=native"],
+        "host": [],
         "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
+        "nrf5340dk": ["-mcpu=cortex-m33"],
     }
+    if model not in trans_table:
+        raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
         trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
         options,
@@ -288,6 +308,7 @@ def arm_cpu(model="unknown", options=None):
             "-model=stm32mp1",
             "-mtriple=armv7a-linux-gnueabihf",
             "-mattr=+neon,+vfp4,+thumb2",
+            "-mcpu=cortex-a7",
         ],
         "thunderx": [
             "-model=thunderx",

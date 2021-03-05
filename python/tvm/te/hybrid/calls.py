@@ -23,18 +23,18 @@ from tvm.ir.container import Array
 from tvm.target import Target
 from tvm.tir import expr as _expr
 from tvm.tir import call_intrin
-from tvm.tir.stmt import For
+from tvm.tir.stmt import ForKind
 
 from .utils import _internal_assert
 
 # pylint: disable=redefined-builtin,invalid-name
 
 LOOP_INTRIN = {
-    "range": For.Serial,
-    "unroll": For.Unrolled,
-    "parallel": For.Parallel,
-    "vectorize": For.Vectorized,
-    "const_range": (For.Unrolled,),
+    "range": ForKind.SERIAL,
+    "unroll": ForKind.UNROLLED,
+    "parallel": ForKind.PARALLEL,
+    "vectorize": ForKind.VECTORIZED,
+    "const_range": (ForKind.UNROLLED,),
 }
 
 
@@ -48,9 +48,9 @@ def _range(annotation, args):
         low, ext = args[0], args[1]
     if not tvm.tir.analysis.expr_deep_equal(low, const(0, dtype="int32")):
         ext = ext - low
-    for_type = LOOP_INTRIN[annotation]
+    kind = LOOP_INTRIN[annotation]
     iter_var = None
-    return iter_var, low, ext, for_type
+    return iter_var, low, ext, kind
 
 
 range = unroll = vectorize = parallel = const_range = _range  # pylint: disable=invalid-name
@@ -63,8 +63,8 @@ def bind(func_id, args):
     _internal_assert(isinstance(args[0], str), "A loop bind's first argument should be a string!")
     low, ext = const(0, "int32"), args[1]
     iter_var = tvm.te.thread_axis((low, ext), args[0])
-    for_type = None
-    return iter_var, low, ext, for_type
+    kind = None
+    return iter_var, low, ext, kind
 
 
 def _math_intrin(func_id, args):
@@ -167,3 +167,17 @@ def max_num_threads(func_id, args):
         _internal_assert(isinstance(args[0], _expr.IntImm), "In tvm bool should be uint")
         res = Target.current(args[0].value).max_num_threads
     return convert(res)
+
+
+def inf(func_id, args):
+    """Infinity"""
+    _internal_assert(func_id == "inf", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() == 1, "One argument accepted!")
+    return tvm.tir.max_value(args[0])
+
+
+def ninf(func_id, args):
+    """Negative infinity"""
+    _internal_assert(func_id == "ninf", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() == 1, "One argument accepted!")
+    return tvm.tir.min_value(args[0])

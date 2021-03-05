@@ -220,7 +220,7 @@ class Layout {
     for (size_t i = pos; i < pos + len; ++i) {
       if (is_subdim(layout_simplified_[i])) {
         auto block_size = this->subsizeof(layout_simplified_[i]);
-        ICHECK_GT(block_size, 0);
+        CHECK_GT(block_size, 0);
         new_layout << block_size;
       }
       new_layout << layout_simplified_[i];
@@ -235,7 +235,7 @@ class Layout {
     for (int64_t i = this->ndim() - 1; i >= 0; --i) {
       if (is_subdim(layout_simplified_[i])) {
         auto block_size = this->subsizeof(layout_simplified_[i]);
-        ICHECK_GT(block_size, 0);
+        CHECK_GT(block_size, 0);
         new_layout << block_size;
       }
       new_layout << layout_simplified_[i];
@@ -251,13 +251,13 @@ class Layout {
    * \return A newly constructed Layout object.
    */
   inline Layout split(LayoutDim dim, size_t target_pos, uint32_t size) const {
-    ICHECK(target_pos <= this->ndim())
+    CHECK(target_pos <= this->ndim())
         << "Invalid split position " << target_pos << " for layout " << name_;
-    ICHECK(is_superdim(dim)) << "Cannot split a sub-dimension " << dim;
-    ICHECK(this->contains(dim)) << "Axis " << dim << " does not exist in " << name_;
-    ICHECK(!this->contains(to_subdim(dim)))
+    CHECK(is_superdim(dim)) << "Cannot split a sub-dimension " << dim;
+    CHECK(this->contains(dim)) << "Axis " << dim << " does not exist in " << name_;
+    CHECK(!this->contains(to_subdim(dim)))
         << "Dimension " << dim << " has already been split in " << name_;
-    ICHECK(size > 0) << "Invalid split size " << size;
+    CHECK(size > 0) << "Invalid split size " << size;
     std::ostringstream new_layout;
     for (size_t i = 0; i <= this->ndim(); ++i) {
       if (i == target_pos) {
@@ -293,11 +293,11 @@ class Layout {
    * \return the description of the dimension.
    */
   inline std::string at(size_t i) const {
-    ICHECK_LT(i, this->ndim()) << "position " << i << " exceeds ndim=" << this->ndim();
+    CHECK_LT(i, this->ndim()) << "position " << i << " exceeds ndim=" << this->ndim();
     std::ostringstream repr;
     if (is_subdim(layout_simplified_[i])) {
       auto factor = subsizeof(layout_simplified_[i]);
-      ICHECK_GT(factor, 0);
+      CHECK_GT(factor, 0);
       repr << factor;
     }
     repr << layout_simplified_[i];
@@ -328,7 +328,7 @@ class Layout {
    *         Return -1 if \p dim is not in the layout or the layout is undefined.
    */
   inline int64_t subsizeof(LayoutDim dim) const {
-    ICHECK(is_superdim(dim) || is_subdim(dim)) << "Invalid dim " << dim;
+    CHECK(is_superdim(dim) || is_subdim(dim)) << "Invalid dim " << dim;
     if (!this->defined() || !this->contains(to_subdim(dim))) {
       return -1;
     }
@@ -409,34 +409,34 @@ class Layout {
       const LayoutDim c = layout.at(i);
       if (is_superdim(c)) {
         int pos = c - 'A';
-        ICHECK_EQ(factor, 0) << "Invalid layout " << layout << ": invalid factor size " << factor
-                             << " before dimension " << c;
-        ICHECK_EQ(superdim_pos_[pos], -1)
+        CHECK_EQ(factor, 0) << "Invalid layout " << layout << ": invalid factor size " << factor
+                            << " before dimension " << c;
+        CHECK_EQ(superdim_pos_[pos], -1)
             << "Invalid layout " << layout << ": duplicate dimension " << c;
         superdim_pos_[pos] = curr++;
         layout_simplified_.push_back(c);
       } else if (is_subdim(c)) {
         int pos = c - 'a';
-        ICHECK_GT(factor, 0) << "Invalid layout " << layout << ": invalid factor size " << factor
-                             << " for dimension " << c;
-        ICHECK_EQ(subdim_pos_[pos], -1)
+        CHECK_GT(factor, 0) << "Invalid layout " << layout << ": invalid factor size " << factor
+                            << " for dimension " << c;
+        CHECK_EQ(subdim_pos_[pos], -1)
             << "Invalid layout " << layout << ": duplicate dimension " << c;
-        ICHECK_EQ(subdim_size_[pos], -1)
+        CHECK_EQ(subdim_size_[pos], -1)
             << "Invalid layout " << layout << ": duplicate dimension " << c;
         subdim_pos_[pos] = curr++;
         subdim_size_[pos] = factor;
         layout_simplified_.push_back(c);
         factor = 0;
       } else if (c >= '0' && c <= '9') {
-        ICHECK(factor >= 0) << "Invalid layout " << layout << ": _ is adjacent to a number.";
+        CHECK(factor >= 0) << "Invalid layout " << layout << ": _ is adjacent to a number.";
         factor = factor * 10 + c - '0';
       } else {
         LOG(FATAL) << "Invalid layout " << layout;
       }
     }
-    ICHECK(!layout_simplified_.empty()) << "Invalid layout " << layout;
+    CHECK(!layout_simplified_.empty()) << "Invalid layout " << layout;
     for (LayoutDim dim : layout_simplified_) {
-      ICHECK(is_superdim(dim) || superdim_pos_[dim - 'a'] >= 0)
+      CHECK(is_superdim(dim) || superdim_pos_[dim - 'a'] >= 0)
           << "Invalid layout " << layout << ": missing axis " << static_cast<char>(dim - 'a' + 'A');
     }
   }

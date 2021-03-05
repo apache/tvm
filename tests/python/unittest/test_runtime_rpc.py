@@ -17,17 +17,24 @@
 import tvm
 from tvm import te
 import tvm.testing
+import logging
+import multiprocessing
 import os
 import stat
-import logging
+import sys
 import time
-import multiprocessing
 
 import pytest
 import numpy as np
 from tvm import rpc
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
+
+
+if __name__ == "__main__":
+    # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+
 
 # tkonolige: The issue as I understand it is this: multiprocessing's spawn
 # method launches a new process and then imports the relevant modules. This
@@ -526,20 +533,3 @@ def test_rpc_tracker_request():
     proc2.join()
     server.terminate()
     tracker.terminate()
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    test_rpc_echo()
-    test_rpc_session_constructor_args()
-    test_rpc_return_ndarray()
-    test_rpc_return_func()
-    test_bigendian_rpc()
-    test_rpc_remote_module()
-    test_rpc_file_exchange()
-    test_rpc_array()
-    test_rpc_simple()
-    test_local_func()
-    test_rpc_tracker_register()
-    test_rpc_tracker_request()
-    test_rpc_large_array()

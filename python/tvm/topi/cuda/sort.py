@@ -18,16 +18,11 @@
 """Sort related operators """
 import tvm
 from tvm import te
-from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
-
-
-def swap(arr, axis):
-    """ swap arr[axis] and arr[-1] """
-    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+from ..utils import ceil_div, swap
 
 
 def _schedule_sort(outs):
@@ -59,10 +54,6 @@ def _schedule_sort(outs):
     for out in outs:
         traverse(out.op)
     return s
-
-
-def ceil_div(a, b):
-    return tvm.tir.indexdiv(a + b - 1, b)
 
 
 def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
@@ -409,68 +400,6 @@ def sort_by_key_ir(
     )
 
 
-def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32"):
-    """Performs sorting along the given axis and returns an array of indicies
-    having same shape as an input array that index data in sorted order.
-
-    Parameters
-    ----------
-    data: tvm.te.Tensor
-        The input array.
-
-    valid_count : tvm.te.Tensor, optional
-        The number of valid elements to be sorted.
-
-    axis : int, optional
-        Axis long which to sort the input tensor.
-
-    is_ascend : boolean, optional
-        Whether to sort in ascending or descending order.
-
-    dtype : string, optional
-        DType of the output indices.
-
-    Returns
-    -------
-    out : tvm.te.Tensor
-        The output of this function.
-    """
-    ndim = len(data.shape)
-    if axis < 0:
-        axis = ndim + axis
-    if axis != ndim - 1:
-        # Prepare for sorting along axis -1.
-        axes = swap(list(range(ndim)), axis)
-        data = transpose(data, axes)
-
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    valid_count_buf = tvm.tir.decl_buffer(
-        valid_count.shape, valid_count.dtype, "valid_count_buf", data_alignment=4
-    )
-    out_bufs = [
-        tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
-        tvm.tir.decl_buffer(data.shape, "int32", "indices_buf", data_alignment=8),
-    ]
-    out = te.extern(
-        [data.shape, data.shape],
-        [data, valid_count],
-        lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.thrust.sort_nms", ins[0], ins[1], outs[0], outs[1], is_ascend
-        ),
-        in_buffers=[data_buf, valid_count_buf],
-        out_buffers=out_bufs,
-        dtype=[data.dtype, "int32"],
-        name="nms_argsort_gpu",
-        tag="nms_argsort_gpu",
-    )
-
-    if axis != ndim - 1:
-        axes = swap(list(range(ndim)), axis)
-        out = [transpose(o, axes) for o in out]
-
-    return out[1]
-
-
 def sort(data, axis=-1, is_ascend=1):
     """Performs sorting along the given axis and returns an array of
     sorted values with the same shape as the input data.
@@ -602,7 +531,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
     return out
 
 
-def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
+def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -610,9 +539,6 @@ def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"
     ----------
     data: tvm.te.Tensor
         The input array.
-
-    valid_count : tvm.te.Tensor, optional
-        The number of valid elements to be sorted.
 
     axis : int, optional
         Axis long which to sort the input tensor.
@@ -628,11 +554,7 @@ def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"
     out : tvm.te.Tensor
         The output of this function.
     """
-    if valid_count is not None:
-        out = argsort_nms_thrust(data, valid_count, axis, is_ascend, dtype)
-    else:
-        out = topk_thrust(data, 0, axis, "indices", is_ascend, dtype)
-    return out
+    return topk_thrust(data, 0, axis, "indices", is_ascend, dtype)
 
 
 def schedule_sort(outs):
@@ -956,10 +878,3 @@ def stable_sort_by_key_thrust(keys, values, for_scatter=False):
         tag="stable_sort_by_key",
     )
     return out[0], out[1]
-
-
-def is_thrust_available():
-    """
-    Test if thrust based sorting ops are available.
-    """
-    return get_global_func("tvm.contrib.thrust.sort", allow_missing=True) is not None

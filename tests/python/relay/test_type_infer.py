@@ -402,6 +402,20 @@ def @main(%f: float32) -> float32 {
     tvm.ir.assert_structural_equal(mod["main"].body.type_args, [relay.TensorType((), "float32")])
 
 
+def test_dynamic_function():
+    dy_tt = relay.TensorType([relay.Any()], "float32")
+    s_tt = relay.TensorType([10], "float32")
+    x = relay.Var("x", dy_tt)
+    f = relay.Function([x], x + x)
+    y = relay.Var("y", s_tt)
+    c = f(y)
+
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([y], c)
+    mod = transform.InferType()(mod)
+    assert mod["main"].params[0].checked_type == s_tt
+
+
 if __name__ == "__main__":
     import sys
 

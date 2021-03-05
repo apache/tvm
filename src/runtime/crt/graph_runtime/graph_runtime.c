@@ -777,13 +777,13 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
   int status = 0;
   const char* bptr = param_blob;
   uint64_t header, reserved;
-  header = ((uint64_t*)bptr)[0];  // NOLINT(*)
+  memcpy(&header, bptr, sizeof(header));
   bptr += sizeof(header);
   if (header != kTVMNDArrayListMagic) {
     fprintf(stderr, "Invalid parameters file format");
     status = -1;
   }
-  reserved = ((uint64_t*)bptr)[0];  // NOLINT(*)
+  memcpy(&reserved, bptr, sizeof(reserved));
   bptr += sizeof(reserved);
 
   // read names
@@ -799,11 +799,11 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
   memset(names, 0, TVM_CRT_STRLEN_NAME * runtime->nodes_count);
   uint64_t names_count;
   int idx;
-  names_count = ((uint64_t*)bptr)[0];  // NOLINT(*)
+  memcpy(&names_count, bptr, sizeof(names_count));
   bptr += sizeof(names_count);
   for (idx = 0; idx < names_count; idx++) {
     uint64_t name_length;
-    name_length = ((uint64_t*)bptr)[0];  // NOLINT(*)
+    memcpy(&name_length, bptr, sizeof(name_length));
     bptr += sizeof(name_length);
     if (name_length >= TVM_CRT_STRLEN_NAME) {
       fprintf(stderr, "Error: function name longer than expected.\n");
@@ -815,7 +815,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
 
   // read sizes
   uint64_t sz;
-  sz = ((uint64_t*)bptr)[0];  // NOLINT(*)
+  memcpy(&sz, bptr, sizeof(sz));
   bptr += sizeof(sz);
   uint32_t size = sz;
   if (size != names_count) {

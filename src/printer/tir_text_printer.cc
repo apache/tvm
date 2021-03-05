@@ -301,7 +301,7 @@ Doc TIRTextPrinter::VisitExpr_(const NotNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const SelectNode* op) {
   Doc doc;
   doc << "select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
-      << Print(op->false_value);
+      << Print(op->false_value) << ")";
   return doc;
 }
 
@@ -465,18 +465,21 @@ Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
   return doc;
 }
 
-inline const char* ForType2String(ForType t) {
+inline const char* ForKind2String(ForKind t) {
   switch (t) {
-    case ForType::Serial:
+    case ForKind::kSerial:
       return "serial";
-    case ForType::Parallel:
+    case ForKind::kParallel:
       return "parallel";
-    case ForType::Vectorized:
+    case ForKind::kVectorized:
       return "vectorized";
-    case ForType::Unrolled:
+    case ForKind::kUnrolled:
       return "unroll";
+    case ForKind::kThreadBinding:
+      LOG(FATAL) << "Loop ThreadBinding is reserved for future used and "
+                 << "not yet supported in TIR";
   }
-  LOG(FATAL) << "Unknown ForType";
+  LOG(FATAL) << "Unknown ForKind";
   return "Unknown";
 }
 
@@ -484,9 +487,16 @@ Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "
       << Print(op->min + op->extent) << ")";
-  if (op->for_type != ForType::Serial) {
-    doc << " " << Doc::StrLiteral(ForType2String(op->for_type));
+  if (op->kind != ForKind::kSerial) {
+    doc << " " << Doc::StrLiteral(ForKind2String(op->kind));
   }
+  doc << PrintBody(op->body);
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const WhileNode* op) {
+  Doc doc;
+  doc << "while (" << Print(op->condition) << ")";
   doc << PrintBody(op->body);
   return doc;
 }

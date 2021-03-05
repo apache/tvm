@@ -22,6 +22,7 @@ configure the hardware environment and access remote device through RPC.
 """
 import sys
 
+from .autotvm import module_loader
 from .bitstream import get_bitstream_path, download_bitstream
 from .environment import get_env, Environment
 from .rpc_client import reconfig_runtime, program_fpga

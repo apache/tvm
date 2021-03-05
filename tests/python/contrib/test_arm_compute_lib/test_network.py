@@ -123,7 +123,7 @@ def test_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=73, acl_partitions=18, atol=0.002, rtol=0.01
+        *get_model(), device=device, tvm_ops=56, acl_partitions=31, atol=0.002, rtol=0.01
     )
 
 
@@ -148,7 +148,7 @@ def test_quantized_mobilenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=42, acl_partitions=17, atol=8, rtol=0
+        *get_model(), device=device, tvm_ops=3, acl_partitions=30, atol=9, rtol=0
     )
 
 
@@ -172,7 +172,7 @@ def test_squeezenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=10, acl_partitions=30, atol=8, rtol=0
+        *get_model(), device=device, tvm_ops=9, acl_partitions=31, atol=8, rtol=0
     )
 
 

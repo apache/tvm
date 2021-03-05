@@ -28,8 +28,14 @@ import pathlib
 
 import numpy as np
 
+from tvm.contrib.utils import tempdir
 from tvm.tir.expr import FloatImm
-from .measure_record import load_records
+from .cost_model import RandomModel, XGBModel
+from .measure import LocalRPCMeasureContext
+from .measure_record import RecordToFile, load_records
+from .search_policy import PreloadMeasuredStates, SketchPolicy
+from .search_task import SearchTask, TuningOptions
+from .utils import calc_workload_dis_factor, decode_workload_key
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -126,17 +132,52 @@ class ApplyHistoryBest(DispatchContext):
         If is str, then it should be the filename of a records log file.
         Each row of this file is an encoded record pair. Otherwise, it is an iterator.
     n_lines: Optional[int]
-        if it is not None, only load the first `n_lines` lines of log
+        if it is not None, only load the first `n_lines` lines of log.
+    include_compatible: bool
+        When set to True, compatible records will also be considered.
     """
 
-    def __init__(self, records, n_lines=None):
+    def __init__(self, records, n_lines=None, include_compatible=False):
         super(ApplyHistoryBest, self).__init__()
+        self.include_compatible = include_compatible
 
+        # Dict[str (target key),
+        #   Dict[str (workload hash),
+        #     Dict[tuple (workload args), tuple (State, cost)]]]
         self.best_by_targetkey = {}
         self.best_by_model = {}
         self._best_user_defined = {}
 
         self.load(records, n_lines)
+
+    @staticmethod
+    def get_workload_entry(best_records, target_key, workload_key):
+        """Get the entry of the target key and workload key hash in the given best record map.
+
+        Parameters
+        ----------
+        best_records: Dict[str, Dict[str, Dict[str, Any]]]
+            The best record map.
+        target_key: str
+            The first key to the best_records.
+        workload_key: str
+            The workload key that can be decoded to workload hash and args.
+
+        Returns
+        -------
+        entry: Dict[str, Any]
+            The entry in best_records with target key and workload hash.
+        workload_hash: str
+            The workload hash decoded from workload_key.
+        workload_args: Tuple[Any, ...]
+            The hashable tuple of workload args decoded from workload_key.
+        """
+        workload_hash, workload_args = decode_workload_key(workload_key)
+        if target_key not in best_records:
+            best_records[target_key] = {}
+        if workload_hash not in best_records[target_key]:
+            best_records[target_key][workload_hash] = {}
+        return best_records[target_key][workload_hash], workload_hash, workload_args
 
     def load(self, records, n_lines=None):
         """Load records to this dispatch context
@@ -171,29 +212,32 @@ class ApplyHistoryBest(DispatchContext):
             if res.error_no != 0:
                 continue
 
+            costs = [x.value for x in res.costs if isinstance(x, FloatImm)]
+            cost = np.mean(costs)
+
             # use target keys in tvm target system as key to build best map
             for k in inp.task.target.keys:
-                key = (k, inp.task.workload_key)
-                if key not in best_by_targetkey:
-                    best_by_targetkey[key] = (inp, res)
+                entry, _, workload_args = self.get_workload_entry(
+                    best_by_targetkey, k, inp.task.workload_key
+                )
+                if workload_args not in entry:
+                    entry[workload_args] = (inp.state, cost)
                 else:
-                    _, other_res = best_by_targetkey[key]
-                    other_costs = [x.value for x in other_res.costs if isinstance(x, FloatImm)]
-                    costs = [x.value for x in res.costs if isinstance(x, FloatImm)]
-                    if np.mean(other_costs) > np.mean(costs):
-                        best_by_targetkey[key] = (inp, res)
+                    _, other_cost = entry[workload_args]
+                    if other_cost > cost:
+                        entry[workload_args] = (inp.state, cost)
 
             # use model as key to build best map
-            key = (inp.task.target.model, inp.task.workload_key)
-            if key not in best_by_model:
+            entry, _, workload_args = self.get_workload_entry(
+                best_by_model, inp.task.target.model, inp.task.workload_key
+            )
+            if workload_args not in entry:
                 if inp.task.target.model != "unknown":
-                    best_by_model[key] = (inp, res)
+                    entry[workload_args] = (inp.state, cost)
             else:
-                _, other_res = best_by_model[key]
-                other_costs = [x.value for x in other_res.costs if isinstance(x, FloatImm)]
-                costs = [x.value for x in res.costs if isinstance(x, FloatImm)]
-                if np.mean(other_costs) > np.mean(costs):
-                    best_by_model[key] = (inp, res)
+                _, other_cost = entry[workload_args]
+                if other_cost > cost:
+                    entry[workload_args] = (inp.state, cost)
 
         logger.debug("Finish loading %d records", counter)
 
@@ -205,31 +249,147 @@ class ApplyHistoryBest(DispatchContext):
                 " above the dispatcher call. So does other target. "
             )
 
+        def match_record(best_records, target_key, workload_key):
+            """The helper function to match the record in the given map
+            and return the matched state, or None if no match.
+            """
+            ret = None
+
+            entry, workload_hash, workload_args = self.get_workload_entry(
+                best_records, target_key, workload_key
+            )
+            if workload_args in entry:
+                ret = entry[workload_args][0]
+            elif self.include_compatible:
+                best_cost = float("inf")
+                for args, val in entry.items():
+                    dis_f = calc_workload_dis_factor(
+                        (workload_hash, workload_args), (workload_hash, args)
+                    )
+                    if dis_f == float("inf"):
+                        continue
+
+                    state, cost = val
+                    cost *= dis_f
+                    if ret is None or cost < best_cost:
+                        best_cost = cost
+                        ret = state
+            return ret
+
         # first try matching by model
-        key = (target.model, workload_key)
-        if key in self._best_user_defined:
-            return self._best_user_defined[key]
-        if key in self.best_by_model:
-            return self.best_by_model[key][0].state
+        ret = match_record(self._best_user_defined, target.model, workload_key)
+        if ret is not None:
+            return ret
+        ret = match_record(self.best_by_model, target.model, workload_key)
+        if ret is not None:
+            return ret
 
         # then try matching by target key
         for k in target.keys:
-            key = (k, workload_key)
-            if key in self._best_user_defined:
-                return self._best_user_defined[key]
-            if key in self.best_by_targetkey:
-                return self.best_by_targetkey[key][0].state
+            ret = match_record(self._best_user_defined, k, workload_key)
+            if ret is not None:
+                return ret
+            ret = match_record(self.best_by_targetkey, k, workload_key)
+            if ret is not None:
+                return ret
 
         return None
 
     def update(self, target, workload_key, state):
-        model = target.model
-        key = (model, workload_key)
-        self._best_user_defined[key] = state
+        entry, _, workload_args = self.get_workload_entry(
+            self._best_user_defined, target.model, workload_key
+        )
+        entry[workload_args] = (state, 1)
 
         for k in target.keys:
-            key = (k, workload_key)
-            self._best_user_defined[key] = state
+            entry, _, _ = self.get_workload_entry(self._best_user_defined, k, workload_key)
+            entry[workload_args] = (state, 1)
+
+
+class ApplyHistoryBestOrSample(ApplyHistoryBest):
+    """
+    Apply the history best config, or sample a valid schedule if no config is found.
+
+    Parameters
+    ----------
+    records : str or iterator of (auto_scheduler.measure.MeasureInput,\
+                                  auto_scheduler.measure.MeasureResult)
+        Collection of tuning records.
+        If is str, then it should be the filename of a records log file.
+        Each row of this file is an encoded record pair. Otherwise, it is an iterator.
+    sample_simple_workloads: bool
+        When False, sampling will not apply to simple workloads (w/o reduction).
+    cost_model_file: str
+        The filename of the pre-trained XGBoost cost model. If not present, then random
+        model will be used.
+    num_measure: int
+        Meausre the top-N rank of sampled schedules on the device. The default -1 means
+        no measurement and simply return the top-1 schedule ranked by the cost model.
+    """
+
+    def __init__(
+        self, records, sample_simple_workloads=False, cost_model_file=None, num_measure=-1
+    ):
+        self.sample_simple_workloads = sample_simple_workloads
+        self.num_measure = num_measure
+        self.log_dir = tempdir()
+        if cost_model_file is None:
+            self.cost_model = RandomModel()
+        else:
+            self.cost_model = XGBModel()
+            self.cost_model.load(cost_model_file)
+
+        super(ApplyHistoryBestOrSample, self).__init__(
+            records, n_lines=None, include_compatible=True
+        )
+
+    def query(self, target, workload_key, has_complex_op, dag):
+        if has_complex_op or self.sample_simple_workloads:
+            ret = self._query_inside(target, workload_key)
+        else:
+            ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+
+        if ret is None:
+            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag)
+        return ret
+
+    def _query_inside(self, target, workload_key):
+        ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+        if ret is not None:
+            return ret
+
+        # Sampling valid schedules when no existing records can be used.
+        task = SearchTask(workload_key=workload_key, target=target)
+        measure_ctx = LocalRPCMeasureContext(min_repeat_ms=300)
+
+        log_file = self.log_dir.relpath("%s.log" % decode_workload_key(workload_key)[0])
+
+        while ret is None:
+            tune_option = TuningOptions(
+                num_measure_trials=self.num_measure,
+                runner=measure_ctx.runner,
+                measure_callbacks=[RecordToFile(log_file)],
+                verbose=0,
+            )
+            search_policy = SketchPolicy(
+                task,
+                self.cost_model,
+                params={
+                    "eps_greedy": 0.01,
+                    "sample_init_min_population": 64,
+                    "evolutionary_search_num_iters": 0,
+                },
+                init_search_callbacks=[PreloadMeasuredStates(log_file)],
+                verbose=0,
+            )
+            task.tune(tune_option, search_policy)
+
+            # Load the sampled records and query again.
+            self.load(log_file)
+            ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+
+        del measure_ctx
+        return ret
 
 
 class FallbackContext(DispatchContext):

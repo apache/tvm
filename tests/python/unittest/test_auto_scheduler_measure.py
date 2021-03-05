@@ -16,6 +16,7 @@
 # under the License.
 
 """ Test measurement and log serialization. """
+import json
 
 import multiprocessing
 import tvm
@@ -23,8 +24,10 @@ from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
 import tvm.testing
+import pickle
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
+from tvm.auto_scheduler import workload_registry
 
 
 def record_common(dag, s):
@@ -200,6 +203,39 @@ def test_recover_measure_input():
         assert str(correct_inp.state) == str(inp.state)
 
 
+def test_workload_dis_factor():
+    calc = auto_scheduler.utils.calc_workload_dis_factor
+    decode = auto_scheduler.utils.decode_workload_key
+
+    # Identical
+    target_wkl_key = json.dumps(
+        ["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"]
+    )
+    assert calc(decode(target_wkl_key), decode(target_wkl_key)) == 1
+
+    # Compatible with a factor
+    wkl_key = json.dumps(["func1", [1, 3, 112, 112], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == 8 * 2 * 2
+
+    # Incompatible argument with zeros
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [1, 1], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [0, 0], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+    # Incompatible non-integter argument
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "int8"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+    # Incompatible function
+    wkl_key = json.dumps(["func2", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+    # Incompatible due to non-dividable factor
+    wkl_key = json.dumps(["func1", [8, 3, 223, 223], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+
 def test_measure_local_builder_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
@@ -207,6 +243,42 @@ def test_measure_local_builder_runner():
     task = auto_scheduler.SearchTask(
         func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm"
     )
+
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        local_runner = auto_scheduler.LocalRunner(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = local_runner.run([minp], bress)
+        assert mress[0].error_no == 0
+
+
+def test_dag_measure_local_builder_runner():
+    if not tvm.testing.device_enabled("llvm"):
+        return
+
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
+    D = topi.nn.relu(C)
+    E = topi.nn.relu(D)
+
+    tensors = [A, B, E]
+    dag = auto_scheduler.ComputeDAG(tensors)
+    key = workload_registry.register_workload_tensors(dag.workload_key(), tensors)
+    transfer_data = workload_registry.serialize_workload_registry_entry(key)
+    f_data = pickle.dumps(transfer_data)
+    f_new = pickle.loads(f_data)
+    del workload_registry.WORKLOAD_FUNC_REGISTRY[key]
+    workload_registry.deserialize_workload_registry_entry(f_new)
+
+    target = tvm.target.Target("llvm")
+    task = auto_scheduler.SearchTask(compute_dag=dag, workload_key=key, target=target)
 
     for enable_cpu_cache_flush in [True, False]:
         minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
@@ -289,6 +361,8 @@ if __name__ == "__main__":
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
     test_recover_measure_input()
+    test_workload_dis_factor()
     test_measure_local_builder_runner()
+    test_dag_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
     test_measure_target_host()

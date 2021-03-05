@@ -81,6 +81,18 @@ void DFPatternVisitor::VisitDFPattern_(const TuplePatternNode* op) {
   }
 }
 
+void DFPatternVisitor::VisitDFPattern_(const IfPatternNode* op) {
+  VisitDFPattern(op->cond);
+  VisitDFPattern(op->true_branch);
+  VisitDFPattern(op->false_branch);
+}
+
+void DFPatternVisitor::VisitDFPattern_(const LetPatternNode* op) {
+  VisitDFPattern(op->var);
+  VisitDFPattern(op->value);
+  VisitDFPattern(op->body);
+}
+
 void DFPatternVisitor::VisitDFPattern_(const TypePatternNode* op) { VisitDFPattern(op->pattern); }
 
 void DFPatternVisitor::VisitDFPattern_(const VarPatternNode* op) {}

@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable convolution in python"""
 import itertools
+import math
 import numpy as np
 from tvm.topi.nn.utils import get_pad_tuple
 
@@ -80,15 +81,22 @@ def deformable_conv2d_nchw_python(
         dilation_h, dilation_w = dilation
 
     def _bilinear(n, c, h, w):
-        low_h, low_w = int(h), int(w)
-        high_h = min(low_h + 1, in_height - 1)
-        high_w = min(low_w + 1, in_width - 1)
-        y_lerp = h - low_h
-        x_lerp = w - low_w
+        y_low = int(math.floor(h))
+        x_low = int(math.floor(w))
+        y_high = y_low + 1
+        x_high = x_low + 1
 
-        bottom = (1 - x_lerp) * a_np[n, c, low_h, low_w] + x_lerp * a_np[n, c, low_h, high_w]
-        top = (1 - x_lerp) * a_np[n, c, high_h, low_w] + x_lerp * a_np[n, c, high_h, high_w]
-        return (1 - y_lerp) * bottom + y_lerp * top
+        wy_h = h - y_low
+        wx_h = w - x_low
+        wy_l = 1 - wy_h
+        wx_l = 1 - wx_h
+
+        val = 0
+        for wx, xp in zip((wx_l, wx_h), (x_low, x_high)):
+            for wy, yp in zip((wy_l, wy_h), (y_low, y_high)):
+                if 0 <= yp < in_height and 0 <= xp < in_width:
+                    val += wx * wy * a_np[n, c, yp, xp]
+        return val
 
     a_deform = np.zeros((batch, in_channel, out_height, out_width, kernel_h, kernel_w), dtype=dtype)
     for n, h, w in itertools.product(range(batch), range(out_height), range(out_width)):

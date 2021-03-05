@@ -49,7 +49,7 @@ def batch_matmul(cfg, x, y, out_shape=None):
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
     assert (XB == YB) or (YB == 1) or (XB == 1), "batch dimension doesn't match"
-    assert XK == YK, "shapes of x and y is inconsistant"
+    assert XK == YK, "shapes of x and y is inconsistent"
     B = te.max(XB, YB)
     K = XK
     if out_shape is not None:
@@ -151,7 +151,7 @@ def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
         3-D with shape [batch, N, K]
     out_shape : tuple or None
         Shape of the output
-    lib : A contrib module which implements batch_matmul funtion
+    lib : A contrib module which implements batch_matmul function
         cblas and mkl are supported
 
     Returns
@@ -163,7 +163,7 @@ def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
     assert XB == YB, "batch dimension doesn't match"
-    assert XK == YK, "shapes of x and y is inconsistant"
+    assert XK == YK, "shapes of x and y is inconsistent"
     if out_shape is not None:
         assert out_shape[0] == XB, "got invalid output shape"
         assert out_shape[1] == M, "got invalid output shape"

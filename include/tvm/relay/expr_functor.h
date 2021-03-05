@@ -88,7 +88,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitExpr(const Expr& n, Args... args) {
-    ICHECK(n.defined());
+    ICHECK(n.defined()) << "Found null pointer node while traversing AST. The previous pass may "
+                           "have generated invalid data.";
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -476,6 +477,10 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
     }
   }
 }
+
+void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
+                       std::function<void(const LetNode*)> post_visit);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_FUNCTOR_H_

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tutorial-micro-reference-vm:
+
 ===================================
 microTVM Reference Virtual Machines
 ===================================
@@ -57,14 +59,16 @@ Installing prerequisites
 
 A minimal set of prerequisites are needed:
 
-
 1. `Vagrant <https://vagrantup.com>`__
-2. A supported Virtual Machine hypervisor.
-   `VirtualBox <https://www.virtualbox.org>`__ is one suggested free hypervisor, but please note
+2. A supported Virtual Machine hypervisor (**VirtualBox**, **Parallels**, or **VMWare Fusion/Workstation**).
+   `VirtualBox <https://www.virtualbox.org>`__ is a suggested free hypervisor, but please note
    that the `VirtualBox Extension Pack`_ is required for proper USB forwarding. If using VirtualBox,
    also consider installing the `vbguest <https://github.com/dotless-de/vagrant-vbguest>`_ plugin.
 
 .. _VirtualBox Extension Pack: https://www.virtualbox.org/wiki/Downloads#VirtualBox6.1.16OracleVMVirtualBoxExtensionPack
+
+3. If required for your hypervisor, the
+   `Vagrant provider plugin <https://github.com/hashicorp/vagrant/wiki/Available-Vagrant-Plugins#providers>`__ (or see `here <https://www.vagrantup.com/vmware>`__ for VMWare).
 
 First boot
 ----------
@@ -73,9 +77,9 @@ The first time you use a reference VM, you need to create the box locally and th
 
 .. code-block:: bash
 
-    # Replace zepyhr with the name of a different platform, if you are not using Zephyr.
+    # Replace zephyr with the name of a different platform, if you are not using Zephyr.
     ~/.../tvm $ cd apps/microtvm/reference-vm/zephyr
-    # Replace <provider_name> with the name of the hypervisor you wish to use (i.e. virtualbox).
+    # Replace <provider_name> with the name of the hypervisor you wish to use (i.e. virtualbox, parallels, vmware_desktop).
     ~/.../tvm/apps/microtvm/reference-vm/zephyr $ vagrant up --provider=<provider_name>
 
 
@@ -90,6 +94,8 @@ machine. It does the following:
 
 .. _microTVM base box: https://app.vagrantup.com/tlcpack/boxes/microtvm
 
+Connect Hardware to the VM
+--------------------------
 
 Next, you need to configure USB passthrough to attach your physical development board to the virtual
 machine (rather than directly to your laptop's host OS).
@@ -102,8 +108,8 @@ forwarding again. It may not be obvious to the end user when this occurs. Instru
  * `Parallels <https://kb.parallels.com/122993>`__
  * `VMWare Workstation <https://docs.vmware.com/en/VMware-Workstation-Pro/15.0/com.vmware.ws.using.doc/GUID-E003456F-EB94-4B53-9082-293D9617CB5A.html>`__
 
-Future use
-----------
+Rebuilding TVM inside the Reference VM
+--------------------------------------
 
 After the first boot, you'll need to ensure you keep the build, in ``$TVM_HOME/build-microtvm``,
 up-to-date when you modify the C++ runtime or checkout a different revision. You can either
@@ -136,6 +142,19 @@ Once the VM has been provisioned, tests can executed using ``poetry``:
 
 .. code-block:: bash
 
-    $ poetry run python3 tests/micro/qemu/test_zephyr.py --microtvm-platforms=stm32f746xx
+    $ cd apps/microtvm/reference-vm/zephyr
+    $ poetry run python3 ../../../../tests/micro/qemu/test_zephyr.py --microtvm-platforms=stm32f746xx
+
+If you do not have physical hardware attached, but wish to run the tests using the
+local QEMU emulator running within the VM, run the following commands instead:
+
+.. code-block:: bash
+
+    $ cd /Users/yourusername/path/to/tvm
+    $ sudo ./docker/install/ubuntu_install_qemu.sh
+    $ cd apps/microtvm/reference-vm/zephyr/
+    $ poetry run pytest ../../../../tests/micro/qemu/test_zephyr.py --microtvm-platforms=host
+
+
 
 """

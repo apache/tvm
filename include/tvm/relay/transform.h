@@ -31,6 +31,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/container.h>
+#include <tvm/target/target.h>
 
 #include <string>
 
@@ -418,6 +419,17 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
  * \return The pass.
  */
 TVM_DLL Pass SimplifyExpr();
+
+/*!
+ * \brief A pass for manifesting explicit memory allocations and rewriting
+ * specific dialects.
+ *
+ * \param target_host The target used by the host for compliation.
+ * \param targets The device type and target pairs for compliation.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets);
 
 }  // namespace transform
 

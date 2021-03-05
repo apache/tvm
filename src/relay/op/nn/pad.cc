@@ -139,14 +139,13 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK(width1 != nullptr);
     ICHECK(width2 != nullptr);
 
-    ICHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
-                         << "index " << i << " is " << *width1 << ".";
-    ICHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
-                         << "index " << i << " is " << *width2 << ".";
-
     if (!data->shape[i].as<tir::AnyNode>()) {
       auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
       oshape.push_back(data->shape[i] + padding);
+      if (tir::as_const_int(data->shape[i])) {
+        ICHECK(topi::detail::GetConstInt(data->shape[i] + padding) >= 0)
+            << "Output shape post padding should be positive but got " << data->shape[i] + padding;
+      }
     } else {
       oshape.push_back(data->shape[i]);
     }

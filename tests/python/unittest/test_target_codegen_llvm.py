@@ -17,6 +17,8 @@
 import collections
 import ctypes
 import json
+import sys
+
 import tvm
 import tvm.testing
 from tvm import te
@@ -26,6 +28,7 @@ import numpy as np
 import ctypes
 import math
 import re
+import pytest
 
 
 @tvm.testing.requires_llvm
@@ -761,7 +764,7 @@ def test_llvm_lower_atomic():
         atomic_add_return = ib.allocate(A.dtype, (1,), name="atomic_add_return", scope="local")
         one = tvm.tir.const(1, A.dtype)
         A_ptr = ib.buffer_ptr(A)
-        with ib.for_range(0, n, name="i", for_type="parallel") as i:
+        with ib.for_range(0, n, name="i", kind="parallel") as i:
             atomic_add_return[0] = atomic_add(
                 tvm.tir.call_intrin("handle", "tir.address_of", A_ptr[0]), one
             )
@@ -816,27 +819,4 @@ def test_llvm_gpu_lower_atomic():
 
 
 if __name__ == "__main__":
-    test_multiple_func()
-    test_llvm_large_uintimm()
-    test_llvm_import()
-    test_alignment()
-    test_rank_zero()
-    test_rank_zero_bound_checkers()
-    test_llvm_bool()
-    test_llvm_persist_parallel()
-    test_llvm_condition()
-    test_llvm_vadd_pipeline()
-    test_llvm_add_pipeline()
-    test_llvm_intrin()
-    test_llvm_overloaded_intrin()
-    test_llvm_flip_pipeline()
-    test_llvm_madd_pipeline()
-    test_llvm_temp_space()
-    test_llvm_lookup_intrin()
-    test_llvm_div()
-    test_llvm_fp_math()
-    test_dwarf_debug_information()
-    test_llvm_shuffle()
-    test_llvm_bf16()
-    test_llvm_crt_static_lib()
-    test_llvm_gpu_lower_atomic()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

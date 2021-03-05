@@ -22,21 +22,21 @@ These functions are responsible for building the tvm module, uploading it to
 remote devices, recording the running time costs, and checking the correctness of the output.
 """
 
+import contextlib
 import logging
 import shutil
 import os
 import threading
 import time
+import typing
 from random import getrandbits
 from collections import namedtuple
 import tempfile
-
 import numpy as np
 
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd, rpc as _rpc
-from tvm.target import Target
 from tvm.error import TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
@@ -195,16 +195,15 @@ class RPCRunner(Runner):
         will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
-    check_correctness: bool, optional
-        Whether check correctness after measurement. This will use llvm cpu target to
-        call your template and get the reference output.
-        This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    module_loader : ModuleLoader
+        If given, a context manager that loads the module to be timed into the remote runtime.
+        If not given, default_module_loader is used.
     """
 
     def __init__(
@@ -219,8 +218,8 @@ class RPCRunner(Runner):
         repeat=3,
         min_repeat_ms=0,
         cooldown_interval=0.1,
-        check_correctness=False,
         enable_cpu_cache_flush=False,
+        module_loader=None,
     ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
@@ -234,11 +233,9 @@ class RPCRunner(Runner):
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
 
-        self.ref_input = None
-        self.ref_output = None
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
-        self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
+        self.module_loader = module_loader
 
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
@@ -254,19 +251,6 @@ class RPCRunner(Runner):
                 "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
                 "and make sure you have free devices on the queue status."
             )
-
-        if self.check_correctness:
-            # use llvm cpu to generate a reference input/output
-            # this option works for tuning topi, but might not work for you custom op
-            with Target("llvm"):
-                s, arg_bufs = task.instantiate(task.config_space.get(0))
-            self.ref_input = [
-                np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype) for x in arg_bufs
-            ]
-            func = build(s, arg_bufs, "llvm")
-            tvm_buf = [nd.array(x) for x in self.ref_input]
-            func(*tvm_buf)
-            self.ref_output = [x.asnumpy() for x in tvm_buf]
 
     def get_build_kwargs(self):
         kwargs = {}
@@ -303,6 +287,11 @@ class RPCRunner(Runner):
             for measure_inp, build_res in zip(
                 measure_inputs[i : i + self.n_parallel], build_results[i : i + self.n_parallel]
             ):
+                module_loader = (
+                    self.module_loader
+                    if self.module_loader is not None
+                    else default_module_loader()
+                )
                 ret = self.executor.submit(
                     run_through_rpc,
                     measure_inp,
@@ -312,9 +301,8 @@ class RPCRunner(Runner):
                     self.min_repeat_ms,
                     self.cooldown_interval,
                     remote_args,
-                    self.ref_input,
-                    self.ref_output,
                     self.enable_cpu_cache_flush,
+                    module_loader,
                 )
                 futures.append(ret)
 
@@ -357,10 +345,6 @@ class LocalRunner(RPCRunner):
         will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
-    check_correctness: bool, optional
-        Whether check correctness after measurement. This will use llvm cpu target to
-        call your template and get the reference output.
-        This can work for TOPI templates, but may not work for your custom template.
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -380,8 +364,8 @@ class LocalRunner(RPCRunner):
         repeat=3,
         min_repeat_ms=0,
         cooldown_interval=0.1,
-        check_correctness=False,
         enable_cpu_cache_flush=False,
+        module_loader=None,
     ):
         super(LocalRunner, self).__init__(
             "",
@@ -394,8 +378,8 @@ class LocalRunner(RPCRunner):
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
             cooldown_interval=cooldown_interval,
-            check_correctness=check_correctness,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
+            module_loader=module_loader,
         )
         self.tracker = None
         self.server = None
@@ -504,6 +488,11 @@ class _WrappedBuildFunc:
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
+ModuleLoader = typing.Callable[
+    [dict, dict], typing.ContextManager[typing.Tuple[tvm.rpc.RPCSession, tvm.runtime.Module]]
+]
+
+
 def run_through_rpc(
     measure_input,
     build_result,
@@ -511,10 +500,9 @@ def run_through_rpc(
     repeat,
     min_repeat_ms,
     cooldown_interval,
-    remote_args,
-    ref_input=None,
-    ref_output=None,
+    remote_kwargs,
     enable_cpu_cache_flush=False,
+    module_loader=None,
 ):
     """Run a generated library through rpc
 
@@ -542,18 +530,16 @@ def run_through_rpc(
         will be automatically increased.
     cooldown_interval: float
         The cool down interval between two measurements
-    remote_args: Tuple
-        The argument for request_remote
-    ref_input: List of np.ndarray
-        The reference input used for checking correctness
-    ref_output: List of np.ndarray
-        The reference output used for checking correctness
+    remote_kwargs: dict
+        Passed to module_loader(). Ultimately, keyword args to request_remote().
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    module_loader: ModuleLoader
+        A function that returns a ContextManager used to establish and teardown the remote session.
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -562,69 +548,43 @@ def run_through_rpc(
     errno = MeasureErrorNo.NO_ERROR
     try:
         # upload built module
-        remote = request_remote(*remote_args)
-        # Program the FPGA every single time when targeting VTA
-        if (
-            hasattr(measure_input.target, "device_name")
-            and measure_input.target.device_name == "vta"
-        ):
-            # pylint: disable=import-outside-toplevel
-            from vta import program_fpga, reconfig_runtime
+        with module_loader(remote_kwargs, build_result) as (remote, mod):
+            ctx = remote.context(str(measure_input.target), 0)
 
-            program_fpga(remote, None)
-            reconfig_runtime(remote)
-        remote.upload(build_result.filename)
-        func = remote.load_module(os.path.split(build_result.filename)[1])
-        ctx = remote.context(str(measure_input.target), 0)
+            # Limitation:
+            # We can not get PackFunction directly in the remote mode as it is wrapped
+            # under the std::function. We could lift the restriction later once we fold
+            # the PackedFunc as an object. Currently, we pass function name to work
+            # around it.
+            f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
+            time_f = mod.time_evaluator(
+                mod.entry_name,
+                ctx,
+                number=number,
+                repeat=repeat,
+                min_repeat_ms=min_repeat_ms,
+                f_preproc=f_prepare,
+            )
 
-        # Limitation:
-        # We can not get PackFunction directly in the remote mode as it is wrapped
-        # under the std::function. We could lift the restriction later once we fold
-        # the PackedFunc as an object. Currently, we pass function name to work
-        # around it.
-        f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
-        time_f = func.time_evaluator(
-            func.entry_name,
-            ctx,
-            number=number,
-            repeat=repeat,
-            min_repeat_ms=min_repeat_ms,
-            f_preproc=f_prepare,
-        )
-
-        # set input
-        if ref_input:
-            args = [nd.array(x, ctx=ctx) for x in ref_input]
-        else:
             try:
                 random_fill = remote.get_function("tvm.contrib.random.random_fill")
             except AttributeError:
                 raise AttributeError(
                     "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
                 )
-            args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
-            for arg in args:
-                random_fill(arg)
+            args = [nd.array(np.zeros(x[0], dtype=x[1]), ctx=ctx) for x in build_result.arg_info]
+            if "scatter" not in measure_input.task.name:
+                # the index tensor of scatter op cannot be randomly initialized
+                for arg in args:
+                    random_fill(arg)
             ctx.sync()
 
-        costs = time_f(*args).results
-
-        # clean up remote files
-        remote.remove(build_result.filename)
-        remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
-        remote.remove("")
+            costs = time_f(*args).results
 
         if len(costs) > 2:  # remove largest and smallest value to reduce variance
             costs = list(costs)
             costs.sort()
             costs = tuple(costs[1:-1])
-
-        # check correctness of output
-        if ref_output:
-            for expected, real in zip(ref_output, args):
-                if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                    logger.warning("Wrong Answer!")
-                    errno = MeasureErrorNo.WRONG_ANSWER
     except TVMError as exc:
         msg = str(exc)
         if "Stack trace returned" in msg:
@@ -636,6 +596,40 @@ def run_through_rpc(
     tstamp = time.time()
     time.sleep(cooldown_interval)
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
+
+
+def default_module_loader(pre_load_function=None):
+    """Returns a default function that can be passed as module_loader to run_through_rpc.
+
+    Parameters
+    ----------
+    pre_load_function : Optional[Function[tvm.rpc.Session, tvm.runtime.Module]]
+        Invoked after a session is established and before the default code-loading RPC calls are
+        issued. Allows performing pre-upload actions, e.g. resetting the remote runtime environment.
+
+    Returns
+    -------
+    ModuleLoader :
+        A function that can be passed as module_loader to run_through_rpc.
+    """
+
+    @contextlib.contextmanager
+    def default_module_loader_mgr(remote_kwargs, build_result):
+        remote = request_remote(**remote_kwargs)
+        if pre_load_function is not None:
+            pre_load_function(remote, build_result)
+
+        remote.upload(build_result.filename)
+        try:
+            yield remote, remote.load_module(os.path.split(build_result.filename)[1])
+
+        finally:
+            # clean up remote files
+            remote.remove(build_result.filename)
+            remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
+            remote.remove("")
+
+    return default_module_loader_mgr
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):

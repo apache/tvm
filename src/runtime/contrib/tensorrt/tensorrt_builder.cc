@@ -91,10 +91,6 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
 void TensorRTBuilder::AddConstant(int nid, const DLTensor* data) {
   nvinfer1::Weights weight = GetDLTensorAsWeights(data, kDLCPU);
   std::vector<int> shape(data->shape, data->shape + data->ndim);
-  // Remove batch dim when not in explicit batch mode.
-  if (use_implicit_batch_ && shape.size() > 1 && shape[0] == 1) {
-    shape.erase(shape.begin());
-  }
   node_output_map_[nid] = {TensorRTOpInput(weight, shape)};
 }
 
@@ -103,6 +99,14 @@ void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node, uint32_t entry_i
   ICHECK(it != node_output_map_.end()) << "Output was not found.";
   auto out_tensor = it->second[node.index_].tensor;
   std::string name = "tensorrt_output_" + std::to_string(network_output_names_.size());
+  // If the network is already marked as an input or output, make a copy to avoid TRT crash.
+  if (out_tensor->isNetworkOutput()) {
+    LOG(WARNING) << name << " is a duplicate output.";
+    out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
+  } else if (out_tensor->isNetworkInput()) {
+    LOG(WARNING) << name << " is both an input and an output.";
+    out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
+  }
   out_tensor->setName(name.c_str());
   network_->markOutput(*out_tensor);
   network_output_names_.push_back(name);
@@ -212,8 +216,18 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
 
 nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& input) {
   if (input.type == kTensor) return input.tensor;
-  auto dims = VectorToTrtDims(input.weight_shape);
-  return network_->addConstant(dims, input.weight)->getOutput(0);
+  auto shape = input.weight_shape;
+  // Remove batch dim when not in explicit batch mode.
+  // Example:
+  // x = Relay dims (1, 32, 224, 224) which becomes TRT Dims (32, 224, 224)
+  // y = Relay dims (1, 32)
+  // z = add(x, y)
+  // y needs to have TRT dims (32,), otherwise broadcasting will result in z having
+  // TRT Dims(1, 32, 224, 224) when it should be (32, 224, 224).
+  if (use_implicit_batch_ && shape.size() > 1 && shape[0] == 1) {
+    shape.erase(shape.begin());
+  }
+  return network_->addConstant(VectorToTrtDims(shape), input.weight)->getOutput(0);
 }
 
 void TensorRTBuilder::CleanUp() {
