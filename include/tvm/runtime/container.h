@@ -3081,12 +3081,89 @@ inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   return std::move(lhs);
 }
 
+/*! \brief An object representing a floating point number. It is a POD type. */
+class FloatNode : public Object {
+ public:
+  /*! \brief The floating point value */
+  double value;
+
+  /*! \brief Create a new FloatNode
+   * \param a The floating point value.
+   */
+  FloatNode(double a) : value(a) {}
+
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeFloat;
+  static constexpr const char* _type_key = "runtime.Float";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatNode, Object);
+
+ private:
+  friend class Float;
+};
+
+/*! \brief Managed reference to a FloatNode
+ */
+class Float : public ObjectRef {
+ public:
+  /*!
+   * \brief Construct a new Float object
+   *
+   * \param a The floating point value
+   */
+  explicit Float(double a) { data_ = make_object<FloatNode>(a); }
+
+  /*! \brief Access the inner floating point value
+   * \return The contained double.
+   */
+  operator double() { return get()->value; }
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Float, ObjectRef, FloatNode);
+};
+
+/*! \brief An object representing a integer number. It is a POD type. */
+class IntNode : public Object {
+ public:
+  /*! \brief The integer value */
+  int64_t value;
+  /*! \brief Create a new IntNode
+   * \param a The integer value.
+   */
+  IntNode(int64_t a) : value(a) {}
+
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeInt;
+  static constexpr const char* _type_key = "runtime.Int";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntNode, Object);
+
+ private:
+  friend class Int;
+};
+
+/*! \brief Managed reference to a IntNode
+ */
+class Int : public ObjectRef {
+ public:
+  /*!
+   * \brief Construct a new Int object
+   *
+   * \param a The integer value
+   */
+  explicit Int(int64_t a) { data_ = make_object<IntNode>(a); }
+
+  /*! \brief Access the inner integer value
+   * \return The contained integer.
+   */
+  operator int64_t() { return get()->value; }
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Int, ObjectRef, IntNode);
+};
+
 }  // namespace runtime
 
 // expose the functions to the root namespace.
 using runtime::Array;
 using runtime::ArrayNode;
 using runtime::Downcast;
+using runtime::Float;
+using runtime::FloatNode;
+using runtime::Int;
+using runtime::IntNode;
 using runtime::IterAdapter;
 using runtime::make_object;
 using runtime::Map;

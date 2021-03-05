@@ -137,3 +137,53 @@ class String(str, PyNativeObject):
         val = str.__new__(cls, content)
         val.__tvm_object__ = obj
         return val
+
+
+@tvm._ffi.register_object("runtime.Float")
+class Float(float, PyNativeObject):
+    """TVM runtime.Float object, represented as a python float.
+
+    Parameters
+    ----------
+    value : float
+        The float used to construct the object.
+    """
+
+    def __new__(cls, value):
+        """Construct from float."""
+        val = float.__new__(cls, value)
+        val.__init_tvm_object_by_constructor__(_ffi_api.Float, value)
+        return val
+
+    # pylint: disable=no-self-argument
+    def __from_tvm_object__(cls, obj):
+        """Construct from a given tvm object."""
+        content = _ffi_api.GetFFIFloat(obj)
+        val = float.__new__(cls, content)
+        val.__tvm_object__ = obj
+        return val
+
+
+@tvm._ffi.register_object("runtime.Int")
+class Int(int, PyNativeObject):
+    """TVM runtime.Int object, represented as a python int.
+
+    Parameters
+    ----------
+    value : int
+        The int used to construct the object.
+    """
+
+    def __new__(cls, value):
+        """Construct from int."""
+        val = int.__new__(cls, value)
+        val.__init_tvm_object_by_constructor__(_ffi_api.Int, value)
+        return val
+
+    # pylint: disable=no-self-argument
+    def __from_tvm_object__(cls, obj):
+        """Construct from a given tvm object."""
+        content = _ffi_api.GetFFIInt(obj)
+        val = int.__new__(cls, content)
+        val.__tvm_object__ = obj
+        return val

@@ -77,6 +77,22 @@ def test_string():
     assert s == z
 
 
+def test_float():
+    i = tvm.runtime.Float(2)
+
+    assert isinstance(i, float)
+    assert isinstance(i, tvm.runtime.Float)
+    assert i == 2
+
+
+def test_int():
+    i = tvm.runtime.Int(2)
+
+    assert isinstance(i, int)
+    assert isinstance(i, tvm.runtime.Int)
+    assert i == 2
+
+
 if __name__ == "__main__":
     test_string()
     test_adt_constructor()

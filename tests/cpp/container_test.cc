@@ -683,6 +683,18 @@ TEST(Optional, PackedCall) {
   test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
 }
 
+TEST(Float, Access) {
+  Float f(1.0);
+  ICHECK_EQ(f.operator double(), 1.0);
+  ICHECK_EQ(f->value, 1.0);
+}
+
+TEST(Int, Access) {
+  Int i(1);
+  ICHECK_EQ(i.operator int64_t(), 1);
+  ICHECK_EQ(i->value, 1);
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

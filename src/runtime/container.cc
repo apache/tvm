@@ -174,5 +174,18 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body([](TVMArgs args, TVMRetValue* r
 TVM_DLL constexpr uint64_t DenseMapNode::kNextProbeLocation[];
 #endif
 
+TVM_REGISTER_GLOBAL("runtime.Float").set_body_typed([](double x) { return Float(x); });
+TVM_REGISTER_GLOBAL("runtime.GetFFIFloat").set_body_typed([](Float x) {
+    return x->value;
+});
+
+TVM_REGISTER_GLOBAL("runtime.Int").set_body_typed([](int64_t x) { return Int(x); });
+TVM_REGISTER_GLOBAL("runtime.GetFFIInt").set_body_typed([](Int x) {
+    return x->value;
+});
+
+TVM_REGISTER_OBJECT_TYPE(FloatNode);
+TVM_REGISTER_OBJECT_TYPE(IntNode);
+
 }  // namespace runtime
 }  // namespace tvm
