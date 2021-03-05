@@ -117,7 +117,7 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
                        Target target_host, Optional<HardwareParams> hardware_params,
                        LayoutRewriteOption layout_rewrite_option) {
   target = Target(target, target_host);
-  target_host = target->GetHost().value();
+  target_host = target->GetHost().value_or(Target());
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -147,7 +147,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
                        Target target_host, Optional<HardwareParams> hardware_params,
                        int layout_rewrite_option) {
       target = Target(target, target_host);
-      target_host = target->GetHost().value();
+      target_host = target->GetHost().value_or(Target());
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
                         LayoutRewriteOption(layout_rewrite_option));
     });

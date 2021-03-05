@@ -415,7 +415,6 @@ Map<String, ObjectRef> TargetNode::Export() const {
 }
 
 Optional<Target> TargetNode::GetHost() const {
-  if (!this->host.defined()) return NullOpt;
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
 }
 

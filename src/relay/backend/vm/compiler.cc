@@ -257,7 +257,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         expr_device_map_(std::move(expr_device_map)) {
     for (const auto& it : targets) {
       targets.Set(it.first, Target(targets[it.first], target_host));
-      target_host = targets[it.first]->GetHost().value();
+      target_host = targets[it.first]->GetHost().value_or(Target());
       targets_[it.first->value] = it.second;
     }
     target_host_ = target_host;
@@ -900,7 +900,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   target_host_ = target_host;
   for (auto& iter : targets_) {
     targets_.Set(iter.first, Target(targets_[iter.first], target_host_));
-    target_host_ = targets[iter.first]->GetHost().value();
+    target_host_ = targets[iter.first]->GetHost().value_or(Target());
   }
 
   // Run the optimizations necessary to target the VM.
@@ -1009,7 +1009,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
   Target target_host = target_host_arg;
   for (auto& iter : targets) {
     targets.Set(iter.first, Target(targets[iter.first], target_host));
-    target_host = targets[iter.first]->GetHost().value();
+    target_host = targets[iter.first]->GetHost().value_or(Target());
   }
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");

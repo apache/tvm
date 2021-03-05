@@ -1399,7 +1399,7 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
       Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
       Target target = cur_inp->task->target, target_host = cur_inp->task->target_host;
       target = Target(target, target_host);
-      target_host = target->GetHost().value();
+      target_host = target->GetHost().value_or(Target());
       task = SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
                         cur_inp->task->hardware_params, cur_inp->task->layout_rewrite_option);
       task_id = task_cache.size();
@@ -1470,7 +1470,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
           Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
           Target target = inputs[i]->task->target, target_host = inputs[i]->task->target_host;
           target = Target(target, target_host);
-          target_host = target->GetHost().value();
+          target_host = target->GetHost().value_or(Target());
           task =
               SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
                          inputs[i]->task->hardware_params, inputs[i]->task->layout_rewrite_option);

@@ -188,7 +188,8 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,
                                                 const transform::PassContext& pass_ctx) {
-  Target target = Target(target_arg, target_host_arg), target_host = target->GetHost().value();
+  Target target = Target(target_arg, target_host_arg),
+         target_host = target->GetHost().value_or(Target());
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
 
@@ -264,8 +265,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   // Fetch previous defined target host in targets
   for (const auto& it : inputs_arg) {
     auto target = Target(it.first, target_host);
-    updated_inputs.Set(target, it.second);
-    target_host = target->GetHost().value();
+    target_host = target->GetHost().value_or(Target());
   }
 
   if (!target_host.defined()) {
@@ -285,7 +285,6 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   for (const auto& it : inputs_arg) {
     auto target = Target(it.first, target_host);
     updated_inputs.Set(target, it.second);
-    target_host = target->GetHost().value();
   }
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
@@ -326,7 +325,7 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
   Target target_host = target_host_arg;
   for (const auto& it : inputs_arg) {
     auto target = Target(Target(it.first), target_host);
-    target_host = target_host->GetHost().value();
+    target_host = target->GetHost().value_or(Target());
     Optional<String> device = target->GetAttr<String>("device");
     if (device.defined() && device.value() == "vta") {
       target = Target("ext_dev");
@@ -339,7 +338,8 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
 // Build for homogeneous execution.
 runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
-  auto target = Target(target_arg, target_host_arg), target_host = target->GetHost().value();
+  auto target = Target(target_arg, target_host_arg),
+       target_host = target->GetHost().value_or(Target());
   Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host);
 }

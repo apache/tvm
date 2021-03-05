@@ -241,7 +241,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     for (const auto& it : targets) {
       // Construct a new target with target host filed if available
       targets_.Set(it.first, Target(it.second, target_host_));
-      target_host_ = targets_[it.first]->GetHost().value();
+      target_host_ = targets_[it.first]->GetHost().value_or(Target());
     }
 
     BuildRelay(mod, params_);
@@ -492,7 +492,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     for (const auto& it : targets_) {
       // Construct a new target with target host filed if available
       targets_.Set(it.first, Target(it.second, target_host));
-      target_host = targets_[it.first]->GetHost().value();
+      target_host = targets_[it.first]->GetHost().value_or(Target());
     }
 
     // Generate a placeholder function that attaches linked params as its arguments.
