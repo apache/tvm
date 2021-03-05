@@ -23,6 +23,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <chrono>
@@ -77,16 +78,25 @@ class GraphRuntimeDebug : public GraphRuntime {
                                                number * 1.618));  // 1.618 is chosen by random
           }
           tbegin = std::chrono::high_resolution_clock::now();
+          std::vector<std::vector<Timer>> op_timers;
+          for (size_t index = 0; index < op_execs_.size(); index++) {
+            op_timers.push_back({});
+          }
           for (int k = 0; k < number; k++) {
             for (size_t index = 0; index < op_execs_.size(); ++index) {
               if (op_execs_[index]) {
-                time_sec_per_op[index] += RunOpHost(index);
+                op_timers[index].push_back(RunOpHost(index));
               }
+            }
+          }
+          for (size_t index = 0; index < op_execs_.size(); ++index) {
+            for (auto t : op_timers[index]) {
+              time_sec_per_op[index] += t->SyncAndGetElapsedNanos() / 1e9;
             }
           }
           tend = std::chrono::high_resolution_clock::now();
           duration_ms =
-              std::chrono::duration_cast<std::chrono::duration<double> >(tend - tbegin).count() *
+              std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() *
               1000;
         } while (duration_ms < min_repeat_ms);
 
@@ -160,15 +170,12 @@ class GraphRuntimeDebug : public GraphRuntime {
     return results_arr[0];
   }
 
-  double RunOpHost(int index) {
-    auto op_tbegin = std::chrono::high_resolution_clock::now();
-    op_execs_[index]();
+  Timer RunOpHost(int index) {
     const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-    auto op_tend = std::chrono::high_resolution_clock::now();
-    double op_duration =
-        std::chrono::duration_cast<std::chrono::duration<double> >(op_tend - op_tbegin).count();
-    return op_duration;
+    Timer t = Timer::Start(ctx);
+    op_execs_[index]();
+    t->Stop();
+    return t;
   }
 
   /*!
