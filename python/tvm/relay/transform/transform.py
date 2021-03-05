@@ -1099,9 +1099,9 @@ def SimplifyExpr():
     return _ffi_api.SimplifyExpr()
 
 
-def ImplicitPadding():
+def FoldExplicitPadding():
     """
-    ImplicitPadding finds explict padding before an op that can support
+    FoldExplicitPadding finds explict padding before an op that can support
     implicit padding and fuses them.
 
     Returns
@@ -1109,7 +1109,7 @@ def ImplicitPadding():
     ret : tvm.transform.Pass
         The registered ImplicitPadding pass.
     """
-    return _ffi_api.ImplicitPadding()
+    return _ffi_api.FoldExplicitPadding()
 
 
 def AnnotateSpans():

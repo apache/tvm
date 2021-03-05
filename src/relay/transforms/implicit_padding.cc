@@ -34,23 +34,15 @@
 namespace tvm {
 namespace relay {
 
-class SimplifyPattern {
- public:
-  virtual Expr callback(const Expr& pre, const Expr& post,
-                        const Map<DFPattern, Array<Expr>>& node_map) const = 0;
 
-  DFPattern pattern() const { return pattern_; }
-
- protected:
-  /*! \brief Pattern for rewriting */
-  DFPattern pattern_;
-};
 /*!
  * \brief SimplifyConvPad matches a pad followed by a conv/convtranspose/pool/etc
  * with a pad attribute and merges the padding into the kernel.
  */
-class SimplifyConvPad : public SimplifyPattern {
+class SimplifyConvPad {
  public:
+  DFPattern pattern() const { return pattern_; }
+
   SimplifyConvPad() {
     x_ = IsWildcard();
     w_ = IsWildcard();
@@ -61,6 +53,7 @@ class SimplifyConvPad : public SimplifyPattern {
     conv_ = (conv1d_ || conv2d_ || conv3d_)({pad_, w_});
     pattern_ = conv_;
   }
+
   template <typename T>
   Attrs MakeConvAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
     ICHECK(old_attrs);
@@ -85,6 +78,7 @@ class SimplifyConvPad : public SimplifyPattern {
     new_attrs->out_dtype = old_attrs->out_dtype;
     return Attrs(new_attrs);
   }
+
   template <typename T>
   Attrs GetAttrs(const PadAttrs* param, const T* attrs) const {
     ICHECK(param);
@@ -116,8 +110,9 @@ class SimplifyConvPad : public SimplifyPattern {
 
     return MakeConvAttrs(attrs, padding);
   }
+
   Expr callback(const Expr& pre, const Expr& post,
-                const Map<DFPattern, Array<Expr>>& node_map) const override {
+                const Map<DFPattern, Array<Expr>>& node_map) const {
     const CallNode* call_node = post.as<CallNode>();
     ICHECK(call_node);
     auto pad = node_map[pad_][0];
@@ -147,6 +142,8 @@ class SimplifyConvPad : public SimplifyPattern {
   }
 
  private:
+  /*! \brief Pattern for rewriting */
+  DFPattern pattern_;
   /*! \brief Pattern input */
   DFPattern x_;
   /*! \brief Pattern input weight */
@@ -189,21 +186,21 @@ class SimplifyExplicitPadding {
  * \brief ImplicitPadding finds explict padding before an op that can
  * support implicit padding and fuses them.
  */
-Expr ImplicitPadding(const Expr& expr, const IRModule& mod) {
+Expr FoldExplicitPadding(const Expr& expr, const IRModule& mod) {
   return SimplifyExplicitPadding(mod).Simplify(expr);
 }
 
 namespace transform {
 
-Pass ImplicitPadding() {
+Pass FoldExplicitPadding() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ImplicitPadding(f, m));
+        return Downcast<Function>(FoldExplicitPadding(f, m));
       };
-  return CreateFunctionPass(pass_func, 0, "ImplicitPadding", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, " FoldExplicitPadding", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ImplicitPadding").set_body_typed(ImplicitPadding);
+TVM_REGISTER_GLOBAL("relay._transform.FoldExplicitPadding").set_body_typed(FoldExplicitPadding);
 
 }  // namespace transform
 

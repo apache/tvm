@@ -62,7 +62,7 @@ def test_simplify_conv_pad():
         else:
             after = conv
 
-        zz = run_opt_pass(conv, transform.ImplicitPadding())
+        zz = run_opt_pass(conv, transform.FoldExplicitPadding())
         expected = run_opt_pass(after, transform.InferType())
         assert tvm.ir.structural_equal(zz, expected)
 
