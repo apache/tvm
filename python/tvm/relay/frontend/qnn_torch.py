@@ -360,6 +360,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::mul_scalar": 1,
         "quantized::relu6": 1,
         "quantized::hardswish": 1,
+        "aten::hardsigmoid": 1,
     }
 
     need_input_quant_param = set(num_quantized_inputs.keys())

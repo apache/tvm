@@ -125,22 +125,20 @@ class ReLU(nn.Module):
 
 # Mobilenet V3 related modules
 class Hsigmoid(nn.Module):
-    def __init__(self, inplace=True, add_stub=False):
+    def __init__(self, add_stub=False):
         super().__init__()
-        self.float_op = nn.quantized.FloatFunctional()
-        self.relu6 = nn.ReLU6(inplace=inplace)
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
         self.add_stub = add_stub
+        self.hsigmoid = nn.Hardsigmoid()
 
     def forward(self, x):
         if self.add_stub:
             x = self.quant(x)
-        relu6 = self.relu6(self.float_op.add_scalar(x, 3.0))
-        mul = self.float_op.mul_scalar(relu6, 1 / 6.0)
+        x = self.hsigmoid(x)
         if self.add_stub:
-            mul = self.dequant(mul)
-        return mul
+            x = self.dequant(x)
+        return x
 
     def fuse_model(self):
         pass
@@ -257,9 +255,9 @@ def test_quantized_modules():
     imagenet_ishape = (1, 3, 224, 224)
 
     qmodules = [
-        ("relu", imagenet_ishape, ReLU(), False),
-        ("upsample bilinear", (1, 3, 64, 64), UpsamplingBilinear(), False),
-        ("avgpool", imagenet_ishape, AvgPool2d(), False),
+        # ("relu", imagenet_ishape, ReLU(), False),
+        # ("upsample bilinear", (1, 3, 64, 64), UpsamplingBilinear(), False),
+        # ("avgpool", imagenet_ishape, AvgPool2d(), False),
     ]
 
     for per_channel in [False, True]:
@@ -269,15 +267,15 @@ def test_quantized_modules():
             postfix = ""
 
         qmodules += [
-            ("conv_bn" + postfix, imagenet_ishape, ConvBn(), per_channel),
-            ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
-            ("linear" + postfix, (16, 16), Linear(), per_channel),
-            ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
+            # ("conv_bn" + postfix, imagenet_ishape, ConvBn(), per_channel),
+            # ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
+            # ("linear" + postfix, (16, 16), Linear(), per_channel),
+            # ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
-            ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
-            ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
-            ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
-            ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
+            # ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
+            # ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
+            # ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
+            # ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
         ]
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
@@ -602,3 +600,6 @@ def test_qnn_mergecomposite():
 
     input_name = "image"
     run_qnn_mergecomposite(script_module, input_name, inp.shape)
+
+
+test_quantized_modules()

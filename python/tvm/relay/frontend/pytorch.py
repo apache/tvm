@@ -34,6 +34,7 @@ from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from .. import qnn
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
 from .. import transform
@@ -806,13 +807,25 @@ class PyTorchOpConverter:
         return _op.log(_op.tensor.sigmoid(data))
 
     def hard_sigmoid(self, inputs, input_types):
-        data = inputs[0]
-        dtype = input_types[0]
+        def _relu6(x):
+            return _op.tensor.clip(x, 0.0, 6.0)
 
-        def _relu6(input_tensor):
-            return _op.tensor.clip(input_tensor, 0.0, 6.0)
+        def func(x):
+            return _relu6(x + _expr.const(3.0)) / _expr.const(6.0)
 
-        return _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+        if self.is_quantized_tensor(inputs[0]):
+            input_scale = _expr.const(inputs[1])
+            input_zero_point = _expr.const(inputs[2])
+            # This params are taken from
+            # src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+            output_scale = _expr.const(0.00390625)  # 1.0 / 2^8
+            output_zero_point = _expr.const(-128)
+
+            data = qnn.op.dequantize(inputs[0], input_scale, input_zero_point, axis=1)
+            out = func(data)
+            return qnn.op.quantize(out, output_scale, output_zero_point, out_dtype="uint8")
+
+        return func(inputs[0])
 
     def hard_swish(self, inputs, input_types):
         data = inputs[0]
