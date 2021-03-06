@@ -19,7 +19,6 @@ Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
 import warnings
-import copy
 import numpy as np
 
 from tvm.ir import IRModule
