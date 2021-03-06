@@ -19,6 +19,7 @@ Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
 import warnings
+import copy
 import numpy as np
 
 from tvm.ir import IRModule
@@ -391,9 +392,34 @@ class GraphExecutor(_interpreter.Executor):
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
-        num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
+
+        def _write_prefix(data, prefix, value):
+            while len(prefix) > 1:
+                data = data[prefix[0]]
+                prefix = prefix[1:]
+            data[prefix[0]] = value
+
+        def _build_index(ty, prefix, structure, index_map, cur_index=0):
+            if isinstance(ty, _ty.TensorType):
+                index_map[cur_index] = prefix
+                _write_prefix(structure, prefix, None)
+                return structure, index_map, cur_index + 1
+            elif isinstance(ty, _ty.TupleType):
+                _write_prefix(structure, prefix, [None] * len(ty.fields))
+                for i, field_ty in enumerate(ty.fields):
+                    structure, index_map, cur_index = _build_index(
+                        field_ty, prefix + [i], structure, index_map, cur_index=cur_index
+                    )
+                return structure, index_map, cur_index
+            else:
+                raise ValueError("Return type", ret_type, "contains unsupported type", ty)
+
+        # output_structure has the unflattened structure of outputs according to ret_type
+        # index_map takes the flattened index to a list of indices indexing into output_structure
+        output_structure, index_map, num_outputs = _build_index(ret_type, [0], [None], {})
+        assert num_outputs == gmodule.get_num_outputs()
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)
@@ -402,13 +428,10 @@ class GraphExecutor(_interpreter.Executor):
                 gmodule.set_input(i, arg)
             # Run the module, and fetch the output.
             gmodule.run()
-            # make a copy so multiple invocation won't hurt perf.
-            if num_outputs == 1:
-                return gmodule.get_output(0).copyto(_nd.cpu(0))
-            outputs = []
+            outputs = copy.deepcopy(output_structure)
             for i in range(num_outputs):
-                outputs.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
-            return outputs
+                _write_prefix(outputs, index_map[i], gmodule.get_output(i).copyto(_nd.cpu(0)))
+            return outputs[0]
 
         return _graph_wrapper
 
