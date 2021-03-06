@@ -41,7 +41,6 @@ def torch_version_check():
 
 
 def get_tvm_runtime(script_module, input_name, ishape):
-
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
@@ -255,9 +254,9 @@ def test_quantized_modules():
     imagenet_ishape = (1, 3, 224, 224)
 
     qmodules = [
-        # ("relu", imagenet_ishape, ReLU(), False),
-        # ("upsample bilinear", (1, 3, 64, 64), UpsamplingBilinear(), False),
-        # ("avgpool", imagenet_ishape, AvgPool2d(), False),
+        ("relu", imagenet_ishape, ReLU(), False),
+        ("upsample bilinear", (1, 3, 64, 64), UpsamplingBilinear(), False),
+        ("avgpool", imagenet_ishape, AvgPool2d(), False),
     ]
 
     for per_channel in [False, True]:
@@ -267,15 +266,15 @@ def test_quantized_modules():
             postfix = ""
 
         qmodules += [
-            # ("conv_bn" + postfix, imagenet_ishape, ConvBn(), per_channel),
-            # ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
-            # ("linear" + postfix, (16, 16), Linear(), per_channel),
-            # ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
+            ("conv_bn" + postfix, imagenet_ishape, ConvBn(), per_channel),
+            ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
+            ("linear" + postfix, (16, 16), Linear(), per_channel),
+            ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
-            # ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
-            # ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
-            # ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
-            # ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
+            ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
+            ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
+            ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
+            ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
         ]
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
@@ -363,6 +362,13 @@ def test_quantized_imagenet():
             # ("googlenet", qgooglenet(pretrained=True), per_channel),
         ]
 
+    if is_version_greater_than("1.7.1"):
+        from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
+
+        qmodels.append(
+            ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
+        )
+
     results = []
 
     for (model_name, raw_model, per_channel) in qmodels:
@@ -376,7 +382,10 @@ def test_quantized_imagenet():
         inp = get_imagenet_input()
         pt_inp = torch.from_numpy(inp)
 
-        quantize_model(raw_model, pt_inp, per_channel=per_channel)
+        if "mobilenet_v3_large" not in model_name:
+            # mv3 was qat-ed, quantize=True option above makes it already quantized
+            quantize_model(raw_model, pt_inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_model, pt_inp).eval()
 
         with torch.no_grad():
@@ -600,6 +609,3 @@ def test_qnn_mergecomposite():
 
     input_name = "image"
     run_qnn_mergecomposite(script_module, input_name, inp.shape)
-
-
-test_quantized_modules()

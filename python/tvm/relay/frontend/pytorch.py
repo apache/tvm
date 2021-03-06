@@ -816,10 +816,15 @@ class PyTorchOpConverter:
         if self.is_quantized_tensor(inputs[0]):
             input_scale = _expr.const(inputs[1])
             input_zero_point = _expr.const(inputs[2])
-            # This params are taken from
-            # src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
-            output_scale = _expr.const(0.00390625)  # 1.0 / 2^8
-            output_zero_point = _expr.const(-128)
+            # PyTorch seems to use the following output qparams, but accuracy
+            # is broken if we use this.
+            # TODO(masahi): Revisit this parameter choice
+            #
+            # Taken from src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+            # output_scale = _expr.const(0.00390625)  # 1.0 / 2^8
+            # output_zero_point = _expr.const(-128)
+            output_scale = input_scale
+            output_zero_point = input_zero_point
 
             data = qnn.op.dequantize(inputs[0], input_scale, input_zero_point, axis=1)
             out = func(data)
