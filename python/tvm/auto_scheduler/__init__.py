@@ -41,6 +41,7 @@ from .measure import (
     LocalRunner,
     RPCRunner,
     LocalRPCMeasureContext,
+    register_task_input_check_func,
 )
 from .measure_record import RecordToFile, RecordReader, load_best_record, load_records, save_records
 from .relay_integration import (

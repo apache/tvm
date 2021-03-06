@@ -19,6 +19,7 @@
 import json
 
 import multiprocessing
+import numpy as np
 import tvm
 from tvm import topi
 from tvm import te, auto_scheduler
@@ -26,7 +27,7 @@ import tempfile
 import tvm.testing
 import pickle
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
+from test_auto_scheduler_common import matmul_auto_scheduler_test
 from tvm.auto_scheduler import workload_registry
 
 
@@ -355,6 +356,34 @@ def test_measure_target_host():
         assert str(recovered_inp.task.target_host) == str(inp.task.target_host)
 
 
+@tvm.testing.requires_llvm
+def test_measure_special_inputs_map_by_name():
+    @auto_scheduler.register_workload
+    def foo():
+        X = te.placeholder(shape=[10], dtype="int32")
+        Index = te.placeholder(shape=[1], dtype="int32", name="Index")
+        Y = te.compute((1,), lambda i: X[Index[i]])
+        return [X, Index, Y]
+
+    # This workload cannot use random input for the `Index` input
+    task = auto_scheduler.SearchTask(
+        func=foo,
+        target="llvm",
+        task_inputs={
+            "Index": tvm.nd.array(np.array([5], dtype="int32")),
+        },
+    )
+
+    minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+    local_builder = auto_scheduler.LocalBuilder()
+    local_runner = auto_scheduler.LocalRunner(timeout=10)
+
+    bress = local_builder.build([minp])
+    assert bress[0].error_no == 0
+    mress = local_runner.run([minp], bress)
+    assert mress[0].error_no == 0
+
+
 if __name__ == "__main__":
     test_record_split_reorder_fuse_annotation()
     test_record_compute_at_root_inline_cache_read_write()
@@ -366,3 +395,4 @@ if __name__ == "__main__":
     test_dag_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
     test_measure_target_host()
+    test_measure_special_inputs_map_by_name()
