@@ -31,13 +31,13 @@ namespace vitis_ai {
 
 /*! \brief Attributes to store the compiler options for Vitis AI */
 struct VitisAICompilerConfigNode : public tvm::AttrsNode<VitisAICompilerConfigNode> {
-  String target;
+  String dpu;
   String build_dir;
   String work_dir;
   String export_runtime_module;
   String load_runtime_module;
   TVM_DECLARE_ATTRS(VitisAICompilerConfigNode, "ext.attrs.VitisAICompilerConfigNode") {
-    TVM_ATTR_FIELD(target).describe("Vitis AI DPU target name").set_default("");
+    TVM_ATTR_FIELD(dpu).describe("Vitis AI DPU identifier").set_default("");
     TVM_ATTR_FIELD(build_dir)
         .describe("Build directory to be used (optional, debug)")
         .set_default("");

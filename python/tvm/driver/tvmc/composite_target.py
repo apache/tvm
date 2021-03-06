@@ -22,7 +22,7 @@ import logging
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
 from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
-from tvm.contrib.target import vitis_ai
+from tvm.contrib.target import vitis_ai  # pylint: disable=unused-import
 
 from .common import TVMCException
 
