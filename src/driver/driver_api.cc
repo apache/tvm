@@ -255,7 +255,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
 }
 
 // Build for heterogeneous execution.
-runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
+runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
   std::vector<runtime::Module> device_modules;
@@ -263,13 +263,13 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   Map<Target, IRModule> updated_inputs;
 
   // Fetch previous defined target host in targets
-  for (const auto& it : inputs_arg) {
+  for (const auto& it : inputs) {
     auto target = Target(it.first, target_host);
     target_host = target->GetHost().value_or(Target());
   }
 
   if (!target_host.defined()) {
-    for (const auto& it : updated_inputs) {
+    for (const auto& it : inputs) {
       if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
         target_host = it.first;
         break;
@@ -282,7 +282,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   }
 
   // Update target host for all targets
-  for (const auto& it : inputs_arg) {
+  for (const auto& it : inputs) {
     auto target = Target(it.first, target_host);
     updated_inputs.Set(target, it.second);
   }
