@@ -197,6 +197,38 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
+// While
+While::While(PrimExpr condition, Stmt body, Span span) {
+  ICHECK(condition.defined());
+  ICHECK(condition.dtype().is_scalar());
+  ICHECK(condition.as<tir::IntImmNode>() == nullptr) << "The condition should not be trivial.";
+  ICHECK(body.defined());
+
+  ObjectPtr<WhileNode> node = make_object<WhileNode>();
+  node->condition = std::move(condition);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.While").set_body_typed([](PrimExpr condition, Stmt body, Span span) {
+  return While(condition, body, span);
+});
+
+TVM_REGISTER_NODE_TYPE(WhileNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<WhileNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const WhileNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "while(" << op->condition << "){\n";
+      p->indent += 2;
+      p->Print(op->body);
+      p->indent -= 2;
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
 // Store
 Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate, Span span) {
   ICHECK(value.defined());

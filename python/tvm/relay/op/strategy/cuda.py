@@ -354,6 +354,8 @@ def judge_winograd(
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
     nH, nW = (OH + tile_size - 1) // tile_size, (OW + tile_size - 1) // tile_size
+    if not isinstance(N, int):
+        return False, False, False
     P = N * nH * nW
 
     judge_winograd_tensorcore = (

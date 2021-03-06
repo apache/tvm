@@ -267,6 +267,10 @@ impl<T: IsObject> ObjectPtr<T> {
             Err(Error::downcast("TODOget_type_key".into(), U::TYPE_KEY))
         }
     }
+
+    pub unsafe fn into_raw(self) -> *mut T {
+        self.ptr.as_ptr()
+    }
 }
 
 impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
@@ -300,7 +304,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
         use crate::ndarray::NDArrayContainer;
 
         match ret_value {
-            RetValue::ObjectHandle(handle) => {
+            RetValue::ObjectHandle(handle) | RetValue::ModuleHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 optr.downcast()
@@ -329,6 +333,11 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
                 assert!(!raw_ptr.is_null());
                 ArgValue::NDArrayHandle(raw_ptr)
             }
+            "runtime.Module" => {
+                let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
+                assert!(!raw_ptr.is_null());
+                ArgValue::ModuleHandle(raw_ptr)
+            }
             _ => {
                 let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
                 assert!(!raw_ptr.is_null());
@@ -346,7 +355,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
         use crate::ndarray::NDArrayContainer;
 
         match arg_value {
-            ArgValue::ObjectHandle(handle) => {
+            ArgValue::ObjectHandle(handle) | ArgValue::ModuleHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 optr.downcast()

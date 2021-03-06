@@ -711,7 +711,7 @@ class VulkanWrappedFunc {
     thread_axis_cfg_.Init(num_buffer_args + num_pack_args, thread_axis_tags);
   }
 
-  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const;
+  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const;
 
  private:
   // internal module
@@ -875,7 +875,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     VkPushConstantRange crange;
     crange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     crange.offset = 0;
-    crange.size = sizeof(ArgUnion) * num_pack_args;
+    crange.size = sizeof(ArgUnion64) * num_pack_args;
 
     VkPipelineLayoutCreateInfo playout_cinfo;
     playout_cinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1046,7 +1046,8 @@ VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
   return streams_[device_id].get();
 }
 
-void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const {
+void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
+                                   const ArgUnion64* pack_args) const {
   int device_id = VulkanThreadEntry::ThreadLocal()->ctx.device_id;
   ICHECK_LT(device_id, kVulkanMaxNumDevice);
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
@@ -1075,7 +1076,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion
           descriptor_buffers.data());
       if (num_pack_args_ != 0) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
-                           VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion),
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
                            pack_args);
       }
       vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
@@ -1093,7 +1094,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion
   }
 
   // Otherwise, the more expensive deferred path.
-  std::vector<ArgUnion> pack_args_storage(pack_args, pack_args + num_pack_args_);
+  std::vector<ArgUnion64> pack_args_storage(pack_args, pack_args + num_pack_args_);
   const auto& deferred_initializer = [&vctx, pipeline, descriptor_buffers]() {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     write_descriptor_sets.resize(descriptor_buffers.size());
@@ -1119,7 +1120,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion
                             nullptr);
     if (pack_args_storage.size() != 0) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                         0, pack_args_storage.size() * sizeof(ArgUnion), pack_args_storage.data());
+                         0, pack_args_storage.size() * sizeof(ArgUnion64),
+                         pack_args_storage.data());
     }
     vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
     VkMemoryBarrier barrier_info;

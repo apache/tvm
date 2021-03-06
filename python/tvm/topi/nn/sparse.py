@@ -18,7 +18,7 @@
 """Sparse operators"""
 from __future__ import absolute_import
 import tvm
-from tvm import te
+from tvm import te, auto_scheduler
 
 from ..utils import get_const_tuple
 
@@ -197,7 +197,7 @@ def _sparse_dense_sp_lhs_bsrmm(data_data, data_indices, data_indptr, weight):
 
 
 def _sparse_dense_sp_rhs_bsrmm(data, weight_data, weight_indices, weight_indptr):
-    (m, _) = get_const_tuple(data.shape)
+    (m, k) = get_const_tuple(data.shape)
     (_, bs_r, bs_c) = get_const_tuple(weight_data.shape)
     (num_blocks_plus_1,) = get_const_tuple(weight_indptr.shape)
     num_blocks = num_blocks_plus_1 - 1
@@ -218,7 +218,10 @@ def _sparse_dense_sp_rhs_bsrmm(data, weight_data, weight_indices, weight_indptr)
     idxm = tvm.tir.indexmod
 
     bsrmm_block = te.compute(
-        (m, num_blocks, bs_r), _compute_block, tag="sparse_dense_sp_rhs_bsrmm_block"
+        (m, num_blocks, bs_r),
+        _compute_block,
+        tag="sparse_dense_sp_rhs_bsrmm_block",
+        attrs={"FLOP": 2 * m * num_blocks * bs_r * k},
     )
     return te.compute(
         (m, num_blocks * bs_r),
@@ -356,3 +359,112 @@ def sparse_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
     Unlike other TOPI functions, this function operates on both graph level and operator level.
     """
     return None
+
+
+@auto_scheduler.register_task_input_check_func
+def try_get_sparse_input(args):
+    """Analyze the input data from the given args.
+
+    Parameters
+    ----------
+    args : List[Tensor]
+        Input/output Tensor of a TVM subgraph.
+
+    Returns
+    -------
+    Dict[Tensor, str] :
+        Map from the input Tensor to its buffer name.
+
+    Notes
+    -----
+    The buffer name is specially designed, and these buffer should be provided in
+    `SearchTask(..., task_inputs={...})`.
+    """
+    sparse_prefix = sparse_data = sparse_indices = sparse_indptr = None
+
+    def _process_inputs(input_tensors, m, n, prefix_init):
+        nonlocal sparse_prefix
+        nonlocal sparse_data
+        nonlocal sparse_indices
+        nonlocal sparse_indptr
+
+        assert len(input_tensors) == 4
+        unsure_tensors = list(input_tensors)
+        # Get the Dense data
+        dense_data = None
+        for tensor in unsure_tensors:
+            if len(tensor.shape) == 2:
+                assert dense_data is None
+                dense_data = tensor
+                assert m == dense_data.shape[0]
+                k = dense_data.shape[1]
+        unsure_tensors.remove(dense_data)
+
+        # Get the Sparse data
+        sparse_data = None
+        for tensor in unsure_tensors:
+            if len(tensor.shape) == 3:
+                assert sparse_data is None
+                sparse_data = tensor
+                block_size, bs_r, bs_c = sparse_data.shape
+        unsure_tensors.remove(sparse_data)
+
+        # Get the Sparse indptr & indices
+        sparse_indices = None
+        for tensor in unsure_tensors:
+            assert len(tensor.shape) == 1
+            if tensor.shape[0] == block_size:
+                assert sparse_indices is None
+                sparse_indices = tensor
+        unsure_tensors.remove(sparse_indices)
+        assert len(unsure_tensors) == 1
+        sparse_indptr = unsure_tensors[0]
+
+        # Generate the sparse_prefix
+        density = 1.0
+        for i in sparse_data.shape:
+            density *= i
+        density /= k * n
+        density = density.value
+        sparse_prefix = "%s_%d_%d_%d_%d_%d_%.2f_" % (prefix_init, m, n, k, bs_r, bs_c, density)
+
+    visited = set()
+
+    def _traverse(t):
+        # We cannot directly add tensors to the set, because the comparison of
+        # two tensors with ndim=0 is ambiguous.
+        assert t.handle is not None
+        if t.handle.value in visited:
+            return
+
+        if isinstance(t.op, te.ComputeOp):
+            # TODO(jcf94): Currently only support to one sparse op, add more support here
+            if t.op.tag == "sparse_dense_sp_rhs_bsrmm":
+                m, n = t.shape
+                assert len(t.op.input_tensors) == 1
+                block_tensor = t.op.input_tensors[0]
+                _process_inputs(block_tensor.op.input_tensors, m, n, "sparse_dense_bsr")
+            if sparse_prefix is not None:
+                # Early stop if we find a sparse_prefix
+                # Notice: If any workload has more than one sparse input, this may get problem
+                return
+            for x in t.op.input_tensors:
+                _traverse(x)
+        visited.add(t.handle.value)
+
+    try:
+        for arg in args:
+            _traverse(arg)
+    # pylint: disable=broad-except
+    except Exception:
+        return {}
+
+    if sparse_data is None or sparse_indices is None or sparse_indptr is None:
+        return {}
+
+    sparse_input_map = {}
+    sparse_input_map[sparse_data] = sparse_prefix + "W_data"
+    sparse_input_map[sparse_indices] = sparse_prefix + "W_indices"
+    sparse_input_map[sparse_indptr] = sparse_prefix + "W_indptr"
+
+    return sparse_input_map

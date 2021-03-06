@@ -450,6 +450,40 @@ struct ObjectTypeChecker<Array<T>> {
   }
   static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
 };
+template <typename K, typename V>
+struct ObjectTypeChecker<Map<K, V>> {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    if (ptr == nullptr) return NullOpt;
+    if (!ptr->IsInstance<MapNode>()) return String(ptr->GetTypeKey());
+    const MapNode* n = static_cast<const MapNode*>(ptr);
+    for (const auto& kv : *n) {
+      Optional<String> key_type = ObjectTypeChecker<K>::CheckAndGetMismatch(kv.first.get());
+      Optional<String> value_type = ObjectTypeChecker<K>::CheckAndGetMismatch(kv.first.get());
+      if (key_type.defined() || value_type.defined()) {
+        std::string key_name =
+            key_type.defined() ? std::string(key_type.value()) : ObjectTypeChecker<K>::TypeName();
+        std::string value_name = value_type.defined() ? std::string(value_type.value())
+                                                      : ObjectTypeChecker<V>::TypeName();
+        return String("Map[" + key_name + ", " + value_name + "]");
+      }
+    }
+    return NullOpt;
+  }
+  static bool Check(const Object* ptr) {
+    if (ptr == nullptr) return true;
+    if (!ptr->IsInstance<MapNode>()) return false;
+    const MapNode* n = static_cast<const MapNode*>(ptr);
+    for (const auto& kv : *n) {
+      if (!ObjectTypeChecker<K>::Check(kv.first.get())) return false;
+      if (!ObjectTypeChecker<V>::Check(kv.second.get())) return false;
+    }
+    return true;
+  }
+  static std::string TypeName() {
+    return "Map[" + ObjectTypeChecker<K>::TypeName() + ", " + ObjectTypeChecker<V>::TypeName() +
+           ']';
+  }
+};
 
 /*!
  * \brief Internal base class to

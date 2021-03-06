@@ -115,7 +115,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
-                       LayoutRewriteOption layout_rewrite_option) {
+                       LayoutRewriteOption layout_rewrite_option, Array<String> task_input_names) {
   target = Target(target, target_host);
   target_host = target->GetHost().value_or(Target());
   auto node = make_object<SearchTaskNode>();
@@ -130,6 +130,7 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
         HardwareParamsNode::GetDefaultHardwareParams(node->target, node->target_host);
   }
   node->layout_rewrite_option = layout_rewrite_option;
+  node->task_input_names = std::move(task_input_names);
   data_ = std::move(node);
 }
 
@@ -145,11 +146,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
-                       int layout_rewrite_option) {
+                       int layout_rewrite_option, Array<String> task_input_names) {
       target = Target(target, target_host);
       target_host = target->GetHost().value_or(Target());
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
-                        LayoutRewriteOption(layout_rewrite_option));
+                        LayoutRewriteOption(layout_rewrite_option), task_input_names);
     });
 
 }  // namespace auto_scheduler

@@ -465,6 +465,22 @@ const std::vector<int>& SplitFactorizationMemo::GetFactors(int n) {
 
 /********** Utils interface API for ffi **********/
 
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsGetConsumers")
+    .set_body_typed([](const SearchTask& task, const State& state, int stage_id) {
+      const std::set<int>& consumers = GetConsumers(task, state, stage_id);
+      tvm::Map<IntImm, IntImm> ret;
+      for (const auto& i : consumers) {
+        ret.Set(Integer(i), Integer(i));
+      }
+      return ret;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsElementwiseMatch")
+    .set_body_typed([](const SearchTask& task, const State& state, int stage_id,
+                       int target_stage_id) {
+      return ElementwiseMatch(task, state, stage_id, target_stage_id);
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsTiled")
     .set_body_typed([](const Stage& stage) { return IsTiled(stage); });
 

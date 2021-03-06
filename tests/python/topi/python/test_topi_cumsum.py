@@ -28,6 +28,8 @@ def test_cumsum(ctx, target):
             "generic": (lambda x: topi.cumsum(x, axis, dtype), topi.generic.schedule_extern),
             "cuda": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
             "nvptx": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
+            "vulkan": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
+            "metal": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm([data], np_ref, target, ctx, fcompute, fschedule)
@@ -44,6 +46,9 @@ def test_cumsum(ctx, target):
     check_cumsum(np.cumsum(data, dtype=np.int32), data, dtype="int32")
 
     for in_dtype in ["float32", "float64"]:
+        if target == "metal" and in_dtype == "float64":
+            # float64 is not supported in metal
+            continue
         data = np.random.randn(10, 10).astype(in_dtype)
         check_cumsum(np.cumsum(data), data)
         check_cumsum(np.cumsum(data, axis=0), data, axis=0)
@@ -70,3 +75,5 @@ if __name__ == "__main__":
     test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
     test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
     test_cumsum(tvm.context("nvptx"), tvm.target.Target("nvptx"))
+    test_cumsum(tvm.context("vulkan"), tvm.target.Target("vulkan"))
+    test_cumsum(tvm.context("metal"), tvm.target.Target("metal"))
