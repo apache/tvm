@@ -414,7 +414,7 @@ class GraphExecutor(_interpreter.Executor):
             gmodule.run()
             flattened = []
             for i in range(gmodule.get_num_outputs()):
-                flattened.append(gmodule.get_output(i))
+                flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
             unflattened, _ = _unflatten(flattened, ret_type, 0)
             return unflattened
 
