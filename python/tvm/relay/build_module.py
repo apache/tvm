@@ -394,15 +394,15 @@ class GraphExecutor(_interpreter.Executor):
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
 
-        def _unflatten(flattened, cur_type, cur_index):
+        def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
-                return flattened[cur_index], cur_index + 1
+                return next(flat_iter)
             if isinstance(cur_type, _ty.TupleType):
                 fields = []
                 for field_type in cur_type.fields:
-                    field, cur_index = _unflatten(flattened, field_type, cur_index)
+                    field = _unflatten(flat_iter, field_type)
                     fields.append(field)
-                return fields, cur_index
+                return fields
             raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
 
         def _graph_wrapper(*args, **kwargs):
@@ -415,7 +415,7 @@ class GraphExecutor(_interpreter.Executor):
             flattened = []
             for i in range(gmodule.get_num_outputs()):
                 flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
-            unflattened, _ = _unflatten(flattened, ret_type, 0)
+            unflattened = _unflatten(iter(flattened), ret_type)
             return unflattened
 
         return _graph_wrapper
