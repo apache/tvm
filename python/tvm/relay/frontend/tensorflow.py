@@ -25,14 +25,6 @@ from .tf import tf_parser_v1 as v1
 __all__ = ["from_tensorflow"]
 
 
-# TODO: Better to differentiate the parser ?
-v2_ops = [
-    "Enter",
-    "Exit",
-    "Merge",
-]
-
-
 def from_tensorflow(tf_input, layout="NHWC", shape=None, outputs=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
@@ -62,17 +54,6 @@ def from_tensorflow(tf_input, layout="NHWC", shape=None, outputs=None):
 
     parser = TFParser(tf_input, outputs)
     graph = parser.parse()
-    is_v2 = False
-
-    for node in graph.node:
-        if node.op in v2_ops:
-            is_v2 = True
-            break
-
-    if not is_v2:
-        g = v1.GraphProto()
-    else:
-        raise ImportError("TF 2.x parser yet to be supported")
-
+    g = v1.GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)
     return mod, params

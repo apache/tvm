@@ -389,6 +389,7 @@ def _test_pooling(input_shape, **kwargs):
             _test_pooling_iteration(input_shape, **kwargs)
 
 
+@tvm.testing.uses_gpu
 def test_forward_pooling():
     """ Pooling """
     # TensorFlow only supports NDHWC for max_pool3d on CPU
@@ -567,6 +568,7 @@ def _test_convolution(
     compare_tf_with_tvm_v2([input_data], concrete_func)
 
 
+@tvm.testing.uses_gpu
 def test_forward_convolution():
     if is_gpu_available():
         _test_convolution("conv", [4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], "SAME", "NCHW")
@@ -705,6 +707,7 @@ def _test_convolution3d(
     compare_tf_with_tvm_v2([input_data], concrete_func)
 
 
+@tvm.testing.uses_gpu
 def test_forward_convolution3d():
     if is_gpu_available():
         _test_convolution3d(
@@ -749,6 +752,7 @@ def _test_biasadd(tensor_in_sizes, data_format):
     compare_tf_with_tvm_v2([input_data, bias_data], concrete_func)
 
 
+@tvm.testing.uses_gpu
 def test_forward_biasadd():
     if is_gpu_available():
         _test_biasadd([4, 176, 8, 8], "NCHW")
