@@ -762,7 +762,7 @@ def test_forward_biasadd():
     _test_biasadd([4, 3, 3, 124], "NHWC")
 
 
-'''
+"""
 def _test_forward_where(input_shape):
     with tf.Graph().as_default():
         dtype = tf.float32
@@ -780,7 +780,7 @@ def test_forward_argwhere():
     _test_forward_where((5, 5, 5))
     _test_forward_where((5, 5, 5, 5))
     _test_forward_where((5, 5, 5, 5, 5))
-'''
+"""
 
 
 #######################################################################
@@ -990,7 +990,7 @@ def test_forward_squeeze():
     _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5, -1])
 
 
-'''
+"""
 # TODO: The following operators are not implemented: {'TensorListGetItem', 'TensorListSetItem', 'TensorListReserve'}
 def test_tensor_array_constructor():
     def run(dtype_str):
@@ -1154,7 +1154,7 @@ def test_tensor_array_unstack():
         run(dtype, (5, 5, 5, 5))
         run(dtype, (5, 5, 5, 5, 5))
         run(dtype, (5, 5, 5, 5, 5, 5))
-'''
+"""
 
 
 #######################################################################
@@ -1700,11 +1700,10 @@ def test_forward_gather_nd():
     compare_tf_with_tvm_v2([input_data], concrete_func)
 
 
-'''
 #######################################################################
 # BiasAdd
 # -------
-def test_forward_bias_add():
+def _test_forward_bias_add():
     """test Op BiasAdd"""
 
     def check_bias_add(lh_shpae, rh_shape, dtype):
@@ -1718,7 +1717,6 @@ def test_forward_bias_add():
 
     check_bias_add((10, 8, 16, 32), (32,), dtype="int32")
     check_bias_add((10, 20), (20,), dtype="float32")
-'''
 
 
 #######################################################################
@@ -1902,8 +1900,7 @@ def _test_resize_nearest_neighbor_dynamic_shape(in_shape, scale):
     compare_tf_with_tvm_v2([input_data], concrete_func, opt_level=1)
 
 
-'''
-def test_forward_resize():
+def _test_forward_resize():
     """ Resize Bilinear, Nearest_Neighbor """
     # TF default layout is NHWC
     _test_resize_bilinear((4, 32, 32, 3), [50, 50], False)
@@ -1912,7 +1909,6 @@ def test_forward_resize():
     _test_resize_bilinear_from_tensor((6, 50, 50, 3), True)
     _test_resize_nearest_neighbor((6, 32, 32, 3), [20, 20])
     _test_resize_nearest_neighbor_dynamic_shape((1, 16, 16, 3), scale=[2, 2])
-'''
 
 
 #######################################################################
@@ -3265,7 +3261,7 @@ def test_forward_one_hot():
 # ----
 
 
-'''
+"""
 def _test_forward_add_n(inputs):
     root = tracking.AutoTrackable()
     root.f = def_function.function(lambda x: tf.add_n(x))
@@ -3292,7 +3288,7 @@ def test_forward_add_n():
     # _test_forward_add_n(in3)
     # _test_forward_add_n(in4)
     # _test_forward_add_n(in5)
-'''
+"""
 
 
 #######################################################################
@@ -3326,7 +3322,7 @@ if __name__ == "__main__":
     test_forward_broadcast_to()
     test_forward_fill()
     test_forward_crop()
-    # test_forward_resize() -  TODO
+    # _test_forward_resize() -  TODO
     test_forward_crop_and_resize()
     test_forward_pad()
     test_forward_unpack()
@@ -3395,5 +3391,5 @@ if __name__ == "__main__":
     # test_forward_lstm() - TODO
 
     # End to End
-    # test_forward_image_classification_models() # TODO: Need docker update.
+    test_forward_image_classification_models()
     # test_forward_ptb() - TODO

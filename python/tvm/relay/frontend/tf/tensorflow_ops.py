@@ -1003,6 +1003,7 @@ def impl_batch_matmul():
 
 def impl_sparse_tensor_dense_matmul():
     """ Sparse Tensor Dense MatMul """
+
     def _impl(inputs, attr, params, mod):
         # Loading this by default causes TVM to not be loadable from other languages.
         # Sparse utility from scipy
