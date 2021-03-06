@@ -805,14 +805,18 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
-    def hard_swish(self, inputs, input_types):
+    def hard_sigmoid(self, inputs, input_types):
         data = inputs[0]
         dtype = input_types[0]
 
         def _relu6(input_tensor):
             return _op.tensor.clip(input_tensor, 0.0, 6.0)
 
-        return data * _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+        return _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+
+    def hard_swish(self, inputs, input_types):
+        data = inputs[0]
+        return data * self.hard_sigmoid(inputs, input_types)
 
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
@@ -2418,6 +2422,8 @@ class PyTorchOpConverter:
             "aten::__not__": self.logical_not,
             "aten::hardswish_": self.hard_swish,
             "aten::hardswish": self.hard_swish,
+            "aten::hardsigmoid_": self.hard_sigmoid,
+            "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
             "aten::masked_select": self.masked_select,
