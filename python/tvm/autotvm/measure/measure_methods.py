@@ -280,7 +280,13 @@ class RPCRunner(Runner):
 
     def run(self, measure_inputs, build_results):
         results = []
-        remote_args = (self.key, self.host, self.port, self.priority, self.timeout)
+        remote_kwargs = dict(
+            device_key=self.key,
+            host=self.host,
+            port=self.port,
+            priority=self.priority,
+            timeout=self.timeout,
+        )
 
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
@@ -300,7 +306,7 @@ class RPCRunner(Runner):
                     self.repeat,
                     self.min_repeat_ms,
                     self.cooldown_interval,
-                    remote_args,
+                    remote_kwargs,
                     self.enable_cpu_cache_flush,
                     module_loader,
                 )

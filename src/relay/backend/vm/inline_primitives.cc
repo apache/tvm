@@ -58,8 +58,19 @@ struct PrimitiveInliner : ExprMutator {
   explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) {
-    var_map.insert({let_node->var, VisitExpr(let_node->value)});
-    return ExprMutator::VisitExpr_(let_node);
+    auto pre_visit = [this](const LetNode* op) {
+      var_map.insert({op->var, this->VisitExpr(op->value)});
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      // Visit body and cache the op
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+      this->memo_[expr] = Let(op->var, value, body);
+    };
+    ExpandANormalForm(let_node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(let_node)];
   }
 
   Expr VisitExpr_(const CallNode* call) {

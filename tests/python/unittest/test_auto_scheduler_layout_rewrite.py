@@ -66,7 +66,7 @@ def test_apply_steps_with_layout_rewrite_corner_case():
 
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
-    N = 128
+    N = 16
     target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(func=matmul_auto_scheduler_test, args=(N, N, N), target=target)
     dag = task.compute_dag
@@ -78,9 +78,10 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
 
         measure_ctx = auto_scheduler.LocalRPCMeasureContext()
         tuning_options = auto_scheduler.TuningOptions(
-            num_measure_trials=2,
+            num_measure_trials=100,
             runner=measure_ctx.runner,
             verbose=2,
+            early_stopping=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         task.tune(tuning_options, search_policy=search_policy)

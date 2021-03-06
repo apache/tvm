@@ -20,9 +20,6 @@ Frontends for constructing Relay programs.
 Contains the model importers currently defined
 for Relay.
 """
-
-from __future__ import absolute_import
-
 from .mxnet import from_mxnet
 from .mxnet_qnn_op_utils import quantize_conv_bias_mkldnn_from_var
 from .keras import from_keras

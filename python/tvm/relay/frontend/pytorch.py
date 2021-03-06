@@ -400,7 +400,13 @@ class PyTorchOpConverter:
         )
 
         # A fast path when slicing is nop.
-        if target_begin == 0 and target_end >= index_size_limit and stride == 1:
+        if (
+            isinstance(target_begin, int)
+            and isinstance(target_end, int)
+            and target_begin == 0
+            and target_end >= index_size_limit
+            and stride == 1
+        ):
             return data
 
         # Process begin
@@ -1368,6 +1374,20 @@ class PyTorchOpConverter:
             count_include_pad=count_include_pad,
         )
 
+    def linear(self, inputs, input_types):
+        # https://pytorch.org/docs/stable/nn.functional.html#linear
+        # 0 - input
+        # 1 - weight
+        bias = inputs[2]
+        mm_out = self.matmul(inputs[:2], input_types[:2])
+        if isinstance(bias, _expr.Expr):
+            bias_ndims = len(self.infer_shape_with_prelude(bias))
+            if bias_ndims == 1:
+                return _op.nn.bias_add(mm_out, bias)
+            mm_dtype = self.infer_type_with_prelude(mm_out).dtype
+            return self.add([mm_out, bias], [mm_dtype, input_types[2]])
+        return mm_out
+
     def dropout(self, inputs, input_types):
         data = inputs[0]
         rate = float(inputs[1])
@@ -2283,6 +2303,7 @@ class PyTorchOpConverter:
             "aten::softplus": self.softplus,
             "aten::avg_pool2d": self.avg_pool2d,
             "aten::avg_pool3d": self.avg_pool3d,
+            "aten::linear": self.linear,
             "aten::dropout": self.dropout,
             "aten::dropout_": self.dropout,
             "aten::feature_dropout": self.dropout,
@@ -3195,5 +3216,16 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         # ListConstruct kept original python list. Convert to tuple.
         ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
+    # Separate data inputs and parameters to make sure data inputs are always in the beginning.
+    func_args = []
+    data_inputs = []
+    for arg in _analysis.free_vars(ret):
+        if arg.name_hint not in tvm_params.keys():
+            data_inputs.append(arg)
+        else:
+            func_args.append(arg)
+    func_args = data_inputs + func_args
+
+    mod["main"] = tvm.relay.Function(func_args, ret)
+
     return transform.RemoveUnusedFunctions()(mod), tvm_params

@@ -309,8 +309,8 @@ class Conv3DOpConverter : public TensorRTOpConverter {
     bool use_asymmetric_padding;
     GetPadding3D(str_padding, &use_asymmetric_padding, &prepadding, &postpadding);
 
-    // Could use attrs->channels.as<IntImmNode>()->value
-    const int num_outputs = weight_shape[0];
+    const int num_outputs =
+        std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
     auto conv_layer = params->network->addConvolutionNd(*input_tensor, num_outputs, kernel_size,
@@ -788,8 +788,8 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
     }
 #endif
 
-    // Could use conv2d_attr->channels.as<IntImmNode>()->value
-    const int num_outputs = weight_shape[1];
+    const int num_outputs =
+        std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolution(*input_tensor, num_outputs, kernel_size,
@@ -846,8 +846,8 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     bool use_asymmetric_padding;
     GetPadding3D(str_padding, &use_asymmetric_padding, &prepadding, &postpadding);
 
-    // Could use attrs->channels.as<IntImmNode>()->value
-    const int num_outputs = weight_shape[1];
+    const int num_outputs =
+        std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolutionNd(*input_tensor, num_outputs, kernel_size,

@@ -202,14 +202,16 @@ def test_bias_add():
 
 
 def test_bias_add_type_failure():
-    # the axis is out of range
-    try:
-        b_add = relay.nn.bias_add(relay.const(1), relay.const(2), axis=0)
-        run_infer_type(b_add)
-    except tvm._ffi.base.TVMError:
-        pass
-    else:
-        assert False
+    def assert_failure(expr):
+        try:
+            run_infer_type(expr)
+        except tvm._ffi.base.TVMError:
+            return
+        else:
+            assert False
+
+    for axis in (0, -1, -3, 1):
+        assert_failure(relay.nn.bias_add(relay.const(1), relay.const(2), axis=axis))
 
 
 def test_expand_dims_infer_type():

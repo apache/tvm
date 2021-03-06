@@ -28,6 +28,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
+#include <chrono>
+#include <iomanip>
 #include <stack>
 #include <unordered_set>
 
@@ -168,6 +170,161 @@ void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_be
 }
 
 class ModulePass;
+
+/*! \brief PassProfile stores profiling information for a given pass and its sub-passes. */
+struct PassProfile {
+  // TODO(@altanh): expose PassProfile through TVM Object API
+  using Clock = std::chrono::steady_clock;
+  using Duration = std::chrono::duration<double, std::micro>;
+  using Time = std::chrono::time_point<Clock>;
+
+  /*! \brief The name of the pass being profiled. */
+  String name;
+  /*! \brief The time when the pass was entered. */
+  Time start;
+  /*! \brief The time when the pass completed. */
+  Time end;
+  /*! \brief The total duration of the pass, i.e. end - start. */
+  Duration duration;
+  /*! \brief PassProfiles for all sub-passes invoked during the execution of the pass. */
+  std::vector<PassProfile> children;
+
+  explicit PassProfile(String name)
+      : name(name), start(Clock::now()), end(Clock::now()), children() {}
+
+  /*! \brief Gets the PassProfile of the currently executing pass. */
+  static PassProfile* Current();
+  /*! \brief Pushes a new PassProfile with the given pass name. */
+  static void EnterPass(String name);
+  /*! \brief Pops the current PassProfile. */
+  static void ExitPass();
+};
+
+struct PassProfileThreadLocalEntry {
+  /*! \brief The placeholder top-level PassProfile. */
+  PassProfile root;
+  /*! \brief The stack of PassProfiles for nested passes currently running. */
+  std::stack<PassProfile*> profile_stack;
+  /*! \brief Whether or not pass profiling is active. */
+  bool active;
+
+  PassProfileThreadLocalEntry() : root("root"), active(false) {}
+};
+
+/*! \brief Thread local store to hold the pass profiling data. */
+typedef dmlc::ThreadLocalStore<PassProfileThreadLocalEntry> PassProfileThreadLocalStore;
+
+void PassProfile::EnterPass(String name) {
+  if (!PassProfileThreadLocalStore::Get()->active) return;
+  PassProfile* cur = PassProfile::Current();
+  cur->children.emplace_back(name);
+  PassProfileThreadLocalStore::Get()->profile_stack.push(&cur->children.back());
+}
+
+void PassProfile::ExitPass() {
+  if (!PassProfileThreadLocalStore::Get()->active) return;
+  PassProfile* cur = PassProfile::Current();
+  ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
+  cur->end = std::move(PassProfile::Clock::now());
+  cur->duration = std::chrono::duration_cast<PassProfile::Duration>(cur->end - cur->start);
+  PassProfileThreadLocalStore::Get()->profile_stack.pop();
+}
+
+PassProfile* PassProfile::Current() {
+  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
+  if (!entry->profile_stack.empty()) {
+    return entry->profile_stack.top();
+  } else {
+    return &entry->root;
+  }
+}
+
+IRModule Pass::operator()(IRModule mod) const {
+  const PassNode* node = operator->();
+  ICHECK(node != nullptr);
+  PassProfile::EnterPass(node->Info()->name);
+  auto ret = node->operator()(std::move(mod));
+  PassProfile::ExitPass();
+  return std::move(ret);
+}
+
+IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  const PassNode* node = operator->();
+  ICHECK(node != nullptr);
+  PassProfile::EnterPass(node->Info()->name);
+  auto ret = node->operator()(std::move(mod), pass_ctx);
+  PassProfile::ExitPass();
+  return std::move(ret);
+}
+
+String RenderPassProfiles() {
+  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
+  CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
+
+  if (entry->root.children.empty()) {
+    LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";
+    return String();
+  }
+
+  // (depth, parent_duration, pass)
+  std::stack<std::tuple<size_t, PassProfile::Duration, PassProfile*>> profiles;
+
+  // push top level passes
+  PassProfile::Duration top_dur(0);
+  for (auto it = entry->root.children.begin(); it != entry->root.children.end(); ++it) {
+    top_dur += it->duration;
+  }
+  for (auto it = entry->root.children.rbegin(); it != entry->root.children.rend(); ++it) {
+    profiles.push(std::make_tuple(0, top_dur, &*it));
+  }
+
+  std::ostringstream os;
+  os << std::fixed;
+
+  while (profiles.size() > 0) {
+    size_t depth;
+    PassProfile::Duration parent_duration;
+    PassProfile* profile;
+    std::tie(depth, parent_duration, profile) = profiles.top();
+    profiles.pop();
+
+    // indent depth
+    for (size_t i = 0; i < depth; ++i) {
+      os << "\t";
+    }
+
+    // calculate time spent in pass itself (excluding sub-passes), and push children
+    PassProfile::Duration self_duration = profile->duration;
+    for (auto it = profile->children.rbegin(); it != profile->children.rend(); ++it) {
+      self_duration -= it->duration;
+      profiles.push(std::make_tuple(depth + 1, profile->duration, &*it));
+    }
+
+    double parent_pct = profile->duration.count() / parent_duration.count() * 100.0;
+    double total_pct = profile->duration.count() / top_dur.count() * 100.0;
+
+    os << profile->name << ": ";
+    os << std::setprecision(0);
+    os << profile->duration.count() << "us [" << self_duration.count() << "us] ";
+    os << std::setprecision(2) << "(" << total_pct << "%; " << parent_pct << "%)\n";
+  }
+
+  return os.str();
+}
+
+TVM_REGISTER_GLOBAL("transform.render_pass_profiles").set_body_typed(RenderPassProfiles);
+
+TVM_REGISTER_GLOBAL("transform.clear_pass_profiles").set_body_typed([]() {
+  PassProfileThreadLocalStore::Get()->root.children.clear();
+});
+
+TVM_REGISTER_GLOBAL("transform.enable_pass_profiling").set_body_typed([]() {
+  PassProfileThreadLocalStore::Get()->active = true;
+});
+
+TVM_REGISTER_GLOBAL("transform.disable_pass_profiling").set_body_typed([]() {
+  PassProfileThreadLocalStore::Get()->active = false;
+});
 
 /*!
  * \brief Module-level passes are designed to implement global

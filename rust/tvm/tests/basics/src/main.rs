@@ -30,6 +30,7 @@ fn main() {
     } else {
         (Context::gpu(0), "gpu")
     };
+
     let dtype = DataType::from_str("float32").unwrap();
     let mut arr = NDArray::empty(shape, ctx, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
@@ -38,11 +39,13 @@ fn main() {
     if !fadd.enabled(ctx_name) {
         return;
     }
+
     if cfg!(feature = "gpu") {
         fadd.import_module(Module::load(&concat!(env!("OUT_DIR"), "/test_add.ptx")).unwrap());
     }
 
-    fadd.entry()
+    // todo(@jroesch): fix the entry_name
+    fadd.get_function("__tvm_main__", false)
         .expect("module must have entry point")
         .invoke(vec![(&arr).into(), (&arr).into(), (&ret).into()])
         .unwrap();
