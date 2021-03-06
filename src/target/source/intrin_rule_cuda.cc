@@ -43,6 +43,8 @@ struct CUDAMath {
         default:
           return "";
       }
+    } else if (t.is_bfloat16()) {
+      return 'h' + name;
     }
     return "";
   }

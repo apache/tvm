@@ -148,7 +148,9 @@ class NDArray(NDArrayBase):
                     source_array.shape, shape
                 )
             )
-        source_array = np.ascontiguousarray(source_array, dtype=dtype)
+        source_array = np.ascontiguousarray(
+            source_array, dtype="uint16" if dtype == "bfloat16" else dtype
+        )
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
