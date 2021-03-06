@@ -70,7 +70,6 @@ size_t GetAxisSeparator(size_t shape_rank) {
   // axes are packed into rows.
   //
   // e.g. [N,C,H,W,c] -> TextureFlattening -> [N*C*H, W, c]
-  //
   return shape_rank - 2;
 }
 }
@@ -112,7 +111,7 @@ class TextureLoweringBase : public StmtExprMutator {
     return storage_scope;
   }
 
-  // Buffer set
+  // External buffer
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buf_;
   // Storage scope
   std::unordered_map<const Object*, std::string> storage_scope_;
@@ -146,8 +145,6 @@ class TextureFlattener : public TextureLoweringBase {
       Array<PrimExpr> shape;
       auto width = IntImm(DataType::Int(32), 1);
       auto height = IntImm(DataType::Int(32), 1);
-      // TODO(csulivan): We do not currently handle the case where
-      // the last dimension isn't previously set to a vector(4)
       for (size_t i = 0; i < op->bounds.size()-1; i++) {
         if (i < GetAxisSeparator(op->bounds.size())) {
           height *= op->bounds[i]->extent;
@@ -155,7 +152,6 @@ class TextureFlattener : public TextureLoweringBase {
           width *= op->bounds[i]->extent;
         }
       }
-
       Array<PrimExpr> args = {width, height};
       stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
     }
@@ -166,34 +162,11 @@ class TextureFlattener : public TextureLoweringBase {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
-
     std::string storage_scope = GetStorageScope(op->buffer);
+    // Lower to two dimensional access
     if (storage_scope == "texture") {
-      Array<PrimExpr> args;
-      if (let_binding_.count(op->buffer->data)) {
-        args.push_back(let_binding_[op->buffer->data]);
-      } else {
-        args.push_back(op->buffer->data);
-      }
-
-      Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
-      for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
-        if (i < GetAxisSeparator(op->buffer->shape.size())) {
-          col_dims.push_back(op->buffer->shape[i]);
-          col_indices.push_back(op->indices[i]);
-        } else {
-          row_dims.push_back(op->buffer->shape[i]);
-          row_indices.push_back(op->indices[i]);
-        }
-      }
-
-      PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);
-      PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
-
-      args.push_back(row_offset);
-      args.push_back(col_offset);
+      Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-
       stmt = Evaluate(Call(args[0]->dtype, builtin::text2d_store(), args));
     }
 
@@ -203,37 +176,15 @@ class TextureFlattener : public TextureLoweringBase {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
-
+    // Replace with identitcal external buffer if one exists
     auto buffer = op->buffer;
     if (buffer_binds_.count(op->buffer)) {
       buffer = buffer_binds_[op->buffer];
     }
-
+    // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(buffer);
     if (storage_scope == "texture") {
-      Array<PrimExpr> args;
-      if (let_binding_.count(op->buffer->data)) {
-        args.push_back(let_binding_[op->buffer->data]);
-      } else {
-        args.push_back(buffer->data);
-      }
-
-
-      Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
-      for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
-        if (i < GetAxisSeparator(op->buffer->shape.size())) {
-          col_dims.push_back(op->buffer->shape[i]);
-          col_indices.push_back(op->indices[i]);
-        } else {
-          row_dims.push_back(op->buffer->shape[i]);
-          row_indices.push_back(op->indices[i]);
-        }
-      }
-
-      PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);
-      PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
-      args.push_back(row_offset);
-      args.push_back(col_offset);
+      Array<PrimExpr> args = GetTextureAccessArgs(op, buffer);
       args.push_back(op->indices.back());
       expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
     }
@@ -242,6 +193,31 @@ class TextureFlattener : public TextureLoweringBase {
   }
 
  protected:
+
+  template<typename T>
+  Array<PrimExpr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
+    Array<PrimExpr> args;
+    if (let_binding_.count(op->buffer->data)) {
+      args.push_back(let_binding_[op->buffer->data]);
+    } else {
+      args.push_back(buffer->data);
+    }
+    Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
+    for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
+      if (i < GetAxisSeparator(op->buffer->shape.size())) {
+        col_dims.push_back(op->buffer->shape[i]);
+        col_indices.push_back(op->indices[i]);
+      } else {
+        row_dims.push_back(op->buffer->shape[i]);
+        row_indices.push_back(op->indices[i]);
+      }
+    }
+    PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);
+    PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
+    args.push_back(row_offset);
+    args.push_back(col_offset);
+    return args;
+  }
 
   // Let binding
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
@@ -283,7 +259,8 @@ class ExternalBufferForwarding : public TextureLoweringBase {
       if (extern_buf_.count(load->buffer)) {
         // If the buffer to load and the buffer to store to are both texture
         // check for identical access
-        if (GetStorageScope(load->buffer) == "texture" && GetStorageScope(op->buffer) == "texture") {
+        if (GetStorageScope(load->buffer) == "texture" &&
+            GetStorageScope(op->buffer) == "texture") {
           auto store_index = SimplifyOffset(op->buffer->shape, op->indices);
           auto load_index = SimplifyOffset(load->buffer->shape, load->indices);
           if (arith::Analyzer().CanProve(store_index == load_index)) {
