@@ -395,30 +395,16 @@ class GraphExecutor(_interpreter.Executor):
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
 
-        def _write_prefix(data, prefix, value):
-            while len(prefix) > 1:
-                data = data[prefix[0]]
-                prefix = prefix[1:]
-            data[prefix[0]] = value
-
-        def _build_index(cur_type, prefix, structure, index_map, cur_index=0):
+        def _unflatten(flattened, cur_type, cur_index):
             if isinstance(cur_type, _ty.TensorType):
-                index_map[cur_index] = prefix
-                _write_prefix(structure, prefix, None)
-                return structure, index_map, cur_index + 1
+                return flattened[cur_index], cur_index + 1
             if isinstance(cur_type, _ty.TupleType):
-                _write_prefix(structure, prefix, [None] * len(cur_type.fields))
-                for i, field_type in enumerate(cur_type.fields):
-                    structure, index_map, cur_index = _build_index(
-                        field_type, prefix + [i], structure, index_map, cur_index=cur_index
-                    )
-                return structure, index_map, cur_index
+                fields = []
+                for field_type in cur_type.fields:
+                    field, cur_index = _unflatten(flattened, field_type, cur_index)
+                    fields.append(field)
+                return fields, cur_index
             raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
-
-        # output_structure has the unflattened structure of outputs according to ret_type
-        # index_map takes the flattened index to a list of indices indexing into output_structure
-        output_structure, index_map, num_outputs = _build_index(ret_type, [0], [None], {})
-        assert num_outputs == gmodule.get_num_outputs()
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)
@@ -427,10 +413,11 @@ class GraphExecutor(_interpreter.Executor):
                 gmodule.set_input(i, arg)
             # Run the module, and fetch the output.
             gmodule.run()
-            outputs = copy.deepcopy(output_structure)
-            for i in range(num_outputs):
-                _write_prefix(outputs, index_map[i], gmodule.get_output(i).copyto(_nd.cpu(0)))
-            return outputs[0]
+            flattened = []
+            for i in range(gmodule.get_num_outputs()):
+                flattened.append(gmodule.get_output(i))
+            unflattened, _ = _unflatten(flattened, ret_type, 0)
+            return unflattened
 
         return _graph_wrapper
 
