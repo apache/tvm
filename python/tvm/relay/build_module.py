@@ -401,20 +401,19 @@ class GraphExecutor(_interpreter.Executor):
                 prefix = prefix[1:]
             data[prefix[0]] = value
 
-        def _build_index(ty, prefix, structure, index_map, cur_index=0):
-            if isinstance(ty, _ty.TensorType):
+        def _build_index(cur_type, prefix, structure, index_map, cur_index=0):
+            if isinstance(cur_type, _ty.TensorType):
                 index_map[cur_index] = prefix
                 _write_prefix(structure, prefix, None)
                 return structure, index_map, cur_index + 1
-            elif isinstance(ty, _ty.TupleType):
-                _write_prefix(structure, prefix, [None] * len(ty.fields))
-                for i, field_ty in enumerate(ty.fields):
+            if isinstance(cur_type, _ty.TupleType):
+                _write_prefix(structure, prefix, [None] * len(cur_type.fields))
+                for i, field_type in enumerate(cur_type.fields):
                     structure, index_map, cur_index = _build_index(
-                        field_ty, prefix + [i], structure, index_map, cur_index=cur_index
+                        field_type, prefix + [i], structure, index_map, cur_index=cur_index
                     )
                 return structure, index_map, cur_index
-            else:
-                raise ValueError("Return type", ret_type, "contains unsupported type", ty)
+            raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
 
         # output_structure has the unflattened structure of outputs according to ret_type
         # index_map takes the flattened index to a list of indices indexing into output_structure
