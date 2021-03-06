@@ -17,13 +17,13 @@
 """
 .. _tutorial-relay-quick-start:
 
-Quick Start Tutorial for Compiling Deep Learning Models
-=======================================================
+Compiling Deep Learning Models for GPUs
+=======================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This example shows how to build a neural network with Relay python frontend and
-generates a runtime library for Nvidia GPU with TVM.
-Notice that you need to build TVM with cuda and llvm enabled.
+generates a runtime library for Nvidia GPU with TVM.  Notice that you need to
+build TVM with cuda and llvm enabled.
 """
 
 ######################################################################

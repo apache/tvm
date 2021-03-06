@@ -17,8 +17,8 @@
 """
 .. _tutorial-cross-compilation-and-rpc:
 
-Cross Compilation and RPC
-=========================
+Cross Compilation and Remote Procedure Calls (RPC)
+==================================================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_, `Lianmin Zheng <https://github.com/merrymercy/>`_
 
 This tutorial introduces cross compilation and remote device
