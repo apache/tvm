@@ -19,7 +19,7 @@ from tvm import te
 import numpy as np
 from tvm import topi
 import unittest
-from tvm.contrib.nvcc import have_fp16, have_int8
+from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 from tvm.contrib import nvcc
 import tvm.testing
 
@@ -65,6 +65,53 @@ def test_cuda_vectorize_add():
     check_cuda("float16", 64, 4)
     check_cuda("float16", 64, 6)
     check_cuda("float16", 64, 8)
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_cuda_bf16_vectorize_add():
+    if not have_bf16(tvm.gpu(0).compute_version):
+        print("skip because gpu does not support bf16")
+        return
+    num_thread = 8
+
+    def np_float2np_bf16(arr):
+        """Convert a numpy array of float to a numpy array
+        of bf16 in uint16"""
+        orig = arr.view("<u4")
+        bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+        return np.right_shift(orig + bias, 16).astype("uint16")
+
+    def np_bf162np_float(arr):
+        """Convert a numpy array of bf16 (uint16) to a numpy array
+        of float"""
+        u32 = np.left_shift(arr.astype("uint32"), 16)
+        return u32.view("<f4")
+
+    def check_cuda(n, lanes):
+        A = te.placeholder((n,), name="A", dtype="bfloat16x%d" % lanes)
+        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
+        s[B].bind(xo, bx)
+        s[B].bind(xi, tx)
+        with tvm.transform.PassContext(
+            disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
+        ):
+            fun = tvm.build(s, [A, B], "cuda")
+        ctx = tvm.gpu(0)
+        np_a = np.random.uniform(size=(n, lanes)).astype("float32")
+        np_a = np_bf162np_float(np_float2np_bf16(np_a))
+        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_float2np_bf16(np_a))
+        c = tvm.nd.empty((n,), B.dtype, ctx)
+        fun(a, c)
+        c = tvm.nd.empty((n, lanes), "uint16", ctx).copyfrom(c)
+        tvm.testing.assert_allclose(c.asnumpy(), np_float2np_bf16(np_a + 1))
+
+    check_cuda(64, 2)
+    check_cuda(64, 4)
+    check_cuda(64, 6)
+    check_cuda(64, 8)
 
 
 @tvm.testing.requires_gpu
@@ -922,6 +969,7 @@ def test_unrolled_vectorization():
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
+    test_cuda_bf16_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
     test_cuda_make_int8()
