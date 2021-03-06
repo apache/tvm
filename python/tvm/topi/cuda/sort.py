@@ -23,6 +23,7 @@ from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
 from ..utils import ceil_div, swap
+from ..math import cast
 
 
 def _schedule_sort(outs):
@@ -194,13 +195,10 @@ def _sort_common(
         start = width * tid
 
         with ib.if_scope(start < size):
-            middle = ib.allocate("int64", (1,), name="middle", scope="local")
-            end = ib.allocate("int64", (1,), name="end", scope="local")
-
-            middle[0] = tvm.te.min(start + tvm.tir.indexdiv(width, 2), size)
-            end[0] = tvm.te.min(start + width, size)
-            ## merge the start->middle and middle->end arrays
-            bottom_up_merge(source, dest, source_idx, dest_idx, start, middle[0], end[0], even)
+            middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), "int64")
+            end = cast(tvm.te.min(start + width, size), "int64")
+            # merge the start->middle and middle->end arrays
+            bottom_up_merge(source, dest, source_idx, dest_idx, start, middle, end, even)
 
     lim = tvm.tir.generic.cast(
         tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
