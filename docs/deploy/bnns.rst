@@ -16,7 +16,7 @@
     under the License.
 
 Relay BNNS Integration
-==========================
+======================
 **Author**: `Egor Churaev <https://github.com/echuraev>`_
 
 Introduction
@@ -37,7 +37,7 @@ This guide will demonstrate how to build TVM with BNNS codegen and runtime enabl
 code to compile and run models using BNNS runtime. Finally, we document the supported operators.
 
 Building TVM with BNNS support
-----------------------------------
+------------------------------
 
 To turn on TVM BNNS codegen and TVM BNNS runtime you need to turn on the only USE_BNNS flag
 
@@ -54,15 +54,15 @@ Example setting in config.cmake file:
     set(USE_BNNS ON)
 
 BNNS partitioning of Relay graph
-----------------------------------------
+--------------------------------
 
 Operations to be offloaded on BNNS execution must be annotated before passing of module for compilation.
-All opps annotated by `partition_for_bnns` will be offloaded for BNNS execution. The rest of the ops
+All ops annotated by `partition_for_bnns` will be offloaded for BNNS execution. The rest of the ops
 will go through the LLVM compilation and code generation.
 
 Important note: BNNS support primitives only with constant weights. To satisfy this requirements we have
 to map constants to related tensor abstraction in relay representation. To freeze tensors and operate
-with them as with constants you may need to call ONNX importer with special flag "freeze_params=True"
+with them as constants you may need to call ONNX importer with special flag "freeze_params=True"
 or performer binding manually. In general cases all relay importers don't do that by default.
 For your convenience "partition_for_bnns" can do this for you if params dictionary is passed as the argument.
 
@@ -73,7 +73,7 @@ For your convenience "partition_for_bnns" can do this for you if params dictiona
 
 
 Input data layout for operations to be offloaded to BNNS execution
-----------------------------------------
+------------------------------------------------------------------
 
 BNNS kernels support only planar format of input data. The partitioner will require to have NCHW input
 layout for conv2d input.
@@ -98,7 +98,7 @@ Example of input layouts change:
 
 
 Example: Build and Deploy Mobilenet v2 1.0 with BNNS
-----------------------------------------
+----------------------------------------------------
 
 Create a Relay graph from a MXNet Mobilenet v2 1.0 model.
 
