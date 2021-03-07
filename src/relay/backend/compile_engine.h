@@ -201,13 +201,13 @@ class CompileEngineNode : public Object {
    * \param key The key to the cached function.
    * \return The result.
    */
-  virtual CachedFunc Lower(const CCacheKey& key) = 0;
+  virtual CachedFunc Lower(const CCacheKey& key, const Array<tir::Buffer>& buffers = {}) = 0;
   /*!
    * \brief Just in time compile to get a PackedFunc.
    * \param key The key to the cached function.
    * \return The result.
    */
-  virtual PackedFunc JIT(const CCacheKey& key) = 0;
+  virtual PackedFunc JIT(const CCacheKey& key, const Array<tir::Buffer>& buffers = {}) = 0;
   /*!
    * \brief Lower the shape function.
    * \param key The key to the cached function.
