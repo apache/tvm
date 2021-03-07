@@ -32,6 +32,7 @@ import pytest
 import tvm
 import tvm.relay
 import tvm.testing
+from tvm.target import Target
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -44,7 +45,7 @@ TARGET = tvm.target.target.micro("host")
 
 def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, TARGET, target_host=TARGET, name=op_name)
+        mod = tvm.build(sched, arg_bufs, Target(TARGET, TARGET), name=op_name)
 
     return _make_session(workspace, mod)
 

@@ -39,7 +39,7 @@ def test_out_of_bounds_llvm(index_a, index_b):
     tgt_host = "llvm"
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
     print(stmt)
-    fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+    fadd = tvm.build(s, [A, B, C], tvm.target.Target(tgt, tgt_host), name="myadd")
     ctx = tvm.context(tgt, 0)
     a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
     b = tvm.nd.array(np.random.uniform(size=1024).astype(B.dtype), ctx)
@@ -57,7 +57,7 @@ def test_in_bounds_llvm():
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+    fadd = tvm.build(s, [A, B, C], tvm.target.Target(tgt, tgt_host), name="myadd")
     ctx = tvm.context(tgt, 0)
     a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
     b = tvm.nd.array(np.random.uniform(size=1024).astype(B.dtype), ctx)
@@ -79,7 +79,7 @@ def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower(s, [a, b, c], simple_mode=True)
-    f = tvm.build(s, [a, b, c], tgt, target_host=tgt_host, name="myaddvec")
+    f = tvm.build(s, [a, b, c], tgt, tvm.target.Target(tgt, tgt_host), name="myaddvec")
     ctx = tvm.cpu(0)
     n = nn
     a = tvm.nd.array(np.random.uniform(size=(n)).astype(a.dtype), ctx)

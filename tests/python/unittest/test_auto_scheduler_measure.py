@@ -336,8 +336,7 @@ def test_measure_target_host():
     task = auto_scheduler.SearchTask(
         func=matmul_auto_scheduler_test,
         args=(512, 512, 512),
-        target="llvm",
-        target_host="llvm -mtriple=aarch64-linux-gnu",
+        target=tvm.target.Target("llvm", "llvm -mtriple=aarch64-linux-gnu"),
     )
 
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
@@ -353,7 +352,7 @@ def test_measure_target_host():
         raw_inp = inputs[0]
 
         recovered_inp = auto_scheduler.measure.recover_measure_input(raw_inp)
-        assert str(recovered_inp.task.target_host) == str(inp.task.target_host)
+        assert str(recovered_inp.task.target.host) == str(inp.task.target.host)
 
 
 @tvm.testing.requires_llvm
