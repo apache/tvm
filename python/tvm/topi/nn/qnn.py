@@ -33,6 +33,7 @@ SQNN_DTYPE_TO_CODE = {
 SQNN_CODE_TO_DTYPE = {v: k for k, v in SQNN_DTYPE_TO_CODE.items()}
 
 
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=None, axis=-1):
     """Simulated QNN quantize operator that mimics QNN outputs in floating point. The benefit
     of this operator over true QNN quantize is that this operator allows dynamic datatype
