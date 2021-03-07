@@ -386,10 +386,12 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
             f"but got {type(inputs)}."
         )
 
+    flag_target_inputs = False
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
         target_input_mod = {target: input_mod}
+        flag_target_inputs = True
     else:
         target_input_mod = inputs
 
@@ -401,6 +403,8 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
 
     target = Target(target, target_host)
     target_host = target.host
+    if flag_target_inputs:
+        target_input_mod = {target: input_mod}
 
     if not target_host:
         for tar, _ in target_input_mod.items():
@@ -414,6 +418,8 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
 
     target = Target(target, target_host)
     target_host = target.host
+    if flag_target_inputs:
+        target_input_mod = {target: input_mod}
 
     mod_host_all = tvm.IRModule({})
 

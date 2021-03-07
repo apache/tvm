@@ -85,7 +85,7 @@ def test_cuda_lib():
     from tvm.contrib import utils
 
     temp = utils.tempdir()
-    fn_add = tvm.build(s, [A, B], target="cuda", target_host="llvm", name="add")
+    fn_add = tvm.build(s, [A, B], target="cuda --host=llvm", name="add")
     path_lib = temp.relpath("deploy_lib.so")
     fn_add.export_library(path_lib)
     m = tvm.runtime.load_module(path_lib)
