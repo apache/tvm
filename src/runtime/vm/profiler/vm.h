@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_VM_PROFILER_VM_H_
 #define TVM_RUNTIME_VM_PROFILER_VM_H_
 
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/vm/vm.h>
 
 #include <memory>
@@ -51,7 +52,7 @@ class VirtualMachineDebug : public VirtualMachine {
                     const std::vector<ObjectRef>& args) final;
 
   std::unordered_map<Index, std::string> packed_index_map_;
-  std::unordered_map<Index, std::vector<double>> op_durations_;
+  std::unordered_map<Index, std::vector<Timer>> op_timers_;
   std::unordered_map<Index, int> op_invokes_;
 };
 

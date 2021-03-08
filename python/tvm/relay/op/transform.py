@@ -1047,7 +1047,7 @@ def gather(data, axis, indices):
         The input data to the operator.
 
     axis: int
-        The axis along which to index.
+        The axis along which to index. negative axis is supported.
 
     indices: relay.Expr
         The indices of values to gather.
