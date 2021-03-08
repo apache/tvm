@@ -23,11 +23,16 @@ from ...op.op import register_compute, register_shape_func
 from ...op.op import register_broadcast_schedule, register_injective_schedule
 from ...op.op import register_pattern, OpPattern
 
+
 @register_compute("qnn.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, output_type):
     assert len(inputs) == 4
-    return [topi.nn.simulated_quantize(inputs[0], inputs[1], inputs[2], inputs[3], axis=attrs.get_int("axis"))]
+    return [
+        topi.nn.simulated_quantize(
+            inputs[0], inputs[1], inputs[2], inputs[3], axis=attrs.get_int("axis")
+        )
+    ]
+
 
 register_injective_schedule("qnn.simulated_quantize")
 register_pattern("qnn.simulated_quantize", OpPattern.OPAQUE)
-

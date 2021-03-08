@@ -52,12 +52,13 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
   return true;
 }
 
-Expr MakeSimulatedQuantize(Expr data, Expr out_dtype, Expr output_scale, Expr output_zero_point, int axis) {
+Expr MakeSimulatedQuantize(Expr data, Expr out_dtype, Expr output_scale, Expr output_zero_point,
+                           int axis) {
   auto attrs = make_object<SimulatedQuantizeAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("qnn.simulated_quantize");
   auto out = Call(op, {data, out_dtype, output_scale, output_zero_point}, Attrs(attrs), {});
-  
+
   return out;
 }
 
@@ -68,7 +69,8 @@ RELAY_REGISTER_OP("qnn.simulated_quantize")
     .set_attrs_type<SimulatedQuantizeAttrs>()
     .set_num_inputs(4)
     .add_argument("data", "Tensor", "The tensor to quantize.")
-    .add_argument("out_dtype", "Tensor", "A code corresponding to the type of quantization to apply.")
+    .add_argument("out_dtype", "Tensor",
+                  "A code corresponding to the type of quantization to apply.")
     .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
     .add_argument("output_zero_point", "Tensor",
                   "The quantization zero_point of the output tensor.")

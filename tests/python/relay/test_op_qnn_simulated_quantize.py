@@ -64,20 +64,20 @@ def build_simulated_quantize(input_data, scale, zp, dtype, axis=-1):
     return vm
 
 
-def test_float32_to_uint8_simple():
-    data = np.random.uniform(low=-128, high=127, size=[2, 5]).astype('float32')
+def test_simulated_qnn_simple(dtype):
+    data = np.random.uniform(low=-128, high=127, size=[2, 5]).astype("float32")
     scale_np = np.float32(0.5)
     zp_np = np.int32(127)
-    dtype_np = np.int32(SQNN_DTYPE_TO_CODE['uint8'])
+    dtype_np = np.int32(SQNN_DTYPE_TO_CODE[dtype])
     quant_args = {"out_zero_point": zp_np, "out_scale": scale_np}
     q_out = quantize_test_driver(
         in_dtype="float32",
         quant_args=quant_args,
         axis=-1,
-        out_dtype="uint8",
+        out_dtype=dtype,
         in_data=data,
     )
-    input_data = relay.var("input_data", shape=data.shape, dtype='float32')
+    input_data = relay.var("input_data", shape=data.shape, dtype="float32")
     scale = relay.var("scale", shape=[])
     zp = relay.var("zp", shape=[])
     dtype = relay.var("dtype", shape=[])
@@ -88,16 +88,11 @@ def test_float32_to_uint8_simple():
 
 def test_dynamic_channels():
     # Compile simulated quantize once but support either per-channel or scalar params.
-    #data = np.random.uniform(low=-64, high=64, size=[2, 5]).astype('float32')
-    data = (
-        np.array([-63.5, -63, -62.5, -62, -61.5, 30, 31, 31.5, 31.75, 32])
-        .astype("float32")
-        .reshape((2, 5))
-    )
+    data = np.random.uniform(low=-64, high=64, size=[2, 5]).astype("float32")
     # Test scalar qnn params.
-    scale_np = np.asarray([0.5]).astype('float32')
-    zp_np = np.asarray([127]).astype('int32')
-    dtype_np = np.int32(SQNN_DTYPE_TO_CODE['uint8'])
+    scale_np = np.asarray([0.5]).astype("float32")
+    zp_np = np.asarray([127]).astype("int32")
+    dtype_np = np.int32(SQNN_DTYPE_TO_CODE["uint8"])
     quant_args = {"out_zero_point": zp_np[0], "out_scale": scale_np[0]}
     q_out = quantize_test_driver(
         in_dtype="float32",
@@ -107,9 +102,9 @@ def test_dynamic_channels():
         in_data=data,
     )
     # Create variables with undefined shape and run with scalar inputs.
-    input_data = relay.var("input_data", shape=data.shape, dtype='float32')
-    scale = relay.var("scale", shape=[relay.Any()], dtype='float32')
-    zp = relay.var("zp", shape=[relay.Any()], dtype='int32')
+    input_data = relay.var("input_data", shape=data.shape, dtype="float32")
+    scale = relay.var("scale", shape=[relay.Any()], dtype="float32")
+    zp = relay.var("zp", shape=[relay.Any()], dtype="int32")
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_quantize(input_data, scale, zp, dtype, axis=0)
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
@@ -118,7 +113,7 @@ def test_dynamic_channels():
     # Now get the perchannel quantize output and compare without recompiling.
     scale_np = np.array([0.5, 0.25]).astype("float32")
     zp_np = np.array([127, 123]).astype("int32")
-    
+
     # Get the reference quantize output.
     quant_args = {"out_zero_point": zp_np, "out_scale": scale_np}
     q_out = quantize_test_driver(
@@ -133,6 +128,48 @@ def test_dynamic_channels():
     np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
 
 
+def test_dynamic_dtype():
+    # Compile simulated quantize once but support any type of quantization.
+    data = np.random.uniform(low=-64, high=64, size=[2, 5]).astype("float32")
+    # Test scalar float32 to uint8.
+    scale_np = np.asarray([0.5]).astype("float32")
+    zp_np = np.asarray([127]).astype("int32")
+    dtype_np = np.int32(SQNN_DTYPE_TO_CODE["uint8"])
+    quant_args = {"out_zero_point": zp_np[0], "out_scale": scale_np[0]}
+    q_out = quantize_test_driver(
+        in_dtype="float32",
+        quant_args=quant_args,
+        axis=-1,
+        out_dtype="uint8",
+        in_data=data,
+    )
+    # Create variables with undefined shape and run with scalar inputs.
+    input_data = relay.var("input_data", shape=data.shape, dtype="float32")
+    scale = relay.var("scale", shape=[relay.Any()], dtype="float32")
+    zp = relay.var("zp", shape=[relay.Any()], dtype="int32")
+    dtype = relay.var("dtype", shape=[])
+    vm = build_simulated_quantize(input_data, scale, zp, dtype, axis=0)
+    sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
+    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+
+    # Now test float32 to int32 compilation.
+    # Get the reference quantize output.
+    q_out = quantize_test_driver(
+        in_dtype="float32",
+        quant_args=quant_args,
+        axis=-1,
+        out_dtype="int32",
+        in_data=data,
+    )
+    # Run the simulated quantize without recompiling and confirm results match.
+    dtype_np = np.int32(SQNN_DTYPE_TO_CODE["int32"])
+    sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
+    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+
+
 if __name__ == "__main__":
-    test_float32_to_uint8_simple()
+    test_simulated_qnn_simple("uint8")
+    test_simulated_qnn_simple("int8")
+    test_simulated_qnn_simple("int32")
     test_dynamic_channels()
+    test_dynamic_dtype()

@@ -22,22 +22,20 @@ from tvm.contrib import graph_runtime
 import tvm.topi.testing
 
 
-def verify_simulated_quantize(
-    data_shape, out_dtype, channels, axis
-):
+def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
     # Create placeholder variables for all qnn inputs.
-    A = te.placeholder(data_shape, name='value', dtype='float32')
-    D = te.placeholder([1], name='dtype', dtype='int32')
-    S = te.placeholder([te.size_var("scale_dim")], name="scale", dtype='float32')
-    Z = te.placeholder([te.size_var("zp_dim")], name="zp", dtype='int32')
+    A = te.placeholder(data_shape, name="value", dtype="float32")
+    D = te.placeholder([1], name="dtype", dtype="int32")
+    S = te.placeholder([te.size_var("scale_dim")], name="scale", dtype="float32")
+    Z = te.placeholder([te.size_var("zp_dim")], name="zp", dtype="int32")
     SIM_Q = topi.nn.simulated_quantize(A, D, output_scale=S, output_zero_point=Z, axis=axis)
 
     # Create random numpy values to assign to inputs.
-    a_np = np.random.uniform(size=data_shape).astype('float32')
-    d_np = np.asarray([topi.nn.SQNN_DTYPE_TO_CODE[out_dtype]]).astype('int32')
-    s_np = np.random.uniform(low=1e-4, high=.1, size=channels).astype('float32')
-    z_np = np.random.uniform(low=-10, high=10, size=channels).astype('int32')
-    q_np = np.zeros(shape=data_shape, dtype='float32')
+    a_np = np.random.uniform(size=data_shape).astype("float32")
+    d_np = np.asarray([topi.nn.SQNN_DTYPE_TO_CODE[out_dtype]]).astype("int32")
+    s_np = np.random.uniform(low=1e-4, high=0.1, size=channels).astype("float32")
+    z_np = np.random.uniform(low=-10, high=10, size=channels).astype("int32")
+    q_np = np.zeros(shape=data_shape, dtype="float32")
 
     def check_device(device, ctx):
         # Wrap the numpy arrays in nd arrays.
@@ -49,7 +47,7 @@ def verify_simulated_quantize(
 
         # Construct equivalent relay graph.
         per_channel = channels[0] != 1
-        a_var = relay.var('a', shape=data_shape, dtype='float32')
+        a_var = relay.var("a", shape=data_shape, dtype="float32")
         if per_channel:
             s_var = relay.const(s_np)
             z_var = relay.const(z_np)
@@ -62,7 +60,7 @@ def verify_simulated_quantize(
 
         # Get real qnn quantize output.
         m = graph_runtime.GraphModule(lib["default"](ctx))
-        m.set_input('a', a_np)
+        m.set_input("a", a_np)
 
         m.run()
         real_q_out = m.get_output(0)
@@ -74,19 +72,19 @@ def verify_simulated_quantize(
         func(a, d, s, z, q)
 
         # Check correctness against the true qnn output.
-        tvm.testing.assert_allclose(q.asnumpy(), real_q_out.asnumpy().astype('float32'))
+        tvm.testing.assert_allclose(q.asnumpy(), real_q_out.asnumpy().astype("float32"))
 
     for target, ctx in tvm.testing.enabled_targets():
         check_device(target, ctx)
 
 
 def test_simulated_quantize():
-    verify_simulated_quantize([1], 'int8', [1], -1)
-    verify_simulated_quantize([2, 5], 'int8', [5], 1)
-    verify_simulated_quantize([1, 32, 32, 32], 'int8', [32], -1)
-    verify_simulated_quantize([1, 32, 32, 32], 'uint8', [32], -2)
-    verify_simulated_quantize([2, 5], 'int32', [5], 1)
+    verify_simulated_quantize([1], "int8", [1], -1)
+    verify_simulated_quantize([2, 5], "int8", [5], 1)
+    verify_simulated_quantize([1, 32, 32, 32], "int8", [32], -1)
+    verify_simulated_quantize([1, 32, 32, 32], "uint8", [32], -2)
+    verify_simulated_quantize([2, 5], "int32", [5], 1)
+
 
 if __name__ == "__main__":
     test_simulated_quantize()
-

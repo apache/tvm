@@ -97,6 +97,12 @@ struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
             "The channel axis for channel wise dequantization. Default value is -1,"
             "which corresponds to the last axis.")
         .set_default(-1);
+<<<<<<< HEAD
+=======
+    TVM_ATTR_FIELD(out_dtype)
+        .describe("The datatype we are dequantizing to (float32 or int32). Defaults to float32.")
+        .set_default(DataType::Float(32));
+>>>>>>> Simulated quantize totally finished.
   }
 };
 
