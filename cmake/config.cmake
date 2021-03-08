@@ -174,7 +174,10 @@ set(USE_FLATBUFFERS_PATH none)
 # - /path/to/edgetpu: use specific path to edgetpu library
 set(USE_EDGETPU OFF)
 
-# Whether use CuDNN
+# Possible values:
+# - ON: enable cuDNN with cmake's auto search in CUDA directory
+# - OFF: disable cuDNN
+# - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
 
 # Whether use cuBLAS
