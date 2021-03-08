@@ -138,7 +138,7 @@ if tgt == "cuda" or tgt == "rocm" or tgt.startswith("opencl"):
 # function.  fadd is the generated host wrapper function, it contains
 # a reference to the generated device function internally.
 #
-fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+fadd = tvm.build(s, [A, B, C], tvm.target.Target(tgt, tgt_host), name="myadd")
 
 ######################################################################
 # Run the Function

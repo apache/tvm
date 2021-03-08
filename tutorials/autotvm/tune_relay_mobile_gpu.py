@@ -316,8 +316,7 @@ def tune_and_evaluate(tuning_opt):
     mod, params, input_shape, _ = get_network(network, batch_size=1)
     tasks = autotvm.task.extract_from_program(
         mod["main"],
-        target=target,
-        target_host=target_host,
+        target=tvm.target.Target(target, target_host),
         params=params,
         ops=(relay.op.get("nn.conv2d"),),
     )
@@ -331,7 +330,7 @@ def tune_and_evaluate(tuning_opt):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(
-                mod, target=target, params=params, target_host=target_host
+                mod, target=tvm.target.Target(target, target_host), params=params
             )
         # export library
         tmp = tempdir()

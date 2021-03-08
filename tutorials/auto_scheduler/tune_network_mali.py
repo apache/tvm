@@ -170,7 +170,9 @@ device_key = "rk3399"
 # Extract tasks from the network
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
-tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host)
+tasks, task_weights = auto_scheduler.extract_tasks(
+    mod["main"], params, tvm.target.Target(target, target_host)
+)
 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
@@ -198,7 +200,9 @@ for idx, task in enumerate(tasks):
 #
 #   .. code-block:: python
 #
-#     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host, hardware_params)
+#    tasks, task_weights = auto_scheduler.extract_tasks(
+#        mod["main"], params, tvm.target.Target(target, target_host), hardware_params = hardware_params
+#    )
 #
 
 #################################################################
@@ -240,7 +244,7 @@ def tune_and_evaluate():
         with tvm.transform.PassContext(
             opt_level=3, config={"relay.backend.use_auto_scheduler": True}
         ):
-            lib = relay.build(mod, target=target, target_host=target_host, params=params)
+            lib = relay.build(mod, target=tvm.target.Target(target, target_host), params=params)
 
     # Create graph runtime
     print("=============== Request Remote ===============")

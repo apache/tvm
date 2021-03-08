@@ -272,9 +272,7 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-    print(target)
     target = _update_target(target)
-    print(target)
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:

@@ -145,7 +145,7 @@ print("Tensorflow protobuf imported to relay frontend.")
 #   lib: target library which can be deployed on target with TVM runtime.
 
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    lib = relay.build(mod, target=tvm.target.Target(target, target_host), params=params)
 
 ######################################################################
 # Execute the portable graph on TVM

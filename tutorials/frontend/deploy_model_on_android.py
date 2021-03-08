@@ -275,7 +275,7 @@ shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    lib = relay.build(mod, target=tvm.target.Target(target, target_host), params=params)
 
 # After `relay.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will

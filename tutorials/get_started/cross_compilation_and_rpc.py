@@ -234,7 +234,7 @@ def run_opencl():
     xo, xi = s[B].split(B.op.axis[0], factor=32)
     s[B].bind(xo, te.thread_axis("blockIdx.x"))
     s[B].bind(xi, te.thread_axis("threadIdx.x"))
-    func = tvm.build(s, [A, B], "opencl", target_host=target_host)
+    func = tvm.build(s, [A, B], tvm.target.Target("opencl", target_host))
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)
 
