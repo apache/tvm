@@ -25,14 +25,14 @@ import tvm.topi.testing
 def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
     # Create placeholder variables for all qnn inputs.
     A = te.placeholder(data_shape, name="value", dtype="float32")
-    D = te.placeholder([1], name="dtype", dtype="int32")
+    D = te.placeholder([], name="dtype", dtype="int32")
     S = te.placeholder([te.size_var("scale_dim")], name="scale", dtype="float32")
     Z = te.placeholder([te.size_var("zp_dim")], name="zp", dtype="int32")
     SIM_Q = topi.nn.simulated_quantize(A, D, output_scale=S, output_zero_point=Z, axis=axis)
 
     # Create random numpy values to assign to inputs.
     a_np = np.random.uniform(size=data_shape).astype("float32")
-    d_np = np.asarray([topi.nn.SQNN_DTYPE_TO_CODE[out_dtype]]).astype("int32")
+    d_np = np.int32(topi.nn.SQNN_DTYPE_TO_CODE[out_dtype])
     s_np = np.random.uniform(low=1e-4, high=0.1, size=channels).astype("float32")
     z_np = np.random.uniform(low=-10, high=10, size=channels).astype("int32")
     q_np = np.zeros(shape=data_shape, dtype="float32")

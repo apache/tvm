@@ -51,7 +51,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         value.
 
     output_scale: tvm.te.Tensor, optional
-        A 1-D tensor representing the scale to use when quantizing to integer datatypes.
+        A scalar tensor representing the scale to use when quantizing to integer datatypes.
         When it contains more than a single value, N must match the number of channels in data.
 
     output_zero_point: tvm.te.Tensor, optional
@@ -93,7 +93,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         int8_value = te.compute(
             data.shape,
             lambda *indices: tir.if_then_else(
-                out_dtype[0] == SQNN_DTYPE_TO_CODE["int8"],
+                out_dtype.equal(SQNN_DTYPE_TO_CODE["int8"]),
                 _compute_intn("int8", value, *indices),
                 fp32_value[indices],
             ),
@@ -101,7 +101,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         uint8_value = te.compute(
             data.shape,
             lambda *indices: tir.if_then_else(
-                out_dtype[0] == SQNN_DTYPE_TO_CODE["uint8"],
+                out_dtype.equal(SQNN_DTYPE_TO_CODE["uint8"]),
                 _compute_intn("uint8", value, *indices),
                 int8_value[indices],
             ),
@@ -109,7 +109,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         int32_value = te.compute(
             data.shape,
             lambda *indices: tir.if_then_else(
-                out_dtype[0] == SQNN_DTYPE_TO_CODE["int32"],
+                out_dtype.equal(SQNN_DTYPE_TO_CODE["int32"]),
                 _compute_intn("int32", value, *indices),
                 uint8_value[indices],
             ),
