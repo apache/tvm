@@ -150,6 +150,10 @@ def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype
     if isinstance(out_dtype, str):
         type_code = SQNN_DTYPE_TO_CODE[out_dtype]
         out_dtype = relay.const([type_code], dtype='int32')
+    # Wrap reshapes around input tensors to guarantee shape compatibility.
+    out_dtype = relay.op.reshape(out_dtype, [1])
+    output_scale = relay.op.reshape(output_scale, [-1])
+    output_zero_point= relay.op.reshape(output_zero_point, [-1])
     return _make.simulated_quantize(data, out_dtype, output_scale, output_zero_point, axis)
 
 

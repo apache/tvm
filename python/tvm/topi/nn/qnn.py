@@ -62,7 +62,6 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
 
     """
-
     # Since all simulated outputs are in float32, we can just return the input tensor for fp32.
     def _compute_fp32(value, *indices):
         return value[indices]

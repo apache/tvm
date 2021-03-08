@@ -21,6 +21,8 @@ import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing import run_infer_type
+from tvm.runtime.vm import VirtualMachine
+from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
 
 
 def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data):
@@ -47,14 +49,26 @@ def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data):
     return res
 
 
-def test_float32_to_uint8():
-    data = (
-        np.array([-63.5, -63, -62.5, -62, -61.5, 62, 62.5, 63, 63.5, 64])
-        .astype("float32")
-        .reshape((2, 5))
+def build_simulated_quantize(input_data, scale, zp, dtype, axis=-1):
+    sim_q = relay.qnn.op.simulated_quantize(
+        input_data,
+        scale,
+        zp,
+        axis=axis,
+        out_dtype=dtype,
     )
+    mod = tvm.IRModule.from_expr(sim_q)
+    with tvm.transform.PassContext(opt_level=3):
+        vm_exec = relay.vm.compile(mod, "llvm", params=None)
+    vm = VirtualMachine(vm_exec, tvm.cpu(0))
+    return vm
+
+
+def test_float32_to_uint8_simple():
+    data = np.random.uniform(low=-128, high=127, size=[2, 5]).astype('float32')
     scale_np = np.float32(0.5)
     zp_np = np.int32(127)
+    dtype_np = np.int32(SQNN_DTYPE_TO_CODE['uint8'])
     quant_args = {"out_zero_point": zp_np, "out_scale": scale_np}
     q_out = quantize_test_driver(
         in_dtype="float32",
@@ -64,29 +78,61 @@ def test_float32_to_uint8():
         in_data=data,
     )
     input_data = relay.var("input_data", shape=data.shape, dtype='float32')
-    scale = relay.var("scale", shape=[relay.Any()], dtype="float32")
-    zp = relay.var("zp", shape=[relay.Any()], dtype="int32")
-    dtype = relay.var("dtype", shape=[1], dtype='int32')
-    sim_q_out = relay.qnn.op.simulated_quantize(
-        input_data,
-        scale,
-        zp,
-        axis=-1,
-        out_dtype=dtype,
-    )
-    mod = tvm.IRModule.from_expr(sim_q_out)
-    print(mod)
-    print(relay.transform.InferType()(mod))
-    with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(mod, "llvm", params=None)
-    rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-    rt_mod.set_input(input_data=data, scale=scale_np, zp=zp_np)
-    rt_mod.set_input(**params)
-    rt_mod.run()
-    res = rt_mod.get_output(0).asnumpy()
+    scale = relay.var("scale", shape=[])
+    zp = relay.var("zp", shape=[])
+    dtype = relay.var("dtype", shape=[])
+    vm = build_simulated_quantize(input_data, scale, zp, dtype)
+    sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
+    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
 
-    print(sim_q_out)
+
+def test_dynamic_channels():
+    # Compile simulated quantize once but support either per-channel or scalar params.
+    #data = np.random.uniform(low=-64, high=64, size=[2, 5]).astype('float32')
+    data = (
+        np.array([-63.5, -63, -62.5, -62, -61.5, 30, 31, 31.5, 31.75, 32])
+        .astype("float32")
+        .reshape((2, 5))
+    )
+    # Test scalar qnn params.
+    scale_np = np.asarray([0.5]).astype('float32')
+    zp_np = np.asarray([127]).astype('int32')
+    dtype_np = np.int32(SQNN_DTYPE_TO_CODE['uint8'])
+    quant_args = {"out_zero_point": zp_np[0], "out_scale": scale_np[0]}
+    q_out = quantize_test_driver(
+        in_dtype="float32",
+        quant_args=quant_args,
+        axis=0,
+        out_dtype="uint8",
+        in_data=data,
+    )
+    # Create variables with undefined shape and run with scalar inputs.
+    input_data = relay.var("input_data", shape=data.shape, dtype='float32')
+    scale = relay.var("scale", shape=[relay.Any()], dtype='float32')
+    zp = relay.var("zp", shape=[relay.Any()], dtype='int32')
+    dtype = relay.var("dtype", shape=[])
+    vm = build_simulated_quantize(input_data, scale, zp, dtype, axis=0)
+    sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
+    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+
+    # Now get the perchannel quantize output and compare without recompiling.
+    scale_np = np.array([0.5, 0.25]).astype("float32")
+    zp_np = np.array([127, 123]).astype("int32")
+    
+    # Get the reference quantize output.
+    quant_args = {"out_zero_point": zp_np, "out_scale": scale_np}
+    q_out = quantize_test_driver(
+        in_dtype="float32",
+        quant_args=quant_args,
+        axis=0,
+        out_dtype="uint8",
+        in_data=data,
+    )
+    # Run the simulated quantize without recompiling and confirm results match.
+    sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
+    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
 
 
 if __name__ == "__main__":
-    test_float32_to_uint8()
+    test_float32_to_uint8_simple()
+    test_dynamic_channels()

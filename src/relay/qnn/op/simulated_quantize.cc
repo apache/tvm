@@ -48,8 +48,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
   }
 
   // assign output type
-  const Array<tvm::PrimExpr> oshape = data->shape;
-  reporter->Assign(types[4], TensorType(oshape, data->dtype));
+  reporter->Assign(types[4], TensorType(data->shape, data->dtype));
   return true;
 }
 
@@ -74,7 +73,7 @@ RELAY_REGISTER_OP("qnn.simulated_quantize")
     .add_argument("output_zero_point", "Tensor",
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
-    .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
+    .add_type_rel("QNNSimulatedQuantize", SimulatedQuantizeRel);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.simulated_quantize").set_body_typed(MakeSimulatedQuantize);
 
