@@ -806,6 +806,10 @@ def gradient(expr, mod=None, mode="higher_order"):
     raise Exception("unknown mode")
 
 
+def FirstOrderAD():
+    return _ffi_api.FirstOrderAD()
+
+
 def Defunctionalization(func, mod):
     """
     Performs defunctionalization on func,
