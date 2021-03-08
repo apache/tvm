@@ -132,6 +132,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
       StmtExprVisitor::VisitStmt_(op);
     }
     env_threads_.pop_back();
+  } else if (op->attr_key == attr::hand_threaded) {
   } else {
     StmtExprVisitor::VisitStmt_(op);
   }
