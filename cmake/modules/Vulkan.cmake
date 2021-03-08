@@ -26,13 +26,8 @@ IF USE_VULKAN)
 tvm_option(USE_VULKAN_VALIDATION "Enable Vulkan API validation layers" OFF
   IF USE_VULKAN)
 
-if(Vulkan_FOUND)
-  # always set the includedir
-  # avoid global retrigger of cmake
-  include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
-endif(Vulkan_FOUND)
-
 if(USE_VULKAN)
+  include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
   if(NOT Vulkan_FOUND)
     message(FATAL_ERROR "Cannot find Vulkan, USE_VULKAN=" ${USE_VULKAN})
   endif()
