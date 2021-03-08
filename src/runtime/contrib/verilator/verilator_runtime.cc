@@ -108,7 +108,7 @@ void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   // enable profiler
   if (prof_enable_) prof_ = VerilatorProfiler::ThreadLocal();
 
-  // reset verilator device
+  // reset verilator device.
   reset(device_, reset_cycles_);
 
   CHECK_EQ(consts.size(), const_idx_.size())
