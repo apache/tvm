@@ -450,6 +450,7 @@ def create(task_name, args, target, target_host=None):
         target = Target(target)
 
     target = Target(target, target_host)
+    target_host = target.host
 
     # init config space
     ret.config_space = ConfigSpace()
@@ -462,7 +463,7 @@ def create(task_name, args, target, target_host=None):
 
     ret.flop = ret.config_space.flop or compute_flop(sch)
     ret.target = target
-    ret.target_host = target.host
+    ret.target_host = target_host
 
     return ret
 
