@@ -27,7 +27,6 @@ from ... import op as reg
 from ...op import OpPattern
 
 
-
 def requantize(
     data,
     input_scale,
@@ -121,9 +120,6 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     return _make.quantize(data, output_scale, output_zero_point, axis, out_dtype)
 
 
-<<<<<<< HEAD
-def dequantize(data, input_scale, input_zero_point, axis=-1):
-=======
 def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     r"""Simulated Quantize op
     Mimics the quantize op but has more flexibility in valid inputs and always
@@ -158,7 +154,6 @@ def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype
 
 
 def dequantize(data, input_scale, input_zero_point, axis=-1, out_dtype="float32"):
->>>>>>> Stuck on typerel problem.
     r"""Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
