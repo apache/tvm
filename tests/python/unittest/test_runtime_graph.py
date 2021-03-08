@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, runtime
 import numpy as np
 import json
 from tvm import rpc
