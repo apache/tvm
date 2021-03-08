@@ -56,7 +56,7 @@ void BacktraceCreateErrorCallback(void* data, const char* msg, int errnum) {
 }
 
 backtrace_state* BacktraceCreate() {
-    return backtrace_create_state(nullptr, 1, BacktraceCreateErrorCallback, nullptr);
+  return backtrace_create_state(nullptr, 1, BacktraceCreateErrorCallback, nullptr);
 }
 
 static backtrace_state* _bt_state = BacktraceCreate();
@@ -100,7 +100,8 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
     *symbol_str = DemangleName(symbol);
   } else {
     // see if syminfo gives anything
-    backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback, symbol_str.get());
+    backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
+                      symbol_str.get());
   }
   s << *symbol_str;
 
@@ -128,7 +129,7 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 std::string Backtrace() {
   BacktraceInfo bt;
   bt.max_size = 100;
-  if(_bt_state == nullptr) {
+  if (_bt_state == nullptr) {
     return "";
   }
   // libbacktrace eats memory if run on multiple threads at the same time, so we guard against it
