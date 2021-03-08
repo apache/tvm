@@ -46,7 +46,7 @@ TARGET = None
 def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, target, target_host=target, name=op_name)
+        mod = tvm.build(sched, arg_bufs, tvm.target.Target(target, target), name=op_name)
 
     return _make_session(model, target, zephyr_board, west_cmd, mod)
 
