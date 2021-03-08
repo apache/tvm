@@ -191,6 +191,7 @@ def _get_quant_param_for_input(input_value):
         "quantized::cat": (2, 3),
         "quantized::mul_scalar": (2, 3),
         "quantized::add_scalar": (2, 3),
+        "quantized::hardswish": (1, 2),
     }
 
     def dfs(current_node):
@@ -358,6 +359,8 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::add_scalar": 1,
         "quantized::mul_scalar": 1,
         "quantized::relu6": 1,
+        "quantized::hardswish": 1,
+        "aten::hardsigmoid": 1,
     }
 
     need_input_quant_param = set(num_quantized_inputs.keys())
@@ -765,6 +768,7 @@ def _add_scalar():
         out_zp = _expr.const(inputs[3])
 
         if q_min > z - c_q or q_max < z - c_q:
+            # TODO(masahi): Replace this with integer only compute
             dequant = relay.qnn.op.dequantize(inputs[0], _expr.const(s), _expr.const(z))
             dequantized_add = _op.tensor.add(dequant, _expr.const(c_q * s))
             return relay.qnn.op.quantize(
@@ -816,6 +820,35 @@ def _mul_scalar():
         bias = _expr.const(q_max + q_min, dtype="int8")
         int8 = bias - _op.cast(inputs[0], "int8")
         return _op.cast(int8, "uint8")
+
+    return _impl
+
+
+def _hswish():
+    # refer to src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+    # They fallback to fp32
+    def _impl(inputs, _):
+        assert len(inputs) == 5, "Input quant params not found in op inputs"
+        # TODO(masahi): Replace this with integer only compute.
+        # We do not have to strictly follow how PyTorch does it.
+
+        def relu6(x):
+            return _op.tensor.clip(x, 0.0, 6.0)
+
+        def hardsigmoid(x):
+            dtype = "float32"
+            return relu6(x + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+
+        output_scale = _expr.const(inputs[1])
+        output_zero_point = _expr.const(inputs[2])
+        input_scale = _expr.const(inputs[3])
+        input_zero_point = _expr.const(inputs[4])
+
+        dequant = relay.qnn.op.dequantize(inputs[0], input_scale, input_zero_point, axis=1)
+        dequantized_hswish = dequant * hardsigmoid(dequant)
+        return relay.qnn.op.quantize(
+            dequantized_hswish, output_scale, output_zero_point, out_dtype="uint8"
+        )
 
     return _impl
 
@@ -906,4 +939,5 @@ convert_map = {
     "quantized::mul_scalar": _mul_scalar(),
     "quantized::relu6": _relu6(),
     "quantized::linear_dynamic": _linear_dynamic(),
+    "quantized::hardswish": _hswish(),
 }
