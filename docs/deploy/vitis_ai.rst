@@ -465,7 +465,7 @@ target and partition the graph.
 Now, we can build the TVM runtime library for executing the model. The
 TVM target is 'llvm' as the operations that can't be handled by the DPU
 are executed on the CPU. The Vitis-AI DPU is DPUCADX8G as we are
-targeting the cloud DPU and this DPU indetifier is passed as a config to the TVM
+targeting the cloud DPU and this DPU identifier is passed as a config to the TVM
 build call.
 
 .. code:: python
