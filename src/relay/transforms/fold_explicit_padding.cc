@@ -182,7 +182,7 @@ class SimplifyExplicitPadding {
 };
 
 /*!
- * \brief ImplicitPadding finds explict padding before an op that can
+ * \brief FoldExplicitPadding finds explict padding before an op that can
  * support implicit padding and fuses them.
  */
 Expr FoldExplicitPadding(const Expr& expr, const IRModule& mod) {
