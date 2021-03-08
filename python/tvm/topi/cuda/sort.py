@@ -121,7 +121,6 @@ def _odd_even_sort(
     values_swap=None,
 ):
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = block_size // 2
     nthread_bx = ceil_div(size, block_size)
     nthread_by = axis_mul_before
@@ -164,7 +163,6 @@ def _odd_even_sort(
 
         ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
 
-        idxd = tvm.tir.indexdiv
         idxm = tvm.tir.indexmod
         # OddEvenTransposeSort
         current_sort_num = tvm.tir.min(block_size, size - start)
@@ -351,8 +349,7 @@ def _sort_common(
                 step_count,
                 even,
             ):
-                base_idx = by * size
-
+                # pylint: disable=arguments-out-of-order
                 def merge(source, dest, source_idx, dest_idx):
                     diag = tx * step_count
                     first, last = get_merge_begin(
