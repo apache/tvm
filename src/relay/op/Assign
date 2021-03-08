@@ -1,0 +1,273 @@
+algorithm/argsort.cc:  reporter->Assign(types[1], TensorType(data->shape, param->dtype));
+algorithm/sort.cc:  reporter->Assign(types[1], TensorType(data->shape, data->dtype));
+algorithm/topk.cc:    reporter->Assign(types[1], TupleType({values_ty, indices_ty}));
+algorithm/topk.cc:    reporter->Assign(types[1], values_ty);
+algorithm/topk.cc:    reporter->Assign(types[1], indices_ty);
+type_relations.cc:    reporter->Assign(types[i], types[0]);
+type_relations.cc:        reporter->GetDiagCtx().Emit(Diagnostic::Error(t0->span)
+type_relations.cc:      reporter->Assign(
+type_relations.cc:        reporter->GetDiagCtx().Emit(Diagnostic::Error(t0->span)
+type_relations.cc:      reporter->Assign(types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1),
+type_relations.cc:    reporter->Assign(types[1], out_type);
+type_relations.cc:  reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
+vision/nms.cc:  reporter->Assign(types[2], TupleType(Array<Type>(fields)));
+vision/nms.cc:    reporter->Assign(types[5], TupleType(Array<Type>(fields)));
+vision/nms.cc:    reporter->Assign(types[5], TensorType(dshape, data->dtype));
+vision/multibox_op.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+vision/multibox_op.cc:  ICHECK(reporter->AssertEQ(cls_shape[2], anchor_shape[1])) << "Number of anchors mismatch found";
+vision/multibox_op.cc:  ICHECK(reporter->AssertEQ(cls_shape[2] * 4, loc_shape[1])) << "# anchors mismatch with # loc.";
+vision/multibox_op.cc:  ICHECK(reporter->Assert(anchor_shape[1] > 0)) << "Number of anchors must > 0.";
+vision/multibox_op.cc:  ICHECK(reporter->AssertEQ(anchor_shape[2], 4));
+vision/multibox_op.cc:  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
+vision/rcnn_op.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+vision/rcnn_op.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+vision/rcnn_op.cc:  ICHECK(reporter->AssertEQ(im_info->shape[1], 3));
+vision/rcnn_op.cc:  reporter->Assign(types[3], TensorType(oshape, cls_prob->dtype));
+vision/yolo.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+random/kernel.cc:  reporter->Assign(types[0], ThreefryKeyType());
+random/kernel.cc:  reporter->Assign(types[1],
+random/kernel.cc:  reporter->Assign(types[0], ThreefryKeyType());
+random/kernel.cc:  reporter->Assign(types[1], TupleType({ThreefryKeyType(), ThreefryKeyType()}));
+image/dilation2d.cc:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+image/resize.cc:  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+image/resize.cc:  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+image/resize.cc:  reporter->Assign(types[3], TensorType(bshape, out_dtype));
+image/grid_sample.cc:  ICHECK(data->shape.size() == 3U && reporter->AssertEQ(data->shape[1], 2) &&
+image/grid_sample.cc:         reporter->AssertEQ(data->shape[2], 3))
+image/grid_sample.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+image/grid_sample.cc:  reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(data->shape, param->dtype));
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(data->shape, dtype_like->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:          reporter->AssertEQ(first->shape[j], e->shape[j]))
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1],
+tensor/transform.cc:    ICHECK(reporter->AssertEQ(data->Size(), output_type->Size()))
+tensor/transform.cc:  reporter->Assign(types[2], output_type);
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(result_shape, DataType::Int(32)));
+tensor/transform.cc:  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+tensor/transform.cc:    reporter->AssertEQ(indices->shape[i + 1], data->shape[i]);
+tensor/transform.cc:    reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/transform.cc:    reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, out_dtype));
+tensor/transform.cc:  reporter->Assign(types[0], TensorType(oshape, out_dtype));
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[0], types[1]);
+tensor/transform.cc:  reporter->Assign(types[1], types[2]);
+tensor/transform.cc:  reporter->Assign(types[2], TensorType({}, attrs->dtype));
+tensor/transform.cc:    reporter->Assign(types[3], TensorType({num_elem}, attrs->dtype));
+tensor/transform.cc:    reporter->Assign(types[3], TensorType({Any()}, attrs->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TupleType(Array<Type>(grids)));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], types[0]);
+tensor/transform.cc:  ICHECK(reporter->Assert(seq_lengths->shape[0] == data->shape[batch_axis]))
+tensor/transform.cc:  reporter->Assign(types[2], types[0]);
+tensor/transform.cc:  reporter->Assign(types[3], ret_ty);
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(result_shape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[2], types[1]);
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, out_dtype));
+tensor/transform.cc:  reporter->Assign(types[2], types[1]);
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[5], types[0]);
+tensor/transform.cc:      ICHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
+tensor/transform.cc:    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+tensor/transform.cc:      ICHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
+tensor/transform.cc:      ICHECK(reporter->Assert(begin < data->shape[axis]))
+tensor/transform.cc:    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+tensor/transform.cc:        ICHECK(reporter->Assert(oshape[i] <= dshape[i]))
+tensor/transform.cc:      ICHECK(reporter->Assert(oshape[axis] <= dshape[axis]))
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(out_shape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(dst_shape, data->dtype));
+tensor/transform.cc:      ICHECK(reporter->AssertEQ(indices->shape[i], data->shape[i]));
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(valid_length_shape, valid_length->dtype));
+tensor/transform.cc:  reporter->Assign(types[2], types[0]);
+tensor/transform.cc:  reporter->Assign(types[3], TensorType(oshape, param->dtype));
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, indices->dtype));
+tensor/transform.cc:  reporter->Assign(types[3], TensorType(oshape, sparse_values->dtype));
+tensor/transform.cc:  reporter->Assert(input->shape[i_ndims - 2] > -param->k1);
+tensor/transform.cc:  reporter->Assert(input->shape[i_ndims - 1] > param->k2);
+tensor/transform.cc:    reporter->AssertEQ(input->shape[i], diagonal->shape[i]);
+tensor/transform.cc:    reporter->AssertEQ(diagonal->shape[d_ndims - 2], param->k2 - param->k1 + 1);
+tensor/transform.cc:    reporter->AssertEQ(input->shape[d_ndims - 2], diagonal->shape[d_ndims - 2]);
+tensor/transform.cc:  reporter->AssertEQ(diagonal->shape[d_ndims - 1], max_diag_len);
+tensor/transform.cc:  reporter->Assign(types[2], TensorType(input->shape, input->dtype));
+tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/transform.cc:    reporter->Assign(types[1], TensorType(data->shape, dtype));
+tensor/transform.cc:    reporter->Assign(types[1], TensorType({prod}, dtype));
+tensor/transform.h:    reporter->GetDiagCtx().EmitFatal(
+tensor/transform.h:        Diagnostic::Error(reporter->GetSpan())
+tensor/transform.h:    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+tensor/transform.h:        if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
+tensor/transform.h:  reporter->Assign(types[1], rtype);
+tensor/reduce.cc:    ICHECK(reporter->Assert(
+tensor/reduce.cc:  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
+tensor/reduce.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+tensor/reduce.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+tensor/unary.cc:  reporter->Assign(types[1], TensorType({}, param->dtype));
+memory/memory.cc:  auto mod = reporter->GetModule();
+memory/memory.cc:  reporter->Assign(types[2], storage);
+memory/memory.cc:  auto mod = reporter->GetModule();
+memory/memory.cc:  reporter->Assign(types[0], storage);
+memory/memory.cc:  reporter->Assign(types[3], alloc_type);
+memory/memory.cc:  reporter->Assign(types[1], TupleType::Empty());
+nn/nn.h:      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+nn/nn.h:      ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
+nn/nn.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/nn.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->channels, wshape[0]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:    reporter->GetDiagCtx().Emit(
+nn/convolution.h:        Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:    reporter->GetDiagCtx().Emit(
+nn/convolution.h:        Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:    reporter->GetDiagCtx().Emit(
+nn/convolution.h:        Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:      reporter->GetDiagCtx().Emit(
+nn/convolution.h:          Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+nn/convolution.h:      if (!reporter->AssertEQ(param->kernel_size[0], wshape[2])) {
+nn/convolution.h:        reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:      if (!reporter->AssertEQ(param->kernel_size[1], wshape[3])) {
+nn/convolution.h:        reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:    if (param->channels.defined() && !reporter->AssertEQ(param->channels, wshape[0])) {
+nn/convolution.h:      reporter->GetDiagCtx().Emit(
+nn/convolution.h:          Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:      if (!reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1])) {
+nn/convolution.h:        reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
+nn/convolution.h:             reporter->AssertEQ(param->kernel_size[1], wshape[3]) &&
+nn/convolution.h:             reporter->AssertEQ(param->kernel_size[2], wshape[4]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->channels, wshape[0]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[1]));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), data->dtype));
+nn/convolution.h:  reporter->Assign(types[1], TensorType(oshape, weight->dtype));
+nn/convolution.h:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/convolution.h:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), out_dtype));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->channels, wshape[1]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(indexdiv(dshape_ncw[1], param->groups), wshape[0]));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
+nn/convolution.h:             reporter->AssertEQ(param->kernel_size[1], wshape[3]) &&
+nn/convolution.h:             reporter->AssertEQ(param->kernel_size[2], wshape[4]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->channels, wshape[1]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[0]));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
+nn/convolution.h:             reporter->AssertEQ(param->kernel_size[1], wshape[3]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->channels, wshape[1]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[0]));
+nn/convolution.h:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/convolution.h:    reporter->GetDiagCtx().Emit(
+nn/convolution.h:        Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:    reporter->GetDiagCtx().Emit(
+nn/convolution.h:        Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:    reporter->GetDiagCtx().Emit(
+nn/convolution.h:        Diagnostic::Error(reporter->GetSpan())
+nn/convolution.h:    reporter->Assign(types[2], TensorType(wshape, data->dtype));
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
+nn/convolution.h:             reporter->AssertEQ(param->kernel_size[1], wshape[3]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(param->channels, wshape[0]))
+nn/convolution.h:      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1]));
+nn/convolution.h:  reporter->Assign(types[1], TensorType(offset_shape, data->dtype));
+nn/convolution.h:  reporter->Assign(types[3], TensorType(oshape, out_dtype));
+nn/upsampling.cc:  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+nn/upsampling.cc:  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+nn/sparse.cc:      reporter->Assign(types[4], TensorType(oshape, weight->dtype));
+nn/sparse.cc:      reporter->Assign(types[4], TensorType(oshape, weight->dtype));
+nn/sparse.cc:      reporter->Assign(types[4], TensorType(oshape, data->dtype));
+nn/sparse.cc:      reporter->Assign(types[4], TensorType(oshape, data->dtype));
+nn/sparse.cc:  reporter->Assign(types[3], TupleType(Array<Type>(output_types)));
+nn/nn.cc:  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[2], types[0]);
+nn/nn.cc:  reporter->Assert(buffer_axis < buffer->shape.size());
+nn/nn.cc:      reporter->AssertEQ(input->shape[i], buffer->shape[i]);
+nn/nn.cc:  reporter->Assert(input->shape[buffer_axis] < buffer->shape[buffer_axis]);
+nn/nn.cc:  reporter->Assign(types[2], TensorType(oshape, buffer->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(alpha_shape, data->dtype));
+nn/nn.cc:  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TupleType(Array<Type>({ret_type, ret_type})));
+nn/nn.cc:  reporter->Assign(types[1], TensorType({axis_size}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[2], TensorType({axis_size}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[3], TensorType({axis_size}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[4], TensorType({axis_size}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[5], TupleType(Array<Type>(fields)));
+nn/nn.cc:  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[2], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[2], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[2], TensorType({data->shape[axis]}, data->dtype));
+nn/nn.cc:  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+nn/nn.cc:    ICHECK(reporter->AssertEQ(x->shape[0], y_shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
+nn/nn.cc:           reporter->AssertEQ(y_shape[0], 1))
+nn/nn.cc:    ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
+nn/nn.cc:  reporter->Assign(types[2], TensorType(oshape, x->dtype));
+nn/nn.cc:  ICHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+nn/nn.cc:  ICHECK(reporter->AssertEQ(x->shape[1], y->shape[1]))
+nn/nn.cc:  reporter->Assign(types[2], TensorType({}, x->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), x->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(out_shape), input->dtype));
+nn/nn.cc:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(out_shape), input->dtype));
+nn/correlation.cc:  reporter->Assign(types[2], TensorType(oshape, data1->dtype));
+nn/pad.cc:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), data->dtype));
+nn/pad.cc:  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), data->dtype));
+nn/bitserial.cc:  reporter->Assign(types[1], TensorType(out_shape, pack_type));
+nn/bitserial.cc:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/bitserial.cc:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+nn/pooling.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/pooling.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/pooling.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/pooling.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/pooling.cc:  reporter->Assign(types[2], types[1]);
+nn/pooling.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+nn/pooling.cc:  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+vm/vm.cc:  reporter->Assign(types[1], input_type);
+vm/vm.cc:  reporter->Assign(types[2], output_type);
+vm/vm.cc:  reporter->Assign(types[3], TupleType::Empty());
+vm/vm.cc:  reporter->Assign(ex_input, GetRef<Type>(input_type));
+vm/vm.cc:  reporter->Assign(ex_output, GetRef<Type>(output_type));
+vm/vm.cc:  reporter->Assign(types[3], TupleType::Empty());
+vm/vm.cc:  reporter->Assign(types[2], TensorType(reshape_attrs->newshape, tt->dtype));
+dyn/algorithm/topk.cc:    reporter->Assign(types[2], TupleType({values_ty, indices_ty}));
+dyn/algorithm/topk.cc:    reporter->Assign(types[2], values_ty);
+dyn/algorithm/topk.cc:    reporter->Assign(types[2], indices_ty);
+dyn/image/resize.cc:  reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[1], TensorType(oshape, out_dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[4], TensorType(oshape, param->dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[4], TensorType(oshape, data->dtype));
+dyn/tensor/transform.cc:  reporter->Assign(types[4], TensorType(oshape, sparse_values->dtype));
+dyn/nn/upsampling.cc:  reporter->Assign(types[3], TensorType(oshape, data->dtype));
+dyn/nn/upsampling.cc:  reporter->Assign(types[4], TensorType(oshape, data->dtype));
+dyn/nn/pad.cc:  reporter->Assign(types[3], TensorType(oshape, data->dtype));

@@ -94,24 +94,24 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         int8_value = te.compute(
             data.shape,
             lambda *indices: tir.if_then_else(
-                out_dtype[0] == SQNN_INT8,
-                _compute_intn(SQNN_CODE_TO_DTYPE[SQNN_INT8], value, *indices),
+                out_dtype[0] == SQNN_DTYPE_TO_CODE['int8'],
+                _compute_intn('int8', value, *indices),
                 fp32_value[indices],
             ),
         )
         uint8_value = te.compute(
             data.shape,
             lambda *indices: tir.if_then_else(
-                out_dtype[0] == SQNN_UINT8,
-                _compute_intn(SQNN_CODE_TO_DTYPE[SQNN_UINT8], value, *indices),
+                out_dtype[0] == SQNN_DTYPE_TO_CODE['uint8'],
+                _compute_intn('uint8', value, *indices),
                 int8_value[indices],
             ),
         )
         int32_value = te.compute(
             data.shape,
             lambda *indices: tir.if_then_else(
-                out_dtype[0] == SQNN_INT32,
-                _compute_intn(SQNN_CODE_TO_DTYPE[SQNN_INT32], value, *indices),
+                out_dtype[0] == SQNN_DTYPE_TO_CODE['int32'],
+                _compute_intn('int32', value, *indices),
                 uint8_value[indices],
             ),
         )

@@ -75,6 +75,18 @@ struct QuantizeAttrs : public tvm::AttrsNode<QuantizeAttrs> {
   }
 };
 
+struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .describe(
+            "The output channel axis for channel wise quantization. Default value is -1,"
+            "which corresponds to the last axis.")
+        .set_default(-1);
+  }
+};
+
 /*! \brief Attribute for dequantize operator */
 struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
   int axis;
