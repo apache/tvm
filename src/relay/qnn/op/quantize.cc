@@ -50,18 +50,15 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       << "Input type should be one of float32 but was " << input_dtype;
 
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
+  int axis = quantize_attrs->axis;
+  axis = (axis < 0) ? data->shape.size() + axis : axis;
+  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
+      << "axis " << quantize_attrs->axis << " is out of range";
+  ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
 
-  // Assign type to scale and zero point if they're channelwise.
-  if (data->shape.size() != 0) {
-    int axis = quantize_attrs->axis;
-    axis = (axis < 0) ? data->shape.size() + axis : axis;
-    ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-        << "axis " << quantize_attrs->axis << " is out of range";
-    ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
-    // Check and assign types for scale and zero points.
-    AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-    AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
-  }
+  // Check and assign types for scale and zero points.
+  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
+  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;
