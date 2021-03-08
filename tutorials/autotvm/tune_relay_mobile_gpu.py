@@ -201,12 +201,9 @@ def get_network(name, batch_size):
 # set :code:`use_android` to True if you use android phone.
 
 #### DEVICE CONFIG ####
-
-target = tvm.target.Target("opencl -device=mali")
-
 # Replace "aarch64-linux-gnu" with the correct target of your board.
 # This target host is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target_host = "llvm -mtriple=aarch64-linux-gnu"
+target = tvm.target.Target("opencl -device=mali", "llvm -mtriple=aarch64-linux-gnu")
 
 # Also replace this with the device key in your tracker
 device_key = "rk3399"
@@ -316,7 +313,7 @@ def tune_and_evaluate(tuning_opt):
     mod, params, input_shape, _ = get_network(network, batch_size=1)
     tasks = autotvm.task.extract_from_program(
         mod["main"],
-        target=tvm.target.Target(target, target_host),
+        target,
         params=params,
         ops=(relay.op.get("nn.conv2d"),),
     )
@@ -329,9 +326,7 @@ def tune_and_evaluate(tuning_opt):
     with autotvm.apply_history_best(log_file):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build_module.build(
-                mod, target=tvm.target.Target(target, target_host), params=params
-            )
+            lib = relay.build_module.build(mod, target, params=params)
         # export library
         tmp = tempdir()
         if use_android:

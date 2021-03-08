@@ -139,8 +139,7 @@ layout = "NHWC"
 use_ndk = True
 # Path to cross compiler
 os.environ["TVM_NDK_CC"] = "/usr/bin/aarch64-linux-gnu-g++"
-target_host = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
-target = tvm.target.Target("opencl -device=mali")
+target = tvm.target.Target("opencl -device=mali", "llvm -mtriple=aarch64-linux-gnu")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
@@ -170,9 +169,7 @@ device_key = "rk3399"
 # Extract tasks from the network
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
-tasks, task_weights = auto_scheduler.extract_tasks(
-    mod["main"], params, tvm.target.Target(target, target_host)
-)
+tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
@@ -201,7 +198,7 @@ for idx, task in enumerate(tasks):
 #   .. code-block:: python
 #
 #    tasks, task_weights = auto_scheduler.extract_tasks(
-#        mod["main"], params, tvm.target.Target(target, target_host), hardware_params = hardware_params
+#        mod["main"], params, target, hardware_params = hardware_params
 #    )
 #
 
@@ -244,7 +241,7 @@ def tune_and_evaluate():
         with tvm.transform.PassContext(
             opt_level=3, config={"relay.backend.use_auto_scheduler": True}
         ):
-            lib = relay.build(mod, target=tvm.target.Target(target, target_host), params=params)
+            lib = relay.build(mod, target, params=params)
 
     # Create graph runtime
     print("=============== Request Remote ===============")

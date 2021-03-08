@@ -100,11 +100,10 @@ mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # Relay Build
 # -----------
 # Compile the graph to llvm target with given input specification.
-target = "llvm"
-target_host = "llvm"
+target = tvm.target.Target("llvm --host=llvm")
 ctx = tvm.cpu(0)
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=tvm.target.Target(target, target_host), params=params)
+    lib = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
