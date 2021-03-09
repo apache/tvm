@@ -2152,7 +2152,7 @@ def sparse_transpose(x):
 def sparse_add(dense_mat, sparse_mat):
     r"""
     Computes the matrix addition of `dense_mat` and `sparse_mat`, where `dense_mat` is
-    a dense matrix and `sparse_mat` is a sparse (either BSR or CSR) namedtuple with
+    a dense matrix and `sparse_mat` is a sparse (CSR) namedtuple with
     fields `data`, `indices`, and `indptr`.
 
     .. math::
