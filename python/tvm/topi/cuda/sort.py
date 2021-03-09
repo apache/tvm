@@ -265,14 +265,14 @@ def _sort_common(
         first[0] = tvm.te.max(0, diag - bCount)
         last[0] = tvm.te.min(diag, aCount)
         with ib.while_loop(first[0] < last[0]):
-            mid[0] = (first[0] + last[0]) >> 1
-            a = source[base_idx + (aStart + mid[0])]
-            b = source[base_idx + (bStart + diag - 1 - mid[0])]
+            mid = (first[0] + last[0]) >> 1
+            a = source[base_idx + (aStart + mid)]
+            b = source[base_idx + (bStart + diag - 1 - mid)]
             with ib.if_scope(compare(a, b)):
-                first[0] = mid[0] + 1
+                first[0] = mid + 1
             with ib.else_scope():
-                last[0] = mid[0]
-        return first, last
+                last[0] = mid
+        return first[0], last[0]
 
     def serial_merge(
         source,
@@ -292,8 +292,8 @@ def _sort_common(
     ):
         i = ib.allocate("int64", (1,), name="i", scope="local")
         j = ib.allocate("int64", (1,), name="j", scope="local")
-        i[0] = aStart + first[0]
-        j[0] = bStart + diag - last[0]
+        i[0] = aStart + first
+        j[0] = bStart + diag - last
         with ib.for_range(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
             i_idx = base_idx + i[0]
             j_idx = base_idx + j[0]
@@ -387,18 +387,14 @@ def _sort_common(
 
             def mergesort(source, dest, source_idx, dest_idx, size, width, even):
                 # calculate the start, mid, and end points of this section
-                start = ib.allocate("int64", (1,), name="start", scope="local")
-                middle = ib.allocate("int64", (1,), name="middle", scope="local")
-                end = ib.allocate("int64", (1,), name="end", scope="local")
-
-                start[0] = width * bz
-                middle[0] = tvm.te.min(start[0] + tvm.tir.indexdiv(width, 2), size)
-                end[0] = tvm.te.min(start[0] + width, size)
-                with ib.if_scope(start[0] < size):
+                start = width * bz
+                middle = tvm.te.min(start + tvm.tir.indexdiv(width, 2), size)
+                end = tvm.te.min(start + width, size)
+                with ib.if_scope(start < size):
                     with ib.if_scope(nbx == 1):
                         ## merge the start->middle and middle->end arrays
-                        aCount = middle[0] - start[0]
-                        bCount = end[0] - middle[0]
+                        aCount = middle - start
+                        bCount = end - middle
                         mergepath(
                             source,
                             dest,
@@ -406,9 +402,9 @@ def _sort_common(
                             dest_idx,
                             aCount,
                             bCount,
-                            start[0],
-                            middle[0],
-                            start[0],
+                            start,
+                            middle,
+                            start,
                             ceil_div(width, ntx),
                             even,
                         )
@@ -419,10 +415,10 @@ def _sort_common(
                             first, last = get_merge_begin(
                                 source,
                                 by * size,
-                                middle[0] - start[0],
-                                end[0] - middle[0],
-                                start[0],
-                                middle[0],
+                                middle - start,
+                                end - middle,
+                                start,
+                                middle,
                                 diag,
                                 step_count,
                             )
@@ -430,17 +426,17 @@ def _sort_common(
                             first, last = get_merge_begin(
                                 dest,
                                 by * size,
-                                middle[0] - start[0],
-                                end[0] - middle[0],
-                                start[0],
-                                middle[0],
+                                middle - start,
+                                end - middle,
+                                start,
+                                middle,
                                 diag,
                                 step_count,
                             )
-                        aStart = start[0] + first[0]
-                        bStart = middle[0] + diag - last[0]
-                        aCount = tvm.te.min(middle[0] - aStart, step_count)
-                        bCount = tvm.te.min(end[0] - bStart, step_count)
+                        aStart = start + first
+                        bStart = middle + diag - last
+                        aCount = tvm.te.min(middle - aStart, step_count)
+                        bCount = tvm.te.min(end - bStart, step_count)
                         mergepath(
                             source,
                             dest,
@@ -450,7 +446,7 @@ def _sort_common(
                             bCount,
                             aStart,
                             bStart,
-                            start[0] + diag,
+                            start + diag,
                             thread_work,
                             even,
                         )

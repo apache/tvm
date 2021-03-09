@@ -133,6 +133,9 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
     }
     env_threads_.pop_back();
   } else if (op->attr_key == attr::hand_threaded) {
+    // skip this pass on blocks that were hand_threaded
+    // this avoids control flow and read/write conflicts
+    // between hand-threaded kernels and automatic threading
   } else {
     StmtExprVisitor::VisitStmt_(op);
   }
