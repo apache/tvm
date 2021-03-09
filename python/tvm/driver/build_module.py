@@ -386,12 +386,10 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
             f"but got {type(inputs)}."
         )
 
-    flag_target_inputs = False
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
         target_input_mod = {target: input_mod}
-        flag_target_inputs = True
     else:
         target_input_mod = inputs
 
@@ -401,13 +399,12 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
-    target = Target(target, target_host)
-    target_host = target.host
-    if flag_target_inputs:
-        target_input_mod = {target: input_mod}
+    for tar, mod in target_input_mod.items():
+        if isinstance(tar, (str, Target)):
+            target_host = Target(tar, target_host).host
 
     if not target_host:
-        for tar, _ in target_input_mod.items():
+        for tar, mod in target_input_mod.items():
             tar = Target(tar)
             device_type = ndarray.context(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
@@ -416,10 +413,14 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    target = Target(target, target_host)
-    target_host = target.host
-    if flag_target_inputs:
-        target_input_mod = {target: input_mod}
+    new_input_mod = {}
+    for tar, mod in target_input_mod.items():
+        if isinstance(tar, (str, Target)):
+            new_tar = Target(target=tar, host=target_host)
+            new_input_mod[new_tar] = mod
+        else:
+            new_input_mod[tar] = mod
+    target_input_mod = new_input_mod
 
     mod_host_all = tvm.IRModule({})
 
@@ -439,8 +440,6 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
-        target = Target(target, target_host)
-        target_host = target.host
     if (
         target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
         and target_host.attrs.get("system-lib", 0).value == 1
