@@ -35,4 +35,4 @@ def simulated_quantize_compute(attrs, inputs, output_type):
 
 
 register_injective_schedule("qnn.simulated_quantize")
-register_pattern("qnn.simulated_quantize", OpPattern.OPAQUE)
+register_pattern("qnn.simulated_quantize", OpPattern.ELEMWISE)

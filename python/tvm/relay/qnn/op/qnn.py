@@ -162,7 +162,7 @@ def dequantize(data, input_scale, input_zero_point, axis=-1, out_dtype="float32"
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input tensor to be dequantized. Can be of type [int8, uint8].
+        The input tensor to be dequantized. Can be of type [int8, uint8, int32].
     input_zero_point : tvm.relay.Expr
         The input zero_point.
     input_scale : tvm.relay.Expr

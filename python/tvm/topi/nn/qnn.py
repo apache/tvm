@@ -88,7 +88,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
     # Use an if chain to dynamically return the proper quantization based on the input datatype.
     # This allows the op to compile once but apply different quantization approaches
     # using a variable datatype input.
-    def _dispatch_sim_qnn(value):
+    def _dispatch_sim_quantize(value):
         fp32_value = te.compute(data.shape, lambda *indices: _compute_fp32(value, *indices))
         int8_value = te.compute(
             data.shape,
@@ -117,4 +117,70 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
 
         return int32_value
 
-    return te.compute(data.shape, lambda *indices: _dispatch_sim_qnn(data)[indices])
+    return te.compute(data.shape, lambda *indices: _dispatch_sim_quantize(data)[indices])
+
+
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
+def simulated_dequantize(data, out_dtype, output_scale=None, output_zero_point=None, axis=-1):
+    """Simulated QNN dequantize operator that mimics QNN outputs in floating point. The benefit
+    of this operator over true QNN quantize is that this operator allows dynamic datatype
+    selection and can operate on both per-channel and scalar scales and zero points while
+    QNN quantize requires both of these to be fixed at compile time.
+
+    Parameters
+    ----------
+    data: tvm.te.Tensor
+        An N-D input tensor to the operator.
+
+    out_dtype: tvm.te.Tensor
+        A 1-D variable that indicates which datatype to simulate quantization with. Use
+        SQNN_DTYPE_TO_CODE to convert a dtype string into the corresponding variable
+        value.
+
+    output_scale: tvm.te.Tensor, optional
+        A scalar tensor representing the scale to use when quantizing to integer datatypes.
+        When it contains more than a single value, N must match the number of channels in data.
+
+    output_zero_point: tvm.te.Tensor, optional
+        A 1-D tensor representing the zero point to use when quantizing to integer datatypes.
+        When it contains more than a single value, N must match the number of channels in data.
+
+    axis: int, optional
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
+    """
+    # Since all simulated inputs are in float32, we can just return the input tensor for fp32.
+    def _compute_fp32(value, *indices):
+        return value[indices]
+
+    # Simulate dequantization for arbitrary integer datatypes. The computation for all datatypes is:
+    # DQ_output = (input - zero_point) * scale
+    def _compute_intn(value, *indices):
+        assert output_scale is not None and output_zero_point is not None
+        # Use indexmod to handle both scalar and per-channel QNN parameters.
+        scale_idx = tir.indexmod(indices[axis], topi.shape(output_scale)[0])
+        zp_idx = tir.indexmod(indices[axis], topi.shape(output_zero_point)[0])
+        return (value[indices] - output_zero_point[zp_idx]) * output_scale[scale_idx]
+
+    # Use an if chain to dynamically return the proper dequantization based on the input datatype.
+    # This allows the op to compile once but apply different quantization approaches
+    # using a variable datatype input.
+    def _dispatch_sim_dequantize(value):
+        fp32_value = te.compute(data.shape, lambda *indices: _compute_fp32(value, *indices))
+        intn_condition = tvm.te.any(
+            out_dtype.equal(SQNN_DTYPE_TO_CODE["int8"]),
+            out_dtype.equal(SQNN_DTYPE_TO_CODE["uint8"]),
+            out_dtype.equal(SQNN_DTYPE_TO_CODE["int32"]),
+        )
+        intn_value = te.compute(
+            data.shape,
+            lambda *indices: tir.if_then_else(
+                intn_condition,
+                _compute_intn(value, *indices),
+                fp32_value[indices],
+            ),
+        )
+
+        return intn_value
+
+    return te.compute(data.shape, lambda *indices: _dispatch_sim_dequantize(data)[indices])
