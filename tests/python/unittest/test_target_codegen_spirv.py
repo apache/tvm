@@ -72,24 +72,6 @@ def test_bool_load():
     tvm.testing.assert_allclose(b.asnumpy(), ref)
 
 
-def check_result(
-    args,
-    mod,
-    expected,
-    flatten=False,
-    assert_shape=False,
-    only_vm=False,
-    targets=None,
-):
-    for kind in ["debug", "vm"]:
-        targets = targets or tvm.testing.enabled_targets()
-        for tgt, ctx in targets:
-            ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
-            result = ex.evaluate()(*args)
-            for r, e in zip(result, expected):
-                tvm.testing.assert_allclose(r, e, atol=2e-6)
-
-
 def test_pushconstants():
     # This will have three 32 bit pushconstants
     dtype = "float32"
