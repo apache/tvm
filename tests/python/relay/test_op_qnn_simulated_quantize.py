@@ -63,7 +63,7 @@ def build_simulated_quantize(input_data, scale, zp, dtype, axis=-1):
     return vm
 
 
-def test_simulated_quantize_simple(dtype):
+def verify_simulated_quantize_simple(dtype):
     data = np.random.uniform(low=-128, high=127, size=[2, 5]).astype("float32")
     scale_np = np.float32(0.5)
     zp_np = np.int32(127)
@@ -83,6 +83,12 @@ def test_simulated_quantize_simple(dtype):
     vm = build_simulated_quantize(input_data, scale, zp, dtype)
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
     np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+
+
+def test_simulated_quantize():
+    verify_simulated_quantize_simple("uint8")
+    verify_simulated_quantize_simple("int8")
+    verify_simulated_quantize_simple("int32")
 
 
 def test_dynamic_channels():
@@ -167,8 +173,6 @@ def test_dynamic_dtype():
 
 
 if __name__ == "__main__":
-    test_simulated_quantize_simple("uint8")
-    test_simulated_quantize_simple("int8")
-    test_simulated_quantize_simple("int32")
+    test_simulated_quantize()
     test_dynamic_channels()
     test_dynamic_dtype()
