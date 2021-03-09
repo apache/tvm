@@ -167,7 +167,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
   ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
   int32_t alpha = args.size() > 5 ? args[5] : 1;
   int32_t beta = args.size() > 6 ? args[6] : 0;
-  cublasLtMatrixLayout_t Adesc = NULL, Bdesc = NULL, Cdesc = NULL;
+  cublasLtMatrixLayout_t Adesc = nullptr, Bdesc = nullptr, Cdesc = nullptr;
   auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
   auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
@@ -204,7 +204,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
                                                       &order_COL32, sizeof(order_COL32)));
 
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
-                                    C_data, Cdesc, C_data, Cdesc, NULL, NULL, 0, 0));
+                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
 }
 #endif
 
