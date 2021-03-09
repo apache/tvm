@@ -96,7 +96,7 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
 
     # Create random numpy values to assign to inputs.
     a_np = np.random.uniform(low=-128, high=127, size=data_shape).astype(in_dtype)
-    a_np_f = a_np.astype('float32')
+    a_np_f = a_np.astype("float32")
     d_np = np.int32(topi.nn.SQNN_DTYPE_TO_CODE[in_dtype])
     s_np = np.random.uniform(low=1e-4, high=0.1, size=channels).astype("float32")
     z_np = np.random.uniform(low=-10, high=10, size=channels).astype("int32")

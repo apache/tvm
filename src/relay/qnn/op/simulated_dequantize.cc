@@ -35,7 +35,7 @@ namespace relay {
 namespace qnn {
 
 bool SimulatedDequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                          const TypeReporter& reporter) {
+                            const TypeReporter& reporter) {
   // types = [data_type, datatype_type, scale_type, zp_type, ret_type]
   ICHECK_EQ(types.size(), 5);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -70,12 +70,12 @@ RELAY_REGISTER_OP("qnn.simulated_dequantize")
     .add_argument("in_dtype", "Tensor",
                   "A code corresponding to the type of quantization to convert from.")
     .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
-    .add_argument("input_zero_point", "Tensor",
-                  "The quantization zero_point of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
     .set_support_level(11)
     .add_type_rel("QNNSimulatedDequantize", SimulatedDequantizeRel);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.simulated_dequantize").set_body_typed(MakeSimulatedDequantize);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.simulated_dequantize")
+    .set_body_typed(MakeSimulatedDequantize);
 
 }  // namespace qnn
 }  // namespace relay

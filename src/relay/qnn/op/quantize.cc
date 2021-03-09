@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/qnn/op/quantize.cc
- * \brief QNN quantize operator. Quantize operator converts from unquantized 
+ * \brief QNN quantize operator. Quantize operator converts from unquantized
  * domain to quantized domain.
  */
 

@@ -19,7 +19,7 @@
 
 from tvm import topi
 
-from ...op.op import register_compute 
+from ...op.op import register_compute
 from ...op.op import register_injective_schedule
 from ...op.op import register_pattern, OpPattern
 

@@ -64,7 +64,7 @@ def build_simulated_dequantize(input_data, scale, zp, dtype, axis=-1):
 
 def test_simulated_dequantize_simple(dtype):
     data = np.random.uniform(low=-128, high=127, size=[2, 5]).astype(dtype)
-    data_fp = data.astype('float32')
+    data_fp = data.astype("float32")
     scale_np = np.float32(0.5)
     zp_np = np.int32(127)
     dtype_np = np.int32(SQNN_DTYPE_TO_CODE[dtype])
@@ -87,7 +87,7 @@ def test_simulated_dequantize_simple(dtype):
 def test_dynamic_channels():
     # Compile simulated quantize once but support either per-channel or scalar params.
     data = np.random.uniform(low=-64, high=64, size=[2, 5]).astype("int8")
-    data_fp = data.astype('float32')
+    data_fp = data.astype("float32")
     # Test scalar qnn params.
     scale_np = np.asarray([0.5]).astype("float32")
     zp_np = np.asarray([0]).astype("int32")
@@ -128,7 +128,7 @@ def test_dynamic_channels():
 def test_dynamic_dtype():
     # Compile simulated quantize once but support any type of quantization.
     data = np.random.uniform(low=0, high=255, size=[2, 5]).astype("uint8")
-    data_fp = data.astype('float32')
+    data_fp = data.astype("float32")
     # Test scalar uint8 to fp32.
     scale_np = np.asarray([0.5]).astype("float32")
     zp_np = np.asarray([127]).astype("int32")
@@ -151,7 +151,7 @@ def test_dynamic_dtype():
 
     # Now test int8 to float32 compilation.
     data = np.random.uniform(low=0, high=255, size=[2, 5]).astype("int8")
-    data_fp = data.astype('float32')
+    data_fp = data.astype("float32")
     # Get the reference quantize output.
     dq_out = dequantize_test_driver(
         in_dtype="int8",
