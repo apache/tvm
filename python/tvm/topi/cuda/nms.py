@@ -53,29 +53,6 @@ def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
 
-def get_cuda_arch(target):
-    target = tvm.target.Target.current(allow_none=False)
-    if target.kind.name != "cuda":
-        return None
-    # 1. Target -arch=sm_xx
-    if "arch" in target.attrs:
-        compute_version = target.attrs["arch"]
-        major, minor = compute_version.split("_")[1]
-        compute_version = major + "." + minor
-
-    # 2. Global scope
-    from tvm.autotvm.env import AutotvmGlobalScope
-
-    if AutotvmGlobalScope.current.cuda_target_arch:
-        arch = AutotvmGlobalScope.current.cuda_target_arch.split("_")[1]
-        return arch[0] + "." + arch[1]
-
-    # 3. GPU
-    if tvm.gpu(0).exist:
-        return tvm.gpu(0).compute_version
-    return None
-
-
 def get_valid_boxes_ir(data, valid_boxes, score_threshold, id_index, score_index):
     """Low level IR to identify bounding boxes given a score threshold.
 
@@ -514,9 +491,16 @@ def nms_ir(
 
     with ib.new_scope():
         nthread_by = batch_size
+        nthread_tx = max_threads
+
         # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock, vs 64K for most GPUs.
         # Since this kernel uses many registers (around 35), the limit will be exceeded with 1024 threads.
-        nthread_tx = 512 if get_cuda_arch() in ["3.2", "5.3", "6.2"] else max_threads
+        target = tvm.target.Target.current(allow_none=False)
+        if target.kind.name == "cuda":
+            from tvm.contrib import nvcc
+
+            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
+                nthread_tx = 512
 
         by = te.thread_axis("blockIdx.y")
         tx = te.thread_axis("threadIdx.x")
