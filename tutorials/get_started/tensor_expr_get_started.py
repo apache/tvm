@@ -30,15 +30,14 @@ operators can be represented as a TE expression where each TE expression takes
 an input tensor and produces an output tensor. It's important to note that the
 tensor isn't necessarily a fully materialized array, rather it is a
 representation of a computation. If you want to produce a computation from a
-TE, you will need to use the scheduling features of TVM to produce a
-computation.
+TE, you will need to use the scheduling features of TVM.
 
 This is an introductory tutorial to the Tensor expression language in TVM. TVM
 uses a domain specific tensor expression for efficient kernel construction. We
-will demonstrate the basic workflow to use the tensor expression language with
-two examples. The first example introduces TE and scheduling with vector
+will demonstrate the basic workflow with two examples of using the tensor expression
+language. The first example introduces TE and scheduling with vector
 addition. The second expands on these concepts with a step-by-step optimization
-of a matrix multiplication with TW. This matrix multiplication example will
+of a matrix multiplication with TE. This matrix multiplication example will
 serve as the comparative basis for future tutorials covering more advanced
 features of TVM.
 """
@@ -98,8 +97,7 @@ print(type(C))
 # A schedule is a set of transformation of computation that transforms the loop
 # of computations in the program.
 #
-# By default, TVM will compute a schedule for C in a serial manner using
-# row-major order.
+# The default schedule will compute C in by iterating in row major order.
 #
 # .. code-block:: c
 #
@@ -113,7 +111,7 @@ s = te.create_schedule(C.op)
 # Compile and Evaluate the Default Schedule
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # With the schedule created, we can now compile it down to our target language
-# and architecture, in this case LLVM to a CPU. We provide TVM with the basic
+# and architecture, in this case LLVM to a CPU. We provide TVM with the
 # schedule, a list of the TE expressions that are in the schedule, the target
 # and host, and the name of the function we are producing. The result of the
 # output is a type-erased function that can be called directly from Python.
@@ -126,7 +124,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
-# numpy. We begin by creating a context, which is a runtime that TVM can
+# numpy. We begin by creating a context, which is a device (CPU, GPU) that TVM can
 # compile the schedule to. In this case the context is an LLVM CPU target. We
 # can then initialize the tensors in our context and perform the custom
 # addition operation. To verify that the computation is correct, we can compare
@@ -208,7 +206,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # TVM is capable of targeting multiple architectures. In the next example, we
 # will target compilation of the vector addition to GPUs
 
-# Change this target respective GPU if gpu is enabled Ex: cuda, opencl, rocm
+# Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs), rocm (Radeon GPUS), OpenGL (???).
 tgt_gpu = "cuda"
 
 # Recreate the schedule
@@ -240,9 +238,9 @@ fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
 # We provide a minimal array API in python to aid quick testing and
 # prototyping. The array API is based on the DLPack standard.
 #
-# We first create a GPU context. Then tvm.nd.array copies the data to the GPU.
-# fadd runs the actual computation. asnumpy() copies the GPU array back to the
-# CPU and we can use this to verify correctness
+# We first create a GPU context. Then tvm.nd.array copies the data to the GPU,
+# fadd runs the actual computation, and asnumpy() copies the GPU array back to the
+# CPU (so we can verify correctness).
 
 ctx = tvm.context(tgt_gpu, 0)
 
@@ -273,7 +271,7 @@ else:
 # Saving and Loading Compiled Modules
 # -----------------------------------
 # Besides runtime compilation, we can save the compiled modules into a file and
-# load them back later. This is called ahead of time compilation.
+# load them back later.
 #
 # The following code first performs the following steps:
 #
@@ -307,7 +305,7 @@ print(temp.listdir())
 # Load Compiled Module
 # ~~~~~~~~~~~~~~~~~~~~
 # We can load the compiled module from the file system and run the code. The
-# following code loads the host and device module separately and re-links them
+# following code loads the host and device module separately and links them
 # together. We can verify that the newly loaded function works.
 
 fadd1 = tvm.runtime.load_module(temp.relpath("myadd.so"))
@@ -353,7 +351,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 ################################################################################
 # Generate OpenCL Code
 # --------------------
-# TVM provides code generation features into multiple backends, we can also
+# TVM provides code generation features into multiple backends. We can also
 # generate OpenCL code or LLVM code that runs on CPU backends.
 #
 # The following code blocks generate OpenCL code, creates array on an OpenCL
@@ -398,7 +396,7 @@ if tgt.startswith("opencl"):
 #   - fuse: fuses two consecutive axises of one computation.
 #   - reorder: can reorder the axises of a computation into a defined order.
 #   - bind: can bind a computation to a specific thread, useful in GPU programming.
-#   - compute_at: by default, TVM will compute tensors at the root by default. comput_at specifies
+#   - compute_at: by default, TVM will compute tensors at the root by default. compute_at specifies
 #     that one tensor should be computed at the first axis of computation for another operator.
 #   - compute_inline: when marked inline, a computation will be expanded then inserted into the
 #     address where the tensor is required.
@@ -412,27 +410,24 @@ if tgt.startswith("opencl"):
 # ------------------------------------------------------------
 #
 # Now we will consider a second, more advanced example, demonstrating how with
-# just 18 line of python code from TVM we can demonstrate up to 18x speedup on
-# a common matrix multiplication operation.
+# just 18 lines of python code TVM speeds up a common matrix multiplication operation by 18x.
 #
-# **There are two important optimizations on intense computation applications
-# executed on CPU:**
+# **Matrix multiplication is a compute intensive operation. There are two important optimizations for good CPU performance:**
 # 1. Increase the cache hit rate of memory access. Both complex numerical
-#    computation and hot-spot memory access can be accelerated from high cache hit
-#    rate. This requires us to transform the origin memory access pattern to the
-#    pattern fits the cache policy.
+#    computation and hot-spot memory access can be accelerated by a high cache hit
+#    rate. This requires us to transform the origin memory access pattern to a pattern that fits the cache policy.
 # 2. SIMD (Single instruction multi-data), also known as the vector processing
-#    unit. Every time, a small batch of data, rather than a single grid, will be
-#    processed. This requires us to transform the data access pattern in the loop
+#    unit. On each cycle instead of processing a single value, SIMD can process a small batch of data.
+#    This requires us to transform the data access pattern in the loop
 #    body in uniform pattern so that the LLVM backend can lower it to SIMD.
 #
 # The techniques used in this tutorial are a subset of tricks mentioned in this
 # `repository <https://github.com/flame/how-to-optimize-gemm>`_. Some of them
 # have been applied by TVM abstraction automatically, but some of them cannot
-# be simply applied due to TVM constraints.
+# be automatically applied due to TVM constraints.
 #
-# All the experiment results mentioned below, are executed on 2015 15" MacBook
-# equipped with Intel i7-4770HQ CPU. The cache line size should  be 64 bytes for
+# All the experiment results mentioned below are executed on 2015 15" MacBook
+# equipped with Intel i7-4770HQ CPU. The cache line size should be 64 bytes for
 # all the x86 CPUs.
 
 ################################################################################
@@ -487,7 +482,7 @@ print("Numpy running time: %f" % (np_runing_time / np_repeat))
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
 
 ################################################################################
-# Now, write a basic matrix multiplication using TVM TE and verify that it
+# Now we write a basic matrix multiplication using TVM TE and verify that it
 # produces the same results as the numpy implementation. We also write a
 # function that will help us measure the performance of the schedule
 # optimizations.
