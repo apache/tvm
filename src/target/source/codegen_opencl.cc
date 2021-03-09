@@ -69,6 +69,7 @@ public:
         var_access_map_[buffer] |= write_access;
       }
     }
+    StmtExprVisitor::VisitExpr_(op);
   }
 private:
   std::unordered_map<const VarNode*, uint8_t> var_access_map_;
