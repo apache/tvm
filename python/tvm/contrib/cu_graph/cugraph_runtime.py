@@ -49,8 +49,7 @@ class GraphModuleCuGraph(graph_runtime.GraphModule):
         graph_runtime.GraphModule.__init__(self, module)
 
     def capture_cuda_graph(self):
-        # call cuModuleLoadData before cudaStream API 
-        self._run()
+        self._run()  # call cuModuleLoadData before cudaStream API
 
         print("====== Start Stream Capture ======")
         self._start_capture()
@@ -59,7 +58,5 @@ class GraphModuleCuGraph(graph_runtime.GraphModule):
         print("====== End Stream Capture ======")
         self._end_capture()
 
-
     def run_cuda_graph(self):
         self._run_cuda_graph()
-
