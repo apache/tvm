@@ -57,9 +57,7 @@ Expr MakeSimulatedQuantize(Expr data, Expr out_dtype, Expr output_scale, Expr ou
   auto attrs = make_object<SimulatedQuantizeAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("qnn.simulated_quantize");
-  auto out = Call(op, {data, out_dtype, output_scale, output_zero_point}, Attrs(attrs), {});
-
-  return out;
+  return Call(op, {data, out_dtype, output_scale, output_zero_point}, Attrs(attrs), {});
 }
 
 RELAY_REGISTER_OP("qnn.simulated_quantize")

@@ -55,9 +55,7 @@ Expr MakeSimulatedDequantize(Expr data, Expr in_dtype, Expr input_scale, Expr in
   auto attrs = make_object<DequantizeAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("qnn.simulated_dequantize");
-  auto out = Call(op, {data, in_dtype, input_scale, input_zero_point}, Attrs(attrs), {});
-
-  return out;
+  return Call(op, {data, in_dtype, input_scale, input_zero_point}, Attrs(attrs), {});
 }
 
 RELAY_REGISTER_OP("qnn.simulated_dequantize")
