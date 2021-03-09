@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Helper utility to save parameter dicts."""
-import tvm.runtime
+"""Helper utility to save and load parameter dicts."""
+from . import _ffi_api, ndarray
 
 
 def save_param_dict(params):
@@ -24,9 +24,6 @@ def save_param_dict(params):
 
     The result binary bytes can be loaded by the
     GraphModule with API "load_params".
-
-    .. deprecated:: 0.9.0
-        Use :py:func:`tvm.runtime.save_param_dict` instead.
 
     Parameters
     ----------
@@ -50,14 +47,12 @@ def save_param_dict(params):
        # Pass in byte array to module to directly set parameters
        tvm.runtime.load_param_dict(param_bytes)
     """
-    return tvm.runtime.save_param_dict(params)
+    transformed = {k: ndarray.array(v) for (k, v) in params.items()}
+    return _ffi_api.SaveParams(transformed)
 
 
 def load_param_dict(param_bytes):
     """Load parameter dictionary to binary bytes.
-
-    .. deprecated:: 0.9.0
-        Use :py:func:`tvm.runtime.load_param_dict` instead.
 
     Parameters
     ----------
@@ -69,4 +64,6 @@ def load_param_dict(param_bytes):
     params : dict of str to NDArray
         The parameter dictionary.
     """
-    return tvm.runtime.load_param_dict(param_bytes)
+    if isinstance(param_bytes, (bytes, str)):
+        param_bytes = bytearray(param_bytes)
+    return _ffi_api.LoadParams(param_bytes)

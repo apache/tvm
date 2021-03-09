@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, runtime
 import numpy as np
 import json
 from tvm import rpc
@@ -94,12 +94,12 @@ def test_graph_simple():
         graph, lib, params = relay.build(func, target="llvm", params=params)
 
         mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))
-        mod_shared.load_params(relay.save_param_dict(params))
+        mod_shared.load_params(runtime.save_param_dict(params))
         num_mods = 10
         mods = [graph_runtime.create(graph, lib, tvm.cpu(0)) for _ in range(num_mods)]
 
         for mod in mods:
-            mod.share_params(mod_shared, relay.save_param_dict(params))
+            mod.share_params(mod_shared, runtime.save_param_dict(params))
 
         a = np.random.uniform(size=(1, 10)).astype("float32")
         for mod in mods:

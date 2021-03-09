@@ -38,6 +38,8 @@
 #include <utility>
 #include <vector>
 
+#include "../file_utils.h"
+
 namespace tvm {
 namespace runtime {
 namespace details {
@@ -239,30 +241,13 @@ void GraphRuntime::LoadParams(const std::string& param_blob) {
 }
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
-  uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
-  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
-
-  ICHECK(strm->Read(&weight_names_)) << "Invalid parameters file format";
-  uint64_t sz;
-  strm->Read(&sz);
-  size_t size = static_cast<size_t>(sz);
-  ICHECK(size == weight_names_.size()) << "Invalid parameters file format";
-  for (size_t i = 0; i < size; ++i) {
-    int in_idx = GetInputIndex(weight_names_[i]);
-    if (in_idx < 0) {
-      NDArray temp;
-      temp.Load(strm);
-      continue;
-    }
-    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
-    ICHECK_LT(eid, data_entry_.size());
-
-    // The data_entry is allocated on device, NDArray.load always load the array into CPU.
-    NDArray temp;
-    temp.Load(strm);
-    data_entry_[eid].CopyFrom(temp);
+  weight_names_.clear();
+  Map<String, NDArray> params = ::tvm::runtime::LoadParams(strm);
+  for (auto& p : params) {
+    uint32_t eid = this->entry_id(input_nodes_[GetInputIndex(p.first)], 0);
+    data_entry_[eid].CopyFrom(p.second);
+    // neo-ai-tvm: Store weight names.
+    weight_names_.push_back(p.first);
   }
 }
 
