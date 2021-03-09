@@ -23,14 +23,14 @@ Compiling and Optimizing a Model with TVMC
 `Chris Hoge <https://github.com/hogepodge>`_
 
 In this section, we will work with TVMC, the TVM command line driver. TVMC is a tool that exposes TVM
-features such as auto-tuning, compiling, profiling and execution of models, all through a command line
+features such as auto-tuning, compiling, profiling and execution of models through a command line
 interface.
 
 Upon completion of this section, we will have used TVMC to accomplish the following tasks:
 
 * Compile a pre-trained ResNet 50 v2 model for the TVM runtime.
 * Run a real image through the compiled model, and interpret the output and model performance.
-* Tune the model that model on a CPU using TVM.
+* Tune the model on a CPU using TVM.
 * Re-compile an optimized model using the tuning data collected by TVM.
 * Run the image through the optimized model, and compare the output and model performance.
 
@@ -147,7 +147,7 @@ for understanding how TVM works.
 # ----------------------------------
 #
 # Now that we've compiled the model, we can use the TVM runtime to make predictions with it.
-# TVMC has the TVM runtime build in to it, allowing you to run compiled TVM models. To use TVMC to run the
+# TVMC has the TVM runtime built in to it, allowing you to run compiled TVM models. To use TVMC to run the
 # model and make predictions, we need two things:
 #
 # - The compiled model, which we just produced.
