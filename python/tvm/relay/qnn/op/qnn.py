@@ -123,7 +123,8 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
 def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     r"""Simulated Quantize op
     Mimics the quantize op but has more flexibility in valid inputs and always
-    outputs float32. This can be useful for calibrating or training a quantized network.
+    outputs the same type as the input. This can be useful for
+    calibrating or training a quantized network.
 
     Parameters
     ----------
@@ -179,14 +180,15 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
 
 
 def simulated_dequantize(data, input_scale, input_zero_point, axis=-1, in_dtype="int8"):
-    r"""Simulated Quantize op
-    Mimics the quantize op but has more flexibility in valid inputs and always
-    outputs float32. This can be useful for calibrating or training a quantized network.
+    r"""Simulated Dequantize op
+    Mimics the dequantize op but has more flexibility in valid inputs and always
+    outputs the same type as the input. This can be useful for calibrating or
+    training a quantized network.
 
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input tensor to be quantized. Can be of type float32.
+        The input tensor to be dequantized.
     input_zero_point : tvm.relay.Expr
         The input zero_point.
     input_scale : tvm.relay.Expr
