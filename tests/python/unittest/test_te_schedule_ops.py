@@ -110,19 +110,53 @@ def test_inline_multi_reduce():
 
 
 def test_auto_inline():
-    m = te.var("m")
-    n = te.var("n")
-    A = te.placeholder((m, n), name="A")
-    B = te.placeholder((m, n), name="B")
-    C = te.placeholder((m, n), name="C")
-    T1 = te.compute((m, n), lambda i, j: A(i, j) * B(i, j), name="T1")
-    T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
+    def elemwise():
+        m = te.var("m")
+        n = te.var("n")
+        A = te.placeholder((m, n), name="A")
+        B = te.placeholder((m, n), name="B")
+        C = te.placeholder((m, n), name="C")
+        T1 = te.compute((m, n), lambda i, j: A(i, j) * B(i, j), name="T1")
+        T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
 
-    s = te.create_schedule(T2.op)
-    tvm.te.schedule.AutoInlineElemWise(s)
-    s = s.normalize()
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+        return te.create_schedule(T2.op), T1
+
+    def broadcast():
+        m = te.var("m")
+        n = te.var("n")
+        A = te.placeholder((1,), name="A")
+        B = te.placeholder((m, n), name="B")
+        C = te.placeholder((m, n), name="C")
+        T1 = te.compute((m, n), lambda i, j: A(0) * B(i, j), name="T1", tag="broadcast")
+        T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
+
+        return te.create_schedule(T2.op), T1
+
+    def injective():
+        m = te.var("m")
+        n = te.var("n")
+        A = te.placeholder((m,), name="A")
+        B = te.placeholder((m, n), name="B")
+        C = te.placeholder((m, n), name="C")
+        T1 = te.compute((m, n), lambda i, j: A(i) * B(i, j), name="T1")
+        T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
+
+        return te.create_schedule(T2.op), T1
+
+    def check_auto_inline(schedule_func, auto_inline_func):
+        s, T1 = schedule_func()
+        # before auto inline the attach type is AttachType.kGroupRoot
+        assert s[T1].attach_type == 1
+        auto_inline_func(s)
+        # after auto inline the attach type is AttachType.kInline
+        assert s[T1].attach_type == 2
+        s = s.normalize()
+        bounds = tvm.te.schedule.InferBound(s)
+        stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+
+    check_auto_inline(elemwise, tvm.te.schedule.AutoInlineElemWise)
+    check_auto_inline(broadcast, tvm.te.schedule.AutoInlineBroadcast)
+    check_auto_inline(injective, tvm.te.schedule.AutoInlineInjective)
 
 
 def test_schedule_const_bound():

@@ -18,6 +18,7 @@
 
 set -e
 set -u
+set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
 
 source tests/scripts/setup-pytest-env.sh
 
