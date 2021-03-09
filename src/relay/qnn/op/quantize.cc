@@ -99,7 +99,7 @@ Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
 
   // Wrap axis from negative to positive if needed.
   if (axis < 0) {
-    axis = ((int)n_dim) + axis;
+    axis = static_cast<int>(n_dim) + axis;
   }
 
   auto expanded_output_scale = output_scale;

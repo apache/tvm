@@ -22,7 +22,7 @@ from tvm import relay
 from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.utils import get_pad_tuple2d
 from . import _make
-from tvm.topi.nn.qnn import *
+from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
 from ... import op as reg
 from ...op import OpPattern
 

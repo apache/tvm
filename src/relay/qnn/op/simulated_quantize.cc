@@ -43,7 +43,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* dtype = types[1].as<TensorTypeNode>();
 
-  if ((data == nullptr) or (dtype == nullptr)) {
+  if ((data == nullptr) || (dtype == nullptr)) {
     return false;
   }
 
