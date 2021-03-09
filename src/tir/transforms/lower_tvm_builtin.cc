@@ -49,22 +49,7 @@ inline PrimExpr StackAlloca(std::string type, size_t num) {
 class BuiltinLower : public StmtExprMutator {
  public:
   Stmt Build(Stmt stmt) {
-    stack_shape_ = Var("stack_shape", DataType::Handle());
-    stack_array_ = Var("stack_array", DataType::Handle());
-    stack_value_ = Var("stack_value", DataType::Handle());
-    stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->VisitStmt(stmt);
-    // create a shape var if any shape is made (including scalar shapes)
-    if (max_shape_stack_ != -1) {
-      stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
-    }
-    if (max_array_stack_ != 0) {
-      stmt = LetStmt(stack_array_, StackAlloca("array", max_array_stack_), stmt);
-    }
-    if (max_arg_stack_ != 0) {
-      stmt = LetStmt(stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
-      stmt = LetStmt(stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
-    }
     return stmt;
   }
 
@@ -74,12 +59,38 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK_EQ(run_array_stack_, 0);
 
     if (prep_seq_.size() != 0) {
-      Stmt ret = SeqStmt::Flatten(prep_seq_, stmt);
+      stmt = SeqStmt::Flatten(prep_seq_, stmt);
       prep_seq_.clear();
-      return ret;
-    } else {
-      return stmt;
     }
+
+    // Always generated "tvm_stack_alloca" intrincis next to the "tvm_packed_func",
+    // which makes the stacks allocated thread-local and every tvm_packed_func will have
+    // it's own stack, rather than a shared one. This could help resolve the race
+    // -condition issue in parallel execution.
+
+    if (emit_stack_shape_) {
+      ICHECK_NE(max_shape_stack_, -1);
+      stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
+
+      max_shape_stack_ = -1;
+      emit_stack_shape_ = false;
+    }
+    if (emit_stack_array_) {
+      ICHECK_NE(max_array_stack_, 0);
+      stmt = LetStmt(stack_array_, StackAlloca("array", max_array_stack_), stmt);
+
+      max_array_stack_ = 0;
+      emit_stack_array_ = false;
+    }
+    if (emit_stack_value_tcode_) {
+      stmt = LetStmt(stack_value_, StackAlloca("arg_value", arg_stack_size_), stmt);
+      stmt = LetStmt(stack_tcode_, StackAlloca("arg_tcode", arg_stack_size_), stmt);
+
+      emit_stack_value_tcode_ = false;
+      arg_stack_size_ = 0;
+    }
+
+    return stmt;
   }
 
   Stmt VisitStmt_(const AllocateNode* op) {
@@ -155,6 +166,25 @@ class BuiltinLower : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+  std::string GetUniqueName(std::string prefix) {
+    for (size_t i = 0; i < prefix.size(); ++i) {
+      if (prefix[i] == '.') prefix[i] = '_';
+    }
+    auto it = name_alloc_map_.find(prefix);
+    if (it != name_alloc_map_.end()) {
+      while (true) {
+        std::ostringstream os;
+        os << prefix << (++it->second);
+        std::string name = os.str();
+        if (name_alloc_map_.count(name) == 0) {
+          prefix = name;
+          break;
+        }
+      }
+    }
+    name_alloc_map_[prefix] = 0;
+    return prefix;
+  }
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()
@@ -165,6 +195,24 @@ class BuiltinLower : public StmtExprMutator {
     run_shape_stack_ += op->args.size();
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
+
+    // Unlike stack_value and stack_tcode, stack_shape is allowed to be
+    // shared in the same stmt.
+    //
+    // For example:
+    // >  @tir.tvm_call_packed("tvm.contrib.cblas.matmul", @tir.tvm_stack_make_array(A, @tvm_stack_make_shape(...), ...),
+    // >                    @tir.tvm_stack_make_array(B, @tvm_stack_make_shape(...), ...), ...)
+    // In the stmt above, those tvm_stack_make_shape won't be executed parallel, thus it's ok for them to share a same stack.
+    //
+    // To let all tvm_stack_make_array in the same stmt share a stack, we check "emit_stack_shape_":
+    // 1. false: This is the first occurrence of tvm_stack_make_shape expr of current stmt. A new stack_shape_
+    //    is generated, and mark emit_stack_shape_ as true;
+    // 2. true:  Not the first occurrence of current stmt. Just reuse the previous stack_shape_;
+    if (!emit_stack_shape_) {
+      stack_shape_ = Var(GetUniqueName("stack_shape"), DataType::Handle());
+      emit_stack_shape_ = true;
+    }
+
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(Store(stack_shape_, cast(DataType::Int(64), op->args[i]),
@@ -178,6 +226,24 @@ class BuiltinLower : public StmtExprMutator {
     run_array_stack_ += 1;
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
+
+    // Unlike stack_value and stack_tcode, stack_array is allowed to be
+    // shared in the same stmt.
+    //
+    // For example:
+    // >  @tir.tvm_call_packed("tvm.contrib.cblas.matmul", @tir.tvm_stack_make_array(A, @tvm_stack_make_shape(...), ...),
+    // >                    @tir.tvm_stack_make_array(B, @tvm_stack_make_shape(...), ...), ...)
+    // In the stmt above, those tvm_stack_make_shape won't be executed parallel, thus it's ok for them to share a same stack.
+    //
+    // To let all tvm_stack_make_array in the same stmt share a stack, we check "emit_stack_array_":
+    // 1. false: This is the first occurrence of tvm_stack_make_shape expr of current stmt. A new stack_array_
+    //    is generated, and we mark emit_stack_array_ as true;
+    // 2. true:  Not the first occurrence of current stmt. Just reuse the previous stack_array_;
+    if (!emit_stack_array_) {
+      stack_array_ = Var(GetUniqueName("stack_array"), DataType::Handle());
+      emit_stack_array_ = true;
+    }
+
     prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrData, op->args[0]));
     prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrShape, op->args[1]));
     PrimExpr strides = op->args[2];
@@ -219,6 +285,14 @@ class BuiltinLower : public StmtExprMutator {
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
+
+    // stack_value_ and stack_tcode_ pair are generated for call packed; Use "GetUniqueName()" is
+    // to fullfill the SSA constrains.
+    ICHECK_EQ(emit_stack_value_tcode_, false);
+    emit_stack_value_tcode_ = true;
+    stack_value_ = Var(GetUniqueName("stack_value"), DataType::Handle());
+    stack_tcode_ = Var(GetUniqueName("stack_tcode"), DataType::Handle());
+
     for (size_t i = 1; i < op->args.size(); ++i) {
       PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
       PrimExpr arg = op->args[i];
@@ -238,7 +312,7 @@ class BuiltinLower : public StmtExprMutator {
           Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
-    max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
+    arg_stack_size_ = run_shape_stack_;
     max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
     max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
     run_shape_stack_ = restore_shape_stack;
@@ -259,6 +333,14 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK_GT(args_size, 0);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
+
+    // stack_value_ and stack_tcode_ pair are generated for call packed; Use "GetUniqueName()" is
+    // to fullfill the SSA constrains.
+    ICHECK_EQ(emit_stack_value_tcode_, false);
+    emit_stack_value_tcode_ = true;
+    stack_value_ = Var(GetUniqueName("stack_value"), DataType::Handle());
+    stack_tcode_ = Var(GetUniqueName("stack_tcode"), DataType::Handle());
+
     for (size_t i = 1; i < op->args.size(); ++i) {
       PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
       PrimExpr arg = op->args[i];
@@ -275,7 +357,7 @@ class BuiltinLower : public StmtExprMutator {
           Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
-    max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
+    arg_stack_size_ = run_shape_stack_;
     max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
     max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
     run_shape_stack_ = restore_shape_stack;
@@ -307,11 +389,26 @@ class BuiltinLower : public StmtExprMutator {
   std::vector<Stmt> prep_seq_;
   PrimExpr device_type_;
   PrimExpr device_id_;
-  // Var handle for each stack.
   Var stack_shape_;
   Var stack_array_;
   Var stack_tcode_;
   Var stack_value_;
+
+  // Mark the occurence of tvm_stack_make_shape of current stmt:
+  // 1. Set to true when the first tvm_stack_make_shape is met;
+  // 2. Reset to false at the end of VisitStmt();
+  bool emit_stack_shape_{false};
+
+  // Mark the occurence of tvm_stack_make_array of current stmt:
+  // 1. Set to true when the first tvm_stack_make_array is met;
+  // 2. Reset to false at the end of VisitStmt().
+  bool emit_stack_array_{false};
+
+  // Mark the occurence of tvm_call_packed of current stmt:
+  // 1. Set to true when tvm_call_packed intrinsic is met;
+  // 2. Reset to false at the end of VisitStmt().
+  bool emit_stack_value_tcode_{false};
+
   // The running statistics
   int64_t run_shape_stack_{-1};
   uint64_t run_array_stack_{0};
@@ -319,7 +416,10 @@ class BuiltinLower : public StmtExprMutator {
   // statistics of stacks
   int64_t max_shape_stack_{-1};
   uint64_t max_array_stack_{0};
-  uint64_t max_arg_stack_{0};
+  // Size of current pack func's arg stack
+  uint64_t arg_stack_size_;
+  // Name allocation map
+  std::unordered_map<std::string, int> name_alloc_map_;
 };
 
 namespace transform {
