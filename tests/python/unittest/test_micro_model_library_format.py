@@ -68,6 +68,7 @@ def test_export_model_library_format_c():
         temp_dir = utils.tempdir()
         mlf_tar_path = temp_dir.relpath("lib.tar")
         import tvm.micro as micro
+
         micro.export_model_library_format(factory, mlf_tar_path)
         tf = tarfile.open(mlf_tar_path)
 
@@ -130,6 +131,7 @@ def test_export_model_library_format_llvm():
         temp_dir = utils.tempdir()
         mlf_tar_path = temp_dir.relpath("lib.tar")
         import tvm.micro as micro
+
         micro.export_model_library_format(factory, mlf_tar_path)
         tf = tarfile.open(mlf_tar_path)
 
@@ -175,6 +177,7 @@ def test_export_model():
     temp_dir = utils.tempdir()
     import tvm.micro as micro
     import tvm.micro.model_library_format as model_library_format
+
     with pytest.raises(micro.UnsupportedInModelLibraryFormatError) as exc:
         model_library_format._populate_codegen_dir(module, temp_dir.relpath("codegen"))
 
