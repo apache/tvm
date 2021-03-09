@@ -15,13 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Graph runtime factory."""
-import datetime
-import os
-import json
-import re
-import tarfile
 import warnings
-from ...contrib import utils
 from ..._ffi.base import string_types
 from ..._ffi.registry import get_global_func
 from ...runtime import ndarray
