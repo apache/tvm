@@ -224,7 +224,6 @@ def recover_measure_input(inp, rebuild_state=False):
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=tvm.target.Target(task.target, task.target_host),
-        target_host=None,
         hardware_params=task.hardware_params,
         layout_rewrite_option=task.layout_rewrite_option,
         task_inputs=list(task.task_input_names),
