@@ -516,9 +516,9 @@ class TaskScheduler:
 
             if res.error_no == 0:
                 cost = array_mean(res.costs)
-                if self.best_costs[task_idx] < cost:
+                if cost < self.best_costs[task_idx]:
                     self.best_costs[task_idx] = cost
-                    self.task_best_cts = self.task_cts[task_idx]
+                    self.task_best_cts[task_idx] = self.task_cts[task_idx]
 
         for idx in range(len(self.tasks)):
             if self.task_cts[idx] - self.task_best_cts[idx] > self.early_stopping_task:
