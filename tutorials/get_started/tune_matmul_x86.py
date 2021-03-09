@@ -21,7 +21,7 @@ Optimizing Operators with Auto-scheduling
             `Chengfan Jia <https://github.com/jcf94/>`_
 
 In this tutorial, we will show how TVM's Auto Scheduling feature can find
-optimal schedules, without the need for writing a custom template.
+optimal schedules without the need for writing a custom template.
 
 Different from the template-based :ref:`<autotvm_matmul>` which relies on
 manual templates to define the search space, the auto-scheduler does not
@@ -75,7 +75,7 @@ def matmul_add(N, L, M, dtype):
 ################################################################################
 # Create the search task
 # ----------------------
-# With the function defined, we can now create the task for the auth_scheduler
+# With the function defined, we can now create the task for the auto_scheduler
 # to search against. We specify the particular parameters for this matrix
 # multiplication, in this case a multiplication of to square matricies of size
 # 1024x1024. We then create a search task with N=L=M=1024 and dtype="float32"

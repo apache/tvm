@@ -77,20 +77,20 @@ Contents
 #
 # 3. Lower to *TE*, tensor expressions that define the *computational
 #    operations* of the neural network.
-#    Upon completing the import and high level optimizations, the next step it
+#    Upon completing the import and high level optimizations, the next step is
 #    to decide how to implement the Relay representation to a hardware target.
-#    Relay (or more detailedly, its fusion pass) is in charge of splitting the
+#    Relay (or more specifically, its fusion pass) is in charge of splitting the
 #    neural network into small subgraphs, each of which is a task. Here
 #    lowering means going lowering into TE tasks. The first step is to lower
 #    each task within the Relay model into a tensor expression. The tensor
 #    expressions describe the operations, aka functions, contained within a
 #    neural network. Once transformed into TE, further optimizations for the
-#    specific hardware target can be made. Work is underway to replace TR with
+#    specific hardware target can be made. Work is underway to replace TE with
 #    a new representation, Tensor Intermediate Representation (TIR), that
 #    includes TE as a subset of TIR.
 #
 # 4. Search for an optimized schedule using *AutoTVM* or *AutoScheduler*.
-#    Tuning is defined as the process of searching for a schedule (an ordered
+#    Tuning is the process of searching for a schedule (an ordered
 #    notation) for the neural network to be compiled. There are couple of
 #    optimization options available, each requiring varying levels of user
 #    interaction. Both of these methods can draw from the TVM Operator
