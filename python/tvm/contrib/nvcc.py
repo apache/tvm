@@ -240,7 +240,7 @@ def get_target_compute_version(target=None):
             return major + "." + minor
 
     # 2. Global scope
-    from tvm.autotvm.env import AutotvmGlobalScope
+    from tvm.autotvm.env import AutotvmGlobalScope  # pylint: disable=import-outside-toplevel
 
     if AutotvmGlobalScope.current.cuda_target_arch:
         major, minor = AutotvmGlobalScope.current.cuda_target_arch.split("_")[1]
