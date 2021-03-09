@@ -17,10 +17,10 @@
 # pylint: disable=invalid-name, unused-argument, len-as-condition
 """QNN operator feature registration"""
 
-from tvm import topi, relay
+from tvm import topi
 
-from ...op.op import register_compute, register_shape_func
-from ...op.op import register_broadcast_schedule, register_injective_schedule
+from ...op.op import register_compute 
+from ...op.op import register_injective_schedule
 from ...op.op import register_pattern, OpPattern
 
 
@@ -36,3 +36,17 @@ def simulated_quantize_compute(attrs, inputs, output_type):
 
 register_injective_schedule("qnn.simulated_quantize")
 register_pattern("qnn.simulated_quantize", OpPattern.ELEMWISE)
+
+
+@register_compute("qnn.simulated_dequantize")
+def simulated_dequantize_compute(attrs, inputs, output_type):
+    assert len(inputs) == 4
+    return [
+        topi.nn.simulated_dequantize(
+            inputs[0], inputs[1], inputs[2], inputs[3], axis=attrs.get_int("axis")
+        )
+    ]
+
+
+register_injective_schedule("qnn.simulated_dequantize")
+register_pattern("qnn.simulated_dequantize", OpPattern.ELEMWISE)

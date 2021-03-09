@@ -19,8 +19,8 @@
 
 /*!
  * \file src/relay/qnn/op/quantize.cc
- * \brief QNN dequantize operator. Dequantize operator converts from quantized
- * domain to unquantized domain.
+ * \brief QNN quantize operator. Quantize operator converts from unquantized 
+ * domain to quantized domain.
  */
 
 #include <tvm/relay/analysis.h>

@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file src/relay/qnn/op/simulated_quantize.cc
- * \brief QNN simulated quantize operator. Mimics the behavior
- * of QNN quantize in floating point with added flexibility.
+ * \file src/relay/qnn/op/simulated_dequantize.cc
+ * \brief QNN simulated dequantize operator. Mimics the behavior
+ * of QNN dequantize in floating point with added flexibility.
  */
 
 #include <tvm/relay/analysis.h>
@@ -34,9 +34,7 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
-TVM_REGISTER_NODE_TYPE(SimulatedQuantizeAttrs);
-
-bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool SimulatedDequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                           const TypeReporter& reporter) {
   // types = [data_type, datatype_type, scale_type, zp_type, ret_type]
   ICHECK_EQ(types.size(), 5);
@@ -52,32 +50,32 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
   return true;
 }
 
-Expr MakeSimulatedQuantize(Expr data, Expr out_dtype, Expr output_scale, Expr output_zero_point,
-                           int axis) {
-  auto attrs = make_object<SimulatedQuantizeAttrs>();
+Expr MakeSimulatedDequantize(Expr data, Expr in_dtype, Expr input_scale, Expr input_zero_point,
+                             int axis) {
+  auto attrs = make_object<DequantizeAttrs>();
   attrs->axis = axis;
-  static const Op& op = Op::Get("qnn.simulated_quantize");
-  auto out = Call(op, {data, out_dtype, output_scale, output_zero_point}, Attrs(attrs), {});
+  static const Op& op = Op::Get("qnn.simulated_dequantize");
+  auto out = Call(op, {data, in_dtype, input_scale, input_zero_point}, Attrs(attrs), {});
 
   return out;
 }
 
-RELAY_REGISTER_OP("qnn.simulated_quantize")
-    .describe(R"code(Simulates the functionality of qnn.quantize but allows more flexible
-    dynamic input type conversion and always outputs float values.
+RELAY_REGISTER_OP("qnn.simulated_dequantize")
+    .describe(R"code(Simulates the functionality of qnn.dequantize but allows more flexible
+    dynamic input type conversion and always operates on float values.
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<SimulatedQuantizeAttrs>()
+    .set_attrs_type<DequantizeAttrs>()
     .set_num_inputs(4)
-    .add_argument("data", "Tensor", "The tensor to quantize.")
-    .add_argument("out_dtype", "Tensor",
-                  "A code corresponding to the type of quantization to apply.")
-    .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
-    .add_argument("output_zero_point", "Tensor",
-                  "The quantization zero_point of the output tensor.")
+    .add_argument("data", "Tensor", "The tensor to dequantize.")
+    .add_argument("in_dtype", "Tensor",
+                  "A code corresponding to the type of quantization to convert from.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor",
+                  "The quantization zero_point of the input tensor.")
     .set_support_level(11)
-    .add_type_rel("QNNSimulatedQuantize", SimulatedQuantizeRel);
+    .add_type_rel("QNNSimulatedDequantize", SimulatedDequantizeRel);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.simulated_quantize").set_body_typed(MakeSimulatedQuantize);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.simulated_dequantize").set_body_typed(MakeSimulatedDequantize);
 
 }  // namespace qnn
 }  // namespace relay
