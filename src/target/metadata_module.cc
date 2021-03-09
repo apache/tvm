@@ -119,7 +119,7 @@ runtime::Module CreateMetadataModule(
 #ifdef TVM_LLVM_VERSION
       crt_exportable_modules.push_back(target_module);
       target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target);
-#else  // TVM_LLVM_VERSION
+#else   // TVM_LLVM_VERSION
       LOG(FATAL) << "TVM was not built with LLVM enabled.";
 #endif  // TVM_LLVM_VERSION
     }
