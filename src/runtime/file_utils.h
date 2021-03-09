@@ -94,6 +94,32 @@ void LoadMetaDataFromFile(const std::string& file_name,
  * \param file_name The file name.
  */
 void RemoveFile(const std::string& file_name);
+
+constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
+/*!
+ * \brief Load parameters from a string.
+ * \param param_blob Serialized string of parameters.
+ * \return Map of parameter name to parameter value.
+ */
+Map<String, NDArray> LoadParams(const std::string& param_blob);
+/*!
+ * \brief Load parameters from a stream.
+ * \param strm Stream to load parameters from.
+ * \return Map of parameter name to parameter value.
+ */
+Map<String, NDArray> LoadParams(dmlc::Stream* strm);
+/*!
+ * \brief Serialize parameters to a byte array.
+ * \param params Parameters to save.
+ * \return String containing binary parameter data.
+ */
+std::string SaveParams(const Map<String, NDArray>& params);
+/*!
+ * \brief Serialize parameters to a stream.
+ * \param strm Stream to write to.
+ * \param params Parameters to save.
+ */
+void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_FILE_UTILS_H_
