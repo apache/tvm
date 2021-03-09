@@ -35,9 +35,9 @@ SQNN_CODE_TO_DTYPE = {v: k for k, v in SQNN_DTYPE_TO_CODE.items()}
 
 @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=None, axis=-1):
-    """Simulated QNN quantize operator that mimics QNN outputs without changing datatype. The benefit
-    of this operator over true QNN quantize is that this operator allows dynamic datatype
-    selection and can operate on both per-channel and scalar scales and zero points while
+    """Simulated QNN quantize operator that mimics QNN outputs without changing datatype.
+    The benefit of this operator over true QNN quantize is that this operator allows dynamic
+    datatype selection and can operate on both per-channel and scalar scales and zero points while
     QNN quantize requires both of these to be fixed at compile time.
 
     Parameters
@@ -124,9 +124,9 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
 
 @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def simulated_dequantize(data, in_dtype, input_scale=None, input_zero_point=None, axis=-1):
-    """Simulated QNN dequantize operator that mimics QNN outputs without changing datatype. The benefit
-    of this operator over true QNN dequantize is that this operator allows dynamic datatype
-    selection and can operate on both per-channel and scalar scales and zero points while
+    """Simulated QNN dequantize operator that mimics QNN outputs without changing datatype.
+    The benefit of this operator over true QNN dequantize is that this operator allows dynamic
+    datatype selection and can operate on both per-channel and scalar scales and zero points while
     QNN dequantize requires both of these to be fixed at compile time.
 
     Parameters
