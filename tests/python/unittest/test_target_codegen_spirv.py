@@ -73,19 +73,32 @@ def test_bool_load():
 
 
 def test_pushconstants():
-    # This will have three 32 bit pushconstants
+    def check_mod(mod, x_np, res_np):
+        tgt = "vulkan"
+        ctx = tvm.context("vulkan", 0)
+        ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
+        res = ex.evaluate()(x_np).asnumpy()
+        tvm.testing.assert_allclose(res, res_np, atol=1e-5)
+
+    # Three 32 bit pushconstants: any_dim, stride, stride
     dtype = "float32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], relay.sqrt(x))
-    x_np = np.random.uniform(size=(3,)).astype(dtype)
+    x_np = np.random.uniform(size=(10,)).astype(dtype)
     res_np = np.sqrt(x_np)
 
-    tgt = "vulkan"
-    ctx = tvm.context("vulkan", 0)
-    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
-    res = ex.evaluate()(x_np).asnumpy()
-    tvm.testing.assert_allclose(res, res_np, atol=1e-5)
+    check_mod(mod, x_np, res_np)
+
+    # One 64 bit and one 32 bit constants
+    dtype = "int32"
+    x = relay.var("x", shape=(5,), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], relay.cumsum(x))
+    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
+    res_np = np.cumsum(x_np)
+
+    check_mod(mod, x_np, res_np)
 
 
 if __name__ == "__main__":
