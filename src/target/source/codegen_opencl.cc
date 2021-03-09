@@ -40,7 +40,7 @@ public:
 
   explicit InferTextureAccess() {}
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
-    this->operator()(n);
+    StmtExprVisitor::VisitStmt(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
     for (auto& texture : var_access_map_) {
       if (texture.second == read_access) {
@@ -56,21 +56,17 @@ public:
     return storage_scope_qualifiers;
   }
   void VisitExpr_(const CallNode* op) {
-    if (!op->args.size())
-    {
-      return;
+    if (op->op.same_as(builtin::text2d_load())) {
+      var_access_map_[op->args[0].as<VarNode>()] |= read_access;
     }
-    if (const VarNode* buffer = op->args[0].as<VarNode>())
-    {
-      if (op->op.same_as(builtin::text2d_load())) {
-        var_access_map_[buffer] |= read_access;
-      }
-      else if (op->op.same_as(builtin::text2d_store())) {
-        var_access_map_[buffer] |= write_access;
-      }
+    else if (op->op.same_as(builtin::text2d_store())) {
+      var_access_map_[op->args[0].as<VarNode>()] |= write_access;
+    } else {
+      StmtExprVisitor::VisitExpr_(op);
     }
     StmtExprVisitor::VisitExpr_(op);
   }
+
 private:
   std::unordered_map<const VarNode*, uint8_t> var_access_map_;
 };
