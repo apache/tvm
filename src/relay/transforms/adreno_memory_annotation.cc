@@ -129,7 +129,7 @@ class StorageInfo {
         const ExprNode* producer = kv.first;
         std::string legal_scope = GetConsumerScope(kv.second);
         if (storage_scope_.count(producer)) {
-          if (storage_scope_[producer] != legal_scope) {
+          if (storage_scope_[producer].find(legal_scope) == std::string::npos) {
             storage_scope_[producer] = legal_scope;
           }
         }
