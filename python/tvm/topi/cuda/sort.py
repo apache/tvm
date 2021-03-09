@@ -388,8 +388,8 @@ def _sort_common(
             def mergesort(source, dest, source_idx, dest_idx, size, width, even):
                 # calculate the start, mid, and end points of this section
                 start = width * bz
-                middle = tvm.te.min(start + tvm.tir.indexdiv(width, 2), size)
-                end = tvm.te.min(start + width, size)
+                middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), "int64")
+                end = cast(tvm.te.min(start + width, size), "int64")
                 with ib.if_scope(start < size):
                     with ib.if_scope(nbx == 1):
                         ## merge the start->middle and middle->end arrays
