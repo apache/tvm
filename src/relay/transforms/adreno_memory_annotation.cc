@@ -66,6 +66,7 @@ class StorageInfo {
 
    private:
     std::string GetConsumerScope(const std::vector<std::string>& consumer_scopes) const {
+      if (!consumer_scopes.size()) { return "global"; }
       std::string ref_scope = consumer_scopes.front();
       for (auto& consumer_scope : consumer_scopes) {
         if (consumer_scope != ref_scope) {
@@ -126,12 +127,11 @@ class StorageInfo {
     void LegalizeProducerStorage() {
       for (auto& kv : consumer_storage_scopes_) {
         const ExprNode* producer = kv.first;
-        // For any producers which have multiple consumers we
-        // must ensure that all of those consumers expect the
-        // same storage type. If not, default to global scope
-        // for the producer
-        if (kv.second.size() > 1) {
-          storage_scope_[producer] = GetConsumerScope(kv.second);
+        std::string legal_scope = GetConsumerScope(kv.second);
+        if (storage_scope_.count(producer)) {
+          if (storage_scope_[producer] != legal_scope) {
+            storage_scope_[producer] = legal_scope;
+          }
         }
       }
     }
