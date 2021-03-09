@@ -73,10 +73,13 @@ def test_bool_load():
 
 
 def test_pushconstants():
+    if not tvm.testing.device_enabled("vulkan"):
+        return
+
     def check_mod(mod, x_np, res_np):
-        tgt = "vulkan"
-        ctx = tvm.context("vulkan", 0)
-        ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
+        target = "vulkan"
+        ctx = tvm.context(target, 0)
+        ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
         res = ex.evaluate()(x_np).asnumpy()
         tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
@@ -92,7 +95,7 @@ def test_pushconstants():
 
     # One 64 bit and one 32 bit constants
     dtype = "int32"
-    x = relay.var("x", shape=(5,), dtype=dtype)
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], relay.cumsum(x))
     x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
