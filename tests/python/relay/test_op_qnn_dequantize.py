@@ -98,7 +98,7 @@ def test_channelwise_axis_1():
     }
 
     dequantize_test_driver(
-        in_dtype="uint8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=1
+        in_dtype="uint8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
     )
 
 
