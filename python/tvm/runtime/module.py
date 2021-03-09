@@ -34,10 +34,6 @@ from . import _ffi_api
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
-class UnsupportedInModelLibraryFormatError(Exception):
-    """Raised when export_model_library_format does not support the given Module tree."""
-
-
 class Module(object):
     """Runtime Module."""
 
@@ -389,44 +385,6 @@ class Module(object):
             kwargs.update({"options": opts})
 
         return fcompile(file_name, files, **kwargs)
-
-    def export_model_library_format(self, codegen_dir: str):
-        """Populate the codegen sub-directory as part of a Model Library Format export.
-
-        Parameters
-        ----------
-        codegen_dir : str
-            Path to the codegen directory on disk.
-        """
-        dso_modules = self._collect_dso_modules()
-        dso_module_handles = [m.handle.value for m in dso_modules]
-        non_dso_modules = self._collect_from_import_tree(lambda m: m not in dso_modules)
-        if non_dso_modules:
-            raise UnsupportedInModelLibraryFormatError(
-                f"Don't know how to export non-c or non-llvm modules; found: {non_dso_modules!r}"
-            )
-
-        mod_indices = {"lib": 0, "src": 0}
-        host_codegen_dir = os.path.join(codegen_dir, "host")
-        for mod in dso_modules:
-            if mod.type_key == "c":
-                index = mod_indices["src"]
-                mod_indices["src"] += 1
-                parent_dir = os.path.join(host_codegen_dir, "src")
-                file_name = os.path.join(parent_dir, f"lib{index}.c")
-            elif mod.type_key == "llvm":
-                index = mod_indices["lib"]
-                mod_indices["lib"] += 1
-                parent_dir = os.path.join(host_codegen_dir, "lib")
-                file_name = os.path.join(parent_dir, f"lib{index}.o")
-            else:
-                assert (
-                    False
-                ), f"do not expect module with type_key={mod.type_key} from _collect_dso_modules"
-
-            if not os.path.exists(parent_dir):
-                os.makedirs(parent_dir)
-            mod.save(file_name)
 
 
 def system_lib():

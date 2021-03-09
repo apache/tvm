@@ -26,7 +26,9 @@ import pytest
 
 import tvm
 import tvm.relay
+from tvm.relay.backend import graph_runtime_factory
 import tvm.runtime.module
+import tvm.testing
 from tvm.contrib import utils
 
 
@@ -42,6 +44,7 @@ def validate_graph_json(extract_dir, factory):
         assert "attrs" in graph
 
 
+@tvm.testing.requires_micro
 def test_export_model_library_format_c():
     with utils.TempDirectory.set_keep_for_debug(True):
         target = tvm.target.target.micro("host")
@@ -64,8 +67,8 @@ def test_export_model_library_format_c():
 
         temp_dir = utils.tempdir()
         mlf_tar_path = temp_dir.relpath("lib.tar")
-        print("fac", factory)
-        factory.export_model_library_format(mlf_tar_path)
+        import tvm.micro as micro
+        micro.export_model_library_format(factory, mlf_tar_path)
         tf = tarfile.open(mlf_tar_path)
 
         extract_dir = temp_dir.relpath("extract")
@@ -101,6 +104,7 @@ def test_export_model_library_format_c():
             assert "p0" in params
 
 
+@tvm.testing.requires_micro
 def test_export_model_library_format_llvm():
     with utils.TempDirectory.set_keep_for_debug(True):
         target = tvm.target.target.micro("host")
@@ -125,7 +129,8 @@ def test_export_model_library_format_llvm():
 
         temp_dir = utils.tempdir()
         mlf_tar_path = temp_dir.relpath("lib.tar")
-        factory.export_model_library_format(mlf_tar_path)
+        import tvm.micro as micro
+        micro.export_model_library_format(factory, mlf_tar_path)
         tf = tarfile.open(mlf_tar_path)
 
         extract_dir = temp_dir.relpath("extract")
@@ -160,16 +165,18 @@ def test_export_model_library_format_llvm():
             assert "p0" in params
 
 
+@tvm.testing.requires_micro
 def test_export_model():
     module = tvm.support.FrontendTestModule()
-    factory = tvm.get_global_func("tvm.graph_runtime_factory.create")(
-        '"graph_json"', module, "test_module"
+    factory = graph_runtime_factory.GraphRuntimeFactoryModule(
+        None, tvm.target.target.micro("host"), '"graph_json"', module, "test_module", {}
     )
 
     temp_dir = utils.tempdir()
-    mlf_tar_path = temp_dir.relpath("lib.tar")
-    with pytest.raises(tvm.runtime.module.UnsupportedInModelLibraryFormatError) as exc:
-        factory.export_model_library_format(mlf_tar_path)
+    import tvm.micro as micro
+    import tvm.micro.model_library_format as model_library_format
+    with pytest.raises(micro.UnsupportedInModelLibraryFormatError) as exc:
+        model_library_format._populate_codegen_dir(module, temp_dir.relpath("codegen"))
 
         assert str(exc.exception) == (
             "Don't know how to export non-c or non-llvm modules; found: ffi_testing"
