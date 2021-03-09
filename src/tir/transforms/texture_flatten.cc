@@ -252,26 +252,46 @@ class ExternalBufferForwarding : public TextureLoweringBase {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
+    ICHECK_EQ(external_loads_.size(), 0) << "Found external loads bound to a different store";
+    external_loads_.emplace_back();
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
 
-    if (auto load = op->value.as<BufferLoadNode>()) {
+    auto check_identity = [this](const BufferStoreNode* store, const BufferLoad& load) {
       if (extern_buf_.count(load->buffer)) {
         // If the buffer to load and the buffer to store to are both texture
         // check for identical access
         if (GetStorageScope(load->buffer) == "texture" &&
-            GetStorageScope(op->buffer) == "texture") {
-          auto store_index = SimplifyOffset(op->buffer->shape, op->indices);
+            GetStorageScope(store->buffer) == "texture") {
+          auto store_index = SimplifyOffset(store->buffer->shape, store->indices);
           auto load_index = SimplifyOffset(load->buffer->shape, load->indices);
           if (arith::Analyzer().CanProve(store_index == load_index)) {
-            extern_buffer_copy_.insert(op->buffer);
-            buffer_map_.insert({op->buffer, load->buffer});
+            extern_buffer_copy_.insert(store->buffer);
+            buffer_map_.insert({store->buffer, load->buffer});
           }
         }
       }
-    }
+    };
 
+    if (auto load_node = op->value.as<BufferLoadNode>()) {
+      check_identity(op, GetRef<BufferLoad>(load_node));
+    } else {
+      // Stored value is not a load, check for external loads collected
+      // when visiting the store node's value
+      for (auto& expr : external_loads_.back()) {
+        check_identity(op, Downcast<BufferLoad>(expr));
+      }
+    }
+    external_loads_.pop_back();
     return stmt;
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    if (external_loads_.size() && extern_buf_.count(op->buffer)) {
+      external_loads_.back().push_back(expr);
+    }
+    return expr;
   }
 
   const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& GetForwardedBuffers() {
@@ -282,6 +302,7 @@ class ExternalBufferForwarding : public TextureLoweringBase {
   std::deque<Stmt> realize_attrs_;
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buffer_copy_;
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
+  std::vector<std::vector<PrimExpr>> external_loads_;
 };
 
 
