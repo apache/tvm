@@ -162,6 +162,15 @@ inline size_t HashCombine(size_t key, size_t value) {
   return key ^ (value + 0x9e3779b9 + (key << 6) + (key >> 2));
 }
 
+/*!
+ * \brief hash an object and combines uint64_t key with previous keys
+ */
+template <typename T>
+inline uint64_t HashCombine(uint64_t key, const T& value) {
+  std::hash<T> hash_func;
+  return key ^ (hash_func(value) + 0x9e3779b9 + (key << 6) + (key >> 2));
+}
+
 }  // namespace support
 }  // namespace tvm
 #endif  // TVM_SUPPORT_UTILS_H_
