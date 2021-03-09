@@ -70,10 +70,10 @@ label_map_url = os.path.join(repo_base, label_map)
 
 # Target settings
 # Use these commented settings to build for cuda.
-# target = tvm.target.Target('cuda --host=llvm')
+# target = tvm.target.Target("cuda", host="llvm")
 # layout = "NCHW"
 # ctx = tvm.gpu(0)
-target = tvm.target.Target("llvm --host=llvm")
+target = tvm.target.Target("llvm", host="llvm")
 layout = None
 ctx = tvm.cpu(0)
 

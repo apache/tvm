@@ -139,7 +139,7 @@ layout = "NHWC"
 use_ndk = True
 # Path to cross compiler
 os.environ["TVM_NDK_CC"] = "/usr/bin/aarch64-linux-gnu-g++"
-target = tvm.target.Target("opencl -device=mali", "llvm -mtriple=aarch64-linux-gnu")
+target = tvm.target.Target("opencl -device=mali", host="llvm -mtriple=aarch64-linux-gnu")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 

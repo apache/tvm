@@ -262,16 +262,16 @@ target = tvm.target.Target("llvm -mtriple=%s-linux-android" % arch)
 if local_demo:
     target = tvm.target.Target("llvm")
 elif test_target == "opencl":
-    target = tvm.target.Target("opencl", target)
+    target = tvm.target.Target("opencl", host=target)
 elif test_target == "vulkan":
-    target = tvm.target.Target("vulkan", target)
+    target = tvm.target.Target("vulkan", host=target)
 
 input_name = "input_1"
 shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target, params=params)
+    lib = relay.build(mod, target=target, params=params)
 
 # After `relay.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will

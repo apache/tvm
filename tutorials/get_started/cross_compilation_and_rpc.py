@@ -227,14 +227,14 @@ def run_opencl():
     # them according to your environment.
     opencl_device_host = "10.77.1.145"
     opencl_device_port = 9090
-    target = tvm.target.Target("opencl", "llvm -mtriple=aarch64-linux-gnu")
+    target = tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
 
     # create schedule for the above "add one" compute declaration
     s = te.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=32)
     s[B].bind(xo, te.thread_axis("blockIdx.x"))
     s[B].bind(xi, te.thread_axis("threadIdx.x"))
-    func = tvm.build(s, [A, B], target)
+    func = tvm.build(s, [A, B], target=target)
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)
 
