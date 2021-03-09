@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm import relay
 from tvm.topi.math import cast
 import numpy as np
 
@@ -71,5 +72,40 @@ def test_bool_load():
     tvm.testing.assert_allclose(b.asnumpy(), ref)
 
 
+def check_result(
+    args,
+    mod,
+    expected,
+    flatten=False,
+    assert_shape=False,
+    only_vm=False,
+    targets=None,
+):
+    for kind in ["debug", "vm"]:
+        targets = targets or tvm.testing.enabled_targets()
+        for tgt, ctx in targets:
+            ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
+            result = ex.evaluate()(*args)
+            for r, e in zip(result, expected):
+                tvm.testing.assert_allclose(r, e, atol=2e-6)
+
+
+def test_pushconstants():
+    # This will have three 32 bit pushconstants
+    dtype = "float32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], relay.sqrt(x))
+    x_np = np.random.uniform(size=(3,)).astype(dtype)
+    res_np = np.sqrt(x_np)
+
+    tgt = "vulkan"
+    ctx = tvm.context("vulkan", 0)
+    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
+    res = ex.evaluate()(x_np).asnumpy()
+    tvm.testing.assert_allclose(res, res_np, atol=1e-5)
+
+
 if __name__ == "__main__":
     test_bool_load()
+    test_pushconstants()
