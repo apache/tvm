@@ -2335,12 +2335,14 @@ class OperatorConverter(object):
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-
-        assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
-        op_options = op.BuiltinOptions()
-        cast_options = CastOptions()
-        cast_options.Init(op_options.Bytes, op_options.Pos)
-        cast_dtype = cast_options.OutDataType()
+        if op.BuiltinOptions() is not None:
+            assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
+            op_options = op.BuiltinOptions()
+            cast_options = CastOptions()
+            cast_options.Init(op_options.Bytes, op_options.Pos)
+            cast_dtype = cast_options.OutDataType()
+        else:
+            cast_dtype = self.get_output_tensors(op)[0].tensor.Type()
 
         out = _op.cast(in_expr, self.get_tensor_type_str(cast_dtype))
 
