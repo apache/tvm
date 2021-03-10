@@ -221,272 +221,273 @@ def _sort_common(
     ## On the final iteration of the algorithm, one thread will merge two sorted lists
     ## to sort the entire array
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-    nthread_by = axis_mul_before * axis_mul_after
-    nthread_bz = 1
-    nthread_tx = max_threads
-    nthread_bx = ceil_div(size, nthread_tx)
+    with ib.if_scope(size > 0):
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        nthread_by = axis_mul_before * axis_mul_after
+        nthread_bz = 1
+        nthread_tx = max_threads
+        nthread_bx = ceil_div(size, nthread_tx)
 
-    def compare(a, b):
-        """
-        Compare a and b in proper ascending or descending order
-        """
-        if is_ascend:
-            out = a <= b
-        else:
-            out = b <= a
-        return out
-
-    # Sort the lower levels of the merge using odd-even sort, it's fast for small inputs
-    lower_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(block_size, "float64"))), "int64"
-    )
-
-    _odd_even_sort(
-        ib,
-        size,
-        axis_mul_before * axis_mul_after,
-        1,
-        is_ascend,
-        keys,
-        keys_swap,
-        values,
-        values_swap,
-    )
-
-    upper_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
-    )
-
-    def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
-        first = ib.allocate("int64", (1,), name="first", scope="local")
-        mid = ib.allocate("int64", (1,), name="mid", scope="local")
-        last = ib.allocate("int64", (1,), name="last", scope="local")
-        first[0] = tvm.te.max(0, diag - bCount)
-        last[0] = tvm.te.min(diag, aCount)
-        with ib.while_loop(first[0] < last[0]):
-            mid = (first[0] + last[0]) >> 1
-            a = source[base_idx + (aStart + mid)]
-            b = source[base_idx + (bStart + diag - 1 - mid)]
-            with ib.if_scope(compare(a, b)):
-                first[0] = mid + 1
-            with ib.else_scope():
-                last[0] = mid
-        return first[0], last[0]
-
-    def serial_merge(
-        source,
-        dest,
-        source_idx,
-        dest_idx,
-        base_idx,
-        aCount,
-        bCount,
-        aStart,
-        bStart,
-        kStart,
-        diag,
-        step_count,
-        first,
-        last,
-    ):
-        i = ib.allocate("int64", (1,), name="i", scope="local")
-        j = ib.allocate("int64", (1,), name="j", scope="local")
-        i[0] = aStart + first
-        j[0] = bStart + diag - last
-        with ib.for_range(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
-            i_idx = base_idx + i[0]
-            j_idx = base_idx + j[0]
-            k_idx = base_idx + (kStart + diag + count)
-
-            def assign_i():
-                """assign i value to current output"""
-                dest[k_idx] = source[i_idx]
-                if values is not None:
-                    dest_idx[k_idx] = source_idx[i_idx]
-                i[0] += 1
-
-            def assign_j():
-                """assign j value to current output"""
-                dest[k_idx] = source[j_idx]
-                if values is not None:
-                    dest_idx[k_idx] = source_idx[j_idx]
-                j[0] += 1
-
-            ## if both of the iterators are in range
-            with ib.if_scope(tvm.tir.all(i[0] < aStart + aCount, j[0] < bStart + bCount)):
-                # compare them and insert whichever is next into the output
-                with ib.if_scope(compare(source[i_idx], source[j_idx])):
-                    assign_i()
-                with ib.else_scope():
-                    assign_j()
-            # otherwise, simply copy the remainder of the valid iterator to the output
-            with ib.else_scope():
-                with ib.if_scope(i[0] < aStart + aCount):
-                    assign_i()
-                with ib.else_scope():
-                    assign_j()
-
-    with ib.for_range(0, upper_lim - lower_lim, dtype="int64") as l2_width:
-        width = 2 << (l2_width + lower_lim)
-        # Define and launch the cuda kernel
-        with ib.new_scope():
-            target = tvm.target.Target.current()
-            if "vulkan" in str(target):
-                # Vulkan can't handle dynamic nthread, so we thread slightly differently for vulkan
-                # We don't do this generally because it causes a 15% perf regression on
-                # other platforms
-                ntx = max_threads
-                nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-                nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
-                tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
+        def compare(a, b):
+            """
+            Compare a and b in proper ascending or descending order
+            """
+            if is_ascend:
+                out = a <= b
             else:
-                ntx = tvm.tir.generic.cast(tvm.te.min(max_threads, width), "int32")
-                nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-                nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
-                tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
+                out = b <= a
+            return out
 
-            def mergepath(
-                source,
-                dest,
-                source_idx,
-                dest_idx,
-                aCount,
-                bCount,
-                aStart,
-                bStart,
-                kStart,
-                step_count,
-                even,
-            ):
-                # pylint: disable=arguments-out-of-order
-                def merge(source, dest, source_idx, dest_idx):
-                    diag = tx * step_count
-                    first, last = get_merge_begin(
-                        source,
-                        by * size,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        diag,
-                        step_count,
-                    )
-                    # iterate over the output loop
-                    serial_merge(
-                        source,
-                        dest,
-                        source_idx,
-                        dest_idx,
-                        by * size,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        kStart,
-                        diag,
-                        step_count,
-                        first,
-                        last,
-                    )
+        # Sort the lower levels of the merge using odd-even sort, it's fast for small inputs
+        lower_lim = tvm.tir.generic.cast(
+            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(block_size, "float64"))), "int64"
+        )
 
-                with ib.if_scope(even):
-                    merge(source, dest, source_idx, dest_idx)
+        _odd_even_sort(
+            ib,
+            size,
+            axis_mul_before * axis_mul_after,
+            1,
+            is_ascend,
+            keys,
+            keys_swap,
+            values,
+            values_swap,
+        )
+
+        upper_lim = tvm.tir.generic.cast(
+            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
+        )
+
+        def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
+            first = ib.allocate("int64", (1,), name="first", scope="local")
+            mid = ib.allocate("int64", (1,), name="mid", scope="local")
+            last = ib.allocate("int64", (1,), name="last", scope="local")
+            first[0] = tvm.te.max(0, diag - bCount)
+            last[0] = tvm.te.min(diag, aCount)
+            with ib.while_loop(first[0] < last[0]):
+                mid = (first[0] + last[0]) >> 1
+                a = source[base_idx + (aStart + mid)]
+                b = source[base_idx + (bStart + diag - 1 - mid)]
+                with ib.if_scope(compare(a, b)):
+                    first[0] = mid + 1
                 with ib.else_scope():
-                    merge(dest, source, dest_idx, source_idx)
+                    last[0] = mid
+            return first[0], last[0]
 
-            def mergesort(source, dest, source_idx, dest_idx, size, width, even):
-                # calculate the start, mid, and end points of this section
-                start = width * bz
-                middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), "int64")
-                end = cast(tvm.te.min(start + width, size), "int64")
-                with ib.if_scope(start < size):
-                    with ib.if_scope(nbx == 1):
-                        ## merge the start->middle and middle->end arrays
-                        aCount = middle - start
-                        bCount = end - middle
-                        mergepath(
-                            source,
-                            dest,
-                            source_idx,
-                            dest_idx,
-                            aCount,
-                            bCount,
-                            start,
-                            middle,
-                            start,
-                            ceil_div(width, ntx),
-                            even,
-                        )
+        def serial_merge(
+            source,
+            dest,
+            source_idx,
+            dest_idx,
+            base_idx,
+            aCount,
+            bCount,
+            aStart,
+            bStart,
+            kStart,
+            diag,
+            step_count,
+            first,
+            last,
+        ):
+            i = ib.allocate("int64", (1,), name="i", scope="local")
+            j = ib.allocate("int64", (1,), name="j", scope="local")
+            i[0] = aStart + first
+            j[0] = bStart + diag - last
+            with ib.for_range(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
+                i_idx = base_idx + i[0]
+                j_idx = base_idx + j[0]
+                k_idx = base_idx + (kStart + diag + count)
+
+                def assign_i():
+                    """assign i value to current output"""
+                    dest[k_idx] = source[i_idx]
+                    if values is not None:
+                        dest_idx[k_idx] = source_idx[i_idx]
+                    i[0] += 1
+
+                def assign_j():
+                    """assign j value to current output"""
+                    dest[k_idx] = source[j_idx]
+                    if values is not None:
+                        dest_idx[k_idx] = source_idx[j_idx]
+                    j[0] += 1
+
+                ## if both of the iterators are in range
+                with ib.if_scope(tvm.tir.all(i[0] < aStart + aCount, j[0] < bStart + bCount)):
+                    # compare them and insert whichever is next into the output
+                    with ib.if_scope(compare(source[i_idx], source[j_idx])):
+                        assign_i()
                     with ib.else_scope():
-                        step_count = max_threads * thread_work
-                        diag = bx * step_count
-                        with ib.if_scope(even):
-                            first, last = get_merge_begin(
-                                source,
-                                by * size,
-                                middle - start,
-                                end - middle,
-                                start,
-                                middle,
-                                diag,
-                                step_count,
-                            )
-                        with ib.else_scope():
-                            first, last = get_merge_begin(
-                                dest,
-                                by * size,
-                                middle - start,
-                                end - middle,
-                                start,
-                                middle,
-                                diag,
-                                step_count,
-                            )
-                        aStart = start + first
-                        bStart = middle + diag - last
-                        aCount = tvm.te.min(middle - aStart, step_count)
-                        bCount = tvm.te.min(end - bStart, step_count)
-                        mergepath(
+                        assign_j()
+                # otherwise, simply copy the remainder of the valid iterator to the output
+                with ib.else_scope():
+                    with ib.if_scope(i[0] < aStart + aCount):
+                        assign_i()
+                    with ib.else_scope():
+                        assign_j()
+
+        with ib.for_range(0, upper_lim - lower_lim, dtype="int64") as l2_width:
+            width = 2 << (l2_width + lower_lim)
+            # Define and launch the cuda kernel
+            with ib.new_scope():
+                target = tvm.target.Target.current()
+                if "vulkan" in str(target):
+                    # Vulkan can't handle dynamic nthread, so we thread slightly differently for vulkan
+                    # We don't do this generally because it causes a 15% perf regression on
+                    # other platforms
+                    ntx = max_threads
+                    nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
+                    nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
+                    tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
+                else:
+                    ntx = tvm.tir.generic.cast(tvm.te.min(max_threads, width), "int32")
+                    nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
+                    nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
+                    tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
+
+                def mergepath(
+                    source,
+                    dest,
+                    source_idx,
+                    dest_idx,
+                    aCount,
+                    bCount,
+                    aStart,
+                    bStart,
+                    kStart,
+                    step_count,
+                    even,
+                ):
+                    # pylint: disable=arguments-out-of-order
+                    def merge(source, dest, source_idx, dest_idx):
+                        diag = tx * step_count
+                        first, last = get_merge_begin(
                             source,
-                            dest,
-                            source_idx,
-                            dest_idx,
+                            by * size,
                             aCount,
                             bCount,
                             aStart,
                             bStart,
-                            start + diag,
-                            thread_work,
-                            even,
+                            diag,
+                            step_count,
+                        )
+                        # iterate over the output loop
+                        serial_merge(
+                            source,
+                            dest,
+                            source_idx,
+                            dest_idx,
+                            by * size,
+                            aCount,
+                            bCount,
+                            aStart,
+                            bStart,
+                            kStart,
+                            diag,
+                            step_count,
+                            first,
+                            last,
                         )
 
-            # Call the kernel
-            mergesort(
-                keys,
-                keys_swap,
-                values,
-                values_swap,
-                size,
-                width,
-                tvm.tir.indexmod(l2_width, 2) == 0,
-            )
-    nthread_by = axis_mul_before
-    nthread_bz = axis_mul_after
-    nthread_tx = max_threads
-    nthread_bx = ceil_div(size, nthread_tx)
-    ## if the final sorted data ended up in the swap, copy it to the real output
-    with ib.if_scope(
-        tvm.tir.all(upper_lim > lower_lim, tvm.tir.indexmod(upper_lim - lower_lim, 2) == 1)
-    ):
-        with ib.new_scope():
-            tx, bx, by, bz = _get_threads(ib, nthread_tx, nthread_bx, nthread_by, nthread_bz)
-            tid = bx * nthread_tx + tx
-            idx = (by * axis_mul_after + bz) * size + tid
-            with ib.if_scope(tid < size):
-                keys[idx] = keys_swap[idx]
-                if values is not None:
-                    values[idx] = values_swap[idx]
+                    with ib.if_scope(even):
+                        merge(source, dest, source_idx, dest_idx)
+                    with ib.else_scope():
+                        merge(dest, source, dest_idx, source_idx)
+
+                def mergesort(source, dest, source_idx, dest_idx, size, width, even):
+                    # calculate the start, mid, and end points of this section
+                    start = width * bz
+                    middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), "int64")
+                    end = cast(tvm.te.min(start + width, size), "int64")
+                    with ib.if_scope(start < size):
+                        with ib.if_scope(nbx == 1):
+                            ## merge the start->middle and middle->end arrays
+                            aCount = middle - start
+                            bCount = end - middle
+                            mergepath(
+                                source,
+                                dest,
+                                source_idx,
+                                dest_idx,
+                                aCount,
+                                bCount,
+                                start,
+                                middle,
+                                start,
+                                ceil_div(width, ntx),
+                                even,
+                            )
+                        with ib.else_scope():
+                            step_count = max_threads * thread_work
+                            diag = bx * step_count
+                            with ib.if_scope(even):
+                                first, last = get_merge_begin(
+                                    source,
+                                    by * size,
+                                    middle - start,
+                                    end - middle,
+                                    start,
+                                    middle,
+                                    diag,
+                                    step_count,
+                                )
+                            with ib.else_scope():
+                                first, last = get_merge_begin(
+                                    dest,
+                                    by * size,
+                                    middle - start,
+                                    end - middle,
+                                    start,
+                                    middle,
+                                    diag,
+                                    step_count,
+                                )
+                            aStart = start + first
+                            bStart = middle + diag - last
+                            aCount = tvm.te.min(middle - aStart, step_count)
+                            bCount = tvm.te.min(end - bStart, step_count)
+                            mergepath(
+                                source,
+                                dest,
+                                source_idx,
+                                dest_idx,
+                                aCount,
+                                bCount,
+                                aStart,
+                                bStart,
+                                start + diag,
+                                thread_work,
+                                even,
+                            )
+
+                # Call the kernel
+                mergesort(
+                    keys,
+                    keys_swap,
+                    values,
+                    values_swap,
+                    size,
+                    width,
+                    tvm.tir.indexmod(l2_width, 2) == 0,
+                )
+        nthread_by = axis_mul_before
+        nthread_bz = axis_mul_after
+        nthread_tx = max_threads
+        nthread_bx = ceil_div(size, nthread_tx)
+        ## if the final sorted data ended up in the swap, copy it to the real output
+        with ib.if_scope(
+            tvm.tir.all(upper_lim > lower_lim, tvm.tir.indexmod(upper_lim - lower_lim, 2) == 1)
+        ):
+            with ib.new_scope():
+                tx, bx, by, bz = _get_threads(ib, nthread_tx, nthread_bx, nthread_by, nthread_bz)
+                tid = bx * nthread_tx + tx
+                idx = (by * axis_mul_after + bz) * size + tid
+                with ib.if_scope(tid < size):
+                    keys[idx] = keys_swap[idx]
+                    if values is not None:
+                        values[idx] = values_swap[idx]
 
     out = ib.get()
     return out
