@@ -120,9 +120,10 @@ def test_opencl_max():
     check_max(ctx, 1, "float32")
     check_max(ctx, 1, "float64")
 
+
 def test_opencl_texture_memory():
     def check_allocate_and_copy(shape):
-        cpu_arr = nd.array(np.random.rand(*shape).astype('float32'), tvm.cpu(0))
+        cpu_arr = nd.array(np.random.rand(*shape).astype("float32"), tvm.cpu(0))
         opencl_arr0 = nd.empty(cpu_arr.shape, cpu_arr.dtype, tvm.opencl(0), "global:texture-act")
         opencl_arr1 = nd.empty(cpu_arr.shape, cpu_arr.dtype, tvm.opencl(0), "global:texture-act")
         cpu_arr.copyto(opencl_arr0)
@@ -132,6 +133,7 @@ def test_opencl_texture_memory():
     check_allocate_and_copy((3, 4))
     check_allocate_and_copy((5, 6, 4))
     check_allocate_and_copy((8, 5, 6, 4))
+
 
 if __name__ == "__main__":
     test_opencl_ternary_expression()
