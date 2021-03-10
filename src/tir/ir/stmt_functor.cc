@@ -688,7 +688,8 @@ PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)>
   return IRSubstitute(vmap)(std::move(expr));
 }
 
-void PreOrderVisit(const ObjectRef& node, const std::function<bool(const ObjectRef&)>& fvisit) {
+void PreOrderVisit(const ObjectRef& stmt_or_expr,
+                   const std::function<bool(const ObjectRef&)>& fvisit) {
   class PreOrderVisitor : public StmtExprVisitor {
    public:
     explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f) : f_(f) {}
@@ -719,13 +720,13 @@ void PreOrderVisit(const ObjectRef& node, const std::function<bool(const ObjectR
   };
 
   PreOrderVisitor visitor(fvisit);
-  if (const auto* stmt = node.as<StmtNode>()) {
+  if (const auto* stmt = stmt_or_expr.as<StmtNode>()) {
     visitor(GetRef<Stmt>(stmt));
-  } else if (const auto* expr = node.as<PrimExprNode>()) {
+  } else if (const auto* expr = stmt_or_expr.as<PrimExprNode>()) {
     visitor(GetRef<PrimExpr>(expr));
   } else {
     LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
-               << node->GetTypeKey();
+               << stmt_or_expr->GetTypeKey();
   }
 }
 

@@ -389,7 +389,7 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
 /*!
  * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
  * If fvisit returns false, it won't visit the children of the node.
- * \param stmt The ir to be visited.
+ * \param stmt_or_expr The ir to be visited.
  * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
  * children of the node
  */
