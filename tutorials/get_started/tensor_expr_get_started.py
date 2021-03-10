@@ -72,13 +72,14 @@ tgt = "llvm"
 # each intermediate result represented as a multi-dimensional array. The user
 # needs to describe the computation rule that generates the tensors. We first
 # define a symbolic variable n to represent the shape. We then define two
-# placeholder Tensors, A and B, with given shape (n,). We then describe the
-# result tensor C, with a compute operation. The compute function takes the
-# shape of the tensor, as well as a lambda function that describes the
-# computation rule for each position of the tensor. Note that while n is a
-# variable, it defines a consistent shape between the A, B and C tensors.
-# Remember, no actual computation happens during this phase, as we are only
-# declaring how the computation should be done.
+# placeholder Tensors, ``A`` and ``B``, with given shape ``(n,)``. We then
+# describe the result tensor ``C``, with a ``compute`` operation. The
+# ``compute`` defines a computation, with the output conforming to the
+# specified tensor shape and the computation to be performed at each position
+# in the tensor defined by the lambda function. Note that while ``n`` is a
+# variable, it defines a consistent shape between the ``A``, ``B`` and ``C``
+# tensors. Remember, no actual computation happens during this phase, as we
+# are only declaring how the computation should be done.
 
 n = te.var("n")
 A = te.placeholder((n,), name="A")
@@ -91,13 +92,17 @@ print(type(C))
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # While the above lines describe the computation rule, we can compute C in many
-# ways since the axis of C can be computed in a data parallel manner. TVM asks
-# the user to provide a description of the computation called a schedule.
+# different ways. For a tensor with multiple axes, you can choose which axis to
+# iterate over first, or computations can be split across different threads.
+# TVM requires that the user to provide a schedule, which is a description of 
+# how the computation should be performed. Scheduling operations within TE
+# can change loop orders, split computations across different threads, group
+# blocks of data together, amongst other operations. An important concept behind
+# schedules is that different schedules for the same operation will produce the
+# same result.
 #
-# A schedule is a set of transformation of computation that transforms the loop
-# of computations in the program.
-#
-# The default schedule will compute C in by iterating in row major order.
+# TVM allows you to create a default schedule that will compute ``C`` in by
+# iterating in row major order.
 #
 # .. code-block:: c
 #
@@ -147,14 +152,20 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # Now that we've illustrated the fundamentals of TE, let's go deeper into what
 # schedules do, and how they can be used to optimize tensor expressions for
 # different architectures. A schedule is a series of steps that are applied to
-# a TE to transform it in a number of different ways. When a schedule is
-# applied to a TE, the inputs and outputs remain the same, but when compiled
-# the implementation of the expression can change. This tensor addition, in the
-# default schedule, is run serially but is easy to parallelize across all of
-# the processor threads. We can apply the parallel schedule operation to our
-# computation.
+# an expression to transform it in a number of different ways. When a schedule
+# is applied to an expression in TE, the inputs and outputs remain the same,
+# but when compiled the implementation of the expression can change. This
+# tensor addition, in the default schedule, is run serially but is easy to
+# parallelize across all of the processor threads. We can apply the parallel
+# schedule operation to our computation.
 
 s[C].parallel(C.op.axis[0])
+
+################################################################################
+# The ``tvm.lower`` command will generate the Intermediate Representation (IR)
+# of the TE, with the corresponding schedule. By lowering the expression as we
+# apply different schedule operations, we can see the effect of scheduling on
+# the ordering of the computation.
 
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 
@@ -206,30 +217,34 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # TVM is capable of targeting multiple architectures. In the next example, we
 # will target compilation of the vector addition to GPUs
 
+# If you want to run this code, change ``run_cuda = True``
+run_cuda = False
+if run_cuda:
+
 # Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs), rocm (Radeon GPUS), OpenGL (???).
-tgt_gpu = "cuda"
+    tgt_gpu = "cuda"
 
 # Recreate the schedule
-n = te.var("n")
-A = te.placeholder((n,), name="A")
-B = te.placeholder((n,), name="B")
-C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-print(type(C))
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    print(type(C))
 
-s = te.create_schedule(C.op)
+    s = te.create_schedule(C.op)
 
-bx, tx = s[C].split(C.op.axis[0], factor=64)
+    bx, tx = s[C].split(C.op.axis[0], factor=64)
 
 ################################################################################
 # Finally we bind the iteration axis bx and tx to threads in the GPU compute
 # grid. These are GPU specific constructs that allow us to generate code that
 # runs on GPU.
 
-if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
-    s[C].bind(bx, te.thread_axis("blockIdx.x"))
-    s[C].bind(tx, te.thread_axis("threadIdx.x"))
+    if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
+        s[C].bind(bx, te.thread_axis("blockIdx.x"))
+        s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
-fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
+    fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
 
 ################################################################################
 # The compiled TVM function is exposes a concise C API that can be invoked from
@@ -242,14 +257,14 @@ fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
 # fadd runs the actual computation, and asnumpy() copies the GPU array back to the
 # CPU (so we can verify correctness).
 
-ctx = tvm.context(tgt_gpu, 0)
+    ctx = tvm.context(tgt_gpu, 0)
 
-n = 1024
-a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
-fadd(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    n = 1024
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+    fadd(a, b, c)
+    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ################################################################################
 # Inspect the Generated GPU Code
@@ -260,12 +275,12 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 #
 # The following code fetches the device module and prints the content code.
 
-if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
-    dev_module = fadd.imported_modules[0]
-    print("-----GPU code-----")
-    print(dev_module.get_source())
-else:
-    print(fadd.get_source())
+    if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
+        dev_module = fadd.imported_modules[0]
+        print("-----GPU code-----")
+        print(dev_module.get_source())
+    else:
+        print(fadd.get_source())
 
 ################################################################################
 # Saving and Loading Compiled Modules
@@ -346,7 +361,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 #   into the compiled functions.
 #
 #   This means that you can call the compiled TVM functions from any thread, on
-#   any GPUs.
+#   any GPUs, provided that you have compiled the code for that GPU.
 
 ################################################################################
 # Generate OpenCL Code
@@ -396,11 +411,15 @@ if tgt.startswith("opencl"):
 #   - fuse: fuses two consecutive axises of one computation.
 #   - reorder: can reorder the axises of a computation into a defined order.
 #   - bind: can bind a computation to a specific thread, useful in GPU programming.
-#   - compute_at: by default, TVM will compute tensors at the root by default. compute_at specifies
-#     that one tensor should be computed at the first axis of computation for another operator.
-#   - compute_inline: when marked inline, a computation will be expanded then inserted into the
-#     address where the tensor is required.
-#   - compute_root: moves a computation to the root stage.
+#   - compute_at: by default, TVM will compute tensors at the outermost level
+#     of the function, or the root, by default. compute_at specifies that one
+#     tensor should be computed at the first axis of computation for another
+#     operator.
+#   - compute_inline: when marked inline, a computation will be expanded then
+#     inserted into the address where the tensor is required.
+#   - compute_root: moves a computation to the outermost layer, or root, of the
+#     function. This means that stage of the computation will be fully computed
+#     before it moves on to the next stage.
 #
 #   A complete description of these primitives can be found in the
 # [Schedule Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html) docs page.
@@ -453,9 +472,12 @@ N = 1024
 # The default tensor data type in tvm
 dtype = "float32"
 
-# using Intel AVX2 (Advanced Vector Extensions) ISA for SIMD
-# To get the best performance, please change the following line
-# to llvm -mcpu=core-avx2, or specific type of CPU you use
+# using Intel AVX2 (Advanced Vector Extensions) ISA for SIMD To get the best
+# performance, please change the following line to llvm -mcpu=core-avx2, or
+# specific type of CPU you use.  If you're using llvm, you can get this
+# information from the command ``llc --version`` to get the CPU type, and
+# you can check ``/proc/cpuinfo`` for additional extensions that your
+# processor might support.
 target = "llvm"
 ctx = tvm.context(target, 0)
 
@@ -496,13 +518,12 @@ C = te.compute((M, N), lambda x, y: te.sum(A[x, k] * B[k, y], axis=k), name="C")
 # Default schedule
 s = te.create_schedule(C.op)
 func = tvm.build(s, [A, B, C], target=target, name="mmult")
-assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
 func(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
-def evaluate_operation(s, vars, target, name, optimization):
+def evaluate_operation(s, vars, target, name, optimization, log):
     func = tvm.build(s, [A, B, C], target=target, name="mmult")
     assert func
 
@@ -510,11 +531,14 @@ def evaluate_operation(s, vars, target, name, optimization):
     func(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
-
     evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
-    print("%s: %f" % (optimization, evaluator(a, b, c).mean))
+    mean_time = evaluator(a, b, c).mean
+    print("%s: %f" % (optimization, mean_time))
+    log.append((optimization, mean_time))
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="none")
+log = []
+
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="none", log=log)
 
 ################################################################################
 # Let's take a look at the intermediate representation of the operator and
@@ -561,7 +585,7 @@ ko, ki = s[C].split(k, factor=4)
 # Hoist reduction domain outside the blocking loop
 s[C].reorder(xo, yo, ko, ki, xi, yi)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="blocking")
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="blocking", log=log)
 
 ################################################################################
 # By reordering the computation to take advantage of caching, you should see a
@@ -594,7 +618,7 @@ s[C].reorder(xo, yo, ko, ki, xi, yi)
 # Now apply the vectorization optimization
 s[C].vectorize(yi)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="vectorization")
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="vectorization", log=log)
 
 # The generalized IR after vectorization
 print(tvm.lower(s, [A, B, C], simple_mode=True))
@@ -620,7 +644,7 @@ ko, ki = s[C].split(k, factor=4)
 s[C].reorder(xo, yo, ko, xi, ki, yi)
 s[C].vectorize(yi)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="loop permutation")
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="loop permutation", log=log)
 
 # Again, print the new generalized IR
 print(tvm.lower(s, [A, B, C], simple_mode=True))
@@ -673,7 +697,7 @@ x, y, z = s[packedB].op.axis
 s[packedB].vectorize(z)
 s[packedB].parallel(x)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="array packing")
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="array packing", log=log)
 
 # Here is the generated IR after array packing.
 print(tvm.lower(s, [A, B, C], simple_mode=True))
@@ -713,7 +737,7 @@ x, y, z = s[packedB].op.axis
 s[packedB].vectorize(z)
 s[packedB].parallel(x)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="block caching")
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="block caching", log=log)
 
 # Here is the generated IR after write cache blocking.
 print(tvm.lower(s, [A, B, C], simple_mode=True))
@@ -750,7 +774,7 @@ x, y, z = s[packedB].op.axis
 s[packedB].vectorize(z)
 s[packedB].parallel(x)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="parallelization")
+evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="parallelization", log=log)
 
 # Here is the generated IR after parallelization.
 print(tvm.lower(s, [A, B, C], simple_mode=True))
