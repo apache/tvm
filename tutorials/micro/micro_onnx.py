@@ -70,6 +70,10 @@ running an ONNX model on a device using microTVM.
 #
 # Be sure you are able to build and flash a sample Zephyr program
 # (e.g., the "Blinky" demo) to your device before you proceed with this tutorial.
+#
+# Instead of building and installing the Zephyr toolchain yourself, you can use the
+# `tutorial-micro-reference-vm` for a quick setup which includes all of the necessary
+# tools.
 
 import datetime
 import io

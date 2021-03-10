@@ -139,7 +139,7 @@ int g_utvm_timer_running = 0;
 tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     TVMLogf("timer already running");
-    return kTvmErrorSystemErrorMask | 1;
+    return kTvmErrorPlatformTimerBadState;
   }
 
 #ifdef CONFIG_LED
