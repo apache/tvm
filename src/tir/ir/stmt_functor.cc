@@ -729,15 +729,6 @@ void PreOrderVisit(const ObjectRef& node, const std::function<bool(const ObjectR
   }
 }
 
-void VisitPrimFuncs(const IRModule& mod, const std::function<void(const PrimFunc&)>& fvisit) {
-  for (const auto& kv : mod->functions) {
-    const BaseFunc& base_func = kv.second;
-    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      fvisit(GetRef<PrimFunc>(prim_func));
-    }
-  }
-}
-
 TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
 
 TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {

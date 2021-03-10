@@ -36,15 +36,7 @@
 #include <utility>
 
 namespace tvm {
-
-// Forward declaration
-class IRModule;
-
 namespace tir {
-
-// Forward declaration
-class PrimFunc;
-
 /*!
  * \brief Same as ExprFunctor except it is applied on statements
  * \tparam FType The function signature.
@@ -396,22 +388,13 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
 
 /*!
  * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
- * If fvisit returns false, it stops visit the children of the current node.
- * \param node The IR to be visited, can be either Stmt or Expr.
- * \param fvisit The visitor function to be applied. If fvisit returns false, it stops visit the
- * children on that node.
+ * If fvisit returns false, it won't visit the children of the node.
+ * \param stmt The ir to be visited.
+ * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
+ * children of the node
  */
-TVM_DLL void PreOrderVisit(const ObjectRef& node,
+TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
                            const std::function<bool(const ObjectRef&)>& fvisit);
-
-/*!
- * \brief Visit the PrimFuncs in the IRModule
- * \param mod The IRModule to be visited
- * \param fvisit The visitor to the PrimFuncs in the IRModule
- */
-TVM_DLL void VisitPrimFuncs(const IRModule& mod,
-                            const std::function<void(const PrimFunc&)>& fvisit);
-
 }  // namespace tir
 }  // namespace tvm
 
