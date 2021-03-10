@@ -125,7 +125,8 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
     int warp_size = ret;
 
-    int max_vthread_extent = warp_size / 4;
+    int max_vthread_extent = std::max(1, warp_size / 4);
+
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
   } else {
