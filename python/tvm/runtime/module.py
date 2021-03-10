@@ -105,6 +105,9 @@ class Module(object):
             raise ValueError("Can only take string as function name")
         return self.get_function(name)
 
+    def __eq__(self, other):
+        return self.handle.value == other.handle.value
+
     def __call__(self, *args):
         if self._entry:
             return self._entry(*args)
@@ -233,15 +236,27 @@ class Module(object):
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
+    def _collect_from_import_tree(self, filter_func):
+        """Helper function to collect modules from the tree matching a filter_func, then return it.
+
+        Parameters
+        ----------
+        filter_func : Callable[[Module], bool]
+            A function which is invoked for each Module discovered in the import tree (including
+            self).
+
+        Returns
+        -------
+        list[Module] :
+            A list of matching Module.
+        """
         visited, stack, dso_modules = set(), [], []
         # append root module
         visited.add(self)
         stack.append(self)
         while stack:
             module = stack.pop()
-            if module._dso_exportable():
+            if filter_func(module):
                 dso_modules.append(module)
             for m in module.imported_modules:
                 if m not in visited:
@@ -249,8 +264,9 @@ class Module(object):
                     stack.append(m)
         return dso_modules
 
-    def _dso_exportable(self):
-        return self.type_key == "llvm" or self.type_key == "c"
+    def _collect_dso_modules(self):
+        is_dso_exportable = lambda m: (m.type_key == "llvm" or m.type_key == "c")
+        return self._collect_from_import_tree(is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
         """Export the module and its imported device code one library.
