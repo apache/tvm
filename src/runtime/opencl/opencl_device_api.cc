@@ -174,7 +174,7 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* s
     image_format.image_channel_order = CL_RGBA;
     image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
     // flat the tensor shape to 2D image
-    size_t width, height; 
+    size_t width, height;
     std::vector<int64_t> vshape(shape, shape + ndim);
     std::tie(width, height) = FlatShapeTo2D(vshape);
     // LOG(INFO) << "width = " << width;
@@ -187,18 +187,18 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* s
     image_desc.image_slice_pitch = 0;
     image_desc.num_mip_levels = 0;
     image_desc.num_samples = 0;
-    image_desc.buffer= NULL;
+    image_desc.buffer = NULL;
 
     cl_int err_code;
     cl_mem mptr = clCreateImage(this->context, CL_MEM_READ_WRITE, &image_format, &image_desc,
-     														nullptr, &err_code);
+                                nullptr, &err_code);
     OPENCL_CHECK_ERROR(err_code);
     return mptr;
   } else {
     LOG(FATAL) << "Device does not support allocate data space with "
                << "specified memory scope: " << mem_scope.value();
     return nullptr;
-  } 
+  }
 }
 
 void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
@@ -212,7 +212,7 @@ void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
 
 static inline void GetImageShape(const void* mem_ptr, size_t* region) {
   cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
-  size_t width, height; 
+  size_t width, height;
   OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_WIDTH, sizeof(width), &width, NULL));
   OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_HEIGHT, sizeof(height), &height, NULL));
   region[0] = width;
@@ -235,17 +235,15 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
                                       static_cast<cl_mem>((void*)from),  // NOLINT(*)
                                       static_cast<cl_mem>(to), from_offset, to_offset, size, 0,
                                       nullptr, nullptr));
-    } else if (from_type == CL_MEM_OBJECT_IMAGE2D &&
-               to_type == CL_MEM_OBJECT_IMAGE2D) {
+    } else if (from_type == CL_MEM_OBJECT_IMAGE2D && to_type == CL_MEM_OBJECT_IMAGE2D) {
       size_t from_origin[3] = {0, 0, 0};
       size_t to_origin[3] = {0, 0, 0};
       size_t region[3];
       GetImageShape(from, region);
       OPENCL_CALL(clEnqueueCopyImage(this->GetQueue(ctx_to),
                                      static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                     static_cast<cl_mem>(to),
-                                     from_origin, to_origin, region,
-                                     0, nullptr, nullptr));
+                                     static_cast<cl_mem>(to), from_origin, to_origin, region, 0,
+                                     nullptr, nullptr));
     } else {
       LOG(FATAL) << "OpenCL memory object type is wrong.";
     }
@@ -255,8 +253,8 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
       case CL_MEM_OBJECT_BUFFER:
         OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from),
                                         static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                        CL_FALSE, from_offset, size, static_cast<char*>(to) + to_offset,
-                                        0, nullptr, nullptr));
+                                        CL_FALSE, from_offset, size,
+                                        static_cast<char*>(to) + to_offset, 0, nullptr, nullptr));
         OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
         break;
       case CL_MEM_OBJECT_IMAGE2D: {
@@ -265,9 +263,8 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
         GetImageShape(from, region);
         OPENCL_CALL(clEnqueueReadImage(this->GetQueue(ctx_from),
                                        static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                       CL_FALSE, origin, region, 0, 0, 
-                                       static_cast<char*>(to) + to_offset,
-                                       0, nullptr, nullptr));
+                                       CL_FALSE, origin, region, 0, 0,
+                                       static_cast<char*>(to) + to_offset, 0, nullptr, nullptr));
         OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
         break;
       }
@@ -278,9 +275,9 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
     cl_mem_object_type to_type = GetMemObjectType(to);
     switch (to_type) {
       case CL_MEM_OBJECT_BUFFER:
-        OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE,
-                                         to_offset, size, static_cast<const char*>(from) + from_offset,
-                                         0, nullptr, nullptr));
+        OPENCL_CALL(clEnqueueWriteBuffer(
+            this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE, to_offset, size,
+            static_cast<const char*>(from) + from_offset, 0, nullptr, nullptr));
         OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
         break;
       case CL_MEM_OBJECT_IMAGE2D: {
@@ -288,10 +285,10 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
         size_t region[3];
         GetImageShape(to, region);
         OPENCL_CALL(clEnqueueWriteImage(this->GetQueue(ctx_to),
-                                       static_cast<cl_mem>((void*)to),  // NOLINT(*)
-                                       CL_FALSE, origin, region, 0, 0, 
-                                       static_cast<const char*>(from) + from_offset,
-                                       0, nullptr, nullptr));
+                                        static_cast<cl_mem>((void*)to),  // NOLINT(*)
+                                        CL_FALSE, origin, region, 0, 0,
+                                        static_cast<const char*>(from) + from_offset, 0, nullptr,
+                                        nullptr));
         OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
         break;
       }
