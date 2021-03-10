@@ -19,12 +19,14 @@
 /*!
  * \file stmt_functor.cc
  */
+#include <tvm/ir/module.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <functional>
 
-#include "functor_common.h"
+#include "./functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -631,9 +633,9 @@ Stmt IRTransform(Stmt ir_node, const runtime::PackedFunc& f_preorder,
   return transform(std::move(ir_node));
 }
 
-class IRSubstitue : public StmtExprMutator {
+class IRSubstitute : public StmtExprMutator {
  public:
-  explicit IRSubstitue(std::function<Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
+  explicit IRSubstitute(std::function<Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
@@ -679,11 +681,61 @@ class IRSubstitue : public StmtExprMutator {
 };
 
 Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitue(vmap)(std::move(stmt));
+  return IRSubstitute(vmap)(std::move(stmt));
 }
 
 PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitue(vmap)(std::move(expr));
+  return IRSubstitute(vmap)(std::move(expr));
+}
+
+void PreOrderVisit(const ObjectRef& node, const std::function<bool(const ObjectRef&)>& fvisit) {
+  class PreOrderVisitor : public StmtExprVisitor {
+   public:
+    explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f) : f_(f) {}
+
+   private:
+    void VisitExpr(const PrimExpr& expr) final {
+      const PrimExprNode* p_expr = expr.get();
+      if (visited_.count(p_expr) == 0) {
+        visited_.insert(p_expr);
+        if (f_(expr)) {
+          ExprVisitor::VisitExpr(expr);
+        }
+      }
+    }
+
+    void VisitStmt(const Stmt& stmt) final {
+      const StmtNode* p_stmt = stmt.get();
+      if (visited_.count(p_stmt) == 0) {
+        visited_.insert(p_stmt);
+        if (f_(stmt)) {
+          StmtVisitor::VisitStmt(stmt);
+        }
+      }
+    }
+
+    const std::function<bool(const ObjectRef&)>& f_;
+    std::unordered_set<const Object*> visited_;
+  };
+
+  PreOrderVisitor visitor(fvisit);
+  if (const auto* stmt = node.as<StmtNode>()) {
+    visitor(GetRef<Stmt>(stmt));
+  } else if (const auto* expr = node.as<PrimExprNode>()) {
+    visitor(GetRef<PrimExpr>(expr));
+  } else {
+    LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
+               << node->GetTypeKey();
+  }
+}
+
+void VisitPrimFuncs(const IRModule& mod, const std::function<void(const PrimFunc&)>& fvisit) {
+  for (const auto& kv : mod->functions) {
+    const BaseFunc& base_func = kv.second;
+    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
+      fvisit(GetRef<PrimFunc>(prim_func));
+    }
+  }
 }
 
 TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
