@@ -156,7 +156,8 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create").set_body([](TVMArgs args
                                  "graph_runtime_factory.create needs at least 3, "
                                  "but it has "
                               << args.num_args;
-  // The argument order is graph_json, module, module_name, params.
+  // The argument order is graph_json, module, module_name, param0_name, param0_tensor,
+  // [param1_name, param1_tensor], ...
   ICHECK_EQ((args.size() - 3) % 2, 0);
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
   for (size_t i = 3; i < static_cast<size_t>(args.size()); i += 2) {

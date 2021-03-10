@@ -208,14 +208,14 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     return build(mod, target, target_host, params, mod_name).module
 
 
-def build(mod, target=None, target_host=None, params=None, mod_name="default"):
+def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
     """Helper function that builds a Relay function to run on TVM graph runtime.
 
     Parameters
     ----------
-    mod : :py:class:`~tvm.IRModule`
+    ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context name) to str/tvm.target.Target, optional
@@ -251,13 +251,13 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     """
     # pylint: enable=line-too-long
     # fmt: on
-    if not isinstance(mod, (IRModule, _function.Function)):
+    if not isinstance(ir_mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
-    if isinstance(mod, _function.Function):
+    if isinstance(ir_mod, _function.Function):
         if params:
-            mod = bind_params_by_name(mod, params)
-        mod = IRModule.from_expr(mod)
+            ir_mod = bind_params_by_name(ir_mod, params)
+        ir_mod = IRModule.from_expr(ir_mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
@@ -280,9 +280,11 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
-        return mod
+        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
+        runtime_mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
+            ir_mod, target, graph_json, runtime_mod, mod_name, params
+        )
+        return runtime_mod
 
 
 def optimize(mod, target=None, params=None):
