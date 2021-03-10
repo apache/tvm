@@ -331,10 +331,19 @@ def _sort_common(
         width = 2 << (l2_width + lower_lim)
         # Define and launch the cuda kernel
         with ib.new_scope():
-            ntx = tvm.tir.generic.cast(tvm.te.min(max_threads, width), "int32")
-            nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
-            tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
+            target = tvm.target.Target.current()
+            if "vulkan" in str(target):
+                # Vulkan can't handle dynamic nthread, so we thread slightly differently for vulkan
+                # We don't do this generally because it causes a 15% perf regression on other platforms
+                ntx = max_threads
+                nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
+                nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
+                tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
+            else:
+                ntx = tvm.tir.generic.cast(tvm.te.min(max_threads, width), "int32")
+                nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
+                nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
+                tx, bx, by, bz = _get_threads(ib, ntx, nbx, nthread_by, nbz)
 
             def mergepath(
                 source,
