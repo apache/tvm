@@ -32,32 +32,23 @@ namespace cl {
 std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name);
 std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name);
 namespace {
-
-  cl_mem_object_type GetMemObjectInfo(const void* mem_ptr) {
-    cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
-    cl_mem_info param_name = CL_MEM_TYPE;
-    cl_mem_object_type mem_type;
-    OPENCL_CALL(clGetMemObjectInfo(mem, param_name, sizeof(mem_type), &mem_type, NULL));
-    return mem_type;
-  }
-
-  std::tuple<size_t, size_t> GetImageInfo(const void* mem_ptr, size_t* origin, size_t* region) {
-    cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
-    size_t width, height;
-    OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_WIDTH, sizeof(width), &width, NULL));
-    OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_HEIGHT, sizeof(height), &height, NULL));
-    // Current support is for image2d only
-    size_t depth = 1;
-    // OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_DEPTH, sizeof(depth), &depth, NULL));
-    region[0] = width;
-    region[1] = height;
-    region[2] = depth;
-    origin[0] = 0;
-    origin[1] = 0;
-    origin[2] = 0;
-    // return row_pitch == slice_pitch == 0
-    return std::make_tuple(0 , 0);
-  }
+std::tuple<size_t, size_t> GetImageInfo(const void* mem_ptr, size_t* origin, size_t* region) {
+  cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
+  size_t width, height;
+  OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_WIDTH, sizeof(width), &width, NULL));
+  OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_HEIGHT, sizeof(height), &height, NULL));
+  // Current support is for image2d only
+  size_t depth = 1;
+  // OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_DEPTH, sizeof(depth), &depth, NULL));
+  region[0] = width;
+  region[1] = height;
+  region[2] = depth;
+  origin[0] = 0;
+  origin[1] = 0;
+  origin[2] = 0;
+  // return row_pitch == slice_pitch == 0
+  return std::make_tuple(0 , 0);
+}
 }
 
 OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() { return OpenCLThreadEntry::ThreadLocal(); }
@@ -200,13 +191,7 @@ void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height,
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
-  ICHECK(type_hint.code == DLDataTypeCode::kDLFloat) << "Only float and half image2d allocations are supported";
-  ICHECK(type_hint.bits == 16 || type_hint.bits == 32) << "Only CL_FLOAT and CL_HALF_FLOAT image2d allocations are supported";
-  cl_channel_type cl_type = CL_FLOAT;
-  if (type_hint.bits == 16) {
-    cl_type = CL_HALF_FLOAT;
-  }
-
+  cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = { CL_RGBA, cl_type };
   cl_image_desc descriptor = { CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0 };
   cl_mem mptr = clCreateImage(
@@ -239,7 +224,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
                                     static_cast<cl_mem>(to), from_offset, to_offset, size, 0,
                                     nullptr, nullptr));
   } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
-    cl_mem_object_type from_type = GetMemObjectInfo(from);
+    cl_mem_object_type from_type = GetMemObjectType(from);
     switch (from_type) {
     case CL_MEM_OBJECT_BUFFER:
       OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from),
@@ -266,7 +251,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
     }
     OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
   } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
-    cl_mem_object_type to_type = GetMemObjectInfo(to);
+    cl_mem_object_type to_type = GetMemObjectType(to);
     switch (to_type) {
     case CL_MEM_OBJECT_BUFFER:
       OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE,
