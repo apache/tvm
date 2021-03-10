@@ -334,9 +334,9 @@ def _sort_common(
             with ib.new_scope():
                 target = tvm.target.Target.current()
                 if "vulkan" in str(target):
-                    # Vulkan can't handle dynamic nthread, so we thread slightly differently for vulkan
-                    # We don't do this generally because it causes a 15% perf regression on
-                    # other platforms
+                    # Vulkan can't handle dynamic nthread, so we thread slightly differently
+                    # for vulkan. We don't do this generally because it causes a 15% perf
+                    # regression on other platforms
                     ntx = max_threads
                     nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
                     nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
