@@ -417,6 +417,7 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     for tar, mod in target_input_mod.items():
         if isinstance(tar, (str, Target)):
             new_tar = Target(target=tar, host=target_host)
+            target_host = new_tar.host
             new_input_mod[new_tar] = mod
         else:
             new_input_mod[tar] = mod
