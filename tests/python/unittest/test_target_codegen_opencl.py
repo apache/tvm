@@ -121,6 +121,8 @@ def test_opencl_max():
     check_max(ctx, 1, "float64")
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
 def test_opencl_texture_memory():
     def check_allocate_and_copy(shape):
         cpu_arr = nd.array(np.random.rand(*shape).astype("float32"), tvm.cpu(0))
