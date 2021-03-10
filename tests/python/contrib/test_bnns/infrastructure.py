@@ -37,9 +37,9 @@ class Device:
     Common device configuration for python tests.
 
     Check tests/python/contrib/arm_compute_lib/ for the presence of an test_config.json file.
-    This file can be used to override the default configuration here which will attempt to run the Arm
-    Compute Library runtime tests locally if the runtime is available. Changing the configuration
-    will allow these runtime tests to be offloaded to a remote Arm device via a tracker for example.
+    This file can be used to override the default configuration here which will attempt to run the BNNS
+    runtime tests locally if the runtime is available. Changing the configuration will allow these
+    runtime tests to be offloaded to a remote device with BNNS via a tracker for example.
 
     Notes
     -----
@@ -98,7 +98,7 @@ class Device:
         """Load test config
 
         Load the test configuration by looking for file_name relative
-        to the test_arm_compute_lib directory.
+        to the test_bnns directory.
         """
         location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
         config_file = os.path.join(location, file_name)
