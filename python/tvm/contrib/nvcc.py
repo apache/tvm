@@ -216,6 +216,47 @@ def callback_libdevice_path(arch):
         return ""
 
 
+def get_target_compute_version(target=None):
+    """Utility function to get compute capability of compilation target.
+
+    Looks for the arch in three different places, first in the target attributes, then the global
+    scope, and finally the GPU device (if it exists).
+
+    Parameters
+    ----------
+    target : tvm.target.Target, optional
+        The compilation target
+
+    Returns
+    -------
+    compute_version : str
+        compute capability of a GPU (e.g. "8.0")
+    """
+    # 1. Target
+    if target:
+        if "arch" in target.attrs:
+            compute_version = target.attrs["arch"]
+            major, minor = compute_version.split("_")[1]
+            return major + "." + minor
+
+    # 2. Global scope
+    from tvm.autotvm.env import AutotvmGlobalScope  # pylint: disable=import-outside-toplevel
+
+    if AutotvmGlobalScope.current.cuda_target_arch:
+        major, minor = AutotvmGlobalScope.current.cuda_target_arch.split("_")[1]
+        return major + "." + minor
+
+    # 3. GPU
+    if tvm.gpu(0).exist:
+        return tvm.gpu(0).compute_version
+
+    warnings.warn(
+        "No CUDA architecture was specified or GPU detected."
+        "Try specifying it by adding '-arch=sm_xx' to your target."
+    )
+    return None
+
+
 def parse_compute_version(compute_version):
     """Parse compute capability string to divide major and minor version
 
