@@ -59,7 +59,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         """
         return self._get_stat(sort_by_time)
 
-    def profile(self, func_name="main", *args, **kwargs):
+    def profile(self, *args, func_name="main", **kwargs):
         """Profile a function call.
 
         Parameters
