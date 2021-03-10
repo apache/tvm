@@ -399,9 +399,15 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
+    new_input_mod = {}
     for tar, mod in target_input_mod.items():
         if isinstance(tar, (str, Target)):
-            target_host = Target(tar, target_host).host
+            new_tar = Target(target=tar, host=target_host)
+            target_host = new_tar.host
+            new_input_mod[new_tar] = mod
+        else:
+            new_input_mod[tar] = mod
+    target_input_mod = new_input_mod
 
     if not target_host:
         for tar, mod in target_input_mod.items():
