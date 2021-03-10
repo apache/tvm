@@ -86,7 +86,13 @@ void CleanDir(const std::string& dirname);
 std::string BuildSharedLibrary(std::string file_in);
 
 RPCEnv::RPCEnv() {
-#ifndef _WIN32
+#if defined(ANDROID) || defined(__ANDROID__)
+  char cwd[PATH_MAX];
+  auto cmdline = fopen("/proc/self/cmdline", "r");
+  fread(cwd, 1, sizeof(cwd), cmdline);
+  fclose(cmdline);
+  base_ = "/data/data/" + std::string(cwd) + "/cache/rpc";
+#elif !defined(_WIN32)
   char cwd[PATH_MAX];
   if (getcwd(cwd, sizeof(cwd))) {
     base_ = std::string(cwd) + "/rpc";

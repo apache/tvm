@@ -3651,6 +3651,13 @@ def test_hard_swish():
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
+def test_hard_sigmoid():
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
+    for input in examples:
+        verify_model(torch.nn.Hardsigmoid().eval(), input_data=input)
+        verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input)
+
+
 def test_cumsum():
     def test_fn(dim, dtype=None):
         return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
@@ -3893,6 +3900,8 @@ if __name__ == "__main__":
     test_logical_and()
     test_masked_select()
     test_unique()
+    test_hard_swish()
+    test_hard_sigmoid()
 
     # Model tests
     test_resnet18()
@@ -3931,4 +3940,3 @@ if __name__ == "__main__":
 
     # Test convert torch script(jit) with specific inputs' types
     test_convert_torch_script_with_input_types()
-    test_hard_swish()

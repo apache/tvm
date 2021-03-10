@@ -41,7 +41,6 @@ def torch_version_check():
 
 
 def get_tvm_runtime(script_module, input_name, ishape):
-
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
@@ -125,43 +124,40 @@ class ReLU(nn.Module):
 
 # Mobilenet V3 related modules
 class Hsigmoid(nn.Module):
-    def __init__(self, inplace=True, add_stub=False):
+    def __init__(self, add_stub=False):
         super().__init__()
-        self.float_op = nn.quantized.FloatFunctional()
-        self.relu6 = nn.ReLU6(inplace=inplace)
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
         self.add_stub = add_stub
+        self.hsigmoid = nn.Hardsigmoid()
 
     def forward(self, x):
         if self.add_stub:
             x = self.quant(x)
-        relu6 = self.relu6(self.float_op.add_scalar(x, 3.0))
-        mul = self.float_op.mul_scalar(relu6, 1 / 6.0)
+        x = self.hsigmoid(x)
         if self.add_stub:
-            mul = self.dequant(mul)
-        return mul
+            x = self.dequant(x)
+        return x
 
     def fuse_model(self):
         pass
 
 
 class Hswish(nn.Module):
-    def __init__(self, inplace=True, add_stub=False):
-        super(Hswish, self).__init__()
-        self.float_op = nn.quantized.FloatFunctional()
-        self.hsigmoid = Hsigmoid(inplace, add_stub=False)
+    def __init__(self, add_stub=False):
+        super().__init__()
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
         self.add_stub = add_stub
+        self.hswish = nn.Hardswish()
 
     def forward(self, x):
         if self.add_stub:
             x = self.quant(x)
-        mul = self.float_op.mul(x, self.hsigmoid(x))
+        x = self.hswish(x)
         if self.add_stub:
-            mul = self.dequant(mul)
-        return mul
+            x = self.dequant(x)
+        return x
 
     def fuse_model(self):
         pass
@@ -274,18 +270,12 @@ def test_quantized_modules():
             ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
             ("linear" + postfix, (16, 16), Linear(), per_channel),
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
-        ]
-
-    if torch_version_check():
-        qmodules += [
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
             ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
             ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
             ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
         ]
-    else:
-        print("Skipping tests that require torch > 1.4")
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
         raw_module.eval()
@@ -372,6 +362,13 @@ def test_quantized_imagenet():
             # ("googlenet", qgooglenet(pretrained=True), per_channel),
         ]
 
+    if is_version_greater_than("1.7.1"):
+        from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
+
+        qmodels.append(
+            ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
+        )
+
     results = []
 
     for (model_name, raw_model, per_channel) in qmodels:
@@ -385,7 +382,10 @@ def test_quantized_imagenet():
         inp = get_imagenet_input()
         pt_inp = torch.from_numpy(inp)
 
-        quantize_model(raw_model, pt_inp, per_channel=per_channel)
+        if "mobilenet_v3_large" not in model_name:
+            # mv3 was qat-ed, quantize=True option above makes it already quantized
+            quantize_model(raw_model, pt_inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_model, pt_inp).eval()
 
         with torch.no_grad():
