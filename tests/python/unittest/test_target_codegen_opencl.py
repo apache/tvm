@@ -119,7 +119,17 @@ def test_opencl_max():
     check_max(ctx, 1, "float32")
     check_max(ctx, 1, "float64")
 
+def test_opencl_texture_memory():
+    def check_allocate_and_copy(shape):
+        ctx = tvm.opencl(0)
+        arr = tvm.nd.empty(shape, "float32", ctx, "global:texture-act")
+        np_arr = arr.asnumpy()
+
+    check_allocate_and_copy((3, 4))
+    check_allocate_and_copy((5, 6, 4))
+    check_allocate_and_copy((8, 5, 6, 4))
 
 if __name__ == "__main__":
     test_opencl_ternary_expression()
     test_opencl_inf_nan()
+    test_opencl_texture_memory()

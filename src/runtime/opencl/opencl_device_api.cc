@@ -126,6 +126,81 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, size_t size, size_t alignm
   return mptr;
 }
 
+static inline size_t GetDataAlignment(const DLDataType dtype) {
+  size_t align = (dtype.bits / 8) * dtype.lanes;
+  if (align < kAllocAlignment) return kAllocAlignment;
+  return align;
+}
+
+static std::tuple<int64_t, int64_t> FlatShapeTo2D(std::vector<int64_t> shape) {
+  ICHECK(shape.size() >= 1 && shape.back() == 4);
+  while (shape.size() < 3) {
+    shape.insert(shape.end() - 1, 1);
+  }
+  int64_t width = 1;
+  for (auto it = shape.begin(); it < shape.end() - 2; ++it) {
+    width *= *it;
+  }
+  int64_t height = *(shape.end() - 2);
+  return std::make_tuple(width, height);
+}
+
+void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape,
+                                      DLDataType dtype, Optional<String> mem_scope) {
+  if (!mem_scope.defined() || mem_scope.value() == "global") {
+    // by default, we can always redirect to the flat memory allocations
+    DLTensor temp;
+    temp.data = nullptr;
+    temp.ctx = ctx;
+    temp.ndim = ndim;
+    temp.dtype = dtype;
+    temp.shape = const_cast<int64_t*>(shape);
+    temp.strides = nullptr;
+    temp.byte_offset = 0;
+    size_t size = GetDataSize(temp);
+    size_t alignment = GetDataAlignment(temp.dtype);
+    return AllocDataSpace(ctx, size, alignment, dtype);
+  } else if (mem_scope.value() == "global:texture-act") {
+    this->Init();
+    ICHECK(this->context != nullptr) << "No OpenCL device";
+    cl_image_format image_format;
+    image_format.image_channel_data_type = DTypeToOpenCLChannelType(dtype);
+    cl_image_desc image_desc;
+
+    // shape must be (?, ..., ?, 4)
+    ICHECK_GT(ndim, 1);
+    ICHECK_EQ(shape[ndim - 1], 4);
+    // prepare descriptors
+    image_format.image_channel_order = CL_RGBA;
+    image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    // flat the tensor shape to 2D image
+    size_t width, height; 
+    std::vector<int64_t> vshape(shape, shape + ndim);
+    std::tie(width, height) = FlatShapeTo2D(vshape);
+    // LOG(INFO) << "width = " << width;
+    // LOG(INFO) << "height = " << height;
+    image_desc.image_width = width;
+    image_desc.image_height = height;
+    image_desc.image_depth = 1;
+    image_desc.image_array_size = 1;
+    image_desc.image_row_pitch = 0;
+    image_desc.image_slice_pitch = 0;
+    image_desc.num_mip_levels = 0;
+    image_desc.num_samples = 0;
+    image_desc.buffer= NULL;
+
+    cl_int err_code;
+    cl_mem mptr = clCreateImage(this->context, CL_MEM_READ_WRITE, &image_format, &image_desc,
+     														nullptr, &err_code);
+    OPENCL_CHECK_ERROR(err_code);
+    return mptr;
+  } else {
+    LOG(FATAL) << "Device does not support allocate data space with "
+               << "specified memory scope: " << mem_scope.value();
+    return nullptr;
+  } 
+}
+
 void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   // We have to make sure that the memory object is not in the command queue
   // for some OpenCL platforms.
@@ -133,6 +208,17 @@ void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
 
   cl_mem mptr = static_cast<cl_mem>(ptr);
   OPENCL_CALL(clReleaseMemObject(mptr));
+}
+
+static inline void GetImageShape(const void* mem_ptr, size_t* region) {
+  cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
+  size_t width, height; 
+  OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_WIDTH, sizeof(width), &width, NULL));
+  OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_HEIGHT, sizeof(height), &height, NULL));
+  region[0] = width;
+  region[1] = height;
+  region[2] = 1;
+  return;
 }
 
 void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
@@ -147,11 +233,35 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
                                     static_cast<cl_mem>(to), from_offset, to_offset, size, 0,
                                     nullptr, nullptr));
   } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
-    OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from),
-                                    static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                    CL_FALSE, from_offset, size, static_cast<char*>(to) + to_offset,
-                                    0, nullptr, nullptr));
-    OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
+    cl_mem_object_type from_type = GetMemObjectType(from);
+    switch (from_type) {
+      case CL_MEM_OBJECT_BUFFER:
+        // LOG(INFO) << "Buffer";
+        OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from),
+                                        static_cast<cl_mem>((void*)from),  // NOLINT(*)
+                                        CL_FALSE, from_offset, size, static_cast<char*>(to) + to_offset,
+                                        0, nullptr, nullptr));
+        OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
+        break;
+      case CL_MEM_OBJECT_IMAGE2D: {
+        // LOG(INFO) << "Image2D";
+        size_t origin[3] = {0, 0, 0};
+        size_t region[3];
+        GetImageShape(from, region);
+        // LOG(INFO) << "region[0] = " << region[0];
+        // LOG(INFO) << "region[1] = " << region[1];
+        // LOG(INFO) << "region[2] = " << region[2];
+        OPENCL_CALL(clEnqueueReadImage(this->GetQueue(ctx_from),
+                                       static_cast<cl_mem>((void*)from),  // NOLINT(*)
+                                       CL_FALSE, origin, region, 0, 0, 
+                                       static_cast<char*>(to) + to_offset,
+                                       0, nullptr, nullptr));
+        OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
+        break;
+      }
+      default:
+        LOG(FATAL) << "OpenCL memory type is wrong.";
+    }
   } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE,
                                      to_offset, size, static_cast<const char*>(from) + from_offset,

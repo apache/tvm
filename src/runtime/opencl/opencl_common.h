@@ -162,6 +162,29 @@ inline const char* CLGetErrorString(cl_int error) {
   }
 }
 
+inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
+  DataType dtype(data_type);
+  if (dtype == DataType::Float(32)) {
+    return CL_FLOAT;
+  } else if (dtype == DataType::Float(16)) {
+    return CL_HALF_FLOAT;
+  } else if (dtype == DataType::Int(8)) {
+    return CL_SIGNED_INT8;
+  } else if (dtype == DataType::Int(16)) {
+    return CL_SIGNED_INT16;
+  } else if (dtype == DataType::Int(32)) {
+    return CL_SIGNED_INT32;
+  } else if (dtype == DataType::UInt(8)) {
+    return CL_UNSIGNED_INT8;
+  } else if (dtype == DataType::UInt(16)) {
+    return CL_UNSIGNED_INT16;
+  } else if (dtype == DataType::UInt(32)) {
+    return CL_UNSIGNED_INT32;
+  }
+  LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
+  return CL_FLOAT;
+}
+
 /*!
  * \brief Protected OpenCL call
  * \param func Expression to call.
@@ -231,6 +254,8 @@ class OpenCLWorkspace : public DeviceAPI {
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
   void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) final;
+  void* AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape, DLDataType dtype,
+                       Optional<String> mem_scope = NullOpt) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
@@ -336,6 +361,14 @@ class OpenCLModuleNode : public ModuleNode {
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
 };
+
+inline cl_mem_object_type GetMemObjectType(const void* mem_ptr) {
+  cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
+  cl_mem_info param_name = CL_MEM_TYPE;
+  cl_mem_object_type mem_type;
+  OPENCL_CALL(clGetMemObjectInfo(mem, param_name, sizeof(mem_type), &mem_type, NULL));
+  return mem_type;
+}
 
 }  // namespace runtime
 }  // namespace tvm
