@@ -200,13 +200,15 @@ class BuiltinLower : public StmtExprMutator {
     // shared in the same stmt.
     //
     // For example:
-    // >  @tir.tvm_call_packed("tvm.contrib.cblas.matmul", @tir.tvm_stack_make_array(A, @tvm_stack_make_shape(...), ...),
-    // >                    @tir.tvm_stack_make_array(B, @tvm_stack_make_shape(...), ...), ...)
-    // In the stmt above, those tvm_stack_make_shape won't be executed parallel, thus it's ok for them to share a same stack.
+    // >  @tir.tvm_call_packed("tvm.contrib.cblas.matmul", @tir.tvm_stack_make_array(A,
+    // >                 @tvm_stack_make_shape(...), ...), @tir.tvm_stack_make_array(B,
+    // >                 @tvm_stack_make_shape(...), ...), ...)
+    // In the stmt above, those tvm_stack_make_shape won't be executed parallel, thus it's ok for
+    // them to share a same stack.
     //
     // To let all tvm_stack_make_array in the same stmt share a stack, we check "emit_stack_shape_":
-    // 1. false: This is the first occurrence of tvm_stack_make_shape expr of current stmt. A new stack_shape_
-    //    is generated, and mark emit_stack_shape_ as true;
+    // 1. false: This is the first occurrence of tvm_stack_make_shape expr of current stmt. A new
+    // stack_shape_ is generated, and mark emit_stack_shape_ as true;
     // 2. true:  Not the first occurrence of current stmt. Just reuse the previous stack_shape_;
     if (!emit_stack_shape_) {
       stack_shape_ = Var(GetUniqueName("stack_shape"), DataType::Handle());
@@ -231,13 +233,15 @@ class BuiltinLower : public StmtExprMutator {
     // shared in the same stmt.
     //
     // For example:
-    // >  @tir.tvm_call_packed("tvm.contrib.cblas.matmul", @tir.tvm_stack_make_array(A, @tvm_stack_make_shape(...), ...),
-    // >                    @tir.tvm_stack_make_array(B, @tvm_stack_make_shape(...), ...), ...)
-    // In the stmt above, those tvm_stack_make_shape won't be executed parallel, thus it's ok for them to share a same stack.
+    // >  @tir.tvm_call_packed("tvm.contrib.cblas.matmul", @tir.tvm_stack_make_array(A,
+    // >                 @tvm_stack_make_shape(...), ...), @tir.tvm_stack_make_array(B,
+    // >                 @tvm_stack_make_shape(...), ...), ...)
+    // In the stmt above, those tvm_stack_make_shape won't be executed parallel, thus it's ok for
+    // them to share a same stack.
     //
     // To let all tvm_stack_make_array in the same stmt share a stack, we check "emit_stack_array_":
-    // 1. false: This is the first occurrence of tvm_stack_make_shape expr of current stmt. A new stack_array_
-    //    is generated, and we mark emit_stack_array_ as true;
+    // 1. false: This is the first occurrence of tvm_stack_make_shape expr of current stmt. A new
+    // stack_array_ is generated, and we mark emit_stack_array_ as true;
     // 2. true:  Not the first occurrence of current stmt. Just reuse the previous stack_array_;
     if (!emit_stack_array_) {
       stack_array_ = Var(GetUniqueName("stack_array"), DataType::Handle());
