@@ -211,7 +211,7 @@ void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
 }
 
 static inline void GetImageShape(const void* mem_ptr, size_t* region) {
-  cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
+  cl_mem mem = static_cast<cl_mem>(const_cast<void*>(mem_ptr));
   size_t width, height;
   OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_WIDTH, sizeof(width), &width, NULL));
   OPENCL_CALL(clGetImageInfo(mem, CL_IMAGE_HEIGHT, sizeof(height), &height, NULL));

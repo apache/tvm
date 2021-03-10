@@ -363,7 +363,7 @@ class OpenCLModuleNode : public ModuleNode {
 };
 
 inline cl_mem_object_type GetMemObjectType(const void* mem_ptr) {
-  cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
+  cl_mem mem = static_cast<cl_mem>(const_cast<void*>(mem_ptr));
   cl_mem_info param_name = CL_MEM_TYPE;
   cl_mem_object_type mem_type;
   OPENCL_CALL(clGetMemObjectInfo(mem, param_name, sizeof(mem_type), &mem_type, NULL));
