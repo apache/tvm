@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
+from tvm import te, nd
 import tvm.testing
+import numpy as np
 
 target = "opencl"
 
@@ -121,9 +122,12 @@ def test_opencl_max():
 
 def test_opencl_texture_memory():
     def check_allocate_and_copy(shape):
-        ctx = tvm.opencl(0)
-        arr = tvm.nd.empty(shape, "float32", ctx, "global:texture-act")
-        np_arr = arr.asnumpy()
+        cpu_arr = nd.array(np.random.rand(*shape).astype('float32'), tvm.cpu(0))
+        opencl_arr0 = nd.empty(cpu_arr.shape, cpu_arr.dtype, tvm.opencl(0), "global:texture-act")
+        opencl_arr1 = nd.empty(cpu_arr.shape, cpu_arr.dtype, tvm.opencl(0), "global:texture-act")
+        cpu_arr.copyto(opencl_arr0)
+        opencl_arr0.copyto(opencl_arr1)
+        np.testing.assert_equal(cpu_arr.asnumpy(), opencl_arr1.asnumpy())
 
     check_allocate_and_copy((3, 4))
     check_allocate_and_copy((5, 6, 4))

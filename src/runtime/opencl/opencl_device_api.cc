@@ -228,15 +228,31 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
   this->Init();
   ICHECK(stream == nullptr);
   if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
-    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(ctx_to),
-                                    static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                    static_cast<cl_mem>(to), from_offset, to_offset, size, 0,
-                                    nullptr, nullptr));
+    cl_mem_object_type from_type = GetMemObjectType(from);
+    cl_mem_object_type to_type = GetMemObjectType(to);
+    if (from_type == CL_MEM_OBJECT_BUFFER && to_type == CL_MEM_OBJECT_BUFFER) {
+      OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(ctx_to),
+                                      static_cast<cl_mem>((void*)from),  // NOLINT(*)
+                                      static_cast<cl_mem>(to), from_offset, to_offset, size, 0,
+                                      nullptr, nullptr));
+    } else if (from_type == CL_MEM_OBJECT_IMAGE2D &&
+               to_type == CL_MEM_OBJECT_IMAGE2D) {
+      size_t from_origin[3] = {0, 0, 0};
+      size_t to_origin[3] = {0, 0, 0};
+      size_t region[3];
+      GetImageShape(from, region);
+      OPENCL_CALL(clEnqueueCopyImage(this->GetQueue(ctx_to),
+                                     static_cast<cl_mem>((void*)from),  // NOLINT(*)
+                                     static_cast<cl_mem>(to),
+                                     from_origin, to_origin, region,
+                                     0, nullptr, nullptr));
+    } else {
+      LOG(FATAL) << "OpenCL memory object type is wrong.";
+    }
   } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
     cl_mem_object_type from_type = GetMemObjectType(from);
     switch (from_type) {
       case CL_MEM_OBJECT_BUFFER:
-        // LOG(INFO) << "Buffer";
         OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from),
                                         static_cast<cl_mem>((void*)from),  // NOLINT(*)
                                         CL_FALSE, from_offset, size, static_cast<char*>(to) + to_offset,
@@ -244,13 +260,9 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
         OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
         break;
       case CL_MEM_OBJECT_IMAGE2D: {
-        // LOG(INFO) << "Image2D";
         size_t origin[3] = {0, 0, 0};
         size_t region[3];
         GetImageShape(from, region);
-        // LOG(INFO) << "region[0] = " << region[0];
-        // LOG(INFO) << "region[1] = " << region[1];
-        // LOG(INFO) << "region[2] = " << region[2];
         OPENCL_CALL(clEnqueueReadImage(this->GetQueue(ctx_from),
                                        static_cast<cl_mem>((void*)from),  // NOLINT(*)
                                        CL_FALSE, origin, region, 0, 0, 
@@ -260,13 +272,33 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
         break;
       }
       default:
-        LOG(FATAL) << "OpenCL memory type is wrong.";
+        LOG(FATAL) << "OpenCL memory object type is wrong.";
     }
   } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
-    OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE,
-                                     to_offset, size, static_cast<const char*>(from) + from_offset,
-                                     0, nullptr, nullptr));
-    OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
+    cl_mem_object_type to_type = GetMemObjectType(to);
+    switch (to_type) {
+      case CL_MEM_OBJECT_BUFFER:
+        OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE,
+                                         to_offset, size, static_cast<const char*>(from) + from_offset,
+                                         0, nullptr, nullptr));
+        OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
+        break;
+      case CL_MEM_OBJECT_IMAGE2D: {
+        size_t origin[3] = {0, 0, 0};
+        size_t region[3];
+        GetImageShape(to, region);
+        OPENCL_CALL(clEnqueueWriteImage(this->GetQueue(ctx_to),
+                                       static_cast<cl_mem>((void*)to),  // NOLINT(*)
+                                       CL_FALSE, origin, region, 0, 0, 
+                                       static_cast<const char*>(from) + from_offset,
+                                       0, nullptr, nullptr));
+        OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
+        break;
+      }
+      default:
+        LOG(FATAL) << "OpenCL memory type is wrong.";
+    }
+
   } else {
     LOG(FATAL) << "Expect copy from/to OpenCL or between OpenCL";
   }
