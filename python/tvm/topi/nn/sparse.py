@@ -470,26 +470,33 @@ def try_get_sparse_input(args):
     return sparse_input_map
 
 
-def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
+def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
+    """Generate a random sparse matrix in bsr format.
+
+    Returns
+    -------
+    scipy.sparse.bsr_matrix
+    """
+    # pylint: disable=import-outside-toplevel
     import numpy as np
     import itertools
     import scipy.sparse as sp
 
-    Y = np.zeros((M, N), dtype=dtype)
-    assert M % BS_R == 0
-    assert N % BS_C == 0
-    nnz = int(density * M * N)
-    num_blocks = int(nnz / (BS_R * BS_C)) + 1
-    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
-    assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
+    y = np.zeros((m, n), dtype=dtype)
+    assert m % bs_r == 0
+    assert n % bs_c == 0
+    nnz = int(density * m * n)
+    num_blocks = int(nnz / (bs_r * bs_c)) + 1
+    candidate_blocks = np.asarray(list(itertools.product(range(0, m, bs_r), range(0, n, bs_c))))
+    assert candidate_blocks.shape[0] == m // bs_r * n // bs_c
     chosen_blocks = candidate_blocks[
         np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
     ]
     for i in range(len(chosen_blocks)):
         r, c = chosen_blocks[i]
-        Y[r : r + BS_R, c : c + BS_C] = np.random.randn(BS_R, BS_C)
-    s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
-    assert s.data.shape == (num_blocks, BS_R, BS_C)
+        y[r : r + bs_r, c : c + bs_c] = np.random.randn(bs_r, bs_c)
+    s = sp.bsr_matrix(y, blocksize=(bs_r, bs_c))
+    assert s.data.shape == (num_blocks, bs_r, bs_c)
     assert s.indices.shape == (num_blocks,)
-    assert s.indptr.shape == (M // BS_R + 1,)
+    assert s.indptr.shape == (m // bs_r + 1,)
     return s
