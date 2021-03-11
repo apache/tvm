@@ -57,6 +57,22 @@ struct ExprDeepEqual {
 };
 
 /*!
+ * \brief Visit the PrimFuncs in the IRModule
+ * \tparam FLambda The type of the PrimFunc visitor
+ * \param mod The IRModule to be visited
+ * \param fvisit The visitor to the PrimFuncs in the IRModule
+ */
+template <class FLambda>
+inline void VisitPrimFuncs(const IRModule& mod, FLambda fvisit) {
+  for (const auto& kv : mod->functions) {
+    const BaseFunc& base_func = kv.second;
+    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
+      fvisit(prim_func);
+    }
+  }
+}
+
+/*!
  * \brief Find undefined vars in the statement.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.
