@@ -116,11 +116,10 @@ s = te.create_schedule(C.op)
 # Compile and Evaluate the Default Schedule
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # With the TE expression and a schedule, we can produce runnable code for our 
-# target language and architecture and architecture, in this case LLVM and
-# a CPU. We provide TVM with the schedule, a list of the TE expressions that
-# are in the schedule, the target and host, and the name of the function we
-# are producing. The result of the output is a type-erased function that can
-# be called directly from Python.
+# target language and architecture, in this case LLVM and a CPU. We provide
+# TVM with the schedule, a list of the TE expressions that are in the schedule,
+# the target and host, and the name of the function we are producing. The result
+# of the output is a type-erased function that can be called directly from Python.
 #
 # In the following line, we use tvm.build to create a function. The build
 # function takes the schedule, the desired signature of the function (including
