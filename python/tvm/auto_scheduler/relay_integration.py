@@ -117,7 +117,7 @@ def extract_tasks(
     env = TracingEnvironment(
         TracingMode.EXTRACT_TASK if include_simple_tasks else TracingMode.EXTRACT_COMPLEX_TASK_ONLY
     )
-    
+
     dispatch_ctx = DispatchContext.current
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
