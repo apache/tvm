@@ -17,7 +17,8 @@
 """
 Auto-scheduling a Neural Network for x86 CPU
 ============================================
-**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
+            `Chengfan Jia <https://github.com/jcf94/>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
@@ -44,10 +45,13 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
+import itertools
 import numpy as np
+import scipy.sparse as sp
 
 import tvm
 from tvm import relay, auto_scheduler
+from tvm.relay import data_dep_optimization as ddo
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
 
@@ -64,6 +68,46 @@ from tvm.contrib import graph_runtime
 # We also implemented more optimizations for NHWC layout with the auto-scheduler.
 # So it is recommended to convert your models to NHWC layout to use the auto-scheduler.
 # You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
+
+
+def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype="float32"):
+    Y = np.zeros((M, N), dtype=dtype)
+    assert M % BS_R == 0
+    assert N % BS_C == 0
+    nnz = int(density * M * N)
+    num_blocks = int(nnz / (BS_R * BS_C)) + 1
+    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
+    assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
+    chosen_blocks = candidate_blocks[
+        np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
+    ]
+    for i in range(len(chosen_blocks)):
+        r, c = chosen_blocks[i]
+        Y[r : r + BS_R, c : c + BS_C] = np.random.uniform(-0.1, 0.1, (BS_R, BS_C))
+    s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
+    assert s.data.shape == (num_blocks, BS_R, BS_C)
+    assert s.data.size >= nnz
+    assert s.indices.shape == (num_blocks,)
+    assert s.indptr.shape == (M // BS_R + 1,)
+    return s.todense()
+
+
+def random_sparse_params(func, params, density, BS_R, BS_C):
+    def deepcopy(param_dic):
+        ret = {}
+        for k, v in param_dic.items():
+            ret[k] = tvm.nd.array(v.asnumpy())
+        return ret
+
+    new_params = deepcopy(params)
+    dense_weight_names = relay.analysis.sparse_dense._search_dense_op_weight(func)
+    for item in dense_weight_names:
+        name = str(item)
+        shape = new_params[name].shape
+        if shape[0] % BS_R == 0 and shape[1] % BS_C == 0:
+            new_w = random_bsr_matrix(shape[0], shape[1], BS_R, BS_C, density)
+            new_params[name] = tvm.nd.array(new_w)
+    return new_params
 
 
 def get_network(name, batch_size, layout="NHWC", dtype="float32"):
@@ -126,6 +170,21 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
             net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
         )
         mod = tvm.IRModule.from_expr(net)
+    elif name == "mlp":
+        mod, params = relay.testing.mlp.get_workload(
+            batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
+        )
+    elif name == "mlp-sparse":
+        bs_r = 1
+        sparsity = 0.85
+
+        mod, params = relay.testing.mlp.get_workload(
+            batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
+        )
+        mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
+        params = random_sparse_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
+        mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
+        mod = tvm.IRModule.from_expr(mod)
 
     return mod, params, input_shape, output_shape
 
@@ -183,7 +242,7 @@ def run_tuning():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=200,  # change this to 20000 to achieve the best performance
+        num_measure_trials=20,  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
@@ -194,7 +253,7 @@ def run_tuning():
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-# run_tuning()
+run_tuning()
 
 
 ######################################################################

@@ -175,6 +175,9 @@ class TuningOptions(Object):
 #         "task_input_2": Tensor(...),
 #         "task_input_3": Tensor(...)
 #     },
+#     "default": {
+#         "task_input_4": Tensor(...),
+#     },
 #     ...
 # }
 TASK_INPUT_BUFFER_TABLE = {}
@@ -299,13 +302,17 @@ def get_task_input_buffer(workload_key, input_name):
         TASK_INPUT_BUFFER_TABLE[workload_key] = {}
     input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
-    if input_name not in input_table.keys():
+    if input_name not in input_table:
         # Try to load buffer data from local file
         tensor_from_file = _try_load_buffer_from_file(input_name)
         if tensor_from_file:
             input_table[input_name] = tensor_from_file
 
-    if input_name in input_table.keys():
+    # Then check for the default table
+    if input_name not in input_table:
+        input_table = TASK_INPUT_BUFFER_TABLE["default"]
+
+    if input_name in input_table:
         return input_table[input_name]
 
     raise ValueError(
