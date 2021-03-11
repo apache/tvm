@@ -492,8 +492,7 @@ def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
     chosen_blocks = candidate_blocks[
         np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
     ]
-    for i in range(len(chosen_blocks)):
-        r, c = chosen_blocks[i]
+    for (r, c) in chosen_blocks:
         y[r : r + bs_r, c : c + bs_c] = np.random.randn(bs_r, bs_c)
     s = sp.bsr_matrix(y, blocksize=(bs_r, bs_c))
     assert s.data.shape == (num_blocks, bs_r, bs_c)

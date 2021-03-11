@@ -136,7 +136,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
     elif name == "mlp-sparse":
         # This is a test workload that manually transforms a dense model to sparse
         # Check `tutorials/frontend/deploy_sparse.py` for more examples on how to import a
-        # pretrained model
+        # pretrained model.
 
         def random_sparse_params(func, params, density, BS_R, BS_C):
             def deepcopy(param_dic):
