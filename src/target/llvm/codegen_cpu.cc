@@ -437,11 +437,14 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     arg_types.push_back(value->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, arg_types, false);
+  // $xxx_compute_ functions are not global. They should be marked as static (via InternalLinkage)
+  // to call them correctly on MIPS platform (CALL16 issue)
+  // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
   llvm::Function* fcompute = llvm::Function::Create(
-      ftype, llvm::Function::PrivateLinkage,
+      ftype, llvm::Function::InternalLinkage,
       op->value.as<StringImmNode>()->value.operator llvm::StringRef(), module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
-  // setup compute fuinction.
+  // setup compute function.
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   size_t idx = 0;
   for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); ++it, ++idx) {
