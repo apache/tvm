@@ -402,17 +402,18 @@ def test_measure_special_inputs_map_by_name_rpc_runner():
         },
     )
 
-    minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
-    local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(
-        timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
-    )
-    rpc_runner = measure_ctx.runner
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+        rpc_runner = measure_ctx.runner
 
-    bress = local_builder.build([minp])
-    assert bress[0].error_no == 0
-    mress = rpc_runner.run([minp], bress)
-    assert mress[0].error_no == 0
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = rpc_runner.run([minp], bress)
+        assert mress[0].error_no == 0
 
 
 if __name__ == "__main__":
