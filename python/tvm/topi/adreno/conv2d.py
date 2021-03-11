@@ -28,13 +28,13 @@ from ..utils import get_const_tuple, traverse_inline
 @autotvm.register_topi_compute("conv2d_nchwc.image2d")
 def conv2d_nchwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
     """Compute conv2d with NCHWc layout"""
-    args={"memory" : "texture", "shared" : False, "accumulator" : "float16"}
+    args={"shared" : False, "accumulator" : "float16"}
     return compute_conv2d_NCHWc_KCRSk(data, kernel, strides, padding, dilation, out_dtype, args=args)
 
 @autotvm.register_topi_compute("conv2d_nchwc_acc32.image2d")
 def conv2d_nchwc_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
     """Compute conv2d with NCHWc layout"""
-    args={"memory" : "texture", "shared" : False, "accumulator" : "float32"}
+    args={"shared" : False, "accumulator" : "float32"}
     return compute_conv2d_NCHWc_KCRSk(data, kernel, strides, padding, dilation, out_dtype, args=args)
 
 @autotvm.register_topi_schedule("conv2d_nchwc.image2d")
@@ -48,13 +48,13 @@ def schedule_conv2d_nchwc_acc32(cfg, outs):
 @autotvm.register_topi_compute("depthwise_conv2d_nchwc.image2d")
 def depthwise_conv2d_nchwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
     """Compute depthwise_conv2d with NCHWc layout"""
-    args={"memory" : "texture", "shared" : False, "accumulator" : "float16"}
+    args={"shared" : False, "accumulator" : "float16"}
     return compute_depthwise_conv2d_NCHWc_KCRSk(data, kernel, strides, padding, dilation, out_dtype, args=args)
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchwc_acc32.image2d")
 def depthwise_conv2d_nchwc_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
     """Compute depthwise_conv2d with NCHWc layout"""
-    args={"memory" : "texture", "shared" : False, "accumulator" : "float32"}
+    args={"shared" : False, "accumulator" : "float32"}
     return compute_depthwise_conv2d_NCHWc_KCRSk(data, kernel, strides, padding, dilation, out_dtype, args=args)
 
 @autotvm.register_topi_schedule("depthwise_conv2d_nchwc.image2d")
@@ -71,7 +71,7 @@ def schedule_conv2d_nchwc_impl(cfg, outs, tag):
     s = te.create_schedule([x.op for x in outs])
     def _callback(op):
         if op.tag == tag:
-            args={"memory" : "texture", "shared" : False}
+            args={"shared" : False}
             schedule_conv2d_NCHWc_KCRSk(cfg, s, op.output(0), args)
 
     traverse_inline(s, outs[0].op, _callback)
@@ -115,34 +115,41 @@ def compute_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilation, out_dty
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
-    # if args["memory"] != None:
-    #     # NCHWc x KCRSk
-    #     # texture: NCH|W|c
-    #     # texture: K|CRS|k
-    #     Filter_tx = te.compute(
-    #         (num_filter_chunk, channel * kernel_h * kernel_w, num_filter_block),
-    #         lambda ffc, crs, ffb: Filter[ffc, crs // (kernel_h * kernel_w), (crs // kernel_w) % kernel_h, crs % kernel_w, ffb],
-    #         name = "packed_filter"
-    #     )
-    #     conv = te.compute(
-    #         (batch, num_filter_chunk, out_height, out_width, num_filter_block),
-    #         lambda nn, ffc, yy, xx, ffb: te.sum(
-    #             (temp[nn, rcc, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rcb]
-    #             * Filter_tx[ffc, ((rcc * in_channel_block + rcb)*kernel_h + ry)*kernel_w + rx, ffb]).astype(args["accumulator"]),
-    #             axis=[rcc, rcb, ry, rx],
-    #         ),
-    #         tag="conv2d_nchwc",
-    #     )
-    # else:
-    conv = te.compute(
-        (batch, num_filter_chunk, out_height, out_width, num_filter_block),
-        lambda nn, ffc, yy, xx, ffb: te.sum(
-            (temp[nn, rcc, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rcb]
-             * Filter[ffc, rcc * in_channel_block + rcb, ry, rx, ffb]).astype(args["accumulator"]),
-            axis=[rcc, rcb, ry, rx],
-        ),
-        tag="conv2d_nchwc",
-    )
+    # When tuning, insert a cache_read("texture") stage to properly test
+    # performance of kernels that utlize texture inputs. The cache_read
+    # is not needed when using the graph_runtime which supports passing
+    # in external texture buffers. This can be removed once AutoTVM tuning
+    # supports capturing this runtime information during task extraction
+    # or once texture lowering in tir.TextureFlatten supports cache_read
+    # cancellation when padding is utilized.
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        # NCHWc x KCRSk
+        # texture: NCH|W|c
+        # texture: K|CRS|k
+        Filter_tx = te.compute(
+            (num_filter_chunk, channel * kernel_h * kernel_w, num_filter_block),
+            lambda ffc, crs, ffb: Filter[ffc, crs // (kernel_h * kernel_w), (crs // kernel_w) % kernel_h, crs % kernel_w, ffb],
+            name = "packed_filter"
+        )
+        conv = te.compute(
+            (batch, num_filter_chunk, out_height, out_width, num_filter_block),
+            lambda nn, ffc, yy, xx, ffb: te.sum(
+                (temp[nn, rcc, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rcb]
+                * Filter_tx[ffc, ((rcc * in_channel_block + rcb)*kernel_h + ry)*kernel_w + rx, ffb]).astype(args["accumulator"]),
+                axis=[rcc, rcb, ry, rx],
+            ),
+            tag="conv2d_nchwc",
+        )
+    else:
+        conv = te.compute(
+            (batch, num_filter_chunk, out_height, out_width, num_filter_block),
+            lambda nn, ffc, yy, xx, ffb: te.sum(
+                (temp[nn, rcc, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rcb]
+                * Filter[ffc, rcc * in_channel_block + rcb, ry, rx, ffb]).astype(args["accumulator"]),
+                axis=[rcc, rcb, ry, rx],
+            ),
+            tag="conv2d_nchwc",
+        )
     return te.compute(conv.shape, lambda n,fc,y,x,fb: conv[n,fc,y,x,fb].astype("float16"), tag="cast_from_acc" + args["accumulator"][-2:])
 
 def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
@@ -167,18 +174,18 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
         cfg.define_knob("unroll_explicit", [0, 1])
     ##### space definition end #####
 
-    # if args["memory"] != None:
-    #     pad_data, flattened_kernel = s[conv].op.input_tensors
-    #     kernel = s[flattened_kernel].op.input_tensors[0]
-    #     s[flattened_kernel].compute_inline()
-    # else:
-    pad_data, kernel = s[conv].op.input_tensors
-    #flattened_kernel = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        pad_data, flattened_kernel = s[conv].op.input_tensors
+        kernel = s[flattened_kernel].op.input_tensors[0]
+        s[flattened_kernel].compute_inline()
+    else:
+        pad_data, kernel = s[conv].op.input_tensors
+        flattened_kernel = kernel
 
     s[pad_data].compute_inline()
     if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
-    #kernel = flattened_kernel
+    kernel = flattened_kernel
 
     # conv only
     if conv.op in s.outputs:
@@ -199,25 +206,25 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
         OL = conv
 
     # create cache stage
-    # if args["memory"] != None:
-    #     AT = s.cache_read(pad_data, args["memory"], [OL])
-    #     WT = s.cache_read(kernel, args["memory"], [OL])
-    #     def copy_to_texture(stage):
-    #         axes = s[stage].op.axis
-    #         fused = s[stage].fuse(*axes[:-1])
-    #         block, thread = s[stage].split(fused, factor=32)
-    #         s[stage].vectorize(axes[-1])
-    #         s[stage].bind(block, te.thread_axis("blockIdx.x"))
-    #         s[stage].bind(thread, te.thread_axis("threadIdx.x"))
-    #     copy_to_texture(AT)
-    #     copy_to_texture(WT)
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        AT = s.cache_read(pad_data, "texture", [OL])
+        WT = s.cache_read(kernel, "texture", [OL])
+        def copy_to_texture(stage):
+            axes = s[stage].op.axis
+            fused = s[stage].fuse(*axes[:-1])
+            block, thread = s[stage].split(fused, factor=32)
+            s[stage].vectorize(axes[-1])
+            s[stage].bind(block, te.thread_axis("blockIdx.x"))
+            s[stage].bind(thread, te.thread_axis("threadIdx.x"))
+        copy_to_texture(AT)
+        copy_to_texture(WT)
 
-    #     if args["shared"]:
-    #         AA = s.cache_read(AT, "shared", [OL])
-    #         WW = s.cache_read(WT, "shared", [OL])
-    # else:
-    #     AA = s.cache_read(pad_data, "shared", [OL])
-    #     WW = s.cache_read(kernel, "shared", [OL])
+        if args["shared"]:
+            AA = s.cache_read(AT, "shared", [OL])
+            WW = s.cache_read(WT, "shared", [OL])
+    elif args["shared"]:
+        AA = s.cache_read(pad_data, "shared", [OL])
+        WW = s.cache_read(kernel, "shared", [OL])
 
     # tile and bind spatial axes
     n, fc, y, x, fb = s[output].op.axis
@@ -256,12 +263,12 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
     s[OL].vectorize(fb)
     s[OL].unroll(rcb)
 
-    if args["memory"] == None or args["shared"]:
+    if args["shared"]:
         s[AA].compute_at(s[OL], rxo)
         s[WW].compute_at(s[OL], rxo)
         # cooperative fetching
         for load in [AA, WW]:
-            if args["memory"] != None and load == WW:
+            if autotvm.GLOBAL_SCOPE.in_tuning and load == WW:
                 n, fyx, v = s[load].op.axis
                 fused = s[load].fuse(n, fyx)
             else:
@@ -280,11 +287,11 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
     s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     N, OCC, OH, OW, OCB = get_const_tuple(output.shape)
-    # if args["memory"] != None:
-    #     _, ICKHKW, _ = get_const_tuple(kernel.shape)
-    # else:
-    _, IC, KH, KW, _ = get_const_tuple(kernel.shape)
-    ICKHKW = IC*KH*KW
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        _, ICKHKW, _ = get_const_tuple(kernel.shape)
+    else:
+        _, IC, KH, KW, _ = get_const_tuple(kernel.shape)
+        ICKHKW = IC*KH*KW
 
 
     if isinstance(N, int):
@@ -297,7 +304,7 @@ def schedule_depthwise_conv2d_nchwc_impl(cfg, outs, tag):
     s = te.create_schedule([x.op for x in outs])
     def _callback(op):
         if op.tag == tag:
-            args={"memory" : "texture", "shared" : False}
+            args={"shared" : False}
             schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, op.output(0), args)
 
     traverse_inline(s, outs[0].op, _callback)
@@ -341,36 +348,36 @@ def compute_depthwise_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilatio
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
 
-    # if args["memory"] != None:
-    #     # NCHWc x CMRSc = [N,(C//4)M,OH,OW, 4c]
-    #     # NCHWc x CMRS
-    #     # texture: NCH|W|c
-    #     # texture: C|MRS|c
-    #     Filter_tx = te.compute(
-    #         (channel_chunk, channel_multiplier * kernel_h * kernel_w, channel_block),
-    #         lambda ffc, mrs, ffb: Filter[ffc, mrs // (kernel_h * kernel_w), (mrs // kernel_w) % kernel_h, mrs % kernel_w, ffb],
-    #         name = "packed_filter"
-    #     )
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        # NCHWc x CMRSc = [N,(C//4)M,OH,OW, 4c]
+        # NCHWc x CMRS
+        # texture: NCH|W|c
+        # texture: C|MRS|c
+        Filter_tx = te.compute(
+            (channel_chunk, channel_multiplier * kernel_h * kernel_w, channel_block),
+            lambda ffc, mrs, ffb: Filter[ffc, mrs // (kernel_h * kernel_w), (mrs // kernel_w) % kernel_h, mrs % kernel_w, ffb],
+            name = "packed_filter"
+        )
 
-    #     conv = te.compute(
-    #         (batch, out_channel_chunk, out_height, out_width, channel_block),
-    #         lambda nn, ffc, yy, xx, ffb: te.sum(
-    #             (temp[nn, ffc//channel_multiplier, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, ffb]
-    #              * Filter_tx[ffc//channel_multiplier, ((ffc % channel_multiplier) * kernel_h + ry) * kernel_w + rx, ffb]).astype(args["accumulator"]),
-    #             axis=[ry, rx],
-    #         ),
-    #         tag="depthwise_conv2d_nchwc_kcrsk_texture",
-    #     )
-    # else:
-    conv = te.compute(
-        (batch, out_channel_chunk, out_height, out_width, channel_block),
-        lambda nn, ffc, yy, xx, ffb: te.sum(
-            (temp[nn, ffc//channel_multiplier, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, ffb]
-            * Filter[ffc//channel_multiplier, ffc % channel_multiplier, ry, rx, ffb]).astype(args["accumulator"]),
-            axis=[ry, rx],
-        ),
-        tag="depthwise_conv2d_nchwc_kcrsk",
-    )
+        conv = te.compute(
+            (batch, out_channel_chunk, out_height, out_width, channel_block),
+            lambda nn, ffc, yy, xx, ffb: te.sum(
+                (temp[nn, ffc//channel_multiplier, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, ffb]
+                 * Filter_tx[ffc//channel_multiplier, ((ffc % channel_multiplier) * kernel_h + ry) * kernel_w + rx, ffb]).astype(args["accumulator"]),
+                axis=[ry, rx],
+            ),
+            tag="depthwise_conv2d_nchwc_kcrsk_texture",
+        )
+    else:
+        conv = te.compute(
+            (batch, out_channel_chunk, out_height, out_width, channel_block),
+            lambda nn, ffc, yy, xx, ffb: te.sum(
+                (temp[nn, ffc//channel_multiplier, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, ffb]
+                * Filter[ffc//channel_multiplier, ffc % channel_multiplier, ry, rx, ffb]).astype(args["accumulator"]),
+                axis=[ry, rx],
+            ),
+            tag="depthwise_conv2d_nchwc_kcrsk",
+        )
     return te.compute(conv.shape, lambda n,ffc,y,x,ffb: conv[n,ffc,y,x,ffb].astype("float16"), tag="cast_from_acc" + args["accumulator"][-2:])
 
 def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
@@ -394,18 +401,18 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
         cfg.define_knob("unroll_explicit", [0, 1])
     ##### space definition end #####
 
-    # if args["memory"] != None:
-    #     pad_data, flattened_kernel = s[conv].op.input_tensors
-    #     kernel = s[flattened_kernel].op.input_tensors[0]
-    #     s[flattened_kernel].compute_inline()
-    # else:
-    pad_data, kernel = s[conv].op.input_tensors
-    #flattened_kernel = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        pad_data, flattened_kernel = s[conv].op.input_tensors
+        kernel = s[flattened_kernel].op.input_tensors[0]
+        s[flattened_kernel].compute_inline()
+    else:
+        pad_data, kernel = s[conv].op.input_tensors
+        flattened_kernel = kernel
 
     s[pad_data].compute_inline()
     if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
-    #kernel = flattened_kernel
+    kernel = flattened_kernel
 
     # conv only
     if conv.op in s.outputs:
@@ -426,25 +433,25 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
         OL = conv
 
     # create cache stage
-    # if args["memory"] != None:
-    #     AT = s.cache_read(pad_data, args["memory"], [OL])
-    #     WT = s.cache_read(kernel, args["memory"], [OL])
-    #     def copy_to_texture(stage):
-    #         axes = s[stage].op.axis
-    #         fused = s[stage].fuse(*axes[:-1])
-    #         block, thread = s[stage].split(fused, factor=32)
-    #         s[stage].vectorize(axes[-1])
-    #         s[stage].bind(block, te.thread_axis("blockIdx.x"))
-    #         s[stage].bind(thread, te.thread_axis("threadIdx.x"))
-    #     copy_to_texture(AT)
-    #     copy_to_texture(WT)
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        AT = s.cache_read(pad_data, "texture", [OL])
+        WT = s.cache_read(kernel, "texture", [OL])
+        def copy_to_texture(stage):
+            axes = s[stage].op.axis
+            fused = s[stage].fuse(*axes[:-1])
+            block, thread = s[stage].split(fused, factor=32)
+            s[stage].vectorize(axes[-1])
+            s[stage].bind(block, te.thread_axis("blockIdx.x"))
+            s[stage].bind(thread, te.thread_axis("threadIdx.x"))
+        copy_to_texture(AT)
+        copy_to_texture(WT)
 
-    #     if args["shared"]:
-    #         AA = s.cache_read(AT, "shared", [OL])
-    #         WW = s.cache_read(WT, "shared", [OL])
-    # else:
-    #     AA = s.cache_read(pad_data, "shared", [OL])
-    #     WW = s.cache_read(kernel, "shared", [OL])
+        if args["shared"]:
+            AA = s.cache_read(AT, "shared", [OL])
+            WW = s.cache_read(WT, "shared", [OL])
+    elif args["shared"]:
+        AA = s.cache_read(pad_data, "shared", [OL])
+        WW = s.cache_read(kernel, "shared", [OL])
 
     # tile and bind spatial axes
     n, fc, y, x, fb = s[output].op.axis
@@ -481,12 +488,12 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
     s[OL].vectorize(fb)
     #s[OL].unroll()
 
-    if args["memory"] == None or args["shared"]:
+    if args["shared"]:
         s[AA].compute_at(s[OL], rxo)
         s[WW].compute_at(s[OL], rxo)
         # cooperative fetching
         for load in [AA, WW]:
-            if args["memory"] != None and load == WW:
+            if autotvm.GLOBAL_SCOPE.in_tuning:
                 n, fyx, v = s[load].op.axis
                 fused = s[load].fuse(n, fyx)
             else:
@@ -507,13 +514,13 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
     N, OCC, OH, OW, OCB = get_const_tuple(output.shape)
     # OC = OCC * OCB = IC * M
     # M = OC // IC == (OCC * OCB) // ICC * ICB
-    # if args["memory"] != None:
-    #     ICC, MKHKW, ICB = get_const_tuple(kernel.shape)
-    #     M = (OCC * OCB) // (ICC * ICB)
-    #     KHKW = MKHKW // M
-    # else:
-    ICC, M, KH, KW, ICB = get_const_tuple(kernel.shape)
-    KHKW = KH*KW
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        ICC, MKHKW, ICB = get_const_tuple(kernel.shape)
+        M = (OCC * OCB) // (ICC * ICB)
+        KHKW = MKHKW // M
+    else:
+        ICC, M, KH, KW, ICB = get_const_tuple(kernel.shape)
+        KHKW = KH*KW
 
     if isinstance(N, int):
         cfg.add_flop(2 * N * OH * OW * OCC * OCB * KHKW)
