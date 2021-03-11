@@ -868,7 +868,11 @@ def _timed_eval_func(
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
                     if tensor_name in task_input_names:
-                        args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
+                        args.append(
+                            ndarray.array(
+                                get_task_input_buffer(inp.task.workload_key, tensor_name), ctx
+                            )
+                        )
                         task_inputs_count += 1
                     else:
                         raise ValueError(
@@ -1079,7 +1083,11 @@ def _timed_rpc_run(
                 if arg in tensor_input_map:
                     tensor_name = tensor_input_map[arg]
                     if tensor_name in task_input_names:
-                        args.append(get_task_input_buffer(inp.task.workload_key, tensor_name))
+                        args.append(
+                            ndarray.array(
+                                get_task_input_buffer(inp.task.workload_key, tensor_name), ctx
+                            )
+                        )
                         task_inputs_count += 1
                     else:
                         raise ValueError(

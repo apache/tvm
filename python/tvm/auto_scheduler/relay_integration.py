@@ -117,12 +117,17 @@ def extract_tasks(
     env = TracingEnvironment(
         TracingMode.EXTRACT_TASK if include_simple_tasks else TracingMode.EXTRACT_COMPLEX_TASK_ONLY
     )
+
+    dispatch_ctx = DispatchContext.current
+    old_verbose = dispatch_ctx.verbose
+    dispatch_ctx.verbose = 0
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
         build_thread.start()
         build_thread.join()
+    dispatch_ctx.verbose = old_verbose
 
     # create search tasks
     tasks = []
