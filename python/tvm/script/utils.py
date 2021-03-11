@@ -130,8 +130,8 @@ def call_with_error_reporting(
     """Call function with exception handling and report error using node_span"""
     try:
         return func(*args, **kwargs)
-    except DiagnosticError as err:
-        raise err
+    except DiagnosticError:
+        raise
     except Exception as err:  # pylint: disable=broad-except
         # printing last non-empty row of error message.
         error_msg = list(filter(None, str(err).split("\n")))[-1]

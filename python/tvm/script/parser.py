@@ -787,7 +787,7 @@ class TVMScriptParser(Transformer):
             for index in indexes:
                 if not isinstance(index, (tvm.tir.PrimExpr, int)):
                     self.report_error(
-                        "Buffer load indexes expect int or PrimExpr, but get " + type(index),
+                        "Buffer load indexes expects int or PrimExpr, but got " + type(index),
                         node.span,
                     )
             return tvm.tir.Load(
