@@ -492,6 +492,7 @@ def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
     chosen_blocks = candidate_blocks[
         np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
     ]
+    # pylint: disable=invalid-name
     for (r, c) in chosen_blocks:
         y[r : r + bs_r, c : c + bs_c] = np.random.randn(bs_r, bs_c)
     s = sp.bsr_matrix(y, blocksize=(bs_r, bs_c))
