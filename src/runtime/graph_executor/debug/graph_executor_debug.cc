@@ -263,7 +263,7 @@ class GraphExecutorDebug : public GraphExecutor {
 
         uint32_t eid = entry_id(i, 0);
         const TVMContext& ctx = data_entry_[eid]->ctx;
-        prof.StartCall(GetNodeName(i), ctx, {{"Argument Shapes", profiling::ShapeString(shapes)}});
+        prof.StartCall(nodes_[i].param.func_name, ctx, {{"Argument Shapes", profiling::ShapeString(shapes)}});
         op_execs_[i]();
         prof.StopCall();
       }
