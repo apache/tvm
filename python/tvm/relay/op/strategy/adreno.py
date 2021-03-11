@@ -38,9 +38,9 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
     if groups == 1:
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
-                wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
-                name="conv2d_nchw_spatial_pack.mali",
+                wrap_compute_conv2d(topi.cuda.conv2d_nchw),
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
+                name="conv2d_nchw.cuda",
             )
         elif data_layout == "NCHW4c" and kernel_layout == "OIHW4o":
             strategy.add_implementation(
@@ -58,7 +58,13 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Layout not supported: ("+data_layout+", "+kernel_layout+") - only support NCHW4c / OIHW4o layouts for conv2d")
     elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
-        if data_layout == "NCHW4c" and kernel_layout == "OIHW4o":
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.cuda.depthwise_conv2d_nchw),
+                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.cuda",
+            )
+        elif data_layout == "NCHW4c" and kernel_layout == "OIHW4o":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.depthwise_conv2d_nchwc),
                 wrap_topi_schedule(topi.adreno.schedule_depthwise_conv2d_nchwc),
