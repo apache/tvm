@@ -799,6 +799,29 @@ def sparse_dense_padded_strategy(attrs, inputs, out_type, target):
     raise NotImplementedError("sparse_dense_padded is only implemented for cuda")
 
 
+# sparse_add
+def wrap_compute_sparse_add(topi_compute):
+    """wrap sparse add topi compute"""
+
+    def _compute_sparse_add(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+    return _compute_sparse_add
+
+
+@override_native_generic_func("sparse_add_strategy")
+def sparse_add_strategy(attrs, inputs, out_type, target):
+    """sparse add generic strategy"""
+    logger.warning("sparse add is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_add(topi.nn.sparse_add),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="sparse_add.generic",
+    )
+    return strategy
+
+
 # sparse_transpose
 @generic_func
 def schedule_sparse_transpose(attrs, outs, target):
