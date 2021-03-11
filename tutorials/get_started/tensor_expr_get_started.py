@@ -221,7 +221,8 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 run_cuda = False
 if run_cuda:
 
-# Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs), rocm (Radeon GPUS), OpenGL (???).
+# Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs),
+# rocm (Radeon GPUS), OpenCL (opencl).
     tgt_gpu = "cuda"
 
 # Recreate the schedule
