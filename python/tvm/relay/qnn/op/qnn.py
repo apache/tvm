@@ -18,8 +18,10 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
+from tvm import relay
 from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.utils import get_pad_tuple2d
+from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
 from . import _make
 from ... import op as reg
 from ...op import OpPattern
@@ -118,6 +120,40 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     return _make.quantize(data, output_scale, output_zero_point, axis, out_dtype)
 
 
+def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
+    r"""Simulated Quantize op
+    Mimics the quantize op but has more flexibility in valid inputs and always
+    outputs the same type as the input. This can be useful for
+    calibrating or training a quantized network.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be quantized. Can be of type float32.
+    output_zero_point : tvm.relay.Expr
+        The output zero_point.
+    output_scale : tvm.relay.Expr
+        The output scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+    out_dtype : string or tvm.relay.Expr
+        A string or tensor indicating which datatype to quantize to.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Convert string dtype to a constant if needed.
+    if isinstance(out_dtype, str):
+        type_code = SQNN_DTYPE_TO_CODE[out_dtype]
+        out_dtype = relay.const(type_code, dtype="int32")
+    # Wrap reshapes around qnn parameter tensors to guarantee shape compatibility.
+    output_scale = relay.op.reshape(output_scale, [-1])
+    output_zero_point = relay.op.reshape(output_zero_point, [-1])
+    return _make.simulated_quantize(data, out_dtype, output_scale, output_zero_point, axis)
+
+
 def dequantize(data, input_scale, input_zero_point, axis=-1):
     r"""Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
@@ -127,7 +163,7 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input tensor to be dequantized. Can be of type [int8, uint8].
+        The input tensor to be dequantized. Can be of type [int8, uint8, int32].
     input_zero_point : tvm.relay.Expr
         The input zero_point.
     input_scale : tvm.relay.Expr
@@ -141,6 +177,40 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     """
 
     return _make.dequantize(data, input_scale, input_zero_point, axis)
+
+
+def simulated_dequantize(data, input_scale, input_zero_point, axis=-1, in_dtype="int8"):
+    r"""Simulated Dequantize op
+    Mimics the dequantize op but has more flexibility in valid inputs and always
+    outputs the same type as the input. This can be useful for calibrating or
+    training a quantized network.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be dequantized.
+    input_zero_point : tvm.relay.Expr
+        The input zero_point.
+    input_scale : tvm.relay.Expr
+        The input scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+    in_dtype : string or tvm.relay.Expr
+        A string or tensor indicating which datatype to dequantize from.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Convert string dtype to a constant if needed.
+    if isinstance(in_dtype, str):
+        type_code = SQNN_DTYPE_TO_CODE[in_dtype]
+        in_dtype = relay.const(type_code, dtype="int32")
+    # Wrap reshapes around qnn parameter tensors to guarantee shape compatibility.
+    input_scale = relay.op.reshape(input_scale, [-1])
+    input_zero_point = relay.op.reshape(input_zero_point, [-1])
+    return _make.simulated_dequantize(data, in_dtype, input_scale, input_zero_point, axis)
 
 
 def concatenate(data, input_scales, input_zero_points, output_scale, output_zero_point, axis):
