@@ -174,8 +174,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 # Define the neural network and compilation target.
 # If the target machine supports avx512 instructions, replace the
 # "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
-# network = "resnet-50"
-network = "mlp-sparse"
+network = "resnet-50"
 batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("llvm -mcpu=core-avx2")

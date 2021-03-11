@@ -471,8 +471,6 @@ def try_get_sparse_input(args):
 
 
 def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
-    """
-    """
     import numpy as np
     import itertools
     import scipy.sparse as sp
