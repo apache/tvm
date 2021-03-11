@@ -74,7 +74,10 @@ def process_params(expr, params, block_size, sparsity_threshold):
         return names of qualified dense weight and the shape in BSR format
     """
 
-    from tvm.auto_scheduler.search_task import register_task_input_buffer  # layzily load
+    # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler.search_task import (
+        register_task_input_buffer,
+    )  # lazily import to avoid recursive dependency
 
     memo = SparseAnalysisResult(weight_name=[], weight_shape=[])
     weight_names = _search_dense_op_weight(expr)
@@ -92,6 +95,9 @@ def process_params(expr, params, block_size, sparsity_threshold):
                 + list(sparse_weight.indices.shape)
                 + list(sparse_weight.indptr.shape)
             )
+            params[name + ".data"] = tvm.nd.array(sparse_weight.data)
+            params[name + ".indices"] = tvm.nd.array(sparse_weight.indices)
+            params[name + ".indptr"] = tvm.nd.array(sparse_weight.indptr)
 
             prefix = "sparse_dense_bsr_%d_%d_%d_%d_%.2f_" % (
                 w_np.shape[0],
@@ -100,7 +106,6 @@ def process_params(expr, params, block_size, sparsity_threshold):
                 block_size[1],
                 1 - sparsity,
             )
-
             register_task_input_buffer(
                 "default", prefix + "W_data", tvm.runtime.ndarray.array(sparse_weight.data)
             )
@@ -110,10 +115,6 @@ def process_params(expr, params, block_size, sparsity_threshold):
             register_task_input_buffer(
                 "default", prefix + "W_indptr", tvm.runtime.ndarray.array(sparse_weight.indptr)
             )
-
-            params[name + ".data"] = tvm.nd.array(sparse_weight.data)
-            params[name + ".indices"] = tvm.nd.array(sparse_weight.indices)
-            params[name + ".indptr"] = tvm.nd.array(sparse_weight.indptr)
     ret = SparseAnalysisResult(
         weight_name=tvm.runtime.convert(memo.weight_name),
         weight_shape=tvm.runtime.convert(memo.weight_shape),

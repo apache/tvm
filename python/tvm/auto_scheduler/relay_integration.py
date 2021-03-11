@@ -176,19 +176,28 @@ class TracingEnvironment:
         TracingEnvironment.current = None
 
     def add_workload_key(self, workload_key):
-        """Add the workload key of a search task
+        """Add the workload key of a search task.
 
         Parameters
         ----------
         workload_key: str
-            The workload key of a task
+            The workload key of a task.
         """
         if workload_key not in self.wkl_key_to_weight:
             self.wkl_key_to_weight[workload_key] = 0
         self.wkl_key_to_weight[workload_key] += 1
 
     def add_workload_input_names(self, workload_key, input_names):
-        """"""
+        """Add special task inputs to this workload.
+
+        Parameters
+        ----------
+        workload_key : str
+            The workload key of a task.
+
+        input_names : List[str]
+            A list of input names.
+        """
         self.wkl_key_to_input_names[workload_key] = input_names
 
 

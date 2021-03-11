@@ -468,3 +468,30 @@ def try_get_sparse_input(args):
     sparse_input_map[sparse_indptr] = sparse_prefix + "W_indptr"
 
     return sparse_input_map
+
+
+def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
+    """
+    """
+    import numpy as np
+    import itertools
+    import scipy.sparse as sp
+
+    Y = np.zeros((M, N), dtype=dtype)
+    assert M % BS_R == 0
+    assert N % BS_C == 0
+    nnz = int(density * M * N)
+    num_blocks = int(nnz / (BS_R * BS_C)) + 1
+    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
+    assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
+    chosen_blocks = candidate_blocks[
+        np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
+    ]
+    for i in range(len(chosen_blocks)):
+        r, c = chosen_blocks[i]
+        Y[r : r + BS_R, c : c + BS_C] = np.random.randn(BS_R, BS_C)
+    s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
+    assert s.data.shape == (num_blocks, BS_R, BS_C)
+    assert s.indices.shape == (num_blocks,)
+    assert s.indptr.shape == (M // BS_R + 1,)
+    return s

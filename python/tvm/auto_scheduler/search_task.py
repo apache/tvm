@@ -175,9 +175,6 @@ class TuningOptions(Object):
 #         "task_input_2": Tensor(...),
 #         "task_input_3": Tensor(...)
 #     },
-#     "default": {
-#         "task_input_4": Tensor(...),
-#     },
 #     ...
 # }
 TASK_INPUT_BUFFER_TABLE = {}
@@ -308,7 +305,8 @@ def get_task_input_buffer(workload_key, input_name):
         if tensor_from_file:
             input_table[input_name] = tensor_from_file
 
-    # Then check for the default table
+    # Then check for the default table, the input names extracted from a relay model will be
+    # stored here for we're not able to get the workload_key at that time
     if input_name not in input_table:
         input_table = TASK_INPUT_BUFFER_TABLE["default"]
 
