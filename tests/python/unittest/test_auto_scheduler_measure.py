@@ -357,7 +357,7 @@ def test_measure_target_host():
 
 
 @tvm.testing.requires_llvm
-def test_measure_special_inputs_map_by_name():
+def test_measure_special_inputs_map_by_name_local_runner():
     @auto_scheduler.register_workload
     def foo():
         X = te.placeholder(shape=[10], dtype="int32")
@@ -384,6 +384,38 @@ def test_measure_special_inputs_map_by_name():
     assert mress[0].error_no == 0
 
 
+@tvm.testing.requires_llvm
+def test_measure_special_inputs_map_by_name_rpc_runner():
+    @auto_scheduler.register_workload
+    def foo():
+        X = te.placeholder(shape=[10], dtype="int32")
+        Index = te.placeholder(shape=[1], dtype="int32", name="Index")
+        Y = te.compute((1,), lambda i: X[Index[i]])
+        return [X, Index, Y]
+
+    # This workload cannot use random input for the `Index` input
+    task = auto_scheduler.SearchTask(
+        func=foo,
+        target="llvm",
+        task_inputs={
+            "Index": tvm.nd.array(np.array([5], dtype="int32")),
+        },
+    )
+
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+        rpc_runner = measure_ctx.runner
+
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = rpc_runner.run([minp], bress)
+        assert mress[0].error_no == 0
+
+
 if __name__ == "__main__":
     test_record_split_reorder_fuse_annotation()
     test_record_compute_at_root_inline_cache_read_write()
@@ -395,4 +427,5 @@ if __name__ == "__main__":
     test_dag_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
     test_measure_target_host()
-    test_measure_special_inputs_map_by_name()
+    test_measure_special_inputs_map_by_name_local_runner()
+    test_measure_special_inputs_map_by_name_rpc_runner()
