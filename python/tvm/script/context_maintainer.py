@@ -54,15 +54,20 @@ class ContextMaintainer:
     """Maintain all the necessary context info"""
 
     # scope context
+    # ast_node inside a scope
     node_stack: List[List[synr.ast.Node]]
+    # loop stacks inside a block
     block_info_stack: List[BlockInfo]
+    # loop stacks inside a block
     loop_stack: List[List[Var]]
     symbols: List[Dict[str, Union[Var, Buffer]]]
+
     # function context
     func_params: List[Var]
     func_buffer_map: Mapping[Var, Buffer]
     func_dict_attr: Mapping[str, Object]
     func_var_env_dict: Mapping[Var, str]
+
     # parser and analyzer
     _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]
     analyzer: tvm.arith.Analyzer
@@ -97,6 +102,8 @@ class ContextMaintainer:
 
     def enter_block_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
         """Creating a new block scope, the function will call `enter_scope` implicitly
+        Besides behaviors of normal `enter_scope`, it will update loop_stack and block_info_stack
+        for block info maintaining.
 
         Parameters
         ----------

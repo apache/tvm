@@ -23,7 +23,7 @@ from synr import ast
 import tvm.tir
 from tvm.runtime import Object
 from tvm.ir import Span, Range
-from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion
+from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
 from .context_maintainer import ContextMaintainer
 from .utils import (
@@ -87,10 +87,14 @@ class WithScopeHandler(ScopeHandler):
         if isinstance(node.lhs, list):
             for var in node.lhs:
                 if not isinstance(var, ast.Var):
-                    context.report_error("Invalid optional var definition", node.span)
+                    context.report_error(
+                        "Invalid optional var definition, only list of Var is valid", node.span
+                    )
             var_names = [var.id.name for var in node.lhs]
         else:
-            context.report_error("Invalid optional var definition", node.span)
+            context.report_error(
+                "Invalid optional var definition, only list of Var is valid", node.span
+            )
         return var_names
 
 
@@ -169,7 +173,7 @@ class Realize(WithScopeHandler):
         def realize(
             buffer_slice: BufferSlice, scope: str, condition: bool = True, span: bool = None
         ):
-            assert self.context
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             buffer: Buffer = buffer_slice.buffer
             bounds: List[Range] = []
             for s in buffer_slice.slices:
@@ -232,9 +236,9 @@ class Block(WithScopeHandler):
 
     def __init__(self):
         def block(axes=None, name_hint: str = "", span: Optional[Span] = None):
-            assert self.node
-            assert self.context
-            assert self.body
+            assert (
+                self.node and self.context and self.body
+            ), "call 'exit_scope' before 'enter_scope'"
             block_info = self.context.block_info_stack[-1]
             if axes is None:
                 axes = []
@@ -257,7 +261,7 @@ class Block(WithScopeHandler):
                 else:
                     self.context.report_error(
                         "Invalid argument of tir.block(), "
-                        + f"expects PrimExpr, Range or IterVar, but gets {type(axis)}",
+                        + f"expected PrimExpr, Range or IterVar, but got {type(axis)}",
                         self.node.span,
                     )
 
@@ -293,7 +297,7 @@ class Block(WithScopeHandler):
                     values = [tvm.tir.const(float("nan"), dtype="float32")] * len(block_iters)
                 elif len(values) != len(block_iters):
                     self.context.report_error(
-                        "Autocomplete block iter var binding expects larger number of loops",
+                        "Autocomplete block iter var binding expected larger number of loops",
                         self.node.span,
                     )
             else:
@@ -337,7 +341,7 @@ class InitBlock(WithScopeHandler):
 
     def __init__(self):
         def init(span: Span = None):
-            assert self.context
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             if self.context.block_info_stack[-2].init is not None:
                 self.context.report_error("Duplicate init block declaration", span)
             self.context.block_info_stack[-2].init = self.body
@@ -389,7 +393,7 @@ class ForScopeHandler(ScopeHandler):
         arg_list: List[Any],
         span: synr.ast.Span,
     ):
-        assert self.loop_vars
+        assert self.loop_vars, "call 'exit_scope' before 'enter_scope'"
         for _ in self.loop_vars:
             context.loop_stack[-1].pop()
         return super().exit_scope(node, context, arg_list, span)
@@ -431,9 +435,9 @@ class ForScopeHandler(ScopeHandler):
         for : For
             The constructed For.
         """
-        assert self.node
-        assert self.context
-        assert self.loop_vars
+        assert (
+            self.loop_vars and self.context and self.node
+        ), "call 'exit_scope' before 'enter_scope'"
         if len(self.loop_vars) != 1:
             self.context.report_error(
                 f"Expect exact only one loop var, but get {self.loop_vars}", self.node.span
@@ -470,7 +474,7 @@ class Serial(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
-            return self.create_loop(begin, end, 0, annotations=annotations, span=span)
+            return self.create_loop(begin, end, ForKind.SERIAL, annotations=annotations, span=span)
 
         super().__init__(serial)
 
@@ -486,7 +490,9 @@ class Parallel(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
-            return self.create_loop(begin, end, 1, annotations=annotations, span=span)
+            return self.create_loop(
+                begin, end, ForKind.PARALLEL, annotations=annotations, span=span
+            )
 
         super().__init__(parallel)
 
@@ -502,7 +508,9 @@ class Vectorized(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
-            return self.create_loop(begin, end, 2, annotations=annotations, span=span)
+            return self.create_loop(
+                begin, end, ForKind.VECTORIZED, annotations=annotations, span=span
+            )
 
         super().__init__(vectorized)
 
@@ -518,7 +526,9 @@ class Unroll(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
-            return self.create_loop(begin, end, 3, annotations=annotations, span=span)
+            return self.create_loop(
+                begin, end, ForKind.UNROLLED, annotations=annotations, span=span
+            )
 
         super().__init__(unroll)
 
@@ -539,7 +549,7 @@ class ThreadBinding(ForScopeHandler):
             return self.create_loop(
                 begin,
                 end,
-                4,
+                ForKind.THREAD_BINDING,
                 thread_binding=thread_iter_var,
                 annotations=annotations,
                 span=span,
@@ -561,7 +571,7 @@ class RangeHandler(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
-            return self.create_loop(begin, end, 0, annotations=annotations, span=span)
+            return self.create_loop(begin, end, ForKind.SERIAL, annotations=annotations, span=span)
 
         super().__init__(for_range)
 
@@ -575,12 +585,14 @@ class Grid(ForScopeHandler):
 
     def __init__(self):
         def grid(*extents: List[PrimExpr], span: Span):
-            assert self.node
-            assert self.context
-            assert self.loop_vars
+            assert (
+                self.node and self.context and self.loop_vars
+            ), "call 'exit_scope' before 'enter_scope'"
             if len(self.loop_vars) != len(extents):
                 self.context.report_error(
-                    "Inconsistent number of loop vars and extents", self.node.span
+                    "Inconsistent number of loop vars and extents, "
+                    + f"got {len(self.loop_vars)} vs {len(extents)}",
+                    self.node.span,
                 )
             body = self.body
             for loop_var, extent in zip(reversed(self.loop_vars), reversed(extents)):
