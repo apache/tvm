@@ -62,7 +62,7 @@ Contents
 #    you're having issues importing your model into TVM, you may want to try
 #    converting it to ONNX.
 #
-# 2. Translate to *Relay,* TVM's high level model language.
+# 2. Translate to *Relay*, TVM's high level model language.
 #    A model that has been imported into TVM is represented in Relay. Relay is a
 #    functional language and intermediate representation (IR) for neural networks.
 #    It has support for:
