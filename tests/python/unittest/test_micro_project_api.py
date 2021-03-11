@@ -71,6 +71,7 @@ class BaseTestHandler(project_api.server.ProjectAPIHandler):
 
 
 class Transport:
+
     def readable(self):
         return True
 
