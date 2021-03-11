@@ -213,6 +213,7 @@ within_subsection_order = {
         "relay_quick_start.py",
         "tensor_expr_get_started.py",
         "tvmc_command_line_driver.py",
+        "auto_tuning_with_python.py",
         "cross_compilation_and_rpc.py",
     ],
     "frontend": [
