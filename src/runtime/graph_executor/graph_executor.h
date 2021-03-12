@@ -20,10 +20,10 @@
 /*!
  * \brief Tiny graph runtime that can run graph
  *        containing only tvm PackedFunc.
- * \file graph_runtime.h
+ * \file graph_executor.h
  */
-#ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
+#define TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
 
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
@@ -430,4 +430,4 @@ std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_

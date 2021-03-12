@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/runtime/graph_runtime_factory.h
+ * \file tvm/runtime/graph_executor/graph_executor_factory.h
  * \brief Graph runtime factory creating graph runtime.
  */
 
-#ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
-#define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
+#ifndef TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
+#define TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
@@ -136,4 +136,4 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
+#endif  // TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
