@@ -147,6 +147,7 @@ def extract_tasks(
                     if wkl_key in env.wkl_key_to_input_names
                     else None
                 ),
+                task_inputs_save_to_file=True,
             )
         )
         weights.append(weight)

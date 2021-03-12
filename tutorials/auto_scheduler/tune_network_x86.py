@@ -176,8 +176,8 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
 # Define the neural network and compilation target.
 # If the target machine supports avx512 instructions, replace the
 # "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
-network = "mobilenet"
-use_sparse = True
+network = "resnet-50"
+use_sparse = False
 batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("llvm -mcpu=core-avx2")
@@ -241,7 +241,7 @@ def run_tuning():
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-run_tuning()
+# run_tuning()
 
 
 ######################################################################

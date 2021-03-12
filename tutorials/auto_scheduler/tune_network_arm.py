@@ -260,21 +260,17 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
 # FIXME(tmoreau89, merrymercy): We leave '-device=arm_cpu' out of the target string
 #                               because we're sharing x86 op strategy.
-# target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
-
-target = tvm.target.arm_cpu("pixel2")
+target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 
 # Also replace this with the device key, rpc host and rpc port in your tracker
-device_key = "pixel2"
-rpc_host = "11.164.101.214"
-rpc_port = 9190
+device_key = "rasp4b-64"
+rpc_host = "0.0.0.0"
+rpc_port = 9191
 
 # Set this to True if you use ndk tools for cross compiling
 # And also set the environment variable below to point to the cross compiler
-use_ndk = True
-os.environ[
-    "TVM_NDK_CC"
-] = "/Users/jcf/Workspace/tvm_workspace/arm/android-ndk-r21d/build/tools/android-toolchain-arm64/bin/aarch64-linux-android-g++"
+use_ndk = False
+# os.environ["TVM_NDK_CC"] = "/usr/bin/aarch64-linux-gnu-g++"
 
 #### TUNING OPTION ####
 network = "mobilenet"
@@ -334,7 +330,7 @@ def tune_and_evaluate():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=len(tasks),  # change this to 20000 to achieve the best performance
+        num_measure_trials=200,  # change this to 20000 to achieve the best performance
         builder=auto_scheduler.LocalBuilder(build_func="ndk" if use_ndk else "default"),
         runner=auto_scheduler.RPCRunner(
             device_key,
@@ -394,7 +390,7 @@ def tune_and_evaluate():
 # or device tracker running.
 # Uncomment the following line to run it by yourself.
 
-tune_and_evaluate()
+# tune_and_evaluate()
 
 
 ######################################################################

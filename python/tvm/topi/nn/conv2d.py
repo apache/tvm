@@ -410,8 +410,6 @@ def conv2d_nhwc(
     else:
         dilation_h, dilation_w = dilation
 
-    print("Conv2d", Filter.shape)
-
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         kernel_h, kernel_w, channel, num_filter = auto_scheduler.get_shape_from_rewritten_layout(
