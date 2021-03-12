@@ -53,6 +53,8 @@ def dense(data, weight, bias=None, out_dtype=None, auto_scheduler_rewritten_layo
         out_dtype = data.dtype
     batch, in_dim = data.shape
 
+    print("Dense", weight.shape)
+
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         out_dim, red_dim = auto_scheduler.get_shape_from_rewritten_layout(

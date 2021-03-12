@@ -20,6 +20,7 @@ import re
 import logging
 
 from tvm import topi
+from tvm.auto_scheduler import is_auto_scheduler_enabled
 from ....target import arm_isa
 from .generic import *
 from .. import op as _op
@@ -127,6 +128,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
+            if is_auto_scheduler_enabled():
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
+                    naive_schedule,
+                    name="conv2d_nhwc.arm_cpu",
+                    plevel=100,
+                )
+
             channels = data.shape[3]
             if "SMLAD" in isa and (channels % 4) == 0 and kernel_layout == "HWOI":
                 strategy.add_implementation(
