@@ -22,9 +22,13 @@ source tests/scripts/setup-pytest-env.sh
 
 
 # Rebuild cython
+# TODO(u99127): Enable cython tests.
 
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
-TVM_FFI=ctypes python3 -m pytest tests/python/contrib/test_ethosn
-
+# Note: Default behaviour is to assume the test target is Ethos-N77
+# but setting ETHOSN_VARIANT_CONFIG appropriately
+# (e.g. ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM)
+# switches the target to an Ethos-N78 configuration.
+run_pytest ctypes python-ethosn tests/python/contrib/test_ethosn

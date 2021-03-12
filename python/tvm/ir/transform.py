@@ -330,3 +330,26 @@ def PrintIR(header="", show_meta_data=False):
     The pass
     """
     return _ffi_transform_api.PrintIR(header, show_meta_data)
+
+
+def render_pass_profiles():
+    """Returns a string render of the pass profiling data. The format of each output line is
+    `{name}: {time} [{time excluding sub-passes}] ({% of total}; {% of parent})`.
+    The indentation of each line corresponds to nesting of passes.
+    """
+    return _ffi_transform_api.render_pass_profiles()
+
+
+def clear_pass_profiles():
+    """Clears all stored pass profiling data."""
+    _ffi_transform_api.clear_pass_profiles()
+
+
+def enable_pass_profiling():
+    """Enables pass profiling."""
+    _ffi_transform_api.enable_pass_profiling()
+
+
+def disable_pass_profiling():
+    """Disables pass profiling."""
+    _ffi_transform_api.disable_pass_profiling()

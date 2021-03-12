@@ -170,6 +170,10 @@ def test_basic_operation():
     Y = topi.tensordot(A, B, 1)
     check_grad(Y, X)
 
+    X = te.placeholder((3, 3), name="X")
+    Y = topi.einsum("ii->i", (X))
+    check_grad(Y, X)
+
 
 def test_topi():
     X = te.placeholder((1, 2, 4, 4), name="X")

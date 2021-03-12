@@ -99,6 +99,14 @@ void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node, uint32_t entry_i
   ICHECK(it != node_output_map_.end()) << "Output was not found.";
   auto out_tensor = it->second[node.index_].tensor;
   std::string name = "tensorrt_output_" + std::to_string(network_output_names_.size());
+  // If the network is already marked as an input or output, make a copy to avoid TRT crash.
+  if (out_tensor->isNetworkOutput()) {
+    LOG(WARNING) << name << " is a duplicate output.";
+    out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
+  } else if (out_tensor->isNetworkInput()) {
+    LOG(WARNING) << name << " is both an input and an output.";
+    out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
+  }
   out_tensor->setName(name.c_str());
   network_->markOutput(*out_tensor);
   network_output_names_.push_back(name);

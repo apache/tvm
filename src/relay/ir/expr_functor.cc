@@ -103,9 +103,39 @@ Expr MixedModeMutator::VisitExpr(const Expr& expr) {
 class PostOrderRewriter : public MixedModeMutator {
  public:
   explicit PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
+
   Expr DispatchVisitExpr(const Expr& expr) final {
     auto post = ExprFunctor::VisitExpr(expr);
     return rewriter_->Rewrite(expr, post);
+  }
+
+  using MixedModeMutator::VisitExpr_;
+
+  Expr VisitExpr_(const LetNode* node) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->Mutate(op->var);
+      Expr value = this->Mutate(op->value);
+    };
+    auto post_visit = [this, node](const LetNode* op) {
+      Var var = Downcast<Var>(this->Mutate(op->var));
+      Expr value = this->Mutate(op->value);
+      Expr body = this->Mutate(op->body);
+      Expr expr = GetRef<Expr>(op);
+      Expr post;
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        post = expr;
+      } else {
+        post = Let(var, value, body);
+      }
+      //  avoid rewriting the first LetNode twice
+      if (op == node) {
+        this->memo_[expr] = post;
+      } else {
+        this->memo_[expr] = this->rewriter_->Rewrite(expr, post);
+      }
+    };
+    ExpandANormalForm(node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(node)];
   }
 
  protected:
@@ -532,5 +562,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
     *ret = Bind(Downcast<Type>(input), args[1]);
   }
 });
+
+void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
+                       std::function<void(const LetNode*)> post_visit) {
+  std::stack<const LetNode*> stack;
+  stack.push(op);
+  bool is_anormal = true;
+  while (is_anormal) {
+    const LetNode* current_op = stack.top();
+    pre_visit(current_op);
+    if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+      stack.push(new_op);
+    } else {
+      is_anormal = false;
+    }
+  }
+  while (stack.size()) {
+    const LetNode* current_op = stack.top();
+    stack.pop();
+    post_visit(current_op);
+  }
+}
+
 }  // namespace relay
 }  // namespace tvm

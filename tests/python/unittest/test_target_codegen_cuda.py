@@ -19,7 +19,7 @@ from tvm import te
 import numpy as np
 from tvm import topi
 import unittest
-from tvm.contrib.nvcc import have_fp16, have_int8
+from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 from tvm.contrib import nvcc
 import tvm.testing
 
@@ -65,6 +65,53 @@ def test_cuda_vectorize_add():
     check_cuda("float16", 64, 4)
     check_cuda("float16", 64, 6)
     check_cuda("float16", 64, 8)
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_cuda_bf16_vectorize_add():
+    if not have_bf16(tvm.gpu(0).compute_version):
+        print("skip because gpu does not support bf16")
+        return
+    num_thread = 8
+
+    def np_float2np_bf16(arr):
+        """Convert a numpy array of float to a numpy array
+        of bf16 in uint16"""
+        orig = arr.view("<u4")
+        bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+        return np.right_shift(orig + bias, 16).astype("uint16")
+
+    def np_bf162np_float(arr):
+        """Convert a numpy array of bf16 (uint16) to a numpy array
+        of float"""
+        u32 = np.left_shift(arr.astype("uint32"), 16)
+        return u32.view("<f4")
+
+    def check_cuda(n, lanes):
+        A = te.placeholder((n,), name="A", dtype="bfloat16x%d" % lanes)
+        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
+        s[B].bind(xo, bx)
+        s[B].bind(xi, tx)
+        with tvm.transform.PassContext(
+            disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
+        ):
+            fun = tvm.build(s, [A, B], "cuda")
+        ctx = tvm.gpu(0)
+        np_a = np.random.uniform(size=(n, lanes)).astype("float32")
+        np_a = np_bf162np_float(np_float2np_bf16(np_a))
+        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_float2np_bf16(np_a))
+        c = tvm.nd.empty((n,), B.dtype, ctx)
+        fun(a, c)
+        c = tvm.nd.empty((n, lanes), "uint16", ctx).copyfrom(c)
+        tvm.testing.assert_allclose(c.asnumpy(), np_float2np_bf16(np_a + 1))
+
+    check_cuda(64, 2)
+    check_cuda(64, 4)
+    check_cuda(64, 6)
+    check_cuda(64, 8)
 
 
 @tvm.testing.requires_gpu
@@ -498,7 +545,7 @@ def test_cuda_floormod_with_vectorization():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_vectorized_casts():
-    def check(t0, t1):
+    def check(t0, t1, factor):
         if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -511,9 +558,8 @@ def test_vectorized_casts():
 
         # schedule
         s = tvm.te.create_schedule(C.op)
-        ob, ib = s[C].split(s[C].op.axis[0], nparts=32)
-        _, iib = s[C].split(ib, factor=4)
-        s[C].vectorize(iib)
+        ob, ib = s[C].split(s[C].op.axis[0], factor=factor)
+        s[C].vectorize(ib)
         s[C].bind(ob, tx)
         func = tvm.build(s, [A, B, C], "cuda")
 
@@ -538,9 +584,26 @@ def test_vectorized_casts():
             return True
         return False
 
-    types = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
-    for t0, t1 in [(x, y) for x in types for y in types if not skip(x, y)]:
-        check(t0, t1)
+    types_4 = [
+        "float16",
+        "float32",
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "float64",
+        "int64",
+        "uint64",
+    ]
+    types_8 = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
+    for t0, t1 in [(x, y) for x in types_4 for y in types_4 if not skip(x, y)]:
+        check(t0, t1, 4)
+    for t0, t1 in [(x, y) for x in types_8 for y in types_8 if not skip(x, y)]:
+        check(t0, t1, 8)
+    check("int8", "uint8", 16)
+    check("uint8", "int8", 16)
 
 
 def sched(B):
@@ -906,6 +969,7 @@ def test_unrolled_vectorization():
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
+    test_cuda_bf16_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
     test_cuda_make_int8()

@@ -53,7 +53,7 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
   int axis = dequantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
+  axis = (axis < 0) ? data->shape.size() + axis : axis;
   ICHECK_LT(axis, static_cast<int>(data->shape.size()))
       << "axis " << dequantize_attrs->axis << " is out of range";
   ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
@@ -81,7 +81,7 @@ Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
                      const DequantizeAttrs* attrs) {
-  const auto axis = attrs->axis;
+  auto axis = attrs->axis;
 
   ICHECK_EQ(types.size(), 4);
   auto in_type = types[0];
@@ -91,6 +91,11 @@ Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   Array<IndexExpr> input_shape = in_tensor_type->shape;
 
   size_t n_dim = input_shape.size();
+
+  // Wrap axis from negative to positive if needed.
+  if (axis < 0) {
+    axis = static_cast<int>(n_dim) + axis;
+  }
 
   // Expand scale and zero point if the input tensor is channel quantized
   auto expanded_input_scale = input_scale;

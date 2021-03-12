@@ -54,13 +54,15 @@ class Frontend(ABC):
         """File suffixes (extensions) used by this frontend"""
 
     @abstractmethod
-    def load(self, path):
+    def load(self, path, shape_dict=None):
         """Load a model from a given path.
 
         Parameters
         ----------
         path: str
             Path to a file
+        shape_dict: dict, optional
+            Mapping from input names to their shapes.
 
         Returns
         -------
@@ -99,7 +101,7 @@ class KerasFrontend(Frontend):
     def suffixes():
         return ["h5"]
 
-    def load(self, path):
+    def load(self, path, shape_dict=None):
         # pylint: disable=C0103
         tf, keras = import_keras()
 
@@ -125,8 +127,10 @@ class KerasFrontend(Frontend):
                 )
 
         inputs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
-        shape_dict = {name: x.shape for (name, x) in zip(model.input_names, inputs)}
-        return relay.frontend.from_keras(model, shape_dict, layout="NHWC")
+        input_shapes = {name: x.shape for (name, x) in zip(model.input_names, inputs)}
+        if shape_dict is not None:
+            input_shapes.update(shape_dict)
+        return relay.frontend.from_keras(model, input_shapes, layout="NHWC")
 
     def is_sequential_p(self, model):
         _, keras = import_keras()
@@ -154,14 +158,14 @@ class OnnxFrontend(Frontend):
     def suffixes():
         return ["onnx"]
 
-    def load(self, path):
+    def load(self, path, shape_dict=None):
         # pylint: disable=C0415
         import onnx
 
         # pylint: disable=E1101
         model = onnx.load(path)
 
-        return relay.frontend.from_onnx(model)
+        return relay.frontend.from_onnx(model, shape=shape_dict)
 
 
 class TensorflowFrontend(Frontend):
@@ -175,7 +179,7 @@ class TensorflowFrontend(Frontend):
     def suffixes():
         return ["pb"]
 
-    def load(self, path):
+    def load(self, path, shape_dict=None):
         # pylint: disable=C0415
         import tensorflow as tf
         import tvm.relay.testing.tf as tf_testing
@@ -188,24 +192,11 @@ class TensorflowFrontend(Frontend):
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
         logger.debug("parse TensorFlow model and convert into Relay computation graph")
-        return relay.frontend.from_tensorflow(graph_def)
+        return relay.frontend.from_tensorflow(graph_def, shape=shape_dict)
 
 
 class TFLiteFrontend(Frontend):
     """ TFLite frontend for TVMC """
-
-    _tflite_m = {
-        0: "float32",
-        1: "float16",
-        2: "int32",
-        3: "uint8",
-        4: "int64",
-        5: "string",
-        6: "bool",
-        7: "int16",
-        8: "complex64",
-        9: "int8",
-    }
 
     @staticmethod
     def name():
@@ -215,7 +206,7 @@ class TFLiteFrontend(Frontend):
     def suffixes():
         return ["tflite"]
 
-    def load(self, path):
+    def load(self, path, shape_dict=None):
         # pylint: disable=C0415
         import tflite.Model as model
 
@@ -237,40 +228,9 @@ class TFLiteFrontend(Frontend):
         if version != 3:
             raise TVMCException("input file not tflite version 3")
 
-        logger.debug("tflite_input_type")
-        shape_dict, dtype_dict = TFLiteFrontend._input_type(tflite_model)
-
         logger.debug("parse TFLite model and convert into Relay computation graph")
-        mod, params = relay.frontend.from_tflite(
-            tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
-        )
+        mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict)
         return mod, params
-
-    @staticmethod
-    def _decode_type(n):
-        return TFLiteFrontend._tflite_m[n]
-
-    @staticmethod
-    def _input_type(model):
-        subgraph_count = model.SubgraphsLength()
-        assert subgraph_count > 0
-        shape_dict = {}
-        dtype_dict = {}
-        for subgraph_index in range(subgraph_count):
-            subgraph = model.Subgraphs(subgraph_index)
-            inputs_count = subgraph.InputsLength()
-            assert inputs_count >= 1
-            for input_index in range(inputs_count):
-                input_ = subgraph.Inputs(input_index)
-                assert subgraph.TensorsLength() > input_
-                tensor = subgraph.Tensors(input_)
-                input_shape = tuple(tensor.ShapeAsNumpy())
-                tensor_type = tensor.Type()
-                input_name = tensor.Name().decode("utf8")
-                shape_dict[input_name] = input_shape
-                dtype_dict[input_name] = TFLiteFrontend._decode_type(tensor_type)
-
-        return shape_dict, dtype_dict
 
 
 class PyTorchFrontend(Frontend):
@@ -285,17 +245,18 @@ class PyTorchFrontend(Frontend):
         # Torch Script is a zip file, but can be named pth
         return ["pth", "zip"]
 
-    def load(self, path):
+    def load(self, path, shape_dict=None):
         # pylint: disable=C0415
         import torch
 
+        if shape_dict is None:
+            raise TVMCException("--input-shapes must be specified for %s" % self.name())
+
         traced_model = torch.jit.load(path)
-
-        inputs = list(traced_model.graph.inputs())[1:]
-        input_shapes = [inp.type().sizes() for inp in inputs]
-
         traced_model.eval()  # Switch to inference mode
-        input_shapes = [("input{}".format(idx), shape) for idx, shape in enumerate(shapes)]
+
+        # Convert shape dictionary to list for Pytorch frontend compatibility
+        input_shapes = list(shape_dict.items())
 
         logger.debug("parse Torch model and convert into Relay computation graph")
         return relay.frontend.from_pytorch(traced_model, input_shapes)
@@ -378,7 +339,7 @@ def guess_frontend(path):
     raise TVMCException("failed to infer the model format. Please specify --model-format")
 
 
-def load_model(path, model_format=None):
+def load_model(path, model_format=None, shape_dict=None):
     """Load a model from a supported framework and convert it
     into an equivalent relay representation.
 
@@ -389,6 +350,8 @@ def load_model(path, model_format=None):
     model_format : str, optional
         The underlying framework used to create the model.
         If not specified, this will be inferred from the file type.
+    shape_dict : dict, optional
+        Mapping from input names to their shapes.
 
     Returns
     -------
@@ -404,6 +367,6 @@ def load_model(path, model_format=None):
     else:
         frontend = guess_frontend(path)
 
-    mod, params = frontend.load(path)
+    mod, params = frontend.load(path, shape_dict)
 
     return mod, params

@@ -1064,14 +1064,23 @@ def test_forward_argsort():
 
 @tvm.testing.uses_gpu
 def test_forward_topk():
-    def verify(shape, k, axis, ret_type, is_ascend=False, dtype="float32"):
+    def verify(shape, k, axis, ret_type, is_ascend=None, dtype="float32"):
         x_np = np.random.uniform(size=shape).astype("float32")
-        ref_res = mx.nd.topk(
-            mx.nd.array(x_np), k=k, axis=axis, ret_typ=ret_type, is_ascend=is_ascend, dtype=dtype
-        )
-        mx_sym = mx.sym.topk(
-            mx.sym.var("x"), k=k, axis=axis, ret_typ=ret_type, is_ascend=is_ascend, dtype=dtype
-        )
+        if is_ascend is None:
+            ref_res = mx.nd.topk(mx.nd.array(x_np), k=k, axis=axis, ret_typ=ret_type, dtype=dtype)
+            mx_sym = mx.sym.topk(mx.sym.var("x"), k=k, axis=axis, ret_typ=ret_type, dtype=dtype)
+        else:
+            ref_res = mx.nd.topk(
+                mx.nd.array(x_np),
+                k=k,
+                axis=axis,
+                ret_typ=ret_type,
+                is_ascend=is_ascend,
+                dtype=dtype,
+            )
+            mx_sym = mx.sym.topk(
+                mx.sym.var("x"), k=k, axis=axis, ret_typ=ret_type, is_ascend=is_ascend, dtype=dtype
+            )
         mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1086,7 +1095,7 @@ def test_forward_topk():
 
     verify((3, 4), k=1, axis=0, ret_type="both")
     verify((3, 4), k=1, axis=-1, ret_type="indices")
-    verify((3, 5, 6), k=2, axis=2, ret_type="value")
+    verify((3, 5, 6), k=2, axis=2, ret_type="value", is_ascend=False)
     verify((3, 5, 6), k=2, axis=1, ret_type="value", is_ascend=True)
     verify((3, 5, 6), k=0, axis=2, ret_type="both", dtype="int32")
 
@@ -1261,6 +1270,38 @@ def test_forward_layer_norm():
     verify((2, 5))
     verify((2, 5), axis=0)
     verify((2, 5, 6))
+
+
+@tvm.testing.uses_gpu
+def test_forward_group_norm():
+    def verify(shape, num_groups=1):
+        x = np.random.uniform(size=shape).astype("float32")
+        gamma = np.random.uniform(size=(shape[1])).astype("float32")
+        beta = np.random.uniform(size=(shape[1])).astype("float32")
+        ref_res = mx.nd.GroupNorm(
+            data=mx.nd.array(x),
+            gamma=mx.nd.array(gamma),
+            beta=mx.nd.array(beta),
+            num_groups=num_groups,
+        )
+        mx_sym = mx.sym.GroupNorm(
+            mx.sym.var("x"), mx.sym.var("gamma"), mx.sym.var("beta"), num_groups=num_groups
+        )
+        shape_dict = {"x": x.shape, "gamma": gamma.shape, "beta": beta.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
+                )
+
+    verify((1, 4, 2), num_groups=4)
+    # TODO(trevmorr): MXNet GroupNorm implementation is bugged for cases when num_groups != num_channels
+    # https://github.com/apache/incubator-mxnet/pull/18199
+    # verify((1, 4, 2, 3), num_groups=2)
+    # verify((1, 4, 2, 3))
 
 
 @tvm.testing.uses_gpu

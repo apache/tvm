@@ -19,9 +19,10 @@
 """Non-maximum suppression operator"""
 import tvm
 from tvm import te
-
+from tvm.contrib import nvcc
+from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from tvm.tir import if_then_else
-from .sort import argsort, argsort_thrust, is_thrust_available
+from .sort import argsort, argsort_thrust
 from .scan import exclusive_scan
 from ..utils import ceil_div
 
@@ -272,6 +273,7 @@ def nms_ir(
     out_bboxes,
     out_scores,
     out_class_ids,
+    out_features,
     box_indices,
     num_valid_boxes,
     max_output_size,
@@ -390,6 +392,7 @@ def nms_ir(
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
+    num_features = out_features.shape[2]
 
     ib = tvm.tir.ir_builder.create()
 
@@ -402,6 +405,7 @@ def nms_ir(
     out_bboxes = ib.buffer_ptr(out_bboxes)
     out_scores = ib.buffer_ptr(out_scores)
     out_class_ids = ib.buffer_ptr(out_class_ids)
+    out_features = ib.buffer_ptr(out_features)
     box_indices = ib.buffer_ptr(box_indices)
     num_valid_boxes = ib.buffer_ptr(num_valid_boxes)
 
@@ -428,6 +432,7 @@ def nms_ir(
         i = by
         base_src_idx = i * num_anchors * box_data_length
         base_bbox_idx = i * num_anchors * 4
+        base_features_idx = i * num_anchors * num_features
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Reorder output
@@ -439,6 +444,10 @@ def nms_ir(
                 src_idx = base_src_idx + sorted_index[i * num_anchors + j] * box_data_length
                 with ib.for_range(0, 4, kind="unroll") as k:
                     out_bboxes[(base_bbox_idx + j * 4 + k)] = data[src_idx + coord_start + k]
+                with ib.for_range(0, num_features, kind="unroll") as k:
+                    out_features[(base_features_idx + j * num_features + k)] = data[
+                        src_idx + coord_start + 4 + k
+                    ]
 
                 out_scores[i * num_anchors + j] = data[src_idx + score_index]
 
@@ -452,6 +461,8 @@ def nms_ir(
                     with ib.if_scope(j < num_anchors):
                         with ib.for_range(0, 4, kind="unroll") as k:
                             out_bboxes[(base_bbox_idx + j * 4 + k)] = -1.0
+                        with ib.for_range(0, num_features, kind="unroll") as k:
+                            out_features[(base_features_idx + j * num_features + k)] = -1.0
 
                         out_scores[i, j] = -1.0
 
@@ -468,6 +479,10 @@ def nms_ir(
 
                 with ib.for_range(0, 4, kind="unroll") as k:
                     out_bboxes[base_bbox_idx + j * 4 + k] = data[src_offset + coord_start + k]
+                with ib.for_range(0, num_features, kind="unroll") as k:
+                    out_features[(base_features_idx + j * num_features + k)] = data[
+                        src_offset + coord_start + 4 + k
+                    ]
                 out_scores[i * num_anchors + j] = data[src_offset + score_index]
 
                 if id_index >= 0:
@@ -478,6 +493,14 @@ def nms_ir(
     with ib.new_scope():
         nthread_by = batch_size
         nthread_tx = max_threads
+
+        # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock
+        # vs 64K for most GPUs. Since this kernel uses many registers (around 35), the limit will
+        # be exceeded with 1024 threads.
+        target = tvm.target.Target.current(allow_none=False)
+        if target.kind.name == "cuda":
+            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
+                nthread_tx = 512
 
         by = te.thread_axis("blockIdx.y")
         tx = te.thread_axis("threadIdx.x")
@@ -507,7 +530,7 @@ def nms_ir(
             offset_j = j * 4
             num_iter_per_thread = ceil_div(nkeep - (j + 1), nthread_tx)
 
-            with ib.for_range(0, num_iter_per_thread) as _k:
+            with ib.for_range(0, num_iter_per_thread, name="_k") as _k:
                 k = j + 1 + _k * nthread_tx + tx
                 offset_k = k * 4
 
@@ -541,16 +564,22 @@ def nms_ir(
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
-            with ib.for_range(0, nkeep) as j:
-                # Proceed to the inner loop if the box j is still valid
-                with ib.if_scope(out_scores[i, j] > -1.0):
-                    with ib.if_scope(max_output_size > 0):
-                        # No need to do more iteration if we have already reached max_output_size
-                        # boxes
-                        # TODO(masahi): Add TIR while loop to realize early exit from the outer loop
-                        with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
-                            nms_inner_loop(ib, j)
-                    with ib.else_scope():
+            with ib.if_scope(max_output_size > 0):
+                # No need to do more iteration if we have already reached max_output_size boxes
+                box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+                box_idx[0] = 0
+                with ib.while_loop(
+                    tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+                ):
+                    # Proceed to the inner loop if the box with id box_idx is still valid
+                    with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+                        nms_inner_loop(ib, box_idx[0])
+                    box_idx[0] += 1
+
+            with ib.else_scope():
+                with ib.for_range(0, nkeep, name="j") as j:
+                    # Proceed to the inner loop if the box j is still valid
+                    with ib.if_scope(out_scores[i, j] > -1.0):
                         nms_inner_loop(ib, j)
 
             with ib.if_scope(tx + 0 == 0):
@@ -610,7 +639,10 @@ def _get_sorted_indices(data, data_buf, score_index, score_shape):
     )
 
     target = tvm.target.Target.current()
-    if target and target.kind.name == "cuda" and is_thrust_available():
+    if target and (
+        can_use_thrust(target, "tvm.contrib.thrust.sort")
+        or can_use_rocthrust(target, "tvm.contrib.thrust.sort")
+    ):
         sort_tensor = argsort_thrust(score_tensor, axis=1, is_ascend=False, dtype="int32")
     else:
         sort_tensor = argsort(score_tensor, axis=1, is_ascend=False, dtype="int32")
@@ -646,16 +678,26 @@ def _run_nms(
 
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
+    # Number of extra features per box beyond coords, score, and id.
+    num_features = data.shape[2] - 6 if id_index >= 0 else data.shape[2] - 5
 
     # output shapes
     bbox_shape = (batch_size, num_anchors, 4)
     score_shape = (batch_size, num_anchors)
     class_id_shape = score_shape
+    out_features_shape = (batch_size, num_anchors, num_features)
     box_indices_shape = score_shape
     num_valid_boxes_shape = (batch_size, 1)
 
     return te.extern(
-        [bbox_shape, score_shape, class_id_shape, box_indices_shape, num_valid_boxes_shape],
+        [
+            bbox_shape,
+            score_shape,
+            class_id_shape,
+            out_features_shape,
+            box_indices_shape,
+            num_valid_boxes_shape,
+        ],
         [data, sort_tensor, valid_count, indices],
         lambda ins, outs: nms_ir(
             ins[0],
@@ -665,8 +707,9 @@ def _run_nms(
             outs[0],  # sorted bbox
             outs[1],  # sorted scores
             outs[2],  # sorted class ids
-            outs[3],  # box_indices
-            outs[4],  # num_valid_boxes
+            outs[3],  # sorted box feats
+            outs[4],  # box_indices
+            outs[5],  # num_valid_boxes
             max_output_size,
             iou_threshold,
             force_suppress,
@@ -676,7 +719,7 @@ def _run_nms(
             score_index,
             return_indices,
         ),
-        dtype=[data.dtype, "float32", "float32", "int32", "int32"],
+        dtype=[data.dtype, "float32", "float32", "float32", "int32", "int32"],
         in_buffers=[data_buf, sort_tensor_buf, valid_count_buf, indices_buf],
         name="nms",
         tag="nms",
@@ -684,11 +727,19 @@ def _run_nms(
 
 
 def _concatenate_outputs(
-    out_bboxes, out_scores, out_class_ids, out_shape, coord_start, score_index, id_index
+    out_bboxes,
+    out_scores,
+    out_class_ids,
+    out_features,
+    out_shape,
+    coord_start,
+    score_index,
+    id_index,
 ):
     """Pack the results from NMS into a single 5D or 6D tensor."""
     batch_size = out_bboxes.shape[0]
     num_anchors = out_bboxes.shape[1]
+    num_features = out_features.shape[2]
 
     def ir(out_bboxes, out_scores, out_class_ids, out):
         ib = tvm.tir.ir_builder.create()
@@ -715,6 +766,8 @@ def _concatenate_outputs(
             with ib.if_scope(tid < num_anchors):
                 with ib.for_range(0, 4, kind="unroll") as j:
                     out[i, tid, coord_start + j] = out_bboxes[i, tid, j]
+                with ib.for_range(0, num_features, kind="unroll") as j:
+                    out[i, tid, coord_start + 4 + j] = out_features[i, tid, j]
                 out[i, tid, score_index] = out_scores[i, tid]
                 if id_index >= 0:
                     out[i, tid, id_index] = out_class_ids[i, tid]
@@ -826,7 +879,7 @@ def non_max_suppression(
 
     sort_tensor = _get_sorted_indices(data, data_buf, score_index, (data.shape[0], data.shape[1]))
 
-    out_bboxes, out_scores, out_class_ids, box_indices, num_valid_boxes = _run_nms(
+    out_bboxes, out_scores, out_class_ids, out_features, box_indices, num_valid_boxes = _run_nms(
         data,
         data_buf,
         sort_tensor,
@@ -846,5 +899,12 @@ def non_max_suppression(
         return [box_indices, num_valid_boxes]
 
     return _concatenate_outputs(
-        out_bboxes, out_scores, out_class_ids, data.shape, coord_start, score_index, id_index
+        out_bboxes,
+        out_scores,
+        out_class_ids,
+        out_features,
+        data.shape,
+        coord_start,
+        score_index,
+        id_index,
     )

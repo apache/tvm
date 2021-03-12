@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker arm env
-# tag: v0.10
+# tag: v0.02
 
 FROM ubuntu:18.04
 

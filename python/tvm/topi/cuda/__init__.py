@@ -17,8 +17,6 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """CUDA specific declaration and schedules."""
-from __future__ import absolute_import as _abs
-
 from .conv1d import *
 from .conv1d_transpose_ncw import *
 from .conv2d import *
@@ -55,5 +53,8 @@ from .dense_tensorcore import *
 from .conv2d_hwnc_tensorcore import *
 from .correlation import *
 from .sparse import *
+from . import tensorcore_alter_op
 from .argwhere import *
 from .scan import *
+from .sparse_reshape import *
+from .unique import *

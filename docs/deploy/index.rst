@@ -71,3 +71,4 @@ target device without relying on RPC. see the following resources on how to do s
    arm_compute_lib
    tensorrt
    vitis_ai
+   bnns

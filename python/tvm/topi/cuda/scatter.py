@@ -21,7 +21,7 @@ from tvm import te, autotvm
 from ..scatter import _verify_scatter_nd_inputs
 from ..generic import schedule_extern
 from .nms import atomic_add
-from .sort import stable_sort_by_key_thrust, is_thrust_available
+from .sort import stable_sort_by_key_thrust
 from ..utils import prod, ceil_div
 
 
@@ -565,7 +565,6 @@ def scatter_via_sort(cfg, data, indices, updates, axis=0):
     if axis < 0:
         axis += len(data.shape)
     assert axis == 0 and len(data.shape) == 1, "sorting based scatter only supported for 1d input"
-    assert is_thrust_available(), "Thrust is required for this op"
 
     cfg.add_flop(1)  # A dummy value to satisfy AutoTVM
 

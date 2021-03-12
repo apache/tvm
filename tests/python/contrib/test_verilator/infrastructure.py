@@ -102,9 +102,9 @@ def compile_module(mod):
     if not os.path.isfile(lib):
         compile_hardware()
 
-    with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.verilator.options": {"lib": lib}}
-    ):
+    opts = {"lib_path": lib}
+
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.verilator.options": opts}):
         exe = relay.vm.compile(mod, target="llvm", params=None)
         code, lib = exe.save()
         return runtime.vm.Executable.load_exec(code, lib)

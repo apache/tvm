@@ -141,6 +141,18 @@ class TypeVarEVisitor : private MixedModeVisitor {
     ExprVisitor::VisitExpr_(f);
   }
 
+  void VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+  }
+
   void VisitExpr_(const ConstructorNode* cn) final {
     // for constructors, type vars will be bound in the module
     auto data = mod_->LookupTypeDef(cn->belong_to);

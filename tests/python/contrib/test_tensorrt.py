@@ -22,11 +22,12 @@ import itertools
 import tvm
 import tvm.relay.testing
 
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay.op.contrib import tensorrt
 from tvm.contrib import graph_runtime, utils
 from tvm.runtime.vm import VirtualMachine
 from tvm.relay import Any, GlobalVar, transform
+from tvm.relay.expr_functor import ExprVisitor
 from typing import Dict, Tuple, Union
 from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
@@ -68,6 +69,14 @@ def assert_result_dict_holds(result_dict):
         res2 = vmobj_to_list(result_dict[k2])
         for r1, r2 in zip(res1, res2):
             tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
+
+
+def set_func_attr(func, compile_name, symbol_name):
+    func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Compiler", compile_name)
+    func = func.with_attr("global_symbol", symbol_name)
+    return func
 
 
 def run_and_verify_func(config, target="cuda"):
@@ -256,7 +265,7 @@ def test_tensorrt_serialize_graph_runtime():
     def compile_graph(mod, params):
         with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
             graph, lib, params = relay.build(mod, params=params, target="cuda")
-            params = relay.save_param_dict(params)
+            params = runtime.save_param_dict(params)
         return graph, lib, params
 
     def run_graph(graph, lib, params):
@@ -629,6 +638,106 @@ def test_reshape():
     run_and_verify_func(get_graph((1, 1, 1, 10), (-1, 10)))
     run_and_verify_func(get_graph((1, 10, 2, 3), (1, -1)))
     run_and_verify_func(get_graph((1, 1, 2, 3), (1, 6)))
+
+
+class AreOpsOnGraph(ExprVisitor):
+    """
+    Visits the Graph recursively and checks if it contains ops in the op_list
+    """
+
+    def __init__(self, op_list):
+        ExprVisitor.__init__(self)
+        self.op_list = op_list
+        self.on_graph = False
+
+    def visit_call(self, call):
+        if isinstance(call.op, tvm.tir.op.Op):
+            if str(call.op) in self.op_list:
+                self.on_graph = True
+
+        return super().visit_call(call)
+
+    def are_ops_on_graph(self, subgraph) -> bool:
+        """
+        This function recursively visits the graph and checks if op_list ops are ongraph"
+        """
+        self.visit(subgraph)
+        return self.on_graph
+
+
+def are_ops_on_trt(mod, op_list):
+    for subgraph in mod.get_global_vars():
+        name = subgraph.name_hint
+        op_on_trt = False
+        op_on_tvm = True
+        if name == "main":
+            op_on_tvm = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
+        elif mod[name].attrs and mod[name].attrs["Compiler"] == "tensorrt":
+            op_on_trt = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
+        else:
+            op_on_tvm &= AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
+
+        if not op_on_trt or op_on_tvm:
+            return False
+
+    return True
+
+
+def test_dynamic_reshape():
+    if skip_codegen_test():
+        return
+
+    def test_run(x_data_list, x_shape, new_shape, should_offload_to_trt):
+        result_arr = [{} for _ in range(len(x_data_list))]
+        for use_trt in [True, False]:
+            x = relay.var("x", shape=x_shape, dtype="float32")
+            out = relay.reshape(x, new_shape)
+            f = relay.Function([x], out)
+            mod = tvm.IRModule()
+            mod["main"] = f
+            if use_trt:
+                mod, _ = tensorrt.partition_for_tensorrt(
+                    mod, params={}, remove_no_mac_subgraphs=False
+                )
+                assert are_ops_on_trt(mod, op_list=["reshape"]) == should_offload_to_trt
+            if not skip_runtime_test():
+                with relay.build_config(opt_level=3):
+                    relay_exec = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
+
+                for i, x_data in enumerate(x_data_list):
+                    result_arr[i][use_trt] = relay_exec.evaluate()(x_data)
+
+        if not skip_runtime_test():
+            for i in range(len(x_data_list)):
+                assert_result_dict_holds(result_arr[i])
+
+    dim_values = [1, 1, 0, 2, 3, 0, 1, 3, 2]
+    x_shape = (relay.Any(), 3, 2, 3)
+    x_data_list = [
+        np.ones([dim_value] + list(x_shape)[1:]).astype("float32") for dim_value in dim_values
+    ]
+    new_shape = (-1, 3, 2, 3)
+    should_offload_to_trt = True
+    test_run(x_data_list, x_shape, new_shape, should_offload_to_trt)
+
+    dim_values = [1, 1, 0, 2, 3, 0, 1, 3, 2]
+    x_shape = (relay.Any(), 3, 2, 3)
+    x_data_list = [
+        np.ones([dim_value] + list(x_shape)[1:]).astype("float32") for dim_value in dim_values
+    ]
+    new_shape = (-1, 1, 2, 3)
+    should_offload_to_trt = False
+    test_run(x_data_list, x_shape, new_shape, should_offload_to_trt)
+
+    dim_values = [1, 1, 0, 2, 3, 0, 1, 3, 2]
+    x_shape = (1, relay.Any(), 2, 3)
+    x_data_list = [
+        np.ones(list(x_shape[:1]) + [dim_value] + list(x_shape)[2:]).astype("float32")
+        for dim_value in dim_values
+    ]
+    new_shape = (1, -1, 2, 3)
+    should_offload_to_trt = False
+    test_run(x_data_list, x_shape, new_shape, should_offload_to_trt)
 
 
 def test_transpose():
@@ -1008,13 +1117,6 @@ def test_dynamic_offload():
     kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
 
     def get_expected():
-        def set_func_attr(func, compile_name, symbol_name):
-            func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-            func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-            func = func.with_attr("Compiler", compile_name)
-            func = func.with_attr("global_symbol", symbol_name)
-            return func
-
         # Create a nested TRT function that matches the expected output
         mod = tvm.IRModule()
         var1 = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
@@ -1228,6 +1330,33 @@ def test_maskrcnn_resnet50() -> None:
             rtol=tol_val,
             atol=tol_val,
         )
+
+
+def test_empty_subgraph():
+    if skip_codegen_test():
+        return
+    x_shape = (1, 3, 5)
+    mod = tvm.IRModule()
+    # Empty tensorrt subgraph.
+    var1 = relay.var("tensorrt_0_i0", shape=(x_shape), dtype="float32")
+    f1 = GlobalVar("tensorrt_0")
+    func = relay.Function([var1], var1)
+    func = set_func_attr(func, "tensorrt", "tensorrt_0")
+    mod[f1] = func
+    mod = relay.transform.InferType()(mod)
+
+    # Create the main function
+    x = relay.var("x", shape=x_shape, dtype="float32")
+    out = f1(relay.nn.relu(x))
+    f = relay.Function([x], out)
+    mod["main"] = f
+
+    x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
+    for mode in ["graph", "vm"]:
+        with tvm.transform.PassContext(opt_level=3):
+            exec = relay.create_executor(mode, mod=mod, ctx=tvm.gpu(0), target="cuda")
+            if not skip_runtime_test():
+                results = exec.evaluate()(x_data)
 
 
 if __name__ == "__main__":

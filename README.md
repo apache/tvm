@@ -25,7 +25,7 @@
 [![Build Status](https://ci.tlcpack.ai/buildStatus/icon?job=tvm/main)](https://ci.tlcpack.ai/job/tvm/job/main/)
 [![WinMacBuild](https://github.com/apache/tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/tvm/actions?query=workflow%3AWinMacBuild)
 
-Apache TVM (incubating) is a compiler stack for deep learning systems. It is designed to close the gap between the
+Apache TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
 TVM works with deep learning frameworks to provide end to end compilation to different backends.
 
@@ -36,7 +36,7 @@ License
 Contribute to TVM
 -----------------
 TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-Checkout the [Contributor Guide](https://tvm.apache.org/docs/contribute/)
+Check out the [Contributor Guide](https://tvm.apache.org/docs/contribute/).
 
 Acknowledgement
 ---------------

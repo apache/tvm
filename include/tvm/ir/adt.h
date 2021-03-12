@@ -29,8 +29,8 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/container.h>
 #include <tvm/node/node.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 #include <string>

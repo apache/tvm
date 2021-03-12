@@ -18,7 +18,7 @@
 "Scan related operators"
 import tvm
 from tvm import te
-from tvm._ffi import get_global_func
+from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from ..transform import expand_dims, squeeze, transpose, reshape
 from ..utils import ceil_div, swap, prod, get_const_int
 from ..math import cast
@@ -221,7 +221,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
                 with ib.if_scope(scan_axis_size > 0):
                     reduction[tid] = binop(
                         data_ex_scan[tid * scan_axis_size + scan_axis_size - 1],
-                        data[tid, scan_axis_size - 1],
+                        data[tid * scan_axis_size + scan_axis_size - 1],
                     )
                 with ib.else_scope():
                     reduction[tid] = 0
@@ -247,11 +247,6 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
         return squeeze(reduction, 0)
 
     return reduction
-
-
-def is_thrust_available():
-    """Test if thrust based scan ops are available."""
-    return get_global_func("tvm.contrib.thrust.sum_scan", allow_missing=True) is not None
 
 
 def scan_thrust(
@@ -352,7 +347,10 @@ def exclusive_scan(
 
     def do_scan(data, output_dtype):
         target = tvm.target.Target.current()
-        if target and target.kind.name == "cuda" and is_thrust_available():
+        if target and (
+            can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
+            or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
+        ):
             return scan_thrust(
                 data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop
             )
@@ -488,7 +486,7 @@ def schedule_scan(outs):
     return s
 
 
-def cumsum(data, axis=None, dtype=None):
+def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
     Parameters
@@ -504,6 +502,12 @@ def cumsum(data, axis=None, dtype=None):
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
 
+    exclusive : int, optional
+        If set to 1 will return exclusive sum in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
+
     Returns
     -------
     result : tvm.te.Tensor
@@ -514,4 +518,6 @@ def cumsum(data, axis=None, dtype=None):
         axis = 0
         data = reshape(data, (prod(data.shape),))
     axis = get_const_int(axis)
+    if exclusive is not None and exclusive != 0:
+        return exclusive_scan(data, axis, output_dtype=dtype, binop=tvm.tir.generic.add)
     return inclusive_scan(data, axis, output_dtype=dtype, binop=tvm.tir.generic.add)

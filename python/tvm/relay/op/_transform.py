@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend compiler related feature registration"""
-# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks, too-many-local-variables, too-many-arguments
+# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks,
+# pylint: disable=too-many-local-variables, too-many-arguments, no-else-return
+
 from __future__ import absolute_import
 import tvm
 from tvm import te
@@ -64,6 +66,7 @@ _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
 
+
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
 
@@ -94,6 +97,40 @@ def compute_scatter(attrs, inputs, output_type):
 
 _reg.register_strategy("scatter", strategy.scatter_strategy)
 
+# sparse_fill_empty_rows
+@_reg.register_compute("sparse_fill_empty_rows")
+def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
+    """Compute definition of sparse_fill_empty_rows"""
+
+    return topi.sparse_fill_empty_rows(
+        inputs[0],
+        inputs[1],
+        inputs[2],
+        inputs[3],
+        output_type.fields[0].shape,
+        output_type.fields[1].shape,
+        output_type.fields[2].shape,
+    )
+
+
+_reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows_strategy)
+
+# sparse_reshape
+@_reg.register_compute("sparse_reshape")
+def compute_reshape(attrs, inputs, output_type):
+    """Compute definition of sparse_reshape"""
+
+    return topi.sparse_reshape(
+        inputs[0],
+        inputs[1],
+        inputs[2],
+        output_type.fields[0].shape,
+        output_type.fields[1].shape,
+    )
+
+
+_reg.register_strategy("sparse_reshape", strategy.sparse_reshape_strategy)
+
 # scatter_add
 @_reg.register_compute("scatter_add")
 def compute_scatter_add(attrs, inputs, output_type):
@@ -116,11 +153,20 @@ _reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
 @_reg.register_compute("cumsum")
 def compute_cumsum(attrs, inputs, output_type):
     """Compute definition of cumsum"""
-    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype)]
+    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
 
 _reg.register_strategy("cumsum", strategy.cumsum_strategy)
 _reg.register_shape_func("cumsum", False, elemwise_shape_func)
+
+
+@_reg.register_compute("unique")
+def compute_unique(attrs, inputs, output_type):
+    """Compute definition of unique"""
+    return topi.unique(inputs[0], attrs.sorted, attrs.return_counts)
+
+
+_reg.register_strategy("unique", strategy.unique_strategy)
 
 #####################
 #  Shape functions  #
@@ -199,6 +245,31 @@ def strided_slice_shape_func(attrs, inputs, _):
             inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode
         )
     ]
+
+
+@script
+def _one_hot_shape_func(indices_shape, depth, axis):
+    in_ndim = indices_shape.shape[0]
+    out_ndim = in_ndim + 1
+    true_axis = in_ndim if axis == -1 else axis
+    indices_i = 0
+    out = output_tensor((out_ndim,), "int64")
+    for i in range(out_ndim):
+        if i == true_axis:
+            out[i] = int64(depth)
+        else:
+            out[i] = int64(indices_shape[indices_i])
+            indices_i += 1
+    return out
+
+
+@_reg.register_shape_func("one_hot", False)
+def one_hot_shape_func(attrs, inputs, _):
+    """
+    Shape func for one_hot
+    """
+    shape_func = [_one_hot_shape_func(inputs[0], convert(attrs.depth), convert(attrs.axis))]
+    return shape_func
 
 
 @script
@@ -443,6 +514,65 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+
+
+@script
+def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
+
+    new_sparse_indices_shape = output_tensor((2,), "int64")
+    new_sparse_values_shape = output_tensor((1,), "int64")
+    empty_row_indicator_shape = output_tensor((1,), "int64")
+    num_dense_rows = int64(dense_shape[0])
+
+    if int64(sparse_indices.shape[0]) == int64(0):  # Handle Empty Case
+        #  Total rows will equal dense_shape[0]
+        new_sparse_indices_shape[0] = num_dense_rows
+        new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
+        new_sparse_values_shape[0] = num_dense_rows
+        empty_row_indicator_shape[0] = num_dense_rows
+        return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
+
+    else:
+        count = int64(sparse_indices.shape[0])  # Add count of all rows already in sparse_indices
+        for i in range(1, int64(sparse_indices.shape[0])):
+            index = int64(sparse_indices[i, 0])
+            prev_index = int64(sparse_indices[i - 1, 0] + 1)
+
+            if index > prev_index:
+                count += index - prev_index  # Add count of all rows between two consecutive indices
+
+        count += int64(sparse_indices[0, 0])  # Add count from 0 to first row id in sparse_indices
+        count += int64(
+            num_dense_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0]
+        )  # Add count from last row id to dense_shape - 1
+        new_sparse_indices_shape[0] = int64(count)
+        new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
+        new_sparse_values_shape[0] = int64(count)
+        empty_row_indicator_shape[0] = num_dense_rows
+        return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
+
+
+@_reg.register_shape_func("sparse_fill_empty_rows", True)
+def sparse_fill_empty_rows_func(attrs, inputs, _):
+    return _sparse_fill_empty_rows_shape_func(inputs[0], inputs[2])
+
+
+@script
+def _sparse_reshape_shape_func(sparse_indices_shape, prev_shape_shape, new_shape_shape):
+    indices_shape = output_tensor((2,), "int64")
+    indices_shape[0] = int64(sparse_indices_shape[0])
+    indices_shape[1] = int64(new_shape_shape[0])
+    shape_tensor = output_tensor((1,), "int64")
+    shape_tensor[0] = int64(new_shape_shape[0])
+    return (indices_shape, shape_tensor)
+
+
+@_reg.register_shape_func("sparse_reshape", False)
+def sparse_reshape_shape_func(attrs, inputs, _):
+    """
+    Shape func for sparse_reshape.
+    """
+    return _sparse_reshape_shape_func(inputs[0], inputs[1], inputs[2])
 
 
 @script
@@ -885,3 +1015,38 @@ def where_shape_func(attrs, inputs, _):
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
 
     return [out_shape]
+
+
+@script
+def _unique_shape(data_shape):
+    unique_shape = output_tensor((1,), "int64")
+    indices_shape = output_tensor((1,), "int64")
+    num_unique_shape = output_tensor((1,), "int64")
+    unique_shape[0] = data_shape[0]
+    indices_shape[0] = data_shape[0]
+    num_unique_shape[0] = int64(1)
+    return (unique_shape, indices_shape, num_unique_shape)
+
+
+@script
+def _unique_with_counts_shape(data_shape):
+    unique_shape = output_tensor((1,), "int64")
+    indices_shape = output_tensor((1,), "int64")
+    num_unique_shape = output_tensor((1,), "int64")
+    counts_shape = output_tensor((1,), "int64")
+    unique_shape[0] = data_shape[0]
+    indices_shape[0] = data_shape[0]
+    num_unique_shape[0] = int64(1)
+    counts_shape[0] = data_shape[0]
+    return (unique_shape, indices_shape, num_unique_shape, counts_shape)
+
+
+@_reg.register_shape_func("unique", False)
+def unique_shape_func(attrs, inputs, _):
+    """
+    Shape func for unique operator.
+    """
+    if attrs.return_counts:
+        return _unique_with_counts_shape(inputs[0])
+    else:
+        return _unique_shape(inputs[0])

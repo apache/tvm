@@ -57,4 +57,14 @@ Vagrant.configure("2") do |config|
     end
   end
 
+  config.vm.provider "vmware_desktop" do |vm, overrides|
+    vm.vmx["usb_xhci.present"] = "TRUE"
+    vm.vmx["usb.present"] = "TRUE"
+    vm.vmx["ehci.present"] = "TRUE"
+    dirs_to_mount.each do |d|
+      overrides.vm.synced_folder d.to_s, d.to_s
+    end
+    vm.gui = true
+  end
+
 end

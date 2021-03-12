@@ -651,10 +651,10 @@ class CompileEngineImpl : public CompileEngineNode {
                                       << AsText(src_func, false);
 
         std::string sn = symbol_name.value();
-        if (cached_symbol.count(sn)) {
+        if (!cached_symbol.count(sn)) {
           cached_symbol[sn] = code_gen_name;
         } else {
-          ICHECK_NE(sn, code_gen_name)
+          ICHECK_NE(cached_symbol[sn], code_gen_name)
               << "Found duplicated symbol: " << sn << " for: " << code_gen_name;
         }
 
@@ -686,6 +686,17 @@ class CompileEngineImpl : public CompileEngineNode {
     std::lock_guard<std::mutex> lock(mutex_);
     Array<ObjectRef> items;
     for (auto& kv : cache_) {
+      items.push_back(kv.first);
+      items.push_back(kv.second);
+    }
+    return items;
+  }
+
+  // List all items in the shape_func_cache.
+  Array<ObjectRef> ListShapeFuncItems() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    Array<ObjectRef> items;
+    for (auto& kv : shape_func_cache_) {
       items.push_back(kv.first);
       items.push_back(kv.second);
     }
@@ -881,6 +892,13 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems").set_body_typed([](C
   ICHECK(ptr != nullptr);
   return ptr->ListItems();
 });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListShapeFuncItems")
+    .set_body_typed([](CompileEngine self) {
+      CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+      ICHECK(ptr != nullptr);
+      return ptr->ListShapeFuncItems();
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGetCurrentCCacheKey")
     .set_body_typed([](CompileEngine self) {

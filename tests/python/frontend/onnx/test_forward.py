@@ -163,6 +163,7 @@ def verify_with_ort_with_inputs(
                 ort_val = scipy.special.softmax(ort_val)
                 tvm_val = scipy.special.softmax(tvm_val)
             tvm.testing.assert_allclose(ort_val, tvm_val, rtol=rtol, atol=atol)
+            assert ort_val.dtype == tvm_val.dtype
 
 
 def verify_with_ort(
@@ -1007,6 +1008,42 @@ def test_onehot():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
+    out_shape = [a_shape[0], b_shape[1]]
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+    input_names = ["a", "b"]
+    input_nodes = [
+        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+    ]
+    input_values = [a_array, b_array]
+    if c_shape is not None:
+        c_array = np.random.uniform(size=c_shape).astype("float32")
+        input_names.append("c")
+        input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
+        input_values.append(c_array)
+
+    gemm_node = helper.make_node("Gemm", input_names, ["out"])
+
+    graph = helper.make_graph(
+        [gemm_node],
+        "gemm_test",
+        inputs=input_nodes,
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="gemm_test")
+    verify_with_ort_with_inputs(model, input_values, freeze_params=freeze_params)
+
+
+@tvm.testing.uses_gpu
+def test_gemm():
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True)
+
+
 @tvm.testing.uses_gpu
 def test_matmul():
     a_shape = (4, 3)
@@ -1793,23 +1830,26 @@ def test_unary_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_unary_ops(op, x, rtol=1e-5, atol=1e-5):
+    def verify_unary_ops(op, x, rtol=1e-5, atol=1e-5, dtype="float32"):
+        x = x.astype(dtype)
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         z = helper.make_node(op, ["in1"], ["out"])
         graph = helper.make_graph(
             [z],
             "_test",
             inputs=[
-                helper.make_tensor_value_info("in1", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("in1", ONNX_DTYPE, list(in_shape)),
             ],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(out_shape))],
         )
         model = helper.make_model(graph, producer_name="_test")
         verify_with_ort_with_inputs(model, [x], rtol=rtol, atol=atol)
 
-    x = np.random.uniform(size=in_shape).astype(dtype)
+    x = np.random.uniform(size=in_shape)
     verify_unary_ops("Neg", x)
     verify_unary_ops("Abs", x)
     verify_unary_ops("Reciprocal", x)
+    verify_unary_ops("Reciprocal", x, dtype="float16")
     verify_unary_ops("Sqrt", x)
     verify_unary_ops("Relu", x)
     verify_unary_ops("Exp", x)
@@ -2106,10 +2146,18 @@ def test_erf():
     verify_erf(x, z)
 
 
-def verify_where(condition, x, y, dtype, outdata):
-    node = helper.make_node("Where", inputs=["condition", "x", "y"], outputs=["out"])
+def verify_where(condition, x, y, dtype, outdata, dynamic=False):
+    node_list = []
+    where_inputs = ["condition", "x", "y"]
+    if dynamic:
+        shape_node = helper.make_node("Shape", ["x"], ["shape"])
+        reshape_node = helper.make_node("Reshape", ["x", "shape"], ["X"])
+        where_inputs[1] = "X"
+        node_list += [shape_node, reshape_node]
+    node = helper.make_node("Where", inputs=where_inputs, outputs=["out"])
+    node_list.append(node)
     graph = helper.make_graph(
-        [node],
+        node_list,
         "where_test",
         inputs=[
             helper.make_tensor_value_info("condition", TensorProto.BOOL, list(condition.shape)),
@@ -2119,7 +2167,7 @@ def verify_where(condition, x, y, dtype, outdata):
         outputs=[helper.make_tensor_value_info("out", dtype, list(outdata.shape))],
     )
     model = helper.make_model(graph, producer_name="where_test")
-    verify_with_ort_with_inputs(model, [condition, x, y], [outdata.shape])
+    verify_with_ort_with_inputs(model, [condition, x, y], [outdata.shape], use_vm=True)
 
 
 @tvm.testing.uses_gpu
@@ -2155,6 +2203,7 @@ def test_where():
     y = np.array([[1], [7]], dtype=np.float32)
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata, dynamic=True)
 
 
 def verify_or(indata, dtype):
@@ -3310,15 +3359,27 @@ def test_resize():
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+
     # downsampling
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+
     # scales are specified instead of sizes
     verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
@@ -3427,7 +3488,13 @@ def test_topk():
 @tvm.testing.uses_gpu
 def test_roi_align():
     def verify_roi_align(
-        input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0
+        input_dims,
+        num_roi,
+        output_height,
+        output_width,
+        sampling_ratio=0,
+        spatial_scale=1.0,
+        mode="avg",
     ):
         output_dims = [num_roi, input_dims[1], output_height, output_width]
 
@@ -3435,7 +3502,7 @@ def test_roi_align():
             "RoiAlign",
             inputs=["X", "rois", "batch_indicies"],
             outputs=["Y"],
-            mode="avg",
+            mode=mode,
             output_height=output_height,
             output_width=output_width,
             sampling_ratio=sampling_ratio,
@@ -3480,11 +3547,13 @@ def test_roi_align():
     verify_roi_align((5, 4, 16, 14), 32, 7, 7, sampling_ratio=1, spatial_scale=1.0)
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
 
+    # ONNX implementation of roi_align with max mode is incorrect, so we don't compare outputs here.
+
 
 # @tvm.testing.uses_gpu
 def test_non_max_suppression():
     def verify_nms(
-        boxes, scores, max_ouput_boxes_per_class, iou_threshold, score_threshold, output_dims
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
     ):
         input_names = ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold"]
         input_nodes = [
@@ -3654,14 +3723,14 @@ def verify_cond_loop():
 
 
 def verify_count_loop():
-    y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
-    y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [1])
-    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [1])
+    y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [])
+    y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [])
     cond_in = helper.make_tensor_value_info("cond_in", TensorProto.BOOL, [])
     cond_out = helper.make_tensor_value_info("cond_out", TensorProto.BOOL, [])
     iter_count = helper.make_tensor_value_info("iter_count", TensorProto.INT64, [])
 
-    y = np.array([-2]).astype(np.float32)
+    y = np.array(-2).astype(np.float32)
 
     iter_cast_node = helper.make_node(
         "Cast", inputs=["iter_count"], outputs=["iter_cast"], to=onnx.TensorProto.FLOAT
@@ -3693,11 +3762,11 @@ def verify_count_loop():
         inputs=[
             onnx.helper.make_tensor_value_info("trip_count", onnx.TensorProto.INT64, []),
             onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
-            onnx.helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [1]),
+            onnx.helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, []),
         ],
         outputs=[
-            onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, [1]),
-            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5, 1]),
+            onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, []),
+            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5]),
         ],
     )
     loop_model = onnx.helper.make_model(loop_graph)
@@ -3708,11 +3777,69 @@ def verify_count_loop():
     verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
 
+def verify_tensor_loop():
+    y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [3, 3, 3, 3])
+    y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [3, 3, 3, 3])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [3, 3, 3, 3])
+    cond_in = helper.make_tensor_value_info("cond_in", TensorProto.BOOL, [])
+    cond_out = helper.make_tensor_value_info("cond_out", TensorProto.BOOL, [])
+    iter_count = helper.make_tensor_value_info("iter_count", TensorProto.INT64, [])
+
+    y = np.random.normal(size=[3, 3, 3, 3]).astype(np.float32)
+
+    iter_cast_node = helper.make_node(
+        "Cast", inputs=["iter_count"], outputs=["iter_cast"], to=onnx.TensorProto.FLOAT
+    )
+
+    y_add_node = helper.make_node("Add", inputs=["y_in", "iter_cast"], outputs=["y_out"])
+
+    identity_node = helper.make_node("Identity", inputs=["cond_in"], outputs=["cond_out"])
+
+    scan_identity_node = helper.make_node("Identity", inputs=["y_out"], outputs=["scan_out"])
+
+    loop_body = helper.make_graph(
+        [identity_node, iter_cast_node, y_add_node, scan_identity_node],
+        "loop_body",
+        [iter_count, cond_in, y_in],
+        [cond_out, y_out, scan_out],
+    )
+
+    loop_node = helper.make_node(
+        "Loop", inputs=["trip_count", "cond", "y"], outputs=["res_y", "res_scan"], body=loop_body
+    )
+
+    trip_count = np.array(5).astype(np.int64)
+    cond = np.array(1).astype(np.bool)
+    loop_graph = onnx.helper.make_graph(
+        [loop_node],
+        "loop_outer",
+        inputs=[
+            onnx.helper.make_tensor_value_info("trip_count", onnx.TensorProto.INT64, []),
+            onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
+            onnx.helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [3, 3, 3, 3]),
+        ],
+        outputs=[
+            onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, [3, 3, 3, 3]),
+            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5, 3, 3, 3, 3]),
+        ],
+    )
+    loop_model = onnx.helper.make_model(loop_graph)
+
+    trip_count = np.array(5).astype(np.int64)
+    cond = np.array(1).astype(np.bool)
+    input_vals = [trip_count, cond, y]
+    verify_with_ort_with_inputs(
+        loop_model, input_vals, use_vm=True, freeze_params=True, convert_to_static=True
+    )
+
+
 def test_loop():
     # Test a loop that exits once a condition is met.
     verify_cond_loop()
-    # Test a loop that exits after a fixed number of iterations.
+    # Test a loop that exits after a fixed number of iterations with scalar outputs.
     verify_count_loop()
+    # Test a loop that uses an array output.
+    verify_tensor_loop()
 
 
 def verify_if(cond_array):
@@ -3896,6 +4023,82 @@ def test_softplus():
     verify_softplus(input_data)
 
 
+def test_cumsum():
+    def verify_cumsum(indata, axis, exclusive=0, reverse=0, type="float32"):
+        cumsum_node = onnx.helper.make_node(
+            "CumSum",
+            inputs=["X", "axis"],
+            outputs=["Y"],
+        )
+        if exclusive != 0:
+            exclusive_attr = helper.make_attribute("exclusive", exclusive)
+            cumsum_node.attribute.append(exclusive_attr)
+        if reverse != 0:
+            reverse_attr = helper.make_attribute("reverse", reverse)
+            cumsum_node.attribute.append(reverse_attr)
+        nodes = [
+            make_constant_node("axis", onnx.TensorProto.INT32, [1], [axis]),
+            cumsum_node,
+        ]
+        if type == "float32":
+            tensor_type = TensorProto.FLOAT
+        else:
+            tensor_type = TensorProto.INT32
+            type = "int32"
+
+        graph = helper.make_graph(
+            nodes,
+            "cumsum_test",
+            inputs=[
+                helper.make_tensor_value_info("X", tensor_type, list(indata.shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("Y", tensor_type, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="cumsum_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype=type, use_vm=True, opset=11)
+
+    data = (
+        np.array(
+            [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0,
+                12.0,
+            ]
+        )
+        .astype(np.float32)
+        .reshape((3, 4))
+    )
+
+    verify_cumsum(data, 0)
+    verify_cumsum(data, 1)
+    verify_cumsum(data, 0, 1, 0)
+    verify_cumsum(data, 1, 1, 0)
+    verify_cumsum(data, 0, 0, 1)
+    verify_cumsum(data, 1, 0, 1)
+    verify_cumsum(data, 1, 1, 1)
+    data = np.random.randn(1, 32, 32, 3).astype("float32")
+    verify_cumsum(data, 1)
+    data = np.random.randn(1, 32, 32, 3).astype("int32")
+    verify_cumsum(data, 0, type="int32")
+    verify_cumsum(data, 1, type="int32")
+    verify_cumsum(data, 0, 1, 0, type="int32")
+    verify_cumsum(data, 1, 1, 0, type="int32")
+    verify_cumsum(data, 0, 0, 1, type="int32")
+    verify_cumsum(data, 1, 0, 1, type="int32")
+    verify_cumsum(data, 1, 1, 1, type="int32")
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -3913,6 +4116,7 @@ if __name__ == "__main__":
     test_clip()
     test_clip_min_max_as_inputs()
     test_onehot()
+    test_gemm()
     test_matmul()
     test_gather()
     test_gatherelements()
@@ -3972,3 +4176,4 @@ if __name__ == "__main__":
     test_size()
     test_maxunpool()
     test_softplus()
+    test_cumsum()

@@ -167,3 +167,17 @@ def max_num_threads(func_id, args):
         _internal_assert(isinstance(args[0], _expr.IntImm), "In tvm bool should be uint")
         res = Target.current(args[0].value).max_num_threads
     return convert(res)
+
+
+def inf(func_id, args):
+    """Infinity"""
+    _internal_assert(func_id == "inf", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() == 1, "One argument accepted!")
+    return tvm.tir.max_value(args[0])
+
+
+def ninf(func_id, args):
+    """Negative infinity"""
+    _internal_assert(func_id == "ninf", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() == 1, "One argument accepted!")
+    return tvm.tir.min_value(args[0])

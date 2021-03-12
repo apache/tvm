@@ -16,7 +16,6 @@
 # under the License.
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
@@ -147,6 +146,45 @@ def test_fold_concat():
     assert tvm.ir.structural_equal(zz, zexpected)
 
 
+def test_fold_if():
+    cond_data = np.array(1).astype("bool")
+    x_data = np.array([[1, 2, 3]]).astype("float32")
+
+    def before():
+        a = relay.const(cond_data)
+        x = relay.const(x_data)
+        y = relay.const(x_data)
+        iff = relay.If(a, x + y, x - y)
+        return relay.Function([], iff)
+
+    def expected():
+        y_data = x_data + x_data
+        y = relay.const(y_data)
+        return relay.Function([], y)
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zz, zexpected)
+
+    cond_data = np.array(0).astype("bool")
+
+    def before():
+        a = relay.const(cond_data)
+        x = relay.const(x_data)
+        y = relay.const(x_data)
+        iff = relay.If(a, x + y, x - y)
+        return relay.Function([], iff)
+
+    def expected():
+        y_data = x_data - x_data
+        y = relay.const(y_data)
+        return relay.Function([], y)
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zz, zexpected)
+
+
 def test_fold_shape_of():
     c_shape = (8, 9, 10)
 
@@ -190,22 +228,6 @@ def test_fold_ndarray_size():
         zz = run_opt_pass(before(dtype), transform.FoldConstant())
         zexpected = run_opt_pass(expected(dtype), transform.InferType())
         assert tvm.ir.structural_equal(zz, zexpected)
-
-
-def test_fold_full():
-    c_shape = (8, 9, 10)
-
-    def before():
-        dtype = "float32"
-        return relay.full(relay.const(1.0, dtype), c_shape, dtype=dtype)
-
-    def expected():
-        # expect no changes
-        return before()
-
-    zz = run_opt_pass(before(), transform.FoldConstant())
-    zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_batch_norm():
@@ -253,12 +275,35 @@ def test_fold_batch_norm():
     assert tvm.ir.structural_equal(mod["main"], expect)
 
 
+def test_fold_dropout():
+    def before():
+        # A constant graph to fire fold constant
+        data = relay.const(np.arange(10).astype(np.float32))
+        dropout = relay.nn.dropout(data)
+        add = dropout + relay.const(1.0)
+        return relay.Function(relay.analysis.free_vars(add), add)
+
+    passes = tvm.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            relay.transform.FoldConstant(),
+        ]
+    )
+
+    before_mod = tvm.IRModule.from_expr(before())
+
+    with tvm.transform.PassContext(opt_level=3):
+        after_mod = passes(before_mod)
+
+    assert tvm.ir.structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
+
+
 if __name__ == "__main__":
     test_fold_const()
     test_fold_let()
     test_fold_tuple()
     test_fold_concat()
     test_fold_shape_of()
-    test_fold_full()
     test_fold_batch_norm()
     test_fold_ndarray_size()
+    test_fold_dropout()

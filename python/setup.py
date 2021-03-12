@@ -171,38 +171,26 @@ def get_package_data_files():
     return ["relay/std/prelude.rly", "relay/std/core.rly"]
 
 
+# Temporarily add this directory to the path so we can import the requirements generator
+# tool.
+sys.path.insert(0, os.path.dirname(__file__))
+import gen_requirements
+
+sys.path.pop(0)
+
+requirements = gen_requirements.join_requirements()
+extras_require = {
+    piece: deps for piece, (_, deps) in requirements.items() if piece not in ("all", "core")
+}
+
 setup(
     name="tvm",
     version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
-    install_requires=[
-        "numpy",
-        "scipy",
-        "decorator",
-        "attrs",
-        "psutil",
-        "synr>=0.2.1",
-    ],
-    extras_require={
-        "test": ["pillow<7", "matplotlib"],
-        "extra_feature": [
-            "tornado",
-            "psutil",
-            "xgboost>=1.1.0",
-            "mypy",
-            "orderedset",
-        ],
-        "tvmc": [
-            "tensorflow>=2.1.0",
-            "tflite>=2.1.0",
-            "onnx>=1.7.0",
-            "onnxruntime>=1.0.0",
-            "torch>=1.4.0",
-            "torchvision>=0.5.0",
-        ],
-    },
+    install_requires=requirements["core"][1],
+    extras_require=extras_require,
     packages=find_packages(),
     package_dir={"tvm": "tvm"},
     package_data={"tvm": get_package_data_files()},

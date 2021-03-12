@@ -141,11 +141,11 @@ class GraphModule(object):
         lib = relay.build(...)
         lib.export_library("compiled_lib.so")
         # load it back as a runtime
-        lib:tvm.runtime.Module = tvm.runtime.load_module("compiled_lib.so")
+        lib: tvm.runtime.Module = tvm.runtime.load_module("compiled_lib.so")
         # Call the library factory function for default and create
         # a new runtime.Module, wrap with graph module.
         gmod = graph_runtime.GraphModule(lib["default"](ctx))
-        # use the gmod
+        # use the graph module.
         gmod.set_input("x", data)
         gmod.run()
     """

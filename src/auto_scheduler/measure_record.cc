@@ -169,6 +169,12 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
       writer->WriteArrayItem(std::string(""));
     }
     writer->WriteArrayItem(static_cast<int>(data.layout_rewrite_option));
+    writer->WriteArraySeperator();
+    writer->BeginArray(false);
+    for (const auto& i : data.task_input_names) {
+      writer->WriteArrayItem(std::string(i));
+    }
+    writer->EndArray();
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
@@ -200,6 +206,17 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
         reader->Read(&int_value);
         data->layout_rewrite_option = ::tvm::auto_scheduler::LayoutRewriteOption(int_value);
         s = reader->NextArrayItem();
+        if (s) {
+          reader->BeginArray();
+          s = reader->NextArrayItem();
+          while (s) {
+            reader->Read(&str_value);
+            data->task_input_names.push_back(str_value);
+            s = reader->NextArrayItem();
+          }
+          // Process the end of array
+          s = reader->NextArrayItem();
+        }
         ICHECK(!s);
       }
     }
@@ -444,5 +461,22 @@ TVM_REGISTER_GLOBAL("auto_scheduler.DeserializeMeasureInput").set_body_typed([](
   reader.Read(inp.get());
   return ObjectRef(inp);
 });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SerializeSearchTask")
+    .set_body_typed([](const SearchTask& search_task) {
+      std::ostringstream os;
+      dmlc::JSONWriter writer(&os);
+      writer.Write(*search_task.get());
+      return os.str();
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.DeserializeSearchTask").set_body_typed([](String json) {
+  std::istringstream ss(json);
+  dmlc::JSONReader reader(&ss);
+  auto search_task = make_object<SearchTaskNode>();
+  reader.Read(search_task.get());
+  return ObjectRef(search_task);
+});
+
 }  // namespace auto_scheduler
 }  // namespace tvm

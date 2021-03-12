@@ -16,7 +16,7 @@
 # under the License.
 
 import os
-from tvm import relay, transform
+from tvm import relay, transform, runtime
 from tvm.contrib.download import download_testdata
 
 
@@ -94,4 +94,4 @@ with open("./mobilenet.json", "w") as fo:
     fo.write(graph)
 
 with open("./mobilenet.params", "wb") as fo:
-    fo.write(relay.save_param_dict(params))
+    fo.write(runtime.save_param_dict(params))

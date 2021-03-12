@@ -39,7 +39,9 @@ pub use tvm_rt::errors;
 pub use tvm_rt::function;
 pub use tvm_rt::module;
 pub use tvm_rt::ndarray;
-pub use tvm_rt::value;
+
+#[cfg(feature = "python")]
+pub mod compiler;
 pub mod ir;
 #[cfg(feature = "python")]
 pub mod python;

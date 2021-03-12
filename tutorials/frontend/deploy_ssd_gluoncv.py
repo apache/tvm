@@ -94,6 +94,10 @@ def build(target):
 
 ######################################################################
 # Create TVM runtime and do inference
+# .. note::
+#
+#   Use target = "cuda -libs" to enable thrust based sort, if you
+#   enabled thrust during cmake by -DUSE_THRUST=ON.
 
 
 def run(lib, ctx):

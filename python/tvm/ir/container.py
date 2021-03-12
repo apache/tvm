@@ -19,7 +19,7 @@ import tvm._ffi
 
 from tvm.runtime import Object
 from tvm.runtime.container import getitem_helper
-from tvm.runtime import _ffi_node_api
+from tvm.runtime import _ffi_api
 
 
 @tvm._ffi.register_object("Array")
@@ -33,10 +33,10 @@ class Array(Object):
     """
 
     def __getitem__(self, idx):
-        return getitem_helper(self, _ffi_node_api.ArrayGetItem, len(self), idx)
+        return getitem_helper(self, _ffi_api.ArrayGetItem, len(self), idx)
 
     def __len__(self):
-        return _ffi_node_api.ArraySize(self)
+        return _ffi_api.ArraySize(self)
 
 
 @tvm._ffi.register_object
@@ -49,18 +49,18 @@ class Map(Object):
     """
 
     def __getitem__(self, k):
-        return _ffi_node_api.MapGetItem(self, k)
+        return _ffi_api.MapGetItem(self, k)
 
     def __contains__(self, k):
-        return _ffi_node_api.MapCount(self, k) != 0
+        return _ffi_api.MapCount(self, k) != 0
 
     def items(self):
         """Get the items from the map"""
-        akvs = _ffi_node_api.MapItems(self)
+        akvs = _ffi_api.MapItems(self)
         return [(akvs[i], akvs[i + 1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
-        return _ffi_node_api.MapSize(self)
+        return _ffi_api.MapSize(self)
 
     def get(self, key, default=None):
         """Get an element with a default value.

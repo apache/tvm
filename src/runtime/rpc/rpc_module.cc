@@ -23,6 +23,7 @@
  */
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstring>
@@ -364,8 +365,6 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
       if (f_preproc != nullptr) {
         f_preproc.CallPacked(args, &temp);
       }
-      std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
-          tend;
       double duration_ms = 0.0;
 
       do {
@@ -374,20 +373,17 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
                                              number * 1.618));  // 1.618 is chosen by random
         }
 
-        tbegin = std::chrono::high_resolution_clock::now();
+        Timer t = Timer::Start(ctx);
         // start timing
         for (int i = 0; i < number; ++i) {
           pf.CallPacked(args, &temp);
         }
-        DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-        tend = std::chrono::high_resolution_clock::now();
-
-        duration_ms =
-            std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
+        t->Stop();
+        int64_t t_nanos = t->SyncAndGetElapsedNanos();
+        duration_ms = t_nanos / 1e6;
       } while (duration_ms < min_repeat_ms);
 
-      double speed =
-          std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() / number;
+      double speed = duration_ms / 1e3 / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
     }
 
