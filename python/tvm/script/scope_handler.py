@@ -245,7 +245,8 @@ class Block(WithScopeHandler):
             if len(axes) != len(self.block_vars):
                 self.context.report_error(
                     "Inconsistent number of block vars, "
-                    + f"there are {len(axes)} axes but {len(self.block_vars)} block vars. The number of block vars should match the number of axes.",
+                    + f"there are {len(axes)} axes but {len(self.block_vars)} block vars. "
+                    + "The number of block vars should match the number of axes.",
                     self.node.span,
                 )
             block_iters: List[IterVar] = []

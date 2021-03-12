@@ -278,7 +278,7 @@ class TVMScriptParser(Transformer):
         elif len(args) + len(kw_args) > len(pos_only) + len(kwargs):
             self.report_error(
                 "Arguments mismatched. "
-                + f"Expects {len(pos_only) + len(kwargs)} args but gets "
+                + f"Expected {len(pos_only) + len(kwargs)} args but got "
                 + f"{len(args) + len(kw_args)}",
                 node_call.span,
             )
@@ -422,6 +422,11 @@ class TVMScriptParser(Transformer):
             self.context.func_params.append(arg_var)
 
         # New Scope : Implicit root block
+        # Each function contains an implicit root block in TensorIR,
+        # so here we need a block scope for it. Please note that `enter_block_scope`
+        # will not create a block directly but just store some information.
+        # If the PrimFunc is not a TensorIR func (e.g. TE scheduled func or low-level func),
+        # the roo block will not be added. The logic to add root block is in `_ffi_api.Complete`
         self.context.enter_block_scope(nodes=node.body.stmts)
 
         # fetch the body of root block
@@ -787,7 +792,7 @@ class TVMScriptParser(Transformer):
             for index in indexes:
                 if not isinstance(index, (tvm.tir.PrimExpr, int)):
                     self.report_error(
-                        "Buffer load indexes expects int or PrimExpr, but got " + type(index),
+                        "Buffer load indexes expected int or PrimExpr, but got " + type(index),
                         node.span,
                     )
             return tvm.tir.Load(

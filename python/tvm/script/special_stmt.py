@@ -44,7 +44,7 @@ def convert_to_int(value, arg_name, report_error, span):
     if isinstance(value, int):
         return value
     report_error(
-        f"Expects int or IntImm for {arg_name}, but gets {str(type(value))}",
+        f"Expected int or IntImm for {arg_name}, but got {str(type(value))}",
         span,
     )
 
@@ -280,7 +280,7 @@ class BlockReads(SpecialStmt):
 
     def __init__(self):
         def reads(read_regions: Union[BufferSlice, List[BufferSlice]], span: Span = None):
-            assert self.context
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope.reads is not None:
                 self.context.report_error(
@@ -296,7 +296,7 @@ class BlockReads(SpecialStmt):
             else:
                 self.context.report_error(
                     "Error input type. "
-                    + f"Expects BufferSlice or List[BufferSlice], but gets {type(read_regions)}",
+                    + f"Expected BufferSlice or List[BufferSlice], but got {type(read_regions)}",
                     span,
                 )
             block_scope.reads = read_regions
@@ -318,7 +318,7 @@ class BlockWrites(SpecialStmt):
 
     def __init__(self):
         def writes(write_region: Union[BufferSlice, List[BufferSlice]], span: Span = None):
-            assert self.context
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope.writes is not None:
                 self.context.report_error(
@@ -334,7 +334,7 @@ class BlockWrites(SpecialStmt):
             else:
                 self.context.report_error(
                     "Error input type. "
-                    + f"Expects BufferSlice or List[BufferSlice], but gets {type(write_region)}",
+                    + f"Expected BufferSlice or List[BufferSlice], but got {type(write_region)}",
                     span,
                 )
             block_scope.writes = write_region
@@ -356,7 +356,7 @@ class BlockAttr(SpecialStmt):
 
     def __init__(self):
         def block_attr(attrs: Mapping[str, Object], span: Span = None):
-            assert self.context
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope.annotations is not None:
                 self.context.report_error(
