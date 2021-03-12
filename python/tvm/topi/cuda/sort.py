@@ -422,6 +422,26 @@ def _sort_common(
                         with ib.else_scope():
                             step_count = max_threads * thread_work
                             diag = bx * step_count
+
+                            def do_merge(first, last):
+                                aStart = start + first
+                                bStart = middle + diag - last
+                                aCount = tvm.te.min(middle - aStart, step_count)
+                                bCount = tvm.te.min(end - bStart, step_count)
+                                mergepath(
+                                    source,
+                                    dest,
+                                    source_idx,
+                                    dest_idx,
+                                    aCount,
+                                    bCount,
+                                    aStart,
+                                    bStart,
+                                    start + diag,
+                                    thread_work,
+                                    even,
+                                )
+
                             with ib.if_scope(even):
                                 first, last = get_merge_begin(
                                     source,
@@ -433,6 +453,7 @@ def _sort_common(
                                     diag,
                                     step_count,
                                 )
+                                do_merge(first, last)
                             with ib.else_scope():
                                 first, last = get_merge_begin(
                                     dest,
@@ -444,23 +465,7 @@ def _sort_common(
                                     diag,
                                     step_count,
                                 )
-                            aStart = start + first
-                            bStart = middle + diag - last
-                            aCount = tvm.te.min(middle - aStart, step_count)
-                            bCount = tvm.te.min(end - bStart, step_count)
-                            mergepath(
-                                source,
-                                dest,
-                                source_idx,
-                                dest_idx,
-                                aCount,
-                                bCount,
-                                aStart,
-                                bStart,
-                                start + diag,
-                                thread_work,
-                                even,
-                            )
+                                do_merge(first, last)
 
                 # Call the kernel
                 mergesort(
