@@ -155,7 +155,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                             and stride_w == 1
                             and dilation_h == 1
                             and dilation_w == 1
-                            and 64 < co < 512
+                            and 64 <= co < 512
                         )
                     # register auto-scheduler implementations
                     if judge_winograd_auto_scheduler:
