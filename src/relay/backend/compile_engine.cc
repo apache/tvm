@@ -64,10 +64,11 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   data_ = std::move(n);
 }
 
-CCacheKey::CCacheKey(Function source_func, Target target) {
+CCacheKey::CCacheKey(Function source_func, Target target, Array<tir::Buffer> buffers) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
+  n->buffers = std::move(buffers);
   data_ = std::move(n);
 }
 
@@ -874,8 +875,8 @@ TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
     });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-    .set_body_typed([](Function source_func, Target target) {
-      return CCacheKey(source_func, target);
+    .set_body_typed([](Function source_func, Target target, Array<tir::Buffer> buffers = {}) {
+      return CCacheKey(source_func, target, buffers);
     });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal").set_body_typed([]() {

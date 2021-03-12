@@ -114,6 +114,8 @@ class CCacheKeyNode : public Object {
   Function source_func;
   /*! \brief The hardware target.*/
   Target target;
+  /*! \brief Any buffers bound to the source function. */
+  Array<tir::Buffer> buffers;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
@@ -148,8 +150,9 @@ class CCacheKey : public ObjectRef {
    * \brief The constructor
    * \param source_func The source function.
    * \param target The target device.
+   * \param buffers Optional bound buffers
    */
-  TVM_DLL CCacheKey(Function source_func, Target target);
+  TVM_DLL CCacheKey(Function source_func, Target target, Array<tir::Buffer> buffers = {});
 
   const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
   // comparator
@@ -269,6 +272,10 @@ inline size_t CCacheKeyNode::Hash() const {
 
 inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
+  if (other->buffers.size() != this->buffers.size()) return false;
+  for (size_t i = 0; i < other->buffers.size(); i++) {
+    if (!tvm::StructuralEqual()(other->buffers[i], this->buffers[i])) return false;
+  }
   return this->target->str() == other->target->str() &&
          tvm::StructuralEqual()(this->source_func, other->source_func);
 }

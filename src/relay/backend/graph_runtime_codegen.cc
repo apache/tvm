@@ -417,7 +417,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       buffers = (*f)(GetRef<Call>(op), storage_device_map_);
     }
 
-    CCacheKey key = (*pf0)(func, target);
+    CCacheKey key = (*pf0)(func, target, buffers);
     CachedFunc lowered_func = (*pf1)(compile_engine_, key, buffers);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
