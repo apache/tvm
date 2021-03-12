@@ -124,7 +124,7 @@ def _verify_linked_param(dtype, lib, mod, graph, name):
     """Directly read memory from the linked library to verify the linked parameter is correct."""
     sid = _lookup_sid(graph, name)
     # NOTE: query_imports=True because when loading a module from disk (i.e. for C backend),
-    # a GraphRuntimeFactory module is created instead of the module itself.
+    # a GraphExecutorFactory module is created instead of the module itself.
     param_ptr = mod.get_function("_lookup_linked_param", True)(sid)
     gen_param = lib.params[name]
     arr_data = (_get_ctypes_dtype(dtype) * np.prod(gen_param.shape)).from_address(param_ptr.value)
@@ -154,7 +154,7 @@ def _make_mod_and_params(dtype):
         f"def @main(%rand_input : Tensor[{INPUT_SHAPE}, {dtype}], { ', '.join(param_decls.values()) } )  {{",
         # This program ensures that GraphPlanMemory alternates between the same two storage IDs for a
         # while. In doing this, it ensures that param %{dtype}_b will be placed into the graph at an
-        # index unequal to its storage_id. This ensures that GraphRuntimeCodegen encodes the storage_id
+        # index unequal to its storage_id. This ensures that GraphExecutorCodegen encodes the storage_id
         # and not the parameter index into the graph.
         (
             f'    %0 = nn.conv2d(%rand_input, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '

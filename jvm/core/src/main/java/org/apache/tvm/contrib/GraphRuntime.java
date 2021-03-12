@@ -29,7 +29,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-public class GraphRuntime {
+public class GraphExecutor {
   /**
    * Create a runtime executor module given a graph and module.
    * @param graphJson The graph deployed in json format output by compiler.

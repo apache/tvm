@@ -343,7 +343,7 @@ public class MainActivity extends AppCompatActivity {
                 dialog.dismiss();
             }
             if (status != 0) {
-                showDialog("Error", "Fail to predict image, GraphRuntime exception");
+                showDialog("Error", "Fail to predict image, GraphExecutor exception");
             }
         }
     }

@@ -208,7 +208,7 @@ def create_local_graph_runtime(graph_json_str, mod, device):
 
     Returns
     -------
-    tvm.contrib.GraphRuntime :
+    tvm.contrib.GraphExecutor :
          A local graph runtime instance that executes on the remote device.
     """
     device_type_id = [device.device_type, device.device_id]
@@ -237,7 +237,7 @@ def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
 
     Returns
     -------
-    tvm.contrib.GraphRuntime :
+    tvm.contrib.GraphExecutor :
          A local graph runtime instance that executes on the remote device.
     """
     device_type_id = [device.device_type, device.device_id]

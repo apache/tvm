@@ -33,7 +33,7 @@ extern "C" {
 /*!
  * \brief Register the "tvm.graph_runtime.create" constructor PackedFunc.
  */
-tvm_crt_error_t TVMGraphRuntimeModule_Register();
+tvm_crt_error_t TVMGraphExecutorModule_Register();
 
 #ifdef __cplusplus
 }  // extern "C"

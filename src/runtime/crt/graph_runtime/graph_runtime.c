@@ -49,7 +49,7 @@ uint32_t Shape_Accumulate(int64_t* shape, uint32_t ndim) {
   return accum;
 }
 
-int NodeEntry_Load(TVMGraphRuntimeNodeEntry* entry, JSONReader* reader) {
+int NodeEntry_Load(TVMGraphExecutorNodeEntry* entry, JSONReader* reader) {
   int status = 0;
   reader->BeginArray(reader);
   if (!(reader->NextArrayItem(reader))) {
@@ -74,7 +74,7 @@ int NodeEntry_Load(TVMGraphRuntimeNodeEntry* entry, JSONReader* reader) {
   return status;
 }
 
-void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode* node, JSONReader* reader,
+void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* reader,
                                    TVMOpParam* param) {
   int bitmask = 0;
   char key[20], value[120];
@@ -109,7 +109,7 @@ void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode* node, JSONReader* reader
   }
 }
 
-int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
+int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
   int status = 0;
   reader->BeginObject(reader);
   int bitmask = 0;
@@ -138,7 +138,7 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
         break;
       }
       DLDevice dev = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeNodeEntry) * num_inputs,
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNodeEntry) * num_inputs,
                                                       dev, (void**)&node->inputs);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
@@ -150,7 +150,7 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
           return -1;
         }
 
-        TVMGraphRuntimeNodeEntry* inputs = node->inputs + count;
+        TVMGraphExecutorNodeEntry* inputs = node->inputs + count;
         reader->BeginArray(reader);
         if (!reader->NextArrayItem(reader)) {
           fprintf(stderr, "invalid json format\n");
@@ -181,7 +181,7 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
     } else if (!strcmp(key, "attr") || !strcmp(key, "attrs")) {
       TVMOpParam param;
 
-      TVMGraphRuntimeNode_LoadAttrs(node, reader, &param);
+      TVMGraphExecutorNode_LoadAttrs(node, reader, &param);
       memcpy(&node->param, &param, sizeof(param));
     } else if (!strcmp(key, "control_deps")) {
       fprintf(stderr, "do not support key %s", key);
@@ -201,15 +201,15 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
   return status;
 }
 
-TVMGraphRuntimeNode TVMGraphRuntimeNodeCreate() {
-  TVMGraphRuntimeNode node;
-  memset(&node, 0, sizeof(TVMGraphRuntimeNode));
-  node.LoadAttrs = TVMGraphRuntimeNode_LoadAttrs;
-  node.Load = TVMGraphRuntimeNode_Load;
+TVMGraphExecutorNode TVMGraphExecutorNodeCreate() {
+  TVMGraphExecutorNode node;
+  memset(&node, 0, sizeof(TVMGraphExecutorNode));
+  node.LoadAttrs = TVMGraphExecutorNode_LoadAttrs;
+  node.Load = TVMGraphExecutorNode_Load;
   return node;
 }
 
-int TVMGraphRuntimeNodeRelease(TVMGraphRuntimeNode* node) {
+int TVMGraphExecutorNodeRelease(TVMGraphExecutorNode* node) {
   if (!node) {
     return 0;
   }
@@ -225,7 +225,7 @@ int TVMGraphRuntimeNodeRelease(TVMGraphRuntimeNode* node) {
   return 0;
 }
 
-int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* reader) {
+int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* reader) {
   int status = 0;
   int bitmask = 0;
   char key[16], type[16];
@@ -520,7 +520,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
   return status;
 }
 
-int TVMGraphRuntimeGraphAttr_Release(TVMGraphRuntimeGraphAttr* attr) {
+int TVMGraphExecutorGraphAttr_Release(TVMGraphExecutorGraphAttr* attr) {
   if (!attr) {
     return 0;
   }
@@ -568,7 +568,7 @@ int TVMGraphRuntimeGraphAttr_Release(TVMGraphRuntimeGraphAttr* attr) {
   return 0;
 }
 
-int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
+int TVMGraphExecutor_Load(TVMGraphExecutor* runtime, JSONReader* reader) {
   int status = 0;
   reader->BeginObject(reader);
   int bitmask = 0;
@@ -583,7 +583,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
         break;
       }
       DLDevice dev = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeNode) * num_items, dev,
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNode) * num_items, dev,
                                                       (void**)&runtime->nodes);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
@@ -596,8 +596,8 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
           status = -1;
           return status;
         }
-        TVMGraphRuntimeNode* node = runtime->nodes + runtime->nodes_count;
-        status = TVMGraphRuntimeNode_Load(node, reader);
+        TVMGraphExecutorNode* node = runtime->nodes + runtime->nodes_count;
+        status = TVMGraphExecutorNode_Load(node, reader);
         if (status != 0) {
           fprintf(stderr, "failed to load an element in `nodes` field in graph runtime node.\n");
           break;
@@ -673,7 +673,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
         break;
       }
       DLDevice dev = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeNodeEntry) * num_items,
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNodeEntry) * num_items,
                                                       dev, (void**)&runtime->outputs);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
@@ -686,7 +686,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
           status = -1;
           return status;
         }
-        TVMGraphRuntimeNodeEntry* entry = runtime->outputs + runtime->outputs_count;
+        TVMGraphExecutorNodeEntry* entry = runtime->outputs + runtime->outputs_count;
         status = NodeEntry_Load(entry, reader);
         if (status != 0) {
           fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
@@ -696,7 +696,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
       }
       bitmask |= 8;
     } else if (!strcmp(key, "attrs")) {
-      status = TVMGraphRuntimeGraphAttr_Load(&(runtime->attrs), reader);
+      status = TVMGraphExecutorGraphAttr_Load(&(runtime->attrs), reader);
       if (status != 0) {
         fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
         break;
@@ -719,7 +719,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
   return status;
 }
 
-uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint32_t index) {
+uint32_t TVMGraphExecutor_GetEntryId(TVMGraphExecutor* runtime, uint32_t nid, uint32_t index) {
   return runtime->node_row_ptr[nid] + index;
 }
 
@@ -728,7 +728,7 @@ uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint
  * \param runtime The graph runtime.
  * \return the number of input tensors allocated.
  */
-int TVMGraphRuntime_GetNumInputs(TVMGraphRuntime* runtime) { return runtime->input_nodes_count; }
+int TVMGraphExecutor_GetNumInputs(TVMGraphExecutor* runtime) { return runtime->input_nodes_count; }
 
 /*!
  * \brief Get the input index given the name of input.
@@ -736,7 +736,7 @@ int TVMGraphRuntime_GetNumInputs(TVMGraphRuntime* runtime) { return runtime->inp
  * \param name The name of the input.
  * \return The index of input.
  */
-int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name) {
+int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* runtime, const char* name) {
   uint32_t i;
   int32_t rv = -1;
   for (i = 0; i < runtime->input_nodes_count; ++i) {
@@ -756,12 +756,12 @@ int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name) {
  * \param name The name of the input.
  * \param data_in The input data.
  */
-void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in) {
-  uint32_t index = TVMGraphRuntime_GetInputIndex(runtime, name);
+void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTensor* data_in) {
+  uint32_t index = TVMGraphExecutor_GetInputIndex(runtime, name);
   if (index >= runtime->input_nodes_count) {
     fprintf(stderr, "given index is greater than num of input nodes.\n");
   }
-  uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, runtime->input_nodes[index], 0);
+  uint32_t eid = TVMGraphExecutor_GetEntryId(runtime, runtime->input_nodes[index], 0);
   runtime->data_entry[eid].dl_tensor.data = data_in->data;
 }
 
@@ -772,7 +772,7 @@ void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTens
  * \param param_size The parameter size.
  * \return The result of this function execution.
  */
-int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
+int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
                                const uint32_t param_size) {
   int status = 0;
   const char* bptr = param_blob;
@@ -824,10 +824,10 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
   }
 
   for (idx = 0; idx < size; idx++) {
-    int32_t in_idx = TVMGraphRuntime_GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
+    int32_t in_idx = TVMGraphExecutor_GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
     CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
              names + TVM_CRT_STRLEN_NAME * idx);
-    uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
+    uint32_t eid = TVMGraphExecutor_GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
       fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
               runtime->data_entry_count);
@@ -871,7 +871,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
  * \brief Run all the operations one by one.
  * \param runtime The graph runtime.
  */
-void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
+void TVMGraphExecutor_Run(TVMGraphExecutor* runtime) {
   // setup the array and requirements.
   uint32_t idx;
   for (idx = 0; idx < runtime->op_execs_count; ++idx) {
@@ -889,13 +889,13 @@ void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
  * \param runtime The graph runtime.
  * \return the number of output tensors allocated.
  */
-int TVMGraphRuntime_GetNumOutputs(TVMGraphRuntime* runtime) { return runtime->outputs_count; }
+int TVMGraphExecutor_GetNumOutputs(TVMGraphExecutor* runtime) { return runtime->outputs_count; }
 
-int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out) {
+int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t idx, DLTensor* out) {
   int status = 0;
   uint32_t nid = runtime->outputs[idx].node_id;
   uint32_t index = runtime->outputs[idx].index;
-  uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, nid, index);
+  uint32_t eid = TVMGraphExecutor_GetEntryId(runtime, nid, index);
 
   // copy data section to allocated output tensor
   int32_t elem_bytes = out->dtype.bits / 8;
@@ -908,7 +908,7 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTen
   return status;
 }
 
-int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
+int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* runtime) {
   TVMPackedFunc lookup_linked_param;
   int lookup_linked_param_valid;
   uint32_t idx;
@@ -924,7 +924,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   }
 
   // Grab saved optimization plan from graph.
-  TVMGraphRuntimeGraphAttr* attrs = &(runtime->attrs);
+  TVMGraphExecutorGraphAttr* attrs = &(runtime->attrs);
   DLDataType* vtype = NULL;
   DLDevice alloc_dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(DLDataType) * attrs->dltype_count,
@@ -938,14 +938,14 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   }
 
   // Size and device type of each storage pool entry.
-  TVMGraphRuntimePoolEntry* pool_entry = NULL;
-  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count,
+  TVMGraphExecutorPoolEntry* pool_entry = NULL;
+  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorPoolEntry) * runtime->nodes_count,
                                   alloc_dev, (void**)&pool_entry);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
   }
-  memset(pool_entry, 0, sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count);
+  memset(pool_entry, 0, sizeof(TVMGraphExecutorPoolEntry) * runtime->nodes_count);
   uint32_t pool_entry_count = 0;
   // Find the maximum space size.
   for (idx = 0; idx < attrs->shape_count; idx++) {
@@ -967,14 +967,14 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   }
 
   // Allocate the space.
-  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeStorageEntry) * pool_entry_count, alloc_dev,
+  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorStorageEntry) * pool_entry_count, alloc_dev,
                                   (void**)&runtime->storage_pool);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < pool_entry_count; idx++) {
-    TVMGraphRuntimePoolEntry pit = pool_entry[idx];
+    TVMGraphExecutorPoolEntry pit = pool_entry[idx];
     DLDevice dev = runtime->devices[0];
     uint8_t did_find_linked_param = 0;
     if (lookup_linked_param_valid) {
@@ -1042,7 +1042,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   return 0;
 }
 
-int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
+int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* runtime) {
   int status = 0;
   uint32_t nid, idx;
   runtime->op_execs_count = runtime->nodes_count;
@@ -1055,18 +1055,18 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
     return status;
   }
   for (nid = 0; nid < runtime->nodes_count; nid++) {
-    const TVMGraphRuntimeNode* inode = runtime->nodes + nid;
+    const TVMGraphExecutorNode* inode = runtime->nodes + nid;
     if (strcmp(inode->op_type, "null")) {
       DLTensorPtr args[TVM_CRT_MAX_ARGS];
       uint32_t args_count = 0;
       for (idx = 0; idx < inode->inputs_count; idx++) {
-        const TVMGraphRuntimeNodeEntry* entry = inode->inputs + idx;
-        uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, entry->node_id, entry->index);
+        const TVMGraphExecutorNodeEntry* entry = inode->inputs + idx;
+        uint32_t eid = TVMGraphExecutor_GetEntryId(runtime, entry->node_id, entry->index);
         args[idx] = &(runtime->data_entry[eid].dl_tensor);
         args_count++;
       }
       for (idx = 0; idx < inode->param.num_outputs; idx++) {
-        uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, nid, idx);
+        uint32_t eid = TVMGraphExecutor_GetEntryId(runtime, nid, idx);
         args[args_count] = &(runtime->data_entry[eid].dl_tensor);
         args_count++;
       }
@@ -1085,7 +1085,7 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
       printf("tvm_op: creating %s with node_id=%d\n", inode->param.func_name, nid);
 #endif  // TVM_CRT_DEBUG
       TVMPackedFunc pf;
-      TVMGraphRuntime_CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count,
+      TVMGraphExecutor_CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count,
                                   &pf);
       runtime->op_execs[nid] = pf;
     }
@@ -1104,7 +1104,7 @@ typedef struct TVMOpArgs {
   uint32_t shape_data_count;
 } TVMOpArgs;
 
-int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* param,
+int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* runtime, const TVMOpParam* param,
                                     DLTensorPtr* args, const uint32_t args_count,
                                     uint32_t num_inputs, TVMPackedFunc* pf) {
   int status = 0;
@@ -1151,7 +1151,7 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
  * executed on.
  * \return 0 on success.
  */
-int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
+int TVMGraphExecutor_Init(TVMGraphExecutor* runtime, const char* graph_json,
                          TVMModuleHandle module_handle, const DLDevice* devs) {
   JSONReader reader;
   tvm_crt_error_t err = JSONReader_Create(graph_json, &reader);
@@ -1159,7 +1159,7 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
     return -1;
   }
 
-  TVMGraphRuntime_Load(runtime, &reader);
+  TVMGraphExecutor_Load(runtime, &reader);
   err = JSONReader_Release(&reader);
   if (err != kTvmErrorNoError) {
     return -1;
@@ -1168,11 +1168,11 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
   runtime->devices[0] = devs[0];
 
   int status;
-  status = TVMGraphRuntime_SetupStorage(runtime);
+  status = TVMGraphExecutor_SetupStorage(runtime);
   if (status != 0) {
     return status;
   }
-  status = TVMGraphRuntime_SetupOpExecs(runtime);
+  status = TVMGraphExecutor_SetupOpExecs(runtime);
   if (status != 0) {
     if (status != 0) {
       return status;
@@ -1184,26 +1184,26 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
   return status;
 }
 
-int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const DLDevice* devs, TVMGraphRuntime** runtime) {
+int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
+                           const DLDevice* devs, TVMGraphExecutor** runtime) {
   DLDevice dev = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntime), dev, (void**)runtime);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutor), dev, (void**)runtime);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
   }
 
-  memset(*runtime, 0, sizeof(TVMGraphRuntime));
+  memset(*runtime, 0, sizeof(TVMGraphExecutor));
   // init
-  return TVMGraphRuntime_Init(*runtime, sym_json, module_handle, devs);
+  return TVMGraphExecutor_Init(*runtime, sym_json, module_handle, devs);
 }
 
-int TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
+int TVMGraphExecutor_Release(TVMGraphExecutor** pptr) {
   int status = 0;
   int32_t idx;
-  TVMGraphRuntime* runtime = (TVMGraphRuntime*)(*pptr);
+  TVMGraphExecutor* runtime = (TVMGraphExecutor*)(*pptr);
   for (idx = 0; idx < runtime->nodes_count; ++idx) {
-    status = TVMGraphRuntimeNodeRelease(&(runtime->nodes[idx]));
+    status = TVMGraphExecutorNodeRelease(&(runtime->nodes[idx]));
     if (status != 0) {
       return status;
     }
@@ -1213,7 +1213,7 @@ int TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
   if (status != 0) {
     return status;
   }
-  status = TVMGraphRuntimeGraphAttr_Release(&(runtime->attrs));
+  status = TVMGraphExecutorGraphAttr_Release(&(runtime->attrs));
   if (status != 0) {
     return status;
   }

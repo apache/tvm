@@ -60,7 +60,7 @@ struct BuildOutput {
 struct GraphCodegen {
  public:
   GraphCodegen() {
-    auto pf = GetPackedFunc("relay.build_module._GraphRuntimeCodegen");
+    auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
     mod = (*pf)();
   }
   ~GraphCodegen() {}

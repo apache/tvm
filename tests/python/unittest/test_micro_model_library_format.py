@@ -170,7 +170,7 @@ def test_export_model_library_format_llvm():
 @tvm.testing.requires_micro
 def test_export_model():
     module = tvm.support.FrontendTestModule()
-    factory = graph_runtime_factory.GraphRuntimeFactoryModule(
+    factory = graph_runtime_factory.GraphExecutorFactoryModule(
         None, tvm.target.target.micro("host"), '"graph_json"', module, "test_module", {}
     )
 

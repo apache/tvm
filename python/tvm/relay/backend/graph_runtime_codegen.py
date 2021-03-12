@@ -39,11 +39,11 @@ from tvm.target import Target
 from tvm.tir import expr as _expr
 
 
-class GraphRuntimeCodegen(object):
+class GraphExecutorCodegen(object):
     """The compiler from Relay to the TVM runtime system."""
 
     def __init__(self, mod, target):
-        self._mod = _build_module._GraphRuntimeCodegen()
+        self._mod = _build_module._GraphExecutorCodegen()
         self._init = self._mod["init"]
         self._codegen = self._mod["codegen"]
         self._get_graph_json = self._mod["get_graph_json"]

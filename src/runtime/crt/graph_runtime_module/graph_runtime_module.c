@@ -33,12 +33,12 @@
 
 typedef struct {
   TVMModule mod;
-  TVMGraphRuntime* runtime;
-} GraphRuntimeModule;
+  TVMGraphExecutor* runtime;
+} GraphExecutorModule;
 
-static GraphRuntimeModule graph_runtime;
+static GraphExecutorModule graph_runtime;
 
-int32_t TVMGraphRuntimeModule_Create(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+int32_t TVMGraphExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                      int* ret_tcodes, void* resource_handle) {
   if (graph_runtime.runtime != NULL) {
     return kTvmErrorGraphModuleAlreadyCreated;
@@ -59,7 +59,7 @@ int32_t TVMGraphRuntimeModule_Create(TVMValue* args, int* tcodes, int nargs, TVM
 
   DLDevice dev = {(DLDeviceType)args[2].v_int64, (int)args[3].v_int64};
   int ret_value =
-      TVMGraphRuntime_Create(args[0].v_str, args[1].v_handle, &dev, &graph_runtime.runtime);
+      TVMGraphExecutor_Create(args[0].v_str, args[1].v_handle, &dev, &graph_runtime.runtime);
   if (ret_value != 0) {
     return ret_value;
   }
@@ -68,7 +68,7 @@ int32_t TVMGraphRuntimeModule_Create(TVMValue* args, int* tcodes, int nargs, TVM
   ret_value = TVMModCreateFromCModule(&graph_runtime.mod, &out);
   if (ret_value != 0) {
     ret_tcodes[0] = kTVMNullptr;
-    TVMGraphRuntime_Release(&graph_runtime.runtime);
+    TVMGraphExecutor_Release(&graph_runtime.runtime);
     return ret_value;
   }
 
@@ -77,7 +77,7 @@ int32_t TVMGraphRuntimeModule_Create(TVMValue* args, int* tcodes, int nargs, TVM
   return kTvmErrorNoError;
 }
 
-int32_t TVMGraphRuntimeModule_GetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                        int* ret_tcodes, void* resource_handle) {
   if (nargs != 1) {
     return kTvmErrorFunctionCallNumArguments;
@@ -87,43 +87,43 @@ int32_t TVMGraphRuntimeModule_GetInput(TVMValue* args, int* tcodes, int nargs, T
     return kTvmErrorFunctionCallWrongArgType;
   }
 
-  int index = TVMGraphRuntime_GetInputIndex(graph_runtime.runtime, args[0].v_str);
+  int index = TVMGraphExecutor_GetInputIndex(graph_runtime.runtime, args[0].v_str);
   if (index < 0) {
     return kTvmErrorGraphModuleNoSuchInput;
   }
 
-  uint32_t eid = TVMGraphRuntime_GetEntryId(graph_runtime.runtime,
+  uint32_t eid = TVMGraphExecutor_GetEntryId(graph_runtime.runtime,
                                             graph_runtime.runtime->input_nodes[index], 0);
   ret_values[0].v_handle = (void*)&graph_runtime.runtime->data_entry[eid].dl_tensor;
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
 
-int32_t TVMGraphRuntimeModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
+int32_t TVMGraphExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
                                            TVMValue* ret_values, int* ret_tcodes,
                                            void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  ret_values[0].v_int64 = TVMGraphRuntime_GetNumInputs();
+  ret_values[0].v_int64 = TVMGraphExecutor_GetNumInputs();
   ret_tcodes[0] = kTVMArgInt;
   return 0;
 }
 
-int32_t TVMGraphRuntimeModule_GetNumOutputs(TVMValue* args, int* tcodes, int nargs,
+int32_t TVMGraphExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int nargs,
                                             TVMValue* ret_values, int* ret_tcodes,
                                             void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  ret_values[0].v_int64 = TVMGraphRuntime_GetNumOutputs(graph_runtime.runtime);
+  ret_values[0].v_int64 = TVMGraphExecutor_GetNumOutputs(graph_runtime.runtime);
   ret_tcodes[0] = kTVMArgInt;
   return 0;
 }
 
-int32_t TVMGraphRuntimeModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
+int32_t TVMGraphExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
                                         TVMValue* ret_values, int* ret_tcodes,
                                         void* resource_handle) {
   if (nargs != 1) {
@@ -135,20 +135,20 @@ int32_t TVMGraphRuntimeModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
   }
 
   int output_index = args[0].v_int64;
-  if (output_index < 0 || output_index > TVMGraphRuntime_GetNumOutputs(graph_runtime.runtime)) {
+  if (output_index < 0 || output_index > TVMGraphExecutor_GetNumOutputs(graph_runtime.runtime)) {
     return kTvmErrorGraphModuleNoSuchInput;
   }
 
   uint32_t nid = graph_runtime.runtime->outputs[output_index].node_id;
   uint32_t index = graph_runtime.runtime->outputs[output_index].index;
-  uint32_t eid = TVMGraphRuntime_GetEntryId(graph_runtime.runtime, nid, index);
+  uint32_t eid = TVMGraphExecutor_GetEntryId(graph_runtime.runtime, nid, index);
 
   ret_values[0].v_handle = (void*)&(graph_runtime.runtime->data_entry[eid].dl_tensor);
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
 
-int32_t TVMGraphRuntimeModule_LoadParams(TVMValue* args, int* tcodes, int nargs,
+int32_t TVMGraphExecutorModule_LoadParams(TVMValue* args, int* tcodes, int nargs,
                                          TVMValue* ret_values, int* ret_tcodes,
                                          void* resource_handle) {
   if (nargs != 1) {
@@ -162,22 +162,22 @@ int32_t TVMGraphRuntimeModule_LoadParams(TVMValue* args, int* tcodes, int nargs,
   ret_tcodes[0] = kTVMNullptr;
 
   TVMByteArray* arr = (TVMByteArray*)args[0].v_handle;
-  return TVMGraphRuntime_LoadParams(graph_runtime.runtime, arr->data, arr->size);
+  return TVMGraphExecutor_LoadParams(graph_runtime.runtime, arr->data, arr->size);
 }
 
-int32_t TVMGraphRuntimeModule_Run(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+int32_t TVMGraphExecutorModule_Run(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                   int* ret_tcodes, void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  TVMGraphRuntime_Run(graph_runtime.runtime);
+  TVMGraphExecutor_Run(graph_runtime.runtime);
 
   ret_tcodes[0] = kTVMNullptr;
   return 0;
 }
 
-int32_t TVMGraphRuntimeModule_SetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+int32_t TVMGraphExecutorModule_SetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                        int* ret_tcodes, void* resource_handle) {
   if (nargs != 2) {
     return kTvmErrorFunctionCallNumArguments;
@@ -187,23 +187,23 @@ int32_t TVMGraphRuntimeModule_SetInput(TVMValue* args, int* tcodes, int nargs, T
     return kTvmErrorFunctionCallWrongArgType;
   }
 
-  TVMGraphRuntime_SetInput(graph_runtime.runtime, args[0].v_str, (DLTensor*)args[1].v_handle);
+  TVMGraphExecutor_SetInput(graph_runtime.runtime, args[0].v_str, (DLTensor*)args[1].v_handle);
 
   ret_tcodes[0] = kTVMNullptr;
   return 0;
 }
 
-int32_t TVMGraphRuntimeModule_NotImplemented(TVMValue* args, int* tcodes, int nargs,
+int32_t TVMGraphExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int nargs,
                                              TVMValue* ret_values, int* ret_tcodes,
                                              void* resource_handle) {
   return kTvmErrorFunctionCallNotImplemented;
 }
 
 static const TVMBackendPackedCFunc graph_runtime_registry_funcs[] = {
-    &TVMGraphRuntimeModule_GetInput,      &TVMGraphRuntimeModule_GetNumInputs,
-    &TVMGraphRuntimeModule_GetNumOutputs, &TVMGraphRuntimeModule_GetOutput,
-    &TVMGraphRuntimeModule_LoadParams,    &TVMGraphRuntimeModule_Run,
-    &TVMGraphRuntimeModule_SetInput,      &TVMGraphRuntimeModule_NotImplemented,
+    &TVMGraphExecutorModule_GetInput,      &TVMGraphExecutorModule_GetNumInputs,
+    &TVMGraphExecutorModule_GetNumOutputs, &TVMGraphExecutorModule_GetOutput,
+    &TVMGraphExecutorModule_LoadParams,    &TVMGraphExecutorModule_Run,
+    &TVMGraphExecutorModule_SetInput,      &TVMGraphExecutorModule_NotImplemented,
 };
 
 static const TVMFuncRegistry graph_runtime_registry = {
@@ -217,9 +217,9 @@ static const TVMFuncRegistry graph_runtime_registry = {
     "share_params\0",
     graph_runtime_registry_funcs};
 
-tvm_crt_error_t TVMGraphRuntimeModule_Register() {
+tvm_crt_error_t TVMGraphExecutorModule_Register() {
   graph_runtime.mod.registry = &graph_runtime_registry;
   graph_runtime.runtime = NULL;
 
-  return TVMFuncRegisterGlobal("tvm.graph_runtime.create", &TVMGraphRuntimeModule_Create, 0);
+  return TVMFuncRegisterGlobal("tvm.graph_runtime.create", &TVMGraphExecutorModule_Create, 0);
 }

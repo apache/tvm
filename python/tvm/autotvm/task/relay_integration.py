@@ -43,7 +43,7 @@ def _lower(mod, target, params):
 
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc = graph_runtime_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(mod["main"])
             return
 
@@ -53,11 +53,11 @@ def _lower(mod, target, params):
     # TODO: Currently VM compiler is likely to stack overflow for large models.
     try:
         opt_mod, _ = relay.optimize(mod, target, params)
-        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+        grc = graph_runtime_codegen.GraphExecutorCodegen(None, target)
         grc.codegen(opt_mod["main"])
     except tvm.TVMError as e:
         print(
-            "Get errors with GraphRuntimeCodegen for task extraction. "
+            "Get errors with GraphExecutorCodegen for task extraction. "
             "Fallback to VMCompiler. Error details:\n%s" % str(e)
         )
         compiler = relay.vm.VMCompiler()

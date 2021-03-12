@@ -110,7 +110,7 @@ class BuildModule(object):
 
         Returns
         -------
-        factory_module : tvm.relay.backend.graph_runtime_factory.GraphRuntimeFactoryModule
+        factory_module : tvm.relay.backend.graph_runtime_factory.GraphExecutorFactoryModule
             The runtime factory for the TVM graph runtime.
         """
         target = _update_target(target)
@@ -281,7 +281,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
-        runtime_mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
+        runtime_mod = _graph_runtime_factory.GraphExecutorFactoryModule(
             ir_mod, target, graph_json, runtime_mod, mod_name, params
         )
         return runtime_mod

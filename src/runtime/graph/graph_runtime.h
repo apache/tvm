@@ -61,7 +61,7 @@ struct TVMOpParam {
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
  */
-class TVM_DLL GraphRuntime : public ModuleNode {
+class TVM_DLL GraphExecutor : public ModuleNode {
   struct OpArgs {
     std::vector<DLTensor> args;
     std::vector<TVMValue> arg_values;
@@ -81,7 +81,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final { return "GraphRuntime"; }
+  const char* type_key() const final { return "GraphExecutor"; }
   void Run();
 
   /*!
@@ -162,12 +162,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   void LoadParams(const std::string& param_blob);
 
   /*!
-   * \brief Share parameters from pre-existing GraphRuntime instance.
-   * \param other A GraphRuntime instance, previously with |LoadParams| called with the
+   * \brief Share parameters from pre-existing GraphExecutor instance.
+   * \param other A GraphExecutor instance, previously with |LoadParams| called with the
    * identical input |param_blob|.
    * \param strm The input stream.
    */
-  void ShareParams(const GraphRuntime& other, dmlc::Stream* strm);
+  void ShareParams(const GraphExecutor& other, dmlc::Stream* strm);
 
   /*!
    * \brief Get total number of nodes.

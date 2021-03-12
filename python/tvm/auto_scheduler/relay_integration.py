@@ -63,11 +63,11 @@ def call_all_topi_funcs(mod, params, target):
     ):
         try:
             opt_mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc = graph_runtime_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(opt_mod["main"])
         except tvm.TVMError:
             print(
-                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Get errors with GraphExecutorCodegen for task extraction. "
                 "Fallback to VMCompiler."
             )
             compiler = relay.vm.VMCompiler()

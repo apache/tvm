@@ -213,8 +213,8 @@ In Host-Driven execution, the firmware binary is the following:
 4. The TVM RPC server.
 5. (optional) Simplified Parameters.
 
-This firmware image is flashed onto the device and a GraphRuntime instance is created on the host.
-The GraphRuntime drives execution by sending RPC commands over a UART:
+This firmware image is flashed onto the device and a GraphExecutor instance is created on the host.
+The GraphExecutor drives execution by sending RPC commands over a UART:
 
 .. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_host_driven.svg
    :align: center
@@ -223,7 +223,7 @@ The GraphRuntime drives execution by sending RPC commands over a UART:
 Standalone Execution
 ^^^^^^^^^^^^^^^^^^^^
 
-In Standalone execution, the GraphRuntime is instantiated on device:
+In Standalone execution, the GraphExecutor is instantiated on device:
 
 .. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_standalone.svg
    :align: center
@@ -248,7 +248,7 @@ When configuring for host-driven inference or AutoTVM, the remaining tasks are w
 When configuring for standalone deployment, the firmware needs to:
 
 1. Instantiate the system library by calling the ``runtime.SystemLib`` PackedFunc.
-2. Instantiate a GraphRuntime passing the system library module.
+2. Instantiate a GraphExecutor passing the system library module.
 3. Configure parameters and inputs as needed.
 4. Run the model.
 
@@ -267,7 +267,7 @@ For Host-driven model execution, firmware also needs:
 
 For Standalone model execution, firmware also needs:
 
-4. The TVM C GraphRuntime library, supplied by TVM as a static library.
+4. The TVM C GraphExecutor library, supplied by TVM as a static library.
 5. The remaining compiler outputs (Simplified Parameters and Graph JSON).
 
 The Automated Build Flow

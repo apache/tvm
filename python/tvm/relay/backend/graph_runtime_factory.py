@@ -21,7 +21,7 @@ from ..._ffi.registry import get_global_func
 from ...runtime import ndarray
 
 
-class GraphRuntimeFactoryModule:
+class GraphExecutorFactoryModule:
     """Graph runtime factory module.
     This is a module of graph runtime factory
 

@@ -283,12 +283,12 @@ class GraphModule(object):
         self._load_params(bytearray(params_bytes))
 
     def share_params(self, other, params_bytes):
-        """Share parameters from pre-existing GraphRuntime instance.
+        """Share parameters from pre-existing GraphExecutor instance.
 
         Parameters
         ----------
-        other: GraphRuntime
-            The parent GraphRuntime from which this instance should share
+        other: GraphExecutor
+            The parent GraphExecutor from which this instance should share
             it's parameters.
         params_bytes : bytearray
             The serialized parameter dict (used only for the parameter names).

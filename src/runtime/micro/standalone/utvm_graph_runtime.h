@@ -116,12 +116,12 @@ class NDArray {
   DLDevice device_;
 };
 
-// Minimal GraphRuntime implementation
-class MicroGraphRuntime {
+// Minimal GraphExecutor implementation
+class MicroGraphExecutor {
  public:
-  // Construct a GraphRuntime with the given graph and DSOModule.
-  MicroGraphRuntime(const std::string& graph_json, DSOModule* module);
-  ~MicroGraphRuntime();
+  // Construct a GraphExecutor with the given graph and DSOModule.
+  MicroGraphExecutor(const std::string& graph_json, DSOModule* module);
+  ~MicroGraphExecutor();
   // Run the graph
   void Run();
   // Set the input at `index` to a copy of the tensor `data_in`

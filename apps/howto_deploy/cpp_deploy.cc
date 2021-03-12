@@ -83,7 +83,7 @@ void DeploySingleOp() {
   Verify(mod_syslib, "addonesys");
 }
 
-void DeployGraphRuntime() {
+void DeployGraphExecutor() {
   LOG(INFO) << "Running graph runtime...";
   // load in the library
   DLDevice dev{kDLCPU, 0};
@@ -119,6 +119,6 @@ void DeployGraphRuntime() {
 
 int main(void) {
   DeploySingleOp();
-  DeployGraphRuntime();
+  DeployGraphExecutor();
   return 0;
 }

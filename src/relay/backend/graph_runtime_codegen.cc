@@ -182,9 +182,9 @@ class GraphOpNode : public GraphNode {
 };
 
 /*! \brief Code generator for graph runtime */
-class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
+class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {
+  GraphExecutorCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
   }
@@ -541,7 +541,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
   TargetsMap targets_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
-   * These are take as inputs to the GraphRuntime.
+   * These are take as inputs to the GraphExecutor.
    * Maps param name to a pair of storage_id and NDArray. At runtime, the storage_id can be
    * used to lookup the parameter.
    */
@@ -557,9 +557,9 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
   CompileEngine compile_engine_;
 };
 
-class GraphRuntimeCodegenModule : public runtime::ModuleNode {
+class GraphExecutorCodegenModule : public runtime::ModuleNode {
  public:
-  GraphRuntimeCodegenModule() {}
+  GraphExecutorCodegenModule() {}
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -574,7 +574,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
           targets[dev_type->value] = it.second;
         }
         codegen_ =
-            std::make_shared<GraphRuntimeCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
+            std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -619,19 +619,19 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
+  const char* type_key() const final { return "RelayGraphExecutorCodegenModule"; }
 
  private:
-  std::shared_ptr<GraphRuntimeCodegen> codegen_;
+  std::shared_ptr<GraphExecutorCodegen> codegen_;
   LoweredOutput output_;
 };
 
 runtime::Module CreateGraphCodegenMod() {
-  auto ptr = make_object<GraphRuntimeCodegenModule>();
+  auto ptr = make_object<GraphExecutorCodegenModule>();
   return runtime::Module(ptr);
 }
 
-TVM_REGISTER_GLOBAL("relay.build_module._GraphRuntimeCodegen")
+TVM_REGISTER_GLOBAL("relay.build_module._GraphExecutorCodegen")
     .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = CreateGraphCodegenMod(); });
 
 }  // namespace backend

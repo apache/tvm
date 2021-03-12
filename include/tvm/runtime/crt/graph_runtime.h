@@ -43,7 +43,7 @@ typedef struct TVMOpParam {
 } TVMOpParam;
 
 // Graph attribute
-typedef struct TVMGraphRuntimeGraphAttr {
+typedef struct TVMGraphExecutorGraphAttr {
   uint32_t storage_num_not_alloctaed;
   uint32_t* storage_id;
   uint32_t* device_index;
@@ -52,13 +52,13 @@ typedef struct TVMGraphRuntimeGraphAttr {
   int64_t* shape;
   uint32_t* ndim;
   uint32_t shape_count;
-} TVMGraphRuntimeGraphAttr;
+} TVMGraphExecutorGraphAttr;
 
-typedef struct TVMGraphRuntime TVMGraphRuntime;
+typedef struct TVMGraphExecutor TVMGraphExecutor;
 
 // public functions
 /*!
- * \brief Allocate a new GraphRuntime with TVMPlatformMemoryAllocate and initialize it.
+ * \brief Allocate a new GraphExecutor with TVMPlatformMemoryAllocate and initialize it.
  *
  * \param sym_json JSON-encoded graph.
  * \param module_handle TVM Module that exposes the functions to call.
@@ -66,16 +66,16 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  * \param runtime Pointer which receives a pointer to the newly-created instance.
  * \return 0 if successful.
  */
-int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const DLDevice* devices, TVMGraphRuntime** runtime);
+int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
+                           const DLDevice* devices, TVMGraphExecutor** runtime);
 
-int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
+int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* runtime, const char* name);
 
 /*!
  * \brief get number of input tensors allocated.
  * \return integer number of tensors available to use.
  */
-int TVMGraphRuntime_GetNumInputs();
+int TVMGraphExecutor_GetNumInputs();
 
 /*!
  * \brief set input to the graph based on name.
@@ -83,13 +83,13 @@ int TVMGraphRuntime_GetNumInputs();
  * \param name The name of the input.
  * \param data_in The input data.
  */
-void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
+void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTensor* data_in);
 
 /*!
  * \brief get number of output tensors allocated.
  * \return integer number of output tensors allocated.
  */
-int TVMGraphRuntime_GetNumOutputs();
+int TVMGraphExecutor_GetNumOutputs();
 
 /*!
  * \brief Return NDArray for given output index.
@@ -98,7 +98,7 @@ int TVMGraphRuntime_GetNumOutputs();
  * \param out The DLTensor corresponding to given output node index.
  * \return The result of this function execution.
  */
-int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t index, DLTensor* out);
+int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t index, DLTensor* out);
 
 /*!
  * \brief Load parameters from parameter blob.
@@ -107,21 +107,21 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t index, DLT
  * \param param_size The parameter size.
  * \return The result of this function execution.
  */
-int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
+int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
                                const uint32_t param_size);
 
 /*!
  * \brief Execute the graph.
  * \param runtime The graph runtime.
  */
-void TVMGraphRuntime_Run(TVMGraphRuntime* runtime);
+void TVMGraphExecutor_Run(TVMGraphExecutor* runtime);
 
 /*!
  * \brief Release memory associated with the graph runtime.
  * \param runtime Pointer to graph runtime.
  * \return 0 if successful
  */
-int TVMGraphRuntime_Release(TVMGraphRuntime** runtime);
+int TVMGraphExecutor_Release(TVMGraphExecutor** runtime);
 
 #ifdef __cplusplus
 }  // extern "C"

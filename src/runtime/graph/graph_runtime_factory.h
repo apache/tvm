@@ -42,15 +42,15 @@
 namespace tvm {
 namespace runtime {
 
-class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
+class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
  public:
   /*!
-   * \brief Construct the GraphRuntimeFactory.
+   * \brief Construct the GraphExecutorFactory.
    * \param graph_json The execution graph.
    * \param params The params of graph.
    * \param module_name The module name of graph.
    */
-  GraphRuntimeFactory(const std::string& graph_json,
+  GraphExecutorFactory(const std::string& graph_json,
                       const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
                       const std::string& module_name = "default");
 
@@ -65,7 +65,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const override { return "GraphRuntimeFactory"; }
+  const char* type_key() const override { return "GraphExecutorFactory"; }
 
   /*!
    * \brief Save the module to binary stream.
@@ -95,14 +95,14 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    *  executed on.
    * \return created cuda graph runtime module
    */
-  Module CudaGraphRuntimeCreate(const std::vector<Device>& devs);
+  Module CudaGraphExecutorCreate(const std::vector<Device>& devs);
 
   /*!
    * \brief Set params.
    * \param graph_runtime The graph runtime we want to set the params into.
    * \param params The graph params value we want to set.
    */
-  void SetParams(GraphRuntime* graph_runtime,
+  void SetParams(GraphExecutor* graph_runtime,
                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
     std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
     // upload big arrays first to avoid memory issue in rpc mode
