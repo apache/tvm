@@ -35,7 +35,7 @@ tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
-tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_PROFILER "Build profiler for the VM and graph runtime" ON)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
@@ -262,13 +262,6 @@ list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
 
-
-if(USE_VM_PROFILER)
-  message(STATUS "Build compiler with Relay VM profiler support...")
-  file(GLOB BACKEND_VM_PROFILER_SRCS src/relay/backend/vm/profiler/*.cc)
-  list(APPEND COMPILER_SRCS ${BACKEND_VM_PROFILER_SRCS})
-endif(USE_VM_PROFILER)
-
 file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
@@ -315,20 +308,29 @@ if(USE_GRAPH_RUNTIME)
   file(GLOB RUNTIME_GRAPH_SRCS src/runtime/graph/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_SRCS})
 
-  if(USE_GRAPH_RUNTIME_DEBUG)
-    message(STATUS "Build with Graph runtime debug support...")
-    file(GLOB RUNTIME_GRAPH_DEBUG_SRCS src/runtime/graph/debug/*.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_DEBUG_SRCS})
-    set_source_files_properties(${RUNTIME_GRAPH_SRCS}
-      PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
-  endif(USE_GRAPH_RUNTIME_DEBUG)
 endif(USE_GRAPH_RUNTIME)
 
+# convert old options for profiler
+if(USE_GRAPH_RUNTIME_DEBUG)
+  unset(USE_GRAPH_RUNTIME_DEBUG CACHE)
+  set(USE_PROFILER ON)
+endif()
 if(USE_VM_PROFILER)
-  message(STATUS "Build with Relay VM profiler support...")
+  unset(USE_VM_PROFILER CACHE)
+  set(USE_PROFILER ON)
+endif()
+
+if(USE_PROFILER)
+  message(STATUS "Build with profiler...")
+
+  file(GLOB RUNTIME_GRAPH_DEBUG_SRCS src/runtime/graph/debug/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_DEBUG_SRCS})
+  set_source_files_properties(${RUNTIME_GRAPH_SRCS}
+    PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
+
   file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
-endif(USE_VM_PROFILER)
+endif(USE_PROFILER)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
