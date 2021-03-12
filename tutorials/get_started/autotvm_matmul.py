@@ -84,6 +84,7 @@ from tvm import autotvm
 # optimization, using a fixed value that defines the block size of the
 # reordering.
 
+
 def matmul_basic(N, L, M, dtype):
 
     a = te.placeholder((n, l), name="a", dtype=dtype)
@@ -210,6 +211,7 @@ def matmul_v1(N, L, M, dtype):
 # :any:`ConfigSpace.define_annotate` for annotation like unroll, vectorization,
 # thread binding. When the high level API cannot meet your requirements, you
 # can always fall back to using the low level API.
+
 
 @autotvm.template("tutorial/matmul")
 def matmul(N, L, M, dtype):
