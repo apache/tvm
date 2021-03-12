@@ -45,7 +45,7 @@
 #include "../../../src/runtime/rpc/rpc_server_env.cc"
 #include "../../../src/runtime/rpc/rpc_session.cc"
 #include "../../../src/runtime/rpc/rpc_socket_impl.cc"
-// Graph runtime
+// Graph executor
 #include "../../../src/runtime/graph_executor/graph_executor.cc"
 // Metal
 #include "../../../src/runtime/metal/metal_device_api.mm"

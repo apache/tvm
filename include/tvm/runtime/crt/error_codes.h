@@ -83,7 +83,7 @@ typedef enum {
   // Common error codes returned from generated functions.
   kTvmErrorGeneratedInvalidStorageId = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGenerated, 0),
 
-  // Graph runtime
+  // Graph executor
   kTvmErrorGraphModuleAlreadyCreated = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphExecutor, 0),
   kTvmErrorGraphModuleBadContext = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphExecutor, 1),
   kTvmErrorGraphModuleNoSuchInput = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphExecutor, 2),

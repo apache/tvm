@@ -163,7 +163,7 @@ TEST(BuildModule, Heterogeneous) {
     pc[i] = i - 1.0;
   }
 
-  // Initialize graph runtime.
+  // Initialize graph executor.
   int cpu_dev_ty = static_cast<int>(kDLCPU);
   int cpu_dev_id = 0;
   int gpu_dev_ty = static_cast<int>(kDLGPU);

@@ -36,7 +36,7 @@ TARGET = "micro_dev"
 
 
 def relay_micro_build(func, dev_config, params=None):
-    """Create a graph runtime module with a micro device context from a Relay function.
+    """Create a graph executor module with a micro device context from a Relay function.
 
     Parameters
     ----------
@@ -52,7 +52,7 @@ def relay_micro_build(func, dev_config, params=None):
     Return
     ------
     mod : tvm.runtime.Module
-        graph runtime module for the target device
+        graph executor module for the target device
     """
     with tvm.transform.PassContext(
         disabled_pass={"FuseOps"}, config={"tir.disable_vectorize": True}
@@ -172,7 +172,7 @@ def test_workspace_add():
 
 
 def test_graph_executor():
-    """Test a program which uses the graph runtime."""
+    """Test a program which uses the graph executor."""
     if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
@@ -349,7 +349,7 @@ if __name__ == "__main__":
     input("[press enter to continue]")
     test_graph_executor()
     print()
-    print("finished graph runtime test")
+    print("finished graph executor test")
     input("[press enter to continue]")
     test_conv2d()
     print()

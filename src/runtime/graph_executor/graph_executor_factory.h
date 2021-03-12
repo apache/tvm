@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/runtime/graph_executor/graph_executor_factory.h
- * \brief Graph runtime factory creating graph runtime.
+ * \brief Graph executor factory creating graph executor.
  */
 
 #ifndef TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
@@ -90,16 +90,16 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
   Module DebugRuntimeCreate(const std::vector<Device>& devs);
 
   /*!
-   * \brief Create a specific cuda graph runtime module
+   * \brief Create a specific cuda graph executor module
    * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
-   * \return created cuda graph runtime module
+   * \return created cuda graph executor module
    */
   Module CudaGraphExecutorCreate(const std::vector<Device>& devs);
 
   /*!
    * \brief Set params.
-   * \param graph_executor The graph runtime we want to set the params into.
+   * \param graph_executor The graph executor we want to set the params into.
    * \param params The graph params value we want to set.
    */
   void SetParams(GraphExecutor* graph_executor,

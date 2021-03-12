@@ -19,7 +19,7 @@
 
 /*!
  * \file relay/backend/graph_codegen.cc
- * \brief Graph runtime codegen
+ * \brief Graph executor codegen
  */
 
 #include <dmlc/any.h>
@@ -181,7 +181,7 @@ class GraphOpNode : public GraphNode {
   const std::string op_type_name_{"tvm_op"};
 };
 
-/*! \brief Code generator for graph runtime */
+/*! \brief Code generator for graph executor */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
   GraphExecutorCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {

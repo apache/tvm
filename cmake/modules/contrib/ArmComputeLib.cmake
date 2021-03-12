@@ -60,11 +60,11 @@ if(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_ACL_COMPUTE_CORE_LIB})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_ACL_COMPUTE_GRAPH_LIB})
     list(APPEND RUNTIME_SRCS ${ACL_CONTRIB_SRC})
-    message(STATUS "Build with Arm Compute Library graph runtime support: "
+    message(STATUS "Build with Arm Compute Library graph executor support: "
             ${EXTERN_ACL_COMPUTE_LIB} ", \n"
             ${EXTERN_ACL_COMPUTE_CORE_LIB} ", \n"
             ${EXTERN_ACL_COMPUTE_GRAPH_LIB})
 
-    # Set flag to detect ACL graph runtime support.
+    # Set flag to detect ACL graph executor support.
     add_definitions(-DTVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB)
 endif()

@@ -77,7 +77,7 @@ def add_run_parser(subparsers):
         "--profile",
         action="store_true",
         help="generate profiling data from the runtime execution. "
-        "Using --profile requires the Graph Runtime Debug enabled on TVM. "
+        "Using --profile requires the Graph Executor Debug enabled on TVM. "
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated.",
     )
@@ -296,7 +296,7 @@ def run_module(
     repeat=1,
     profile=False,
 ):
-    """Run a compiled graph runtime module locally or remotely with
+    """Run a compiled graph executor module locally or remotely with
     optional input values.
 
     If input tensors are not specified explicitly, they can be filled

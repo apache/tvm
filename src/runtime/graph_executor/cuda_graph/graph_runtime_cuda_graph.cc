@@ -30,7 +30,7 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Graph runtime with CUDA Graph Support.
+ * \brief Graph executor with CUDA Graph Support.
  *
  *  This is the extension of GraphExecutor class used for CUDA graph launch
  *  instead of CUDA kernel launch. CUDA graph launch requires CUDA 10.0 or

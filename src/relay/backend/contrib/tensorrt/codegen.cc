@@ -217,7 +217,7 @@ runtime::Module TensorRTCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.tensorrt").set_body_typed(TensorRTCompiler);
 
 /*!
- * \brief Check whether TensorRT graph runtime is enabled.
+ * \brief Check whether TensorRT graph executor is enabled.
  * \return True if enabled, False if not.
  */
 inline constexpr bool IsTensorRTRuntimeEnabled() {

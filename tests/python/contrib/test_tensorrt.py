@@ -296,7 +296,7 @@ def test_tensorrt_serialize_graph_executor():
         lib = tvm.runtime.load_module(tmpdir.relpath("compiled.so"))
         return graph, lib, params
 
-    # Test serialization with graph runtime
+    # Test serialization with graph executor
     graph, lib, graph_params = compile_graph(mod, params)
     save_graph(graph, lib, graph_params)
     loaded_graph, loaded_lib, loaded_params = load_graph()

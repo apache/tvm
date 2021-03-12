@@ -193,7 +193,7 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, device):
 
 
 def create_local_graph_executor(graph_json_str, mod, device):
-    """Create a local graph runtime driving execution on the remote CPU device given.
+    """Create a local graph executor driving execution on the remote CPU device given.
 
     Parameters
     ----------
@@ -209,7 +209,7 @@ def create_local_graph_executor(graph_json_str, mod, device):
     Returns
     -------
     tvm.contrib.GraphExecutor :
-         A local graph runtime instance that executes on the remote device.
+         A local graph executor instance that executes on the remote device.
     """
     device_type_id = [device.device_type, device.device_id]
     fcreate = get_global_func("tvm.graph_executor.create")
@@ -238,7 +238,7 @@ def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
     Returns
     -------
     tvm.contrib.GraphExecutor :
-         A local graph runtime instance that executes on the remote device.
+         A local graph executor instance that executes on the remote device.
     """
     device_type_id = [device.device_type, device.device_id]
     fcreate = get_global_func("tvm.graph_executor_debug.create")

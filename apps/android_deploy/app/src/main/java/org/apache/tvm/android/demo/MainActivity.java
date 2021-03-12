@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /*
-        Load precompiled model on TVM graph runtime and init the system.
+        Load precompiled model on TVM graph executor and init the system.
      */
     private class LoadModleAsyncTask extends AsyncTask<Void, Void, Integer> {
         ProgressDialog dialog = new ProgressDialog(MainActivity.this);
@@ -183,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
             // tvm module for compiled functions
             Module modelLib = Module.load(libCacheFilePath);
 
-            // get global function module for graph runtime
+            // get global function module for graph executor
             Function runtimeCreFun = Function.getFunction("tvm.graph_executor.create");
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
@@ -224,7 +224,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /*
-        Execute prediction for processed decode input bitmap image content on TVM graph runtime.
+        Execute prediction for processed decode input bitmap image content on TVM graph executor.
      */
     private class ModelRunAsyncTask extends AsyncTask<Bitmap, Void, Integer> {
         ProgressDialog dialog = new ProgressDialog(MainActivity.this);

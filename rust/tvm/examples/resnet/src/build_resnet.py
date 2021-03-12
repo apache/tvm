@@ -151,7 +151,7 @@ def test_build(build_dir):
 
 
 if __name__ == "__main__":
-    logger.info("Compiling the model to graph runtime.")
+    logger.info("Compiling the model to graph executor.")
     build(build_dir)
     logger.info("Testing the model's predication on test data.")
     test_build(build_dir)

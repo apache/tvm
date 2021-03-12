@@ -19,7 +19,7 @@
 
 /*!
  * \file graph_executor.h
- * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
+ * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
  */
 #ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
 #define TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
@@ -79,7 +79,7 @@ int TVMGraphExecutor_GetNumInputs();
 
 /*!
  * \brief set input to the graph based on name.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \param name The name of the input.
  * \param data_in The input data.
  */
@@ -93,7 +93,7 @@ int TVMGraphExecutor_GetNumOutputs();
 
 /*!
  * \brief Return NDArray for given output index.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \param index The output index.
  * \param out The DLTensor corresponding to given output node index.
  * \return The result of this function execution.
@@ -102,7 +102,7 @@ int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t index, D
 
 /*!
  * \brief Load parameters from parameter blob.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \param param_blob A binary blob of parameter.
  * \param param_size The parameter size.
  * \return The result of this function execution.
@@ -112,13 +112,13 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blo
 
 /*!
  * \brief Execute the graph.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  */
 void TVMGraphExecutor_Run(TVMGraphExecutor* runtime);
 
 /*!
- * \brief Release memory associated with the graph runtime.
- * \param runtime Pointer to graph runtime.
+ * \brief Release memory associated with the graph executor.
+ * \param runtime Pointer to graph executor.
  * \return 0 if successful
  */
 int TVMGraphExecutor_Release(TVMGraphExecutor** runtime);

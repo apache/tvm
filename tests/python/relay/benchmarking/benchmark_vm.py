@@ -49,12 +49,12 @@ def benchmark_execution(
         out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
 
         if measure:
-            print("Evaluate graph runtime inference cost of {} on " "{}".format(model, repr(dev)))
+            print("Evaluate graph executor inference cost of {} on " "{}".format(model, repr(dev)))
             ftimer = m.module.time_evaluator("run", dev, number=1, repeat=20)
             # Measure in millisecond.
             prof_res = np.array(ftimer().results) * 1000
             print(
-                "Mean graph runtime inference time (std dev): %.2f ms (%.2f ms)"
+                "Mean graph executor inference time (std dev): %.2f ms (%.2f ms)"
                 % (np.mean(prof_res), np.std(prof_res))
             )
 

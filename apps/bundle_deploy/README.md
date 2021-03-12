@@ -49,7 +49,7 @@ This will:
 - Build a `bundle.so` shared object containing the model specification and
   parameters
 - Build a `demo_dynamic` executable that `dlopen`'s `bundle.so` (or `bundle_c.so` in 
-  terms of the MISRA-C runtime), instantiates the contained graph runtime,
+  terms of the MISRA-C runtime), instantiates the contained graph executor,
   and invokes the `GraphExecutor::Run` function on a cat image, then prints
   the output results.
 

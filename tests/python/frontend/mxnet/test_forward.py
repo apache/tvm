@@ -802,7 +802,7 @@ def test_forward_full():
         mx_sym = mx.sym.full(shape, val, dtype=dtype)
         mod, _ = relay.frontend.from_mxnet(mx_sym, {})
         for target, dev in tvm.testing.enabled_targets():
-            # Skip testing graph runtime because this op will be optimized out
+            # Skip testing graph executor because this op will be optimized out
             # by constant folding.
             for kind in ["debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
@@ -994,7 +994,7 @@ def test_forward_rnn_layer():
 
         mod, params = relay.frontend.from_mxnet(mx_sym, shape=shape_dict, arg_params=mx_params)
         for target, dev in tvm.testing.enabled_targets():
-            # only test graph runtime because debug runtime is too slow
+            # only test graph executor because debug runtime is too slow
             for kind in ["graph"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(**inputs, **params)

@@ -570,7 +570,7 @@ export class Module implements Disposable {
 }
 
 /**
- *  Graph runtime.
+ *  Graph executor.
  *
  *  This is a thin wrapper of the underlying TVM module.
  *  you can also directly call set_input, run, and get_output
@@ -986,9 +986,9 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Create a new graph runtime.
+   * Create a new graph executor.
    *
-   * @param graphJson The graph runtime json file.
+   * @param graphJson The graph executor json file.
    * @param lib The underlying library.
    * @param dev The execution device of the graph.
    */

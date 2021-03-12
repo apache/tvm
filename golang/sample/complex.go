@@ -84,7 +84,7 @@ func main() {
         return
     }
     graphmod := graphrt.AsModule()
-    fmt.Printf("Graph runtime Created\n")
+    fmt.Printf("Graph executor Created\n")
 
     // Array allocation attributes
     tshapeIn  := []int64{1, 224, 224, 3}
@@ -105,7 +105,7 @@ func main() {
     }
     fmt.Printf("Input and Output Arrays allocated\n")
 
-    // Get module function from graph runtime : load_params
+    // Get module function from graph executor : load_params
     // Read params
     bytes, err = ioutil.ReadFile(modParams)
     if err != nil {

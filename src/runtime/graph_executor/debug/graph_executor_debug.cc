@@ -35,7 +35,7 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Graph runtime with debug .
+ * \brief Graph executor with debug .
  *
  *  This is the extension of GraphExecutor class used for debugging
  *  TVM runtime PackedFunc API.

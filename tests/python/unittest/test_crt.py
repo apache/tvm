@@ -139,7 +139,7 @@ def test_reset():
 
 @tvm.testing.requires_micro
 def test_graph_executor():
-    """Test use of the graph runtime with microTVM."""
+    """Test use of the graph executor with microTVM."""
     import tvm.micro
 
     workspace = tvm.micro.Workspace(debug=True)

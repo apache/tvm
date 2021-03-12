@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Graph runtime with CUDA Graph"""
+"""Graph executor with CUDA Graph"""
 import tvm._ffi
 
 from tvm._ffi.base import string_types
@@ -40,7 +40,7 @@ def create(graph_json_str, libmod, device):
     Returns
     -------
     graph_module : GraphModuleCudaGraph
-        CUDA graph runtime module that can be used to execute the graph.
+        CUDA graph executor module that can be used to execute the graph.
 
     Note
     ----
@@ -65,9 +65,9 @@ def create(graph_json_str, libmod, device):
 
 
 class GraphModuleCudaGraph(graph_executor.GraphModule):
-    """CUDA graph runtime module.
+    """CUDA graph executor module.
 
-    This is a CUDA graph runtime wrapper over the TVM runtime.
+    This is a CUDA graph executor wrapper over the TVM runtime.
     Runtime interfaces are wrapped with CUDA graph functionalities.
 
     Parameters
@@ -99,13 +99,13 @@ class GraphModuleCudaGraph(graph_executor.GraphModule):
         """Run the CUDA graph for tvm_op graph
 
         Run the captured CUDA graph instance instead of the
-        for-loop kernel launch of default graph runtime
+        for-loop kernel launch of default graph executor
         """
         self._run_cuda_graph()
 
     def run(self, **input_dict):
         """A run wrapper for graph capture / launch, user can just
-        change default graph runtime to cuda graph runtime, and
+        change default graph executor to cuda graph executor, and
         the first call will capture a cuda graph for future launch
 
         Parameters

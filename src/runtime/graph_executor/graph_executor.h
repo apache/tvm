@@ -18,7 +18,7 @@
  */
 
 /*!
- * \brief Tiny graph runtime that can run graph
+ * \brief Tiny graph executor that can run graph
  *        containing only tvm PackedFunc.
  * \file graph_executor.h
  */
@@ -56,7 +56,7 @@ struct TVMOpParam {
 };
 
 /*!
- * \brief Tiny graph runtime.
+ * \brief Tiny graph executor.
  *
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.

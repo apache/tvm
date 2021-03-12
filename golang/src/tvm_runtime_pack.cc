@@ -42,7 +42,7 @@
 #include "src/runtime/dso_library.cc"
 #include "src/runtime/system_library.cc"
 
-// Graph runtime
+// Graph executor
 #include "src/runtime/graph_executor/graph_executor.cc"
 
 // Uncomment the following lines to enable RPC

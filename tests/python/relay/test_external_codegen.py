@@ -336,7 +336,7 @@ def test_extern_dnnl_const():
 
 def test_load_params_with_constants_in_ext_codegen():
     # After binding params and partitioning graph_module.get_params()
-    # might contain parameters that are not an graph runtime input but
+    # might contain parameters that are not an graph executor input but
     # for example constants in external function.
     y_in = np.ones((1,)).astype("float32")
     params = {"y": y_in}

@@ -431,7 +431,7 @@ def tune_and_evaluate(tuning_opt):
         remote.upload(temp.relpath("graphlib.tar"))
         lib = remote.load_module("graphlib.tar")
 
-        # Generate the graph runtime
+        # Generate the graph executor
         ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
         m = graph_executor.GraphModule(lib["default"](ctx))
 

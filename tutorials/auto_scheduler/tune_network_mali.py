@@ -242,7 +242,7 @@ def tune_and_evaluate():
         ):
             lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
-    # Create graph runtime
+    # Create graph executor
     print("=============== Request Remote ===============")
     from tvm.auto_scheduler.utils import request_remote
 

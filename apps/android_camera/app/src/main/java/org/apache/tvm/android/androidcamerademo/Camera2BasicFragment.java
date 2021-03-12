@@ -516,7 +516,7 @@ public class Camera2BasicFragment extends Fragment {
     }
 
     /*
-       Load precompiled model on TVM graph runtime and init the system.
+       Load precompiled model on TVM graph executor and init the system.
     */
     private class LoadModelAsyncTask extends AsyncTask<Void, Void, Integer> {
 
@@ -581,11 +581,11 @@ public class Camera2BasicFragment extends Fragment {
             Module modelLib = Module.load(libCacheFilePath);
 
 
-            // get global function module for graph runtime
-            Log.i(TAG, "getting graph runtime create handle...");
+            // get global function module for graph executor
+            Log.i(TAG, "getting graph executor create handle...");
 
             Function runtimeCreFun = Function.getFunction("tvm.graph_executor.create");
-            Log.i(TAG, "creating graph runtime...");
+            Log.i(TAG, "creating graph executor...");
 
             Log.i(TAG, "device type: " + tvmDev.deviceType);
             Log.i(TAG, "device id: " + tvmDev.deviceId);
@@ -598,7 +598,7 @@ public class Camera2BasicFragment extends Fragment {
 
             Log.i(TAG, "as module...");
             graphRuntimeModule = runtimeCreFunRes.asModule();
-            Log.i(TAG, "getting graph runtime load params handle...");
+            Log.i(TAG, "getting graph executor load params handle...");
             // get the function from the module(load parameters)
             Function loadParamFunc = graphRuntimeModule.getFunction("load_params");
             Log.i(TAG, "loading params...");

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Construct the necessary state for the TVM graph runtime
+Construct the necessary state for the TVM graph executor
 from a Relay expression.
 """
 import warnings
@@ -70,7 +70,7 @@ def _convert_param_map(params):
 
 
 class BuildModule(object):
-    """Build an IR module to run on TVM graph runtime. This class is used
+    """Build an IR module to run on TVM graph executor. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
     """
 
@@ -111,7 +111,7 @@ class BuildModule(object):
         Returns
         -------
         factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
-            The runtime factory for the TVM graph runtime.
+            The runtime factory for the TVM graph executor.
         """
         target = _update_target(target)
 
@@ -211,7 +211,7 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
-    """Helper function that builds a Relay function to run on TVM graph runtime.
+    """Helper function that builds a Relay function to run on TVM graph executor.
 
     Parameters
     ----------
@@ -241,7 +241,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     Returns
     -------
     graph_json : str
-        The json string that can be accepted by graph runtime.
+        The json string that can be accepted by graph executor.
 
     mod : tvm.Module
         The module containing necessary libraries.
@@ -392,7 +392,7 @@ class GraphExecutor(_interpreter.Executor):
         self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
-            raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
+            raise ValueError("Graph Executor only supports static graphs, got output type", ret_type)
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.device))
 
@@ -444,7 +444,7 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     ----------
     kind : str
         The type of executor. Avaliable options are `debug` for the
-        interpreter, `graph` for the graph runtime, and `vm` for the virtual
+        interpreter, `graph` for the graph executor, and `vm` for the virtual
         machine.
 
     mod : :py:class:`~tvm.IRModule`

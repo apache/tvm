@@ -335,7 +335,7 @@ mod["main"] = func
 with tvm.transform.PassContext(opt_level=0):  # Currently only support opt_level=0
     lib = relay.build(mod, target, params=params)
 
-# Generate graph runtime
+# Generate graph executor
 dev = tvm.device(target, 0)
 m = graph_executor.GraphModule(lib["default"](dev))
 

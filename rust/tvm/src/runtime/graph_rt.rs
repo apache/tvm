@@ -22,19 +22,19 @@ use std::convert::TryInto;
 use crate::runtime::Function;
 use crate::{runtime::function::Result, runtime::ByteArray, Device, Module, NDArray};
 
-/// An instance of the C++ graph runtime.
+/// An instance of the C++ graph executor.
 ///
 /// An efficient and light weight runtime for static deep learning models.
 pub struct GraphRt {
-    /// The backing graph runtime module which exposes a set of packed functions
+    /// The backing graph executor module which exposes a set of packed functions
     /// which can be invoked by a client.
     ///
-    /// In the graph runtime module, it exposes create, load_params, set_input, get_output, and run.
+    /// In the graph executor module, it exposes create, load_params, set_input, get_output, and run.
     module: Module,
 }
 
 impl GraphRt {
-    /// Create a graph runtime directly from a runtime module.
+    /// Create a graph executor directly from a runtime module.
     pub fn from_module(module: Module, dev: Device) -> Result<GraphRt> {
         let default: Box<dyn Fn(Device) -> Result<Module>> =
             module.get_function("default", false)?.into();
@@ -44,7 +44,7 @@ impl GraphRt {
         })
     }
 
-    /// Create a graph runtime from the deprecated graph, lib, dev triple.
+    /// Create a graph executor from the deprecated graph, lib, dev triple.
     pub fn create_from_parts(graph: &str, lib: Module, dev: Device) -> Result<Self> {
         let runtime_create_fn = Function::get("tvm.graph_executor.create").unwrap();
 
@@ -92,13 +92,13 @@ impl GraphRt {
         Ok(())
     }
 
-    /// Extract the ith output from the graph runtime and returns it.
+    /// Extract the ith output from the graph executor and returns it.
     pub fn get_output(&mut self, i: i64) -> Result<NDArray> {
         let get_output_fn = self.module.get_function("get_output", false)?;
         get_output_fn.invoke(vec![i.into()])?.try_into()
     }
 
-    /// Extract the ith output from the graph runtime and write the results into output.
+    /// Extract the ith output from the graph executor and write the results into output.
     pub fn get_output_into(&mut self, i: i64, output: NDArray) -> Result<()> {
         let get_output_fn = self.module.get_function("get_output", false)?;
         get_output_fn.invoke(vec![i.into(), output.into()])?;

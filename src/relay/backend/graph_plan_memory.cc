@@ -20,7 +20,7 @@
 /*!
  * \file relay/backend/graph_plan_memory.cc
  * \brief Memory index assignment pass for executing
- *   the program in the graph runtime.
+ *   the program in the graph executor.
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>

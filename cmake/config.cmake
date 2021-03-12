@@ -96,13 +96,13 @@ set(USE_CPP_RPC OFF)
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
-# Whether enable tiny embedded graph runtime.
+# Whether enable tiny embedded graph executor.
 set(USE_GRAPH_RUNTIME ON)
 
-# Whether enable tiny graph runtime with CUDA Graph
+# Whether enable tiny graph executor with CUDA Graph
 set(USE_GRAPH_RUNTIME_CUDA_GRAPH OFF)
 
-# Whether to enable the profiler for the graph runtime and vm
+# Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
 # Whether enable uTVM standalone runtime

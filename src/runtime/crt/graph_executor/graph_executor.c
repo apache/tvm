@@ -21,7 +21,7 @@
 
 /*!
  * \file graph_executor.c
- * \brief implement graph runtime in pure C
+ * \brief implement graph executor in pure C
  */
 
 #include <tvm/runtime/c_runtime_api.h>
@@ -599,7 +599,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* runtime, JSONReader* reader) {
         TVMGraphExecutorNode* node = runtime->nodes + runtime->nodes_count;
         status = TVMGraphExecutorNode_Load(node, reader);
         if (status != 0) {
-          fprintf(stderr, "failed to load an element in `nodes` field in graph runtime node.\n");
+          fprintf(stderr, "failed to load an element in `nodes` field in graph executor node.\n");
           break;
 #if TVM_CRT_DEBUG
         } else {
@@ -689,7 +689,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* runtime, JSONReader* reader) {
         TVMGraphExecutorNodeEntry* entry = runtime->outputs + runtime->outputs_count;
         status = NodeEntry_Load(entry, reader);
         if (status != 0) {
-          fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
+          fprintf(stderr, "Fail to load an element in `heads` field in graph executor node.\n");
           break;
         }
         runtime->outputs_count++;
@@ -698,7 +698,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* runtime, JSONReader* reader) {
     } else if (!strcmp(key, "attrs")) {
       status = TVMGraphExecutorGraphAttr_Load(&(runtime->attrs), reader);
       if (status != 0) {
-        fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
+        fprintf(stderr, "Fail to load an element in `heads` field in graph executor node.\n");
         break;
       }
       bitmask |= 16;
@@ -725,14 +725,14 @@ uint32_t TVMGraphExecutor_GetEntryId(TVMGraphExecutor* runtime, uint32_t nid, ui
 
 /*!
  * \brief Get the number of input tensors allocated.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \return the number of input tensors allocated.
  */
 int TVMGraphExecutor_GetNumInputs(TVMGraphExecutor* runtime) { return runtime->input_nodes_count; }
 
 /*!
  * \brief Get the input index given the name of input.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \param name The name of the input.
  * \return The index of input.
  */
@@ -752,7 +752,7 @@ int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* runtime, const char* name) 
 
 /*!
  * \brief set input to the graph based on name.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \param name The name of the input.
  * \param data_in The input data.
  */
@@ -767,7 +767,7 @@ void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTe
 
 /*!
  * \brief Load parameters from parameter blob.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \param param_blob A binary blob of parameter.
  * \param param_size The parameter size.
  * \return The result of this function execution.
@@ -869,7 +869,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blo
 
 /*!
  * \brief Run all the operations one by one.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  */
 void TVMGraphExecutor_Run(TVMGraphExecutor* runtime) {
   // setup the array and requirements.
@@ -886,7 +886,7 @@ void TVMGraphExecutor_Run(TVMGraphExecutor* runtime) {
 
 /*!
  * \brief Get the number of output tensors allocated.
- * \param runtime The graph runtime.
+ * \param runtime The graph executor.
  * \return the number of output tensors allocated.
  */
 int TVMGraphExecutor_GetNumOutputs(TVMGraphExecutor* runtime) { return runtime->outputs_count; }

@@ -64,7 +64,7 @@ because ACL cannot be used on an x86 machine. However, we still want to be able 
 runtime module on an x86 machine.
 
 * USE_ARM_COMPUTE_LIB=ON/OFF - Enabling this flag will add support for compiling an ACL runtime module.
-* USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON/OFF/path-to-acl - Enabling this flag will allow the graph runtime to
+* USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON/OFF/path-to-acl - Enabling this flag will allow the graph executor to
   compute the ACL offloaded functions.
 
 These flags can be used in different scenarios depending on your setup. For example, if you want

@@ -280,7 +280,7 @@ with auto_scheduler.ApplyHistoryBest(log_file):
     with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         lib = relay.build(mod, target=target, params=params)
 
-# Create graph runtime
+# Create graph executor
 dev = tvm.device(str(target), 0)
 module = graph_executor.GraphModule(lib["default"](dev))
 data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))

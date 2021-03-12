@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Minimum graph runtime that executes graph containing TVM PackedFunc."""
+"""Minimum graph executor that executes graph containing TVM PackedFunc."""
 import numpy as np
 import tvm._ffi
 
@@ -137,7 +137,7 @@ class GraphModule(object):
         from tvm import relay
         from tvm.contrib import graph_executor
 
-        # build the library using graph runtime
+        # build the library using graph executor
         lib = relay.build(...)
         lib.export_library("compiled_lib.so")
         # load it back as a runtime

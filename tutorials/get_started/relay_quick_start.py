@@ -104,7 +104,7 @@ with tvm.transform.PassContext(opt_level=opt_level):
 #####################################################################
 # Run the generate library
 # ------------------------
-# Now we can create graph runtime and run the module on Nvidia GPU.
+# Now we can create graph executor and run the module on Nvidia GPU.
 
 # create random input
 dev = tvm.gpu()
