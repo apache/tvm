@@ -128,14 +128,6 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
-            if is_auto_scheduler_enabled():
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
-                    naive_schedule,
-                    name="conv2d_nhwc.arm_cpu",
-                    plevel=100,
-                )
-
             channels = data.shape[3]
             if "SMLAD" in isa and (channels % 4) == 0 and kernel_layout == "HWOI":
                 strategy.add_implementation(
@@ -144,6 +136,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_direct_simd.micro_dev",
                 )
             elif kernel_layout == "HWIO":
+                if is_auto_scheduler_enabled():
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
+                        naive_schedule,
+                        name="conv2d_nhwc.arm_cpu",
+                        plevel=100,
+                    )
+
                 is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
                 has_dot_prod = topi.arm_cpu.arm_utils.is_dotprod_available()
                 if has_dot_prod and data.dtype in ["int8", "uint8"]:
