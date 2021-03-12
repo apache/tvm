@@ -113,10 +113,10 @@ relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
 # This is the device target name used by microTVM. It is used to select default
 # options for the device when we use ``tvm.target.target.micro()`` below.
-UTVM_TARGET = "nrf5340dk"
+UTVM_TARGET = "nrf5340dk" # or stm32f746xx
 
 # This is the board designation used by Zephyr, and required for the compilation process.
-UTVM_ZEPHYR_BOARD = "nrf5340dk_nrf5340_cpuapp"
+UTVM_ZEPHYR_BOARD = "nrf5340dk_nrf5340_cpuapp" # or nucleo_f746zg
 
 ######################################################################
 # If you wish to run against an emulated Zephyr device using QEMU,
@@ -159,7 +159,7 @@ print(f"Using workspace: {workspace_root}")
 # for your project. This runtime is a demo which provides basic capabilities
 # for interfacing to the microTVM device code via the device's serial
 # port.
-UTVM_ZEPHYR_RUNTIME_DIR = "../../apps/microtvm/zephyr/demo_runtime/"
+UTVM_ZEPHYR_RUNTIME_DIR = "../../apps/microtvm/zephyr/demo_runtime"
 
 # The ``west`` command is used by Zephyr for compilation and
 # flashing devices.
