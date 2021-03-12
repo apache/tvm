@@ -143,6 +143,30 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         name="conv2d_nhwc.arm_cpu",
                         plevel=100,
                     )
+                    judge_winograd_auto_scheduler = False
+                    if len(kernel.shape) == 4:
+                        kernel_h, kernel_w, _, co = get_const_tuple(kernel.shape)
+                        judge_winograd_auto_scheduler = (
+                            "float" in data.dtype
+                            and "float" in kernel.dtype
+                            and kernel_h == 3
+                            and kernel_w == 3
+                            and stride_h == 1
+                            and stride_w == 1
+                            and dilation_h == 1
+                            and dilation_w == 1
+                            and 64 < co < 512
+                        )
+                    # register auto-scheduler implementations
+                    if judge_winograd_auto_scheduler:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(
+                                topi.nn.conv2d_winograd_nhwc, need_auto_scheduler_layout=True
+                            ),
+                            naive_schedule,  # this implementation should never be picked by autotvm
+                            name="conv2d_nhwc.winograd.arm_cpu",
+                            plevel=101,
+                        )
 
                 is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
                 has_dot_prod = topi.arm_cpu.arm_utils.is_dotprod_available()
@@ -207,7 +231,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
+                wrap_compute_conv2d(
+                    topi.arm_cpu.compute_depthwise_conv2d_nhwc, need_auto_scheduler_layout=True
+                ),
                 wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.arm_cpu",
             )
