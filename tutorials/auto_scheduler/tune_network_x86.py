@@ -230,7 +230,7 @@ def run_tuning():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=len(tasks),  # change this to 20000 to achieve the best performance
+        num_measure_trials=200,  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
