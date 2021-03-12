@@ -69,8 +69,8 @@ void GraphExecutor::Run() {
  * \param lookup_linked_param_func Linked parameter lookup function. Default is nullptr.
  */
 void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<Device>& devs,
-                        const PackedFunc lookup_linked_param_func) {
+                         const std::vector<Device>& devs,
+                         const PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
@@ -389,8 +389,9 @@ void GraphExecutor::SetupOpExecs() {
   }
 }
 
-std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> > GraphExecutor::CreateTVMOp(
-    const TVMOpParam& param, const std::vector<DLTensor>& args, size_t num_inputs) {
+std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
+GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args,
+                           size_t num_inputs) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
@@ -439,7 +440,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> > GraphE
 }
 
 PackedFunc GraphExecutor::GetFunction(const std::string& name,
-                                     const ObjectPtr<Object>& sptr_to_self) {
+                                      const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -505,8 +506,8 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
 }
 
 Module GraphExecutorCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                          const std::vector<Device>& devs,
-                          const PackedFunc lookup_linked_param_func) {
+                           const std::vector<Device>& devs,
+                           const PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphExecutor>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);

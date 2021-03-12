@@ -110,12 +110,12 @@ typedef DLTensor* DLTensorPtr;
 uint32_t TVMGraphExecutor_GetEntryId(TVMGraphExecutor* runtime, uint32_t nid, uint32_t index);
 void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTensor* data_in);
 int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
-                               const uint32_t param_size);
+                                const uint32_t param_size);
 void TVMGraphExecutor_Run(TVMGraphExecutor* runtime);
 int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t idx, DLTensor* out);
 
 int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* runtime, const TVMOpParam* param,
-                                    DLTensorPtr* args, const uint32_t args_count,
-                                    uint32_t num_inputs, TVMPackedFunc* pf);
+                                     DLTensorPtr* args, const uint32_t args_count,
+                                     uint32_t num_inputs, TVMPackedFunc* pf);
 
 #endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_

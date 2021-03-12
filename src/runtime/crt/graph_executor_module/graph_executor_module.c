@@ -39,7 +39,7 @@ typedef struct {
 static GraphExecutorModule graph_executor;
 
 int32_t TVMGraphExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
-                                     int* ret_tcodes, void* resource_handle) {
+                                      int* ret_tcodes, void* resource_handle) {
   if (graph_executor.runtime != NULL) {
     return kTvmErrorGraphModuleAlreadyCreated;
   }
@@ -77,8 +77,9 @@ int32_t TVMGraphExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TV
   return kTvmErrorNoError;
 }
 
-int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
-                                       int* ret_tcodes, void* resource_handle) {
+int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
+                                        TVMValue* ret_values, int* ret_tcodes,
+                                        void* resource_handle) {
   if (nargs != 1) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -93,15 +94,15 @@ int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs, 
   }
 
   uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.runtime,
-                                            graph_executor.runtime->input_nodes[index], 0);
+                                             graph_executor.runtime->input_nodes[index], 0);
   ret_values[0].v_handle = (void*)&graph_executor.runtime->data_entry[eid].dl_tensor;
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
 
 int32_t TVMGraphExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
-                                           TVMValue* ret_values, int* ret_tcodes,
-                                           void* resource_handle) {
+                                            TVMValue* ret_values, int* ret_tcodes,
+                                            void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -112,8 +113,8 @@ int32_t TVMGraphExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nar
 }
 
 int32_t TVMGraphExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int nargs,
-                                            TVMValue* ret_values, int* ret_tcodes,
-                                            void* resource_handle) {
+                                             TVMValue* ret_values, int* ret_tcodes,
+                                             void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -124,8 +125,8 @@ int32_t TVMGraphExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int na
 }
 
 int32_t TVMGraphExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
-                                        TVMValue* ret_values, int* ret_tcodes,
-                                        void* resource_handle) {
+                                         TVMValue* ret_values, int* ret_tcodes,
+                                         void* resource_handle) {
   if (nargs != 1) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -149,8 +150,8 @@ int32_t TVMGraphExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
 }
 
 int32_t TVMGraphExecutorModule_LoadParams(TVMValue* args, int* tcodes, int nargs,
-                                         TVMValue* ret_values, int* ret_tcodes,
-                                         void* resource_handle) {
+                                          TVMValue* ret_values, int* ret_tcodes,
+                                          void* resource_handle) {
   if (nargs != 1) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -166,7 +167,7 @@ int32_t TVMGraphExecutorModule_LoadParams(TVMValue* args, int* tcodes, int nargs
 }
 
 int32_t TVMGraphExecutorModule_Run(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
-                                  int* ret_tcodes, void* resource_handle) {
+                                   int* ret_tcodes, void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -177,8 +178,9 @@ int32_t TVMGraphExecutorModule_Run(TVMValue* args, int* tcodes, int nargs, TVMVa
   return 0;
 }
 
-int32_t TVMGraphExecutorModule_SetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
-                                       int* ret_tcodes, void* resource_handle) {
+int32_t TVMGraphExecutorModule_SetInput(TVMValue* args, int* tcodes, int nargs,
+                                        TVMValue* ret_values, int* ret_tcodes,
+                                        void* resource_handle) {
   if (nargs != 2) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -194,8 +196,8 @@ int32_t TVMGraphExecutorModule_SetInput(TVMValue* args, int* tcodes, int nargs, 
 }
 
 int32_t TVMGraphExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int nargs,
-                                             TVMValue* ret_values, int* ret_tcodes,
-                                             void* resource_handle) {
+                                              TVMValue* ret_values, int* ret_tcodes,
+                                              void* resource_handle) {
   return kTvmErrorFunctionCallNotImplemented;
 }
 

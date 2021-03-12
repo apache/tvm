@@ -128,8 +128,8 @@ class GraphExecutorDebug : public GraphExecutor {
           << "Don't know how to run op type " << nodes_[index].op_type
           << " remotely over RPC right now";
 
-      // NOTE: GraphExecutorDebug expects graph nodes to have an "op" attribute of "tvm_op" or "null"
-      // and "null" is a placeholder node for a parameter or input.
+      // NOTE: GraphExecutorDebug expects graph nodes to have an "op" attribute of "tvm_op" or
+      // "null" and "null" is a placeholder node for a parameter or input.
       return 0;
     }
 
@@ -236,7 +236,7 @@ class GraphExecutorDebug : public GraphExecutor {
  * \param sptr_to_self Packed function pointer.
  */
 PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
-                                          const ObjectPtr<Object>& sptr_to_self) {
+                                           const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
   if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -272,8 +272,8 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
  * \param devs All devices.
  */
 Module GraphExecutorDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                               const std::vector<Device>& devs,
-                               PackedFunc lookup_linked_param_func) {
+                                const std::vector<Device>& devs,
+                                PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphExecutorDebug>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
@@ -291,7 +291,7 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor_debug.create").set_body([](TVMArgs args,
   }
 
   *rv = GraphExecutorDebugCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                lookup_linked_param_func);
+                                 lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

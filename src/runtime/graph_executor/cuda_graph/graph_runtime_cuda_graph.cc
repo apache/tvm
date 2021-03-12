@@ -94,7 +94,7 @@ class GraphExecutorCudaGraph : public GraphExecutor {
 };
 
 PackedFunc GraphExecutorCudaGraph::GetFunction(const std::string& name,
-                                              const ObjectPtr<Object>& sptr_to_self) {
+                                               const ObjectPtr<Object>& sptr_to_self) {
   if (name == "run_cuda_graph") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->RunCudaGraph(); });
@@ -109,8 +109,8 @@ PackedFunc GraphExecutorCudaGraph::GetFunction(const std::string& name,
 }
 
 Module GraphExecutorCudaGraphCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                                   const std::vector<Device>& devs,
-                                   PackedFunc lookup_linked_param_func) {
+                                    const std::vector<Device>& devs,
+                                    PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphExecutorCudaGraph>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
@@ -118,9 +118,10 @@ Module GraphExecutorCudaGraphCreate(const std::string& sym_json, const tvm::runt
 
 TVM_REGISTER_GLOBAL("tvm.graph_executor_cuda_graph.create")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_executor.create is "
-                                     "at least 4, but it has "
-                                  << args.num_args;
+      ICHECK_GE(args.num_args, 4)
+          << "The expected number of arguments for graph_executor.create is "
+             "at least 4, but it has "
+          << args.num_args;
       PackedFunc lookup_linked_param_func;
       int dev_start_arg = 2;
       if (args[2].type_code() == kTVMPackedFuncHandle) {
@@ -129,7 +130,7 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor_cuda_graph.create")
       }
 
       *rv = GraphExecutorCudaGraphCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                        lookup_linked_param_func);
+                                         lookup_linked_param_func);
     });
 }  // namespace runtime
 }  // namespace tvm

@@ -75,7 +75,7 @@ int NodeEntry_Load(TVMGraphExecutorNodeEntry* entry, JSONReader* reader) {
 }
 
 void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* reader,
-                                   TVMOpParam* param) {
+                                    TVMOpParam* param) {
   int bitmask = 0;
   char key[20], value[120];
   memset(param, 0, sizeof(TVMOpParam));
@@ -138,8 +138,8 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
         break;
       }
       DLDevice dev = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNodeEntry) * num_inputs,
-                                                      dev, (void**)&node->inputs);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
+          sizeof(TVMGraphExecutorNodeEntry) * num_inputs, dev, (void**)&node->inputs);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         return -1;
@@ -773,7 +773,7 @@ void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTe
  * \return The result of this function execution.
  */
 int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
-                               const uint32_t param_size) {
+                                const uint32_t param_size) {
   int status = 0;
   const char* bptr = param_blob;
   uint64_t header, reserved;
@@ -967,8 +967,8 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* runtime) {
   }
 
   // Allocate the space.
-  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorStorageEntry) * pool_entry_count, alloc_dev,
-                                  (void**)&runtime->storage_pool);
+  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorStorageEntry) * pool_entry_count,
+                                  alloc_dev, (void**)&runtime->storage_pool);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
@@ -1086,7 +1086,7 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* runtime) {
 #endif  // TVM_CRT_DEBUG
       TVMPackedFunc pf;
       TVMGraphExecutor_CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count,
-                                  &pf);
+                                   &pf);
       runtime->op_execs[nid] = pf;
     }
   }
@@ -1105,8 +1105,8 @@ typedef struct TVMOpArgs {
 } TVMOpArgs;
 
 int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* runtime, const TVMOpParam* param,
-                                    DLTensorPtr* args, const uint32_t args_count,
-                                    uint32_t num_inputs, TVMPackedFunc* pf) {
+                                     DLTensorPtr* args, const uint32_t args_count,
+                                     uint32_t num_inputs, TVMPackedFunc* pf) {
   int status = 0;
   uint32_t idx;
   TVMOpArgs arg_ptr;
@@ -1152,7 +1152,7 @@ int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* runtime, const TVMOpParam
  * \return 0 on success.
  */
 int TVMGraphExecutor_Init(TVMGraphExecutor* runtime, const char* graph_json,
-                         TVMModuleHandle module_handle, const DLDevice* devs) {
+                          TVMModuleHandle module_handle, const DLDevice* devs) {
   JSONReader reader;
   tvm_crt_error_t err = JSONReader_Create(graph_json, &reader);
   if (err != kTvmErrorNoError) {
@@ -1185,7 +1185,7 @@ int TVMGraphExecutor_Init(TVMGraphExecutor* runtime, const char* graph_json,
 }
 
 int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const DLDevice* devs, TVMGraphExecutor** runtime) {
+                            const DLDevice* devs, TVMGraphExecutor** runtime) {
   DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutor), dev, (void**)runtime);
   if (err != kTvmErrorNoError) {

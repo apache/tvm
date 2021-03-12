@@ -992,12 +992,8 @@ export class Instance implements Disposable {
    * @param lib The underlying library.
    * @param dev The execution device of the graph.
    */
-  createGraphExecutor(
-    graphJson: string,
-    lib: Module,
-    dev: DLDevice
-  ): GraphExecutor {
-    const fcreate = this.getGlobalFunc("tvm.graph_executor.create");
+  createGraphExecutor(graphJson: string, lib: Module, dev: DLDevice): GraphExecutor {
+    const fcreate = this.getGlobalFunc('tvm.graph_executor.create');
     const module = fcreate(
       graphJson,
       lib,

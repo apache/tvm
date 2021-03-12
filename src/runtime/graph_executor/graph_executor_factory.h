@@ -51,8 +51,8 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
    * \param module_name The module name of graph.
    */
   GraphExecutorFactory(const std::string& graph_json,
-                      const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
-                      const std::string& module_name = "default");
+                       const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                       const std::string& module_name = "default");
 
   /*!
    * \brief Get member function to front-end

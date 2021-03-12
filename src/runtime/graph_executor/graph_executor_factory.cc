@@ -184,23 +184,24 @@ Module GraphExecutorFactoryModuleLoadBinary(void* strm) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_executor_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_GE(args.num_args, 3) << "The expected number of arguments for "
-                                 "graph_executor_factory.create needs at least 3, "
-                                 "but it has "
-                              << args.num_args;
-  // The argument order is graph_json, module, module_name, param0_name, param0_tensor,
-  // [param1_name, param1_tensor], ...
-  ICHECK_EQ((args.size() - 3) % 2, 0);
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
-  for (size_t i = 3; i < static_cast<size_t>(args.size()); i += 2) {
-    std::string name = args[i].operator String();
-    params[name] = args[i + 1].operator tvm::runtime::NDArray();
-  }
-  auto exec = make_object<GraphExecutorFactory>(args[0], params, args[2]);
-  exec->Import(args[1]);
-  *rv = Module(exec);
-});
+TVM_REGISTER_GLOBAL("tvm.graph_executor_factory.create")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_GE(args.num_args, 3) << "The expected number of arguments for "
+                                     "graph_executor_factory.create needs at least 3, "
+                                     "but it has "
+                                  << args.num_args;
+      // The argument order is graph_json, module, module_name, param0_name, param0_tensor,
+      // [param1_name, param1_tensor], ...
+      ICHECK_EQ((args.size() - 3) % 2, 0);
+      std::unordered_map<std::string, tvm::runtime::NDArray> params;
+      for (size_t i = 3; i < static_cast<size_t>(args.size()); i += 2) {
+        std::string name = args[i].operator String();
+        params[name] = args[i + 1].operator tvm::runtime::NDArray();
+      }
+      auto exec = make_object<GraphExecutorFactory>(args[0], params, args[2]);
+      exec->Import(args[1]);
+      *rv = Module(exec);
+    });
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_GraphExecutorFactory")
     .set_body_typed(GraphExecutorFactoryModuleLoadBinary);

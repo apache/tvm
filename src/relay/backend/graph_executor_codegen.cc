@@ -573,8 +573,8 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
           ICHECK(dev_type);
           targets[dev_type->value] = it.second;
         }
-        codegen_ =
-            std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
+        codegen_ = std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
+                                                          targets);
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

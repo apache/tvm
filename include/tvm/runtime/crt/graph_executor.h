@@ -67,7 +67,7 @@ typedef struct TVMGraphExecutor TVMGraphExecutor;
  * \return 0 if successful.
  */
 int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const DLDevice* devices, TVMGraphExecutor** runtime);
+                            const DLDevice* devices, TVMGraphExecutor** runtime);
 
 int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* runtime, const char* name);
 
@@ -108,7 +108,7 @@ int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t index, D
  * \return The result of this function execution.
  */
 int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
-                               const uint32_t param_size);
+                                const uint32_t param_size);
 
 /*!
  * \brief Execute the graph.

@@ -24,7 +24,7 @@
 
 void* UTVMRuntimeCreate(const char* json, size_t json_len, void* module) {
   return new tvm::micro::MicroGraphExecutor(std::string(json, json + json_len),
-                                           reinterpret_cast<tvm::micro::DSOModule*>(module));
+                                            reinterpret_cast<tvm::micro::DSOModule*>(module));
 }
 
 void UTVMRuntimeDestroy(void* handle) {
