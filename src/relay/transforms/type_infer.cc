@@ -314,7 +314,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       auto err = Diagnostic::Error(op->span);
       err << "match expression has no clauses and cannot satisfy a type";
       this->EmitFatal(err);
-      return Type();
     }
 
     Type dtype = GetType(op->data);

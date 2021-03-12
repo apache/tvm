@@ -416,7 +416,6 @@ def test_dynamic_function():
     assert mod["main"].params[0].checked_type == s_tt
 
 
-@pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_empty_match():
     # If `complete` is true, the completeness checker will lead to a failure;
     # however, if the match is incomplete, it will be an error at run time
@@ -425,10 +424,11 @@ def test_empty_match():
         [], relay.Match(relay.const(1), [], complete=False), ret_type=relay.scalar_type("float32")
     )
 
-    mod = tvm.IRModule()
-    mod["main"] = func
-    # the type check should fail
-    mod = transform.InferType()(mod)
+    with pytest.raises(tvm.error.TVMError):
+        mod = tvm.IRModule()
+        mod["main"] = func
+        # the type check should fail
+        mod = transform.InferType()(mod)
 
 
 if __name__ == "__main__":
