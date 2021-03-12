@@ -51,7 +51,7 @@ PackedFunc GraphExecutorFactory::GetFunction(
       for (int i = 0; i < args.num_args; ++i) {
         devices.emplace_back(args[i].operator Device());
       }
-      *rv = this->RuntimeCreate(devices);
+      *rv = this->ExecutorCreate(devices);
     });
   } else if (name == "debug_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -62,7 +62,7 @@ PackedFunc GraphExecutorFactory::GetFunction(
       for (int i = 1; i < args.num_args; ++i) {
         devices.emplace_back(args[i].operator Device());
       }
-      *rv = this->DebugRuntimeCreate(devices);
+      *rv = this->DebugExecutorCreate(devices);
     });
   } else if (name == "remove_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -103,7 +103,7 @@ void GraphExecutorFactory::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(module_name_);
 }
 
-Module GraphExecutorFactory::RuntimeCreate(const std::vector<Device>& devs) {
+Module GraphExecutorFactory::ExecutorCreate(const std::vector<Device>& devs) {
   auto exec = make_object<GraphExecutor>();
   exec->Init(this->graph_json_, this->imports_[0], devs, PackedFunc());
   // set params
@@ -111,11 +111,11 @@ Module GraphExecutorFactory::RuntimeCreate(const std::vector<Device>& devs) {
   return Module(exec);
 }
 
-Module GraphExecutorFactory::DebugRuntimeCreate(const std::vector<Device>& devs) {
+Module GraphExecutorFactory::DebugExecutorCreate(const std::vector<Device>& devs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_executor_debug.create");
   ICHECK(pf != nullptr) << "Cannot find function tvm.graph_executor_debug.create in registry. "
                            "Do you enable debug graph executor build?";
-  // Debug runtime create packed function will call GetAllContexs, so we unpack the devs.
+  // Debug executor create packed function will call GetAllContexs, so we unpack the devs.
   std::vector<int> unpacked_devs;
   for (const auto& dev : devs) {
     unpacked_devs.emplace_back(dev.device_type);

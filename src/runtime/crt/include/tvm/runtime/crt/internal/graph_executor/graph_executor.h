@@ -107,14 +107,14 @@ typedef struct TVMGraphExecutor {
 typedef DLTensor* DLTensorPtr;
 
 // private functions
-uint32_t TVMGraphExecutor_GetEntryId(TVMGraphExecutor* runtime, uint32_t nid, uint32_t index);
-void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTensor* data_in);
-int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
+uint32_t TVMGraphExecutor_GetEntryId(TVMGraphExecutor* executor, uint32_t nid, uint32_t index);
+void TVMGraphExecutor_SetInput(TVMGraphExecutor* executor, const char* name, DLTensor* data_in);
+int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_blob,
                                 const uint32_t param_size);
-void TVMGraphExecutor_Run(TVMGraphExecutor* runtime);
-int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t idx, DLTensor* out);
+void TVMGraphExecutor_Run(TVMGraphExecutor* executor);
+int TVMGraphExecutor_GetOutput(TVMGraphExecutor* executor, const int32_t idx, DLTensor* out);
 
-int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* runtime, const TVMOpParam* param,
+int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* executor, const TVMOpParam* param,
                                      DLTensorPtr* args, const uint32_t args_count,
                                      uint32_t num_inputs, TVMPackedFunc* pf);
 

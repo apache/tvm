@@ -63,13 +63,13 @@ typedef struct TVMGraphExecutor TVMGraphExecutor;
  * \param sym_json JSON-encoded graph.
  * \param module_handle TVM Module that exposes the functions to call.
  * \param devices runtime execution device.
- * \param runtime Pointer which receives a pointer to the newly-created instance.
+ * \param executor Pointer which receives a pointer to the newly-created instance.
  * \return 0 if successful.
  */
 int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
-                            const DLDevice* devices, TVMGraphExecutor** runtime);
+                            const DLDevice* devices, TVMGraphExecutor** executor);
 
-int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* runtime, const char* name);
+int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* executor, const char* name);
 
 /*!
  * \brief get number of input tensors allocated.
@@ -79,11 +79,11 @@ int TVMGraphExecutor_GetNumInputs();
 
 /*!
  * \brief set input to the graph based on name.
- * \param runtime The graph executor.
+ * \param executor The graph executor.
  * \param name The name of the input.
  * \param data_in The input data.
  */
-void TVMGraphExecutor_SetInput(TVMGraphExecutor* runtime, const char* name, DLTensor* data_in);
+void TVMGraphExecutor_SetInput(TVMGraphExecutor* executor, const char* name, DLTensor* data_in);
 
 /*!
  * \brief get number of output tensors allocated.
@@ -93,35 +93,35 @@ int TVMGraphExecutor_GetNumOutputs();
 
 /*!
  * \brief Return NDArray for given output index.
- * \param runtime The graph executor.
+ * \param executor The graph executor.
  * \param index The output index.
  * \param out The DLTensor corresponding to given output node index.
  * \return The result of this function execution.
  */
-int TVMGraphExecutor_GetOutput(TVMGraphExecutor* runtime, const int32_t index, DLTensor* out);
+int TVMGraphExecutor_GetOutput(TVMGraphExecutor* executor, const int32_t index, DLTensor* out);
 
 /*!
  * \brief Load parameters from parameter blob.
- * \param runtime The graph executor.
+ * \param executor The graph executor.
  * \param param_blob A binary blob of parameter.
  * \param param_size The parameter size.
  * \return The result of this function execution.
  */
-int TVMGraphExecutor_LoadParams(TVMGraphExecutor* runtime, const char* param_blob,
+int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_blob,
                                 const uint32_t param_size);
 
 /*!
  * \brief Execute the graph.
- * \param runtime The graph executor.
+ * \param executor The graph executor.
  */
-void TVMGraphExecutor_Run(TVMGraphExecutor* runtime);
+void TVMGraphExecutor_Run(TVMGraphExecutor* executor);
 
 /*!
  * \brief Release memory associated with the graph executor.
- * \param runtime Pointer to graph executor.
+ * \param executor Pointer to graph executor.
  * \return 0 if successful
  */
-int TVMGraphExecutor_Release(TVMGraphExecutor** runtime);
+int TVMGraphExecutor_Release(TVMGraphExecutor** executor);
 
 #ifdef __cplusplus
 }  // extern "C"

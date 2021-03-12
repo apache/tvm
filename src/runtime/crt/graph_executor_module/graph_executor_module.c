@@ -33,14 +33,14 @@
 
 typedef struct {
   TVMModule mod;
-  TVMGraphExecutor* runtime;
+  TVMGraphExecutor* executor;
 } GraphExecutorModule;
 
 static GraphExecutorModule graph_executor;
 
 int32_t TVMGraphExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                       int* ret_tcodes, void* resource_handle) {
-  if (graph_executor.runtime != NULL) {
+  if (graph_executor.executor != NULL) {
     return kTvmErrorGraphModuleAlreadyCreated;
   }
 
@@ -59,7 +59,7 @@ int32_t TVMGraphExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TV
 
   DLDevice dev = {(DLDeviceType)args[2].v_int64, (int)args[3].v_int64};
   int ret_value =
-      TVMGraphExecutor_Create(args[0].v_str, args[1].v_handle, &dev, &graph_executor.runtime);
+      TVMGraphExecutor_Create(args[0].v_str, args[1].v_handle, &dev, &graph_executor.executor);
   if (ret_value != 0) {
     return ret_value;
   }
@@ -68,7 +68,7 @@ int32_t TVMGraphExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TV
   ret_value = TVMModCreateFromCModule(&graph_executor.mod, &out);
   if (ret_value != 0) {
     ret_tcodes[0] = kTVMNullptr;
-    TVMGraphExecutor_Release(&graph_executor.runtime);
+    TVMGraphExecutor_Release(&graph_executor.executor);
     return ret_value;
   }
 
@@ -88,14 +88,14 @@ int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
     return kTvmErrorFunctionCallWrongArgType;
   }
 
-  int index = TVMGraphExecutor_GetInputIndex(graph_executor.runtime, args[0].v_str);
+  int index = TVMGraphExecutor_GetInputIndex(graph_executor.executor, args[0].v_str);
   if (index < 0) {
     return kTvmErrorGraphModuleNoSuchInput;
   }
 
-  uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.runtime,
-                                             graph_executor.runtime->input_nodes[index], 0);
-  ret_values[0].v_handle = (void*)&graph_executor.runtime->data_entry[eid].dl_tensor;
+  uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.executor,
+                                             graph_executor.executor->input_nodes[index], 0);
+  ret_values[0].v_handle = (void*)&graph_executor.executor->data_entry[eid].dl_tensor;
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
@@ -119,7 +119,7 @@ int32_t TVMGraphExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int na
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  ret_values[0].v_int64 = TVMGraphExecutor_GetNumOutputs(graph_executor.runtime);
+  ret_values[0].v_int64 = TVMGraphExecutor_GetNumOutputs(graph_executor.executor);
   ret_tcodes[0] = kTVMArgInt;
   return 0;
 }
@@ -136,15 +136,15 @@ int32_t TVMGraphExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
   }
 
   int output_index = args[0].v_int64;
-  if (output_index < 0 || output_index > TVMGraphExecutor_GetNumOutputs(graph_executor.runtime)) {
+  if (output_index < 0 || output_index > TVMGraphExecutor_GetNumOutputs(graph_executor.executor)) {
     return kTvmErrorGraphModuleNoSuchInput;
   }
 
-  uint32_t nid = graph_executor.runtime->outputs[output_index].node_id;
-  uint32_t index = graph_executor.runtime->outputs[output_index].index;
-  uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.runtime, nid, index);
+  uint32_t nid = graph_executor.executor->outputs[output_index].node_id;
+  uint32_t index = graph_executor.executor->outputs[output_index].index;
+  uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.executor, nid, index);
 
-  ret_values[0].v_handle = (void*)&(graph_executor.runtime->data_entry[eid].dl_tensor);
+  ret_values[0].v_handle = (void*)&(graph_executor.executor->data_entry[eid].dl_tensor);
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
@@ -163,7 +163,7 @@ int32_t TVMGraphExecutorModule_LoadParams(TVMValue* args, int* tcodes, int nargs
   ret_tcodes[0] = kTVMNullptr;
 
   TVMByteArray* arr = (TVMByteArray*)args[0].v_handle;
-  return TVMGraphExecutor_LoadParams(graph_executor.runtime, arr->data, arr->size);
+  return TVMGraphExecutor_LoadParams(graph_executor.executor, arr->data, arr->size);
 }
 
 int32_t TVMGraphExecutorModule_Run(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
@@ -172,7 +172,7 @@ int32_t TVMGraphExecutorModule_Run(TVMValue* args, int* tcodes, int nargs, TVMVa
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  TVMGraphExecutor_Run(graph_executor.runtime);
+  TVMGraphExecutor_Run(graph_executor.executor);
 
   ret_tcodes[0] = kTVMNullptr;
   return 0;
@@ -189,7 +189,7 @@ int32_t TVMGraphExecutorModule_SetInput(TVMValue* args, int* tcodes, int nargs,
     return kTvmErrorFunctionCallWrongArgType;
   }
 
-  TVMGraphExecutor_SetInput(graph_executor.runtime, args[0].v_str, (DLTensor*)args[1].v_handle);
+  TVMGraphExecutor_SetInput(graph_executor.executor, args[0].v_str, (DLTensor*)args[1].v_handle);
 
   ret_tcodes[0] = kTVMNullptr;
   return 0;
@@ -221,7 +221,7 @@ static const TVMFuncRegistry graph_executor_registry = {
 
 tvm_crt_error_t TVMGraphExecutorModule_Register() {
   graph_executor.mod.registry = &graph_executor_registry;
-  graph_executor.runtime = NULL;
+  graph_executor.executor = NULL;
 
   return TVMFuncRegisterGlobal("tvm.graph_executor.create", &TVMGraphExecutorModule_Create, 0);
 }

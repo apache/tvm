@@ -82,22 +82,22 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   return graph_executor;
 }
 
-TVM_DLL void tvm_runtime_destroy(void* runtime) {
-  TVMGraphExecutor_Release((TVMGraphExecutor**)&runtime);
+TVM_DLL void tvm_runtime_destroy(void* executor) {
+  TVMGraphExecutor_Release((TVMGraphExecutor**)&executor);
 }
 
-TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor) {
-  TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)runtime;
+TVM_DLL void tvm_runtime_set_input(void* executor, const char* name, DLTensor* tensor) {
+  TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)executor;
   TVMGraphExecutor_SetInput(graph_executor, name, tensor);
 }
 
-TVM_DLL void tvm_runtime_run(void* runtime) {
-  TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)runtime;
+TVM_DLL void tvm_runtime_run(void* executor) {
+  TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)executor;
   TVMGraphExecutor_Run(graph_executor);
 }
 
-TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor) {
-  TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)runtime;
+TVM_DLL void tvm_runtime_get_output(void* executor, int32_t index, DLTensor* tensor) {
+  TVMGraphExecutor* graph_executor = (TVMGraphExecutor*)executor;
   TVMGraphExecutor_GetOutput(graph_executor, index, tensor);
 }
 

@@ -74,20 +74,20 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
   void SaveToBinary(dmlc::Stream* stream) override;
 
   /*!
-   * \brief Create a specific runtime module
+   * \brief Create a specific executor module
    * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
-   * \return created runtime module
+   * \return created executor module
    */
-  Module RuntimeCreate(const std::vector<Device>& devs);
+  Module ExecutorCreate(const std::vector<Device>& devs);
 
   /*!
-   * \brief Create a specific debug runtime module
+   * \brief Create a specific debug executor module
    * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
-   * \return created debug runtime module
+   * \return created debug executor module
    */
-  Module DebugRuntimeCreate(const std::vector<Device>& devs);
+  Module DebugExecutorCreate(const std::vector<Device>& devs);
 
   /*!
    * \brief Create a specific cuda graph executor module

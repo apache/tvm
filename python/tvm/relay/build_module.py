@@ -281,10 +281,10 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
-        runtime_mod = _graph_executor_factory.GraphExecutorFactoryModule(
+        executor_factory = _graph_executor_factory.GraphExecutorFactoryModule(
             ir_mod, target, graph_json, runtime_mod, mod_name, params
         )
-        return runtime_mod
+        return executor_factory
 
 
 def optimize(mod, target=None, params=None):
