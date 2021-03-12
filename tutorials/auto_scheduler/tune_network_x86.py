@@ -69,7 +69,7 @@ from tvm.contrib import graph_runtime
 # You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
 
 
-def get_network(name, batch_size, layout="NHWC", dtype="float32"):
+def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=False):
     """Get the symbol definition and random weight of a network"""
 
     # auto-scheduler prefers NHWC layout
@@ -133,12 +133,15 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
         mod, params = relay.testing.mlp.get_workload(
             batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
         )
-    elif name == "mlp-sparse":
+    else:
+        raise ValueError("Network not found.")
+
+    if use_sparse:
         # This is a test workload that manually transforms a dense model to sparse
         # Check `tutorials/frontend/deploy_sparse.py` for more examples on how to import a
         # pretrained model.
 
-        def random_sparse_params(func, params, density, BS_R, BS_C):
+        def random_sparse_dense_params(func, params, density, BS_R, BS_C):
             def deepcopy(param_dic):
                 ret = {}
                 for k, v in param_dic.items():
@@ -160,12 +163,11 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
         bs_r = 1
         sparsity = 0.85
 
-        mod, params = relay.testing.mlp.get_workload(
-            batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
-        )
+        # Currently we only support to conver dense matmul to sparse dense matmul
         mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
-        params = random_sparse_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
+        params = random_sparse_dense_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
         mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
+
         mod = tvm.IRModule.from_expr(mod)
 
     return mod, params, input_shape, output_shape
@@ -174,7 +176,8 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 # Define the neural network and compilation target.
 # If the target machine supports avx512 instructions, replace the
 # "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
-network = "resnet-50"
+network = "mobilenet"
+use_sparse = True
 batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("llvm -mcpu=core-avx2")
@@ -193,8 +196,11 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 # The task scheduler will just optimize this objective.
 
 # Extract tasks from the network
+print("Get model...")
+mod, params, input_shape, output_shape = get_network(
+    network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
+)
 print("Extract tasks...")
-mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
@@ -224,7 +230,7 @@ def run_tuning():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=200,  # change this to 20000 to achieve the best performance
+        num_measure_trials=len(tasks),  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
@@ -235,7 +241,7 @@ def run_tuning():
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-# run_tuning()
+run_tuning()
 
 
 ######################################################################

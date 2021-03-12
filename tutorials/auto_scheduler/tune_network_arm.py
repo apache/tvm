@@ -17,7 +17,9 @@
 """
 Auto-scheduling a Neural Network for ARM CPU
 =============================================
-**Author**: `Thierry Moreau <https://github.com/tmoreau89, Lianmin Zheng <https://github.com/merrymercy>>`_
+**Author**: `Thierry Moreau <https://github.com/tmoreau89>_`, \
+            `Lianmin Zheng <https://github.com/merrymercy>_`, \
+            `Chengfan Jia <https://github.com/jcf94/>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
@@ -49,6 +51,8 @@ import os
 
 import tvm
 from tvm import relay, auto_scheduler
+from tvm.relay import data_dep_optimization as ddo
+from tvm.topi.nn.sparse import random_bsr_matrix
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
 from tvm.contrib.utils import tempdir
@@ -68,7 +72,7 @@ from tvm.contrib.utils import tempdir
 # You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
 
 
-def get_network(name, batch_size, layout="NHWC", dtype="float32"):
+def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=False):
     """Get the symbol definition and random weight of a network"""
 
     # auto-scheduler prefers NHWC layout
@@ -128,6 +132,46 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
             net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
         )
         mod = tvm.IRModule.from_expr(net)
+    elif name == "mlp":
+        mod, params = relay.testing.mlp.get_workload(
+            batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
+        )
+    else:
+        raise ValueError("Network not found.")
+
+    if use_sparse:
+        # This is a test workload that manually transforms a dense model to sparse
+        # Check `tutorials/frontend/deploy_sparse.py` for more examples on how to import a
+        # pretrained model.
+
+        def random_sparse_dense_params(func, params, density, BS_R, BS_C):
+            def deepcopy(param_dic):
+                ret = {}
+                for k, v in param_dic.items():
+                    ret[k] = tvm.nd.array(v.asnumpy())
+                return ret
+
+            new_params = deepcopy(params)
+            dense_weight_names = relay.analysis.sparse_dense._search_dense_op_weight(func)
+            for item in dense_weight_names:
+                name = str(item)
+                shape = new_params[name].shape
+                if shape[0] % BS_R == 0 and shape[1] % BS_C == 0:
+                    new_w = random_bsr_matrix(
+                        shape[0], shape[1], BS_R, BS_C, density, "float32"
+                    ).todense()
+                    new_params[name] = tvm.nd.array(new_w)
+            return new_params
+
+        bs_r = 1
+        sparsity = 0.85
+
+        # Currently we only support to conver dense matmul to sparse dense matmul
+        mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
+        params = random_sparse_dense_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
+        mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
+
+        mod = tvm.IRModule.from_expr(mod)
 
     return mod, params, input_shape, output_shape
 
@@ -228,10 +272,13 @@ rpc_port = 9190
 # Set this to True if you use ndk tools for cross compiling
 # And also set the environment variable below to point to the cross compiler
 use_ndk = True
-os.environ["TVM_NDK_CC"] = "/Users/jcf/Workspace/tvm_workspace/arm/android-ndk-r21d/build/tools/android-toolchain-arm64/bin/aarch64-linux-android-g++"
+os.environ[
+    "TVM_NDK_CC"
+] = "/Users/jcf/Workspace/tvm_workspace/arm/android-ndk-r21d/build/tools/android-toolchain-arm64/bin/aarch64-linux-android-g++"
 
 #### TUNING OPTION ####
 network = "mobilenet"
+use_sparse = False
 batch_size = 1
 layout = "NHWC"
 dtype = "float32"
@@ -249,8 +296,11 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 # The task scheduler will just optimize this objective.
 
 # Extract tasks from the network
+print("Get model...")
+mod, params, input_shape, output_shape = get_network(
+    network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
+)
 print("Extract tasks...")
-mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
@@ -284,10 +334,8 @@ def tune_and_evaluate():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=23,  # change this to 20000 to achieve the best performance
-        builder=auto_scheduler.LocalBuilder(
-            build_func="ndk" if use_ndk else "default"
-        ),
+        num_measure_trials=len(tasks),  # change this to 20000 to achieve the best performance
+        builder=auto_scheduler.LocalBuilder(build_func="ndk" if use_ndk else "default"),
         runner=auto_scheduler.RPCRunner(
             device_key,
             host=rpc_host,
@@ -300,7 +348,7 @@ def tune_and_evaluate():
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
 
-    # tuner.tune(tune_option)
+    tuner.tune(tune_option)
 
     # Compile with the history best
     print("Compile...")
