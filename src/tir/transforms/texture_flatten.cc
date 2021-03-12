@@ -265,7 +265,14 @@ class ExternalBufferForwarding : public TextureLoweringBase {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     ICHECK_EQ(external_loads_.size(), 0) << "Found external loads bound to a different store";
-    external_loads_.emplace_back();
+    if (auto* call_node = op->value.as<CallNode>()) {
+      // Path to supporting external cache_read canceling when padding has induced
+      // a conditional load into the cache_read buffer. We may be able to elide the
+      // conditional completely due to hardware support for returning 0 when OOB
+      if (call_node->op.same_as(builtin::if_then_else())) {
+        external_loads_.emplace_back();
+      }
+    }
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
 
@@ -287,14 +294,14 @@ class ExternalBufferForwarding : public TextureLoweringBase {
 
     if (auto load_node = op->value.as<BufferLoadNode>()) {
       check_identity(op, GetRef<BufferLoad>(load_node));
-    } else {
+    } else if (external_loads_.size()) {
       // Stored value is not a load, check for external loads collected
-      // when visiting the store node's value
+      // when visiting the store node's value, e.g. from if_then_else
       for (auto& expr : external_loads_.back()) {
         check_identity(op, Downcast<BufferLoad>(expr));
       }
+      external_loads_.pop_back();
     }
-    external_loads_.pop_back();
     return stmt;
   }
 
