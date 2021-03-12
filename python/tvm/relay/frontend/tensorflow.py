@@ -1286,6 +1286,40 @@ def _sparse_segment_mean_with_num_segments():
     return _impl
 
 
+def _sparse_tensor_dense_add():
+    # Sparse utility from scipy
+    from scipy.sparse import csr_matrix
+
+    def _impl(inputs, attr, params, mod):
+        assert (
+            len(inputs) == 4
+        ), "There should be 4 input tensors [sparse_indices, sparse_values, sparse_shape, dense]."
+
+        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+
+        data = inputs[3]
+
+        rows = [x[0] for x in indices_tensor]
+        cols = [x[1] for x in indices_tensor]
+
+        # Create scipy sparse Tensor(CSR)
+        weight_sp = csr_matrix(
+            (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
+        )
+
+        weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
+        weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
+        weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
+
+        ret = _op.nn.sparse_add(data, [weight_data, weight_indices, weight_indptrs])
+
+        return ret
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2787,6 +2821,7 @@ _convert_map = {
     "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sum_sqrtn_with_num_segments(),
     "SparseSegmentMean": _sparse_segment_mean(),
     "SparseSegmentMeanWithNumSegments": _sparse_segment_mean_with_num_segments(),
+    "SparseTensorDenseAdd": _sparse_tensor_dense_add(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),

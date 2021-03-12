@@ -2453,7 +2453,7 @@ class NonMaxSuppression(OnnxOpConverter):
             nms_size_out,
         ):
             # Loop over classes, end when i == C
-            return _op.min(_op.less(i, C))
+            return _op.take(_op.less(i, C), _expr.const(0))
 
         def _first_body(
             i,
@@ -2561,7 +2561,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         def _inner_cond(i, j, C, onnx_out, nms_size, out):
             # inner loop over number of classes
-            return _op.min(_op.less(j, C))
+            return _op.take(_op.less(j, C), _expr.const(0))
 
         def _inner_body(i, j, C, onnx_out, nms_size, out):
             # slice to get current batch and class for valid box indicator
@@ -2591,7 +2591,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         def _outer_cond(i, B, C, onnx_out, nms_size_out, out):
             # Outer loop is over batch size
-            return _op.min(_op.less(i, B))
+            return _op.take(_op.less(i, B), _expr.const(0))
 
         def _outer_body(i, B, C, onnx_out, nms_size_out, out):
             # Outer loop just calls inner loop
