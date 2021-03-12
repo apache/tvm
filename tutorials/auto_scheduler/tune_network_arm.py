@@ -52,7 +52,7 @@ import os
 import tvm
 from tvm import relay, auto_scheduler
 from tvm.relay import data_dep_optimization as ddo
-from tvm.topi.nn.sparse import random_bsr_matrix
+from tvm.topi.sparse.utils import random_bsr_matrix
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
 from tvm.contrib.utils import tempdir

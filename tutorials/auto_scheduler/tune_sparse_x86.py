@@ -42,7 +42,7 @@ import tvm
 from tvm import te, auto_scheduler, runtime, topi
 from tvm.auto_scheduler import _ffi_api
 from tvm.topi.utils import get_const_tuple
-from tvm.topi.nn.sparse import random_bsr_matrix
+from tvm.topi.sparse.utils import random_bsr_matrix
 
 ######################################################################
 # Define the computation
