@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file texture_pool.h
- * \brief Texture pool utility.
+ * \file texture.h
+ * \brief Texture utilities
  */
 #ifndef TVM_RUNTIME_TEXTURE_POOL_H_
 #define TVM_RUNTIME_TEXTURE_POOL_H_

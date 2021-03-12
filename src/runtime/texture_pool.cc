@@ -21,7 +21,7 @@
  * \file texture_pool.h
  * \brief Texture pool utility.
  */
-#include "texture_pool.h"
+#include "texture.h"
 
 #include <limits>
 #include <memory>
