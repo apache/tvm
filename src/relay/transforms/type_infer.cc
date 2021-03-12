@@ -310,6 +310,13 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   void VisitPattern_(const PatternWildcardNode* wc, const Type& t) {}
 
   Type VisitExpr_(const MatchNode* op) final {
+    if (op->clauses.size() == 0) {
+      auto err = Diagnostic::Error(op->span);
+      err << "match expression has no clauses and cannot satisfy a type";
+      this->EmitFatal(err);
+      return Type();
+    }
+
     Type dtype = GetType(op->data);
     for (const auto& c : op->clauses) {
       VisitPattern(c->lhs, dtype);
