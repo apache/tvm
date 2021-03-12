@@ -58,7 +58,7 @@ def create(graph_json_str, libmod, device):
     except ValueError:
         raise ValueError(
             "To enable CUDA graph support (experimental), please set "
-            "'(USE_GRAPH_RUNTIME_CUGRAPH ON)' in config.cmake and rebuild TVM"
+            "'(USE_GRAPH_EXECUTOR_CUGRAPH ON)' in config.cmake and rebuild TVM"
         )
 
     return GraphModuleCudaGraph(fcreate(graph_json_str, libmod, *device_type_id))

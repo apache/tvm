@@ -34,7 +34,7 @@
 
 #include "crt_config.h"
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 #include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
 
   utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
   CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
            "failed to register GraphExecutor TVMModule");
 #endif

@@ -21,8 +21,8 @@
  * \file graph_executor.h
  * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
  */
-#ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_CRT_GRAPH_EXECUTOR_H_
+#define TVM_RUNTIME_CRT_GRAPH_EXECUTOR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -127,4 +127,4 @@ int TVMGraphExecutor_Release(TVMGraphExecutor** runtime);
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_CRT_GRAPH_EXECUTOR_H_

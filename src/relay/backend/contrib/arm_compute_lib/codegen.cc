@@ -381,7 +381,7 @@ TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib").set_body_typed(ACLCompiler);
  * \return True if ACL graph executor is enabled, False if not.
  */
 inline constexpr bool IsACLRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#if TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
   return true;
 #else
   return false;

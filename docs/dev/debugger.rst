@@ -123,12 +123,12 @@ Example of loading the parameters
 How to use Debugger?
 ***************************************
 
-1. In ``config.cmake`` set the ``USE_GRAPH_RUNTIME_DEBUG`` flag to ``ON``
+1. In ``config.cmake`` set the ``USE_GRAPH_EXECUTOR_DEBUG`` flag to ``ON``
 
    ::
 
        # Whether enable additional graph debug functions
-       set(USE_GRAPH_RUNTIME_DEBUG ON)
+       set(USE_GRAPH_EXECUTOR_DEBUG ON)
 
 2. Do 'make' tvm, so that it will make the ``libtvm_runtime.so``
 

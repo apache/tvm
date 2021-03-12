@@ -71,7 +71,7 @@ from tvm.contrib.download import download_testdata
 #         -DUSE_RPC=ON \
 #         -DUSE_SORT=ON \
 #         -DUSE_VULKAN=ON \
-#         -DUSE_GRAPH_RUNTIME=ON \
+#         -DUSE_GRAPH_EXECUTOR=ON \
 #         ..
 #   make -j10
 #

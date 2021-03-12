@@ -21,8 +21,8 @@
  * \file src/runtime/crt/include/tvm/runtime/crt/internal/graph_executor/graph_executor.h
  * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
  */
-#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
 
 #include <tvm/runtime/crt/graph_executor.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
@@ -118,4 +118,4 @@ int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* runtime, const TVMOpParam
                                     DLTensorPtr* args, const uint32_t args_count,
                                     uint32_t num_inputs, TVMPackedFunc* pf);
 
-#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_

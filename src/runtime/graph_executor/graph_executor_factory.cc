@@ -141,7 +141,7 @@ Module GraphExecutorFactory::DebugRuntimeCreate(const std::vector<Device>& devs)
 Module GraphExecutorFactory::CudaGraphExecutorCreate(const std::vector<Device>& devs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_executor_cuda_graph.create");
   ICHECK(pf != nullptr) << "Cannot find function tvm.graph_executor_cuda_graph.create in registry. "
-                           "Did you set(USE_GRAPH_RUNTIME_CUGRAPH=ON)?";
+                           "Did you set(USE_GRAPH_EXECUTOR_CUGRAPH=ON)?";
   std::vector<int> unpacked_devs;
   for (const auto& dev : devs) {
     unpacked_devs.emplace_back(dev.device_type);
