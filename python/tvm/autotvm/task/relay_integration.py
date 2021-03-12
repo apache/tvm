@@ -36,14 +36,14 @@ def _lower(mod, target, params):
     """Helper to lower VTA properly."""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_runtime_codegen
+    from tvm.relay.backend import graph_executor_codegen
 
     if hasattr(target, "device_name") and target.device_name == "vta":
         import vta
 
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphExecutorCodegen(None, target)
+            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(mod["main"])
             return
 
@@ -53,7 +53,7 @@ def _lower(mod, target, params):
     # TODO: Currently VM compiler is likely to stack overflow for large models.
     try:
         opt_mod, _ = relay.optimize(mod, target, params)
-        grc = graph_runtime_codegen.GraphExecutorCodegen(None, target)
+        grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
         grc.codegen(opt_mod["main"])
     except tvm.TVMError as e:
         print(

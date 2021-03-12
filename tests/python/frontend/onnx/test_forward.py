@@ -23,7 +23,7 @@ import pytest
 import tvm.topi.testing
 import tvm
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import scipy
 import tvm.testing
 
@@ -78,7 +78,7 @@ def get_tvm_output(
     with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod, target, params=params)
 
-    m = graph_runtime.create(graph, lib, device)
+    m = graph_executor.create(graph, lib, device)
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_names):

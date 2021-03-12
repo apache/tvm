@@ -39,7 +39,7 @@ use crate::{errors::*, Module, Storage, Tensor};
 
 // @see `kTVMNDArrayMagic` in `ndarray.h`
 const _NDARRAY_MAGIC: u64 = 0xDD5E_40F0_96B4_A13F;
-// @see `kTVMNDArrayListMagic` in `graph_runtime.h`
+// @see `kTVMNDArrayListMagic` in `graph_executor.h`
 const _NDARRAY_LIST_MAGIC: u64 = 0xF7E5_8D4F_0504_9CB7;
 
 /// A TVM computation graph.

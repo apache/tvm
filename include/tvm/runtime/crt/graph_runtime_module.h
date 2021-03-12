@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file graph_runtime.h
+ * \file graph_executor.h
  * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
  */
 #ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_MODULE_H_
@@ -31,7 +31,7 @@ extern "C" {
 #include <tvm/runtime/crt/error_codes.h>
 
 /*!
- * \brief Register the "tvm.graph_runtime.create" constructor PackedFunc.
+ * \brief Register the "tvm.graph_executor.create" constructor PackedFunc.
  */
 tvm_crt_error_t TVMGraphExecutorModule_Register();
 

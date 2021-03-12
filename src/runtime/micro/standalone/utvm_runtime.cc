@@ -20,7 +20,7 @@
 
 #include <cassert>
 
-#include "utvm_graph_runtime.h"
+#include "utvm_graph_executor.h"
 
 void* UTVMRuntimeCreate(const char* json, size_t json_len, void* module) {
   return new tvm::micro::MicroGraphExecutor(std::string(json, json + json_len),

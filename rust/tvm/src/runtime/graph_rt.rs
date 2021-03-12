@@ -46,7 +46,7 @@ impl GraphRt {
 
     /// Create a graph runtime from the deprecated graph, lib, dev triple.
     pub fn create_from_parts(graph: &str, lib: Module, dev: Device) -> Result<Self> {
-        let runtime_create_fn = Function::get("tvm.graph_runtime.create").unwrap();
+        let runtime_create_fn = Function::get("tvm.graph_executor.create").unwrap();
 
         let runtime_create_fn_ret = runtime_create_fn.invoke(vec![
             graph.into(),
@@ -55,9 +55,9 @@ impl GraphRt {
             // NOTE you must pass the device id in as i32 because that's what TVM expects
             (dev.device_id as i32).into(),
         ]);
-        let graph_runtime_module: Module = runtime_create_fn_ret?.try_into()?;
+        let graph_executor_module: Module = runtime_create_fn_ret?.try_into()?;
         Ok(Self {
-            module: graph_runtime_module,
+            module: graph_executor_module,
         })
     }
 

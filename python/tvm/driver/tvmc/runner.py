@@ -26,7 +26,7 @@ import tempfile
 import numpy as np
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_runtime as runtime
+from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_runtime
 from tvm.relay import load_param_dict
 

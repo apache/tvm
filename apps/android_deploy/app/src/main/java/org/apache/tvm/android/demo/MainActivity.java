@@ -184,7 +184,7 @@ public class MainActivity extends AppCompatActivity {
             Module modelLib = Module.load(libCacheFilePath);
 
             // get global function module for graph runtime
-            Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
+            Function runtimeCreFun = Function.getFunction("tvm.graph_executor.create");
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
                     .pushArg(tvmDev.deviceType)

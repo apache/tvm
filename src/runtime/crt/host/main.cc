@@ -35,7 +35,7 @@
 #include "crt_config.h"
 
 #ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-#include <tvm/runtime/crt/graph_runtime_module.h>
+#include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
 using namespace std::chrono;

@@ -27,13 +27,13 @@ from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, autotvm, register_func
 from ..target import Target
-from ..contrib import graph_runtime as _graph_rt
+from ..contrib import graph_executor as _graph_rt
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
-from .backend import graph_runtime_factory as _graph_runtime_factory
+from .backend import graph_executor_factory as _graph_executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -110,7 +110,7 @@ class BuildModule(object):
 
         Returns
         -------
-        factory_module : tvm.relay.backend.graph_runtime_factory.GraphExecutorFactoryModule
+        factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
             The runtime factory for the TVM graph runtime.
         """
         target = _update_target(target)
@@ -281,7 +281,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
-        runtime_mod = _graph_runtime_factory.GraphExecutorFactoryModule(
+        runtime_mod = _graph_executor_factory.GraphExecutorFactoryModule(
             ir_mod, target, graph_json, runtime_mod, mod_name, params
         )
         return runtime_mod

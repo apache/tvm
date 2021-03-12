@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file graph_runtime_debug.cc
+ * \file graph_executor_debug.cc
  */
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
@@ -29,7 +29,7 @@
 #include <chrono>
 #include <sstream>
 
-#include "../graph_runtime.h"
+#include "../graph_executor.h"
 
 namespace tvm {
 namespace runtime {
@@ -279,8 +279,8 @@ Module GraphExecutorDebugCreate(const std::string& sym_json, const tvm::runtime:
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+TVM_REGISTER_GLOBAL("tvm.graph_executor_debug.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_executor.create is "
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;

@@ -17,7 +17,7 @@
 import numpy as np
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm import relay
 from model_zoo import c2_squeezenet, c2_resnet50, c2_vgg19
 from caffe2.python import workspace, core
@@ -42,7 +42,7 @@ def get_tvm_output(model, input_data, target, device, output_shape, output_dtype
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target, params=params)
 
-    m = graph_runtime.GraphModule(lib["default"](device))
+    m = graph_executor.GraphModule(lib["default"](device))
 
     # set inputs
     m.set_input(input_names, tvm.nd.array(input_data.astype(input_data.dtype)))

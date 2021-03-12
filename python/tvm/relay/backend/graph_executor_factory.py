@@ -43,7 +43,7 @@ class GraphExecutorFactoryModule:
 
     def __init__(self, ir_mod, target, graph_json_str, libmod, libmod_name, params):
         assert isinstance(graph_json_str, string_types)
-        fcreate = get_global_func("tvm.graph_runtime_factory.create")
+        fcreate = get_global_func("tvm.graph_executor_factory.create")
         args = []
         for k, v in params.items():
             args.append(k)
@@ -79,7 +79,7 @@ class GraphExecutorFactoryModule:
         warnings.warn(
             "legacy graph runtime behavior of producing json / lib / params will be "
             "removed in the next release."
-            " Please see documents of tvm.contrib.graph_runtime.GraphModule for the "
+            " Please see documents of tvm.contrib.graph_executor.GraphModule for the "
             " new recommended usage.",
             DeprecationWarning,
             2,

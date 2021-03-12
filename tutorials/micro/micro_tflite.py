@@ -127,7 +127,7 @@ import logging
 import tvm
 import tvm.micro as micro
 from tvm.contrib.download import download_testdata
-from tvm.contrib import graph_runtime, utils
+from tvm.contrib import graph_executor, utils
 from tvm import relay
 
 model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
@@ -257,7 +257,7 @@ micro_binary = tvm.micro.build_static_runtime(
 
 flasher = compiler.flasher()
 with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
-    graph_mod = tvm.micro.create_local_graph_runtime(
+    graph_mod = tvm.micro.create_local_graph_executor(
         graph, session.get_system_lib(), session.device
     )
 

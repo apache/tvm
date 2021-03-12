@@ -19,7 +19,7 @@ import operator
 
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm import relay
 import mxnet as mx
 
@@ -78,7 +78,7 @@ def verify_mxnet_frontend_impl(
             )
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target, params=params)
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         # set inputs
         m.set_input("data", tvm.nd.array(x.astype(dtype)))
         m.run()

@@ -21,7 +21,7 @@ import numpy as np
 
 import tvm
 from tvm import relay, auto_scheduler
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm.testing
 
 
@@ -169,7 +169,7 @@ def tune_and_check(mod, data, weight):
 
         def get_output(data, lib):
             dev = tvm.cpu()
-            module = graph_runtime.GraphModule(lib["default"](dev))
+            module = graph_executor.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()
 

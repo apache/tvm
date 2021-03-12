@@ -62,7 +62,7 @@ from tvm import topi
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, utils, download
+from tvm.contrib import graph_executor, utils, download
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 
@@ -433,7 +433,7 @@ def tune_and_evaluate(tuning_opt):
 
         # Generate the graph runtime
         ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_executor.GraphModule(lib["default"](ctx))
 
         # upload parameters to device
         image = tvm.nd.array((np.random.uniform(size=(1, 3, 224, 224))).astype("float32"))

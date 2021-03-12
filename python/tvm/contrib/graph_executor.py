@@ -50,7 +50,7 @@ def create(graph_json_str, libmod, device):
 
     Note
     ----
-    See also :py:class:`tvm.contrib.graph_runtime.GraphModule`
+    See also :py:class:`tvm.contrib.graph_executor.GraphModule`
     for examples to directly construct a GraphModule from an exported
     relay compiled library.
     """
@@ -59,9 +59,9 @@ def create(graph_json_str, libmod, device):
     dev, num_rpc_dev, device_type_id = get_device(libmod, device)
 
     if num_rpc_dev == len(dev):
-        fcreate = dev[0]._rpc_sess.get_function("tvm.graph_runtime.create")
+        fcreate = dev[0]._rpc_sess.get_function("tvm.graph_executor.create")
     else:
-        fcreate = tvm._ffi.get_global_func("tvm.graph_runtime.create")
+        fcreate = tvm._ffi.get_global_func("tvm.graph_executor.create")
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
@@ -135,7 +135,7 @@ class GraphModule(object):
 
         import tvm
         from tvm import relay
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
         # build the library using graph runtime
         lib = relay.build(...)
@@ -144,7 +144,7 @@ class GraphModule(object):
         lib: tvm.runtime.Module = tvm.runtime.load_module("compiled_lib.so")
         # Call the library factory function for default and create
         # a new runtime.Module, wrap with graph module.
-        gmod = graph_runtime.GraphModule(lib["default"](dev))
+        gmod = graph_executor.GraphModule(lib["default"](dev))
         # use the graph module.
         gmod.set_input("x", data)
         gmod.run()
@@ -270,7 +270,7 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        raise NotImplementedError("Please use debugger.debug_runtime as graph_runtime instead.")
+        raise NotImplementedError("Please use debugger.debug_runtime as graph_executor instead.")
 
     def load_params(self, params_bytes):
         """Load parameters from serialized byte array of parameter dict.

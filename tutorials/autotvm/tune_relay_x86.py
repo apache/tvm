@@ -36,7 +36,7 @@ from tvm import relay, autotvm
 from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-import tvm.contrib.graph_runtime as runtime
+import tvm.contrib.graph_executor as runtime
 
 #################################################################
 # Define network

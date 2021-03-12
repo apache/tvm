@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/crt/include/tvm/runtime/crt/internal/graph_runtime/load_json.h
+ * \file src/runtime/crt/include/tvm/runtime/crt/internal/graph_executor/load_json.h
  * \brief Lightweight JSON Reader that read save into C++ data structs.
  */
 #ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_LOAD_JSON_H_

@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file graph_runtime_cuda_graph.cc
+ * \file graph_executor_cuda_graph.cc
  */
 
 #include <tvm/runtime/registry.h>
 
 #include "../../cuda/cuda_common.h"
-#include "../graph_runtime.h"
+#include "../graph_executor.h"
 
 namespace tvm {
 namespace runtime {
@@ -116,9 +116,9 @@ Module GraphExecutorCudaGraphCreate(const std::string& sym_json, const tvm::runt
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_cuda_graph.create")
+TVM_REGISTER_GLOBAL("tvm.graph_executor_cuda_graph.create")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+      ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_executor.create is "
                                      "at least 4, but it has "
                                   << args.num_args;
       PackedFunc lookup_linked_param_func;

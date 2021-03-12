@@ -58,7 +58,7 @@ import vta
 from tvm import rpc, autotvm, relay
 from tvm.relay.testing import yolo_detection, darknet
 from tvm.relay.testing.darknet import __darknetffi__
-from tvm.contrib import graph_runtime, utils
+from tvm.contrib import graph_executor, utils
 from tvm.contrib.download import download_testdata
 from vta.testing import simulator
 from vta.top import graph_pack
@@ -247,7 +247,7 @@ with autotvm.tophub.context(target):
     lib = remote.load_module("graphlib.tar")
 
     # Graph runtime
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_executor.GraphModule(lib["default"](ctx))
 
 ####################################
 # Perform image detection inference.

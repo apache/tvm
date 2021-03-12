@@ -206,7 +206,7 @@ def test_llvm_link_params():
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib, mod):
                 graph_json, _, _ = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -218,7 +218,7 @@ def test_llvm_link_params():
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -316,7 +316,7 @@ def test_c_link_params():
 
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib_mod):
-                graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
 
@@ -334,7 +334,7 @@ def test_c_link_params():
             lib_mod = tvm.runtime.load_module(lib_path)
 
             def _run_unlinked(lib_mod):
-                graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input, **params)
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -374,7 +374,7 @@ def test_crt_link_params():
                 compiler_options=opts,
                 extra_libs=[
                     tvm.micro.get_standalone_crt_lib(m)
-                    for m in ("memory", "graph_runtime_module", "graph_runtime")
+                    for m in ("memory", "graph_executor_module", "graph_executor")
                 ],
             )
 
@@ -383,7 +383,7 @@ def test_crt_link_params():
             }
             flasher = compiler.flasher(**flasher_kw)
             with tvm.micro.Session(binary=micro_binary, flasher=flasher) as sess:
-                graph_rt = tvm.micro.session.create_local_graph_runtime(
+                graph_rt = tvm.micro.session.create_local_graph_executor(
                     graph_json, sess.get_system_lib(), sess.device
                 )
 
@@ -397,7 +397,7 @@ def test_crt_link_params():
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
                 return graph_rt.get_output(0).asnumpy()

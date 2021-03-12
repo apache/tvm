@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file graph_runtime.cc
+ * \file graph_executor.cc
  */
-#include "graph_runtime.h"
+#include "graph_executor.h"
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
@@ -531,8 +531,8 @@ std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg) {
 // execution support yet. For heterogenenous execution, at least 5 arguments will
 // be passed in. The third one is the number of devices.
 // Eventually, we will only probably pass Device for all the languages.
-TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+TVM_REGISTER_GLOBAL("tvm.graph_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_executor.create is "
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file graph_runtime_factory.cc
+ * \file graph_executor_factory.cc
  * \brief Graph runtime factory implementations
  */
 
-#include "./graph_runtime_factory.h"
+#include "./graph_executor_factory.h"
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
@@ -112,8 +112,8 @@ Module GraphExecutorFactory::RuntimeCreate(const std::vector<Device>& devs) {
 }
 
 Module GraphExecutorFactory::DebugRuntimeCreate(const std::vector<Device>& devs) {
-  const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_debug.create");
-  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_debug.create in registry. "
+  const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_executor_debug.create");
+  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_executor_debug.create in registry. "
                            "Do you enable debug graph runtime build?";
   // Debug runtime create packed function will call GetAllContexs, so we unpack the devs.
   std::vector<int> unpacked_devs;
@@ -139,8 +139,8 @@ Module GraphExecutorFactory::DebugRuntimeCreate(const std::vector<Device>& devs)
 }
 
 Module GraphExecutorFactory::CudaGraphExecutorCreate(const std::vector<Device>& devs) {
-  const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_cuda_graph.create");
-  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_cuda_graph.create in registry. "
+  const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_executor_cuda_graph.create");
+  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_executor_cuda_graph.create in registry. "
                            "Did you set(USE_GRAPH_RUNTIME_CUGRAPH=ON)?";
   std::vector<int> unpacked_devs;
   for (const auto& dev : devs) {
@@ -184,9 +184,9 @@ Module GraphExecutorFactoryModuleLoadBinary(void* strm) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("tvm.graph_executor_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
   ICHECK_GE(args.num_args, 3) << "The expected number of arguments for "
-                                 "graph_runtime_factory.create needs at least 3, "
+                                 "graph_executor_factory.create needs at least 3, "
                                  "but it has "
                               << args.num_args;
   // The argument order is graph_json, module, module_name, param0_name, param0_tensor,

@@ -584,7 +584,7 @@ public class Camera2BasicFragment extends Fragment {
             // get global function module for graph runtime
             Log.i(TAG, "getting graph runtime create handle...");
 
-            Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
+            Function runtimeCreFun = Function.getFunction("tvm.graph_executor.create");
             Log.i(TAG, "creating graph runtime...");
 
             Log.i(TAG, "device type: " + tvmDev.deviceType);

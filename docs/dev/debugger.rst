@@ -133,14 +133,14 @@ How to use Debugger?
 2. Do 'make' tvm, so that it will make the ``libtvm_runtime.so``
 
 3. In frontend script file instead of
-   ``from tvm.contrib import graph_runtime`` import the
+   ``from tvm.contrib import graph_executor`` import the
    ``debug_runtime``
-   ``from tvm.contrib.debugger import debug_runtime as graph_runtime``
+   ``from tvm.contrib.debugger import debug_runtime as graph_executor``
 
 ::
 
-    from tvm.contrib.debugger import debug_runtime as graph_runtime
-    m = graph_runtime.create(graph, lib, dev, dump_root="/tmp/tvmdbg")
+    from tvm.contrib.debugger import debug_runtime as graph_executor
+    m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg")
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)

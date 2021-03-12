@@ -52,7 +52,7 @@ from matplotlib import pyplot as plt
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, utils, download
+from tvm.contrib import graph_executor, utils, download
 from tvm.contrib.debugger import debug_runtime
 from tvm.relay import transform
 
@@ -210,7 +210,7 @@ with autotvm.tophub.context(target):
     lib = remote.load_module("graphlib.tar")
 
     # Graph runtime
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_executor.GraphModule(lib["default"](ctx))
 
 ######################################################################
 # Perform image classification inference

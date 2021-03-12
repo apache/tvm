@@ -70,13 +70,13 @@ func main() {
     }
     jsonStr := string(bytes)
 
-    // Load module on tvm runtime - call tvm.graph_runtime.create
-    funp, err := gotvm.GetGlobalFunction("tvm.graph_runtime.create")
+    // Load module on tvm runtime - call tvm.graph_executor.create
+    funp, err := gotvm.GetGlobalFunction("tvm.graph_executor.create")
     if err != nil {
         fmt.Print(err)
         return
     }
-    fmt.Printf("Calling tvm.graph_runtime.create\n")
+    fmt.Printf("Calling tvm.graph_executor.create\n")
     // Call function
     graphrt, err := funp.Invoke(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
     if err != nil {

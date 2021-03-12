@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "utvm_graph_runtime.h"
+#include "utvm_graph_executor.h"
 
 #include <dlfcn.h>
 

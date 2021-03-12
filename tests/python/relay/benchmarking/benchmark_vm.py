@@ -19,7 +19,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm import relay
 from tvm.runtime import container
 from tvm.runtime import vm as vm_rt
@@ -36,13 +36,13 @@ def benchmark_execution(
     dtype="float32",
     model="unknown",
 ):
-    def get_graph_runtime_output(
+    def get_graph_executor_output(
         mod, data, params, target, dev, dtype="float32", number=2, repeat=20
     ):
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target, params=params)
 
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         # set inputs
         m.set_input("data", data)
         m.run()
@@ -82,7 +82,7 @@ def benchmark_execution(
     data = np.random.uniform(size=data_shape).astype(dtype)
 
     for target, dev in testing.enabled_targets():
-        tvm_out = get_graph_runtime_output(
+        tvm_out = get_graph_executor_output(
             mod, tvm.nd.array(data.astype(dtype)), params, target, dev, dtype
         )
         vm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params, target, dev, dtype)

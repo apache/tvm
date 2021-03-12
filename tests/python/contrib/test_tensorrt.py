@@ -24,7 +24,7 @@ import tvm.relay.testing
 
 from tvm import relay, runtime
 from tvm.relay.op.contrib import tensorrt
-from tvm.contrib import graph_runtime, utils
+from tvm.contrib import graph_executor, utils
 from tvm.runtime.vm import VirtualMachine
 from tvm.relay import Any, GlobalVar, transform
 from tvm.relay.expr_functor import ExprVisitor
@@ -252,7 +252,7 @@ def test_tensorrt_not_compatible():
                 results = exec.evaluate()(x_data)
 
 
-def test_tensorrt_serialize_graph_runtime():
+def test_tensorrt_serialize_graph_executor():
     if skip_codegen_test():
         return
     import mxnet as mx
@@ -273,7 +273,7 @@ def test_tensorrt_serialize_graph_runtime():
         return graph, lib, params
 
     def run_graph(graph, lib, params):
-        mod_ = graph_runtime.create(graph, lib, device=tvm.gpu(0))
+        mod_ = graph_executor.create(graph, lib, device=tvm.gpu(0))
         mod_.load_params(params)
         mod_.run(data=i_data)
         res = mod_.get_output(0)

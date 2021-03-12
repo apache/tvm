@@ -38,9 +38,9 @@ public class GraphExecutor {
    * @return Runtime graph module that can be used to execute the graph.
    */
   public static GraphModule create(String graphJson, Module libmod, Device dev) {
-    Function fcreate = Function.getFunction("tvm.graph_runtime.create");
+    Function fcreate = Function.getFunction("tvm.graph_executor.create");
     if (fcreate == null) {
-      throw new RuntimeException("Cannot find global function tvm.graph_runtime.create."
+      throw new RuntimeException("Cannot find global function tvm.graph_executor.create."
           + "Did you compile tvm_runtime with correct version?");
     }
     Module graphModule = fcreate.pushArg(graphJson)

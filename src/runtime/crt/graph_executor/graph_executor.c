@@ -20,12 +20,12 @@
 // LINT_C_FILE
 
 /*!
- * \file graph_runtime.c
+ * \file graph_executor.c
  * \brief implement graph runtime in pure C
  */
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
+#include <tvm/runtime/crt/internal/graph_executor/graph_executor.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
