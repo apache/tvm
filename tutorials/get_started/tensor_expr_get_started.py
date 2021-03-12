@@ -94,7 +94,7 @@ print(type(C))
 # While the above lines describe the computation rule, we can compute C in many
 # different ways. For a tensor with multiple axes, you can choose which axis to
 # iterate over first, or computations can be split across different threads.
-# TVM requires that the user to provide a schedule, which is a description of 
+# TVM requires that the user to provide a schedule, which is a description of
 # how the computation should be performed. Scheduling operations within TE
 # can change loop orders, split computations across different threads, group
 # blocks of data together, amongst other operations. An important concept behind
@@ -115,7 +115,7 @@ s = te.create_schedule(C.op)
 ######################################################################
 # Compile and Evaluate the Default Schedule
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# With the TE expression and a schedule, we can produce runnable code for our 
+# With the TE expression and a schedule, we can produce runnable code for our
 # target language and architecture, in this case LLVM and a CPU. We provide
 # TVM with the schedule, a list of the TE expressions that are in the schedule,
 # the target and host, and the name of the function we are producing. The result
@@ -221,11 +221,11 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 run_cuda = False
 if run_cuda:
 
-# Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs),
-# rocm (Radeon GPUS), OpenCL (opencl).
+    # Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs),
+    # rocm (Radeon GPUS), OpenCL (opencl).
     tgt_gpu = "cuda"
 
-# Recreate the schedule
+    # Recreate the schedule
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
@@ -236,10 +236,10 @@ if run_cuda:
 
     bx, tx = s[C].split(C.op.axis[0], factor=64)
 
-################################################################################
-# Finally we bind the iteration axis bx and tx to threads in the GPU compute
-# grid. These are GPU specific constructs that allow us to generate code that
-# runs on GPU.
+    ################################################################################
+    # Finally we bind the iteration axis bx and tx to threads in the GPU compute
+    # grid. These are GPU specific constructs that allow us to generate code that
+    # runs on GPU.
 
     if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
         s[C].bind(bx, te.thread_axis("blockIdx.x"))
@@ -247,16 +247,16 @@ if run_cuda:
 
     fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
 
-################################################################################
-# The compiled TVM function is exposes a concise C API that can be invoked from
-# any language.
-#
-# We provide a minimal array API in python to aid quick testing and
-# prototyping. The array API is based on the DLPack standard.
-#
-# We first create a GPU context. Then tvm.nd.array copies the data to the GPU,
-# fadd runs the actual computation, and asnumpy() copies the GPU array back to the
-# CPU (so we can verify correctness).
+    ################################################################################
+    # The compiled TVM function is exposes a concise C API that can be invoked from
+    # any language.
+    #
+    # We provide a minimal array API in python to aid quick testing and
+    # prototyping. The array API is based on the DLPack standard.
+    #
+    # We first create a GPU context. Then tvm.nd.array copies the data to the GPU,
+    # fadd runs the actual computation, and asnumpy() copies the GPU array back to the
+    # CPU (so we can verify correctness).
 
     ctx = tvm.context(tgt_gpu, 0)
 
@@ -267,14 +267,14 @@ if run_cuda:
     fadd(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-################################################################################
-# Inspect the Generated GPU Code
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# You can inspect the generated code in TVM. The result of tvm.build is a TVM
-# Module. fadd is the host module that contains the host wrapper, it also
-# contains a device module for the CUDA (GPU) function.
-#
-# The following code fetches the device module and prints the content code.
+    ################################################################################
+    # Inspect the Generated GPU Code
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # You can inspect the generated code in TVM. The result of tvm.build is a TVM
+    # Module. fadd is the host module that contains the host wrapper, it also
+    # contains a device module for the CUDA (GPU) function.
+    #
+    # The following code fetches the device module and prints the content code.
 
     if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
         dev_module = fadd.imported_modules[0]
@@ -524,6 +524,7 @@ c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
 func(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
+
 def evaluate_operation(s, vars, target, name, optimization, log):
     func = tvm.build(s, [A, B, C], target=target, name="mmult")
     assert func
@@ -536,6 +537,7 @@ def evaluate_operation(s, vars, target, name, optimization, log):
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
     log.append((optimization, mean_time))
+
 
 log = []
 
@@ -645,7 +647,9 @@ ko, ki = s[C].split(k, factor=4)
 s[C].reorder(xo, yo, ko, xi, ki, yi)
 s[C].vectorize(yi)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="loop permutation", log=log)
+evaluate_operation(
+    s, [A, B, C], target=target, name="mmult", optimization="loop permutation", log=log
+)
 
 # Again, print the new generalized IR
 print(tvm.lower(s, [A, B, C], simple_mode=True))
@@ -775,7 +779,9 @@ x, y, z = s[packedB].op.axis
 s[packedB].vectorize(z)
 s[packedB].parallel(x)
 
-evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="parallelization", log=log)
+evaluate_operation(
+    s, [A, B, C], target=target, name="mmult", optimization="parallelization", log=log
+)
 
 # Here is the generated IR after parallelization.
 print(tvm.lower(s, [A, B, C], simple_mode=True))
@@ -792,7 +798,10 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 baseline = log[0][1]
 print("%s\t%s\t%s" % ("Operator".rjust(20), "Timing".rjust(20), "Performance".rjust(20)))
 for result in log:
-    print("%s\t%s\t%s" % (result[0].rjust(20), str(result[1]).rjust(20), str(result[1]/baseline).rjust(20)))
+    print(
+        "%s\t%s\t%s"
+        % (result[0].rjust(20), str(result[1]).rjust(20), str(result[1] / baseline).rjust(20))
+    )
 
 ################################################################################
 # Note that the outputs on the web page reflect the running times on a
