@@ -130,7 +130,9 @@ ALLOW_SPECIFIC_FILE = {
     "tests/micro/zephyr/testdata/digit-9.jpg",
     "tests/micro/zephyr/testdata/mnist-8.onnx",
     # microTVM Zephyr runtime
-    "apps/microtvm/zephyr/demo_runtime/prf.conf",
+    "apps/microtvm/zephyr/demo_runtime/prj.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/nrf5340dk_nrf5340_cpuapp.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/qemu_x86.conf",
     "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-i386",
     # microTVM Virtual Machines
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
