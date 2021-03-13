@@ -511,6 +511,14 @@ class Stage(Object):
         """
         _ffi_api.StageDoubleBuffer(self)
 
+    def rolling_buffer(self):
+        """Compute the current stage via rolling buffering.
+
+        This can only be applied to intermediate stage.
+        This will change the storage cost of the current stage.
+        """
+        _ffi_api.StageRollingBuffer(self)
+
 
 @tvm._ffi.register_object
 class SpecializedCondition(Object):

@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 from . import _ffi_api
 from . import function_pass as _fpass
+from .inject_rolling_buffer import InjectRollingBuffer
 
 
 def Apply(ftransform):

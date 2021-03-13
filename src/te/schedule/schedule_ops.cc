@@ -54,6 +54,9 @@ Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.
   pipeline = AttrStmt(s->op, tir::attr::realize_scope, StringImm(s->scope), pipeline);
+  if (s->rolling_buffer) {
+    pipeline = AttrStmt(s->op, tir::attr::rolling_buffer, Bool(true), pipeline);
+  }
 
   return pipeline;
 }

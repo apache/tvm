@@ -1241,6 +1241,8 @@ constexpr const char* storage_scope = "storage_scope";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
+/*! \brief Mark realization for rolling buffer optimization */
+constexpr const char* rolling_buffer = "rolling_buffer";
 /*! \brief The allocation device for global malloc in host. */
 constexpr const char* device_id = "device_id";
 /*! \brief The device type. */

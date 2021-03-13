@@ -484,7 +484,9 @@ ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Sta
     }
     ret.init_nest = MakeLoopNest(stage, dom_map, begin_loop, true, skip_iter, &(ret.init_vmap),
                                  debug_keep_trivial_loop);
-    ret.init_predicates = MakeBoundCheck(stage, dom_map, ret.init_vmap, true, skip_iter);
+    bool skip_ivar_domain = !stage->rolling_buffer;
+    ret.init_predicates =
+        MakeBoundCheck(stage, dom_map, ret.init_vmap, skip_ivar_domain, skip_iter);
     for (auto& e : ret.init_predicates) {
       e = likely(e);
     }
