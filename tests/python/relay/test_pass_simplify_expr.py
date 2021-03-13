@@ -86,7 +86,23 @@ def test_simplify_transpose():
         y = relay.nn.relu(x)
         return relay.Function([x], y)
 
-    for before, expected in [[before1(), expected1()], [before2(), expected2()]]:
+    def before3():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.nn.relu(x)
+        y = relay.transpose(y)  # Reverse
+        y = relay.transpose(y)  # Reverse
+        return relay.Function([x], y)
+
+    def expected3():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
+    for before, expected in [
+        [before1(), expected1()],
+        [before2(), expected2()],
+        [before3(), expected3()],
+    ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
         assert tvm.ir.structural_equal(after, expected)

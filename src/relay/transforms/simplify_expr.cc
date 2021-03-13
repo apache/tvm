@@ -98,23 +98,23 @@ class SimplifyTranspose : public SimplifyPattern {
   Expr callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     // Helper function to get the axes from call node attribute
-    auto get_axes_from_call = [](const Call trans_call, size_t ndim) {
+    auto get_axes_from_call = [](const Call trans_call, int ndim) {
       std::vector<int> attr_axes;
       if (auto attr = trans_call->attrs.as<TransposeAttrs>()) {
         if (attr->axes.defined()) {
-          for (size_t i = 0; i < ndim; ++i) {
+          for (int i = 0; i < ndim; ++i) {
             attr_axes.push_back(attr->axes[i]);
           }
         } else {
           // Empty axes means reverse
-          for (size_t i = ndim - 1; i >= 0; --i) {
+          for (int i = ndim - 1; i >= 0; --i) {
             attr_axes.push_back(i);
           }
         }
       } else if (auto attr = trans_call->attrs.as<LayoutTransformAttrs>()) {
         Layout src_layout(attr->src_layout);
         Layout dst_layout(attr->dst_layout);
-        for (size_t i = 0; i < ndim; ++i) {
+        for (int i = 0; i < ndim; ++i) {
           attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
         }
       } else {
@@ -127,9 +127,9 @@ class SimplifyTranspose : public SimplifyPattern {
     auto x = node_map[x_][0];
 
     // Initialize axes
-    auto ndim = Downcast<TensorType>(pre->checked_type())->shape.size();
+    int ndim = Downcast<TensorType>(pre->checked_type())->shape.size();
     Array<Integer> axes;
-    for (size_t i = 0; i < ndim; ++i) {
+    for (int i = 0; i < ndim; ++i) {
       axes.push_back(i);
     }
 
@@ -146,7 +146,7 @@ class SimplifyTranspose : public SimplifyPattern {
       auto interm = *it;
 
       Array<Integer> new_axes;
-      for (size_t i = 0; i < ndim; ++i) {
+      for (int i = 0; i < ndim; ++i) {
         new_axes.push_back(axes[interm[i]]);
       }
       axes = new_axes;
@@ -155,7 +155,7 @@ class SimplifyTranspose : public SimplifyPattern {
 
     // Check if the transpose is still required
     bool need_transpose = false;
-    for (int i = 0; i < static_cast<int>(ndim); ++i) {
+    for (int i = 0; i < ndim; ++i) {
       if (axes[i] != i) {
         need_transpose = true;
         break;
