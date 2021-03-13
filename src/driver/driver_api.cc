@@ -338,8 +338,8 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
 // Build for homogeneous execution.
 runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
-  auto target = Target(target_arg, target_host_arg),
-       target_host = target->GetHost().value_or(Target());
+  auto target = Target(target_arg, target_host_arg);
+  auto target_host = target->GetHost().value_or(Target());
   Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host);
 }

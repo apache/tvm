@@ -153,7 +153,7 @@ fadd = tvm.build(s, [A, B, C], target=tgt, name="myadd")
 # - fadd runs the actual computation.
 # - asnumpy() copies the GPU array back to the CPU and we can use this to verify correctness
 #
-ctx = tvm.context(str(tgt), 0)
+ctx = tvm.context(tgt.kind.name, 0)
 
 n = 1024
 a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)

@@ -23,13 +23,12 @@ import time
 
 from urllib.parse import urlparse
 
-import tvm
-
 from tvm import autotvm, auto_scheduler
 from tvm.autotvm.tuner import GATuner
 from tvm.autotvm.tuner import GridSearchTuner
 from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
+from tvm.target.target import refresh_host
 
 from . import common, composite_target, frontends
 from .common import TVMCException
@@ -420,8 +419,7 @@ def autoscheduler_get_tuning_tasks(
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
 
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(

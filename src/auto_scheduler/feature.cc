@@ -1397,7 +1397,8 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
     if (find_res == task_cache.end()) {
       // rebuild task
       Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
-      Target target = cur_inp->task->target, target_host = cur_inp->task->target_host;
+      Target target = cur_inp->task->target;
+      Target target_host = cur_inp->task->target_host;
       target = Target(target, target_host);
       target_host = target->GetHost().value_or(Target());
       task = SearchTask(ComputeDAG(tensors), workload_key, target, target_host,

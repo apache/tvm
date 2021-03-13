@@ -375,7 +375,7 @@ Target::Target(const Map<String, ObjectRef>& config) {
 
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-  CHECK((!n->host.defined()) || n->host == host)
+  CHECK(!n->host.defined() || n->host == host)
       << "ValueError: Adding a host to a target whose host field has been defined";
   // add target host into host field
   n->host = std::move(host);
@@ -408,7 +408,9 @@ Map<String, ObjectRef> TargetNode::Export() const {
       {"tag", this->tag},
       {"keys", this->keys},
   };
-  if (this->host.defined()) result.Set("host", this->GetHost().value_or(Target())->Export());
+  if (this->host.defined()) {
+    result.Set("host", this->GetHost().value_or(Target())->Export());
+  }
   for (const auto& kv : attrs) {
     result.Set(kv.first, kv.second);
   }

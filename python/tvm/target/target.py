@@ -494,3 +494,20 @@ def _load_config_dict(config_dict_str):
         if not isinstance(key, str):
             return None
     return config
+
+
+def refresh_host(target, host=None):
+    target = Target(target, host)
+    host = target.host
+    return target, host
+
+
+def refresh_multi_hosts(target, host=None):
+    if not isinstance(target, dict):
+        return refresh_host(target, host)
+    new_target = {}
+    for tgt, mod in target.items():
+        if isinstance(tgt, (dict, str, Target)):
+            tgt, host = refresh_host(tgt, host)
+        new_target[tgt] = mod
+    return new_target, host
