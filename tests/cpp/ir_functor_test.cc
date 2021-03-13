@@ -19,10 +19,14 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
+#include <tvm/relay/function.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -50,6 +54,55 @@ TEST(IRF, CountVar) {
     if (n.as<VarNode>()) ++n_var;
   });
   ICHECK_EQ(n_var, 2);
+}
+
+TEST(IRF, VisitPrimFuncs) {
+  using namespace tvm;
+  using namespace tvm::tir;
+  PrimFunc prim_func(/*params=*/{}, /*body=*/Evaluate(Integer(0)));
+  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(nullptr),
+                             /*ret_type=*/relay::Type{nullptr}, /*ty_params=*/{});
+  IRModule mod({
+      {GlobalVar("main"), prim_func},
+      {GlobalVar("main2"), relay_func},
+  });
+  int n_visited = 0;
+  VisitPrimFuncs(mod, [&](const PrimFuncNode* func) { ++n_visited; });
+  ASSERT_EQ(n_visited, 1);
+}
+
+TEST(IRF, PreOrderVisit) {
+  using namespace tvm;
+  using namespace tvm::tir;
+  Stmt init = IfThenElse(const_true(), Evaluate(Integer(0)), Evaluate(Integer(0)));
+  Stmt body = Evaluate(Integer(1));
+  Block block(/*iter_vars=*/{}, /*reads=*/{},
+              /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
+              /*init=*/init);
+  bool init_visited = false;
+  bool stopped_at_if = true;
+  bool body_visited = false;
+  PreOrderVisit(block, [&](const ObjectRef& n) -> bool {
+    if (n->IsInstance<IfThenElseNode>()) {
+      init_visited = true;
+      return false;
+    }
+    if (const auto* eval = n.as<EvaluateNode>()) {
+      if (const auto* int_imm = eval->value.as<IntImmNode>()) {
+        if (int_imm->value == 0) {
+          stopped_at_if = false;
+        } else if (int_imm->value == 1) {
+          body_visited = true;
+        } else {
+          LOG(FATAL) << "Unreachable";
+        }
+      }
+    }
+    return true;
+  });
+  ASSERT_EQ(init_visited, true);
+  ASSERT_EQ(stopped_at_if, true);
+  ASSERT_EQ(body_visited, true);
 }
 
 TEST(IRF, ExprTransform) {

@@ -17,7 +17,7 @@
 import os
 import numpy as np
 import tvm
-from tvm import te
+from tvm import te, runtime
 import json
 import base64
 from tvm._ffi.base import py_str
@@ -31,7 +31,7 @@ def test_save_load():
     x = np.ones((10, 2)).astype("float32")
     y = np.ones((1, 2, 3)).astype("float32")
     params = {"x": x, "y": y}
-    param_bytes = relay.save_param_dict(params)
+    param_bytes = runtime.save_param_dict(params)
     assert isinstance(param_bytes, bytearray)
     param2 = relay.load_param_dict(param_bytes)
     assert len(param2) == 2
@@ -46,7 +46,7 @@ def test_ndarray_reflection():
     param_dict = {"x": tvm_array, "y": tvm_array}
     assert param_dict["x"].same_as(param_dict["y"])
     # Serialize then deserialize `param_dict`.
-    deser_param_dict = relay.load_param_dict(relay.save_param_dict(param_dict))
+    deser_param_dict = relay.load_param_dict(runtime.save_param_dict(param_dict))
     # Make sure the data matches the original data and `x` and `y` contain the same data.
     np.testing.assert_equal(deser_param_dict["x"].asnumpy(), tvm_array.asnumpy())
     # Make sure `x` and `y` contain the same data.
@@ -77,7 +77,7 @@ def test_bigendian_rpc_param():
         lib = remote.load_module("dev_lib.o")
         ctx = remote.cpu(0)
         mod = graph_runtime.create(graph, lib, ctx)
-        mod.load_params(relay.save_param_dict(params))
+        mod.load_params(runtime.save_param_dict(params))
         mod.run()
         out = mod.get_output(0, tvm.nd.empty(shape, dtype=dtype, ctx=ctx))
         tvm.testing.assert_allclose(x_in + 1, out.asnumpy())

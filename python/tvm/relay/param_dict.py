@@ -16,12 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save parameter dicts."""
-import tvm
-import tvm._ffi
-
-
-_save_param_dict = tvm._ffi.get_global_func("tvm.relay._save_param_dict")
-_load_param_dict = tvm._ffi.get_global_func("tvm.relay._load_param_dict")
+import tvm.runtime
 
 
 def save_param_dict(params):
@@ -29,6 +24,9 @@ def save_param_dict(params):
 
     The result binary bytes can be loaded by the
     GraphModule with API "load_params".
+
+    .. deprecated:: 0.9.0
+        Use :py:func:`tvm.runtime.save_param_dict` instead.
 
     Parameters
     ----------
@@ -47,20 +45,19 @@ def save_param_dict(params):
        # set up the parameter dict
        params = {"param0": arr0, "param1": arr1}
        # save the parameters as byte array
-       param_bytes = tvm.relay.save_param_dict(params)
+       param_bytes = tvm.runtime.save_param_dict(params)
        # We can serialize the param_bytes and load it back later.
        # Pass in byte array to module to directly set parameters
-       graph_runtime_mod.load_params(param_bytes)
+       tvm.runtime.load_param_dict(param_bytes)
     """
-    args = []
-    for k, v in params.items():
-        args.append(k)
-        args.append(tvm.nd.array(v))
-    return _save_param_dict(*args)
+    return tvm.runtime.save_param_dict(params)
 
 
 def load_param_dict(param_bytes):
     """Load parameter dictionary to binary bytes.
+
+    .. deprecated:: 0.9.0
+        Use :py:func:`tvm.runtime.load_param_dict` instead.
 
     Parameters
     ----------
@@ -72,7 +69,4 @@ def load_param_dict(param_bytes):
     params : dict of str to NDArray
         The parameter dictionary.
     """
-    if isinstance(param_bytes, (bytes, str)):
-        param_bytes = bytearray(param_bytes)
-    load_arr = _load_param_dict(param_bytes)
-    return {v.name: v.array for v in load_arr}
+    return tvm.runtime.load_param_dict(param_bytes)

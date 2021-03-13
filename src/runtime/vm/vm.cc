@@ -35,6 +35,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include "../file_utils.h"
+
 using namespace tvm::runtime;
 
 namespace tvm {
