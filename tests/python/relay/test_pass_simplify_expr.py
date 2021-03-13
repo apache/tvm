@@ -17,7 +17,6 @@
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.op.transform import transpose
 from tvm.relay.testing import run_opt_pass
 
 import numpy as np
