@@ -82,7 +82,9 @@ class WithScopeHandler(ScopeHandler):
     @staticmethod
     def get_optional_var_names(node, context):
         """Get list of names from ast.With's optional_vars"""
-        assert isinstance(node, ast.With)
+        assert isinstance(
+            node, ast.With
+        ), f"WithScopeHandler expected to work on ast.With but got {type(node)}"
 
         if isinstance(node.lhs, list):
             for var in node.lhs:
@@ -298,7 +300,8 @@ class Block(WithScopeHandler):
                     values = [tvm.tir.const(float("nan"), dtype="float32")] * len(block_iters)
                 elif len(values) != len(block_iters):
                     self.context.report_error(
-                        "Autocomplete block iter var binding expected larger number of loops",
+                        "Number of block iter var and outer loop nesting mismatch, "
+                        + f"{len(block_iters)} block iter vars but {len(values)} loops",
                         self.node.span,
                     )
             else:
@@ -328,7 +331,9 @@ class Block(WithScopeHandler):
         span: synr.ast.Span,
     ):
         # define block vars
-        assert isinstance(node, ast.With)
+        assert isinstance(
+            node, ast.With
+        ), f"BlockScopeHandler expected to work on ast.With but got {type(node)}"
 
         var_names = WithScopeHandler.get_optional_var_names(node, context)
         self.block_vars = [tvm.te.var(name) for name in var_names]
@@ -364,7 +369,9 @@ class ForScopeHandler(ScopeHandler):
         arg_list: List[Any],
         span: synr.ast.Span,
     ):
-        assert isinstance(node, ast.For)
+        assert isinstance(
+            node, ast.For
+        ), f"ForScopeHandler expected to work on ast.For but got {type(node)}"
 
         loop_var_names = list()
         spans = list()
@@ -374,11 +381,16 @@ class ForScopeHandler(ScopeHandler):
         elif isinstance(node.lhs, list):
             for elt in node.lhs:
                 if not isinstance(elt, ast.Var):
-                    context.report_error("Invalid loop var", elt.span)
+                    context.report_error(
+                        f"Invalid loop var. Expected a var, but got {type(elt)}", elt.span
+                    )
                 loop_var_names.append(elt.id.name)
                 spans.append(tvm_span_from_synr(elt.id.span))
         else:
-            context.report_error("Invalid loop var in loop", span)
+            context.report_error(
+                f"Invalid loop var. Expected var or list of vars as lhs, but got {type(node.lhs)}",
+                span,
+            )
 
         self.loop_vars = [
             tvm.te.var(name, dtype="int32", span=span) for name, span in zip(loop_var_names, spans)

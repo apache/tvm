@@ -470,7 +470,9 @@ class VarDef(SpecialStmt):
 
     def __init__(self):
         def var(dtype, span):
-            assert isinstance(self.node, ast.Assign)
+            assert isinstance(
+                self.node, ast.Assign
+            ), f"VarDef expected to work on ast.Assign but got {type(self.node)}"
             v = te.var(self.node.lhs.id.name, dtype, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
@@ -483,7 +485,9 @@ class EnvThread(SpecialStmt):
 
     def __init__(self):
         def env_thread(env_name, span):
-            assert isinstance(self.node, ast.Assign)
+            assert isinstance(
+                self.node, ast.Assign
+            ), f"EnvThread expected to work on ast.Assign but got {type(self.node)}"
             v = te.var(self.node.lhs.id.name, span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)

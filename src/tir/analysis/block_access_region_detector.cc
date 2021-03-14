@@ -97,7 +97,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 };
 
 void BlockReadWriteDetector::operator()(const Stmt& stmt) {
-  ICHECK(stmt.as<BlockNode>() != nullptr) << "Only allow to visit a block";
+  ICHECK(stmt.as<BlockNode>() != nullptr)
+      << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   StmtExprVisitor::operator()(stmt);
 }
 
