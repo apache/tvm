@@ -22,24 +22,26 @@ Compiling and Optimizing a Model with TVMC
 `Matthew Barrett <https://github.com/mbaret>`_,
 `Chris Hoge <https://github.com/hogepodge>`_
 
-In this section, we will work with TVMC, the TVM command line driver. TVMC is a tool that exposes TVM
-features such as auto-tuning, compiling, profiling and execution of models through a command line
-interface.
+In this section, we will work with TVMC, the TVM command line driver. TVMC is a
+tool that exposes TVM features such as auto-tuning, compiling, profiling and
+execution of models through a command line interface.
 
-Upon completion of this section, we will have used TVMC to accomplish the following tasks:
+Upon completion of this section, we will have used TVMC to accomplish the
+following tasks:
 
 * Compile a pre-trained ResNet 50 v2 model for the TVM runtime.
-* Run a real image through the compiled model, and interpret the output and model performance.
+* Run a real image through the compiled model, and interpret the output and
+  model performance.
 * Tune the model on a CPU using TVM.
 * Re-compile an optimized model using the tuning data collected by TVM.
-* Run the image through the optimized model, and compare the output and model performance.
+* Run the image through the optimized model, and compare the output and model
+  performance.
 
-The goal of this section is to give you an overview of TVM and TVMC's capabilities, and set the stage
-for understanding how TVM works.
+The goal of this section is to give you an overview of TVM and TVMC's
+capabilities, and set the stage for understanding how TVM works.
 """
 
-
-######################################################################
+################################################################################
 # Using TVMC
 # ----------
 #
@@ -61,22 +63,25 @@ for understanding how TVM works.
 #
 #   tvmc --help
 #
-#
-# The main features of TVM available to ``tvmc`` are from subcommands ``compile``, and ``run``, and ``tune``.
-# To read about specific options under a given subcommand, use ``tvmc <subcommand> --help``. We will cover
-# each of these commands in this tutorial, but first we need to download a pre-trained model to work with.
+# The main features of TVM available to ``tvmc`` are from subcommands
+# ``compile``, and ``run``, and ``tune``.  To read about specific options under
+# a given subcommand, use ``tvmc <subcommand> --help``. We will cover each of
+# these commands in this tutorial, but first we need to download a pre-trained
+# model to work with.
 #
 
 
-######################################################################
+################################################################################
 # Obtaining the Model
 # -------------------
 #
-# For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a convolutional neural
-# network that is 50-layers deep and designed to classify images. The model we will be using has been
-# pre-trained on more than a million images with 1000 different classifications. The network has an input
-# image size of 224x224. If you are interested exploring more of how the ResNet-50 model is structured, we
-# recommend downloading `Netron <https://netron.app>`, a freely available ML model viewer.
+# For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a
+# convolutional neural network that is 50-layers deep and designed to classify
+# images. The model we will be using has been pre-trained on more than a
+# million images with 1000 different classifications. The network has an input
+# image size of 224x224. If you are interested exploring more of how the
+# ResNet-50 model is structured, we recommend downloading `Netron
+# <https://netron.app>`, a freely available ML model viewer.
 #
 # For this tutorial we will be using the model in ONNX format.
 #
@@ -86,7 +91,7 @@ for understanding how TVM works.
 #
 
 
-######################################################################
+################################################################################
 # .. note:: Supported model formats
 #
 #   TVMC supports models created with Keras, ONNX, TensorFlow, TFLite
@@ -96,14 +101,15 @@ for understanding how TVM works.
 #
 
 
-######################################################################
+################################################################################
 # Compiling an ONNX Model to the TVM Runtime
 # ------------------------------------------
 #
-# Once we've downloaded the ResNet-50 model, the next step is to compile it. To accomplish that, we are
-# going to use ``tvmc compile``. The output we get from the compilation process is a TAR package of the model
-# compiled to a dynamic library for our target platform. We can run that model on our target device using the
-#  TVM runtime.
+# Once we've downloaded the ResNet-50 model, the next step is to compile it. To
+# accomplish that, we are going to use ``tvmc compile``. The output we get from
+# the compilation process is a TAR package of the model compiled to a dynamic
+# library for our target platform. We can run that model on our target device
+# using the TVM runtime.
 #
 # .. code-block:: bash
 #
@@ -112,7 +118,7 @@ for understanding how TVM works.
 #   --output resnet50-v2-7-tvm.tar \
 #   resnet50-v2-7.onnx
 #
-# Let's take a look at the files that ``tvmc compile`` creates:
+# Let's take a look at the files that ``tvmc compile`` creates in the module:
 #
 # .. code-block:: bash
 #
@@ -122,15 +128,17 @@ for understanding how TVM works.
 #
 # You will see three files listed.
 #
-# * ``mod.so`` is the model, represented as a C++ library, that can be loaded by the TVM runtime.
+# * ``mod.so`` is the model, represented as a C++ library, that can be loaded
+#   by the TVM runtime.
 # * ``mod.json`` is a text representation of the TVM Relay computation graph.
-# * ``mod.params`` is a file containing the parameters for the pre-trained model.
+# * ``mod.params`` is a file containing the parameters for the pre-trained
+#   model.
 #
-# This model can be directly loaded by your application and run via the TVM runtime APIs.
-#
+# This module can be directly loaded by your application, and the model can be
+# run via the TVM runtime APIs.
 
 
-######################################################################
+################################################################################
 # .. note:: Defining the Correct Target
 #
 #   Specifying the correct target (option ``--target``) can have a huge
@@ -142,24 +150,26 @@ for understanding how TVM works.
 #   and set the target appropriately.
 #
 
-######################################################################
-# Running the TVM IR Model with TVMC
-# ----------------------------------
+################################################################################
+# Running the Model from The Compiled Module with TVMC
+# ----------------------------------------------------
 #
-# Now that we've compiled the model, we can use the TVM runtime to make predictions with it.
-# TVMC has the TVM runtime built in to it, allowing you to run compiled TVM models. To use TVMC to run the
-# model and make predictions, we need two things:
+# Now that we've compiled the model to this module, we can use the TVM runtime
+# to make predictions with it. TVMC has the TVM runtime built in to it,
+# allowing you to run compiled TVM models. To use TVMC to run the model and
+# make predictions, we need two things:
 #
-# - The compiled model, which we just produced.
+# - The compiled module, which we just produced.
 # - Valid input to the model to make predictions on.
 #
-# Each model is particular when it comes to expected tensor shapes, formats and data types. For this reason,
-# most models require some pre and post-processing, to ensure the input is valid and to interpret the output.
-# TVMC has adopted NumPy's ``.npz`` format for both input and output data. This is a well-supported NumPy
-# format to serialize multiple arrays into a file
+# Each model is particular when it comes to expected tensor shapes, formats and
+# data types. For this reason, most models require some pre and
+# post-processing, to ensure the input is valid and to interpret the output.
+# TVMC has adopted NumPy's ``.npz`` format for both input and output data. This
+# is a well-supported NumPy format to serialize multiple arrays into a file
 #
-# As input for this tutorial, we will use the image of a cat, but you can feel free to substitute image for
-# any of your choosing.
+# As input for this tutorial, we will use the image of a cat, but you can feel
+# free to substitute image for any of your choosing.
 #
 # .. image:: https://s3.amazonaws.com/model-server/inputs/kitten.jpg
 #    :height: 224px
@@ -167,7 +177,7 @@ for understanding how TVM works.
 #    :align: center
 
 
-######################################################################
+################################################################################
 # Input pre-processing
 # ~~~~~~~~~~~~~~~~~~~~
 #
@@ -207,12 +217,12 @@ for understanding how TVM works.
 #     np.savez("imagenet_cat", data=img_data)
 #
 
-
-######################################################################
+################################################################################
 # Running the Compiled Module
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# With both the model and input data in hand, we can now run TVMC to make a prediction:
+# With both the model and input data in hand, we can now run TVMC to make a
+# prediction:
 #
 # .. code-block:: bash
 #
@@ -221,28 +231,29 @@ for understanding how TVM works.
 #     --output predictions.npz \
 #     resnet50-v2-7-tvm.tar
 #
-# Recall that the `.tar` model file includes a C++ library, a description of the Relay model, and the
-# parameters for the model. TVMC includes the TVM runtime, which can load the model and make predictions
-# against input. When running the above command, TVMC outputs a new file, ``predictions.npz``, that contains
-# the model output tensors in NumPy format.
+# Recall that the `.tar` model file includes a C++ library, a description of
+# the Relay model, and the parameters for the model. TVMC includes the TVM
+# runtime, which can load the model and make predictions against input. When
+# running the above command, TVMC outputs a new file, ``predictions.npz``, that
+# contains the model output tensors in NumPy format.
 #
 # In this example, we are running the model on the same machine that we used
-# for compilation. In some cases we might want to run it remotely via
-# an RPC Tracker. To read more about these options please check ``tvmc
-# run --help``.
-#
+# for compilation. In some cases we might want to run it remotely via an RPC
+# Tracker. To read more about these options please check ``tvmc run --help``.
 
-######################################################################
+################################################################################
 # Output Post-Processing
 # ~~~~~~~~~~~~~~~~~~~~~~
 #
-# As previously mentioned, each model will have its own particular way of providing output tensors.
+# As previously mentioned, each model will have its own particular way of
+# providing output tensors.
 #
-# In our case, we need to run some post-processing to render the outputs from ResNet 50 V2 into a
-# more human-readable form, using the lookup-table provided for the model.
+# In our case, we need to run some post-processing to render the outputs from
+# ResNet 50 V2 into a more human-readable form, using the lookup-table provided
+# for the model.
 #
-# The script below shows an example of the post-processing to extract labels from the output of
-# our compiled module.
+# The script below shows an example of the post-processing to extract labels
+# from the output of our compiled module.
 #
 # .. code-block:: python
 #     :caption: postprocess.py
@@ -287,29 +298,33 @@ for understanding how TVM works.
 #     # class='n02129604 tiger, Panthera tigris' with probability=0.001273
 #     # class='n04040759 radiator' with probability=0.000261
 #
-# Try replacing the cat image with other images, and see what sort of predictions the ResNet model makes.
-#
+# Try replacing the cat image with other images, and see what sort of
+# predictions the ResNet model makes.
 
-######################################################################
+################################################################################
 # Automatically Tuning the ResNet Model
 # -------------------------------------
 #
-# The previous model was compiled to work on the TVM runtime, but did not include any platform specific
-# optimization. In this section, we will show you how to build an optimized model using TVMC to target your
-# working platform.
+# The previous model was compiled to work on the TVM runtime, but did not
+# include any platform specific optimization. In this section, we will show you
+# how to build an optimized model using TVMC to target your working platform.
 #
-# In some cases, we might not get the expected performance when running inferences using our compiled module.
-# In cases like this, we can make use of the auto-tuner, to find a better configuration for our model and get
-# a boost in performance. Tuning in TVM refers to the process by which a model is optimized to run faster on
-# a given target. This differs from training or fine-tuning in that it does not affect the accuracy of the
-# model, but only the runtime performance. As part of the tuning process, TVM will try running many different
-# operator implementation variants to see which perform best. The results of these runs are stored in a tuning
-# records file, which is ultimately the output of the ``tune`` subcommand.
+# In some cases, we might not get the expected performance when running
+# inferences using our compiled module.  In cases like this, we can make use of
+# the auto-tuner, to find a better configuration for our model and get a boost
+# in performance. Tuning in TVM refers to the process by which a model is
+# optimized to run faster on a given target. This differs from training or
+# fine-tuning in that it does not affect the accuracy of the model, but only
+# the runtime performance. As part of the tuning process, TVM will try running
+# many different operator implementation variants to see which perform best.
+# The results of these runs are stored in a tuning records file, which is
+# ultimately the output of the ``tune`` subcommand.
 #
 # In the simplest form, tuning requires you to provide three things:
 #
 # - the target specification of the device you intend to run this model on
-# - the path to an output file in which the tuning records will be stored, and finally
+# - the path to an output file in which the tuning records will be stored, and
+#   finally
 # - a path to the model to be tuned.
 #
 # The example below demonstrates how that works in practice:
@@ -321,21 +336,26 @@ for understanding how TVM works.
 #     --output resnet50-v2-7-autotuner_records.json \
 #     resnet50-v2-7.onnx
 #
-# In this example, you will see better results if you indicate a more specific target for the `--target` flag.
-# For example, on an Intel i7 processor you could use `--target llvm -mcpu=skylake`. For this tuning
-# example, we are tuning locally on the CPU using LLVM as the compiler for the specified achitecture.
+# In this example, you will see better results if you indicate a more specific
+# target for the `--target` flag.  For example, on an Intel i7 processor you
+# could use `--target llvm -mcpu=skylake`. For this tuning example, we are
+# tuning locally on the CPU using LLVM as the compiler for the specified
+# achitecture.
 #
-# TVMC will perform a search against the parameter space for the model, trying out different configurations
-# for operators and choosing the one that runs fastest on your platform. Although this is a guided search
-# based on the CPU and model operations, it can still take several hours to complete the search. The output
-# of this search will be saved to the `resnet50-v2-7-autotuner_records.json` file, which will later be used
-# to compile an optimized model.
+# TVMC will perform a search against the parameter space for the model, trying
+# out different configurations for operators and choosing the one that runs
+# fastest on your platform. Although this is a guided search based on the CPU
+# and model operations, it can still take several hours to complete the search.
+# The output of this search will be saved to the
+# `resnet50-v2-7-autotuner_records.json` file, which will later be used to
+# compile an optimized model.
 #
 # .. note:: Defining the Tuning Search Algorithm
 #
-#   By default this search is guided using an `XGBoost Grid` algorithm. Depending on your model complexity
-#   and amount of time avilable, you might want to choose a different algorithm. A full list is available
-#   by consulting ``tvmc tune --help``.
+#   By default this search is guided using an `XGBoost Grid` algorithm.
+#   Depending on your model complexity and amount of time avilable, you might
+#   want to choose a different algorithm. A full list is available by
+#   consulting ``tvmc tune --help``.
 #
 # The output will look something like this for a consumer-level Skylake CPU:
 #
@@ -373,22 +393,23 @@ for understanding how TVM works.
 # algorithm to be used, and so on. Check ``tvmc tune --help`` for more information.
 #
 
-############################################################################################################
+################################################################################
 # Compiling an Optimized Model with Tuning Data
 # ----------------------------------------------
 #
-# As an output of the tuning process above, we obtained the tuning records stored in
-# ``resnet50-v2-7-autotuner_records.json``. This file can be used in two ways:
+# As an output of the tuning process above, we obtained the tuning records
+# stored in ``resnet50-v2-7-autotuner_records.json``. This file can be used in
+# two ways:
 #
 # - As input to further tuning (via ``tvmc tune --tuning-records``).
 # - As input to the compiler
 #
-# The compiler will use the results to generate high performance code for the model on your specified
-# target. To do that we can use ``tvmc compile --tuning-records``. Check ``tvmc compile --help`` for more
-# information.
+# The compiler will use the results to generate high performance code for the
+# model on your specified target. To do that we can use ``tvmc compile
+# --tuning-records``. Check ``tvmc compile --help`` for more information.
 #
-# Now that tuning data for the model has been collected, we can re-compile the model using optimized
-# operators to speed up our computations.
+# Now that tuning data for the model has been collected, we can re-compile the
+# model using optimized operators to speed up our computations.
 #
 # .. code-block:: bash
 #
@@ -419,14 +440,15 @@ for understanding how TVM works.
 #   # class='n02129604 tiger, Panthera tigris' with probability=0.001273
 #   # class='n04040759 radiator' with probability=0.000261
 
-############################################################################################################
+################################################################################
 # Comparing the Tuned and Untuned Models
 # --------------------------------------
 #
-# TVMC gives you tools for basic performance benchmarking between the models. You can specify a number of
-# repetitions and that TVMC report on the model run time (independent of runtime startup). We can get a rough
-# idea of how much tuning has improved the model performance. For example, on a test Intel i7 system, we see
-# that the tuned model runs 47% faster than the untuned model:
+# TVMC gives you tools for basic performance benchmarking between the models.
+# You can specify a number of repetitions and that TVMC report on the model run
+# time (independent of runtime startup). We can get a rough idea of how much
+# tuning has improved the model performance. For example, on a test Intel i7
+# system, we see that the tuned model runs 47% faster than the untuned model:
 #
 # .. code-block:: bash
 #
@@ -454,7 +476,7 @@ for understanding how TVM works.
 #
 
 
-######################################################################
+################################################################################
 # Final Remarks
 # -------------
 #
