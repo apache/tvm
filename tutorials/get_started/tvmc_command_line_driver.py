@@ -378,7 +378,7 @@ for understanding how TVM works.
 # ----------------------------------------------
 #
 # As an output of the tuning process above, we obtained the tuning records stored in
-# ``autotuner_records.json``. This file can be used in two ways:
+# ``resnet50-v2-7-autotuner_records.json``. This file can be used in two ways:
 #
 # - As input to further tuning (via ``tvmc tune --tuning-records``).
 # - As input to the compiler
