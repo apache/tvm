@@ -32,7 +32,7 @@ namespace tir {
 /*!
  * \brief Auto detect the block read write region
  *        It will detect the read/write region as an array in order of appearance in AST
- * \note This detector only accepts to visit a block and will not visit child blocks recursively
+ * \note This detector can only visit blocks and will not visit child blocks recursively
  */
 class BlockReadWriteDetector : public StmtExprVisitor {
  public:
@@ -156,7 +156,7 @@ void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BlockRealizeNode* op) {
-  /*! \note detector will not visit child block recursively, so that it will stop here */
+  /*! \note detector will not visit child block recursively, so it will stop here */
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (size_t i = 0; i < op->block->iter_vars.size(); ++i) {
     vmap[op->block->iter_vars[i]->var.get()] = op->iter_values[i];
@@ -189,7 +189,7 @@ void BlockReadWriteDetector::Update(std::vector<Buffer>* buffers,
                                     const std::vector<arith::IntSet>& region) {
   if (buffer_var_map_.find(buffer->data) == buffer_var_map_.end()) return;
   ICHECK_EQ(buffers->size(), regions->size())
-      << " Expect the buffer and regions to have the same size ";
+      << " Expected the buffer and regions to have the same size ";
   for (size_t i = 0; i < regions->size(); ++i) {
     if ((*buffers)[i].same_as(buffer)) {
       ICHECK_EQ((*regions)[i].size(), region.size()) << "Inconsistent buffer dimension";
