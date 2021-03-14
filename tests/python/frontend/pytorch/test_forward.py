@@ -201,6 +201,8 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    for arg in mod["main"].params[: len(input_names)]:
+        assert arg.name_hint in input_names
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
@@ -3649,6 +3651,13 @@ def test_hard_swish():
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
+def test_hard_sigmoid():
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
+    for input in examples:
+        verify_model(torch.nn.Hardsigmoid().eval(), input_data=input)
+        verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input)
+
+
 def test_cumsum():
     def test_fn(dim, dtype=None):
         return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
@@ -3704,13 +3713,13 @@ def test_sort():
 
     inp = torch.randn(100)
     verify_model(test_fn(0, True), [inp])
-    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(-1, False), [inp])
 
     inp = torch.randn(100, 100)
     verify_model(test_fn(0, True), [inp])
-    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(-2, False), [inp])
     verify_model(test_fn(1, True), [inp])
-    verify_model(test_fn(1, False), [inp])
+    verify_model(test_fn(-1, False), [inp])
 
 
 def test_logical_and():
@@ -3891,6 +3900,8 @@ if __name__ == "__main__":
     test_logical_and()
     test_masked_select()
     test_unique()
+    test_hard_swish()
+    test_hard_sigmoid()
 
     # Model tests
     test_resnet18()
@@ -3929,4 +3940,3 @@ if __name__ == "__main__":
 
     # Test convert torch script(jit) with specific inputs' types
     test_convert_torch_script_with_input_types()
-    test_hard_swish()

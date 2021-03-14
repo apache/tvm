@@ -24,7 +24,7 @@ from pathlib import Path
 
 import tvm
 from tvm import autotvm, auto_scheduler
-from tvm import relay
+from tvm import relay, runtime
 from tvm.contrib import cc
 from tvm.contrib import utils
 
@@ -282,7 +282,7 @@ def save_module(module_path, graph, lib, params, cross=None):
 
     with open(temp.relpath(param_name), "wb") as params_file:
         logger.debug("writing params to file to %s", params_file.name)
-        params_file.write(relay.save_param_dict(params))
+        params_file.write(runtime.save_param_dict(params))
 
     logger.debug("saving module as tar file to %s", module_path)
     with tarfile.open(module_path, "w") as tar:

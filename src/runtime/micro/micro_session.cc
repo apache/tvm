@@ -172,7 +172,7 @@ class MicroTransportChannel : public RPCChannel {
     // confusion.
     unsigned int seed = random_seed.load();
     if (seed == 0) {
-      seed = (unsigned int)time(NULL);
+      seed = (unsigned int)time(nullptr);
     }
     uint8_t initial_nonce = 0;
     for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {

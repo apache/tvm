@@ -19,8 +19,12 @@
 
 import json
 
+import os
+import logging
+import numpy as np
+
 import tvm._ffi
-from tvm.runtime import Object
+from tvm.runtime import Object, ndarray
 
 from tvm.driver.build_module import build
 from tvm.target import Target
@@ -32,6 +36,9 @@ from .cost_model import XGBModel
 from .search_policy import SketchPolicy
 from .workload_registry import WORKLOAD_FUNC_REGISTRY, register_workload_tensors
 from . import _ffi_api
+
+# pylint: disable=invalid-name
+logger = logging.getLogger("auto_scheduler")
 
 
 @tvm._ffi.register_object("auto_scheduler.HardwareParams")
@@ -157,6 +164,156 @@ class TuningOptions(Object):
         )
 
 
+# The map stores special registered buffer for measurement.
+# This can be used for sparse workloads when we cannot use random tensors for measurment.
+# {
+#     "workload_key_0": {
+#         "task_input_0": Tensor(...),
+#         "task_input_1": Tensor(...)
+#     },
+#     "workload_key_1": {
+#         "task_input_2": Tensor(...),
+#         "task_input_3": Tensor(...)
+#     },
+#     ...
+# }
+TASK_INPUT_BUFFER_TABLE = {}
+
+
+def _save_buffer_to_file(buffer_name, buffer_data):
+    """Save the current Tensor buffer to a numpy file.
+
+    File name will be: {buffer_name}.{buffer_shape}_{buffer_data_type}.npy
+    """
+    np_data = buffer_data.asnumpy()
+
+    buffer_name += "."
+    for i in np_data.shape:
+        buffer_name += "%d_" % (i)
+    buffer_name += "%s" % (np_data.dtype)
+    buffer_name += ".npy"
+
+    np_data.tofile(buffer_name, " ")
+
+
+def _try_load_buffer_from_file(buffer_name):
+    """Try to load buffer from a numpy file, if not found, return None.
+
+    File name has a same format as `_save_buffer_to_file`.
+    """
+    filelist = os.listdir()
+
+    for file in filelist:
+        if file.startswith(buffer_name + "."):
+            meta_info = file.split(".")[-2].split("_")
+            shape = [int(i) for i in meta_info[:-1]]
+            dtype = meta_info[-1]
+            buffer_data = np.fromfile(file, dtype=dtype, sep=" ")
+            buffer_data = buffer_data.reshape(shape)
+            return ndarray.array(buffer_data)
+
+    return None
+
+
+def register_task_input_buffer(
+    workload_key,
+    input_name,
+    input_data,
+    overwrite=False,
+    save_to_file=False,
+):
+    """Register special buffer for measurement.
+
+    Parameters
+    ----------
+    workload_key : str
+        The workload key of the SearchTask.
+
+    input_name : str
+        The name of input buffer.
+
+    input_data : tvm.nd.NDArray
+        The input Tensor data.
+
+    overwrite : bool = False
+        Whether to overwrite the data if a name has already registered.
+
+    save_to_file : bool = False
+        Whether to save the data to a local file as well. This can be reused to resume the last
+        tuning process.
+
+    Returns
+    -------
+    tvm.nd.NDArray
+        The actual registered Tensor data of this input_name. With `overwrite` set to False, will
+        return the original one if the name has already registered before.
+    """
+    global TASK_INPUT_BUFFER_TABLE
+
+    if workload_key not in TASK_INPUT_BUFFER_TABLE:
+        TASK_INPUT_BUFFER_TABLE[workload_key] = {}
+    input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
+
+    if not overwrite:
+        if input_name not in input_table.keys():
+            # Try to load buffer data from local file
+            tensor_from_file = _try_load_buffer_from_file(input_name)
+            if tensor_from_file:
+                input_table[input_name] = tensor_from_file
+
+        if input_name in input_table.keys():
+            logger.warning(
+                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s",
+                input_name,
+                "set overwrite to True or this Tensor will not be registered",
+            )
+            return input_table[input_name]
+
+    input_table[input_name] = input_data
+    if save_to_file:
+        _save_buffer_to_file(input_name, input_data)
+    return input_data
+
+
+def get_task_input_buffer(workload_key, input_name):
+    """Get special buffer for measurement.
+
+    The buffers are registered by `register_task_input_buffer`.
+
+    Parameters
+    ----------
+    workload_key : str
+        The workload key of the SearchTask.
+
+    input_name : str
+        The name of input buffer.
+
+    Returns
+    -------
+    tvm.nd.NDArray
+        The registered input buffer.
+    """
+    global TASK_INPUT_BUFFER_TABLE
+
+    if workload_key not in TASK_INPUT_BUFFER_TABLE:
+        TASK_INPUT_BUFFER_TABLE[workload_key] = {}
+    input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
+
+    if input_name not in input_table.keys():
+        # Try to load buffer data from local file
+        tensor_from_file = _try_load_buffer_from_file(input_name)
+        if tensor_from_file:
+            input_table[input_name] = tensor_from_file
+
+    if input_name in input_table.keys():
+        return input_table[input_name]
+
+    raise ValueError(
+        "%s not found in TASK_INPUT_BUFFER_TABLE, " % (input_name)
+        + "should provide with `SearchTask(..., task_inputs={...})`"
+    )
+
+
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
 class SearchTask(Object):
     """The computation information and hardware parameters for a schedule search task.
@@ -185,6 +342,16 @@ class SearchTask(Object):
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
         op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
         network.
+    task_inputs : Union[Dict[str, tvm.nd.NDArray], List[str]]
+        A dict maps the input names to input tensors or a list of input names.
+        Some special Tensor used as inputs in program measuring. Usually we do not need to care
+        about it, but for special workloads like Sparse computation the Sparse Tensor input are
+        meaningful that we cannot use random input directly.
+    task_inputs_overwrite : bool = False
+        Whether to overwrite the data if a name has already in the global table.
+    task_inputs_save_to_file : bool = False
+        Whether to save the data to a local file as well. This can be reused to resume the last
+        tuning process.
 
     Examples
     --------
@@ -212,6 +379,9 @@ class SearchTask(Object):
         target_host=None,
         hardware_params=None,
         layout_rewrite_option=None,
+        task_inputs=None,
+        task_inputs_overwrite=False,
+        task_inputs_save_to_file=False,
     ):
         assert (
             func is not None or workload_key is not None
@@ -231,6 +401,22 @@ class SearchTask(Object):
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
 
+        task_input_names = []
+        if isinstance(task_inputs, list):
+            task_input_names = task_inputs
+        elif isinstance(task_inputs, dict):
+            for input_name in task_inputs:
+                register_task_input_buffer(
+                    workload_key,
+                    input_name,
+                    task_inputs[input_name],
+                    task_inputs_overwrite,
+                    task_inputs_save_to_file,
+                )
+                task_input_names.append(input_name)
+        elif task_inputs is not None:
+            raise ValueError("task_inputs should be a dict or a list.")
+
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             compute_dag,
@@ -239,6 +425,7 @@ class SearchTask(Object):
             target_host,
             hardware_params,
             layout_rewrite_option,
+            task_input_names,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -326,6 +513,7 @@ class SearchTask(Object):
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
+            "task_input_names": self.task_input_names,
         }
 
     def __setstate__(self, state):
@@ -350,6 +538,7 @@ class SearchTask(Object):
             state["target_host"],
             state["hardware_params"],
             state["layout_rewrite_option"],
+            state["task_input_names"],
         )
 
 

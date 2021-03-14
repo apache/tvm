@@ -25,6 +25,7 @@
 #include <cuda_runtime.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstring>
@@ -241,6 +242,41 @@ TVM_REGISTER_GLOBAL("device_api.gpu").set_body([](TVMArgs args, TVMRetValue* rv)
 TVM_REGISTER_GLOBAL("device_api.cpu_pinned").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
+});
+
+class GPUTimerNode : public TimerNode {
+ public:
+  virtual void Start() {
+    CUDA_CALL(cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream));
+  }
+  virtual void Stop() { CUDA_CALL(cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream)); }
+  virtual int64_t SyncAndGetElapsedNanos() {
+    CUDA_CALL(cudaEventSynchronize(stop_));
+    float milliseconds = 0;
+    CUDA_CALL(cudaEventElapsedTime(&milliseconds, start_, stop_));
+    return milliseconds * 1e6;
+  }
+  virtual ~GPUTimerNode() {
+    CUDA_CALL(cudaEventDestroy(start_));
+    CUDA_CALL(cudaEventDestroy(stop_));
+  }
+  GPUTimerNode() {
+    CUDA_CALL(cudaEventCreate(&start_));
+    CUDA_CALL(cudaEventCreate(&stop_));
+  }
+
+  static constexpr const char* _type_key = "GPUTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(GPUTimerNode, TimerNode);
+
+ private:
+  cudaEvent_t start_;
+  cudaEvent_t stop_;
+};
+
+TVM_REGISTER_OBJECT_TYPE(GPUTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.gpu").set_body_typed([](TVMContext ctx) {
+  return Timer(make_object<GPUTimerNode>());
 });
 
 }  // namespace runtime

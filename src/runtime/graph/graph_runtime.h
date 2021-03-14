@@ -47,9 +47,6 @@ namespace runtime {
     ICHECK_EQ(ret, 0) << TVMGetLastError(); \
   }
 
-/*! \brief Magic number for NDArray list file  */
-constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
-
 /*! \brief operator attributes about tvm op */
 struct TVMOpParam {
   std::string func_name;

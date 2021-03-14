@@ -3179,6 +3179,9 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto ndim_indices = indices->shape.size();
   int axis = param->axis->value;
   ICHECK_EQ(ndim_data, ndim_indices);
+  if (axis < 0) {
+    axis += ndim_data;
+  }
   ICHECK_GE(axis, 0);
   ICHECK_LT(axis, ndim_data);
 

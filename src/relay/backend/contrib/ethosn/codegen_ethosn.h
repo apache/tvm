@@ -240,14 +240,12 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool block_config_8x32;
   bool block_config_8x8;
   bool enable_intermediate_compression;
-  bool disable_winograd;
-  bool dump_debug_files;
-  String debug_dir;
 #if _ETHOSN_API_VERSION_ == 2008
-  String compiler_algorithm;
-#else
-  bool enable_cascading;
+  bool dump_debug_files;
 #endif
+  bool disable_winograd;
+  String debug_dir;
+  String compiler_algorithm;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant)
@@ -268,14 +266,12 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(block_config_8x32).set_default(true);
     TVM_ATTR_FIELD(block_config_8x8).set_default(true);
     TVM_ATTR_FIELD(enable_intermediate_compression).set_default(true);
-    TVM_ATTR_FIELD(disable_winograd).set_default(false);
-    TVM_ATTR_FIELD(dump_debug_files).set_default(false);
-    TVM_ATTR_FIELD(debug_dir).set_default(".");
 #if _ETHOSN_API_VERSION_ == 2008
-    TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
-#else
-    TVM_ATTR_FIELD(enable_cascading).set_default(false);
+    TVM_ATTR_FIELD(dump_debug_files).set_default(false);
 #endif
+    TVM_ATTR_FIELD(disable_winograd).set_default(false);
+    TVM_ATTR_FIELD(debug_dir).set_default(".");
+    TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
   }
 };
 

@@ -273,3 +273,24 @@ def test_parse_multiple_target_with_opts():
     assert "myopt" in targets[0]["opts"]
     assert "value" == targets[0]["opts"]["myopt"]
     assert "llvm" == targets[1]["name"]
+
+
+def test_parse_multiple_separators_on_target():
+    targets = tvmc.common.parse_target("foo -option1=+v1.0x,+value,+bar")
+
+    assert len(targets) == 1
+    assert "+v1.0x,+value,+bar" == targets[0]["opts"]["option1"]
+
+
+def test_parse_single_quoted_multiple_separators_on_target():
+    targets = tvmc.common.parse_target("foo -option1='+v1.0x,+value'")
+
+    assert len(targets) == 1
+    assert "+v1.0x,+value" == targets[0]["opts"]["option1"]
+
+
+def test_parse_double_quoted_multiple_separators_on_target():
+    targets = tvmc.common.parse_target('foo -option1="+v1.0x,+value"')
+
+    assert len(targets) == 1
+    assert "+v1.0x,+value" == targets[0]["opts"]["option1"]

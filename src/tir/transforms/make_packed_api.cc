@@ -229,7 +229,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   //
   // For example, for auto broadcasting, checks are required to guarantee that
   // either 0 or the original stride will be correctly used. Checks here have
-  // to use the args that may have no let bining yet. Therefore, hoisting let
+  // to use the args that may have no let binding yet. Therefore, hoisting let
   // binding for args before buffer declaration is needed.
   for (const auto& kv : var_def) {
     binder.Bind(kv.second, kv.first, kv.first->name_hint, true);

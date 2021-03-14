@@ -1234,7 +1234,7 @@ def _mx_topk(inputs, attrs):
     new_attrs = {}
     new_attrs["k"] = attrs.get_int("k", 1)
     new_attrs["axis"] = attrs.get_int("axis", -1)
-    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", False)
     ret_type = attrs.get_str("ret_typ", "indices")
     if ret_type == "mask":
         raise tvm.error.OpAttributeUnimplemented(

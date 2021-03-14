@@ -405,6 +405,7 @@ def test_while_mandel():
     check_target("llvm", mandel_ir_cpu)
     check_target("npvtx", mandel_ir_gpu)
     check_target("cuda", mandel_ir_gpu)
+    check_target("vulkan", mandel_ir_gpu)
 
 
 def test_while_binary_search():
@@ -493,6 +494,7 @@ def test_while_binary_search():
     check_target("llvm", searchsorted_ir_cpu)
     check_target("cuda", searchsorted_ir_gpu)
     check_target("nvptx", searchsorted_ir_gpu)
+    check_target("vulkan", searchsorted_ir_gpu)
 
 
 if __name__ == "__main__":
