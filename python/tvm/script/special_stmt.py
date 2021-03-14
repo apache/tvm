@@ -101,7 +101,7 @@ class MatchBuffer(SpecialStmt):
         ):
             if not isinstance(self.node, ast.Assign):
                 self.context.report_error(
-                    "Need assign the match_buffer to a buffer, e.g. A = match_buffer(...)",
+                    "match_buffer must be assigned to a buffer, e.g. A = match_buffer(...)",
                     self.node.span,
                 )
             if param not in self.context.func_params:
@@ -158,7 +158,7 @@ class BufferDeclare(SpecialStmt):
         ):
             if not isinstance(self.node, ast.Assign):
                 self.context.report_error(
-                    "Need assign the buffer_decl to a buffer, e.g. A = buffer_decl(...)",
+                    "buffer_decl must be assigned to a buffer, e.g. A = buffer_decl(...)",
                     self.node.span,
                 )
 
@@ -215,7 +215,7 @@ class AllocBuffer(SpecialStmt):
         ):
             if not isinstance(self.node, ast.Assign):
                 self.context.report_error(
-                    "Need assign the alloc_buffer to a buffer, e.g. A = alloc_buffer(...)",
+                    "alloc_buffer must be assigned to a buffer, e.g. A = alloc_buffer(...)",
                     self.node.span,
                 )
 
@@ -425,7 +425,7 @@ class BlockMatchBufferRegion(SpecialStmt):
         ):
             if not isinstance(self.node, ast.Assign):
                 self.context.report_error(
-                    "Need assign the match_buffer_region to a buffer, "
+                    "match_buffer_region must be assigned to a buffer, "
                     + "e.g. A = match_buffer_region(...)",
                     self.node.span,
                 )
