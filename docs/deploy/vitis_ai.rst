@@ -196,7 +196,7 @@ Hardware setup and docker build
       pip3 install -e . --user
 
 Edge (DPUCZDX8G)
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 
 For edge deployment we make use of two systems referred to as host and
