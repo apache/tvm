@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,22 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-set -e
-set -u
-
-mkdir -p build
-cd build
-cp ../cmake/config.cmake .
-
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_RPC ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-4.0\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(USE_VTA_TSIM ON\) >> config.cmake
-echo set\(USE_VTA_FSIM ON\) >> config.cmake
-echo set\(USE_VERILATOR ON\) >> config.cmake
+"""Infrastructure and tests for BNNS"""

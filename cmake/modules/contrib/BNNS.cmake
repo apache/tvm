@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,21 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+if(USE_BNNS STREQUAL "ON")
+  add_definitions(-DUSE_JSON_RUNTIME=1)
+  file(GLOB BNNS_RELAY_CONTRIB_SRC src/relay/backend/contrib/bnns/*.cc)
+  list(APPEND COMPILER_SRCS ${BNNS_RELAY_CONTRIB_SRC})
+  list(APPEND COMPILER_SRCS ${JSON_RELAY_CONTRIB_SRC})
 
-mkdir -p build
-cd build
-cp ../cmake/config.cmake .
+  list(APPEND TVM_RUNTIME_LINKER_LIBS "-framework Accelerate")
 
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_RPC ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-4.0\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(USE_VTA_TSIM ON\) >> config.cmake
-echo set\(USE_VTA_FSIM ON\) >> config.cmake
-echo set\(USE_VERILATOR ON\) >> config.cmake
+  file(GLOB BNNS_CONTRIB_SRC src/runtime/contrib/bnns/*.cc)
+  list(APPEND RUNTIME_SRCS ${BNNS_CONTRIB_SRC})
+  message(STATUS "Build with BNNS JSON runtime: " ${EXTERN_LIBRARY_BNNS})
+endif()
+
