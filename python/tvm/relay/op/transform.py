@@ -1047,7 +1047,7 @@ def gather(data, axis, indices):
         The input data to the operator.
 
     axis: int
-        The axis along which to index.
+        The axis along which to index. negative axis is supported.
 
     indices: relay.Expr
         The indices of values to gather.
@@ -1410,6 +1410,115 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
     return Tuple((new_sparse_indices, new_sparse_values, empty_row_indicator))
 
 
+def sparse_reshape(sparse_indices, prev_shape, new_shape):
+    """
+    Reshape a Sparse Tensor. The sparse array is in COO format.
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+    prev_shape : relay.Expr
+        A 1-D tensor containing the previous shape of the dense tensor
+    new_shape : relay.Expr
+        A 1-D tensor containing the new shape of the dense tensor
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    Examples
+    --------
+    .. code-block:: python
+        sparse_indices = [[0, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0],
+                            [1, 0, 0],
+                            [1, 2, 3]]
+        prev_shape = [2, 3, 4]
+        new_shape = [9, -1]
+        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
+                            prev_shape,
+                            new_shape)
+        new_sparse_indices = [[0, 0],
+                              [0, 1],
+                              [1, 2],
+                              [4, 2],
+                              [8, 1]]
+        new_shape = [9, 4]
+    """
+    return TupleWrapper(_make.sparse_reshape(sparse_indices, prev_shape, new_shape), 2)
+
+
+def segment_sum(data, segment_ids, num_segments=None):
+    """
+    Computes the sum along segment_ids along axis 0. If multiple segment_ids reference the same
+    location their contributions add up.
+    result[index, j, k, ...] = Σi... data[i, j, k,..] where index = segment_ids[i]
+    This op is much better understood with visualization articulated in the following links and
+    examples at the end of this docstring.
+
+    https://www.tensorflow.org/api_docs/python/tf/math/unsorted_segment_sum
+    https://caffe2.ai/docs/sparse-operations.html#null__unsorted-segment-reduction-ops
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input Tensor. It can be of any type and multi-dimensional
+    segment_ids : relay.Expr
+        A 1-D int32/int64 tensor containing the segment_ids of the rows to calculate the output
+        sum upon. It defines a mapping from the zeroth dimension of data onto segment_ids. The
+        segment_ids tensor should be the size of the first dimension, d0, with consecutive IDs
+        in the range 0 to k, where k<d0. In particular, a segmentation of a matrix tensor is a
+        mapping of rows to segments. This tensor doesn't need to be sorted
+    num_segments : Optional[int]
+        An integer describing the shape of the zeroth dimension. If unspecified, its calculated
+        equivalent to the number of unique segment_ids
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    Examples
+    --------
+    .. code-block:: python
+        data = [[1, 2, 3, 4],
+                [4, -3, 2, -1],
+                [5, 6, 7, 8]]
+        segment_ids = [0, 0, 1]
+        result = segment_sum(data, segment_ids)
+        result = [[5, -1, 5, 3],[5, 6, 7, 8]]
+
+        data = [[1, 2, 3, 4],
+                [4, -3, 2, -1],
+                [5, 6, 7, 8]]
+        segment_ids = [2, 0, 0]
+        num_segments = 3
+        result = segment_sum(data, segment_ids, num_segments)
+        result = [[5, 6, 7, 8],[0, 0, 0, 0], [5, -1, 5, 3]]
+    """
+
+    one_tensor = cast_like(const([1]), segment_ids)
+    if num_segments:
+        if isinstance(num_segments, int):
+            max_segments = const([num_segments])
+            max_segments = cast_like(max_segments, segment_ids)
+        else:
+            max_segments = cast_like(num_segments, segment_ids)
+    else:
+        max_segments = _make.add(reshape(_make.max(segment_ids, [0], False, False), -1), one_tensor)
+
+    data_offrow_shape = strided_slice(_make.shape_of(data, "int32"), [1], [-1], slice_mode="size")
+    data_offrow_shape = cast_like(data_offrow_shape, max_segments)
+    new_shape = _make.concatenate(Tuple([max_segments, data_offrow_shape]), 0)
+    segment_ids_tiled_shape = _make.concatenate(
+        Tuple([reverse(data_offrow_shape, 0), one_tensor]), 0
+    )
+    expanded_segment_ids = tile(segment_ids, segment_ids_tiled_shape)
+    scatter_add_segment_ids = transpose(expanded_segment_ids)
+    src = cast_like(_dyn_make.zeros(new_shape, "float64"), data)
+    return scatter_add(src, scatter_add_segment_ids, data, axis=0)
+
+
 def cumsum(data, axis=None, dtype=None, exclusive=None):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
@@ -1463,3 +1572,57 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         -> [1, 1, 2, 2, 3, 4, 4]
     """
     return _make.cumsum(data, axis, dtype, exclusive)
+
+
+def unique(data, is_sorted=True, return_counts=False):
+    """
+    Find the unique elements of a 1-D tensor. Please note `output` and `counts` are all padded to
+    have the same length of `data` and element with index >= num_unique[0] has undefined value.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        A 1-D tensor of integers.
+
+    sorted : bool
+        Whether to sort the unique elements in ascending order before returning as output.
+
+    return_counts : bool
+        Whether to return the count of each unique element.
+
+    Returns
+    -------
+    output : relay.Expr
+        A 1-D tensor containing the unique elements of the input data tensor.
+
+    indices : relay.Expr
+        A 1-D tensor containing the index of each data element in the output tensor.
+
+    num_unique : relay.Expr
+        A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
+
+    counts (optional) : relay.Expr
+        A 1-D tensor containing the count of each unique element in the output.
+
+    Examples
+    --------
+    .. code-block:: python
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+
+        [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
+        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique     =  [5]
+        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
+
+        [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
+        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
+        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique     =  [5]
+    """
+    if return_counts:
+        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
+    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)

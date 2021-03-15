@@ -1008,6 +1008,42 @@ def test_onehot():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
+    out_shape = [a_shape[0], b_shape[1]]
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+    input_names = ["a", "b"]
+    input_nodes = [
+        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+    ]
+    input_values = [a_array, b_array]
+    if c_shape is not None:
+        c_array = np.random.uniform(size=c_shape).astype("float32")
+        input_names.append("c")
+        input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
+        input_values.append(c_array)
+
+    gemm_node = helper.make_node("Gemm", input_names, ["out"])
+
+    graph = helper.make_graph(
+        [gemm_node],
+        "gemm_test",
+        inputs=input_nodes,
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="gemm_test")
+    verify_with_ort_with_inputs(model, input_values, freeze_params=freeze_params)
+
+
+@tvm.testing.uses_gpu
+def test_gemm():
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,))
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True)
+
+
 @tvm.testing.uses_gpu
 def test_matmul():
     a_shape = (4, 3)
@@ -1794,23 +1830,26 @@ def test_unary_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_unary_ops(op, x, rtol=1e-5, atol=1e-5):
+    def verify_unary_ops(op, x, rtol=1e-5, atol=1e-5, dtype="float32"):
+        x = x.astype(dtype)
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         z = helper.make_node(op, ["in1"], ["out"])
         graph = helper.make_graph(
             [z],
             "_test",
             inputs=[
-                helper.make_tensor_value_info("in1", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("in1", ONNX_DTYPE, list(in_shape)),
             ],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(out_shape))],
         )
         model = helper.make_model(graph, producer_name="_test")
         verify_with_ort_with_inputs(model, [x], rtol=rtol, atol=atol)
 
-    x = np.random.uniform(size=in_shape).astype(dtype)
+    x = np.random.uniform(size=in_shape)
     verify_unary_ops("Neg", x)
     verify_unary_ops("Abs", x)
     verify_unary_ops("Reciprocal", x)
+    verify_unary_ops("Reciprocal", x, dtype="float16")
     verify_unary_ops("Sqrt", x)
     verify_unary_ops("Relu", x)
     verify_unary_ops("Exp", x)
@@ -3320,15 +3359,27 @@ def test_resize():
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+
     # downsampling
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "half_pixel")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+
     # scales are specified instead of sizes
     verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "align_corners")
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "linear", "align_corners")
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "nearest", "half_pixel")
 
     def verify_opset_10(ishape, scales, mode):
         nodes = [
@@ -3502,7 +3553,7 @@ def test_roi_align():
 # @tvm.testing.uses_gpu
 def test_non_max_suppression():
     def verify_nms(
-        boxes, scores, max_ouput_boxes_per_class, iou_threshold, score_threshold, output_dims
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
     ):
         input_names = ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold"]
         input_nodes = [
@@ -4065,6 +4116,7 @@ if __name__ == "__main__":
     test_clip()
     test_clip_min_max_as_inputs()
     test_onehot()
+    test_gemm()
     test_matmul()
     test_gather()
     test_gatherelements()

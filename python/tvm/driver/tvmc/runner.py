@@ -24,11 +24,11 @@ import tarfile
 import tempfile
 
 import numpy as np
-import tvm
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_runtime as runtime
 from tvm.contrib.debugger import debug_runtime
+from tvm.relay import load_param_dict
 
 from . import common
 from .common import TVMCException
@@ -163,9 +163,8 @@ def get_input_info(graph_str, params):
 
     shape_dict = {}
     dtype_dict = {}
-    # Use a special function to load the binary params back into a dict
-    load_arr = tvm.get_global_func("tvm.relay._load_param_dict")(params)
-    param_names = [v.name for v in load_arr]
+    params_dict = load_param_dict(params)
+    param_names = [k for (k, v) in params_dict.items()]
     graph = json.loads(graph_str)
     for node_id in graph["arg_nodes"]:
         node = graph["nodes"][node_id]

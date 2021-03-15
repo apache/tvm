@@ -81,6 +81,9 @@ class Compiler(metaclass=abc.ABCMeta):
         target_strs = set()
 
         for obj in sources:
+            if os.path.splitext(obj)[1] not in (".cc", ".c"):
+                continue
+
             with open(obj) as obj_f:
                 for line in obj_f:
                     m = cls.TVM_TARGET_RE.match(line)
@@ -246,7 +249,8 @@ class DefaultCompiler(Compiler):
             )
 
         prefix = self._autodetect_toolchain_prefix(target)
-        outputs = []
+        outputs = [s for s in sources if os.path.splitext(s)[1] == ".o"]
+        sources = [s for s in sources if s not in outputs]
         for src in sources:
             src_base, src_ext = os.path.splitext(os.path.basename(src))
 

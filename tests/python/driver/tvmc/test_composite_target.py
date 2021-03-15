@@ -38,7 +38,7 @@ def test_get_codegen_names():
 
 
 def test_valid_codegen():
-    codegen = tvmc.composite_target.get_codegen_by_target("acl")
+    codegen = tvmc.composite_target.get_codegen_by_target("compute-library")
 
     assert codegen is not None
     assert codegen["pass_pipeline"] is not None

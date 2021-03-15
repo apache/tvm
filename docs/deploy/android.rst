@@ -31,7 +31,7 @@ The code below will save the compilation output which is required on android tar
     with open("deploy_graph.json", "w") as fo:
         fo.write(graph.json())
     with open("deploy_param.params", "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+        fo.write(runtime.save_param_dict(params))
 
 deploy_lib.so, deploy_graph.json, deploy_param.params will go to android target.
 

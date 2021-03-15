@@ -119,12 +119,11 @@ inline std::vector<int64_t> GetConstInt64Values(Array<PrimExpr> exprs,
 }
 
 /*!
- * \brief Check weather the two expressions are equal or not, if not simplify the expressions and
- * check again \note This is stronger equality check than tvm::tir::Equal
- *
- * \param lhs First expreesion
- * \param rhs Second expreesion
- *
+ * \brief Check whether the two expressions are equal or not, if not simplify the expressions and
+ * check again
+ * \note This is stronger equality check than tvm::tir::Equal
+ * \param lhs First expression
+ * \param rhs Second expression
  * \return result True if both expressions are equal, else false
  */
 inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {

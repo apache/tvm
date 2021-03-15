@@ -284,7 +284,7 @@ def test_shift():
     )
 
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.left_shift, np.left_shift, dtype="int8", rhs_min=0, rhs_max=32
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift, dtype="int32", rhs_min=0, rhs_max=32
     )
 
 

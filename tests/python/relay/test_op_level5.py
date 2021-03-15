@@ -67,13 +67,19 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-5)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-4)
 
-    for layout in ["NHWC", "NCHW"]:
-        verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "half_pixel")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "asymmetric")
-        verify_resize((3, 4, 5, 6), 5, "nearest_neighbor", layout, "asymmetric")
+    for method in ["nearest_neighbor", "bilinear"]:
+        for coord_trans in ["asymmetric", "half_pixel", "align_corners"]:
+            for layout in ["NHWC", "NCHW"]:
+                # TODO: Topi test does not have a function to produce numpy output for resize with
+                # nearest_neighbors and align_corners. Enable when topi test has this option
+                if coord_trans == "align_corners" and method == "nearest_neighbor":
+                    continue
+                verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
+                verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
+                verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
+                verify_resize((3, 4, 5, 6), 5, method, layout, coord_trans)
 
 
 def test_resize3d_infer_type():
@@ -486,6 +492,42 @@ def test_non_max_suppression():
         np_result,
         np_indices_result,
         top_k=2,
+    )
+
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [1, 0.7, 30, 60, 50, 80, 5, 6, 7, 8],
+                [0, 0.4, 4, 21, 19, 40, 9, 10, 11, 12],
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [1, 0.5, 100, 60, 70, 110, 17, 18, 19, 20],
+            ]
+        ]
+    ).astype("float32")
+    np_result = np.array(
+        [
+            [
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+            ]
+        ]
+    )
+    dshape = (1, 5, 10)
+    verify_nms(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_max_output_size,
+        dshape,
+        np_result,
+        np_indices_result,
+        force_suppress=True,
+        top_k=2,
+        check_type_only=False,
     )
 
 

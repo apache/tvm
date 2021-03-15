@@ -19,6 +19,8 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
 
+import numpy as np
+
 
 def test_simplify_reshape():
     def before():
@@ -117,7 +119,7 @@ def test_simplify_full_elementwise():
                 assert tvm.ir.structural_equal(zz, after)
 
     for shape in [[10], [10, 10], [10, 10, 10]]:
-        for dtype in ["float32", "int32"]:
+        for dtype in ["float32", "int32", "bool"]:
             for value in [0, 1, 2]:
                 validate(shape, value, dtype)
 

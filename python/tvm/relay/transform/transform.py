@@ -985,7 +985,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     """
 
     if opt_level is None:
-        raise ValueError("Please provide opt_level for the funtion pass.")
+        raise ValueError("Please provide opt_level for the function pass.")
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):
@@ -1097,6 +1097,19 @@ def SimplifyExpr():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.SimplifyExpr()
+
+
+def FoldExplicitPadding():
+    """
+    FoldExplicitPadding finds explict padding before an op that can support
+    implicit padding and fuses them.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered ImplicitPadding pass.
+    """
+    return _ffi_api.FoldExplicitPadding()
 
 
 def AnnotateSpans():

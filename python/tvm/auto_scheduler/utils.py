@@ -201,6 +201,9 @@ def serialize_args(args):
     Currently this is mainly used for tvm.tensor.Tensor
     """
     ret = []
+    if args is None:
+        return tuple(ret)
+
     for t in args:
         if isinstance(t, Tensor):
             t = ("TENSOR", get_const_tuple(t.shape), t.dtype)

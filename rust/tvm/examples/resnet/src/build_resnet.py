@@ -27,7 +27,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay import testing
 from tvm.contrib import graph_runtime, cc
 from PIL import Image
@@ -88,7 +88,7 @@ def build(target_dir):
         fo.write(graph)
 
     with open(osp.join(target_dir, "deploy_param.params"), "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+        fo.write(runtime.save_param_dict(params))
 
 
 def download_img_labels():

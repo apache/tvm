@@ -106,6 +106,29 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
       auto target_device = target->GetAttr<String>("device", "");
       LOG(FATAL) << "No default hardware parameters for opencl target device: " << target_device;
     }
+  } else if (device_type == kDLVulkan) {
+    auto ctx = TVMContext{static_cast<DLDeviceType>(device_type), 0};
+    auto device_name = "device_api.vulkan";
+    auto func = tvm::runtime::Registry::Get(device_name);
+    ICHECK(func != nullptr) << "Cannot find Vulkan device_api in registry";
+    auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+
+    tvm::runtime::TVMRetValue ret;
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    int max_shared_memory_per_block = ret;
+
+    int max_local_memory_per_block = INT32_MAX;
+
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+    int max_threads_per_block = ret;
+
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+    int warp_size = ret;
+
+    int max_vthread_extent = std::max(1, warp_size / 4);
+
+    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                          max_threads_per_block, max_vthread_extent, warp_size);
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }
@@ -114,7 +137,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
-                       LayoutRewriteOption layout_rewrite_option) {
+                       LayoutRewriteOption layout_rewrite_option, Array<String> task_input_names) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -127,6 +150,7 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
         HardwareParamsNode::GetDefaultHardwareParams(node->target, node->target_host);
   }
   node->layout_rewrite_option = layout_rewrite_option;
+  node->task_input_names = std::move(task_input_names);
   data_ = std::move(node);
 }
 
@@ -142,9 +166,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
-                       int layout_rewrite_option) {
+                       int layout_rewrite_option, Array<String> task_input_names) {
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
-                        LayoutRewriteOption(layout_rewrite_option));
+                        LayoutRewriteOption(layout_rewrite_option), task_input_names);
     });
 
 }  // namespace auto_scheduler

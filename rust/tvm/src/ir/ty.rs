@@ -23,7 +23,7 @@ use tvm_rt::{array::Array, DataType};
 use crate::ir::relay::Constructor;
 use crate::ir::span::Span;
 use crate::ir::PrimExpr;
-use crate::runtime::{string::String as TString, IsObject, Object, ObjectPtr};
+use crate::runtime::{string::String as TString, IsObject, IsObjectRef, Object, ObjectPtr};
 
 #[repr(C)]
 #[derive(Object, Debug)]
@@ -147,8 +147,17 @@ pub struct TupleTypeNode {
 }
 
 impl TupleType {
+    // todo add coercion
+    pub fn new(fields: Vec<Type>, span: Span) -> Self {
+        let node = TupleTypeNode {
+            base: TypeNode::base::<TupleTypeNode>(span),
+            fields: Array::from_vec(fields).unwrap(),
+        };
+        ObjectPtr::new(node).into()
+    }
+
     pub fn empty() -> TupleType {
-        todo!()
+        TupleType::new(vec![], Span::null())
     }
 }
 
@@ -236,7 +245,13 @@ impl TensorType {
         };
         ObjectPtr::new(node).into()
     }
+
+    pub fn static_sh(shape: Vec<i32>, dtype: DataType, span: Span) -> TensorType {
+        let sh = Array::from_vec(shape.into_iter().map(Into::into).collect()).unwrap();
+        Self::new(sh, dtype, span)
+    }
 }
+
 // TODO(@jroesch): implement these in future.
 //
 // using TypeCall = tvm::TypeCall;

@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,16 +88,44 @@ int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDa
   if (alignment != 1) {
     nbytes = (nbytes + alignment - 1) / alignment * alignment;
   }
-
   return TVMPlatformMemoryAllocate(nbytes, ctx, out_data);
+}
+
+int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
+                                     DLDataType dtype, const char* mem_scope, void** out_data) {
+  size_t nbytes = 1;
+  for (int i = 0; i < ndim; ++i) {
+    nbytes *= shape[i];
+  }
+  nbytes *= (dtype.bits * dtype.lanes + 7) / 8;
+
+  int kAllocAlignment = 128;
+  size_t align = (dtype.bits / 8) * dtype.lanes;
+  if (align < kAllocAlignment) align = kAllocAlignment;
+  return TVMDeviceAllocDataSpace(ctx, nbytes, align, dtype, out_data);
 }
 
 int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) { return TVMPlatformMemoryFree(ptr, ctx); }
 
-int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                            size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
-                            DLDataType type_hint, TVMStreamHandle stream) {
-  memcpy(((uint8_t*)to) + to_offset, ((uint8_t*)from) + from_offset, num_bytes);
+static bool IsContiguous(const DLTensor* arr) {
+  if (arr->strides == NULL) return true;
+  int64_t expected_stride = 1;
+  for (int32_t i = arr->ndim; i != 0; --i) {
+    int32_t k = i - 1;
+    if (arr->strides[k] != expected_stride) return false;
+    expected_stride *= arr->shape[k];
+  }
+  return true;
+}
+
+int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
+  assert(IsContiguous(from) && IsContiguous(to));
+  size_t size = 1;
+  for (int i = 0; i < from->ndim; ++i) {
+    size *= from->shape[i];
+  }
+  size *= (from->dtype.bits * from->dtype.lanes + 7) / 8;
+  memcpy(((uint8_t*)to->data) + to->byte_offset, ((uint8_t*)from->data) + from->byte_offset, size);
   return 0;
 }
 

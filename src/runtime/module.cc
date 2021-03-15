@@ -178,7 +178,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
-    .set_body_typed([](Module mod, std::string name, std::string fmt) {
+    .set_body_typed([](Module mod, tvm::String name, tvm::String fmt) {
       mod->SaveToFile(name, fmt);
     });
 

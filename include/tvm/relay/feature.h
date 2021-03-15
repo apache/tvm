@@ -25,8 +25,8 @@
 #define TVM_RELAY_FEATURE_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/node/container.h>
 #include <tvm/relay/expr.h>
+#include <tvm/runtime/container.h>
 
 #include <bitset>
 #include <string>

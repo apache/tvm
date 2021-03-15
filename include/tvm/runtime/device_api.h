@@ -91,6 +91,17 @@ class TVM_DLL DeviceAPI {
   virtual void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                                DLDataType type_hint) = 0;
   /*!
+   * \brief Allocate a data space on device with memory scope support.
+   * \param ctx The device context to perform operation.
+   * \param ndim The number of dimension of allocated tensor.
+   * \param shape The shape of allocated tensor.
+   * \param dtype The type of elements.
+   * \param mem_scope The memory scope of allocated tensor.
+   * \return The allocated device pointer.
+   */
+  virtual void* AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape, DLDataType dtype,
+                               Optional<String> mem_scope = NullOpt);
+  /*!
    * \brief Free a data space on device.
    * \param ctx The device context to perform operation.
    * \param ptr The data space.
@@ -98,20 +109,13 @@ class TVM_DLL DeviceAPI {
   virtual void FreeDataSpace(TVMContext ctx, void* ptr) = 0;
   /*!
    * \brief copy data from one place to another
+   * \note This API is designed to support special memory with shape dependent layout.
+   *       We pass in DLTensor* with shape information to support these cases.
    * \param from The source array.
-   * \param from_offset The byte offeset in the from.
    * \param to The target array.
-   * \param to_offset The byte offset in the to.
-   * \param num_bytes The size of the memory in bytes
-   * \param ctx_from The source context
-   * \param ctx_to The target context
-   * \param type_hint The type of elements, only neded by certain backends.
-   *                  can be useful for cross device endian converison.
    * \param stream Optional stream object.
    */
-  virtual void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                              size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
-                              DLDataType type_hint, TVMStreamHandle stream) = 0;
+  virtual void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream);
   /*!
    * \brief Create a new stream of execution.
    *
@@ -194,6 +198,24 @@ class TVM_DLL DeviceAPI {
   static bool NeedSetDeviceContext(int device_type) {
     return device_type != kDLCPU && device_type != kDLMicroDev;
   }
+
+ protected:
+  /*!
+   * \brief copy data from one place to another
+   * \param from The source array.
+   * \param from_offset The byte offeset in the from.
+   * \param to The target array.
+   * \param to_offset The byte offset in the to.
+   * \param num_bytes The size of the memory in bytes
+   * \param ctx_from The source context
+   * \param ctx_to The target context
+   * \param type_hint The type of elements, only neded by certain backends.
+   *                  can be useful for cross device endian converison.
+   * \param stream Optional stream object.
+   */
+  virtual void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                              size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                              DLDataType type_hint, TVMStreamHandle stream);
 };
 
 /*! \brief The device type bigger than this is RPC device */

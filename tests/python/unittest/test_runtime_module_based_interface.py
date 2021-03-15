@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
@@ -314,7 +314,7 @@ def test_remove_package_params():
         complied_graph_lib_no_params = complied_graph_lib["remove_params"]()
         complied_graph_lib_no_params.export_library(path_lib)
         with open(temp.relpath("deploy_param.params"), "wb") as fo:
-            fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
+            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
         loaded_lib = tvm.runtime.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
         ctx = tvm.cpu(0)
@@ -361,7 +361,7 @@ def test_remove_package_params():
         complied_graph_lib_no_params = complied_graph_lib["remove_params"]()
         complied_graph_lib_no_params.export_library(path_lib)
         with open(temp.relpath("deploy_param.params"), "wb") as fo:
-            fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
+            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
         loaded_lib = tvm.runtime.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
         ctx = tvm.gpu(0)
@@ -409,7 +409,7 @@ def test_remove_package_params():
         complied_graph_lib_no_params.export_library(path_lib)
         path_params = temp.relpath("deploy_param.params")
         with open(path_params, "wb") as fo:
-            fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
+            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
 
         from tvm import rpc
 
@@ -462,7 +462,7 @@ def test_remove_package_params():
         complied_graph_lib_no_params.export_library(path_lib)
         path_params = temp.relpath("deploy_param.params")
         with open(path_params, "wb") as fo:
-            fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
+            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
 
         from tvm import rpc
 

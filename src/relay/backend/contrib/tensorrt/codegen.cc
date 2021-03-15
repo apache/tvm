@@ -156,6 +156,9 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
         // with slice_mode = "size", attrs->end_value mean the size of the slice
         int end_value = attrs->end.value()[i].as<IntImmNode>()->value;
         size_value = (end_value == -1) ? ishape[i] - begin_value : end_value;
+      } else {
+        LOG(FATAL) << "Unexpected slice_mode " << attrs->slice_mode << ", expected end or size";
+        throw;
       }
       ICHECK_GT(size_value, 0);
       size.push_back(std::to_string(size_value));

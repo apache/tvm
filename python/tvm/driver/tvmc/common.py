@@ -133,7 +133,7 @@ def tokenize_target(target):
 
     target_pattern = (
         r"(\-{0,2}[\w\-]+\=?"
-        r"(?:[\w\+\-]+(?:,[\w\+\-])*|[\'][\w\+\-,\s]+[\']|[\"][\w\+\-,\s]+[\"])*|,)"
+        r"(?:[\w\+\-\.]+(?:,[\w\+\-\.])*|[\'][\w\+\-,\s\.]+[\']|[\"][\w\+\-,\s\.]+[\"])*|,)"
     )
 
     return re.findall(target_pattern, target)
@@ -223,6 +223,11 @@ def parse_target(target):
                 else:
                     opt = opt[1:] if opt.startswith("-") else opt
                     opt_name, opt_value = opt.split("=", maxsplit=1)
+
+                    # remove quotes from the value: quotes are only parsed if they match,
+                    # so it is safe to assume that if the string starts with quote, it ends
+                    # with quote.
+                    opt_value = opt_value[1:-1] if opt_value[0] in ('"', "'") else opt_value
             except ValueError:
                 raise ValueError(f"Error when parsing '{opt}'")
 

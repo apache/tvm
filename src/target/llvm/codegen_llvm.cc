@@ -1328,6 +1328,20 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
                   llvm::ConstantInt::getSigned(GetLLVMType(op->extent), 1), op->loop_var, op->body);
 }
 
+void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
+  using llvm::BasicBlock;
+  BasicBlock* while_cond = BasicBlock::Create(*ctx_, "while_cond", function_);
+  BasicBlock* while_body = BasicBlock::Create(*ctx_, "while_body", function_);
+  BasicBlock* while_merge = BasicBlock::Create(*ctx_, "while_merge", function_);
+  builder_->CreateBr(while_cond);
+  builder_->SetInsertPoint(while_cond);
+  builder_->CreateCondBr(MakeValue(op->condition), while_body, while_merge);
+  builder_->SetInsertPoint(while_body);
+  this->VisitStmt(op->body);
+  builder_->CreateBr(while_cond);
+  builder_->SetInsertPoint(while_merge);
+}
+
 void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);

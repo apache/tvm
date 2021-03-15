@@ -199,6 +199,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     delete pbuf;
   }
 
+ protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
@@ -307,6 +308,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     }
   }
 
+ public:
   // Always use the default stream
   TVMStreamHandle CreateStream(TVMContext ctx) {
     LOG(FATAL) << "Not implemented";
@@ -365,28 +367,37 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
   }
   ICHECK_LT(index, context_.size()) << "Invalid device id " << index;
   const auto& vctx = context(index);
+  VkPhysicalDeviceProperties phy_prop;
+  vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+
   switch (kind) {
     case kMaxThreadsPerBlock: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
       *rv = value;
       break;
     }
     case kMaxSharedMemoryPerBlock: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t value = phy_prop.limits.maxComputeSharedMemorySize;
       *rv = value;
       break;
     }
     case kWarpSize: {
-      *rv = 1;
+      VkPhysicalDeviceSubgroupProperties subgroup_prop;
+      subgroup_prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+      subgroup_prop.pNext = NULL;
+
+      VkPhysicalDeviceProperties2 phy_prop2;
+      phy_prop2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+      phy_prop2.pNext = &subgroup_prop;
+
+      vkGetPhysicalDeviceProperties2(vctx.phy_device, &phy_prop2);
+      int64_t subgroup_size = subgroup_prop.subgroupSize;
+      ICHECK(subgroup_size >= 1);
+
+      *rv = subgroup_size;
       break;
     }
     case kComputeVersion: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t value = phy_prop.apiVersion;
       std::ostringstream os;
       os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
@@ -403,8 +414,6 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
     case kExist:
       break;
     case kMaxThreadDimensions: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t dims[3];
       dims[0] = phy_prop.limits.maxComputeWorkGroupSize[0];
       dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
@@ -709,7 +718,7 @@ class VulkanWrappedFunc {
     thread_axis_cfg_.Init(num_buffer_args + num_pack_args, thread_axis_tags);
   }
 
-  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const;
+  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const;
 
  private:
   // internal module
@@ -873,7 +882,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     VkPushConstantRange crange;
     crange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     crange.offset = 0;
-    crange.size = sizeof(ArgUnion) * num_pack_args;
+    crange.size = sizeof(ArgUnion64) * num_pack_args;
 
     VkPipelineLayoutCreateInfo playout_cinfo;
     playout_cinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1044,7 +1053,8 @@ VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
   return streams_[device_id].get();
 }
 
-void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const {
+void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
+                                   const ArgUnion64* pack_args) const {
   int device_id = VulkanThreadEntry::ThreadLocal()->ctx.device_id;
   ICHECK_LT(device_id, kVulkanMaxNumDevice);
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
@@ -1073,7 +1083,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion
           descriptor_buffers.data());
       if (num_pack_args_ != 0) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
-                           VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion),
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
                            pack_args);
       }
       vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
@@ -1091,7 +1101,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion
   }
 
   // Otherwise, the more expensive deferred path.
-  std::vector<ArgUnion> pack_args_storage(pack_args, pack_args + num_pack_args_);
+  std::vector<ArgUnion64> pack_args_storage(pack_args, pack_args + num_pack_args_);
   const auto& deferred_initializer = [&vctx, pipeline, descriptor_buffers]() {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     write_descriptor_sets.resize(descriptor_buffers.size());
@@ -1117,7 +1127,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion
                             nullptr);
     if (pack_args_storage.size() != 0) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                         0, pack_args_storage.size() * sizeof(ArgUnion), pack_args_storage.data());
+                         0, pack_args_storage.size() * sizeof(ArgUnion64),
+                         pack_args_storage.data());
     }
     vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
     VkMemoryBarrier barrier_info;

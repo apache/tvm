@@ -513,7 +513,9 @@ class Gemm(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 3, "Gemm op take 3 inputs, {} given".format(len(inputs))
+        assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
+            len(inputs)
+        )
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -531,11 +533,9 @@ class Gemm(OnnxOpConverter):
             inputs[0] *= _expr.const(alpha)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
 
-        # skip (beta * C) if zero
-        C_array = params[inputs[2].name_hint].asnumpy()
-        if (beta == 0.0) or np.array_equal(C_array, np.array([0])):
-            return out
-        return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
+        if len(inputs) == 3:
+            return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
+        return out
 
 
 class MatMul(OnnxOpConverter):
@@ -839,7 +839,8 @@ class Reciprocal(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _expr.const(1.0) / inputs[0]
+        dtype = infer_type(inputs[0]).checked_type.dtype
+        return _expr.const(1.0, dtype=dtype) / inputs[0]
 
 
 class Flatten(OnnxOpConverter):
@@ -1753,7 +1754,7 @@ class LSTM(RNN):
         P = inputs[7]
 
         num_directions = infer_shape(W)[0]
-        W_dtype = infer_type(W).type_annotation.dtype
+        W_dtype = infer_type(W).checked_type.dtype
 
         if num_directions != 1:
             raise NotImplementedError("Bidirectional LSTMs not yet supported.")
@@ -1865,7 +1866,7 @@ class GRU(RNN):
         linear_before_reset = attr.get("linear_before_reset", 0)
 
         num_directions = infer_shape(W)[0]
-        W_dtype = infer_type(W).type_annotation.dtype
+        W_dtype = infer_type(W).checked_type.dtype
 
         if num_directions != 1:
             raise NotImplementedError("Bidirectional GRUs not yet supported.")
@@ -2452,7 +2453,7 @@ class NonMaxSuppression(OnnxOpConverter):
             nms_size_out,
         ):
             # Loop over classes, end when i == C
-            return _op.min(_op.less(i, C))
+            return _op.take(_op.less(i, C), _expr.const(0))
 
         def _first_body(
             i,
@@ -2560,7 +2561,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         def _inner_cond(i, j, C, onnx_out, nms_size, out):
             # inner loop over number of classes
-            return _op.min(_op.less(j, C))
+            return _op.take(_op.less(j, C), _expr.const(0))
 
         def _inner_body(i, j, C, onnx_out, nms_size, out):
             # slice to get current batch and class for valid box indicator
@@ -2590,7 +2591,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         def _outer_cond(i, B, C, onnx_out, nms_size_out, out):
             # Outer loop is over batch size
-            return _op.min(_op.less(i, B))
+            return _op.take(_op.less(i, B), _expr.const(0))
 
         def _outer_body(i, B, C, onnx_out, nms_size_out, out):
             # Outer loop just calls inner loop
