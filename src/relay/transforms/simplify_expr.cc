@@ -103,7 +103,9 @@ class SimplifyTranspose : public SimplifyPattern {
       if (auto attr = trans_call->attrs.as<TransposeAttrs>()) {
         if (attr->axes.defined()) {
           for (int i = 0; i < ndim; ++i) {
-            attr_axes.push_back(attr->axes[i]);
+            int64_t axis = attr->axes[i];
+            axis += (axis < 0) ? ndim : 0;
+            attr_axes.push_back(axis);
           }
         } else {
           // Empty axes means reverse
