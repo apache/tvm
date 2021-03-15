@@ -538,7 +538,7 @@ def sort_ir(
         assert indices_out_swap is not None
         indices_out_swap = ib.buffer_ptr(indices_out_swap)
 
-    with ib.if_scope(size[axis] > 0):
+    with ib.if_scope(shape[axis] > 0):
         axis_mul_before, axis_mul_after = _sort_init(
             ib,
             shape,
