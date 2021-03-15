@@ -112,7 +112,9 @@ def test_simplify_transpose():
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
-        assert tvm.ir.structural_equal(after, expected)
+        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
+            after, expected
+        )
 
 
 def test_simplify_full_elementwise():
