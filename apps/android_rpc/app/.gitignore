@@ -1,1 +1,7 @@
 /build
+/.externalNativeBuild
+/src/main/jni/org_apache_tvm_native_c_api.h
+/src/main/jni/org_apache_tvm_native_c_api.cc
+/src/main/jni/jni_helper_func.h
+/src/main/obj
+/libs

@@ -35,6 +35,14 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild{
+            cmake {
+                abiFilters "arm64-v8a", "armeabi-v7a","x86","x86_64"
+            }
+        }
+    
+
     }
     buildTypes {
         release {
@@ -42,10 +50,16 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-    sourceSets {
-        main {
-            jni.srcDirs = []
-            jniLibs.srcDirs = ['src/main/libs']
+    externalNativeBuild{
+        cmake {
+                path "src/main/jni/CMakeLists.txt"
+            }
+    
+        sourceSets {
+            main {
+                jni.srcDirs = []
+                //jniLibs.srcDirs = ['src/main/libs']
+            }
         }
     }
 }

@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     editor.putString("input_key", key);
     editor.putBoolean("input_switch", isChecked);
     editor.commit();
+    
 
     Intent intent = new Intent(this, RPCActivity.class);
     intent.putExtra("host", proxyHost);
@@ -86,6 +87,7 @@ public class MainActivity extends AppCompatActivity {
               System.err.println("relaunching RPC activity...");
               Intent intent = ((MainActivity) context).updateRPCPrefs();
               startActivity(intent);
+              switchPersistent.setChecked(false);
             }
         }
     };
