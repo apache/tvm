@@ -114,6 +114,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
 class TextureFlattener : public TextureLoweringBase {
  public:
+  using StmtExprMutator::VisitStmt_;
   explicit TextureFlattener(const Map<Var, Buffer>& extern_buffer_map,
                             const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& extern_buffer_binds_)
     : TextureLoweringBase(extern_buffer_map), buffer_binds_(extern_buffer_binds_) {;}
