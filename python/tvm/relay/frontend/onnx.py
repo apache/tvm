@@ -2629,10 +2629,10 @@ class NonMaxSuppression(OnnxOpConverter):
 
         # Call the second loop, rework outputs into correct form
         init_count = _op.const(np.array([0]).astype("int64"), dtype="int64")
-        init_out = _op.const(np.array([]).reshape([0, 3]).astype("int64"), dtype="int64")
+        init_out = _op.const(np.array([1, 1, 1]).reshape([1, 3]).astype("int64"), dtype="int64")
         loop_vals = outer_loop(init_count, B, C, onnx_output, nms_size_output, init_out)
-
-        return _expr.TupleGetItem(loop_vals, 5)
+        loop_out = _expr.TupleGetItem(loop_vals, 5)
+        return _op.strided_slice(loop_out, [1, 0], shape_of(loop_out), [1, 1])
 
 
 # compatible operators that do NOT require any conversion.
