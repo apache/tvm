@@ -280,7 +280,7 @@ def target_from_cli(target):
     """
     extra_targets = []
 
-    if os.path.exists(target):
+    if os.path.isfile(target):
         with open(target) as target_file:
             logger.debug("target input is a path: %s", target)
             target = "".join(target_file.readlines())
