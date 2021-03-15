@@ -29,6 +29,8 @@ from tvm.driver import tvmc
 
 from tvm.driver.tvmc.common import TVMCException
 
+from tvm.contrib.target.vitis_ai_utils import vitis_ai_available
+
 
 def test_get_codegen_names():
     names = tvmc.composite_target.get_codegen_names()
@@ -50,14 +52,29 @@ def test_invalid_codegen():
         _ = tvmc.composite_target.get_codegen_by_target("invalid")
 
 
+@pytest.mark.skipif(
+    not vitis_ai_available(),
+    reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
+)
+def test_vitis_ai_codegen_init():
+    tvmc.composite_target.get_codegen_by_target("vitis-ai")
+
+
 def test_all_codegens_contain_pass_pipeline():
     for name in tvmc.composite_target.get_codegen_names():
-        codegen = tvmc.composite_target.get_codegen_by_target(name)
+        codegen = tvmc.composite_target.get_codegen_by_target(name, call_init_function=False)
         assert "pass_pipeline" in codegen, f"{name} does not contain a pass_pipeline"
         assert isfunction(codegen["pass_pipeline"])
 
 
 def test_all_pass_pipelines_are_functions():
     for name in tvmc.composite_target.get_codegen_names():
-        codegen = tvmc.composite_target.get_codegen_by_target(name)
+        codegen = tvmc.composite_target.get_codegen_by_target(name, call_init_function=False)
         assert isfunction(codegen["pass_pipeline"]), f"pass_pipeline for {name} is not a function"
+
+
+def test_all_initializations_are_functions():
+    for name in tvmc.composite_target.get_codegen_names():
+        codegen = tvmc.composite_target.get_codegen_by_target(name, call_init_function=False)
+        if "init" in codegen:
+            assert isfunction(codegen["init"]), f"init for {name} is not a function"

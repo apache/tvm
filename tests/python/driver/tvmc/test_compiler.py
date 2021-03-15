@@ -17,7 +17,6 @@
 import argparse
 import os
 import shutil
-import importlib
 from os import path
 
 from unittest import mock
@@ -25,17 +24,10 @@ import pytest
 
 import tvm
 
+from tvm.contrib.target.vitis_ai_utils import vitis_ai_available
 from tvm.relay.op.contrib.ethosn import ethosn_available
 
 from tvm.driver import tvmc
-
-
-def vitis_ai_available():
-    """Return whether Vitis AI tools are available"""
-    pyxir_spec = importlib.util.find_spec("pyxir")
-    if not tvm.get_global_func("tvm.vitis_ai_runtime.from_xgraph", True) or pyxir_spec is None:
-        return False
-    return True
 
 
 def test_save_dumps(tmpdir_factory):
