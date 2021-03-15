@@ -190,14 +190,26 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       llvm::Value* v1 = MakeValue(op->args[1]);
       if (op->args[1]->dtype.is_float()) {
 #if TVM_LLVM_VERSION >= 90
+#if TVM_LLVM_VERSION >= 130
+        return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
+                                         llvm::MaybeAlign::MaybeAlign(),
+                                         llvm::AtomicOrdering::Monotonic);
+#else
         return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
                                          llvm::AtomicOrdering::Monotonic);
+#endif
 #else
         LOG(FATAL) << "Floating point atomic requires LLVM 9 or newer";
 #endif
       }
+#if TVM_LLVM_VERSION >= 130
+      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
+                                       llvm::MaybeAlign::MaybeAlign(),
+                                       llvm::AtomicOrdering::Monotonic);
+#else
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
                                        llvm::AtomicOrdering::Monotonic);
+#endif
     }
     return CodeGenLLVM::CreateIntrinsic(op);
   }

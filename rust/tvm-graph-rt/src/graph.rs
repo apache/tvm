@@ -483,7 +483,7 @@ named! {
     )
 }
 
-/// Loads a param dict saved using `relay.save_param_dict`.
+/// Loads a param dict saved using `runtime.save_param_dict`.
 pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>, GraphFormatError> {
     match parse_param_dict(bytes) {
         Ok((remaining_bytes, param_dict)) => {

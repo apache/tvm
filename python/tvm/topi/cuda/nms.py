@@ -19,6 +19,7 @@
 """Non-maximum suppression operator"""
 import tvm
 from tvm import te
+from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from tvm.tir import if_then_else
 from .sort import argsort, argsort_thrust
@@ -492,6 +493,14 @@ def nms_ir(
     with ib.new_scope():
         nthread_by = batch_size
         nthread_tx = max_threads
+
+        # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock
+        # vs 64K for most GPUs. Since this kernel uses many registers (around 35), the limit will
+        # be exceeded with 1024 threads.
+        target = tvm.target.Target.current(allow_none=False)
+        if target.kind.name == "cuda":
+            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
+                nthread_tx = 512
 
         by = te.thread_axis("blockIdx.y")
         tx = te.thread_axis("threadIdx.x")

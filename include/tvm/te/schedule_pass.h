@@ -42,6 +42,13 @@ namespace te {
 void AutoInlineElemWise(Schedule sch);
 
 /*!
+ * \brief To automatically inline the broadcast operations.
+ *
+ * \param sch The schedule to be inlined.
+ */
+void AutoInlineBroarcast(Schedule sch);
+
+/*!
  * \brief To automatically inline operations with injective writes
  *   (i.e. writes without reduction or sequential loops). Note
  *   that in this case, guarantees about contiguity, transpose, stride,

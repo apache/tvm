@@ -75,7 +75,7 @@ def verify_sort(axis, is_ascend):
         f(tvm_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_sort, rtol=1e0)
 
-    for device in ["llvm", "cuda", "opencl"]:
+    for device in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
         check_device(device)
 
 
@@ -115,7 +115,7 @@ def verify_argsort(axis, is_ascend):
         f(tvm_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_indices.astype(data_dtype), rtol=1e0)
 
-    for device in ["llvm", "cuda", "opencl"]:
+    for device in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
         check_device(device)
 
 
@@ -167,7 +167,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
         else:
             tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_indices)
 
-    for device in ["llvm", "cuda", "opencl"]:
+    for device in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
         check_device(device)
 
 

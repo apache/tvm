@@ -16,9 +16,9 @@
 # under the License.
 """Graph runtime factory."""
 import warnings
-from tvm._ffi.base import string_types
-from tvm._ffi.registry import get_global_func
-from tvm.runtime import ndarray
+from ..._ffi.base import string_types
+from ..._ffi.registry import get_global_func
+from ...runtime import ndarray
 
 
 class GraphRuntimeFactoryModule:
@@ -31,6 +31,8 @@ class GraphRuntimeFactoryModule:
         The graph to be deployed in json format output by graph compiler.
         The graph can contain operator(tvm_op) that points to the name of
         PackedFunc in the libmod.
+    target : tvm.Target
+        The Target used to build this module.
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
@@ -39,13 +41,15 @@ class GraphRuntimeFactoryModule:
         The parameters of module
     """
 
-    def __init__(self, graph_json_str, libmod, libmod_name, params):
+    def __init__(self, ir_mod, target, graph_json_str, libmod, libmod_name, params):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_runtime_factory.create")
         args = []
         for k, v in params.items():
             args.append(k)
             args.append(ndarray.array(v))
+        self.ir_mod = ir_mod
+        self.target = target
         self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
         self.graph_json = graph_json_str
         self.lib = libmod

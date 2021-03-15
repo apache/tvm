@@ -24,6 +24,7 @@
 
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
 #include <tvm/support/logging.h>
 
@@ -157,6 +158,72 @@ void LoadMetaDataFromFile(const std::string& file_name,
 }
 
 void RemoveFile(const std::string& file_name) { std::remove(file_name.c_str()); }
+
+Map<String, NDArray> LoadParams(const std::string& param_blob) {
+  dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
+  return LoadParams(&strm);
+}
+Map<String, NDArray> LoadParams(dmlc::Stream* strm) {
+  Map<String, NDArray> params;
+  uint64_t header, reserved;
+  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
+  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
+  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
+
+  std::vector<std::string> names;
+  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
+  uint64_t sz;
+  strm->Read(&sz);
+  size_t size = static_cast<size_t>(sz);
+  ICHECK(size == names.size()) << "Invalid parameters file format";
+  for (size_t i = 0; i < size; ++i) {
+    // The data_entry is allocated on device, NDArray.load always load the array into CPU.
+    NDArray temp;
+    temp.Load(strm);
+    params.Set(names[i], temp);
+  }
+  return params;
+}
+
+void SaveParams(dmlc::Stream* strm, const Map<String, NDArray>& params) {
+  std::vector<std::string> names;
+  std::vector<const DLTensor*> arrays;
+  for (auto& p : params) {
+    names.push_back(p.first);
+    arrays.push_back(p.second.operator->());
+  }
+
+  uint64_t header = kTVMNDArrayListMagic, reserved = 0;
+  strm->Write(header);
+  strm->Write(reserved);
+  strm->Write(names);
+  {
+    uint64_t sz = static_cast<uint64_t>(arrays.size());
+    strm->Write(sz);
+    for (size_t i = 0; i < sz; ++i) {
+      tvm::runtime::SaveDLTensor(strm, arrays[i]);
+    }
+  }
+}
+
+std::string SaveParams(const Map<String, NDArray>& params) {
+  std::string bytes;
+  dmlc::MemoryStringStream strm(&bytes);
+  dmlc::Stream* fo = &strm;
+  SaveParams(fo, params);
+  return bytes;
+}
+
+TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, NDArray>& params) {
+  std::string s = ::tvm::runtime::SaveParams(params);
+  // copy return array so it is owned by the ret value
+  TVMRetValue rv;
+  rv = TVMByteArray{s.data(), s.size()};
+  return rv;
+});
+TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
+  return ::tvm::runtime::LoadParams(s);
+});
 
 }  // namespace runtime
 }  // namespace tvm

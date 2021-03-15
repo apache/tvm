@@ -160,12 +160,19 @@ class DataType {
    */
   static DataType UInt(int bits, int lanes = 1) { return DataType(kDLUInt, bits, lanes); }
   /*!
-   * \brief Construct an uint type.
+   * \brief Construct an float type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
   static DataType Float(int bits, int lanes = 1) { return DataType(kDLFloat, bits, lanes); }
+  /*!
+   * \brief Construct an bfloat type.
+   * \param bits The number of bits in the type.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType BFloat(int bits, int lanes = 1) { return DataType(kDLBfloat, bits, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes

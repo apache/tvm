@@ -80,7 +80,7 @@ VerilatorRuntime::~VerilatorRuntime() {
   auto dealloc = reinterpret_cast<VerilatorDeallocFunc>(lib_->GetSymbol("VerilatorDealloc"));
   ICHECK(dealloc != nullptr);
   dealloc(device_);
-  lib_->~VerilatorLibrary();
+  delete lib_;
 }
 
 void VerilatorRuntime::SetLibrary(const std::string& lib_path) { lib_path_ = lib_path; }
@@ -108,7 +108,7 @@ void VerilatorRuntime::Init(const Array<NDArray>& consts) {
   // enable profiler
   if (prof_enable_) prof_ = VerilatorProfiler::ThreadLocal();
 
-  // reset verilator device
+  // reset verilator device.
   reset(device_, reset_cycles_);
 
   CHECK_EQ(consts.size(), const_idx_.size())
