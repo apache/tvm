@@ -35,9 +35,6 @@ from .backend import graph_runtime_factory as _graph_runtime_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 from .transform import InferType
-from .. import nd as _nd, autotvm
-from ..contrib import graph_runtime as _graph_rt
-from ..target import Target
 
 
 def _update_target(target):
