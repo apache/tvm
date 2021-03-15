@@ -2489,42 +2489,27 @@ def verify_convtranspose_with_padding(
     dilations,
     auto_pad="NOTSET",
     unset_pad=False,
+    group=1,
 ):
-    if unset_pad:
-        node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "W"],
-            outputs=["y"],
-            kernel_shape=kernel_shape,
-            # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            group=1,
-        )
-    elif padding is None:
-        node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "W"],
-            outputs=["y"],
-            kernel_shape=kernel_shape,
-            # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            group=1,
-            auto_pad=auto_pad,
-        )
-    else:
-        node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "W"],
-            outputs=["y"],
-            kernel_shape=kernel_shape,
-            # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            group=1,
-            pads=padding,
-        )
+    node = helper.make_node(
+        "ConvTranspose",
+        inputs=["x", "W"],
+        outputs=["y"],
+        kernel_shape=kernel_shape,
+        # Default values for other attributes:
+        strides=strides,
+        dilations=dilations,
+    )
+    if not unset_pad:
+        if padding is None:
+            pad_attr = helper.make_attribute("auto_pad", auto_pad)
+        else:
+            pad_attr = helper.make_attribute("pads", padding)
+        node.attribute.append(pad_attr)
+
+    if group is not None:
+        group_attr = helper.make_attribute("group", group)
+        node.attribute.append(group_attr)
 
     graph = helper.make_graph(
         [node],
@@ -2536,21 +2521,24 @@ def verify_convtranspose_with_padding(
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
     )
 
-    model = helper.make_model(graph, producer_name="conv_test")
+    model = helper.make_model(graph, producer_name="convtranspose_pad_test")
 
     verify_with_ort(model, [x_shape, w_shape], [y_shape], use_vm=True, convert_to_static=True)
 
 
-def verify_convtranspose(x_shape, w_shape, y_shape, p):
+def verify_convtranspose(x_shape, w_shape, y_shape, p, group=1):
     node = onnx.helper.make_node(
         "ConvTranspose",
         inputs=["x", "W"],
         outputs=["y"],
         strides=[3, 2],
-        group=1,
         kernel_shape=[3, 3],
         pads=p,
     )
+
+    if group is not None:
+        group_attr = helper.make_attribute("group", group)
+        node.attribute.append(group_attr)
 
     graph = helper.make_graph(
         [node],
@@ -2562,7 +2550,7 @@ def verify_convtranspose(x_shape, w_shape, y_shape, p):
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
     )
 
-    model = helper.make_model(graph, producer_name="convtranspose_trest")
+    model = helper.make_model(graph, producer_name="convtranspose_test")
     verify_with_ort(model, [x_shape, w_shape], y_shape)
 
 
@@ -2574,6 +2562,8 @@ def test_convtranspose():
     # (1, 2, 7, 3) output tensor
     # [1, 2, 1, 2] list for pads
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
+    # Test undefined groups.
+    verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2], group=None)
 
     def repeat(N, D):
         return tuple([N for _ in range(D)])

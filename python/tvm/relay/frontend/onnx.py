@@ -446,7 +446,7 @@ class ConvTranspose(OnnxOpConverter):
         # get number of channels
         channels = infer_channels(inputs[1], True)
         attr["channels"] = channels
-        groups = attr.pop("group")
+        groups = attr.get("group", 1)
         attr["groups"] = groups
         # infer pads for auto_pad
         data = inputs[0]
