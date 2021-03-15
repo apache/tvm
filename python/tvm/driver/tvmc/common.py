@@ -131,9 +131,19 @@ def tokenize_target(target):
         a list of parsed tokens extracted from the target string
     """
 
+    # Regex to tokenize the "--target" value. It is split into five parts
+    # to match with:
+    #  1. target and option names e.g. llvm, -mattr=, -mcpu=
+    #  2. option values, all together, without quotes e.g. -mattr=+foo,+opt
+    #  3. option values, when single quotes are used e.g. -mattr='+foo, +opt'
+    #  4. option values, when double quotes are used e.g. -mattr="+foo ,+opt"
+    #  5. commas that separate different targets e.g. "my-target, llvm"
     target_pattern = (
         r"(\-{0,2}[\w\-]+\=?"
-        r"(?:[\w\+\-\.]+(?:,[\w\+\-\.])*|[\'][\w\+\-,\s\.]+[\']|[\"][\w\+\-,\s\.]+[\"])*|,)"
+        r"(?:[\w\+\-\.]+(?:,[\w\+\-\.])*"
+        r"|[\'][\w\+\-,\s\.]+[\']"
+        r"|[\"][\w\+\-,\s\.]+[\"])*"
+        r"|,)"
     )
 
     return re.findall(target_pattern, target)
