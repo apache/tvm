@@ -47,6 +47,16 @@ class BlockInfo:
     init: Optional[Stmt] = None
     """Optional[Stmt]: init part of the block, None for not-visited"""
 
+    def __init__(self):
+        self.alloc_buffers = []
+        self.match_buffers = []
+        self.iter_bindings = {}
+        self.reads = None
+        self.writes = None
+        self.annotations = None
+        self.predicate = None
+        self.init = None
+
 
 class ContextMaintainer:
     """Maintain all the necessary context info
@@ -83,7 +93,19 @@ class ContextMaintainer:
     """Callable[[str, Union[Span, synr.ast.Span]], None]: The report error function handle"""
 
     def __init__(self, _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]):
+        # scope context
+        self.node_stack = []
+        self.block_info_stack = []
+        self.loop_stack = []
+        self.symbols = []
+        # function context
+        self.func_params = []
+        self.func_buffer_map = {}
+        self.func_dict_attr = {}
+        self.func_var_env_dict = {}
+        # parser and analyzer
         self._report_error = _report_error
+        self.analyzer = tvm.arith.Analyzer()
 
     def enter_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
         """Creates a new scope
