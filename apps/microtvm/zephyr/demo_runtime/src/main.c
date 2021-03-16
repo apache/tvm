@@ -22,7 +22,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 /*
  * This is a sample Zephyr-based application that contains the logic
  * needed to control a microTVM-based model via the UART. This is only
@@ -30,12 +29,12 @@
  * this logic into your own application.
  */
 
-
 #include <drivers/gpio.h>
 #include <drivers/uart.h>
 #include <fatal.h>
 #include <kernel.h>
 #include <power/reboot.h>
+#include <random/rand32.h>
 #include <stdio.h>
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
@@ -43,7 +42,6 @@
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 #include <unistd.h>
 #include <zephyr.h>
-#include <random/rand32.h>
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -85,16 +83,17 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 
 // This is invoked by Zephyr from an exception handler, which will be invoked
 // if the device crashes. Here, we turn on the LED and spin.
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t* esf) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  for (;;) ;
+  for (;;)
+    ;
 }
 
 // Called by TVM when a message needs to be formatted.
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                const char* fmt, va_list args) {
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
@@ -104,7 +103,8 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  for (;;) ;
+  for (;;)
+    ;
 }
 
 // Called by TVM to generate random data.
@@ -239,7 +239,7 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
         if (bytes_read != bytes_written) {
           TVMPlatformAbort((tvm_crt_error_t)0xbeef2);
         }
-        //CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
+        // CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
         //         bytes_written);
       }
     }
@@ -270,7 +270,8 @@ void main(void) {
   int ret;
   led0_pin = device_get_binding(LED0);
   if (led0_pin == NULL) {
-    for (;;) ;
+    for (;;)
+      ;
   }
   ret = gpio_pin_configure(led0_pin, LED0_PIN, GPIO_OUTPUT_ACTIVE | LED0_FLAGS);
   if (ret < 0) {
@@ -293,7 +294,6 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to UTvmRpcServerLoop().
   while (true) {
-    //uint8_t buf[256];
     int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
       size_t bytes_remaining = bytes_read;
@@ -304,7 +304,7 @@ void main(void) {
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
-       if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
+        if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
           if (g_num_bytes_written != g_num_bytes_requested) {
             TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
           }
@@ -319,5 +319,4 @@ void main(void) {
   posix_exit(0);
 #endif
 }
-
 
