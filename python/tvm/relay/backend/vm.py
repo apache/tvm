@@ -133,7 +133,7 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        target, target_host = refresh_host(target, target_host)
+        target, target_host = refresh_host(target, target_host, target_is_key=False)
 
         tophub_context = self._tophub_context(target)
         with tophub_context:
@@ -173,7 +173,7 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        target, target_host = refresh_host(target, target_host)
+        target, target_host = refresh_host(target, target_host, target_is_key=False)
 
         if params:
             self.set_params(params)

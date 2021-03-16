@@ -508,7 +508,7 @@ def refresh_host(target, host=None, target_is_key=True):
     target_is_key : Bool
         When the type of target is dict, whether Target is the key (Otherwise the value)
     """
-    if isinstance(target, dict):
+    if isinstance(target, dict) and "kind" not in target:
         new_target = {}
         for tgt, mod in target.items():
             if not target_is_key:

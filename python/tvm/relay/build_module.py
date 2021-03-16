@@ -131,8 +131,7 @@ class BuildModule(object):
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
         # Assume the target host of all targets in heterogenous target are identical
-        target, target_host = refresh_host(target, target_host)
-
+        target, target_host = refresh_host(target, target_host, target_is_key=False)
         self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
@@ -273,7 +272,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
 
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = refresh_host(target, target_host, target_is_key=False)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
