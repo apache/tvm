@@ -39,10 +39,10 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
     if out_dtype is None:
         out_dtype = data.dtype
     assert out_dtype == data.dtype, "Mixed precision not supported."
-    batch, in_dim = data.shape
-    out_dim, _ = weight.shape
+    batch, in_dim = get_const_tuple(data.shape)
+    out_dim, _ = get_const_tuple(weight.shape)
     matmul = cublas.matmul(data, weight, False, True)
-    if isinstance(batch, int) and isinstance(in_dim, int) and isinstance(out_dim, int):
+    if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
         matmul = te.compute(
