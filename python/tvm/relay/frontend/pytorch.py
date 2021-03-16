@@ -1584,7 +1584,6 @@ class PyTorchOpConverter:
             
             if len(b_shape) != 3:
                 b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
-                need_reshape = True
             else:
                 b = inputs_1
 
