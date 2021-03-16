@@ -409,11 +409,11 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     }
 
     Array<tir::Buffer> buffers;
-    std::string fbuffer_prefix = "relay.backend." + target->kind->name;
+    std::string ftarget_prefix = "relay.backend." + target->kind->name;
     if (Optional<String> t_device = target->GetAttr<String>("device")) {
-      fbuffer_prefix += ("." + t_device.value());
+      ftarget_prefix += ("." + t_device.value());
     }
-    if (const auto* f = runtime::Registry::Get(fbuffer_prefix + "._CollectBufferBinds")) {
+    if (const auto* f = runtime::Registry::Get(ftarget_prefix + "._CollectBufferBinds")) {
       buffers = (*f)(GetRef<Call>(op), storage_device_map_);
     }
 
