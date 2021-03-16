@@ -91,7 +91,7 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
         collected tasks
     """
     target, target_host = refresh_host(target, target_host)
-    return extract_from_multiple_program([mod], [params], target, ops)
+    return extract_from_multiple_program([mod], [params], target, ops=ops)
 
 
 def extract_from_multiple_program(mods, params, target, target_host=None, ops=None):
