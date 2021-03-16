@@ -1094,8 +1094,7 @@ class PyTorchOpConverter:
             data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
         )
 
-    @staticmethod
-    def get_dims(data):
+    def get_dims(self, data):
         import torch
 
         if isinstance(data, _expr.Expr):
@@ -1576,14 +1575,28 @@ class PyTorchOpConverter:
         # When performing a batch matmul, we need to properly handle N-dim shapes.
         if len(a_shape) > 2 or len(b_shape) > 2:
             # Convert a and b into 3 dimensional tensors.
-            a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
-            b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
+            need_reshape = False
+            if len(a_shape) != 3:
+                a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
+                need_reshape = True
+            else:
+                a = inputs_0
+            
+            if len(b_shape) != 3:
+                b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
+                need_reshape = True
+            else:
+                b = inputs_1
+
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
             # Reshape output to original dimensions.
-            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+            if need_reshape:
+                desired_shape = [*a_shape[:-2], a_shape[-2], b_shape[-1]]
+                return _op.reshape(output, desired_shape)
+            return output
 
         # Otherwise a simple dense op will get the job done.
         if len(b_shape) == 1:
