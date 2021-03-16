@@ -29,9 +29,22 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief Graph runtime with CUDA Graph Support.
+ *
+ *  This is the extension of GraphRuntime class used for CUDA graph launch
+ *  instead of CUDA kernel launch. CUDA graph launch requires CUDA 10.0 or
+ *  above, currently there are two ways of constructing CUDA graphs:
+ *  (1) Using CUDA stream capture API to capture a series of operations on
+ *  CUDA stream, and automatically generates a graph (2) Building a graph
+ *  using CUDA graph API manually. This implementation uses stream capture.
+ */
 class GraphRuntimeCuGraph : public GraphRuntime {
  public:
-  int StartCapture() {
+  /*!
+   * \brief Begin CUDA graph capture on stream, the stream enters capture mode.
+   */
+  void StartCapture() {
     const TVMContext& ctx = data_entry_[entry_id(0, 0)]->ctx;
 
     TVMStreamCreate(ctx.device_type, ctx.device_id, &capture_stream_);
@@ -39,17 +52,22 @@ class GraphRuntimeCuGraph : public GraphRuntime {
 
     CUDA_CALL(cudaStreamBeginCapture(static_cast<cudaStream_t>(capture_stream_),
                                      cudaStreamCaptureModeGlobal));
-    return 0;
   }
 
-  int RunCudaGraph() {
+  /*!
+   * \brief Launch the instantiated graph on stream
+   */
+  void RunCudaGraph() {
     cudaStream_t cuStream = static_cast<cudaStream_t>(capture_stream_);
     CUDA_CALL(cudaGraphLaunch(cu_graph_exec_, cuStream));
     CUDA_CALL(cudaStreamSynchronize(cuStream));
-    return 0;
   }
 
-  int EndCapture() {
+  /*!
+   * \brief End CUDA graph capture on stream, a graph will be created and
+   * instantiated.
+   */
+  void EndCapture() {
     cudaGraph_t graph;
     CUDA_CALL(cudaStreamEndCapture(static_cast<cudaStream_t>(capture_stream_), &graph));
 
@@ -59,7 +77,6 @@ class GraphRuntimeCuGraph : public GraphRuntime {
     LOG(INFO) << "Num of nodes in the cuda graph created using stream capture API = " << numNodes;
 
     CUDA_CALL(cudaGraphInstantiate(&cu_graph_exec_, graph, NULL, NULL, 0));
-    return 0;
   }
 
   /*!
@@ -70,7 +87,9 @@ class GraphRuntimeCuGraph : public GraphRuntime {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
  private:
+  /*! \brief The Cuda stream on which to capture a CUDA graph. */
   TVMStreamHandle capture_stream_;
+  /*! \brief The captured CUDA graph will be instantiated to this. */
   cudaGraphExec_t cu_graph_exec_;
 };
 
@@ -78,13 +97,12 @@ PackedFunc GraphRuntimeCuGraph::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "run_cuda_graph") {
     return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->RunCudaGraph(); });
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->RunCudaGraph(); });
   } else if (name == "start_capture") {
     return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->StartCapture(); });
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->StartCapture(); });
   } else if (name == "end_capture") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->EndCapture(); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->EndCapture(); });
   } else {
     return GraphRuntime::GetFunction(name, sptr_to_self);
   }

@@ -322,16 +322,6 @@ if(USE_GRAPH_RUNTIME)
     set_source_files_properties(${RUNTIME_GRAPH_SRCS}
       PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
   endif(USE_GRAPH_RUNTIME_DEBUG)
-
-  if(USE_CUDA)
-    if(USE_GRAPH_RUNTIME_CUGRAPH)
-      message(STATUS "Build with Graph runtime cuGraph support...")
-      file(GLOB RUNTIME_CUGRAPH_SRCS src/runtime/graph/cugraph/*.cc)
-      list(APPEND RUNTIME_SRCS ${RUNTIME_CUGRAPH_SRCS})
-      set_source_files_properties(${RUNTIME_GRAPH_SRCS}
-        PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_CUGRAPH")
-    endif(USE_GRAPH_RUNTIME_CUGRAPH)
-  endif(USE_CUDA)
 endif(USE_GRAPH_RUNTIME)
 
 if(USE_VM_PROFILER)

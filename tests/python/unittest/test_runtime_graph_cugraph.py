@@ -35,7 +35,7 @@ bx = te.thread_axis("blockIdx.x")
 tx = te.thread_axis("threadIdx.x")
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cudagraph
 def test_graph_simple():
     n = 32
     A = te.placeholder((n,), name="A")
@@ -78,6 +78,14 @@ def test_graph_simple():
             mod = cugraph_runtime.create(graph, mlib, ctx)
         except ValueError:
             return
+
+        for i in range(3):
+            a = np.random.uniform(size=(n,)).astype(A.dtype)
+            mod.run(x=a)  # The first run captured a CUDA graph
+            out = mod.get_output(0, tvm.nd.empty((n,)))
+            np.testing.assert_equal(out.asnumpy(), a + 1)
+
+        # capture / run CUDA graph manually
         mod.capture_cuda_graph()
         a = np.random.uniform(size=(n,)).astype(A.dtype)
         mod.set_input(x=a)

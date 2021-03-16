@@ -22,41 +22,100 @@ from tvm.contrib import graph_runtime
 
 
 def create(graph_json_str, libmod, ctx):
+    """Create a runtime executor module given a graph and module.
+
+    Parameters
+    ----------
+    graph_json_str : str
+        The graph to be deployed in json format output by json graph.
+        The graph can contain operator(tvm_op) that points to the name
+        of PackedFunc in the libmod.
+
+    libmod : tvm.runtime.Module
+        The module of the corresponding function
+
+    ctx : TVMContext
+        The context to deploy the module, only supports CUDA GPU
+
+    Returns
+    -------
+    graph_module : GraphModuleCuGraph
+        CUDA graph runtime module that can be used to execute the graph.
+
+    Note
+    ----
+    See also :py:class:`tvm.contrib.cu_graph.GraphModuleCuGraph`
+    for examples to directly construct a GraphModuleCuGraph from an exported
+    relay compiled library.
+    """
     assert isinstance(graph_json_str, string_types)
     try:
         ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
         if num_rpc_ctx == len(ctx):
-            pass
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_cugraph.create")
         else:
             fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_cugraph.create")
     except ValueError:
         raise ValueError(
             "Please set '(USE_GRAPH_RUNTIME_CUGRAPH ON)' in "
-            "config.cmake and rebuild TVM to enable cu_graph test mode"
+            "config.cmake and rebuild TVM to enable CUDA graph support"
         )
 
-    func_obj = fcreate(graph_json_str, libmod, *device_type_id)
-    return GraphModuleCuGraph(func_obj, ctx, graph_json_str)
+    return GraphModuleCuGraph(fcreate(graph_json_str, libmod, *device_type_id))
 
 
 class GraphModuleCuGraph(graph_runtime.GraphModule):
-    def __init__(self, module, ctx, graph_json_str):
+    """CUDA graph runtime module.
 
+    This is a CUDA graph runtime wrapper over the TVM runtime.
+    Runtime interfaces are wrapped with CUDA graph functionalities.
+
+    Parameters
+    ----------
+    module : Module
+        The internal tvm module that holds the actual graph functions.
+    """
+
+    def __init__(self, module):
         self._start_capture = module["start_capture"]
         self._end_capture = module["end_capture"]
         self._run_cuda_graph = module["run_cuda_graph"]
-
+        self._cuda_graph_captured = False
         graph_runtime.GraphModule.__init__(self, module)
 
     def capture_cuda_graph(self):
-        self._run()  # call cuModuleLoadData before cudaStream API
+        """Capture a CUDA graph for tvm_op graph
 
-        print("====== Start Stream Capture ======")
+        This should be called before run_cuda_graph() to capture and
+        instantiate a CUDA graph instance.
+        """
+        self._run()  # call cuModuleLoadData before cudaStream API
         self._start_capture()
-        print("====== Start Run Ops On Stream ======")
         self._run()
-        print("====== End Stream Capture ======")
         self._end_capture()
+        self._cuda_graph_captured = True
 
     def run_cuda_graph(self):
+        """Run the CUDA graph for tvm_op graph
+
+        Run the captured CUDA graph instance instead of the
+        for-loop kernel launch of default graph runtime
+        """
         self._run_cuda_graph()
+
+    def run(self, **input_dict):
+        """A run wrapper for graph capture / launch, user can just
+        change default graph runtime to cuda graph runtime, and
+        the first call will capture a cuda graph for future launch
+
+        Parameters
+        ----------
+        input_dict: dict of str to NDArray
+            List of input values to be feed to
+        """
+        if input_dict:
+            self.set_input(**input_dict)
+        if not self._cuda_graph_captured:
+            self.capture_cuda_graph()
+        else:
+            self._run_cuda_graph()
