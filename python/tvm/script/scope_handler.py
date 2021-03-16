@@ -371,7 +371,7 @@ class ForScopeHandler(ScopeHandler):
     ):
         assert isinstance(
             node, ast.For
-        ), f"ForScopeHandler expected to work on ast.For but got {type(node)}"
+        ), f"ForScopeHandler expected ast.For but got {type(node)}"
 
         loop_var_names = list()
         spans = list()
@@ -453,13 +453,11 @@ class ForScopeHandler(ScopeHandler):
         ), "call 'exit_scope' before 'enter_scope'"
         if len(self.loop_vars) != 1:
             self.context.report_error(
-                f"Expect exact only one loop var, but get {self.loop_vars}", self.node.span
+                f"Expected exactly one loop var, but got {self.loop_vars}", self.node.span
             )
         extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
-        annos: Mapping[str, Object]
-        if annotations is None:
-            annos = {}
-        else:
+        annos: Mapping[str, Object] = {}
+        if annotations is not None:
             annos = {
                 key: tvm.tir.StringImm(val) if isinstance(val, str) else val
                 for key, val in annotations.items()

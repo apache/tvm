@@ -289,13 +289,11 @@ class BlockReads(SpecialStmt):
                     + str(", ".join(str(x) for x in block_scope.reads)),
                     span,
                 )
-            if isinstance(read_regions, list):
-                pass
-            elif isinstance(read_regions, BufferSlice):
+            if isinstance(read_regions, BufferSlice):
                 read_regions = [read_regions]
-            else:
+            if not isinstance(read_regions, list):
                 self.context.report_error(
-                    "Error input type. "
+                    "Incorrect input type. "
                     + f"Expected BufferSlice or List[BufferSlice], but got {type(read_regions)}",
                     span,
                 )
@@ -333,7 +331,7 @@ class BlockWrites(SpecialStmt):
                 write_region = [write_region]
             else:
                 self.context.report_error(
-                    "Error input type. "
+                    "Incorrect input type. "
                     + f"Expected BufferSlice or List[BufferSlice], but got {type(write_region)}",
                     span,
                 )
@@ -472,7 +470,7 @@ class VarDef(SpecialStmt):
         def var(dtype, span):
             assert isinstance(
                 self.node, ast.Assign
-            ), f"VarDef expected to work on ast.Assign but got {type(self.node)}"
+            ), f"VarDef expected ast.Assign but got {type(self.node)}"
             v = te.var(self.node.lhs.id.name, dtype, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
@@ -487,7 +485,7 @@ class EnvThread(SpecialStmt):
         def env_thread(env_name, span):
             assert isinstance(
                 self.node, ast.Assign
-            ), f"EnvThread expected to work on ast.Assign but got {type(self.node)}"
+            ), f"EnvThread expected ast.Assign but got {type(self.node)}"
             v = te.var(self.node.lhs.id.name, span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)

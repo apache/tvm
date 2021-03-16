@@ -88,7 +88,7 @@ class ContextMaintainer:
         self.analyzer = tvm.arith.Analyzer()
 
     def enter_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
-        """Creating a new scope
+        """Creates a new scope
 
         Parameters
         ----------
@@ -101,9 +101,9 @@ class ContextMaintainer:
         self.symbols.append(dict())
 
     def enter_block_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
-        """Creating a new block scope, the function will call `enter_scope` implicitly
-        Besides behaviors of normal `enter_scope`, it will update loop_stack and block_info_stack
-        for block info maintaining.
+        """Creates a new block scope, the function will call `enter_scope` implicitly
+        Besides the behaviors of `enter_scope`, it will update loop_stack and block_info_stack
+        to maintain block info.
 
         Parameters
         ----------

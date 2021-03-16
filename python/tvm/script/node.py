@@ -57,7 +57,7 @@ class Slice:
 
 class BufferSlice(ObjectGeneric):
     """A generic object for representing general buffer access. Following cases are supported:
-        - element wise access buffer[i, j], which can be convert to BufferLoad if necessary
+        - element wise access buffer[i, j], which can be converted to BufferLoad if necessary
         - slice access buffer[i: i + 1, j : j + 2]
         - union of element and slice buffer[i, j: j + 2]
 
