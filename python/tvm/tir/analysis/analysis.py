@@ -118,7 +118,7 @@ def get_block_access_region(block, buffer_var_map):
         The block to be detected.
 
     buffer_var_map : Dict[Var, Buffer]
-        The outside buffers which may be accessed the block. Mapping from buffer var to the buffer
+        The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns
     -------
