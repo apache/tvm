@@ -439,9 +439,10 @@ Map<String, ObjectRef> TargetNode::Export() const {
   if (this->host.defined()) {
     result.Set("host", this->GetHost().value_or(Target())->Export());
   }
-  for (const auto& kv : attrs) {
-    result.Set(kv.first, kv.second);
-  }
+  for (const auto& kv : attrs)
+    if (kv.first != "host") {
+      result.Set(kv.first, kv.second);
+    }
   return result;
 }
 
