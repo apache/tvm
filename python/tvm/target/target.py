@@ -113,6 +113,10 @@ class Target(Object):
     def export(self):
         return _ffi_api.TargetExport(self)
 
+    def set_host(self, host=None):
+        if host is not None:
+            _ffi_api.SetHost(self, Target(host))
+
     @staticmethod
     def current(allow_none=True):
         """Returns the current target.

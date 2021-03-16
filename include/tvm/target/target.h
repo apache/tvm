@@ -65,6 +65,8 @@ class TargetNode : public Object {
   TVM_DLL Map<String, ObjectRef> Export() const;
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
+  /*! \return Set target host of the TargetNode */
+  TVM_DLL void SetHost(Target);
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("kind", &kind);

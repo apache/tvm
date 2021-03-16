@@ -51,6 +51,9 @@ class TargetInternal {
   static ObjectPtr<Object> FromRawString(const String& target_str);
   static ObjectPtr<Object> FromConfig(std::unordered_map<String, ObjectRef> config);
   static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
+  static void SetHost(Target target, Target host) {
+    static_cast<TargetNode*>(target.data_.get())->SetHost(host);
+  }
 };
 
 /**********  Helper functions  **********/
@@ -446,6 +449,10 @@ Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
 }
 
+void TargetNode::SetHost(Target host) {
+  this->host = host;
+}
+
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
@@ -680,6 +687,7 @@ TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::En
 TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
 TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
+TVM_REGISTER_GLOBAL("target.SetHost").set_body_typed(TargetInternal::SetHost);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetNode>([](const ObjectRef& obj, ReprPrinter* p) {

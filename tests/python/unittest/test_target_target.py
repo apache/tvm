@@ -252,5 +252,16 @@ def test_target_host_merge_3():
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
 
 
+def test_target_set_host():
+    tgt = tvm.target.Target("cuda")
+    llvm = tvm.target.Target("llvm")
+    tgt.set_host(llvm)
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+    cuda_host = tvm.target.Target("cuda")
+    tgt.set_host(cuda_host)
+    assert tgt.host.kind.name == "cuda"
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
