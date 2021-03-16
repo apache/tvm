@@ -49,7 +49,7 @@ using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using GraphObjectPtr = std::shared_ptr<GraphNode>;
 using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
-using TargetsMap = std::unordered_map<int, Target>;
+using TargetsMap = Map<Integer, Target>;
 
 /*! \brief Lowered outputs */
 struct LoweredOutput {
@@ -585,15 +585,9 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
-                                    << "runtime::Module mod and Map<int, Target> targets";
+                                    << "runtime::Module mod and Map<Integer, Target> targets";
         void* mod = args[0];
-        Map<Integer, tvm::Target> tmp = args[1];
-        TargetsMap targets;
-        for (const auto& it : tmp) {
-          auto dev_type = it.first.as<tir::IntImmNode>();
-          ICHECK(dev_type);
-          targets[dev_type->value] = it.second;
-        }
+        TargetsMap targets =  args[1];
         codegen_ =
             std::make_shared<GraphRuntimeCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
       });
