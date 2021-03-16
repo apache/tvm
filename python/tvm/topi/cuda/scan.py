@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 "Scan related operators"
 from typing import Callable, Optional, Union
+import logging
 
 import tvm
 from tvm import te
@@ -101,10 +102,24 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         nthread_bx = ceil_div(scan_axis_size, max_threads)
         nthread_by = batch_size
 
+        size_cast_dtype = "float64"
+        target = tvm.target.Target.current()
+
+        if "vulkan" in str(target) and isinstance(scan_axis_size, tvm.tir.expr.Var):
+            # SPIRV seems to have an issue with float64 intrinsic
+            # TODO(masahi): Eliminate this concern by adding TIR level CSE
+            msg = """
+            Casting the dynamic input size to float32 before computing log2 in exclusive scan.
+            This could result in a wrong output if the runtime value of the input size is very large.
+            """
+            logging.warning(msg)
+            size_cast_dtype = "float32"
+
         # The following algorithm performs parallel exclusive scan
         # Up Sweep of exclusive scan
         lim = tvm.tir.generic.cast(
-            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(scan_axis_size, "float32"))), "int64"
+            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(scan_axis_size, size_cast_dtype))),
+            "int64",
         )
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << l2_width
