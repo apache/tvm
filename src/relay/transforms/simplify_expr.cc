@@ -83,6 +83,99 @@ class SimplifyReshape : public SimplifyPattern {
 };
 
 /*!
+ * \brief SimplifyTranspose matches the pattern of consecutive transpose op,
+ *   and merges or cancels them.
+ */
+class SimplifyTranspose : public SimplifyPattern {
+ public:
+  SimplifyTranspose() {
+    x_ = IsWildcard();
+    auto trans1 = IsOp("transpose") || IsOp("layout_transform");
+    auto trans2 = IsOp("transpose") || IsOp("layout_transform");
+    pattern_ = trans1({trans2({x_})});
+  }
+
+  Expr callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    // Helper function to get the axes from call node attribute
+    auto get_axes_from_call = [](const Call trans_call, int ndim) {
+      std::vector<int> attr_axes;
+      if (auto attr = trans_call->attrs.as<TransposeAttrs>()) {
+        if (attr->axes.defined()) {
+          for (int i = 0; i < ndim; ++i) {
+            int64_t axis = attr->axes[i];
+            axis += (axis < 0) ? ndim : 0;
+            attr_axes.push_back(axis);
+          }
+        } else {
+          // Empty axes means reverse
+          for (int i = ndim - 1; i >= 0; --i) {
+            attr_axes.push_back(i);
+          }
+        }
+      } else if (auto attr = trans_call->attrs.as<LayoutTransformAttrs>()) {
+        Layout src_layout(attr->src_layout);
+        Layout dst_layout(attr->dst_layout);
+        for (int i = 0; i < ndim; ++i) {
+          attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
+        }
+      } else {
+        CHECK(false) << "Expected transpose or layout_transform, but got "
+                     << Downcast<Op>(trans_call->op)->name;
+      }
+      return std::move(attr_axes);
+    };
+
+    auto x = node_map[x_][0];
+
+    // Initialize axes
+    int ndim = Downcast<TensorType>(pre->checked_type())->shape.size();
+    Array<Integer> axes;
+    for (int i = 0; i < ndim; ++i) {
+      axes.push_back(i);
+    }
+
+    // Collect axes changes from the matched pattern, including two consecutive transposes.
+    std::vector<std::vector<int>> interm_axes;
+    Call trans_call = Downcast<Call>(post);
+    interm_axes.push_back(get_axes_from_call(trans_call, ndim));
+    trans_call = Downcast<Call>(trans_call->args[0]);
+    interm_axes.push_back(get_axes_from_call(trans_call, ndim));
+
+    // Calculate the final axes in reverse order (from root to output)
+    auto it = interm_axes.rbegin();
+    while (it != interm_axes.rend()) {
+      auto interm = *it;
+
+      Array<Integer> new_axes;
+      for (int i = 0; i < ndim; ++i) {
+        new_axes.push_back(axes[interm[i]]);
+      }
+      axes = new_axes;
+      it++;
+    }
+
+    // Check if the transpose is still required
+    bool need_transpose = false;
+    for (int i = 0; i < ndim; ++i) {
+      if (axes[i] != i) {
+        need_transpose = true;
+        break;
+      }
+    }
+
+    if (need_transpose) {
+      return MakeTranspose(x, axes);
+    }
+    return x;
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+};
+
+/*!
  * \brief FullArgwhere finds full followed by argwhere and turns it into an Arange op
  */
 class FullElementwise : public SimplifyPattern {
@@ -162,6 +255,7 @@ class ExprSimplifier {
  public:
   explicit ExprSimplifier(IRModule mod) : mod_(mod) {
     CreateCallback(SimplifyReshape());
+    CreateCallback(SimplifyTranspose());
     CreateCallback(FullElementwise());
   }
   template <typename T>
