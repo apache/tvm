@@ -196,7 +196,7 @@ class TensorflowFrontend(Frontend):
         logger.debug("parse TensorFlow model and convert into Relay computation graph")
         return relay.frontend.from_tensorflow(
             graph_def, shape=shape_dict, **kwargs
-        )  # doublecheck: nothing new needed
+        )
 
 
 class TFLiteFrontend(Frontend):
@@ -263,7 +263,7 @@ class PyTorchFrontend(Frontend):
         input_shapes = list(shape_dict.items())
 
         logger.debug("parse Torch model and convert into Relay computation graph")
-        return relay.frontend.from_pytorch(traced_model, input_shapes, **kwargs)  # whattest?
+        return relay.frontend.from_pytorch(traced_model, input_shapes, **kwargs)
 
 
 ALL_FRONTENDS = [
