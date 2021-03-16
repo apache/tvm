@@ -132,6 +132,7 @@ ALLOW_SPECIFIC_FILE = {
     # microTVM Zephyr runtime
     "apps/microtvm/zephyr/demo_runtime/prj.conf",
     "apps/microtvm/zephyr/demo_runtime/boards/nrf5340dk_nrf5340_cpuapp.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/nucleo_f746zg.conf",
     "apps/microtvm/zephyr/demo_runtime/boards/qemu_x86.conf",
     "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-i386",
     # microTVM Virtual Machines
