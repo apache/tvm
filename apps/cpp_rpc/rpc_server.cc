@@ -309,7 +309,8 @@ class RPCServer {
    * \param sock The socket information
    * \param addr The socket address information
    */
-  static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr, std::string work_dir) {
+  static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr,
+                             std::string work_dir) {
     // Server loop
     const auto env = RPCEnv(work_dir);
     RPCServerLoop(int(sock.sockfd));

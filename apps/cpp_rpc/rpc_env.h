@@ -36,7 +36,7 @@ namespace runtime {
  */
 struct RPCEnv {
  public:
-   /*!
+  /*!
    * \brief Constructor Init The RPC Environment initialize function
    */
   RPCEnv(const std::string& word_dir = "");

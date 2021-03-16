@@ -53,8 +53,7 @@ void ServerLoopFromChild(SOCKET socket);
  */
 void RPCServerCreate(std::string host = "", int port = 9090, int port_end = 9099,
                      std::string tracker_addr = "", std::string key = "",
-                     std::string custom_addr = "",
-                     std::string work_dir = "", bool silent = true);
+                     std::string custom_addr = "", std::string work_dir = "", bool silent = true);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_APPS_CPP_RPC_SERVER_H_
