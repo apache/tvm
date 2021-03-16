@@ -1581,7 +1581,7 @@ class PyTorchOpConverter:
                 need_reshape_output = True
             else:
                 a = inputs_0
-            
+
             # Transpose matrix dimensions of b.
             trans_axes = list(range(len(b_shape)))
             trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
