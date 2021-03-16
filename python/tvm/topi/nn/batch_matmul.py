@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name
 import tvm
 from tvm import te, auto_scheduler
-from tvm import tir
 from ..utils import get_const_tuple
 
 
