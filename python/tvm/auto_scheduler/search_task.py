@@ -28,6 +28,7 @@ from tvm.runtime import Object, ndarray
 
 from tvm.driver.build_module import build
 from tvm.target import Target
+from tvm.target.target import refresh_host
 from .measure import LocalBuilder, LocalRunner
 from .measure_record import load_best_record
 from .workload_registry import make_workload_key
@@ -393,13 +394,8 @@ class SearchTask(Object):
             compute_dag = ComputeDAG(workload_key)
 
         assert target is not None, "Must specify a target."
-        if isinstance(target, str):
-            target = Target(target)
-        if isinstance(target_host, str):
-            target_host = Target(target_host)
 
-        target = Target(target, target_host)
-        target_host = target.host
+        target, target_host = refresh_host(target, target_host)
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
@@ -509,11 +505,12 @@ class SearchTask(Object):
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
     def __getstate__(self):
+        self.target, self.target_host = refresh_host(self.target, self.target_host)
         return {
             "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
-            "target": Target(self.target, self.target_host),
-            "target_host": Target(self.target, self.target_host).host,
+            "target": self.target,
+            "target_host": self.target_host,
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
             "task_input_names": self.task_input_names,

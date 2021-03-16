@@ -28,7 +28,7 @@ import tvm.runtime.vm as vm_rt
 from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm.relay.backend.interpreter import Executor
-from tvm.target.target import refresh_host, refresh_multi_hosts
+from tvm.target.target import refresh_host
 from . import _vm
 
 
@@ -66,7 +66,7 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    target, target_host = refresh_multi_hosts(target, target_host)
+    target, target_host = refresh_host(target, target_host, target_is_key=False)
     compiler.lower(mod, target, target_host)
     compiler.codegen()
     return compiler.get_exec()
@@ -133,10 +133,7 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        if isinstance(target, dict):
-            target, target_host = refresh_multi_hosts(target, target_host)
-        else:
-            target, target_host = refresh_host(target, target_host)
+        target, target_host = refresh_host(target, target_host)
 
         tophub_context = self._tophub_context(target)
         with tophub_context:
@@ -176,7 +173,7 @@ class VMCompiler(object):
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
 
-        target, target_host = refresh_multi_hosts(target, target_host)
+        target, target_host = refresh_host(target, target_host)
 
         if params:
             self.set_params(params)

@@ -29,6 +29,7 @@ import tvm
 from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
+from tvm.target.target import refresh_host
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import Reduce
 from tvm.tir import expr as _expr
@@ -108,8 +109,7 @@ def extract_tasks(
     """
     # pylint: disable=import-outside-toplevel
 
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(

@@ -30,7 +30,7 @@ from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
-from tvm.target.target import refresh_multi_hosts
+from tvm.target.target import refresh_host
 
 
 def get_binds(args, compact=False, binds=None):
@@ -400,7 +400,7 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
-    target_input_mod, target_host = refresh_multi_hosts(target_input_mod, target_host)
+    target_input_mod, target_host = refresh_host(target_input_mod, target_host)
 
     if not target_host:
         for tar, mod in target_input_mod.items():
@@ -412,7 +412,7 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    target_input_mod, target_host = refresh_multi_hosts(target_input_mod, target_host)
+    target_input_mod, target_host = refresh_host(target_input_mod, target_host)
 
     mod_host_all = tvm.IRModule({})
 

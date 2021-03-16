@@ -25,7 +25,7 @@ from tvm.ir import IRModule
 
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
-from tvm.target.target import refresh_multi_hosts
+from tvm.target.target import refresh_host
 from .. import nd as _nd, autotvm, register_func
 from ..target import Target
 from ..contrib import graph_runtime as _graph_rt
@@ -131,7 +131,7 @@ class BuildModule(object):
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
         # Assume the target host of all targets in heterogenous target are identical
-        target, target_host = refresh_multi_hosts(target, target_host)
+        target, target_host = refresh_host(target, target_host)
 
         self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
@@ -273,7 +273,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
 
-    target, target_host = refresh_multi_hosts(target, target_host)
+    target, target_host = refresh_host(target, target_host)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub

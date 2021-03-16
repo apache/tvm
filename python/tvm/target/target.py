@@ -496,18 +496,30 @@ def _load_config_dict(config_dict_str):
     return config
 
 
-def refresh_host(target, host=None):
-    target = Target(target, host)
-    host = target.host
-    return target, host
+def refresh_host(target, host=None, target_is_key=True):
+    """Helpfer function to return a target and target host after updating each other.
 
-
-def refresh_multi_hosts(target, host=None):
-    if not isinstance(target, dict):
-        return refresh_host(target, host)
-    new_target = {}
-    for tgt, mod in target.items():
-        if isinstance(tgt, (dict, str, Target)):
-            tgt, host = refresh_host(tgt, host)
-        new_target[tgt] = mod
-    return new_target, host
+    Parameters
+    ----------
+    target        : Union[str, Dict[str, Any], Target]
+        The target or heterogeneous target
+    host          : Union[str, Dict[str, Any], Target, None]
+        The target host
+    target_is_key : Bool
+        When the type of target is dict, whether Target is the key (Otherwise the value)
+    """
+    try:
+        target = Target(target, host)
+        host = target.host
+        return target, host
+    except (TypeError, ValueError):
+        new_target = {}
+        for tgt, mod in target.items():
+            if not target_is_key:
+                tgt, mod = mod, tgt
+            if isinstance(tgt, (dict, str, Target)):
+                tgt, host = refresh_host(tgt, host)
+            if not target_is_key:
+                tgt, mod = mod, tgt
+            new_target[tgt] = mod
+        return new_target, host
