@@ -192,12 +192,16 @@ def cross_compiler(
 
 def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=False):
     cmd = [compile_cmd]
-    if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
-        cmd += ["-shared", "-fPIC"]
-        if sys.platform == "darwin":
-            cmd += ["-undefined", "dynamic_lookup"]
-    elif output.endswith(".obj"):
-        cmd += ["-c"]
+    if compile_cmd != "nvcc":
+        if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
+            cmd += ["-shared", "-fPIC"]
+            if sys.platform == "darwin":
+                cmd += ["-undefined", "dynamic_lookup"]
+        elif output.endswith(".obj"):
+            cmd += ["-c"]
+    else:
+        if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
+            cmd += ["--shared"]
     cmd += ["-o", output]
     if isinstance(objects, str):
         cmd += [objects]
