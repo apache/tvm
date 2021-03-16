@@ -1594,8 +1594,7 @@ class PyTorchOpConverter:
             output = _op.nn.batch_matmul(a, b)
             # Reshape output to original dimensions.
             if need_reshape:
-                desired_shape = [*a_shape[:-2], a_shape[-2], b_shape[-1]]
-                return _op.reshape(output, desired_shape)
+                return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
             return output
 
         # Otherwise a simple dense op will get the job done.
