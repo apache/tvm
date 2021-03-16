@@ -27,6 +27,7 @@
 #include <tvm/node/node.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
+#include <tvm/ir/expr.h>
 
 #include <string>
 #include <unordered_set>
@@ -170,6 +171,11 @@ class Target : public ObjectRef {
    */
   TVM_DLL void ExitWithScope();
 };
+
+using TargetsMap = Map<Integer, Target>;
+
+TVM_DLL void RefreshHost(Target*, Target*);
+TVM_DLL void RefreshHost(TargetsMap*, Target*);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

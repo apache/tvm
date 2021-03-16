@@ -55,6 +55,24 @@ class TargetInternal {
 
 /**********  Helper functions  **********/
 
+void RefreshHost(Target* target, Target* target_host) {
+  *target = Target(*target, *target_host);
+  *target_host = (*target)->GetHost().value_or(Target());
+}
+
+using TargetsMap = Map<Integer, Target>;
+
+
+void RefreshHost(TargetsMap* targets, Target* target_host) {
+  TargetsMap new_targets;
+  for (auto& it : *targets) {
+    auto target = it.second;
+    RefreshHost(&target, target_host);
+    new_targets.Set(it.first, target);
+  }
+  *targets = new_targets;
+}
+
 static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   std::vector<String> new_keys;
   for (size_t i = 0; i < keys.size(); ++i) {
