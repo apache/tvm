@@ -595,9 +595,9 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
   find_program(DSYMUTIL dsymutil)
   mark_as_advanced(DSYMUTIL)
   add_custom_command(TARGET tvm
-		  POST_BUILD
-		  COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:tvm>
+      POST_BUILD
+      COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:tvm>
       COMMENT "Running dsymutil"
-		  VERBATIM
+      VERBATIM
 		  )
 endif()

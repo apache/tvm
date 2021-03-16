@@ -90,6 +90,7 @@ void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uin
     *str = s.str();
   }
 }
+
 int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int lineno,
                           const char* symbol) {
   auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
