@@ -530,12 +530,13 @@ class SearchTask(Object):
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
+        state["target"], state["target_host"] = refresh_host(state["target"], state["target_host"])
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             state["compute_dag"],
             state["workload_key"],
-            Target(state["target"], state["target_host"]),
-            Target(state["target"], state["target_host"]).host,
+            state["target"],
+            state["target"].host,
             state["hardware_params"],
             state["layout_rewrite_option"],
             state["task_input_names"],

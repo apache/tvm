@@ -26,6 +26,7 @@ import logging
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
 from tvm.target import Target
+from tvm.target.target import refresh_host
 from .task import create
 from .topi_integration import TaskExtractEnv
 
@@ -90,9 +91,8 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
-    target = Target(target, target_host)
-    target_host = target.host
-    return extract_from_multiple_program([mod], [params], target, target_host, ops)
+    target, target_host = refresh_host(target, target_host)
+    return extract_from_multiple_program([mod], [params], target, ops)
 
 
 def extract_from_multiple_program(mods, params, target, target_host=None, ops=None):
@@ -125,6 +125,9 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
 
     env = TaskExtractEnv.get()
 
+    # merge target and target host
+    target, target_host = refresh_host(target, target_host)
+
     # run compiler to collect all TOPI calls during compilation
     env.reset(ops)
     with env:
@@ -151,15 +154,11 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
 
         logger.disabled = old_state
 
-    # merge target and target host
-    target = Target(target, target_host)
-    target_host = target.host
-
     # create tasks for target
     tasks = []
     for task_name, args in env.get_tasks():
         try:
-            tsk = create(task_name, args, target=target, target_host=target_host)
+            tsk = create(task_name, args, target=target)
             tasks.append(tsk)
         except topi.InvalidShapeError:
             logger.warning("Invalid shape during AutoTVM task creation")

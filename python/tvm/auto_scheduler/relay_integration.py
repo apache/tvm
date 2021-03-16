@@ -125,12 +125,12 @@ def extract_tasks(
     # create search tasks
     tasks = []
     weights = []
+    target = refresh_host(target, target_host)
     for wkl_key, weight in env.wkl_key_to_weight.items():
         tasks.append(
             SearchTask(
                 workload_key=wkl_key,
                 target=target,
-                target_host=target_host,
                 hardware_params=hardware_params,
                 # When auto scheduler is used in end to end network, try to apply layout rewrite
                 # to improve the overall performance

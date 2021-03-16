@@ -28,6 +28,7 @@ from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
+from tvm.target.target import refresh_host
 
 from ...target import Target
 from .utils import (
@@ -525,11 +526,8 @@ class BaseGraphTuner(object):
                 continue
 
             records = []
-            target = Target(target, target_host)
-            target_host = target.host
-            task = autotvm.task.create(
-                "layout_transform", args=args, target=self._target, target_host=target_host
-            )
+            self._target, target_host = refresh_host(self._target, target_host)
+            task = autotvm.task.create("layout_transform", args=args, target=self._target)
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option, callbacks=[_log_to_list(records)])
             if not isinstance(records[0][1].costs[0], float):

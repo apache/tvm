@@ -17,6 +17,7 @@
 """The interface of expr function exposed from C++."""
 import tvm._ffi
 import tvm.driver
+from tvm.target.target import refresh_host
 
 
 @tvm._ffi.register_func("relay.backend.lower")
@@ -80,8 +81,7 @@ def build(mod, target, target_host=None):
     """
     if target_host == "":
         target_host = None
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
     return tvm.driver.build(mod, target=target, target_host=target_host)
 
 

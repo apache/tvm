@@ -44,6 +44,7 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
+from tvm.target.target import refresh_host
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -621,10 +622,9 @@ def _timed_func(inp_serialized, build_func, verbose):
         filename = os.path.join(dirname, "tmp_func." + build_func.output_format)
 
         try:
+            task.target, task.target_host = refresh_host(task.target, task.target_host)
             with transform.PassContext():
-                func = build_module.build(
-                    sch, args, target=task.target, target_host=task.target_host
-                )
+                func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
         # pylint: disable=broad-except
         except Exception:

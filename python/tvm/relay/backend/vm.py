@@ -67,7 +67,7 @@ def compile(mod, target=None, target_host=None, params=None):
     if params:
         compiler.set_params(params)
     target, target_host = refresh_host(target, target_host, target_is_key=False)
-    compiler.lower(mod, target, target_host)
+    compiler.lower(mod, target)
     compiler.codegen()
     return compiler.get_exec()
 

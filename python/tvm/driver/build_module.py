@@ -232,8 +232,7 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    target = Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
     device_type = ndarray.context(target.kind.name, 0).device_type
 
     mod_mixed = input_mod

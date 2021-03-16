@@ -20,6 +20,7 @@
 import logging
 import tvm
 from tvm import te
+from tvm.target.target import refresh_host
 from . import utils
 from .. import rpc
 
@@ -106,11 +107,10 @@ def measure_bandwidth_sum(
     s[y].bind(yi, te.thread_axis("threadIdx.x"))
     s[y].unroll(k)
 
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
 
     try:
-        func = tvm.build(s, [x, y], target, target_host=target_host)
+        func = tvm.build(s, [x, y], target)
 
         x = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
         y = tvm.nd.empty((n // m,), dtype=dtype, ctx=ctx)
@@ -156,8 +156,7 @@ def measure_bandwidth_all_types(
     """
     max_threads = target.max_num_threads
 
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
 
     result = []
     for base_type in ["float"]:
@@ -235,8 +234,7 @@ def measure_compute_mad(
 
     max_threads = target.max_num_threads
 
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
 
     base_type = str(base_type) + str(bits)
     dtype = base_type if lanes == 1 else base_type + "x" + str(lanes)
@@ -281,7 +279,7 @@ def measure_compute_mad(
     s = te.create_schedule(y.op)
 
     try:
-        func = tvm.build(s, [y], target, target_host=target_host)
+        func = tvm.build(s, [y], target)
         func = _convert_to_remote(func, remote)
         time_f = func.time_evaluator(func.entry_name, ctx, number=n_times)
         y = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
@@ -322,8 +320,7 @@ def measure_compute_all_types(
     result: list
         a list of (type_name, GFLOPS/GIOPS) pairs
     """
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
 
     result = []
     for base_type in ["float", "int"]:
@@ -369,8 +366,7 @@ def measure_peak_all(target, target_host, host, port):
     port: int
     """
 
-    target = tvm.target.Target(target, target_host)
-    target_host = target.host
+    target, target_host = refresh_host(target, target_host)
     remote = rpc.connect(host, port)
     n_times = 20
 
