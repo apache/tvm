@@ -808,7 +808,7 @@ Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
           block_var_doc << "opaque_axis";
           break;
         default:
-          LOG(FATAL) << "Unknown block var iter type";
+          LOG(FATAL) << "Unknown block var iter type: " << iter_var->iter_type;
           break;
       }
       block_var_doc << "(" << Print(iter_var->dom->min) << ", "

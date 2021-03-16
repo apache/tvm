@@ -30,62 +30,60 @@ from .node import BufferSlice
 class BlockInfo:
     """Information for block and block_realize signature"""
 
-    alloc_buffers: List[Buffer]
-    match_buffers: List[MatchBufferRegion]
-    iter_bindings: Mapping[Var, PrimExpr]
-    reads: Optional[List[BufferSlice]]
-    writes: Optional[List[BufferSlice]]
-    annotations: Optional[Mapping[str, Object]]
-    predicate: Optional[PrimExpr]
-    init: Optional[Stmt]
-
-    def __init__(self):
-        self.alloc_buffers = []
-        self.match_buffers = []
-        self.iter_bindings = {}
-        self.reads = None
-        self.writes = None
-        self.annotations = None
-        self.predicate = None
-        self.init = None
+    alloc_buffers: List[Buffer] = []
+    """List[Buffer]: alloc_buffers list for the block"""
+    match_buffers: List[MatchBufferRegion] = []
+    """List[MatchBufferRegion]: match_buffer_region list for the block"""
+    iter_bindings: Mapping[Var, PrimExpr] = {}
+    """Mapping[Var, PrimExpr]: block iter var and its values"""
+    reads: Optional[List[BufferSlice]] = None
+    """Optional[List[BufferSlice]]: block read buffer regions, None for not-visited"""
+    writes: Optional[List[BufferSlice]] = None
+    """Optional[List[BufferSlice]]: block write buffer regions, None for not-visited"""
+    annotations: Optional[Mapping[str, Object]] = None
+    """Optional[Mapping[str, Object]]: block annotations, None for not-visited"""
+    predicate: Optional[PrimExpr] = None
+    """Optional[PrimExpr]: block realize predicate, None for not-visited"""
+    init: Optional[Stmt] = None
+    """Optional[Stmt]: init part of the block, None for not-visited"""
 
 
 class ContextMaintainer:
-    """Maintain all the necessary context info"""
+    """Maintain all the necessary context info
+    Parameters
+    ----------
+    _report_error : Callable[[str, Union[Span, synr.ast.Span]], None]
+        The report error function handle
+    """
 
     # scope context
-    # ast_node inside a scope
-    node_stack: List[List[synr.ast.Node]]
-    # loop stacks inside a block
-    block_info_stack: List[BlockInfo]
-    # loop stacks inside a block
-    loop_stack: List[List[Var]]
-    symbols: List[Dict[str, Union[Var, Buffer]]]
+    node_stack: List[List[synr.ast.Node]] = []
+    """List[List[synr.ast.Node]]: The ast nodes insides the current scope"""
+    block_info_stack: List[BlockInfo] = []
+    """List[BlockInfo]: The block info for the current block scope"""
+    loop_stack: List[List[Var]] = []
+    """List[List[Var]]: List of loop vars inside the current block scope"""
+    symbols: List[Dict[str, Union[Var, Buffer]]] = []
+    """List[Dict[str, Union[Var, Buffer]]]: Symbol map from name to object for the current scope"""
 
     # function context
-    func_params: List[Var]
-    func_buffer_map: Mapping[Var, Buffer]
-    func_dict_attr: Mapping[str, Object]
-    func_var_env_dict: Mapping[Var, str]
+    func_params: List[Var] = []
+    """List[Var]: The function parameters"""
+    func_buffer_map: Mapping[Var, Buffer] = {}
+    """Mapping[Var, Buffer]: The function buffer map"""
+    func_dict_attr: Mapping[str, Object] = {}
+    """Mapping[str, Object]: The function attrs"""
+    func_var_env_dict: Mapping[Var, str] = {}
+    """Mapping[Var, str]: The map from var to env thread"""
 
     # parser and analyzer
+    analyzer: tvm.arith.Analyzer = tvm.arith.Analyzer()
+    """tvm.arith.Analyzer: The analyzer for simplifying"""
     _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]
-    analyzer: tvm.arith.Analyzer
+    """Callable[[str, Union[Span, synr.ast.Span]], None]: The report error function handle"""
 
     def __init__(self, _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]):
-        # scope context
-        self.node_stack = []  # AST nodes of scopes
-        self.block_info_stack = []  # Block info of scopes
-        self.loop_stack = []  # stack of loop vars
-        self.symbols = []  # symbols of scopes
-        # function context
-        self.func_params = []  # parameter list of function
-        self.func_buffer_map = {}  # buffer_map of function
-        self.func_dict_attr = {}  # func_attr of function
-        self.func_var_env_dict = {}  # map from var to env_name
-        # parser and analyzer
         self._report_error = _report_error
-        self.analyzer = tvm.arith.Analyzer()
 
     def enter_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
         """Creates a new scope
@@ -104,6 +102,7 @@ class ContextMaintainer:
         """Creates a new block scope, the function will call `enter_scope` implicitly
         Besides the behaviors of `enter_scope`, it will update loop_stack and block_info_stack
         to maintain block info.
+        It should be used when the scope is a block (or likely to be a block)
 
         Parameters
         ----------

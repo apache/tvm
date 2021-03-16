@@ -194,7 +194,7 @@ class TVMScriptParser(Transformer):
         ----------
         message : str
             Error message
-        span : synr.ast.Span or tvm.ir.Span
+        span : Union[synr.ast.Span, tvm.ir.Span】
             Location of the error
         """
         if isinstance(span, tvm.ir.Span):
@@ -792,7 +792,8 @@ class TVMScriptParser(Transformer):
             for index in indexes:
                 if not isinstance(index, (tvm.tir.PrimExpr, int)):
                     self.report_error(
-                        "Buffer load indexes should be int or PrimExpr, but they are " + type(index),
+                        "Buffer load indexes should be int or PrimExpr, but they are "
+                        + type(index),
                         node.span,
                     )
             return tvm.tir.Load(

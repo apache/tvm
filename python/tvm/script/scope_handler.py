@@ -90,12 +90,14 @@ class WithScopeHandler(ScopeHandler):
             for var in node.lhs:
                 if not isinstance(var, ast.Var):
                     context.report_error(
-                        "Invalid optional var definition, only list of Var is valid", node.span
+                        f"Invalid optional var definition, expected Var but got {type(var)}",
+                        node.span,
                     )
             var_names = [var.id.name for var in node.lhs]
         else:
             context.report_error(
-                "Invalid optional var definition, only list of Var is valid", node.span
+                f"Invalid optional var definition, expected list of Var but got {type(node.lhs)}",
+                node.span,
             )
         return var_names
 
@@ -369,9 +371,7 @@ class ForScopeHandler(ScopeHandler):
         arg_list: List[Any],
         span: synr.ast.Span,
     ):
-        assert isinstance(
-            node, ast.For
-        ), f"ForScopeHandler expected ast.For but got {type(node)}"
+        assert isinstance(node, ast.For), f"ForScopeHandler expected ast.For but got {type(node)}"
 
         loop_var_names = list()
         spans = list()
@@ -556,7 +556,7 @@ class ThreadBinding(ForScopeHandler):
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
-            thread_iter_var = IterVar(None, None, 1, thread, span=span)
+            thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread, span=span)
             return self.create_loop(
                 begin,
                 end,
@@ -607,7 +607,7 @@ class Grid(ForScopeHandler):
                 )
             body = self.body
             for loop_var, extent in zip(reversed(self.loop_vars), reversed(extents)):
-                body = tvm.tir.For(loop_var, 0, extent, 0, body, span=span)
+                body = tvm.tir.For(loop_var, 0, extent, ForKind.SERIAL, body, span=span)
             return body
 
         super().__init__(grid)

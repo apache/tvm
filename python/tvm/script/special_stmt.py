@@ -38,7 +38,26 @@ from .context_maintainer import ContextMaintainer
 from .node import BufferSlice
 
 
-def convert_to_int(value, arg_name, report_error, span):
+def convert_to_int(
+    value: Union[IntImm, int],
+    arg_name: str,
+    report_error: Callable,
+    span: Union[Span, synr.ast.Span],
+) -> int:
+    """convert a const int or TVM IntImm to Python int.
+    Report an error when input cannot be converted to int.
+
+    Parameters
+    ----------
+    value : Union[tvm.tir.IntImm, int]
+        The input value to be converted.
+    arg_name : str
+        function arg name for error reporting
+    report_error: Callable
+        The report error function handle
+    span : Union[synr.ast.Span, tvm.ir.Span】
+        Location of the error
+    """
     if isinstance(value, IntImm):
         return value.value
     if isinstance(value, int):
@@ -197,7 +216,6 @@ class AllocBuffer(SpecialStmt):
     .. code-block:: python
 
         A = tir.alloc_buffer((128, 128), dtype="float32")
-
     """
 
     def __init__(self):
@@ -253,7 +271,6 @@ class BlockVarBind(SpecialStmt):
     .. code-block:: python
 
         tir.bind(vx, i)
-
     """
 
     def __init__(self):
@@ -275,7 +292,6 @@ class BlockReads(SpecialStmt):
     .. code-block:: python
 
         tir.reads([A[vi: vi + 4, vk: vk + 4], B[vk: vk + 4, vj]])
-
     """
 
     def __init__(self):
@@ -311,7 +327,6 @@ class BlockWrites(SpecialStmt):
     .. code-block:: python
 
         tir.writes([C[vi: vi + 4, vj])
-
     """
 
     def __init__(self):
@@ -349,7 +364,6 @@ class BlockAttr(SpecialStmt):
     .. code-block:: python
 
         tir.block_attr({"double_buffer_scope": 1})
-
     """
 
     def __init__(self):
@@ -381,11 +395,11 @@ class BlockPredicate(SpecialStmt):
     .. code-block:: python
 
         tir.where(i < 4)
-
     """
 
     def __init__(self):
         def where(predicate, span=None):
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope.predicate is not None:
                 self.context.report_error(
@@ -409,7 +423,6 @@ class BlockMatchBufferRegion(SpecialStmt):
     .. code-block:: python
 
         B = tir.match_buffer_region(A[0: 4])
-
     """
 
     def __init__(self):
@@ -421,6 +434,7 @@ class BlockMatchBufferRegion(SpecialStmt):
             offset_factor=0,
             span=None,
         ):
+            assert self.context, "call 'exit_scope' before 'enter_scope'"
             if not isinstance(self.node, ast.Assign):
                 self.context.report_error(
                     "match_buffer_region must be assigned to a buffer, "
