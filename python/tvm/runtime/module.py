@@ -339,6 +339,9 @@ class Module(object):
                 else:
                     assert module.type_key == "c"
                     object_format = "c"
+                    if "cc" in kwargs:
+                        if kwargs["cc"] == "nvcc":
+                            object_format = "cu"
                     has_c_module = True
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)

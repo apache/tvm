@@ -104,7 +104,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "c") {
+    if (fmt == "c" || fmt == "cu") {
       ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
