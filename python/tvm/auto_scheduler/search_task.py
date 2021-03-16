@@ -27,7 +27,6 @@ import tvm._ffi
 from tvm.runtime import Object, ndarray
 
 from tvm.driver.build_module import build
-from tvm.target import Target
 from tvm.target.target import refresh_host
 from .measure import LocalBuilder, LocalRunner
 from .measure_record import load_best_record

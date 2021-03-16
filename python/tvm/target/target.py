@@ -508,11 +508,7 @@ def refresh_host(target, host=None, target_is_key=True):
     target_is_key : Bool
         When the type of target is dict, whether Target is the key (Otherwise the value)
     """
-    try:
-        target = Target(target, host)
-        host = target.host
-        return target, host
-    except (TypeError, ValueError):
+    if isinstance(target, dict):
         new_target = {}
         for tgt, mod in target.items():
             if not target_is_key:
@@ -522,4 +518,8 @@ def refresh_host(target, host=None, target_is_key=True):
             if not target_is_key:
                 tgt, mod = mod, tgt
             new_target[tgt] = mod
-        return new_target, host
+        target = new_target
+    else:
+        target = Target(target, host)
+        host = target.host
+    return target, host

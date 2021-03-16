@@ -209,7 +209,7 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    return build(mod, target, params=params, mod_name=mod_name).module
+    return build(mod, target, target_host, params=params, mod_name=mod_name).module
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):

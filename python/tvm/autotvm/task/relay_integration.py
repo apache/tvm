@@ -25,7 +25,6 @@ import logging
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
-from tvm.target import Target
 from tvm.target.target import refresh_host
 from .task import create
 from .topi_integration import TaskExtractEnv
