@@ -2335,6 +2335,11 @@ class OperatorConverter(object):
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # MLIR-based converter outputs no BuiltinOptions for Cast operator. In this
+        # case the output type can be derived from the Cast operator output tensor.
+        # When TOCO converter is used there will be "normal" BuiltinOptions.CastOptions
+        # with output type.
         if op.BuiltinOptions() is not None:
             assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
             op_options = op.BuiltinOptions()
