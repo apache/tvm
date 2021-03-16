@@ -60,15 +60,22 @@ void RefreshHost(Target* target, Target* target_host) {
   *target_host = (*target)->GetHost().value_or(Target());
 }
 
-using TargetsMap = Map<Integer, Target>;
-
-
 void RefreshHost(TargetsMap* targets, Target* target_host) {
   TargetsMap new_targets;
   for (auto& it : *targets) {
     auto target = it.second;
     RefreshHost(&target, target_host);
     new_targets.Set(it.first, target);
+  }
+  *targets = new_targets;
+}
+
+void RefreshHost(Map<Target, IRModule>* targets, Target* target_host) {
+  Map<Target, IRModule> new_targets;
+  for (auto& it : *targets) {
+    auto target = it.first;
+    RefreshHost(&target, target_host);
+    new_targets.Set(target, it.second);
   }
   *targets = new_targets;
 }

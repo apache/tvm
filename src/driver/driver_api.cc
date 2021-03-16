@@ -255,18 +255,15 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
 }
 
 // Build for heterogeneous execution.
-runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_host_arg) {
+runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
   std::vector<runtime::Module> device_modules;
+  Map<Target, IRModule> inputs = inputs_arg;
   Target target_host = target_host_arg;
-  Map<Target, IRModule> updated_inputs;
 
   // Fetch previous defined target host in targets
-  for (const auto& it : inputs) {
-    auto target = it.first;
-    RefreshHost(&target, &target_host);
-  }
+  RefreshHost(&inputs, &target_host);
 
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
@@ -282,16 +279,13 @@ runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_
   }
 
   // Update target host for all targets
-  for (const auto& it : inputs) {
-    auto target = Target(it.first, target_host);
-    updated_inputs.Set(target, it.second);
-  }
+  RefreshHost(&inputs, &target_host);
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-  for (const auto& it : updated_inputs) {
+  for (const auto& it : inputs) {
     if (it.second.defined()) {
       auto pair = SplitDevHostFuncs(it.second, it.first, target_host, pass_ctx);
       auto& mhost = pair.first;

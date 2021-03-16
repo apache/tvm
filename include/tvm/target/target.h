@@ -24,10 +24,11 @@
 #ifndef TVM_TARGET_TARGET_H_
 #define TVM_TARGET_TARGET_H_
 
+#include <tvm/ir/expr.h>
+#include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
-#include <tvm/ir/expr.h>
 
 #include <string>
 #include <unordered_set>
@@ -176,6 +177,7 @@ using TargetsMap = Map<Integer, Target>;
 
 TVM_DLL void RefreshHost(Target*, Target*);
 TVM_DLL void RefreshHost(TargetsMap*, Target*);
+TVM_DLL void RefreshHost(Map<Target, IRModule>*, Target*);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_
