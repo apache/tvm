@@ -252,11 +252,7 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
   }
 
   // Save the const to device mapping.
-  std::vector<size_t> const_device_type;
-  for (auto dev_type : this->const_device_type) {
-    const_device_type.push_back(static_cast<size_t>(dev_type));
-  }
-  strm->Write(const_device_type);
+  strm->Write(this->const_device_type);
 }
 
 void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
@@ -525,12 +521,10 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
   }
 
   // Load the const to device mapping.
-  std::vector<size_t> const_device_type;
+  std::vector<Index> const_device_type;
   STREAM_CHECK(strm->Read(&const_device_type), "constant");
   ICHECK_EQ(size, const_device_type.size());
-  for (auto dev : const_device_type) {
-    this->const_device_type.push_back(static_cast<Index>(dev));
-  }
+  this->const_device_type = const_device_type;
 }
 
 void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {

@@ -2080,6 +2080,181 @@ def test_forward_sparse_reshape(
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, use_dyn)
 
 
+#######################################################################
+# Sparse Segment Variants
+# ------------
+
+
+def _test_sparse_segment_variant(
+    tf_op, data_np, indices_np, segment_ids_np, num_segments, use_dyn=False
+):
+    with tf.Graph().as_default():
+        if use_dyn:
+            data = tf.placeholder(
+                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
+            )
+            indices = tf.placeholder(shape=[None], dtype=indices_np.dtype, name="indices")
+            segment_ids = tf.placeholder(
+                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+        else:
+            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+            indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+            segment_ids = tf.placeholder(
+                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+
+        _ = tf_op(
+            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_variant"
+        )
+        compare_tf_with_tvm(
+            [data_np, indices_np, segment_ids_np],
+            [data.name, indices.name, segment_ids.name],
+            ["sparse_segment_variant:0"],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "data_np, indices_np, segment_ids_np, num_segments",
+    [
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 3, 4], dtype=np.int32),
+            np.array([0, 1, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
+            4,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 2, 4, 3, 1], dtype=np.int32),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            100,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 2, 4, 3, 1], dtype=np.int32),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float64),
+            np.array([0, 1, 2], dtype=np.int32),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            9,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 6, 7, 7, 8], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 1], dtype=np.int32),
+            np.array([0, 2], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32),
+            np.array([0, 0, 1, 3, 5, 5, 5, 5, 5], dtype=np.int32),
+            6,
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+@pytest.mark.parametrize(
+    "tf_op",
+    [
+        tf.sparse.segment_sum,
+        tf.sparse.segment_sqrt_n,
+        tf.sparse.segment_mean,
+    ],
+)
+def test_forward_sparse_segment_sum_variants(
+    tf_op,
+    data_np,
+    indices_np,
+    segment_ids_np,
+    num_segments,
+    use_dyn,
+):
+    """sparse segment sum variants tests"""
+    _test_sparse_segment_variant(tf_op, data_np, indices_np, segment_ids_np, num_segments, use_dyn)
+
+
+#######################################################################
+# Math SegmentSum
+# ------------
+
+
+def _test_math_segment_sum(data_np, segment_ids_np, use_dyn=False):
+    with tf.Graph().as_default():
+        if use_dyn:
+            data = tf.placeholder(
+                shape=[None for _ in data_np.shape], dtype=data_np.dtype, name="data"
+            )
+            segment_ids = tf.placeholder(
+                shape=(None), dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+        else:
+            data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+            segment_ids = tf.placeholder(
+                shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+            )
+
+        _ = tf.math.segment_sum(data, segment_ids, name="segment_sum")
+        compare_tf_with_tvm(
+            [data_np, segment_ids_np],
+            [data.name, segment_ids.name],
+            ["segment_sum:0"],
+            mode="vm",
+        )
+
+
+@pytest.mark.parametrize(
+    "data_np, segment_ids_np",
+    [
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 0, 0, 1, 1, 1], dtype=np.int32),
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 0, 1], dtype=np.int32),
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 0, 1, 2, 2, 3], dtype=np.int64),
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
+            np.array([0, 0, 1], dtype=np.int32),
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([0, 0, 0, 1, 2, 3, 4, 4, 5], dtype=np.int64),
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_dyn", [True, False])
+def test_forward_math_segment_sum(data_np, segment_ids_np, use_dyn):
+    """math segment sum test"""
+    _test_math_segment_sum(data_np, segment_ids_np, use_dyn)
+
+
 # tensorflow.compat.v1.sparse_to_dense
 # ---------------
 def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
@@ -2175,6 +2350,54 @@ def test_forward_sparse_to_dense_v2():
     _test_sparse_to_dense_v2([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32", 1.3)
     _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32")
     _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32", 1.9)
+
+
+#######################################################################
+# tensorflow.sparse.add
+# ----------------------------------
+
+
+def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
+    """ One iteration of tf.sparse.add """
+
+    # TODO(ANSHUMAN87): support cuda
+    # TODO(ANSHUMAN87): support both sparse input case
+
+    with tf.Graph().as_default():
+        A_sp = tf.sparse.SparseTensor(
+            indices=indices, values=np.array(values).astype(dtype), dense_shape=A_shape
+        )
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+
+        # TODO(ANSHUMAN87): support user input threashold values
+        if flip:
+            result = tf.sparse.add(B, A_sp, threshold=0)
+        else:
+            result = tf.sparse.add(A_sp, B, threshold=0)
+
+        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+
+        compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+
+
+def test_sparse_add():
+    """ sparse.add op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    for dtype_inp in ["float32", "float64", "int32"]:
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp, True)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp, True)
 
 
 #######################################################################

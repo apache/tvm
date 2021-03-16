@@ -34,6 +34,7 @@ from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from .. import qnn
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
 from .. import transform
@@ -400,7 +401,13 @@ class PyTorchOpConverter:
         )
 
         # A fast path when slicing is nop.
-        if target_begin == 0 and target_end >= index_size_limit and stride == 1:
+        if (
+            isinstance(target_begin, int)
+            and isinstance(target_end, int)
+            and target_begin == 0
+            and target_end >= index_size_limit
+            and stride == 1
+        ):
             return data
 
         # Process begin
@@ -799,14 +806,35 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
+    def hard_sigmoid(self, inputs, input_types):
+        def _relu6(x):
+            return _op.tensor.clip(x, 0.0, 6.0)
+
+        def func(x):
+            return _relu6(x + _expr.const(3.0)) / _expr.const(6.0)
+
+        if self.is_quantized_tensor(inputs[0]):
+            input_scale = _expr.const(inputs[1])
+            input_zero_point = _expr.const(inputs[2])
+            # PyTorch seems to use the following output qparams, but accuracy
+            # is broken if we use this.
+            # TODO(masahi): Revisit this parameter choice
+            #
+            # Taken from src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+            # output_scale = _expr.const(0.00390625)  # 1.0 / 2^8
+            # output_zero_point = _expr.const(-128)
+            output_scale = input_scale
+            output_zero_point = input_zero_point
+
+            data = qnn.op.dequantize(inputs[0], input_scale, input_zero_point, axis=1)
+            out = func(data)
+            return qnn.op.quantize(out, output_scale, output_zero_point, out_dtype="uint8")
+
+        return func(inputs[0])
+
     def hard_swish(self, inputs, input_types):
         data = inputs[0]
-        dtype = input_types[0]
-
-        def _relu6(input_tensor):
-            return _op.tensor.clip(input_tensor, 0.0, 6.0)
-
-        return data * _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+        return data * self.hard_sigmoid(inputs, input_types)
 
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
@@ -1367,6 +1395,20 @@ class PyTorchOpConverter:
             ceil_mode=ceil_mode,
             count_include_pad=count_include_pad,
         )
+
+    def linear(self, inputs, input_types):
+        # https://pytorch.org/docs/stable/nn.functional.html#linear
+        # 0 - input
+        # 1 - weight
+        bias = inputs[2]
+        mm_out = self.matmul(inputs[:2], input_types[:2])
+        if isinstance(bias, _expr.Expr):
+            bias_ndims = len(self.infer_shape_with_prelude(bias))
+            if bias_ndims == 1:
+                return _op.nn.bias_add(mm_out, bias)
+            mm_dtype = self.infer_type_with_prelude(mm_out).dtype
+            return self.add([mm_out, bias], [mm_dtype, input_types[2]])
+        return mm_out
 
     def dropout(self, inputs, input_types):
         data = inputs[0]
@@ -2283,6 +2325,7 @@ class PyTorchOpConverter:
             "aten::softplus": self.softplus,
             "aten::avg_pool2d": self.avg_pool2d,
             "aten::avg_pool3d": self.avg_pool3d,
+            "aten::linear": self.linear,
             "aten::dropout": self.dropout,
             "aten::dropout_": self.dropout,
             "aten::feature_dropout": self.dropout,
@@ -2397,6 +2440,8 @@ class PyTorchOpConverter:
             "aten::__not__": self.logical_not,
             "aten::hardswish_": self.hard_swish,
             "aten::hardswish": self.hard_swish,
+            "aten::hardsigmoid_": self.hard_sigmoid,
+            "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
             "aten::masked_select": self.masked_select,
@@ -3195,5 +3240,16 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         # ListConstruct kept original python list. Convert to tuple.
         ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
+    # Separate data inputs and parameters to make sure data inputs are always in the beginning.
+    func_args = []
+    data_inputs = []
+    for arg in _analysis.free_vars(ret):
+        if arg.name_hint not in tvm_params.keys():
+            data_inputs.append(arg)
+        else:
+            func_args.append(arg)
+    func_args = data_inputs + func_args
+
+    mod["main"] = tvm.relay.Function(func_args, ret)
+
     return transform.RemoveUnusedFunctions()(mod), tvm_params

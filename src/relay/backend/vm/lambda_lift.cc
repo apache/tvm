@@ -61,19 +61,30 @@ class LambdaLifter : public ExprMutator {
   explicit LambdaLifter(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) final {
-    bool is_lambda = false;
-    if (auto func = let_node->value.as<FunctionNode>()) {
-      if (!func->HasNonzeroAttr(attr::kPrimitive)) {
-        is_lambda = true;
-        letrec_.push_back(let_node->var);
+    auto pre_visit = [this](const LetNode* op) {
+      bool is_lambda = false;
+      if (auto func = op->value.as<FunctionNode>()) {
+        if (!func->HasNonzeroAttr(attr::kPrimitive)) {
+          is_lambda = true;
+          this->letrec_.push_back(op->var);
+        }
       }
-    }
-    auto value = VisitExpr(let_node->value);
-    if (is_lambda) {
-      letrec_.pop_back();
-    }
-    auto body = VisitExpr(let_node->body);
-    return Let(let_node->var, value, body);
+      Expr value = this->VisitExpr(op->value);
+
+      if (is_lambda) {
+        this->letrec_.pop_back();
+      }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      // Visit body and cache the op
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+      this->memo_[expr] = Let(op->var, value, body);
+    };
+    ExpandANormalForm(let_node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(let_node)];
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {

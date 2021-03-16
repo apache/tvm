@@ -25,7 +25,7 @@ from tvm.ir import IRModule
 
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
-from .. import nd as _nd, autotvm
+from .. import nd as _nd, autotvm, register_func
 from ..target import Target
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
@@ -194,14 +194,28 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None, mod_name="default"):
+@register_func("tvm.relay.module_export_library")
+def _module_export(module, file_name):  # fcompile, addons, kwargs?
+    return module.export_library(file_name)
+
+
+@register_func("tvm.relay.build")
+def _build_module_no_factory(mod, target=None, target_host=None, params=None, mod_name="default"):
+    """A wrapper around build which discards the Python GraphFactoryRuntime.
+    This wrapper is suitable to be used from other programming languages as
+    the runtime::Module can be freely passed between language boundaries.
+    """
+    return build(mod, target, target_host, params, mod_name).module
+
+
+def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
     """Helper function that builds a Relay function to run on TVM graph runtime.
 
     Parameters
     ----------
-    mod : :py:class:`~tvm.IRModule`
+    ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context name) to str/tvm.target.Target, optional
@@ -237,13 +251,13 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     """
     # pylint: enable=line-too-long
     # fmt: on
-    if not isinstance(mod, (IRModule, _function.Function)):
+    if not isinstance(ir_mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
-    if isinstance(mod, _function.Function):
+    if isinstance(ir_mod, _function.Function):
         if params:
-            mod = bind_params_by_name(mod, params)
-        mod = IRModule.from_expr(mod)
+            ir_mod = bind_params_by_name(ir_mod, params)
+        ir_mod = IRModule.from_expr(ir_mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
@@ -266,9 +280,11 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
-        return mod
+        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
+        runtime_mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
+            ir_mod, target, graph_json, runtime_mod, mod_name, params
+        )
+        return runtime_mod
 
 
 def optimize(mod, target=None, params=None):
@@ -377,9 +393,19 @@ class GraphExecutor(_interpreter.Executor):
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
-        num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
+
+        def _unflatten(flat_iter, cur_type):
+            if isinstance(cur_type, _ty.TensorType):
+                return next(flat_iter)
+            if isinstance(cur_type, _ty.TupleType):
+                fields = []
+                for field_type in cur_type.fields:
+                    field = _unflatten(flat_iter, field_type)
+                    fields.append(field)
+                return fields
+            raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)
@@ -388,13 +414,11 @@ class GraphExecutor(_interpreter.Executor):
                 gmodule.set_input(i, arg)
             # Run the module, and fetch the output.
             gmodule.run()
-            # make a copy so multiple invocation won't hurt perf.
-            if num_outputs == 1:
-                return gmodule.get_output(0).copyto(_nd.cpu(0))
-            outputs = []
-            for i in range(num_outputs):
-                outputs.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
-            return outputs
+            flattened = []
+            for i in range(gmodule.get_num_outputs()):
+                flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+            unflattened = _unflatten(iter(flattened), ret_type)
+            return unflattened
 
         return _graph_wrapper
 

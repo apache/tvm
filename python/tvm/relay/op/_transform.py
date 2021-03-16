@@ -248,6 +248,31 @@ def strided_slice_shape_func(attrs, inputs, _):
 
 
 @script
+def _one_hot_shape_func(indices_shape, depth, axis):
+    in_ndim = indices_shape.shape[0]
+    out_ndim = in_ndim + 1
+    true_axis = in_ndim if axis == -1 else axis
+    indices_i = 0
+    out = output_tensor((out_ndim,), "int64")
+    for i in range(out_ndim):
+        if i == true_axis:
+            out[i] = int64(depth)
+        else:
+            out[i] = int64(indices_shape[indices_i])
+            indices_i += 1
+    return out
+
+
+@_reg.register_shape_func("one_hot", False)
+def one_hot_shape_func(attrs, inputs, _):
+    """
+    Shape func for one_hot
+    """
+    shape_func = [_one_hot_shape_func(inputs[0], convert(attrs.depth), convert(attrs.axis))]
+    return shape_func
+
+
+@script
 def _concatenate_shape_func(inputs, axis):
     ndim = inputs[0].shape[0]
     out = output_tensor((ndim,), "int64")

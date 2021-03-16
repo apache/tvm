@@ -728,7 +728,6 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
     ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
 
-
     if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
@@ -895,6 +894,16 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   int for_scope = BeginScope();
   PrintStmt(op->body);
   this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
+}
+
+void CodeGenC::VisitStmt_(const WhileNode* op) {
+  PrintIndent();
+  stream << "while (" << PrintExpr(op->condition) << ") {\n";
+  int while_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(while_scope);
   PrintIndent();
   stream << "}\n";
 }

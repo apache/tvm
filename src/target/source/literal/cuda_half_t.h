@@ -311,6 +311,30 @@ static inline __device__ __host__ half htanh(half x) {
 #endif
 )";
 
+static constexpr const char* _cuda_bfloat16_util = R"(
+// Pack two bfloat16 values.
+static inline __device__ __host__ unsigned
+__pack_nv_bfloat162(const nv_bfloat16 x, const nv_bfloat16 y) {
+  unsigned v0 = *((unsigned short *)&x);
+  unsigned v1 = *((unsigned short *)&y);
+  return (v1 << 16) | v0;
+}
+
+// fix undefined fp16 match function
+static inline __device__ __host__ nv_bfloat16 hpow(nv_bfloat16 x, nv_bfloat16 y) {
+  float tmp_x = __bfloat162float(x);
+  float tmp_y = __bfloat162float(y);
+  float result = powf(tmp_x, tmp_y);
+  return __float2bfloat16(result);
+}
+
+static inline __device__ __host__ nv_bfloat16 htanh(nv_bfloat16 x) {
+  float tmp_x = __bfloat162float(x);
+  float result = tanhf(tmp_x);
+  return __float2bfloat16(result);
+}
+)";
+
 static constexpr const char* _cuda_warp_intrinsic_util = R"(
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
 #define __shfl_sync(mask, var, lane, width) \

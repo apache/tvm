@@ -17,12 +17,12 @@
  * under the License.
  */
 
-use crate::ir::relay::ExprNode;
-use crate::runtime::{IsObject, IsObjectRef, ObjectRef};
-
 use tvm_macros::Object;
 
-// Define Calling Convention.
+use super::span::Span;
+
+use crate::ir::relay::ExprNode;
+use crate::runtime::{IsObject, IsObjectRef, ObjectRef};
 
 // TODO(@jroesch): define DictAttrs
 pub type DictAttrs = ObjectRef;
@@ -39,7 +39,7 @@ pub struct BaseFuncNode {
 impl BaseFuncNode {
     pub fn base<T: IsObject>() -> BaseFuncNode {
         BaseFuncNode {
-            base: ExprNode::base::<T>(),
+            base: ExprNode::base::<T>(Span::null()),
             attrs: <ObjectRef as IsObjectRef>::null(),
         }
     }

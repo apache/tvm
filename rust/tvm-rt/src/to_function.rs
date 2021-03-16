@@ -255,6 +255,7 @@ impl_typed_and_to_function!(2; A, B);
 impl_typed_and_to_function!(3; A, B, C);
 impl_typed_and_to_function!(4; A, B, C, D);
 impl_typed_and_to_function!(5; A, B, C, D, E);
+impl_typed_and_to_function!(6; A, B, C, D, E, G);
 
 #[cfg(test)]
 mod tests {

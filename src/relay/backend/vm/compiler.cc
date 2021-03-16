@@ -376,11 +376,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     CompileMatch(match);
   }
 
-  void VisitExpr_(const LetNode* let_node) {
-    DLOG(INFO) << PrettyPrint(let_node->value);
-    this->VisitExpr(let_node->value);
-    var_register_map_.insert({let_node->var, this->last_register_});
-    this->VisitExpr(let_node->body);
+  void VisitExpr_(const LetNode* l) final {
+    Expr let_binding = GetRef<Expr>(l);
+    const LetNode* let;
+    while ((let = let_binding.as<LetNode>())) {
+      VisitExpr(let->value);
+      var_register_map_.insert({let->var, this->last_register_});
+      let_binding = let->body;
+    }
+
+    VisitExpr(let_binding);
   }
 
   void VisitExpr_(const TupleGetItemNode* get_node) {
@@ -1066,6 +1071,23 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
   }
 
   pass_seqs.push_back(transform::FuseOps());
+  // Do layout rewrite for auto-scheduler.
+  transform::PassContext pass_ctx = PassContext::Current();
+  if (backend::IsAutoSchedulerEnabled() && targets.size() == 1) {
+    const auto& target = (*targets.begin()).second;
+    Pass major_pass = transform::AutoSchedulerLayoutRewrite();
+    bool enable_layout_rewrite_targets =
+        target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
+    if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+      With<Target> tctx(target);
+      pass_seqs.push_back(major_pass);
+      // Defuse ops to fold constants, then fuse them again
+      pass_seqs.push_back(transform::DefuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      pass_seqs.push_back(transform::FuseOps());
+    }
+  }
+
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::InferType());
   pass_seqs.push_back(transform::LambdaLift());
@@ -1082,7 +1104,6 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets,
   pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);
-  transform::PassContext pass_ctx = PassContext::Current();
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
     const auto& it = targets.begin();

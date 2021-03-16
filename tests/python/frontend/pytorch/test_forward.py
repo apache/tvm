@@ -24,6 +24,7 @@ import numpy as np
 import torch
 import torchvision
 from torch.nn import Module
+from torch.nn import functional as F
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -200,6 +201,8 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    for arg in mod["main"].params[: len(input_names)]:
+        assert arg.name_hint in input_names
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
@@ -1460,6 +1463,39 @@ def test_forward_dense():
 
 
 @tvm.testing.uses_gpu
+def test_forward_linear():
+    torch.set_grad_enabled(False)
+
+    class Linear(Module):
+        def forward(self, input, weight, bias):
+            return F.linear(input, weight, bias)
+
+    class LinearNoBias(Module):
+        def forward(self, input, weight):
+            return F.linear(input, weight)
+
+    input2d = torch.rand([2, 2]).float()
+    weight1d = torch.rand([2]).float()
+    weight2d = torch.rand([2, 2]).float()
+    bias1d = torch.rand([2]).float()
+    bias2d = torch.rand([2, 2]).float()
+    # 2D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input2d, weight2d, bias1d])
+    # 2D input, 2D weight, 2D bias
+    verify_model(Linear(), input_data=[input2d, weight2d, bias2d])
+    # 2D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input2d, weight2d])
+    # 2D input, 1D weight, 1D bias is not supported by torch.linear()
+    # 2D input, 1D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input2d, weight1d])
+    # TODO: Add the following cases when matmul(1D, _) is supported by TVM
+    # 1D input, 2D weight, 1D bias
+    # 1D input, 2D weight, no bias
+    # 1D input, 1D weight, scalar bias
+    # 1D input, 1D weight, no bias
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1497,12 +1533,21 @@ def test_forward_slice():
         def forward(self, x):
             return x[0::2, 0::2] + x[1::2, 1::2]
 
+    class DynamicLengthSlice(torch.nn.Module):
+        def forward(self, values, length):
+            return values[0:length]
+
     input_data = torch.rand(input_shape).float()
     verify_model(Slice1(), input_data=input_data)
     verify_model(Slice2(), input_data=input_data)
     verify_model(Slice3(), input_data=input_data)
     verify_model(SliceWithStride(), input_data=torch.randn(1, 4))
     verify_model(SliceWithStride2(), input_data=torch.randn(4, 4))
+
+    inp = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    slice_len = torch.tensor(2)
+    targets = ["llvm", "cuda"]
+    verify_trace_model(DynamicLengthSlice(), [inp, slice_len], targets)
 
 
 @tvm.testing.uses_gpu
@@ -3606,6 +3651,13 @@ def test_hard_swish():
         verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
+def test_hard_sigmoid():
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
+    for input in examples:
+        verify_model(torch.nn.Hardsigmoid().eval(), input_data=input)
+        verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input)
+
+
 def test_cumsum():
     def test_fn(dim, dtype=None):
         return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
@@ -3661,13 +3713,13 @@ def test_sort():
 
     inp = torch.randn(100)
     verify_model(test_fn(0, True), [inp])
-    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(-1, False), [inp])
 
     inp = torch.randn(100, 100)
     verify_model(test_fn(0, True), [inp])
-    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(-2, False), [inp])
     verify_model(test_fn(1, True), [inp])
-    verify_model(test_fn(1, False), [inp])
+    verify_model(test_fn(-1, False), [inp])
 
 
 def test_logical_and():
@@ -3848,6 +3900,8 @@ if __name__ == "__main__":
     test_logical_and()
     test_masked_select()
     test_unique()
+    test_hard_swish()
+    test_hard_sigmoid()
 
     # Model tests
     test_resnet18()
@@ -3886,4 +3940,3 @@ if __name__ == "__main__":
 
     # Test convert torch script(jit) with specific inputs' types
     test_convert_torch_script_with_input_types()
-    test_hard_swish()
