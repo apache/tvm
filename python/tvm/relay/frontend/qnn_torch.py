@@ -353,6 +353,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::mul": 2,
         "aten::dequantize": 1,
         "aten::mean": 1,
+        "aten::upsample_nearest2d": 1,
         "aten::upsample_bilinear2d": 1,
         "aten::relu_": 1,
         "aten::relu": 1,

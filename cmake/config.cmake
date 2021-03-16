@@ -99,14 +99,11 @@ set(USE_STACKVM_RUNTIME OFF)
 # Whether enable tiny embedded graph runtime.
 set(USE_GRAPH_RUNTIME ON)
 
-# Whether enable additional graph debug functions
-set(USE_GRAPH_RUNTIME_DEBUG OFF)
-
 # Whether enable tiny graph runtime for cudaGraph Launch
 set(USE_GRAPH_RUNTIME_CUGRAPH OFF)
 
-# Whether enable additional vm profiler functions
-set(USE_VM_PROFILER OFF)
+# Whether to enable the profiler for the graph runtime and vm
+set(USE_PROFILER ON)
 
 # Whether enable uTVM standalone runtime
 set(USE_MICRO_STANDALONE_RUNTIME OFF)
@@ -119,7 +116,7 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM ON)
+set(USE_LLVM OFF)
 
 #---------------------------------------------
 # Contrib libraries
@@ -177,7 +174,10 @@ set(USE_FLATBUFFERS_PATH none)
 # - /path/to/edgetpu: use specific path to edgetpu library
 set(USE_EDGETPU OFF)
 
-# Whether use CuDNN
+# Possible values:
+# - ON: enable cuDNN with cmake's auto search in CUDA directory
+# - OFF: disable cuDNN
+# - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
 
 # Whether use cuBLAS
@@ -272,3 +272,6 @@ set(USE_HEXAGON_SDK /path/to/sdk)
 
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
+
+# Whether enable BNNS runtime
+set(USE_BNNS OFF)

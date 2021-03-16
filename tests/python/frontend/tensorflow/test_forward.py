@@ -2353,6 +2353,54 @@ def test_forward_sparse_to_dense_v2():
 
 
 #######################################################################
+# tensorflow.sparse.add
+# ----------------------------------
+
+
+def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
+    """ One iteration of tf.sparse.add """
+
+    # TODO(ANSHUMAN87): support cuda
+    # TODO(ANSHUMAN87): support both sparse input case
+
+    with tf.Graph().as_default():
+        A_sp = tf.sparse.SparseTensor(
+            indices=indices, values=np.array(values).astype(dtype), dense_shape=A_shape
+        )
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+
+        # TODO(ANSHUMAN87): support user input threashold values
+        if flip:
+            result = tf.sparse.add(B, A_sp, threshold=0)
+        else:
+            result = tf.sparse.add(A_sp, B, threshold=0)
+
+        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+
+        compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+
+
+def test_sparse_add():
+    """ sparse.add op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    for dtype_inp in ["float32", "float64", "int32"]:
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp, True)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp, True)
+
+
+#######################################################################
 # StridedSlice
 # ------------
 

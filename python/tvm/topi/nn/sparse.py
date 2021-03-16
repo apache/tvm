@@ -468,3 +468,72 @@ def try_get_sparse_input(args):
     sparse_input_map[sparse_indptr] = sparse_prefix + "W_indptr"
 
     return sparse_input_map
+
+
+def sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr):
+    """
+    Computes sparse-dense addition
+
+    Parameters
+    ----------
+    dense_data : tvm.te.Tensor
+        2-D with shape [M, N]
+
+    sparse_data : tvm.te.Tensor
+        1-D with shape [nnz] (CSR)
+
+    sparse_indices : tvm.te.Tensor
+        1-D with shape [nnz] (CSR)
+
+    sparse_indptr : tvm.te.Tensor
+        1-D with shape [M + 1] (CSR)
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        2-D with shape [M, N]
+    """
+    # TODO(ANSHUMAN87): support BSR format too
+    assert len(sparse_data.shape) == 1, "only CSR format is supported"
+    return _sparse_add_csr(dense_data, sparse_data, sparse_indices, sparse_indptr)
+
+
+def _sparse_add_csr(dense_data_inp, sparse_data_inp, sparse_indices_inp, sparse_indptr_inp):
+    oshape = get_const_tuple(dense_data_inp.shape)
+
+    def _csr_add_ir(dense_data, sparse_data, sparse_indices, sparse_indptr, out_data):
+        irb = tvm.tir.ir_builder.create()
+        dense_data_ptr = irb.buffer_ptr(dense_data)
+        sparse_data_ptr = irb.buffer_ptr(sparse_data)
+        sparse_indices_ptr = irb.buffer_ptr(sparse_indices)
+        sparse_indptr_ptr = irb.buffer_ptr(sparse_indptr)
+
+        out_data_ptr = irb.buffer_ptr(out_data)
+
+        with irb.for_range(0, oshape[0], kind="vectorize", name="row") as row:
+            with irb.for_range(0, oshape[1], kind="parallel", name="col") as col:
+                out_data_ptr[row, col] = dense_data_ptr[row, col]
+
+        with irb.for_range(0, oshape[0], kind="parallel", name="row") as row:
+            offset = sparse_indptr_ptr[row]
+            diff = sparse_indptr_ptr[row + 1] - sparse_indptr_ptr[row]
+            with irb.for_range(0, diff, kind="serial", name="idx") as idx:
+                real_idx = offset + idx
+                col = sparse_indices_ptr[real_idx]
+                out_data_ptr[row, col] = sparse_data_ptr[real_idx] + out_data_ptr[row, col]
+
+        return irb.get()
+
+    return te.extern(
+        shape=oshape,
+        inputs=[dense_data_inp, sparse_data_inp, sparse_indices_inp, sparse_indptr_inp],
+        fcompute=lambda ins, outs: _csr_add_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+        tag="sparse_add_csr",
+        dtype=[
+            dense_data_inp.dtype,
+            sparse_data_inp.dtype,
+            sparse_indices_inp.dtype,
+            sparse_indptr_inp.dtype,
+        ],
+        name="sparse_add_csr_output",
+    )

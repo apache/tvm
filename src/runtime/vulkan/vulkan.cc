@@ -367,28 +367,37 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
   }
   ICHECK_LT(index, context_.size()) << "Invalid device id " << index;
   const auto& vctx = context(index);
+  VkPhysicalDeviceProperties phy_prop;
+  vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+
   switch (kind) {
     case kMaxThreadsPerBlock: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
       *rv = value;
       break;
     }
     case kMaxSharedMemoryPerBlock: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t value = phy_prop.limits.maxComputeSharedMemorySize;
       *rv = value;
       break;
     }
     case kWarpSize: {
-      *rv = 1;
+      VkPhysicalDeviceSubgroupProperties subgroup_prop;
+      subgroup_prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+      subgroup_prop.pNext = NULL;
+
+      VkPhysicalDeviceProperties2 phy_prop2;
+      phy_prop2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+      phy_prop2.pNext = &subgroup_prop;
+
+      vkGetPhysicalDeviceProperties2(vctx.phy_device, &phy_prop2);
+      int64_t subgroup_size = subgroup_prop.subgroupSize;
+      ICHECK(subgroup_size >= 1);
+
+      *rv = subgroup_size;
       break;
     }
     case kComputeVersion: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t value = phy_prop.apiVersion;
       std::ostringstream os;
       os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
@@ -405,8 +414,6 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
     case kExist:
       break;
     case kMaxThreadDimensions: {
-      VkPhysicalDeviceProperties phy_prop;
-      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
       int64_t dims[3];
       dims[0] = phy_prop.limits.maxComputeWorkGroupSize[0];
       dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
