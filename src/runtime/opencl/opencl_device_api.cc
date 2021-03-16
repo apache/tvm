@@ -121,6 +121,10 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, size_t size, size_t alignm
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
+  if (size == 0) {
+    // opencl malloc API can't handle an empty tensor, so we skip it
+    return nullptr;
+  }
   cl_mem mptr = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
@@ -141,6 +145,10 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
                                      TVMStreamHandle stream) {
   this->Init();
   ICHECK(stream == nullptr);
+  if (size == 0) {
+    // don't do anything for empty buffers
+    return;
+  }
   if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(ctx_to),
                                     static_cast<cl_mem>((void*)from),  // NOLINT(*)
