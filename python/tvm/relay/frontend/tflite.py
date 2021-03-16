@@ -3093,7 +3093,7 @@ class OperatorConverter(object):
         valid_count = ret[0]
         # keep only the top 'max_detections' rows
         ret = _op.strided_slice(
-            ret[1], [0, 0, 0], [batch_size, custom_options["max_detections"], anchor_boxes]
+            ret[1], [0, 0, 0], [batch_size, custom_options["max_detections"], 6]
         )
         # the output needs some reshaping to match tflite
         ret = _op.split(ret, 6, axis=2)
