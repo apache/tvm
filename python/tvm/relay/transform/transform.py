@@ -810,6 +810,10 @@ def FirstOrderAD():
     return _ffi_api.FirstOrderAD()
 
 
+def ConcretizeLike():
+    return _ffi_api.ConcretizeLike()
+
+
 def Defunctionalization(func, mod):
     """
     Performs defunctionalization on func,
