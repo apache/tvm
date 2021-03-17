@@ -47,6 +47,7 @@
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
 #include "../src/runtime/object.cc"
+#include "../src/runtime/profiling.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
 #include "../src/runtime/rpc/rpc_endpoint.cc"
