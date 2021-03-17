@@ -18,8 +18,21 @@
  */
 
 /*!
- * \file deivce_annotation.cc
- * \brief
+ * \file annotate_texture_storage.cc
+ * \brief Collection of target specific relay passes which
+ * storage scope related information.
+ *
+ *  - CollectStorageInfo returns a mapping from relay expr
+ *    to a list of output storage scopes for each output.
+ *    These scopes are used during memory planning as well
+ *    as downstream when doing codegen (see CollectBufferBinds)
+ *    and in the graph runtime when doing runtime dataspace
+ *    allocations.
+ *
+ *  - CollectBufferBinds returns an array of tir::Buffer given
+ *    the storage info yielded from CollectStogrageInfo. These
+ *    buffers are bound to tensors created by the compile engine
+ *    and are used as binds when calling tvm::lower/build.
  *
  */
 
