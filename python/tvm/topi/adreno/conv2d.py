@@ -258,7 +258,6 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
     ryo, ryi = cfg["tile_ry"].apply(s, OL, ry)
     rxo, rxi = cfg["tile_rx"].apply(s, OL, rx)
 
-    # TODO(csullivan): check position of rcb
     s[OL].reorder(rco, ryo, rxo, rci, ryi, rxi, rcb, n, fc, y, x, fb)
     s[OL].vectorize(fb)
     s[OL].unroll(rcb)
