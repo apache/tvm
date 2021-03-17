@@ -31,6 +31,9 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Rebuild cython
 make cython3
 
+# Only run GPU enabled tests on GPU
+export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
+
 echo "Running relay MXNet frontend test..."
 TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-mxnet tests/python/frontend/mxnet
 
