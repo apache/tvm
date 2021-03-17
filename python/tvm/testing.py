@@ -525,7 +525,9 @@ def requires_cudagraph(*args):
         Function to mark
     """
     _requires_cudagraph = [
-        pytest.mark.skipif(not nvcc.have_cudagraph(), reason="CUDA Graph is not supported in this environment"),
+        pytest.mark.skipif(
+            not nvcc.have_cudagraph(),
+            reason="CUDA Graph is not supported in this environment"),
         *requires_cuda(),
     ]
     return _compose(args, _requires_cudagraph)

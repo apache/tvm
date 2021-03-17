@@ -19,7 +19,7 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_runtime
-tvm.contrib.graph_runtime.GraphModule
+
 
 def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
