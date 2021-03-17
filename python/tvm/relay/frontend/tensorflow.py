@@ -939,7 +939,7 @@ def _batch_matmul():
             shape_of_y = list_shape_of(inputs[1], ndim)
 
         # reshape n-dimensional batch matmul into 3d
-        if len(orig_shape_x) > 3:
+        if ndim > 3:
             outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
             if is_static:
                 num_outer_elts = np.prod(outer_dims)
@@ -965,7 +965,7 @@ def _batch_matmul():
         ret = get_relay_op("batch_matmul")(input_x, input_y)
 
         # reshape result back to n-dimensional
-        if len(orig_shape_x) > 3:
+        if ndim > 3:
             if is_static:
                 final_shape = list(orig_shape_x)
                 final_shape[-2] = orig_shape_x[-1] if adj_x else orig_shape_x[-2]
