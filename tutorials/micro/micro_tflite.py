@@ -177,7 +177,7 @@ mod, params = relay.frontend.from_tflite(
 # Now we create a build config for relay. turning off two options
 # and then calling relay.build which will result in a C source
 # file. When running on a simulated target, choose "host" below:
-#TARGET = tvm.target.target.micro("host")
+# TARGET = tvm.target.target.micro("host")
 
 # %%
 # Compiling for physical hardware
@@ -191,7 +191,7 @@ mod, params = relay.frontend.from_tflite(
 #  .. code-block:: python
 #
 TARGET = tvm.target.target.micro("host")
-#BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
+# BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
 BOARD = "qemu_x86"
 
 ######################################################################
