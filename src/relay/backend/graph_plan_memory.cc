@@ -45,7 +45,7 @@ struct StorageToken {
   /*! \brief The storage id */
   int64_t storage_id{-1};
   /*! \brief The storage scope */
-  std::string storage_scope;
+  std::string storage_scope{"global"};
 };
 
 class StorageAllocaBaseVisitor : public ExprVisitor {
@@ -147,17 +147,23 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
     auto expr = GetRef<Expr>(op);
     int device_type =
       node_device_map_.count(expr) ? node_device_map_[expr]->value : 0;
-    std::string storage_scope =
-      node_storage_map_.count(expr) ? std::string(node_storage_map_[expr]) : "global";
+
+    Optional<Array<String>> storage_info;
+    if (node_storage_map_.count(GetRef<Expr>(op))) {
+      storage_info = node_storage_map_[GetRef<Expr>(op)];
+    }
 
     if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
-      for (Type t : tuple_type->fields) {
-        const auto* ttype = t.as<TensorTypeNode>();
+      if (storage_info.defined()) { ICHECK_EQ(tuple_type->fields.size(), storage_info.value().size()); }
+      for (size_t i = 0; i < tuple_type->fields.size(); i++) {
+        const auto* ttype = tuple_type->fields[i].as<TensorTypeNode>();
         ICHECK(ttype);
         StorageToken* token = arena_->make<StorageToken>();
         token->ttype = ttype;
         token->device_type = device_type;
-        token->storage_scope = storage_scope;
+        if (storage_info.defined()) {
+          token->storage_scope = storage_info.value()[i];
+        }
         tokens.push_back(token);
       }
     } else {
@@ -166,7 +172,9 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
       StorageToken* token = arena_->make<StorageToken>();
       token->ttype = ttype;
       token->device_type = device_type;
-      token->storage_scope = storage_scope;
+      if (storage_info.defined()) {
+        token->storage_scope = storage_info.value()[0];
+      }
       tokens.push_back(token);
     }
     token_map_[op] = tokens;
@@ -187,7 +195,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
   // allocator
   support::Arena* arena_;
   Map<Expr, Integer> node_device_map_;
-  Map<Expr, String> node_storage_map_;
+  Map<Expr, Array<String>> node_storage_map_;
 };
 
 class StorageAllocator : public StorageAllocaBaseVisitor {
