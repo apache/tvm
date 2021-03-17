@@ -20,7 +20,7 @@ from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.contrib.debugger import debug_runtime
-from tvm.contrib.cu_graph import cugraph_runtime
+from tvm.contrib.cuda_graph import cuda_graph_runtime
 import tvm.testing
 
 
@@ -561,7 +561,7 @@ def test_cuda_graph_runtime():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # cuda graph runtime wrapper
-    cu_gmod = cugraph_runtime.GraphModuleCuGraph(gmod)
+    cu_gmod = cuda_graph_runtime.GraphModuleCudaGraph(gmod)
     cu_gmod.set_input("data", data)
     cu_gmod.run()
     out = cu_gmod.get_output(0).asnumpy()
