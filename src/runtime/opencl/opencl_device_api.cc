@@ -257,6 +257,9 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
       size_t origin[3], region[3];
       size_t row_pitch, slice_pitch;
       std::tie(row_pitch, slice_pitch) = GetImageInfo(from, origin, region);
+      // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
+      // Note that when utilizing texture pools for memory reuse, the allocated image
+      // size can be larger than the size to be read.
       OPENCL_CALL(clEnqueueReadImage(this->GetQueue(ctx_from),
                                      static_cast<cl_mem>((void*)from),  // NOLINT(*)
                                      CL_FALSE, origin, region, row_pitch, slice_pitch,
