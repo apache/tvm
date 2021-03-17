@@ -258,9 +258,14 @@ def test_target_set_host():
     tgt.set_host(llvm)
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
-    cuda_host = tvm.target.Target("cuda")
+    cuda_host = tvm.target.Target("nvidia/jetson-nano")
     tgt.set_host(cuda_host)
     assert tgt.host.kind.name == "cuda"
+    assert tgt.host.attrs["arch"] == "sm_53"
+    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_threads_per_block"] == 1024
+    assert tgt.host.attrs["thread_warp_size"] == 32
+    assert tgt.host.attrs["registers_per_block"] == 32768
 
 
 if __name__ == "__main__":
