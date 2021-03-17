@@ -53,7 +53,6 @@
 #include "../src/runtime/rpc/rpc_endpoint.cc"
 #include "../src/runtime/rpc/rpc_event_impl.cc"
 #include "../src/runtime/rpc/rpc_local_session.cc"
-#include "../src/runtime/profiling.cc"
 #include "../src/runtime/rpc/rpc_module.cc"
 #include "../src/runtime/rpc/rpc_server_env.cc"
 #include "../src/runtime/rpc/rpc_session.cc"
