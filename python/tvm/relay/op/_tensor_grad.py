@@ -596,12 +596,6 @@ def cast_grad(orig, grad):
     return [cast_like(grad, x)]
 
 
-@register_gradient("cast_like")
-def cast_like_grad(orig, grad):
-    data, dtype_like = orig.args
-    return [cast_like(grad, data), zeros_like(dtype_like)]
-
-
 @register_gradient("nn.batch_flatten")
 def batch_flatten_grad(orig, grad):
     """Returns grad reshaped to data dims"""
@@ -872,11 +866,3 @@ def less_equal_grad(orig, grad):
     Returns the gradient of less_equal.
     """
     return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
-
-
-@register_gradient("split")
-def split_grad(orig, grad):
-    """
-    Returns the gradient of split, which is the concatenation of the downstream gradients.
-    """
-    return [concatenate(grad, orig.attrs.axis)]

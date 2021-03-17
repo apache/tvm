@@ -1096,13 +1096,13 @@ def concatenate(data, axis):
     result: relay.Expr
         The concatenated tensor.
     """
-    if not isinstance(data, Expr):
-        data = Tuple(list(data))
+    data = list(data)
+
     if not data:
         raise ValueError("relay.concatenate requires data to be non-empty.")
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
-    return _make.concatenate(data, axis)
+    return _make.concatenate(Tuple(data), axis)
 
 
 def stack(data, axis):

@@ -380,12 +380,11 @@ class GraphExecutor(_interpreter.Executor):
         The target option to build the function.
     """
 
-    def __init__(self, mod, ctx, target, debug=False):
+    def __init__(self, mod, ctx, target):
         assert mod is not None
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        self.debug = debug
 
     def _make_executor(self, expr=None):
         if expr:
@@ -395,12 +394,7 @@ class GraphExecutor(_interpreter.Executor):
         if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
         mod = build(self.mod, target=self.target)
-        if self.debug:
-            from ..contrib.debugger import debug_runtime
-
-            gmodule = debug_runtime.create(mod.get_json(), mod.lib, self.ctx)
-        else:
-            gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
+        gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
 
         def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
@@ -479,8 +473,6 @@ def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    if kind == "graph_debug":
-        return GraphExecutor(mod, ctx, target, debug=True)
     if kind == "vm":
         return VMExecutor(mod, ctx, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))
