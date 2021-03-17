@@ -35,6 +35,7 @@
 
 namespace tvm {
 namespace relay {
+namespace {
 
 class StorageInfo : private ExprVisitor{
  public:
@@ -231,7 +232,7 @@ class StorageInfo : private ExprVisitor{
   /*! \brief device id to target mapping  */
   Map<Integer, Target> targets_;
   /*! \brief Temporary state for marking whether a visited function
-             primitive supports texture storage scope */
+   *         primitive supports texture storage scope */
   bool primitive_supports_texture_ = false;
   /*! \brief expr storage scope mapping for each output  */
   std::unordered_map<const ExprNode*, std::vector<std::string>> storage_scope_;
@@ -239,7 +240,6 @@ class StorageInfo : private ExprVisitor{
   std::unordered_map<const ExprNode*, std::vector<std::string>> consumer_storage_scopes_;
 };
 
-namespace {
 String GetStorageScope(const Expr& expr, const Map<Expr, runtime::ADT>& storage_map, size_t output_index) {
   if (!storage_map.count(expr)) { return String{}; }
   auto storage_info = Downcast<Array<String>>(storage_map[expr][2]);
