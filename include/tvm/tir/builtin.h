@@ -603,17 +603,17 @@ TVM_DLL const Op& atomic_add();
 /*!
  * \brief Create a texture 2d memory allocation
  */
-TVM_DLL const Op& text2d_alloca();
+TVM_DLL const Op& texture2d_alloca();
 
 /*!
- * \brief Store to a texture 2d memory
+ * \brief Store to texture 2d memory
  */
-TVM_DLL const Op& text2d_store();
+TVM_DLL const Op& texture2d_store();
 
 /*!
- * \brief Load from a texture 2d memory
+ * \brief Load from texture 2d memory
  */
-TVM_DLL const Op& text2d_load();
+TVM_DLL const Op& texture2d_load();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

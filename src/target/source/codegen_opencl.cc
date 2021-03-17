@@ -56,10 +56,9 @@ public:
     return storage_scope_qualifiers;
   }
   void VisitExpr_(const CallNode* op) {
-    if (op->op.same_as(builtin::text2d_load())) {
+    if (op->op.same_as(builtin::texture2d_load())) {
       var_access_map_[op->args[0].as<VarNode>()] |= read_access;
-    }
-    else if (op->op.same_as(builtin::text2d_store())) {
+    } else if (op->op.same_as(builtin::texture2d_store())) {
       var_access_map_[op->args[0].as<VarNode>()] |= write_access;
     } else {
       StmtExprVisitor::VisitExpr_(op);
@@ -304,7 +303,7 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 
 void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
   if (auto call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::text2d_load())) {
+    if (call->op.same_as(builtin::texture2d_load())) {
       need_texture_ssa_ = false;
       // If storing a texture load into a buffer, don't use an
       // intermediate local unless the buffer allocation is a
@@ -322,7 +321,7 @@ void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
 
 void CodeGenOpenCL::VisitExpr_(const CastNode* op, std::ostream& os) {
   if (auto call = op->value.as<CallNode>()) {
-    if (call->op.same_as(builtin::text2d_load())) {
+    if (call->op.same_as(builtin::texture2d_load())) {
       need_texture_ssa_ = false;
     }
   }
@@ -349,9 +348,10 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
     this->PrintExpr(load->index, os);
     os << ')';
-  } else if (op->op.same_as(builtin::text2d_store())) {
-    auto* texture_type  = op->args[0].as<VarNode>()->type_annotation.as<TextureTypeNode>();
-    ICHECK(texture_type != nullptr) << "builtin::text2d_store() only supports storing to texture buffers";
+  } else if (op->op.same_as(builtin::texture2d_store())) {
+    auto* texture_type = op->args[0].as<VarNode>()->type_annotation.as<TextureTypeNode>();
+    ICHECK(texture_type != nullptr)
+        << "builtin::texture2d_store() only supports storing to texture buffers";
     DataType buffer_type = texture_type->element_type.as<PrimTypeNode>()->dtype;
     if (buffer_type.is_float16()) {
       os << "write_imageh(";
@@ -371,7 +371,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << "), ";
     this->PrintExpr(op->args[3], os);
     os << ")";
-  } else if (op->op.same_as(builtin::text2d_load())) {
+  } else if (op->op.same_as(builtin::texture2d_load())) {
     std::stringstream ss;
     if (op->dtype.is_float16()) {
       ss << "read_imageh(";

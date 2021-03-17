@@ -145,7 +145,7 @@ class TextureFlattener : public TextureLoweringBase {
       size_t axis = DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
       auto texture = ApplyTexture2DFlattening<PrimExpr>(Shape{op->bounds}, op->bounds.size(), axis);
       Array<PrimExpr> args = {texture.width, texture.height};
-      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
+      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
     }
 
     return stmt;
@@ -159,7 +159,7 @@ class TextureFlattener : public TextureLoweringBase {
     if (IsTextureStorage(storage_scope)) {
       Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-      stmt = Evaluate(Call(args[0]->dtype, builtin::text2d_store(), args));
+      stmt = Evaluate(Call(args[0]->dtype, builtin::texture2d_store(), args));
     }
 
     return stmt;
@@ -178,7 +178,7 @@ class TextureFlattener : public TextureLoweringBase {
     if (IsTextureStorage(storage_scope)) {
       Array<PrimExpr> args = GetTextureAccessArgs(op, buffer);
       args.push_back(op->indices.back());
-      expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
+      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args);
     }
 
     return expr;

@@ -100,7 +100,7 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const LetStmtNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::text2d_alloca())) {
+      if (call->op.same_as(builtin::texture2d_alloca())) {
         return StmtExprMutator::VisitStmt(MakeTextureAlloc(op, call));
       }
     }
