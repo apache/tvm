@@ -171,9 +171,15 @@ Array<tir::Buffer> CollectBufferBinds(const Call& call, const Map<Expr, runtime:
   ICHECK_EQ(call->args.size(), primfn->params.size()) << "Call arguments and function parameters do not match";
 
   auto make_buffer = [&storage_map](const Expr& expr, const TensorTypeNode* ttype, const std::string& name, size_t index = 0) {
-    String scope = GetStorageScope(expr, storage_map, index);
+    //String scope = GetStorageScope(expr, storage_map, index);
+    auto storage_info = Downcast<Array<String>>(storage_map[expr][2]);
+    std::string scope = "";
+    if (storage_info.size()) {
+      scope = storage_info[index];
+    }
+
     PrimType storage_type(ttype->dtype);
-    tir::Var var = scope == "texture" ? tir::Var(name, TextureType(storage_type)) : tir::Var(name, PointerType(storage_type));
+    tir::Var var = GetStorageScope(expr, storage_map, index) == "texture" ? tir::Var(name, TextureType(storage_type)) : tir::Var(name, PointerType(storage_type));
     return tir::Buffer(var, ttype->dtype, ttype->shape, Array<PrimExpr>{}, Integer(0), name, scope, -1, 0, tir::BufferType::kDefault);
   };
 
