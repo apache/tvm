@@ -99,23 +99,18 @@ class StorageInfo {
         if (fn->HasNonzeroAttr(attr::kPrimitive)) {
           primitive_supports_texture_ = false;
           Visit(call->op);
-          if (primitive_supports_texture_)
-          {
+          if (primitive_supports_texture_) {
             storage_scope_[call] = "texture";
           }
-          else
-          {
-            storage_scope_[call] = "global";
-          }
           for (auto& arg : call->args) {
-            consumer_storage_scopes_[arg.get()].push_back(storage_scope_[call]);
+            std::string scope = storage_scope_.count(call) ? storage_scope_[call] : "global";
+            consumer_storage_scopes_[arg.get()].push_back(scope);
           }
         }
       }
 
       if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
-        if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o")
-        {
+        if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
           primitive_supports_texture_ = true;
         }
       }
