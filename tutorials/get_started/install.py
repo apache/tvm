@@ -23,9 +23,19 @@ Installing TVM
 
 Depending on your needs and your working environment, there are a few different
 methods for installing TVM. These include:
+    * Installing from source (recommended)
     * Installing from the TLCPack Conda and Pip Packages
-    * Installing from source
 """
+
+################################################################################
+# Installing from Source
+# ----------------------
+# Installing from source is the recommended method for installing TVM. It will
+# allow you to enable specific features such as GPU support, microcontroller
+# support (uTVM), and a debugging runtime, and other features. You will also
+# want to install from source if you want to actively contribute to the TVM
+# project. The full instructions are on the `Install TVM From Source
+# </install/from_source.html>`_ page.
 
 ################################################################################
 # Installing from TLC Pack
@@ -35,16 +45,6 @@ methods for installing TVM. These include:
 # distributed by them may include non-free hardware drivers. You can lean more
 # about TLCPack at their `website <https://tlcpack.ai>`_. TLCPack offers a
 # support matrix with instructions for how to install TVM on different
-# platforms, with different features. If installing with pip or conda through
-# TLCPack, we recommend to use one of the nightly builds, as they contain the
-# latest version of `tvmc`. Some platforms and configurations are not
-# available.  If your environment isn't supported, you can install TVM from
-# source.
-
-################################################################################
-# Installing from Source
-# ----------------------
-# If you need to enable custom features for TVM, want to active contribute to
-# development or are on a platform that isn't supported by TLCPack, you can
-# install TVM from source.  The full instructions are on the `Install TVM From
-# Source </install/from_source.html>`_ page.
+# platforms, with different features. You can choose between the latest stable
+# or nightly builds. If your environment isn't supported by TLCPack, you will
+# need to install from source.
