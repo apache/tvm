@@ -159,9 +159,10 @@ def batch_matmul_cublas(cfg, x, y, out_shape=None):
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    b, m, k = x.shape
-    b, n, k = y.shape
-    cfg.add_flop(b * m * k * n * 2)
+    b, m, k = get_const_tuple(x.shape)
+    b, n, k = get_const_tuple(y.shape)
+    if all([isinstance(s, int) for s in [b, m, n, k]]):
+        cfg.add_flop(b * m * k * n * 2)
     return cublas.batch_matmul(x, y, False, True)
 
 
