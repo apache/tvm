@@ -439,10 +439,9 @@ Map<String, ObjectRef> TargetNode::Export() const {
   if (this->host.defined()) {
     result.Set("host", this->GetHost().value_or(Target())->Export());
   }
-  for (const auto& kv : attrs)
-    if (kv.first != "host") {
-      result.Set(kv.first, kv.second);
-    }
+  for (const auto& kv : attrs) {
+    result.Set(kv.first, kv.second);
+  }
   return result;
 }
 
@@ -645,6 +644,13 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     target->keys = DeduplicateKeys(keys);
     config.erase(kKeys);
   }
+  // parse host
+  if (config.count(kHost)) {
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    config.erase(kHost);
+  } else {
+    target->host = NullOpt;
+  }
   // parse attrs
   std::unordered_map<String, ObjectRef> attrs;
   for (const auto& cfg_kv : config) {
@@ -656,13 +662,6 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     } catch (const dmlc::Error& e) {
       throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
-  }
-  // parse host
-  if (config.count(kHost)) {
-    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
-    config.erase(kHost);
-  } else {
-    target->host = NullOpt;
   }
   // set default attribute values if they do not exist
   for (const auto& kv : target->kind->key2default_) {
