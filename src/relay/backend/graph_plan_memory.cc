@@ -26,11 +26,16 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/tir/op.h>
+#include <tvm/target/target.h>
 
 #include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
+
+using TargetsMap = Map<Integer, Target>;
+using Texture2DShape = runtime::Texture2DShape<int64_t>;
+constexpr auto Is2DStorage = runtime::IsTextureStorage;
 
 struct StorageToken {
   /*! \brief Reference counter */
@@ -125,15 +130,48 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   virtual void CreateToken(const ExprNode* op, bool can_realloc) = 0;
 };
 
+/*!
+ * \brief Collect the target specific tensor storage info for each expression's output.
+ * \param expr The expression.
+ * \param expr The device id map which can be used to infer device specific storage scope availability.
+ * \param expr The target mapping from device id to target.
+ * \return The device based storage mapping.
+ */
+Map<Expr, Array<String>> CollectStorageInfo(const Expr& expr, const Map<Expr, Integer>& dev_map, const TargetsMap& target_map) {
+  auto less = [](Integer i, Integer j) {
+    auto i_imm = i.as<tir::IntImmNode>();
+    auto j_imm = j.as<tir::IntImmNode>();
+    ICHECK(i_imm && j_imm);
+    return i_imm->value < j_imm->value;
+  };
+  std::set<Integer, decltype(less)> device_types(less);
+  for (auto& kv : target_map) {
+    device_types.insert(kv.first);
+  }
+  std::string ftarget_prefix = "relay.backend";
+  for (auto& dev_id : device_types) {
+    Target target = target_map[dev_id];
+    ftarget_prefix += ("." + target->kind->name);
+    if (Optional<String> t_device = target->GetAttr<String>("device")) {
+      ftarget_prefix += ("." + t_device.value());
+    }
+  }
+  Map<Expr, Array<String>> storage_info = {};
+  if (const auto* f = runtime::Registry::Get(ftarget_prefix + "._CollectStorageInfo")) {
+    storage_info = (*f)(expr, dev_map, target_map);
+  }
+  return storage_info;
+}
+
 class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  public:
   explicit StorageAllocaInit(support::Arena* arena) : arena_(arena) {}
 
   /*! \return The internal token map */
   std::unordered_map<const ExprNode*, std::vector<StorageToken*> > GetInitTokenMap(
-      const Function& func) {
+      const Function& func, const TargetsMap& targets) {
     node_device_map_ = CollectDeviceInfo(func);
-    node_storage_map_ = CollectStorageInfo(func);
+    node_storage_map_ = CollectStorageInfo(func, node_device_map_, targets);
     this->Run(func);
     return std::move(token_map_);
   }
@@ -212,8 +250,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   }
 
   // Run storage allocation for a function.
-  Map<Expr, runtime::ADT> Plan(const Function& func) {
-    prototype_ = StorageAllocaInit(&arena_).GetInitTokenMap(func);
+  Map<Expr, runtime::ADT> Plan(const Function& func, const TargetsMap& targets) {
+    prototype_ = StorageAllocaInit(&arena_).GetInitTokenMap(func, targets);
     this->Run(func);
 
     // The value of smap contains two integer arrays where the first array
@@ -395,8 +433,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   std::unordered_map<const ExprNode*, std::vector<StorageToken*> > prototype_;
 };
 
-Map<Expr, runtime::ADT> GraphPlanMemory(const Function& func) {
-  return StorageAllocator().Plan(func);
+Map<Expr, runtime::ADT> GraphPlanMemory(const Function& func, const TargetsMap& targets) {
+  return StorageAllocator().Plan(func, targets);
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.GraphPlanMemory").set_body_typed(GraphPlanMemory);

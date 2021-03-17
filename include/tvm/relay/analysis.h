@@ -221,15 +221,6 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const IRModule& mod);
 TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 
 /*!
- * \brief Collect the output storage information of each expression.
- *
- * \param expr The expression.
- *
- * \return The device mapping.
- */
-Map<Expr, Array<String>> CollectStorageInfo(const Expr& expr);
-
-/*!
  * \brief Collect the device anntation operators.
  *
  * \param expr The expression.

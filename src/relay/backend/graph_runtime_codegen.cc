@@ -191,7 +191,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
 
   LoweredOutput Codegen(relay::Function func) {
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
-    storage_device_map_ = (*pf)(func);
+    storage_device_map_ = (*pf)(func, targets_);
     // First we convert all the parameters into input nodes.
     for (auto param : func->params) {
       auto node_ptr = GraphInputNode::make_node_ptr(param->name_hint(), GraphAttrs());
