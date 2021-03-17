@@ -42,8 +42,16 @@ class StorageInfo {
     StorageInfo storage_info;
     storage_info.pre_visitor_ = PreDfsOrderVisitor();
     storage_info.pre_visitor_.Visit(expr);
-    // TODO(csullivan): A unit test for legalization
     storage_info.pre_visitor_.LegalizeProducerStorage();
+    // TODO(csullivan): The below cann be removed if either of the following are true:
+    //   * Function outputs are persistent (can_realloc = False)
+    //   * Runtime support is added for passing tensor shape through CopyFromTo API
+    //     so that image pitch can be determined allowing the correct read to be
+    //     enqueued from a texture pool.
+    // For now we force write to global for the outputs of the function over which
+    // memory planning will be performed. This should incur only a trivial change
+    // in performance.
+    storage_info.pre_visitor_.ForceGlobalOutputStorage(expr);
     Map<Expr, Array<String>> storage_map;
     for (auto& kv : storage_info.pre_visitor_.storage_scope_) {
       std::vector<String> storage_scopes;
@@ -70,7 +78,7 @@ class StorageInfo {
    private:
     std::string GetConsumerScope(const std::vector<std::string>& consumer_scopes) const {
       if (!consumer_scopes.size()) { return "global"; }
-      std::string ref_scope = consumer_scopes.front();
+      std::string ref_scope = consumer_scopes[0];
       for (auto& consumer_scope : consumer_scopes) {
         if (consumer_scope != ref_scope) {
           return "global";
@@ -81,7 +89,7 @@ class StorageInfo {
 
     bool HasMixedStorageOutputs(const ExprNode* expr) {
       if (storage_scope_.count(expr)) {
-        std::string ref_scope = storage_scope_[expr].front();
+        std::string ref_scope = storage_scope_[expr][0];
         for (std::string& scope : storage_scope_[expr]) {
           if (scope != ref_scope) {
             return true;
@@ -163,10 +171,31 @@ class StorageInfo {
         std::string legal_scope = GetConsumerScope(kv.second);
         if (storage_scope_.count(producer)) {
           ICHECK(!HasMixedStorageOutputs(producer)) << "Mixed output storage scopes are not currently supported";
-          if (storage_scope_[producer].front().find(legal_scope) == std::string::npos) {
+          if (storage_scope_[producer][0].find(legal_scope) == std::string::npos) {
             for (size_t i = 0; i < storage_scope_[producer].size(); i++) {
               // Only support uniform storage scope accross all outputs for now
               storage_scope_[producer][i] = legal_scope;
+            }
+          }
+        }
+      }
+    }
+
+    void ForceGlobalOutputStorage(const Expr& expr) {
+      // Mark function outputs as global scope
+      if (const auto* func = expr.as<FunctionNode>()) {
+        if (auto* tuple = func->body.as<TupleNode>()) {
+          for (auto& field : tuple->fields) {
+            if (storage_scope_.count(field.operator->())) {
+              for (size_t i = 0; i < storage_scope_[field.operator->()].size(); i++) {
+                storage_scope_[field.operator->()][i] = "global";
+              }
+            }
+          }
+        } else {
+          if (storage_scope_.count(func->body.operator->())) {
+            for (size_t i = 0; i < storage_scope_[func->body.operator->()].size(); i++) {
+              storage_scope_[func->body.operator->()][i] = "global";
             }
           }
         }
