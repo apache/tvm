@@ -358,6 +358,9 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
     else if (buffer_type.is_float()) {
       os << "write_imagef(";
+    } else {
+      LOG(FATAL) << "Unsupported type: " << buffer_type
+                 << ", currently only float and half are supported for image2d OpenCL codegen.";
     }
     this->PrintExpr(op->args[0], os);
     os << ", ";
@@ -375,6 +378,9 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
     else if (op->dtype.is_float()) {
       ss << "read_imagef(";
+    } else {
+      LOG(FATAL) << "Unsupported type: " << op->dtype
+                 << ", currently only float and half are supported for image2d OpenCL codegen.";
     }
     this->PrintExpr(op->args[0], ss);
     ss << ", ";
