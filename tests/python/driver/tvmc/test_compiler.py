@@ -24,8 +24,8 @@ import pytest
 
 import tvm
 
-from tvm.contrib.target.vitis_ai_utils import vitis_ai_available
 from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.contrib.target.vitis_ai import vitis_ai_available
 
 from tvm.driver import tvmc
 

@@ -19,11 +19,14 @@ Provides support to composite target on TVMC.
 """
 import logging
 
+# Make sure Vitis AI codegen is registered
+import tvm.contrib.target.vitis_ai  # pylint: disable=unused-import
+
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
 from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
-from tvm.contrib.target.vitis_ai_utils import init_for_vitis_ai
+
 
 from .common import TVMCException
 
@@ -41,9 +44,6 @@ logger = logging.getLogger("TVMC")
 # pass_pipeline : Callable
 #   A function to transform a Module before compilation, mainly used
 #   for partitioning for the target currently.
-# init : Callable (optional)
-#   A function for doing initialization for the target codegen. Will be
-#   called when the target info gets retrieved
 REGISTERED_CODEGEN = {
     "compute-library": {
         "config_key": None,
@@ -59,7 +59,6 @@ REGISTERED_CODEGEN = {
     },
     "vitis-ai": {
         "config_key": "relay.ext.vitis_ai.options",
-        "init": init_for_vitis_ai,
         "pass_pipeline": partition_for_vitis_ai,
     },
 }
@@ -76,17 +75,13 @@ def get_codegen_names():
     return list(REGISTERED_CODEGEN.keys())
 
 
-def get_codegen_by_target(name, call_init_function=True):
+def get_codegen_by_target(name):
     """Return a codegen entry by name.
 
     Parameters
     ----------
     name : str
         The name of the target for which the codegen info should be retrieved.
-    call_init_function : bool
-        Whether to call the initialization function before returning the codegen
-        info. This is used in tests to avoid calling into initialization functions
-        that might fail if packages are not installed.
 
     Returns
     -------
@@ -94,9 +89,6 @@ def get_codegen_by_target(name, call_init_function=True):
         requested target codegen information
     """
     try:
-        target_info = REGISTERED_CODEGEN[name]
-        if call_init_function and "init" in target_info:
-            target_info["init"]()
-        return target_info
+        return REGISTERED_CODEGEN[name]
     except KeyError:
         raise TVMCException("Composite target %s is not defined in TVMC." % name)
