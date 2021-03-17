@@ -407,8 +407,18 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       }
       target = targets_[call_dev_type];
     }
+
+    Array<tir::Buffer> buffers;
+    std::string fbuffer_prefix = "relay.backend." + target->kind->name;
+    if (Optional<String> t_device = target->GetAttr<String>("device")) {
+      fbuffer_prefix += ("." + t_device.value());
+    }
+    if (const auto* f = runtime::Registry::Get(fbuffer_prefix + "._CollectBufferBinds")) {
+      buffers = (*f)(GetRef<Call>(op), storage_device_map_);
+    }
+
     CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key);
+    CachedFunc lowered_func = (*pf1)(compile_engine_, key, buffers);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
