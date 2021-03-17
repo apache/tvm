@@ -48,6 +48,8 @@ void IRBuilder::InitHeader() {
   header_.push_back(0U);
   // shader
   ib_.Begin(spv::OpCapability).Add(spv::CapabilityShader).Commit(&header_);
+  // Declare int64 capability by default
+  ib_.Begin(spv::OpCapability).Add(spv::CapabilityInt64).Commit(&header_);
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
