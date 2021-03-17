@@ -99,6 +99,9 @@ set(USE_STACKVM_RUNTIME OFF)
 # Whether enable tiny embedded graph runtime.
 set(USE_GRAPH_RUNTIME ON)
 
+# Whether enable tiny graph runtime with CUDA Graph
+set(USE_GRAPH_RUNTIME_CUDA_GRAPH OFF)
+
 # Whether to enable the profiler for the graph runtime and vm
 set(USE_PROFILER ON)
 
