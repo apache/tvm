@@ -62,10 +62,9 @@ import numpy as np
 import tvm.relay as relay
 import tvm
 from tvm.contrib import graph_runtime
-import timeit
 
 ################################################################################
-# Downloading  and Loading  the ONNX Model
+# Downloading and Loading the ONNX Model
 # ---------------------------------------------
 #
 # For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a
@@ -100,8 +99,7 @@ onnx_model = onnx.load(model_path)
 # Each model is particular when it comes to expected tensor shapes, formats and
 # data types. For this reason, most models require some pre and
 # post-processing, to ensure the input is valid and to interpret the output.
-# TVMC has adopted NumPy's ``.npz`` format for both input and output data. This
-# is a well-supported NumPy format to serialize multiple arrays into a file
+# TVMC has adopted NumPy's ``.npz`` format for both input and output data.
 #
 # As input for this tutorial, we will use the image of a cat, but you can feel
 # free to substitute image for any of your choosing.
@@ -196,6 +194,7 @@ tvm_output = module.get_output(0, tvm.nd.empty(output_shape)).asnumpy()
 # CPU noise, we run the computation in multiple batches in multiple
 # repetitions, then gather some basis statistics on the mean, median, and
 # standard deviation.
+import timeit
 
 timing_number = 10
 timing_repeat = 10
@@ -318,9 +317,10 @@ tuning_option = {
 # .. note:: Setting Tuning Parameters
 #
 #   In this example, in the interest of time, we set the number of trials and
-#   early stopping to 100. You will likely see more performacne improvements if
-#   you set these values to be higher, like 1000, but this comes at the expense
-#   of time spent tuning.
+#   early stopping to 100. You will likely see more performance improvements if
+#   you set these values to be higher but this comes at the expense of time
+#   spent tuning. The number of trials required for convergence will vary
+#   depending on the specifics of the model and the target platform.resnet-50-v2-autotuning.jsonsutotun
 
 # Identify the tasks that can be tuned, and iterate through them
 for i, task in enumerate(tasks):
@@ -372,7 +372,7 @@ for i, task in enumerate(tasks):
 # ----------------------------------------------
 #
 # As an output of the tuning process above, we obtained the tuning records
-# stored in ``autotuner_records.json``. The compiler will use the results to
+# stored in ``resnet-50-v2-autotuning.json``. The compiler will use the results to
 # generate high performance code for the model on your specified target.
 #
 # Now that tuning data for the model has been collected, we can re-compile the
@@ -418,6 +418,7 @@ for rank in ranks[0:5]:
 # hardware, number of iterations, and other factors, you should see a performance
 # improvement in comparing the optimized model to the unoptimized model.
 
+import timeit
 timing_number = 10
 timing_repeat = 10
 optimized = (
