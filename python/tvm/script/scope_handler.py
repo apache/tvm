@@ -84,7 +84,7 @@ class WithScopeHandler(ScopeHandler):
         """Get list of names from ast.With's optional_vars"""
         assert isinstance(
             node, ast.With
-        ), f"WithScopeHandler expected to work on ast.With but got {type(node)}"
+        ), f"WithScopeHandler expected ast.With but got {type(node)}"
 
         if isinstance(node.lhs, list):
             for var in node.lhs:
