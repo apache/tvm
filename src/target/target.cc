@@ -450,9 +450,7 @@ Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
 }
 
-void TargetNode::SetHost(Target host) {
-  this->host = host;
-}
+void TargetNode::SetHost(Target host) { this->host = host; }
 
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
