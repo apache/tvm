@@ -358,7 +358,6 @@ def have_cudagraph():
             return False
         return True
     except RuntimeError:
-        warnings.warn("Cannot find cuda path")
         return False
 
 
