@@ -1457,7 +1457,7 @@ def verify_argreduce(input_dim, op_name, axis=None, keepdims=None):
     verify_with_ort_with_inputs(model, [a_np1])
 
 
-#TODO (mbrookhart, electriclilies) Fix argmin on GPU and enable this test
+# TODO (mbrookhart, electriclilies) Fix argmin on GPU and enable this test
 # @tvm.testing.uses_gpu
 def test_forward_arg_min_max():
     """Verify argmin and argmax"""
