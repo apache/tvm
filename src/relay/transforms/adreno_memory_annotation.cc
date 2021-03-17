@@ -36,14 +36,17 @@
 namespace tvm {
 namespace relay {
 
-class StorageInfo {
+class StorageInfo : private ExprVisitor{
  public:
-  static Map<Expr, Array<String>> GetStorageMap(const Expr& expr) {
-    StorageInfo storage_info;
-    storage_info.pre_visitor_ = PreDfsOrderVisitor();
-    storage_info.pre_visitor_.Visit(expr);
-    storage_info.pre_visitor_.LegalizeProducerStorage();
-    // TODO(csullivan): The below cann be removed if either of the following are true:
+  StorageInfo(const Map<Expr, Integer>& dev_map, const Map<Integer, Target>& target_map)
+    : device_ids_(dev_map), targets_(target_map) {;}
+  static Map<Expr, Array<String>> GetStorageMap(const Expr& expr,
+                                                const Map<Expr, Integer>& dev_map,
+                                                const Map<Integer, Target>& target_map) {
+    StorageInfo storage_info(dev_map, target_map);
+    storage_info.Visit(expr);
+    storage_info.LegalizeProducerStorage();
+    // TODO(csullivan): The below can be removed if either of the following are true:
     //   * Function outputs are persistent (can_realloc = False)
     //   * Runtime support is added for passing tensor shape through CopyFromTo API
     //     so that image pitch can be determined allowing the correct read to be
@@ -51,9 +54,9 @@ class StorageInfo {
     // For now we force write to global for the outputs of the function over which
     // memory planning will be performed. This should incur only a trivial change
     // in performance.
-    storage_info.pre_visitor_.ForceGlobalOutputStorage(expr);
+    storage_info.ForceGlobalOutputStorage(expr);
     Map<Expr, Array<String>> storage_map;
-    for (auto& kv : storage_info.pre_visitor_.storage_scope_) {
+    for (auto& kv : storage_info.storage_scope_) {
       std::vector<String> storage_scopes;
       std::copy(kv.second.begin(), kv.second.end(), std::back_inserter(storage_scopes));
       storage_map.Set(GetRef<Expr>(kv.first), Array<String>{storage_scopes});
@@ -62,64 +65,30 @@ class StorageInfo {
   }
 
  private:
-  class PreDfsOrderVisitor : private ExprVisitor {
-   public:
-    void Visit(const Expr& expr) {
-      if (const auto* fn = expr.as<FunctionNode>()) {
-        this->VisitExpr(fn->body);
-        for (const auto& param : fn->params) {
-          this->VisitExpr(param);
-        }
-      } else {
-        this->VisitExpr(expr);
+  void Visit(const Expr& expr) {
+    // Pre-order traversal to enable upward propagation
+    // of consumer storage scopes to producers when desirable.
+    if (const auto* fn = expr.as<FunctionNode>()) {
+      this->VisitExpr(fn->body);
+      for (const auto& param : fn->params) {
+        this->VisitExpr(param);
       }
+    } else {
+      this->VisitExpr(expr);
     }
+  }
 
-   private:
-    std::string GetConsumerScope(const std::vector<std::string>& consumer_scopes) const {
-      if (!consumer_scopes.size()) { return "global"; }
-      std::string ref_scope = consumer_scopes[0];
-      for (auto& consumer_scope : consumer_scopes) {
-        if (consumer_scope != ref_scope) {
-          return "global";
-        }
-      }
-      return ref_scope;
-    }
+  void VisitExpr_(const VarNode* vn) final {
+    ApplyConsumerScopeToInputs(vn);
+  }
 
-    bool HasMixedStorageOutputs(const ExprNode* expr) {
-      if (storage_scope_.count(expr)) {
-        std::string ref_scope = storage_scope_[expr][0];
-        for (std::string& scope : storage_scope_[expr]) {
-          if (scope != ref_scope) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
+  void VisitExpr_(const ConstantNode* cn) final {
+    ApplyConsumerScopeToInputs(cn, "weight");
+  }
 
-    void ApplyConsumerScopeToInputs(const ExprNode* expr, std::string scope_suffix = "") {
-      auto consumer_scopes_it = consumer_storage_scopes_.find(expr);
-      if (consumer_scopes_it != consumer_storage_scopes_.end()) {
-        std::string consumer_scope = GetConsumerScope(consumer_scopes_it->second);
-        ICHECK(!storage_scope_.count(expr))
-          << "Already propagated consumer scopes to input: " << GetRef<Expr>(expr);
-        storage_scope_[expr].push_back(consumer_scope);
-        if (consumer_scope == "texture") {
-          if (!scope_suffix.empty()) {
-            storage_scope_[expr][0] += (":" + scope_suffix);
-          }
-        }
-      }
-    }
-
-    void VisitExpr_(const ConstantNode* cn) final {
-      ApplyConsumerScopeToInputs(cn, "weight");
-    }
-
-    void VisitExpr_(const CallNode* call) final {
-      // Check the contents of this primitive function
+  void VisitExpr_(const CallNode* call) final {
+    // Check the contents of this primitive function
+    if (IsAdrenoExpr(GetRef<Expr>(call))) {
       if (const auto* fn = call->op.as<FunctionNode>()) {
         if (fn->HasNonzeroAttr(attr::kPrimitive)) {
           primitive_supports_texture_ = false;
@@ -150,68 +119,124 @@ class StorageInfo {
           }
         }
       }
+    }
 
-      if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
-        if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
-          primitive_supports_texture_ = true;
+    if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
+      if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
+        primitive_supports_texture_ = true;
+      }
+    }
+    for (auto& arg : call->args) {
+      Visit(arg);
+    }
+  }
+
+  void ApplyConsumerScopeToInputs(const ExprNode* expr, std::string scope_suffix = "") {
+    auto consumer_scopes_it = consumer_storage_scopes_.find(expr);
+    if (consumer_scopes_it != consumer_storage_scopes_.end()) {
+      std::string consumer_scope = GetConsumerScope(consumer_scopes_it->second);
+      ICHECK(!storage_scope_.count(expr))
+        << "Already propagated consumer scopes to input: " << GetRef<Expr>(expr);
+      storage_scope_[expr].push_back(consumer_scope);
+      if (consumer_scope == "texture") {
+        if (!scope_suffix.empty()) {
+          storage_scope_[expr][0] += (":" + scope_suffix);
         }
       }
-      for (auto& arg : call->args) {
-        Visit(arg);
-      }
     }
+  }
 
-    void VisitExpr_(const VarNode* vn) final {
-      ApplyConsumerScopeToInputs(vn);
-    }
-
-    void LegalizeProducerStorage() {
-      for (auto& kv : consumer_storage_scopes_) {
-        const ExprNode* producer = kv.first;
-        std::string legal_scope = GetConsumerScope(kv.second);
-        if (storage_scope_.count(producer)) {
-          ICHECK(!HasMixedStorageOutputs(producer)) << "Mixed output storage scopes are not currently supported";
-          if (storage_scope_[producer][0].find(legal_scope) == std::string::npos) {
-            for (size_t i = 0; i < storage_scope_[producer].size(); i++) {
-              // Only support uniform storage scope accross all outputs for now
-              storage_scope_[producer][i] = legal_scope;
-            }
+  void LegalizeProducerStorage() {
+    for (auto& kv : consumer_storage_scopes_) {
+      const ExprNode* producer = kv.first;
+      std::string legal_scope = GetConsumerScope(kv.second);
+      if (storage_scope_.count(producer)) {
+        ICHECK(!HasMixedStorageOutputs(producer)) << "Mixed output storage scopes are not currently supported";
+        if (storage_scope_[producer][0].find(legal_scope) == std::string::npos) {
+          for (size_t i = 0; i < storage_scope_[producer].size(); i++) {
+            // Only support uniform storage scope accross all outputs for now
+            storage_scope_[producer][i] = legal_scope;
           }
         }
       }
     }
+  }
 
-    void ForceGlobalOutputStorage(const Expr& expr) {
-      // Mark function outputs as global scope
-      if (const auto* func = expr.as<FunctionNode>()) {
-        if (auto* tuple = func->body.as<TupleNode>()) {
-          for (auto& field : tuple->fields) {
-            if (storage_scope_.count(field.operator->())) {
-              for (size_t i = 0; i < storage_scope_[field.operator->()].size(); i++) {
-                storage_scope_[field.operator->()][i] = "global";
-              }
+  void ForceGlobalOutputStorage(const Expr& expr) {
+    // Mark function outputs as global scope
+    if (const auto* func = expr.as<FunctionNode>()) {
+      if (auto* tuple = func->body.as<TupleNode>()) {
+        for (auto& field : tuple->fields) {
+          if (storage_scope_.count(field.operator->())) {
+            for (size_t i = 0; i < storage_scope_[field.operator->()].size(); i++) {
+              storage_scope_[field.operator->()][i] = "global";
             }
           }
-        } else {
-          if (storage_scope_.count(func->body.operator->())) {
-            for (size_t i = 0; i < storage_scope_[func->body.operator->()].size(); i++) {
-              storage_scope_[func->body.operator->()][i] = "global";
-            }
+        }
+      } else {
+        if (storage_scope_.count(func->body.operator->())) {
+          for (size_t i = 0; i < storage_scope_[func->body.operator->()].size(); i++) {
+            storage_scope_[func->body.operator->()][i] = "global";
           }
         }
       }
     }
+  }
 
-    bool primitive_supports_texture_ = false;
-    std::unordered_map<const ExprNode*, std::vector<std::string>> storage_scope_;
-    std::unordered_map<const ExprNode*, std::vector<std::string>> consumer_storage_scopes_;
-    friend StorageInfo;
-  };
+  bool IsAdrenoExpr(const Expr& expr) {
+    Target target;
+    Integer dev_id{-1};
+    if (device_ids_.count(expr) && targets_.count(device_ids_[expr])) {
+      dev_id = device_ids_[expr];
+      target = targets_[dev_id];
+    } else if (targets_.size() == 1) {
+      const auto& kv = targets_.begin();
+      dev_id = (*kv).first;
+      target = (*kv).second;
+    }
+    ICHECK(dev_id->value != -1) << "Error inferring target device, device mapping and targets do not match";
+    Optional<String> t_device = target->GetAttr<String>("device");
+    if (target->kind->device_type == kDLOpenCL && t_device.defined()) {
+      if (t_device.value() == "adreno") { return true; }
+    }
+    return false;
+  }
 
-  PreDfsOrderVisitor pre_visitor_;
+  std::string GetConsumerScope(const std::vector<std::string>& consumer_scopes) const {
+    if (!consumer_scopes.size()) { return "global"; }
+    std::string ref_scope = consumer_scopes[0];
+    for (auto& consumer_scope : consumer_scopes) {
+      if (consumer_scope != ref_scope) {
+        return "global";
+      }
+    }
+    return ref_scope;
+  }
+
+  bool HasMixedStorageOutputs(const ExprNode* expr) {
+    if (storage_scope_.count(expr)) {
+      std::string ref_scope = storage_scope_[expr][0];
+      for (std::string& scope : storage_scope_[expr]) {
+        if (scope != ref_scope) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /*! \brief expr device mapping */
+  Map<Expr, Integer> device_ids_;
+  /*! \brief device id to target mapping  */
+  Map<Integer, Target> targets_;
+  /*! \brief Temporary state for marking whether a visited function
+             primitive supports texture storage scope */
+  bool primitive_supports_texture_ = false;
+  /*! \brief expr storage scope mapping for each output  */
+  std::unordered_map<const ExprNode*, std::vector<std::string>> storage_scope_;
+  /*! \brief output storage scopes used by consumers of expr key  */
+  std::unordered_map<const ExprNode*, std::vector<std::string>> consumer_storage_scopes_;
 };
-
-Map<Expr, Array<String>> CollectStorageInfo(const Expr& expr) { return StorageInfo::GetStorageMap(expr); }
 
 namespace {
 String GetStorageScope(const Expr& expr, const Map<Expr, runtime::ADT>& storage_map, size_t output_index) {
@@ -281,7 +306,13 @@ Array<tir::Buffer> CollectBufferBinds(const Call& call, const Map<Expr, runtime:
   return buffers;
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.CollectStorageInfo").set_body_typed(CollectStorageInfo);
+Map<Expr, Array<String>> CollectTextureStorage(const Expr& expr,
+                                               const Map<Expr, Integer>& dev_map,
+                                               const Map<Integer, Target>& target_map) {
+  return StorageInfo::GetStorageMap(expr, dev_map, target_map);
+}
+
+TVM_REGISTER_GLOBAL("relay.backend.opencl.adreno._CollectStorageInfo").set_body_typed(CollectTextureStorage);
 
 TVM_REGISTER_GLOBAL("relay.backend.opencl.adreno._CollectBufferBinds").set_body_typed(CollectBufferBinds);
 
