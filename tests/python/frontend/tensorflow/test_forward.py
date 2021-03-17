@@ -210,6 +210,7 @@ def compare_tf_with_tvm(
     mode="graph_runtime",
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
+    targets=None,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -233,12 +234,17 @@ def compare_tf_with_tvm(
 
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
-        for device in ["llvm", "cuda"]:
+        devices = targets if targets else ["llvm", "cuda"]
+
+        for device in devices:
             ctx = tvm.context(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
             if no_gpu and device == "cuda":
+                continue
+            if "cublas" in device and not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+                print("Skip because cublas is not enabled: %s" % device)
                 continue
 
             tvm_output = run_tvm_graph(
@@ -1781,6 +1787,23 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
         compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
 
 
+def _test_batch_matmul_dynamic(
+    A_shape, B_shape, A_np_shape, B_np_shape, dtype, adjoint_a=False, adjoint_b=False
+):
+    with tf.Graph().as_default():
+        A = tf.placeholder(shape=A_shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+        result = tf.matmul(A, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
+
+        A_np = np.random.uniform(high=5.0, size=A_np_shape).astype(dtype)
+        B_np = np.random.uniform(high=5.0, size=B_np_shape).astype(dtype)
+        # for now, in TOPI, only cublas's implementation support dynamic shape
+        # TODO add more backends support in TOPI
+        compare_tf_with_tvm(
+            [A_np, B_np], [A.name, B.name], result.name, mode="vm", targets=["cuda -libs=cublas"]
+        )
+
+
 def test_forward_batch_matmul():
     """ TF op BatchMatMul, BatchMatMulV2 test"""
     _test_batch_matmul((3, 5, 4), (3, 4, 5), "int32")
@@ -1791,6 +1814,33 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
+
+
+@tvm.testing.requires_cuda
+def test_forward_batch_matmul_dynamic():
+    _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "float32", True, True
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 5, 4), (3, 5, 4), (3, 5, 4), "int32", True, False
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 5, 4), (3, 5, 4), (3, 5, 4), "float32", False, True
+    )
+    _test_batch_matmul_dynamic(
+        (None, 4, 5, 6), (None, 4, 6, 5), (3, 4, 5, 6), (3, 4, 6, 5), "float32"
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, 5, 6), (None, None, 6, 5), (3, 4, 5, 6), (3, 4, 6, 5), "float32"
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, None, 5, 6),
+        (None, None, None, 6, 5),
+        (2, 3, 4, 5, 6),
+        (2, 3, 4, 6, 5),
+        "float32",
+    )
 
 
 #######################################################################

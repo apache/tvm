@@ -514,6 +514,25 @@ def requires_cuda(*args):
     return _compose(args, _requires_cuda)
 
 
+def requires_cudagraph(*args):
+    """Mark a test as requiring the CUDA Graph Feature
+
+    This also marks the test as requiring cuda
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_cudagraph = [
+        pytest.mark.skipif(
+            not nvcc.have_cudagraph(), reason="CUDA Graph is not supported in this environment"
+        ),
+        *requires_cuda(),
+    ]
+    return _compose(args, _requires_cudagraph)
+
+
 def requires_opencl(*args):
     """Mark a test as requiring the OpenCL runtime.
 

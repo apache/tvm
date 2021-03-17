@@ -90,6 +90,14 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   Module DebugRuntimeCreate(const std::vector<TVMContext>& ctxs);
 
   /*!
+   * \brief Create a specific cuda graph runtime module
+   * \param ctxs The context of the host and devices where graph nodes will be
+   *  executed on.
+   * \return created cuda graph runtime module
+   */
+  Module CudaGraphRuntimeCreate(const std::vector<TVMContext>& ctx);
+
+  /*!
    * \brief Set params.
    * \param graph_runtime The graph runtime we want to set the params into.
    * \param params The graph params value we want to set.

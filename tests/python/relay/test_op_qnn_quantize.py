@@ -127,7 +127,7 @@ def test_channelwise_axis_1():
     quantize_test_driver(
         in_dtype="float32",
         quant_args=quant_args,
-        axis=1,
+        axis=-1,
         out_dtype="uint8",
         in_data=data,
         verify_output_data=output,

@@ -212,10 +212,11 @@ within_subsection_order = {
     "get_started": [
         "introduction.py",
         "install.py",
-        "relay_quick_start.py",
-        "tensor_expr_get_started.py",
         "tvmc_command_line_driver.py",
+        "tensor_expr_get_started.py",
+        "autoschedule_matmul.py",
         "cross_compilation_and_rpc.py",
+        "relay_quick_start.py",
     ],
     "frontend": [
         "from_pytorch.py",

@@ -26,8 +26,7 @@ cp ../cmake/config.cmake .
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
-echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
-echo set\(USE_VM_PROFILER ON\) >> config.cmake
+echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_DNNL_CODEGEN ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-11\) >> config.cmake
