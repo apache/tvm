@@ -180,7 +180,7 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* s
     << "Device does not support allocate data space with "
     << "specified memory scope: " << mem_scope.value();
 
-  ICHECK(ndim > 2) << "Shape for texture allocation must be at least rank 2; "
+  ICHECK(ndim > 2) << "Shape for texture allocation must be at least rank 3; "
                    << "provided shape is rank " << ndim;
   size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
   auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
