@@ -830,20 +830,6 @@ def FirstOrderGradient():
     return _ffi_api.FirstOrderGradient()
 
 
-def ConcretizeLike():
-    """
-    Transforms `op_like` functions to their explicit-shape equivalent (e.g. `zeros_like(x, y)`
-    to `zeros(x, y.shape)`), when the target shape is concrete. This removes unnecessary
-    dependencies and can enable more opportunities for operator fusion.
-
-    Returns
-    -------
-    ret : tvm.transform.Pass
-        The registered ConcretizeLike pass.
-    """
-    return _ffi_api.ConcretizeLike()
-
-
 def Defunctionalization(func, mod):
     """
     Performs defunctionalization on func,

@@ -27,6 +27,8 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 
+#include <vector>
+
 namespace tvm {
 namespace relay {
 
