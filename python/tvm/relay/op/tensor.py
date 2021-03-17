@@ -1097,7 +1097,6 @@ def concatenate(data, axis):
         The concatenated tensor.
     """
     data = list(data)
-
     if not data:
         raise ValueError("relay.concatenate requires data to be non-empty.")
     if not isinstance(axis, int):
