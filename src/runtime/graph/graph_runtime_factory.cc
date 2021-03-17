@@ -141,7 +141,7 @@ Module GraphRuntimeFactory::DebugRuntimeCreate(const std::vector<TVMContext>& ct
 Module GraphRuntimeFactory::CudaGraphRuntimeCreate(const std::vector<TVMContext>& ctxs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_cuda_graph.create");
   ICHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_cuda_graph.create in registry. "
-                           "Do you enable cuda graph runtime build?";
+                           "Did you set(USE_GRAPH_RUNTIME_CUGRAPH=ON)?";
   std::vector<int> unpacked_ctxs;
   for (const auto& ctx : ctxs) {
     unpacked_ctxs.emplace_back(ctx.device_type);
