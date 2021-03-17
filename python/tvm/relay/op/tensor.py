@@ -22,7 +22,7 @@ from tvm.te.hybrid import script
 
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import Tuple, Expr
+from ..expr import Tuple, Expr, Constant
 from . import op as reg
 
 
