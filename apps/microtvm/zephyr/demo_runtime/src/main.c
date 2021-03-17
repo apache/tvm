@@ -319,4 +319,3 @@ void main(void) {
   posix_exit(0);
 #endif
 }
-
