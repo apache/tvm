@@ -66,10 +66,11 @@ void GraphRuntime::Run() {
  * processor.
  * \param ctxs The context of the host and devices where graph nodes will be
  * executed on.
- * \param lookup_linked_param_func Linked parameter lookup function.
+ * \param lookup_linked_param_func Linked parameter lookup function. Default is nullptr.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs, PackedFunc lookup_linked_param_func) {
+                        const std::vector<TVMContext>& ctxs,
+                        const PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
