@@ -117,18 +117,19 @@ Module GraphRuntimeCudaGraphCreate(const std::string& sym_json, const tvm::runti
 }
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_cuda_graph.create")
-  .set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
-                                 "at least 4, but it has " << args.num_args;
-  PackedFunc lookup_linked_param_func;
-  int ctx_start_arg = 2;
-  if (args[2].type_code() == kTVMPackedFuncHandle) {
-    lookup_linked_param_func = args[2];
-    ctx_start_arg++;
-  }
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+                                     "at least 4, but it has "
+                                  << args.num_args;
+      PackedFunc lookup_linked_param_func;
+      int ctx_start_arg = 2;
+      if (args[2].type_code() == kTVMPackedFuncHandle) {
+        lookup_linked_param_func = args[2];
+        ctx_start_arg++;
+      }
 
-  *rv = GraphRuntimeCudaGraphCreate(args[0], args[1], GetAllContext(args, ctx_start_arg),
-                                    lookup_linked_param_func);
-});
+      *rv = GraphRuntimeCudaGraphCreate(args[0], args[1], GetAllContext(args, ctx_start_arg),
+                                        lookup_linked_param_func);
+    });
 }  // namespace runtime
 }  // namespace tvm
