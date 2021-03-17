@@ -237,8 +237,6 @@ def intel_graphics(model="unknown", options=None):
     return Target(" ".join(["opencl"] + opts))
 
 
-"""The set of supported models for tvm.target.micro(). Each value maps to a list of options
-for the corresponding target."""
 MICRO_SUPPORTED_MODELS = {
     "host": [],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
