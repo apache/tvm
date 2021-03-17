@@ -81,7 +81,7 @@ def verify_simulated_dequantize_simple(dtype):
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_dequantize(input_data, scale, zp, dtype)
     sim_dq_out = vm.invoke("main", input_data=data_fp, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_dq_out.asnumpy(), dq_out)
+    np.testing.assert_allclose(sim_dq_out.asnumpy(), dq_out, rtol=1e-5)
 
 
 def test_simulated_dequantize():
@@ -112,7 +112,7 @@ def test_dynamic_channels():
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_dequantize(input_data, scale, zp, dtype, axis=0)
     sim_dq_out = vm.invoke("main", input_data=data_fp, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_dq_out.asnumpy(), dq_out)
+    np.testing.assert_allclose(sim_dq_out.asnumpy(), dq_out, rtol=1e-5)
 
     # Now get the perchannel quantize output and compare without recompiling.
     scale_np = np.array([0.5, 0.25]).astype("float32")
@@ -128,7 +128,7 @@ def test_dynamic_channels():
     )
     # Run the simulated quantize without recompiling and confirm results match.
     sim_dq_out = vm.invoke("main", input_data=data_fp, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_dq_out.asnumpy(), dq_out)
+    np.testing.assert_allclose(sim_dq_out.asnumpy(), dq_out, rtol=1e-5)
 
 
 def test_dynamic_dtype():
@@ -153,7 +153,7 @@ def test_dynamic_dtype():
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_dequantize(input_data, scale, zp, dtype)
     sim_dq_out = vm.invoke("main", input_data=data_fp, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_dq_out.asnumpy(), dq_out)
+    np.testing.assert_allclose(sim_dq_out.asnumpy(), dq_out, rtol=1e-5)
 
     # Now test int8 to float32 compilation.
     data = np.random.uniform(low=0, high=255, size=[2, 5]).astype("int8")
@@ -168,7 +168,7 @@ def test_dynamic_dtype():
     # Run the simulated quantize without recompiling and confirm results match.
     dtype_np = np.int32(SQNN_DTYPE_TO_CODE["int8"])
     sim_dq_out = vm.invoke("main", input_data=data_fp, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_dq_out.asnumpy(), dq_out)
+    np.testing.assert_allclose(sim_dq_out.asnumpy(), dq_out, rtol=1e-5)
 
 
 if __name__ == "__main__":
