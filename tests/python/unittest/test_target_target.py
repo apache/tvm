@@ -121,7 +121,7 @@ def test_config_map():
 def test_composite_target():
     tgt = tvm.target.Target("composite --host=llvm --devices=cuda,opencl")
     assert tgt.kind.name == "composite"
-    assert tgt.attrs["host"].kind.name == "llvm"
+    assert tgt.host.kind.name == "llvm"
     assert len(tgt.attrs["devices"]) == 2
     cuda_device, opencl_device = tgt.attrs["devices"]
     assert cuda_device.kind.name == "cuda"
