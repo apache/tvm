@@ -26,6 +26,7 @@ import tvm.testing
 @tvm.testing.uses_gpu
 def test_sort():
     def verify_sort(shape, axis, is_ascend, is_dyn=False):
+
         if is_dyn:
             x = relay.var("x", relay.TensorType([relay.Any()] * len(shape), "float32"))
         else:
@@ -87,9 +88,11 @@ def test_argsort():
         for dtype in ["int32", "int64", "float32", "float64"]:
             verify_argsort((2, 3, 4), axis=0, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
             verify_argsort((1, 4, 6), axis=1, is_ascend=True, dtype=dtype, is_dyn=is_dyn)
-            verify_argsort((3, 5, 6), axis=-1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
-            verify_argsort((3, 2000, 6), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
-            verify_argsort((1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        dtype = "int32"
+        verify_argsort((3, 5, 6), axis=-1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        verify_argsort((3, 6000, 6), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        verify_argsort((1000, 1, 1), axis=0, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        verify_argsort((1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
 
 
 @tvm.testing.uses_gpu
