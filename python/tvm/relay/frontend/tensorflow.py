@@ -934,7 +934,7 @@ def _batch_matmul():
 
         is_static = not check_symbolic_shape(orig_shape_x)
 
-        if len(orig_shape_x) > 3 and not is_static:
+        if ndim > 3 and not is_static:
             shape_of_x = list_shape_of(inputs[0], ndim)
             shape_of_y = list_shape_of(inputs[1], ndim)
 
