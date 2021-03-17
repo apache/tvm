@@ -63,14 +63,26 @@ inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExp
   return base;
 }
 
-size_t GetAxisSeparator(size_t shape_rank) {
+size_t GetAxisSeparator(size_t shape_rank, std::string scope = "texture") {
   // Convention is that shape is packed with the last axis
   // as RGBA (length 4) and the second to last axis
   // will be the packed texure columns. All other
   // axes are packed into rows.
-  //
+  // Texture activation:
   // e.g. [N,C,H,W,c] -> TextureFlattening -> [N*C*H, W, c]
-  return shape_rank - 2;
+  // Texture weight:
+  // e.g. [O,I,H,W,c] -> TextureFlattening -> [O, I*H*W, c]
+  size_t separator;
+  if (scope == "texture"){
+    separator = shape_rank - 2;
+  } else if (scope == "texture:weight") {
+    separator = 1;
+  }
+  return separator;
+}
+
+bool IsTextureStorage(std::string scope) {
+  return scope.find("texture") != std::string::npos;
 }
 }
 
@@ -136,7 +148,7 @@ class TextureFlattener : public TextureLoweringBase {
     Stmt body = this->VisitStmt(op->body);
 
     std::string storage_scope = GetStorageScope(op->buffer);
-    if (storage_scope == "texture") {
+    if (IsTextureStorage(storage_scope)) {
       body = this->VisitStmt(op->body);
       ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
       int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
@@ -146,7 +158,7 @@ class TextureFlattener : public TextureLoweringBase {
       auto width = IntImm(DataType::Int(32), 1);
       auto height = IntImm(DataType::Int(32), 1);
       for (size_t i = 0; i < op->bounds.size()-1; i++) {
-        if (i < GetAxisSeparator(op->bounds.size())) {
+        if (i < GetAxisSeparator(op->bounds.size(), storage_scope)) {
           height *= op->bounds[i]->extent;
         } else {
           width *= op->bounds[i]->extent;
@@ -164,7 +176,7 @@ class TextureFlattener : public TextureLoweringBase {
     op = stmt.as<BufferStoreNode>();
     std::string storage_scope = GetStorageScope(op->buffer);
     // Lower to two dimensional access
-    if (storage_scope == "texture") {
+    if (IsTextureStorage(storage_scope)) {
       Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
       stmt = Evaluate(Call(args[0]->dtype, builtin::text2d_store(), args));
@@ -183,7 +195,7 @@ class TextureFlattener : public TextureLoweringBase {
     }
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(buffer);
-    if (storage_scope == "texture") {
+    if (IsTextureStorage(storage_scope)) {
       Array<PrimExpr> args = GetTextureAccessArgs(op, buffer);
       args.push_back(op->indices.back());
       expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
@@ -204,7 +216,7 @@ class TextureFlattener : public TextureLoweringBase {
     }
     Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
     for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
-      if (i < GetAxisSeparator(op->buffer->shape.size())) {
+      if (i < GetAxisSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
         col_dims.push_back(op->buffer->shape[i]);
         col_indices.push_back(op->indices[i]);
       } else {
@@ -236,7 +248,7 @@ class ExternalBufferForwarding : public TextureLoweringBase {
       if (op->body->IsInstance<BufferRealizeNode>()) {
         const auto* realize = Downcast<BufferRealize>(op->body).get();
         std::string realize_scope = GetStorageScope(realize->buffer);
-        if (realize_scope == "texture" && extern_buffer_copy_.count(realize->buffer)) {
+        if (IsTextureStorage(realize_scope) && extern_buffer_copy_.count(realize->buffer)) {
           return realize_attrs_.back();
         } else {
           if (realize_attrs_.size()) {
@@ -261,8 +273,8 @@ class ExternalBufferForwarding : public TextureLoweringBase {
       if (extern_buf_.count(load->buffer)) {
         // If the buffer to load and the buffer to store to are both texture
         // check for identical access
-        if (GetStorageScope(load->buffer) == "texture" &&
-            GetStorageScope(store->buffer) == "texture") {
+        if (IsTextureStorage(GetStorageScope(load->buffer)) &&
+            IsTextureStorage(GetStorageScope(store->buffer))) {
           auto store_index = SimplifyOffset(store->buffer->shape, store->indices);
           auto load_index = SimplifyOffset(load->buffer->shape, load->indices);
           if (arith::Analyzer().CanProve(store_index == load_index)) {
