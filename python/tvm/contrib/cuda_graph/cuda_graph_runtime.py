@@ -57,8 +57,8 @@ def create(graph_json_str, libmod, ctx):
             fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_cuda_graph.create")
     except ValueError:
         raise ValueError(
-            "Please set '(USE_GRAPH_RUNTIME_CUDA_GRAPH ON)' in "
-            "config.cmake and rebuild TVM to enable CUDA graph support"
+            "To enable CUDA graph support (experimental), please set "
+            "'(USE_GRAPH_RUNTIME_CUGRAPH ON)' in config.cmake and rebuild TVM"
         )
 
     return GraphModuleCudaGraph(fcreate(graph_json_str, libmod, *device_type_id))
