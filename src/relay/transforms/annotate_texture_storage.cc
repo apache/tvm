@@ -88,7 +88,7 @@ class StorageInfo : private ExprVisitor{
 
   void VisitExpr_(const CallNode* call) final {
     // Check the contents of this primitive function
-    if (IsAdrenoExpr(GetRef<Expr>(call))) {
+    if (DeviceSupportsTextureStorage(GetRef<Expr>(call))) {
       if (const auto* fn = call->op.as<FunctionNode>()) {
         if (fn->HasNonzeroAttr(attr::kPrimitive)) {
           primitive_supports_texture_ = false;
@@ -183,7 +183,7 @@ class StorageInfo : private ExprVisitor{
     }
   }
 
-  bool IsAdrenoExpr(const Expr& expr) {
+  bool DeviceSupportsTextureStorage(const Expr& expr) {
     Target target;
     Integer dev_id{-1};
     if (device_ids_.count(expr) && targets_.count(device_ids_[expr])) {
@@ -196,6 +196,7 @@ class StorageInfo : private ExprVisitor{
     }
     ICHECK(dev_id->value != -1) << "Error inferring target device, device mapping and targets do not match";
     Optional<String> t_device = target->GetAttr<String>("device");
+    // Currently only `target = opencl --device=adreno` supports texture storage
     if (target->kind->device_type == kDLOpenCL && t_device.defined()) {
       if (t_device.value() == "adreno") { return true; }
     }
