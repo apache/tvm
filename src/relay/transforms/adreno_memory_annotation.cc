@@ -38,16 +38,19 @@ namespace relay {
 
 class StorageInfo {
  public:
-  static Map<Expr, String> GetStorageMap(const Expr& expr) {
+  static Map<Expr, Array<String>> GetStorageMap(const Expr& expr) {
     StorageInfo storage_info;
     storage_info.pre_visitor_ = PreDfsOrderVisitor();
     storage_info.pre_visitor_.Visit(expr);
     // TODO(csullivan): A unit test for legalization
     storage_info.pre_visitor_.LegalizeProducerStorage();
-    for (auto& it : storage_info.pre_visitor_.storage_scope_) {
-      storage_info.storage_map_.Set(GetRef<Expr>(it.first), String(it.second));
+    Map<Expr, Array<String>> storage_map;
+    for (auto& kv : storage_info.pre_visitor_.storage_scope_) {
+      std::vector<String> storage_scopes;
+      std::copy(kv.second.begin(), kv.second.end(), std::back_inserter(storage_scopes));
+      storage_map.Set(GetRef<Expr>(kv.first), Array<String>{storage_scopes});
     }
-    return storage_info.storage_map_;
+    return storage_map;
   }
 
  private:
@@ -76,22 +79,35 @@ class StorageInfo {
       return ref_scope;
     }
 
-    void BackwardPropagateConsumerScope(const ExprNode* expr, std::string scope_suffix = "") {
+    bool HasMixedStorageOutputs(const ExprNode* expr) {
+      if (storage_scope_.count(expr)) {
+        std::string ref_scope = storage_scope_[expr].front();
+        for (std::string& scope : storage_scope_[expr]) {
+          if (scope != ref_scope) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    void ApplyConsumerScopeToInputs(const ExprNode* expr, std::string scope_suffix = "") {
       auto consumer_scopes_it = consumer_storage_scopes_.find(expr);
-      if (consumer_scopes_it != consumer_storage_scopes_.end())
-      {
-        storage_scope_[expr] = GetConsumerScope(consumer_scopes_it->second);
-        if (storage_scope_[expr] == "texture")
-        {
+      if (consumer_scopes_it != consumer_storage_scopes_.end()) {
+        std::string consumer_scope = GetConsumerScope(consumer_scopes_it->second);
+        ICHECK(!storage_scope_.count(expr))
+          << "Already propagated consumer scopes to input: " << GetRef<Expr>(expr);
+        storage_scope_[expr].push_back(consumer_scope);
+        if (consumer_scope == "texture") {
           if (!scope_suffix.empty()) {
-            storage_scope_[expr] += (":" + scope_suffix);
+            storage_scope_[expr][0] += (":" + scope_suffix);
           }
         }
       }
     }
 
     void VisitExpr_(const ConstantNode* cn) final {
-      BackwardPropagateConsumerScope(cn, "weight");
+      ApplyConsumerScopeToInputs(cn, "weight");
     }
 
     void VisitExpr_(const CallNode* call) final {
@@ -101,11 +117,28 @@ class StorageInfo {
           primitive_supports_texture_ = false;
           Visit(call->op);
           if (primitive_supports_texture_) {
-            storage_scope_[call] = "texture";
+            if (call->checked_type().as<TensorTypeNode>()) {
+              storage_scope_[call].push_back("texture");
+            } else {
+              const auto* tuple_type = call->type_as<TupleTypeNode>();
+              ICHECK(tuple_type);
+              // TODO(csullivan): Add support for mixed output storage scope.
+              // In current adreno storage planner all outputs of a
+              // primitive function are assumed to be of the same storage
+              // type. This should be easy to extend in the future.
+              for (size_t i = 0; i < tuple_type->fields.size(); i++) {
+                storage_scope_[call].push_back("texture");
+              }
+            }
           }
+          // Add consumer storage scope information for call arguments
           for (auto& arg : call->args) {
-            std::string scope = storage_scope_.count(call) ? storage_scope_[call] : "global";
-            consumer_storage_scopes_[arg.get()].push_back(scope);
+            if (storage_scope_.count(call)) {
+              ICHECK(!HasMixedStorageOutputs(call)) << "Mixed output storage scopes are not currently supported";
+              consumer_storage_scopes_[arg.operator->()].push_back(storage_scope_[call][0]);
+            } else {
+              consumer_storage_scopes_[arg.operator->()].push_back("global");
+            }
           }
         }
       }
@@ -121,7 +154,7 @@ class StorageInfo {
     }
 
     void VisitExpr_(const VarNode* vn) final {
-      BackwardPropagateConsumerScope(vn);
+      ApplyConsumerScopeToInputs(vn);
     }
 
     void LegalizeProducerStorage() {
@@ -129,24 +162,27 @@ class StorageInfo {
         const ExprNode* producer = kv.first;
         std::string legal_scope = GetConsumerScope(kv.second);
         if (storage_scope_.count(producer)) {
-          if (storage_scope_[producer].find(legal_scope) == std::string::npos) {
-            storage_scope_[producer] = legal_scope;
+          ICHECK(!HasMixedStorageOutputs(producer)) << "Mixed output storage scopes are not currently supported";
+          if (storage_scope_[producer].front().find(legal_scope) == std::string::npos) {
+            for (size_t i = 0; i < storage_scope_[producer].size(); i++) {
+              // Only support uniform storage scope accross all outputs for now
+              storage_scope_[producer][i] = legal_scope;
+            }
           }
         }
       }
     }
 
     bool primitive_supports_texture_ = false;
-    std::unordered_map<const ExprNode*, std::string> storage_scope_;
+    std::unordered_map<const ExprNode*, std::vector<std::string>> storage_scope_;
     std::unordered_map<const ExprNode*, std::vector<std::string>> consumer_storage_scopes_;
     friend StorageInfo;
   };
 
   PreDfsOrderVisitor pre_visitor_;
-  Map<Expr, String> storage_map_;
 };
 
-Map<Expr, String> CollectStorageInfo(const Expr& expr) { return StorageInfo::GetStorageMap(expr); }
+Map<Expr, Array<String>> CollectStorageInfo(const Expr& expr) { return StorageInfo::GetStorageMap(expr); }
 
 namespace {
 String GetStorageScope(const Expr& expr, const Map<Expr, runtime::ADT>& storage_map, size_t output_index) {
