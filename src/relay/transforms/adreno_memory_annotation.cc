@@ -148,7 +148,71 @@ class StorageInfo {
 
 Map<Expr, String> CollectStorageInfo(const Expr& expr) { return StorageInfo::GetStorageMap(expr); }
 
+namespace {
+String GetStorageScope(const Expr& expr, const Map<Expr, runtime::ADT>& storage_map, size_t output_index) {
+  if (!storage_map.count(expr)) { return String{}; }
+  auto storage_info = Downcast<Array<String>>(storage_map[expr][2]);
+  if (output_index >= storage_info.size()) {
+    return String{};
+  }
+  std::string scope = storage_info[output_index];
+  auto pos = scope.find(":");
+  if (pos != std::string::npos) {
+    scope = scope.substr(0, pos);
+  }
+  return String(scope);
+}
+}
+
+Array<tir::Buffer> CollectBufferBinds(const Call& call, const Map<Expr, runtime::ADT>& storage_map) {
+  const auto* primfn = call->op.as<FunctionNode>();
+  ICHECK(primfn);
+  ICHECK(primfn->HasNonzeroAttr(attr::kPrimitive)) << "Can only collect buffer binds for primitive functions";
+  ICHECK_EQ(call->args.size(), primfn->params.size()) << "Call arguments and function parameters do not match";
+
+  auto make_buffer = [&storage_map](const Expr& expr, const TensorTypeNode* ttype, const std::string& name, size_t index = 0) {
+    String scope = GetStorageScope(expr, storage_map, index);
+    PrimType storage_type(ttype->dtype);
+    tir::Var var = scope == "texture" ? tir::Var(name, TextureType(storage_type)) : tir::Var(name, PointerType(storage_type));
+    return tir::Buffer(var, ttype->dtype, ttype->shape, Array<PrimExpr>{}, Integer(0), name, scope, -1, 0, tir::BufferType::kDefault);
+  };
+
+  // Make input buffers
+  Array<tir::Buffer> buffers;
+  for (size_t i = 0; i < call->args.size(); i++) {
+    const Expr& arg = call->args[i];
+    if (const auto* ttype = primfn->params[i]->checked_type().as<TensorTypeNode>()) {
+      buffers.push_back(make_buffer(arg, ttype, "placeholder" + std::to_string(i)));
+    } else {
+      const auto* tuple_type = primfn->params[i]->type_as<TupleTypeNode>();
+      ICHECK(tuple_type);
+      for (size_t j = 0; j < tuple_type->fields.size(); j++) {
+        const auto* ttype = tuple_type->fields[j].as<TensorTypeNode>();
+        ICHECK(ttype);
+        buffers.push_back(make_buffer(arg, ttype, "placeholder" + std::to_string(i) + "_" + std::to_string(j), j));
+      }
+    }
+  }
+
+  // Make output buffers
+  if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
+    buffers.push_back(make_buffer(call, ttype, "compute"));
+  } else {
+    const auto* tuple_type = call->type_as<TupleTypeNode>();
+    ICHECK(tuple_type);
+    for (size_t i = 0; i < tuple_type->fields.size(); i++) {
+      const auto* ttype = tuple_type->fields[i].as<TensorTypeNode>();
+      ICHECK(ttype);
+      buffers.push_back(make_buffer(call, ttype, "compute" + std::to_string(i), i));
+    }
+  }
+
+  return buffers;
+}
+
 TVM_REGISTER_GLOBAL("relay.analysis.CollectStorageInfo").set_body_typed(CollectStorageInfo);
+
+TVM_REGISTER_GLOBAL("relay.backend.opencl.adreno._CollectBufferBinds").set_body_typed(CollectBufferBinds);
 
 }  // namespace relay
 }  // namespace tvm
