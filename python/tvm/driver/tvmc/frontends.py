@@ -130,8 +130,7 @@ class KerasFrontend(Frontend):
         input_shapes = {name: x.shape for (name, x) in zip(model.input_names, inputs)}
         if shape_dict is not None:
             input_shapes.update(shape_dict)
-        layout = kwargs.get("layout", "NHWC")
-        kwargs["layout"] = layout
+        kwargs.setdefault("layout", "NHWC")
         return relay.frontend.from_keras(model, input_shapes, **kwargs)
 
     def is_sequential_p(self, model):
@@ -194,9 +193,7 @@ class TensorflowFrontend(Frontend):
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
         logger.debug("parse TensorFlow model and convert into Relay computation graph")
-        return relay.frontend.from_tensorflow(
-            graph_def, shape=shape_dict, **kwargs
-        )
+        return relay.frontend.from_tensorflow(graph_def, shape=shape_dict, **kwargs)
 
 
 class TFLiteFrontend(Frontend):

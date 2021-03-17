@@ -115,20 +115,16 @@ def test_load_model__tflite(tflite_mobilenet_v1_1_quant):
     assert "_param_1" in params.keys()
 
 
-def verify_load_model__keras(model, **kwargs):
+@pytest.mark.parametrize("load_model_kwargs", [{}, {"layout": "NCHW"}])
+def test_load_model__keras(keras_resnet50, load_model_kwargs):
     # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    mod, params = tvmc.frontends.load_model(model)
+    mod, params = tvmc.frontends.load_model(keras_resnet50, **load_model_kwargs)
     assert type(mod) is IRModule
     assert type(params) is dict
     ## check whether one known value is part of the params dict
     assert "_param_1" in params.keys()
-
-
-def test_load_model__keras(keras_resnet50):
-    verify_load_model__keras(keras_resnet50)
-    verify_load_model__keras(keras_resnet50, layout="NCHW")
 
 
 def verify_load_model__onnx(model, **kwargs):
