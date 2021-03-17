@@ -119,3 +119,16 @@ class GraphModuleCudaGraph(graph_runtime.GraphModule):
             self.capture_cuda_graph()
         else:
             self._run_cuda_graph()
+
+    def debug_get_output(self, node, out):
+        """Run graph up to node and get the output to out
+
+        Parameters
+        ----------
+        node : int / str
+            The node index or name
+
+        out : NDArray
+            The output array container
+        """
+        raise NotImplementedError("Please use debugger.debug_runtime as graph_runtime instead.")
