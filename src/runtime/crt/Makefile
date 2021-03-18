@@ -45,8 +45,8 @@ QUIET ?= @
 CRT_PREFIX = $(wildcard src/crt)
 
 INCLUDES ?= -isystem include -iquote $(dir ${CRT_CONFIG})
-CFLAGS += ${INCLUDES} -Werror -g $(EXTRA_CFLAGS)
-CXXFLAGS += ${INCLUDES} -std=c++11 -Werror -g $(EXTRA_CXXFLAGS)
+CFLAGS += ${INCLUDES} -Werror -g $(EXTRA_CFLAGS) -DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
+CXXFLAGS += ${INCLUDES} -std=c++11 -Werror -g $(EXTRA_CXXFLAGS) -DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 LDFLAGS += -Werror -g $(EXTRA_LDFLAGS)
 
 ${BUILD_DIR}/%.o: src/%.c $(CRT_CONFIG)

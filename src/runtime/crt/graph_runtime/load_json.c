@@ -173,7 +173,7 @@ char JSONReader_PeekNextNonSpace(JSONReader* reader) {
  * \param out_str the output string. NULL to merely consume input and discard it.
  * \param out_str_size Number of bytes available to write starting from out_str. Includes
  *      terminating \0.
- * \throw dmlc::Error when next token is not string
+ * \throw tvm::Error when next token is not string
  */
 int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size) {
   int status = 0;

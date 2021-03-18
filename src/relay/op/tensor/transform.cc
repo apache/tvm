@@ -312,7 +312,7 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (first->shape[j].as<AnyNode>() || e->shape[j].as<AnyNode>() ||
           reporter->AssertEQ(first->shape[j], e->shape[j]))
         continue;
-      throw Error(
+      throw CompileError(
           "relay.stack requires all tensors have the same shape "
           "on non-stacking axes");
     }
@@ -483,7 +483,7 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
     }
     try {
       return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
-    } catch (const dmlc::Error& e) {
+    } catch (const tvm::Error& e) {
       // If the layout string is invalid for any reason, give up.
       return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
     }
@@ -1691,8 +1691,8 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attr
   const MeshgridAttrs* attrs = raw_attrs.as<MeshgridAttrs>();
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
-    throw Error(
-        ErrorBuilder() << "meshgrid requires a tuple of tensors as the first argument, found "
+    throw CompileError(ErrorBuilder()
+                       << "meshgrid requires a tuple of tensors as the first argument, found "
                        << PrettyPrint(types[0]));
   } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
     return false;
@@ -1714,14 +1714,14 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attr
     int e_ndim = static_cast<int>(e->shape.size());
     const DataType& e_dtype = e->dtype;
     if (e_dtype != dtype) {
-      throw Error("relay.meshgrid requires all tensors have the same dtype");
+      throw CompileError("relay.meshgrid requires all tensors have the same dtype");
     }
     if (e_ndim == 0) {
       grid_shape.emplace_back(1);
     } else if (e_ndim == 1) {
       grid_shape.emplace_back(e->shape[0]);
     } else {
-      throw Error("relay.meshgrid requires all tensors be either scalars or 1-D vectors.");
+      throw CompileError("relay.meshgrid requires all tensors be either scalars or 1-D vectors.");
     }
   }
 

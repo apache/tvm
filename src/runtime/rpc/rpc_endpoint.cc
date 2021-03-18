@@ -526,7 +526,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
       try {
         fconstructor->CallPacked(constructor_args, &con_ret);
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         LOG(FATAL) << "Server[" << name_ << "]:"
                    << " Error caught from session constructor " << constructor_name << ":\n"
                    << e.what();
@@ -540,7 +540,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       ICHECK_EQ(tkey, "rpc") << "Constructor " << constructor_name << " to return an RPCModule";
       serving_session_ = RPCModuleGetSession(mod);
       this->ReturnVoid();
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
       this->ReturnException(e.what());
     }
 
@@ -562,7 +562,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
         }
         this->SwitchToState(kRecvPacketNumBytes);
       });
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
       this->ReturnException(e.what());
       this->SwitchToState(kRecvPacketNumBytes);
     }
@@ -581,7 +581,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       setter(0, rv);
 
       this->ReturnPackedSeq(TVMArgs(&ret_value, &ret_tcode, 1));
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
       this->ReturnException(e.what());
     }
     this->SwitchToState(kRecvPacketNumBytes);
@@ -719,7 +719,7 @@ void RPCEndpoint::Shutdown() {
             writer_.bytes_available());
         if (n == 0) break;
       }
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
     }
     channel_.reset(nullptr);
   }

@@ -25,9 +25,9 @@
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include "rocm_common.h"
 

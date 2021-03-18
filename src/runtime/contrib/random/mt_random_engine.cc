@@ -22,8 +22,8 @@
  * \brief mt19937 random engine
  */
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <ctime>

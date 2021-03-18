@@ -251,7 +251,7 @@ def run_tuning():
 #   The last line also prints the total number of measurement trials,
 #   total time spent on auto-tuning and the id of the next task to tune.
 #
-#   There will also be some "dmlc::Error"s errors, because the
+#   There will also be some "tvm::Error"s errors, because the
 #   auto-scheduler will try some invalid schedules.
 #   You can safely ignore them if the tuning can continue, because these
 #   errors are isolated from the main process.
