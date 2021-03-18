@@ -272,8 +272,7 @@ def test_double_reshape():
         tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_expand():
     def _test_expand(name, data, shape, ref_data, dtype="int32"):
         shape_array = np.array(shape)
@@ -753,8 +752,7 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
     verify_with_ort_with_inputs(model, [indata], opset=10, freeze_params=True, use_vm=True)
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
@@ -974,8 +972,7 @@ def test_gather_nd():
     verify_gather_nd([2, 2, 2], [[[0, 1]], [[1, 0]]], [2, 1, 2])
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_onehot():
     indices_shape = [10]
     indices_array = np.random.randint(low=0, high=9, size=indices_shape, dtype="int32")
@@ -1051,8 +1048,7 @@ def verify_batch_matmul(a_shape, b_shape, out_shape, target, ctx):
     verify_with_ort_with_inputs(model, [a_array, b_array], use_vm=True, targets=[target])
 
 
-# TODO(mbrookhart): enable cuda once VM supports heterogenous execution
-@tvm.testing.parametrize_targets("llvm")
+@tvm.testing.parametrize_targets("llvm", "cuda")
 def test_batch_matmul(target, ctx):
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4), target, ctx)
     verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4), target, ctx)
@@ -1106,8 +1102,7 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
     verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
 
 
-# TODO(mbrookhart): enable cuda once VM supports heterogenous execution
-@tvm.testing.parametrize_targets("llvm")
+@tvm.testing.parametrize_targets("llvm", "cuda")
 def test_batch_matmul_dynamic_model(target, ctx):
     verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
     verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
@@ -1279,8 +1274,7 @@ def verify_upsample3d_trilinear():
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_upsample():
     verify_upsample_nearest()
     verify_upsample_bilinear()
@@ -1501,8 +1495,7 @@ def verify_constantofshape(input_dim, value, dtype):
     verify_with_ort_with_inputs(model, [input_np], use_vm=True)
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_constantofshape():
     verify_constantofshape((2, 3, 4, 5), 10, "float32")
     verify_constantofshape((3, 3), 0, "int32")
@@ -1588,8 +1581,7 @@ def verify_pad_v11(indata, pads, mode="constant", value=0.0):
     verify_with_ort_with_inputs(model, inputs, opset=11, use_vm=True)
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_pad():
     verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], "constant", 0.0)
     verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], "constant", 0.0)
@@ -2078,8 +2070,7 @@ def verify_tile_v6(indata, repeats, outdata):
     verify_with_ort_with_inputs(model, [indata, repeats], use_vm=True, opset=6)
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_tile():
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
     repeats = np.random.randint(low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
@@ -2251,8 +2242,7 @@ def test_batch_norm():
     verify_batch_norm([16, 16, 10, 10])
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_batch_norm_dynamic_subgraph():
     def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
 
@@ -3280,8 +3270,7 @@ def test_gru():
     )
 
 
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_resize():
     def verify(ishape, oshape, scales, mode, coord_trans):
         nodes = [

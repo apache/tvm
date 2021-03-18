@@ -528,13 +528,16 @@ void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->dtype.is_int() || op->dtype.is_uint()) {
     PrintBinaryExpr(op, "%", os, this);
   } else {
-    ICHECK(op->dtype.is_float()) << "non integer or floating point datatype in Mod";
+    ICHECK(op->dtype.is_float()) << "Expected floating point or integer dtype in Mod, but got "
+                                 << op->dtype;
     if (op->dtype.bits() == 32) {
       PrintBinaryExpr(op, "fmodf", os, this);
     } else if (op->dtype.bits() == 64) {
       PrintBinaryExpr(op, "fmod", os, this);
     } else {
-      ICHECK(false) << "non single or double precision floating point in Mod";
+      ICHECK(false)
+          << "Non single or double precision floating point in Mod, expected 32 or 64 bits but got "
+          << op->dtype.bits() << " bits.";
     }
   }
 }
