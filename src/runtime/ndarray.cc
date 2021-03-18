@@ -23,9 +23,9 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include "runtime_base.h"
 

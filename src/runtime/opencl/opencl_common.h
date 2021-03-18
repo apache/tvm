@@ -26,8 +26,8 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order

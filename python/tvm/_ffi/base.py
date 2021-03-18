@@ -253,7 +253,9 @@ def c2pyerror(err_msg):
     message = []
     for line in arr:
         if trace_mode:
-            if line.startswith("  "):
+            if line.startswith("        "):
+                stack_trace[-1] += "\n" + line
+            elif line.startswith("  "):
                 stack_trace.append(line)
             else:
                 trace_mode = False

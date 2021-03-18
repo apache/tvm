@@ -79,7 +79,7 @@ static const TObj* ObjTypeCheck(const ObjectRef& obj, const std::string& expecte
     std::ostringstream os;
     os << ": Expects type \"" << expected_type << "\", but gets \"" << obj->GetTypeKey()
        << "\" for object: " << obj;
-    throw dmlc::Error(os.str());
+    throw Error(os.str());
   }
   return ptr;
 }
@@ -87,7 +87,7 @@ static const TObj* ObjTypeCheck(const ObjectRef& obj, const std::string& expecte
 static TargetKind GetTargetKind(const String& name) {
   Optional<TargetKind> kind = TargetKind::Get(name);
   if (!kind.defined()) {
-    throw dmlc::Error(": Target kind \"" + name + "\" is not defined");
+    throw Error(": Target kind \"" + name + "\" is not defined");
   }
   return kind.value();
 }
@@ -98,10 +98,10 @@ static std::string RemovePrefixDashes(const std::string& s) {
   for (; n_dashes < len && s[n_dashes] == '-'; ++n_dashes) {
   }
   if (n_dashes == 0) {
-    throw dmlc::Error(": Attribute keys should start with '-', not an attribute key: " + s);
+    throw Error(": Attribute keys should start with '-', not an attribute key: " + s);
   }
   if (n_dashes >= len) {
-    throw dmlc::Error(": Not an attribute key: " + s);
+    throw Error(": Not an attribute key: " + s);
   }
   return s.substr(n_dashes);
 }
@@ -133,7 +133,7 @@ static int ParseKVPair(const std::string& s, const std::string& s_next, std::str
     result_k = s.substr(0, pos);
     result_v = s.substr(pos + 1);
     if (result_k.empty() || result_v.empty()) {
-      throw dmlc::Error(": Empty attribute key or value in \"" + s + "\"");
+      throw Error(": Empty attribute key or value in \"" + s + "\"");
     }
     return 1;
   } else if (!s_next.empty() && s_next[0] != '-') {
@@ -163,7 +163,7 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
       }
       os << kv.first;
     }
-    throw dmlc::Error(os.str());
+    throw Error(os.str());
   }
   return it->second;
 }
@@ -177,14 +177,14 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
     // Parsing integer
     int v;
     if (!(is >> v)) {
-      throw dmlc::Error(": Cannot parse into type \"Integer\" from string: " + str);
+      throw Error(": Cannot parse into type \"Integer\" from string: " + str);
     }
     return Integer(v);
   } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing string
     std::string v;
     if (!(is >> v)) {
-      throw dmlc::Error(": Cannot parse into type \"String\" from string: " + str);
+      throw Error(": Cannot parse into type \"String\" from string: " + str);
     }
     return String(v);
   } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
@@ -197,14 +197,14 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
       try {
         ObjectRef parsed = TargetInternal::ParseType(substr, *info.key);
         result.push_back(parsed);
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         std::string index = "[" + std::to_string(result.size()) + "]";
-        throw dmlc::Error(index + e.what());
+        throw Error(index + e.what());
       }
     }
     return Array<ObjectRef>(result);
   }
-  throw dmlc::Error(": Unsupported type \"" + info.type_key + "\" for parsing from string: " + str);
+  throw Error(": Unsupported type \"" + info.type_key + "\" for parsing from string: " + str);
 }
 
 ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
@@ -224,15 +224,14 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
     } else if (const auto* ptr = obj.as<MapNode>()) {
       for (const auto& kv : *ptr) {
         if (!kv.first->IsInstance<StringObj>()) {
-          throw dmlc::Error(": Target object requires key of dict to be str, but get: " +
-                            kv.first->GetTypeKey());
+          throw Error(": Target object requires key of dict to be str, but get: " +
+                      kv.first->GetTypeKey());
         }
       }
       Map<String, ObjectRef> config = GetRef<Map<String, ObjectRef>>(ptr);
       return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
     }
-    throw dmlc::Error(": Expect type 'dict' or 'str' to construct Target, but get: " +
-                      obj->GetTypeKey());
+    throw Error(": Expect type 'dict' or 'str' to construct Target, but get: " + obj->GetTypeKey());
   } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing array
     const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
@@ -240,9 +239,9 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
     for (const ObjectRef& e : *array) {
       try {
         result.push_back(TargetInternal::ParseType(e, *info.key));
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
-        throw dmlc::Error(index + e.what());
+        throw Error(index + e.what());
       }
     }
     return Array<ObjectRef>(result);
@@ -254,17 +253,17 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
       ObjectRef key, val;
       try {
         key = TargetInternal::ParseType(kv.first, *info.key);
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         std::ostringstream os;
         os << "'s key \"" << key << "\"" << e.what();
-        throw dmlc::Error(os.str());
+        throw Error(os.str());
       }
       try {
         val = TargetInternal::ParseType(kv.second, *info.val);
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         std::ostringstream os;
         os << "[\"" << key << "\"]" << e.what();
-        throw dmlc::Error(os.str());
+        throw Error(os.str());
       }
       result[key] = val;
     }
@@ -275,7 +274,7 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
     os << ": Parsing type \"" << info.type_key
        << "\" is not supported for the given object of type \"" << obj->GetTypeKey()
        << "\". The object is: " << obj;
-    throw dmlc::Error(os.str());
+    throw Error(os.str());
   }
   return obj;
 }
@@ -355,7 +354,7 @@ Target::Target(const String& tag_or_config_or_target_str) {
   ObjectPtr<Object> target;
   try {
     target = TargetInternal::FromString(tag_or_config_or_target_str);
-  } catch (const dmlc::Error& e) {
+  } catch (const Error& e) {
     LOG(FATAL) << "ValueError" << e.what()
                << ". Target creation from string failed: " << tag_or_config_or_target_str;
   }
@@ -366,7 +365,7 @@ Target::Target(const Map<String, ObjectRef>& config) {
   ObjectPtr<Object> target;
   try {
     target = TargetInternal::FromConfig({config.begin(), config.end()});
-  } catch (const dmlc::Error& e) {
+  } catch (const Error& e) {
     LOG(FATAL) << "ValueError" << e.what()
                << ". Target creation from config dict failed: " << config;
   }
@@ -496,7 +495,7 @@ ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
                     "if the python module is properly loaded";
   Optional<Map<String, ObjectRef>> config = (*loader)(config_str);
   if (!config.defined()) {
-    throw dmlc::Error(": Cannot load config dict with python JSON loader");
+    throw Error(": Cannot load config dict with python JSON loader");
   }
   return TargetInternal::FromConfig({config.value().begin(), config.value().end()});
 }
@@ -514,7 +513,7 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
     }
   }
   if (name.empty()) {
-    throw dmlc::Error(": Cannot parse empty target string");
+    throw Error(": Cannot parse empty target string");
   }
   // Create the target config
   std::unordered_map<String, ObjectRef> config = {{"kind", String(name)}};
@@ -525,17 +524,17 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
       // Parse key-value pair
       std::string s_next = (iter + 1 < options.size()) ? options[iter + 1] : "";
       iter += ParseKVPair(RemovePrefixDashes(options[iter]), s_next, &key, &value);
-    } catch (const dmlc::Error& e) {
-      throw dmlc::Error(": Error when parsing target" + std::string(e.what()));
+    } catch (const Error& e) {
+      throw Error(": Error when parsing target" + std::string(e.what()));
     }
     try {
       // check if `key` has been used
       if (config.count(key)) {
-        throw dmlc::Error(": The key \"" + key + "\" appears more than once");
+        throw Error(": The key \"" + key + "\" appears more than once");
       }
       config[key] = TargetInternal::ParseType(value, TargetInternal::FindTypeInfo(kind, key));
-    } catch (const dmlc::Error& e) {
-      throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+    } catch (const Error& e) {
+      throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
   }
   return TargetInternal::FromConfig(config);
@@ -554,11 +553,11 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
       target->kind = GetTargetKind(GetRef<String>(kind));
       config.erase(kKind);
     } else {
-      throw dmlc::Error(": Expect type of field \"kind\" is String, but get type: " +
-                        config[kKind]->GetTypeKey());
+      throw Error(": Expect type of field \"kind\" is String, but get type: " +
+                  config[kKind]->GetTypeKey());
     }
   } else {
-    throw dmlc::Error(": Field \"kind\" is not found");
+    throw Error(": Field \"kind\" is not found");
   }
   // parse "tag"
   if (config.count(kTag)) {
@@ -566,8 +565,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
       target->tag = GetRef<String>(tag);
       config.erase(kTag);
     } else {
-      throw dmlc::Error(": Expect type of field \"tag\" is String, but get type: " +
-                        config[kTag]->GetTypeKey());
+      throw Error(": Expect type of field \"tag\" is String, but get type: " +
+                  config[kTag]->GetTypeKey());
     }
   } else {
     target->tag = "";
@@ -582,15 +581,15 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
           if (const auto* key = e.as<StringObj>()) {
             keys.push_back(GetRef<String>(key));
           } else {
-            throw dmlc::Error(
+            throw Error(
                 ": Expect 'keys' to be an array of strings, but it "
                 "contains an element of type: " +
                 e->GetTypeKey());
           }
         }
       } else {
-        throw dmlc::Error(": Expect type of field \"keys\" is Array, but get type: " +
-                          config[kKeys]->GetTypeKey());
+        throw Error(": Expect type of field \"keys\" is Array, but get type: " +
+                    config[kKeys]->GetTypeKey());
       }
     }
     // add device name
@@ -615,8 +614,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     try {
       const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
       attrs[key] = TargetInternal::ParseType(value, info);
-    } catch (const dmlc::Error& e) {
-      throw dmlc::Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+    } catch (const Error& e) {
+      throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
   }
   // parse host
