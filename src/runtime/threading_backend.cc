@@ -21,8 +21,8 @@
  * \file threading_backend.cc
  * \brief Native threading backend
  */
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/threading_backend.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <thread>

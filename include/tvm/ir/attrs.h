@@ -92,12 +92,12 @@ inline DataType NullValue<DataType>() {
 }
 
 /*! \brief Error thrown during attribute checking. */
-struct AttrError : public dmlc::Error {
+struct AttrError : public Error {
   /*!
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(std::string msg) : dmlc::Error("AttributeError:" + msg) {}
+  explicit AttrError(std::string msg) : Error("AttributeError:" + msg) {}
 };
 
 /*!
