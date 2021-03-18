@@ -590,6 +590,7 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_support_level(1)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .add_type_rel("Dropout", DropoutRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", true);
