@@ -309,8 +309,8 @@ endif(USE_STACKVM_RUNTIME)
 
 if(USE_GRAPH_RUNTIME)
   message(STATUS "Build with Graph runtime support...")
-  file(GLOB RUNTIME_GRAPH_SRCS src/runtime/graph/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_SRCS})
+  file(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_SRCS})
 
 endif(USE_GRAPH_RUNTIME)
 
@@ -327,9 +327,9 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  file(GLOB RUNTIME_GRAPH_DEBUG_SRCS src/runtime/graph/debug/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_DEBUG_SRCS})
-  set_source_files_properties(${RUNTIME_GRAPH_SRCS}
+  file(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
+  set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
     PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
 
   file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)

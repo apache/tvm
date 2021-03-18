@@ -59,8 +59,8 @@
 #include "../../src/runtime/system_library.cc"
 
 // Graph runtime
-#include "../../src/runtime/graph/graph_runtime.cc"
-#include "../../src/runtime/graph/graph_runtime_factory.cc"
+#include "../../src/runtime/graph_executor/graph_runtime.cc"
+#include "../../src/runtime/graph_executor/graph_runtime_factory.cc"
 
 // Uncomment the following lines to enable RPC
 // #include "../../src/runtime/rpc/rpc_session.cc"
