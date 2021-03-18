@@ -820,7 +820,9 @@ def test_forward_avgpool1d():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool1d(kernel_size=[10]).eval(), input_data=input_data)
     verify_model(AvgPool1D2().float().eval(), input_data=input_data)
-    verify_model(torch.nn.AvgPool1d(kernel_size=[5], stride=2, padding=2).eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool1d(kernel_size=[5], stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -835,7 +837,9 @@ def test_forward_avgpool2d():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
-    verify_model(torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -850,7 +854,9 @@ def test_forward_avgpool3d():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool3D1().float().eval(), input_data=input_data)
-    verify_model(torch.nn.AvgPool3d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool3d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu

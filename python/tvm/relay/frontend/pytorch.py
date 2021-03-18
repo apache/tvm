@@ -1354,7 +1354,6 @@ class PyTorchOpConverter:
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
 
     def make_avg_pool(self, dim):
-    
         def avg_pool(inputs, input_types):
             data = inputs[0]
 
