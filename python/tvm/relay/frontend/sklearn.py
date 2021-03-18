@@ -136,6 +136,8 @@ def _Pipeline(op, inexpr, dshape, dtype, func_name, columns=None):
     """
     for _, mod in op.steps:
         inexpr = sklearn_op_to_relay(mod, inexpr, dshape, dtype, func_name, columns)
+        if columns is not None:
+            columns = None
     return inexpr
 
 
