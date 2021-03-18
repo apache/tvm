@@ -1,0 +1,76 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""A universal API for handling data in TVM. Useful for when you may want to use datasets from
+different machine learning frameworks interchangably. """
+
+import numpy as np
+
+
+class DataLoader:
+    """Wrapper class for data loader or data set classes implemented by other machine learning
+    frameworks. Use this class when you want to use different machine learning framework datasets
+    interchangably."""
+
+    def get_next_batch(self):
+        """Returns the next batch of data.
+
+        Returns
+        -------
+        inputs : List of ndarray
+            The inputs to be provided to the graph.
+            The list is of the form [batched_input_1, batched_input_2, ..., batched_input_n]
+
+        labels: List
+            The expected outputs of the graph.
+            The length of labels should be equal to the batch size. If the dataloader doesn't
+            have labels, labels will be None.
+        """
+        raise NotImplementedError
+
+    def get_batch_size(self):
+        """Returns the size of each batch the dataloader has.
+
+        Returns
+        -------
+        batch_size : int
+            The number of inputs in each batch.
+        """
+
+    def get_num_batches(self):
+        """Returns the number of batches the dataloader has.
+
+        Returns
+        ------
+        num_batches : int
+            The number of batches the dataloader contains.
+        """
+        raise NotImplementedError
+
+    def is_empty(self):
+        """Checks whether the dataloader has gone through all its batches.
+        Returns
+        -------
+        is_empty : bool
+            True if there are batches left, False if there are no more
+            batches.
+        """
+        raise NotImplementedError
+
+    def reset(self):
+        """Starts the Dataloader over at the beginning of all the data."""
+        raise NotImplementedError
