@@ -21,7 +21,7 @@
  * \file parallel_for.cc
  * \brief An implementation to run loop in parallel.
  */
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/support/parallel_for.h>
 
 #include <future>

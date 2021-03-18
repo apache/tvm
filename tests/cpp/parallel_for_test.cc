@@ -19,7 +19,7 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/support/parallel_for.h>
 
 #include <vector>

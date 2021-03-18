@@ -78,8 +78,8 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   // Sanity check: axis
   int axis = param->axis;
   if (!(-ndim <= axis && axis < ndim)) {
-    throw Error(ErrorBuilder() << "concatenate only accepts `axis` in [-ndim, ndim)"
-                               << ", but got axis = " << axis << ", and ndim = " << ndim);
+    throw CompileError(ErrorBuilder() << "concatenate only accepts `axis` in [-ndim, ndim)"
+                                      << ", but got axis = " << axis << ", and ndim = " << ndim);
   }
   axis = axis < 0 ? ndim + axis : axis;
 

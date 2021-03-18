@@ -275,3 +275,8 @@ set(USE_TARGET_ONNX OFF)
 
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)
+
+# Whether to use libbacktrace
+# Libbacktrace provides line and column information on stack traces from errors. It is only
+# supported on linux and macOS.
+# set(USE_LIBBACKTRACE OFF)

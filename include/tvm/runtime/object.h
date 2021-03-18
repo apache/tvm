@@ -24,7 +24,7 @@
 #define TVM_RUNTIME_OBJECT_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 #include <type_traits>

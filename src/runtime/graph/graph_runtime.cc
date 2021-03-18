@@ -491,7 +491,7 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "share_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       const auto& module = args[0].operator Module();
-      ICHECK_EQ(module.operator->()->type_key(), "GraphRuntime");
+      ICHECK_EQ(module.operator->()->type_key(), std::string("GraphRuntime"));
       const auto& param_blob = args[1].operator std::string();
       dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
       this->ShareParams(dynamic_cast<const GraphRuntime&>(*module.operator->()), &strm);
