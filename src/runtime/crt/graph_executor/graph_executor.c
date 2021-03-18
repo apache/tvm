@@ -729,7 +729,9 @@ uint32_t TVMGraphExecutor_GetEntryId(TVMGraphExecutor* executor, uint32_t nid, u
  * \param executor The graph executor.
  * \return the number of input tensors allocated.
  */
-int TVMGraphExecutor_GetNumInputs(TVMGraphExecutor* executor) { return executor->input_nodes_count; }
+int TVMGraphExecutor_GetNumInputs(TVMGraphExecutor* executor) {
+  return executor->input_nodes_count;
+}
 
 /*!
  * \brief Get the input index given the name of input.
