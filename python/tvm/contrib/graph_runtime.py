@@ -22,6 +22,8 @@ from . import graph_executor
 
 
 def create(*args, **kwargs):
-    warnings.warn("This function has been moved to tvm.contrib.graph_executor and will be removed "
-                  "in the next TVM release")
+    warnings.warn(
+        "This function has been moved to tvm.contrib.graph_executor and will be removed "
+        "in the next TVM release"
+    )
     return graph_executor.create(*args, **kwargs)
