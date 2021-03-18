@@ -87,6 +87,8 @@ def measure_bandwidth_sum(
     GBPS: float
          gigabyte per second
     """
+    target, target_host = refresh_host(target, target_host)
+
     n, m = total_item, item_per_thread
     n //= lanes
 
@@ -106,8 +108,6 @@ def measure_bandwidth_sum(
     s[y].bind(yo, te.thread_axis("blockIdx.x"))
     s[y].bind(yi, te.thread_axis("threadIdx.x"))
     s[y].unroll(k)
-
-    target, target_host = refresh_host(target, target_host)
 
     try:
         func = tvm.build(s, [x, y], target)
@@ -154,9 +154,8 @@ def measure_bandwidth_all_types(
     result: list
         a list of (type_name, GBPS) pairs
     """
-    max_threads = target.max_num_threads
-
     target, target_host = refresh_host(target, target_host)
+    max_threads = target.max_num_threads
 
     result = []
     for base_type in ["float"]:
@@ -226,6 +225,7 @@ def measure_compute_mad(
     GOPS: float
          giga operation per second
     """
+    target, target_host = refresh_host(target, target_host)
 
     n = total_item
 
@@ -233,8 +233,6 @@ def measure_compute_mad(
         n //= 2
 
     max_threads = target.max_num_threads
-
-    target, target_host = refresh_host(target, target_host)
 
     base_type = str(base_type) + str(bits)
     dtype = base_type if lanes == 1 else base_type + "x" + str(lanes)

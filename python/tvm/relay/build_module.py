@@ -115,6 +115,7 @@ class BuildModule(object):
             The runtime factory for the TVM graph runtime.
         """
         target = _update_target(target)
+        target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
 
         # Setup the params.
         if params:
@@ -130,8 +131,6 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        # Assume the target host of all targets in heterogenous target are identical
-        target, target_host = refresh_host(target, target_host, target_is_key=False)
         self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
@@ -208,7 +207,8 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    return build(mod, target, target_host, params=params, mod_name=mod_name).module
+    target, target_host = refresh_host(target, target_host)
+    return build(mod, target, params=params, mod_name=mod_name).module
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
@@ -272,7 +272,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
 
-    target, target_host = refresh_host(target, target_host, target_is_key=False)
+    target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub

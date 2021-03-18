@@ -163,7 +163,8 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     writer->WriteArrayItem(std::string(data.workload_key));
     writer->WriteArrayItem(data.target->str());
     writer->WriteArrayItem(*data.hardware_params.get());
-    ::tvm::Target target = data.target, target_host = data.target_host;
+    ::tvm::Target target = data.target;
+    ::tvm::Target target_host = data.target_host;
     ::tvm::RefreshHost(&target, &target_host);
     if (target_host.defined()) {
       writer->WriteArrayItem(target_host->str());

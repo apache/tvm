@@ -63,8 +63,8 @@ void RefreshHost(Target* target, Target* target_host) {
   *target_host = (*target)->GetHost().value_or(Target());
 }
 
-void RefreshHost(TargetsMap* targets, Target* target_host) {
-  TargetsMap new_targets;
+void RefreshHost(Map<Integer, Target>* targets, Target* target_host) {
+  Map<Integer, Target> new_targets;
   for (auto& it : *targets) {
     auto target = it.second;
     RefreshHost(&target, target_host);
@@ -403,7 +403,7 @@ Target::Target(const Map<String, ObjectRef>& config) {
 
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-  CHECK(!n->host.defined() || n->host == host)
+  CHECK(!n->host.defined() || n->host.same_as(host))
       << "ValueError: Adding a host to a target whose host field has been defined";
   // add target host into host field
   n->host = std::move(host);

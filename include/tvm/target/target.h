@@ -175,10 +175,8 @@ class Target : public ObjectRef {
   TVM_DLL void ExitWithScope();
 };
 
-using TargetsMap = Map<Integer, Target>;
-
 TVM_DLL void RefreshHost(Target*, Target*);
-TVM_DLL void RefreshHost(TargetsMap*, Target*);
+TVM_DLL void RefreshHost(Map<Integer, Target>*, Target*);
 TVM_DLL void RefreshHost(Map<Target, IRModule>*, Target*);
 
 }  // namespace tvm

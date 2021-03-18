@@ -363,10 +363,10 @@ def autotvm_get_tuning_tasks(mod, params, target, target_host=None, alter_layout
     tasks : list of autotvm.Tasks
         list of tasks to be tuned
     """
+    target, target_host = refresh_host(target, target_host)
+
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
-
-    target, target_host = refresh_host(target, target_host)
 
     tasks = autotvm.task.extract_from_program(
         mod["main"],
@@ -412,10 +412,10 @@ def autoscheduler_get_tuning_tasks(
     weights : List[int]
         the weight (i.e. the number of appearance) of extracted tasks
     """
+    target, target_host = refresh_host(target, target_host)
+
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
-
-    target, target_host = refresh_host(target, target_host)
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(

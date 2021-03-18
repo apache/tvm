@@ -419,7 +419,6 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
-
     target, task.target_host = refresh_host(target, task.target_host)
 
     with target:

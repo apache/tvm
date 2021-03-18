@@ -79,10 +79,9 @@ def build(mod, target, target_host=None):
     module : tvm.Module
         The runtime module.
     """
-    if target_host == "":
-        target_host = None
+    target_host = None if target_host == "" else target_host
     target, target_host = refresh_host(target, target_host)
-    return tvm.driver.build(mod, target=target, target_host=target_host)
+    return tvm.driver.build(mod, target=target)
 
 
 @tvm._ffi.register_func("relay._tensor_value_repr")

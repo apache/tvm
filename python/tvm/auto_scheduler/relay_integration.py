@@ -125,7 +125,6 @@ def extract_tasks(
     # create search tasks
     tasks = []
     weights = []
-    target, target_host = refresh_host(target, target_host)
     for wkl_key, weight in env.wkl_key_to_weight.items():
         tasks.append(
             SearchTask(

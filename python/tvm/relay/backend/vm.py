@@ -63,10 +63,10 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
+    target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    target, target_host = refresh_host(target, target_host, target_is_key=False)
     compiler.lower(mod, target)
     compiler.codegen()
     return compiler.get_exec()
@@ -132,8 +132,7 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
-
-        target, target_host = refresh_host(target, target_host, target_is_key=False)
+        target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
 
         tophub_context = self._tophub_context(target)
         with tophub_context:
@@ -172,8 +171,7 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
-
-        target, target_host = refresh_host(target, target_host, target_is_key=False)
+        target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
 
         if params:
             self.set_params(params)

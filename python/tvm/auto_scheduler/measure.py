@@ -603,6 +603,7 @@ def _timed_func(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
+    task.target, task.target_host = refresh_host(task.target, task.target_host)
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None
@@ -622,7 +623,6 @@ def _timed_func(inp_serialized, build_func, verbose):
         filename = os.path.join(dirname, "tmp_func." + build_func.output_format)
 
         try:
-            task.target, task.target_host = refresh_host(task.target, task.target_host)
             with transform.PassContext():
                 func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
