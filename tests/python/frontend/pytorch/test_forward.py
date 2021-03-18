@@ -809,7 +809,21 @@ def test_forward_split():
 
 
 @tvm.testing.uses_gpu
-def test_forward_avgpool():
+def test_forward_avgpool1d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+
+    class AvgPool1D2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.avg_pool1d(args[0], kernel_size=[10])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AvgPool1d(kernel_size=[10]).eval(), input_data=input_data)
+    verify_model(AvgPool1D2().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_avgpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
 
@@ -3838,7 +3852,8 @@ if __name__ == "__main__":
     test_forward_logsoftmax()
     test_forward_sigmoid()
     test_forward_dense()
-    test_forward_avgpool()
+    test_forward_avgpool1d()
+    test_forward_avgpool2d()
     test_forward_avgpool3d()
     test_forward_dropout()
     test_forward_slice()
