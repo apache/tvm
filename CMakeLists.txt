@@ -21,7 +21,7 @@ endif()
 # NOTE: do not modify this file to change option values.
 # You can create a config.cmake at build folder
 # and add set(OPTION VALUE) to override these build options.
-# Alernatively, use cmake -DOPTION=VALUE through command-line.
+# Alternatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
@@ -55,8 +55,8 @@ endif()
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" ${_LIBBACKTRACE_DEFAULT})
 
 # 3rdparty libraries
+add_subdirectory(3rdparty/dmlc-core)
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
-tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
@@ -93,7 +93,6 @@ tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
 include_directories(SYSTEM ${DLPACK_PATH})
-include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
@@ -472,6 +471,13 @@ endif()
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
+# The following 2 lines are needed to add dmlc-core compilation properties
+# (such as -DDMLC_CORE_USE_CMAKE) to tvm compilation commands.
+# It also includes build/3rdparty/dmlc-core/include folder
+# containing cmake generated build_config.h needed for dmlc/logging.h
+target_link_libraries(tvm_objs PUBLIC dmlc)
+target_link_libraries(tvm_runtime_objs PUBLIC dmlc)
+
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 
@@ -483,10 +489,10 @@ target_include_directories(
   tvm_objs
   PUBLIC "topi/include")
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
-target_include_directorieS(
+target_include_directories(
   tvm_objs
   PRIVATE "${CRC16_INCLUDE_PATH}")
-target_include_directorieS(
+target_include_directories(
   tvm_runtime_objs
   PRIVATE "${CRC16_INCLUDE_PATH}")
 
