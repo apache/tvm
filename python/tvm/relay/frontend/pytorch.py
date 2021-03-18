@@ -1353,6 +1353,31 @@ class PyTorchOpConverter:
         beta = _expr.const(float(inputs[1]), dtype=dtype)
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
 
+    def avg_pool1d(self, inputs, input_types):
+        data = inputs[0]
+
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
+        padding = inputs[3]
+        ceil_mode = int(inputs[4])
+        count_include_pad = int(inputs[5])
+
+        def func(x):
+            return _op.nn.avg_pool1d(
+                x,
+                pool_size=pool_size,
+                strides=strides,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+            )
+
+        if self.is_quantized_tensor(data):
+            return qnn_torch.apply_with_upcast(data, func)
+
+        return func(data)
+
+
     def avg_pool2d(self, inputs, input_types):
         data = inputs[0]
 
@@ -2338,6 +2363,7 @@ class PyTorchOpConverter:
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
             "aten::softplus": self.softplus,
+            "aten::avg_pool1d": self.avg_pool1d,
             "aten::avg_pool2d": self.avg_pool2d,
             "aten::avg_pool3d": self.avg_pool3d,
             "aten::linear": self.linear,
