@@ -474,7 +474,9 @@ def nms_ir(
                     box_indices[i * num_anchors + j] = -1
 
         with ib.else_scope():
-            with ib.if_scope(j < valid_count[i]):
+            # Need to copy all boxes if not using return_indices
+            bounds = valid_count[i] if return_indices else num_anchors
+            with ib.if_scope(j < bounds):
                 src_offset = base_src_idx + j * box_data_length
 
                 with ib.for_range(0, 4, kind="unroll") as k:
