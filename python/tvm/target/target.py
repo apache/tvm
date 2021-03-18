@@ -501,7 +501,8 @@ def _load_config_dict(config_dict_str):
 
 
 def refresh_host(target, host=None, target_is_dict_key=True):
-    """A helper function that merges a legacy "target, target_host" pair, then returns the merged target and its host field.
+    """A helper function that merges a legacy "target, target_host" pair, then returns
+    the merged target and its host field.
 
     Parameters
     ----------
