@@ -57,14 +57,9 @@ TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 static void VerifyComputeOp(const ComputeOpNode* op);
 
 inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
-  StructuralEqual expr_equal;
-  return (a->combiner.same_as(b->combiner)) &&
-         (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) &&
-         (a->condition.same_as(b->condition) ||
-          expr_equal(a->condition, b->condition)) &&
-         ((a->init.empty() && b->init.empty()) ||
-          (a->init.same_as(b->init)));
+  return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) && StructuralEqual()(a->condition, b->condition) &&
+         ((a->init.empty() && b->init.empty()) || (a->init.same_as(b->init)));
 }
 
 int ComputeOpNode::num_outputs() const { return body.size(); }

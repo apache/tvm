@@ -423,4 +423,3 @@ if __name__ == "__main__":
     test_tensor_pool()
     test_tensor_scalar_mixed()
     test_tensor_scalar()
-
