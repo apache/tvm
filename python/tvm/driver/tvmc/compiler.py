@@ -111,6 +111,8 @@ def drive_compile(args):
 
     """
 
+    mod, params = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
+
     graph, lib, params, dumps = compile_model(
         args.FILE,
         args.target,
@@ -120,6 +122,8 @@ def drive_compile(args):
         args.tuning_records,
         args.desired_layout,
         args.input_shapes,
+        mod,
+        params
     )
 
     if dumps:
@@ -138,6 +142,8 @@ def compile_model(
     tuning_records=None,
     alter_layout=None,
     shape_dict=None,
+    mod,
+    params
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -184,7 +190,7 @@ def compile_model(
 
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format, shape_dict)
+    
     config = {}
 
     if alter_layout:
