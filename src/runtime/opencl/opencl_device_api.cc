@@ -176,14 +176,15 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* s
   if (!mem_scope.defined() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(ctx, ndim, shape, dtype, mem_scope);
   }
-  ICHECK(std::string(mem_scope.value()).find("texture") != std::string::npos)
+  ICHECK(IsTextureStorage(std::string(mem_scope.value())))
     << "Device does not support allocate data space with "
     << "specified memory scope: " << mem_scope.value();
 
-  size_t width, height;
-  size_t axis_separator = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
-  std::tie(width, height) = ApplyTexture2DFlattening<size_t>(shape, ndim, axis_separator);
-  return AllocTexture(ctx, width, height, dtype);
+  ICHECK(ndim > 2) << "Shape for texture allocation must be at least rank 2; "
+                   << "provided shape is rank " << ndim;
+  size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
+  auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
+  return AllocTexture(ctx, texture.width, texture.height, dtype);
 }
 
 void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {

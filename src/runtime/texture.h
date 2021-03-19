@@ -32,6 +32,14 @@
 namespace tvm {
 namespace runtime {
 
+/*! \brief Structure to represent flattened texture shape */
+template <typename T>
+struct Texture2DShape {
+  T width;
+  T height;
+  T channel;
+};
+
 /*!
  * \param shape_rank Rank N of the Nd-shape
  * \param convention Storage scope convention to use for flattening
@@ -42,11 +50,13 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, std::string conve
   // e.g. [N,C,H,W,c] -> Texture2d[N*C*H, W, c]
   // Texture weight:
   // e.g. [O,I,H,W,c] -> Texture2d[O, I*H*W, c]
-  size_t separator;
+  size_t separator = 0;
   if (convention == "texture"){
     separator = shape_rank - 2;
   } else if (convention == "texture:weight") {
     separator = 1;
+  } else {
+    LOG(FATAL) << "Encountered unknown texture lowering convention";
   }
   return separator;
 }
@@ -57,18 +67,22 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, std::string conve
  * \param axis The axis separator that splits the Nd axes into two sets
  * \return Width and height of the 2d shape
  */
-template<typename A, typename S>
-std::pair<A, A> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t axis) {
+template<typename T, typename S>
+Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t axis) {
   ICHECK(axis < rank) << "Number of axes to flatten into rows must be less than shape rank for 2d flattening";
-  A width = 1, height = 1;
+  Texture2DShape<T> texture{1, 1, shape[rank - 1]};
   for (size_t i = 0; i < rank - 1; i++) {
     if (i < axis) {
-      height *= shape[i];
+      texture.height *= shape[i];
     } else {
-      width *= shape[i];
+      texture.width *= shape[i];
     }
   }
-  return std::make_pair(width, height);
+  return texture;
+}
+
+inline bool IsTextureStorage(std::string scope) {
+  return scope.find("texture") != std::string::npos;
 }
 
 class TVM_DLL TexturePool {
