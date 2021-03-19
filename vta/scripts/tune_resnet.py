@@ -29,7 +29,7 @@ from tvm import rpc, autotvm, relay
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.contrib import graph_executor, utils, download
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 import vta
 from vta.testing import simulator
 from vta.top import graph_pack
@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
         # If detailed runtime info is needed build with debug runtime
         if opt.debug_profile:
-            m = debug_runtime.create(graph, lib, ctx)
+            m = debug_executor.create(graph, lib, ctx)
         else:
             m = graph_executor.create(graph, lib, ctx)
 

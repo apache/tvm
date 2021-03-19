@@ -23,7 +23,7 @@ import sys
 from ..error import register_error
 from .._ffi import get_global_func
 from ..contrib import graph_executor
-from ..contrib.debugger import debug_runtime
+from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
 from .transport import IoTimeoutError
 from .transport import TransportLogger
@@ -218,7 +218,7 @@ def create_local_graph_executor(graph_json_str, mod, device):
     )
 
 
-def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
+def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
     """Create a local debug runtime driving execution on the remote CPU device given.
 
     Parameters
@@ -242,7 +242,7 @@ def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
     """
     device_type_id = [device.device_type, device.device_id]
     fcreate = get_global_func("tvm.graph_executor_debug.create")
-    return debug_runtime.GraphModuleDebug(
+    return debug_executor.GraphModuleDebug(
         fcreate(graph_json_str, mod, lookup_remote_linked_param, *device_type_id),
         [device],
         graph_json_str,

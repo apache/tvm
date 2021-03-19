@@ -53,7 +53,7 @@ import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.contrib import graph_executor, utils, download
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 from tvm.relay import transform
 
 import vta

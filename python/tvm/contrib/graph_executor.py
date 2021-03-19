@@ -270,7 +270,7 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        raise NotImplementedError("Please use debugger.debug_runtime as graph_executor instead.")
+        raise NotImplementedError("Please use debugger.debug_executor as graph_executor instead.")
 
     def load_params(self, params_bytes):
         """Load parameters from serialized byte array of parameter dict.

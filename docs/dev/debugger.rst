@@ -134,12 +134,12 @@ How to use Debugger?
 
 3. In frontend script file instead of
    ``from tvm.contrib import graph_executor`` import the
-   ``debug_runtime``
-   ``from tvm.contrib.debugger import debug_runtime as graph_executor``
+   ``debug_executor``
+   ``from tvm.contrib.debugger import debug_executor as graph_executor``
 
 ::
 
-    from tvm.contrib.debugger import debug_runtime as graph_executor
+    from tvm.contrib.debugger import debug_executor as graph_executor
     m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg")
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))

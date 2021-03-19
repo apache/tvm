@@ -131,4 +131,4 @@ class GraphModuleCudaGraph(graph_executor.GraphModule):
         out : NDArray
             The output array container
         """
-        raise NotImplementedError("Please use debugger.debug_runtime as graph_executor instead.")
+        raise NotImplementedError("Please use debugger.debug_executor as graph_executor instead.")

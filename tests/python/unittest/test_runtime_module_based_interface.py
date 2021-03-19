@@ -19,7 +19,7 @@ from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_executor
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 from tvm.contrib.cuda_graph import cuda_graph_executor
 import tvm.testing
 
@@ -527,7 +527,7 @@ def test_debug_graph_executor():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # debug graph executor wrapper
-    debug_g_mod = debug_runtime.GraphModuleDebug(
+    debug_g_mod = debug_executor.GraphModuleDebug(
         complied_graph_lib["debug_create"]("default", dev),
         [dev],
         complied_graph_lib.get_json(),

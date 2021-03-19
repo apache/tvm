@@ -27,7 +27,7 @@ import numpy as np
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 from tvm.relay import load_param_dict
 
 from . import common
@@ -370,7 +370,7 @@ def run_module(
 
         if profile:
             logger.debug("creating runtime with profiling enabled")
-            module = debug_runtime.create(graph, lib, dev, dump_root="./prof")
+            module = debug_executor.create(graph, lib, dev, dump_root="./prof")
         else:
             logger.debug("creating runtime with profiling disabled")
             module = runtime.create(graph, lib, dev)
