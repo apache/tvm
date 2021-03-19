@@ -37,13 +37,13 @@ class BlockInfo:
     iter_bindings: Mapping[Var, PrimExpr] = {}
     """Mapping[Var, PrimExpr]: map of block iter var to its values"""
     reads: Optional[List[BufferSlice]] = None
-    """Optional[List[BufferSlice]]: 
+    """Optional[List[BufferSlice]]:
     list of tir.reads statements in the block signature, None for not-visited"""
     writes: Optional[List[BufferSlice]] = None
-    """Optional[List[BufferSlice]]: 
+    """Optional[List[BufferSlice]]:
     list of tir.writes statements in the block signature, None for not-visited"""
     annotations: Optional[Mapping[str, Object]] = None
-    """Optional[Mapping[str, Object]]: 
+    """Optional[Mapping[str, Object]]:
     list of tir.block_attr statements in the block signature, None for not-visited"""
     predicate: Optional[PrimExpr] = None
     """Optional[PrimExpr]: block realize predicate, None for not-visited"""
