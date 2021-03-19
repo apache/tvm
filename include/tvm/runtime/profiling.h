@@ -155,7 +155,7 @@ namespace profiling {
 struct CallFrame {
   /*! Context in which the call was made */
   TVMContext ctx;
-  /*! Name of the function or ap */
+  /*! Name of the function or op */
   String name;
   /*! Runtime of the function or op */
   Timer timer;
@@ -215,9 +215,13 @@ class Profiler {
   /*! \brief A textual report of total runtime between `Start` and `Stop` as
    *        well as individual statistics for each `StartCall`-`StopCall` pair.
    *  \param aggregate Whether or not to join multiple calls to the same op into a single line.
+   *  \param sort Whether or not to sort call frames by descending duration. If
+   *  false and if `aggregate` is false, frames will be sorted by order of
+   *  appearance in the program. Order is undefined if `sort` is false and
+   *  `aggregate` is true.
    *  \returns The report as a string.
    */
-  String Report(bool aggregate = true);
+  String Report(bool aggregate = true, bool sort = true);
 
  private:
   std::vector<std::pair<TVMContext, Timer>> global_timers_;
@@ -229,12 +233,12 @@ class Profiler {
 class DurationNode : public Object {
  public:
   /* The duration as a floating point number of microseconds. */
-  double value;
+  double microseconds;
 
   /* \brief Construct a new duration.
    * \param a The duration in microseconds.
    */
-  explicit DurationNode(double a) : value(a) {}
+  explicit DurationNode(double a) : microseconds(a) {}
 
   static constexpr const char* _type_key = "runtime.profiling.Duration";
   TVM_DECLARE_FINAL_OBJECT_INFO(DurationNode, Object);
@@ -243,13 +247,13 @@ class DurationNode : public Object {
 /* A percentage of something */
 class PercentNode : public Object {
  public:
-  /* The percent as a floating point value out of 100%. i.e. if value is 10 then we have 10%. */
-  double value;
+  /* The percent as a floating point value out of 100%. i.e. if `percent` is 10 then we have 10%. */
+  double percent;
 
   /* \brief Construct a new percentage.
    * \param a The percentage out of 100.
    */
-  explicit PercentNode(double a) : value(a) {}
+  explicit PercentNode(double a) : percent(a) {}
 
   static constexpr const char* _type_key = "runtime.profiling.Percent";
   TVM_DECLARE_FINAL_OBJECT_INFO(PercentNode, Object);

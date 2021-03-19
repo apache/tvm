@@ -186,11 +186,11 @@ std::string FormatTable(const std::vector<std::unordered_map<std::string, Object
         } else if (it->second.as<DurationNode>()) {
           std::stringstream s;
           s.imbue(std::locale(""));  // for 1000s seperators
-          s << std::fixed << std::setprecision(2) << it->second.as<DurationNode>()->value;
+          s << std::fixed << std::setprecision(2) << it->second.as<DurationNode>()->microseconds;
           val = s.str();
         } else if (it->second.as<PercentNode>()) {
           std::stringstream s;
-          s << std::fixed << std::setprecision(2) << it->second.as<PercentNode>()->value;
+          s << std::fixed << std::setprecision(2) << it->second.as<PercentNode>()->percent;
           val = s.str();
         } else if (it->second.as<StringObj>()) {
           val = Downcast<String>(it->second);
@@ -234,7 +234,7 @@ std::string FormatTable(const std::vector<std::unordered_map<std::string, Object
   return s.str();
 }
 
-String Profiler::Report(bool aggregate) {
+String Profiler::Report(bool aggregate, bool sort) {
   std::vector<std::pair<TVMContext, double>> global_times;
   for (auto p : global_timers_) {
     global_times.emplace_back(p.first, p.second->SyncAndGetElapsedNanos() / 1e3);
@@ -303,13 +303,13 @@ String Profiler::Report(bool aggregate) {
       } else if (metric.second.as<DurationNode>()) {
         double sum = 0;
         for (auto i : p.second) {
-          sum += calls_[i].extra_metrics[metric.first].as<DurationNode>()->value;
+          sum += calls_[i].extra_metrics[metric.first].as<DurationNode>()->microseconds;
         }
         row[metric.first] = ObjectRef(make_object<DurationNode>(sum));
       } else if (metric.second.as<PercentNode>()) {
         double sum = 0;
         for (auto i : p.second) {
-          sum += calls_[i].extra_metrics[metric.first].as<PercentNode>()->value;
+          sum += calls_[i].extra_metrics[metric.first].as<PercentNode>()->percent;
         }
         row[metric.first] = ObjectRef(make_object<PercentNode>(sum));
       } else if (metric.second.as<StringObj>()) {
@@ -322,20 +322,22 @@ String Profiler::Report(bool aggregate) {
   }
 
   // sort rows by duration
-  std::sort(rows.begin(), rows.end(),
-            [&](const std::unordered_map<std::string, ObjectRef>& a,
-                const std::unordered_map<std::string, ObjectRef>& b) {
-              return a.at("Duration (us)").as<DurationNode>()->value >
-                     b.at("Duration (us)").as<DurationNode>()->value;
-            });
+  if(sort) {
+    std::sort(rows.begin(), rows.end(),
+              [&](const std::unordered_map<std::string, ObjectRef>& a,
+                  const std::unordered_map<std::string, ObjectRef>& b) {
+                return a.at("Duration (us)").as<DurationNode>()->microseconds >
+                       b.at("Duration (us)").as<DurationNode>()->microseconds;
+              });
+  }
 
   double op_sum = 0;
   int64_t total_count = 0;
   double per = 0;
   for (auto row : rows) {
-    op_sum += row["Duration (us)"].as<DurationNode>()->value;
+    op_sum += row["Duration (us)"].as<DurationNode>()->microseconds;
     total_count += row["Count"].as<CountNode>()->value;
-    per += row["Percent"].as<PercentNode>()->value;
+    per += row["Percent"].as<PercentNode>()->percent;
   }
 
   rows.push_back({{"Name", String("------------------")}});
