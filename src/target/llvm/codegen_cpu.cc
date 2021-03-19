@@ -403,6 +403,8 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
       // Mark as context functions
       gv_func_map_["TVMBackendAllocWorkspace"] = nullptr;
       gv_func_map_["TVMBackendFreeWorkspace"] = nullptr;
+      gv_func_map_["TVMBackendAllocTexture"] = nullptr;
+      gv_func_map_["TVMBackendFreeTexture"] = nullptr;
     }
   }
 }

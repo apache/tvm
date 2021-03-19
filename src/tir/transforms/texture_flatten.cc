@@ -90,13 +90,13 @@ class TextureFlattener : public StmtExprMutator {
       ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
 
       // TODO(csullivan): Consider check on float only?
-      StringImm dtype(runtime::DLDataType2String(buffer_var.dtype()));
+      // StringImm dtype(runtime::DLDataType2String(buffer_var.dtype()));
 
       // StringImm func("device_api.opencl.AllocImage2d");
       // Array<PrimExpr> args = {func, dtype, shape[0], shape[1]};
       // stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::tvm_call_packed(), args), body);
 
-      Array<PrimExpr> args = {dtype, shape[0], shape[1]};
+      Array<PrimExpr> args = {shape[0], shape[1]};
       stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
     }
 
@@ -141,7 +141,7 @@ class TextureFlattener : public StmtExprMutator {
       }
       args.push_back(op->value);
 
-      stmt = Evaluate(Call(op->buffer->dtype, builtin::text2d_store(), args));
+      stmt = Evaluate(Call(args[0]->dtype, builtin::text2d_store(), args));
       if (needs_vectorization_)
       {
         loop_vars_.insert({op->indices.back().get(), true});
