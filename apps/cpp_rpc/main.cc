@@ -55,6 +55,7 @@ static const string kUsage =
     "--tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=\"\"\n"
     "--key         - The key used to identify the device type in tracker. Default=\"\"\n"
     "--custom-addr - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
+    "--work-dir    - Custom work directory. Default=\"\"\n"
     "--silent      - Whether to run in silent mode. Default=False\n"
     "\n"
     "  Example\n"
@@ -70,6 +71,7 @@ static const string kUsage =
  * \arg tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \arg key The key used to identify the device type in tracker. Default=""
  * \arg custom_addr Custom IP Address to Report to RPC Tracker. Default=""
+ * \arg work_dir Custom work directory. Default=""
  * \arg silent Whether run in silent mode. Default=False
  */
 struct RpcServerArgs {
@@ -79,6 +81,7 @@ struct RpcServerArgs {
   string tracker;
   string key;
   string custom_addr;
+  string work_dir;
   bool silent = false;
 #if defined(WIN32)
   std::string mmap_path;
@@ -96,6 +99,7 @@ void PrintArgs(const RpcServerArgs& args) {
   LOG(INFO) << "tracker     = " << args.tracker;
   LOG(INFO) << "key         = " << args.key;
   LOG(INFO) << "custom_addr = " << args.custom_addr;
+  LOG(INFO) << "work_dir    = " << args.work_dir;
   LOG(INFO) << "silent      = " << ((args.silent) ? ("True") : ("False"));
 }
 
@@ -238,6 +242,10 @@ void ParseCmdArgs(int argc, char* argv[], struct RpcServerArgs& args) {
     dmlc::InitLogging("--minloglevel=0");
   }
 #endif
+  const string work_dir = GetCmdOption(argc, argv, "--work-dir=");
+  if (!work_dir.empty()) {
+    args.work_dir = work_dir;
+  }
 }
 
 /*!
@@ -274,7 +282,7 @@ int RpcServer(int argc, char* argv[]) {
 #endif
 
   RPCServerCreate(args.host, args.port, args.port_end, args.tracker, args.key, args.custom_addr,
-                  args.silent);
+                  args.work_dir, args.silent);
   return 0;
 }
 
