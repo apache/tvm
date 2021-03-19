@@ -38,7 +38,7 @@ use std::{
 };
 
 pub use crate::{
-    context::{Context, DeviceType},
+    device::{Device, DeviceType},
     errors::*,
     function::Function,
     module::Module,
@@ -111,7 +111,7 @@ pub fn version() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ByteArray, Context, DataType};
+    use crate::{ByteArray, Device, DataType};
     use std::{convert::TryInto, str::FromStr};
 
     #[test]
@@ -148,9 +148,9 @@ mod tests {
     }
 
     #[test]
-    fn ctx() {
-        let c = Context::from_str("gpu").unwrap();
-        let tvm: Context = RetValue::from(c).try_into().unwrap();
+    fn device() {
+        let c = Device::from_str("gpu").unwrap();
+        let tvm: Device = RetValue::from(c).try_into().unwrap();
         assert_eq!(tvm, c);
     }
 }

@@ -86,7 +86,7 @@ void DeploySingleOp() {
 void DeployGraphRuntime() {
   LOG(INFO) << "Running graph runtime...";
   // load in the library
-  DLContext ctx{kDLCPU, 0};
+  DLDevice dev{kDLCPU, 0};
   tvm::runtime::Module mod_factory = tvm::runtime::Module::LoadFromFile("lib/test_relay_add.so");
   // create the graph runtime module
   tvm::runtime::Module gmod = mod_factory.GetFunction("default")(ctx);

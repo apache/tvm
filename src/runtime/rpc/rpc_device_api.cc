@@ -79,54 +79,54 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final {
-    DLContext ctx_from = from->ctx;
-    DLContext ctx_to = to->ctx;
-    if (IsRPCSessionContext(ctx_from) && IsRPCSessionContext(ctx_to)) {
-      ICHECK(ctx_from.device_type == ctx_to.device_type)
+    DLDevice dev_from = from->device;
+    DLDevice dev_to = to->device;
+    if (IsRPCSessionContext(dev_from) && IsRPCSessionContext(dev_to)) {
+      ICHECK(dev_from.device_type == dev_to.device_type)
           << "Cannot copy across two different remote session";
       DLTensor from_tensor = *from;
-      from_tensor.ctx = RemoveRPCSessionMask(ctx_from);
+      from_tensor.device = RemoveRPCSessionMask(dev_from);
       from_tensor.data = static_cast<const RemoteSpace*>(from->data)->data;
       DLTensor to_tensor = *to;
-      to_tensor.ctx = RemoveRPCSessionMask(ctx_to);
+      to_tensor.device = RemoveRPCSessionMask(dev_to);
       to_tensor.data = static_cast<const RemoteSpace*>(to->data)->data;
-      auto remote_ctx = from_tensor.ctx;
-      if (remote_ctx.device_type == kDLCPU) remote_ctx = to_tensor.ctx;
-      GetSess(ctx_from)->GetDeviceAPI(remote_ctx)->CopyDataFromTo(&from_tensor, &to_tensor, stream);
-    } else if (IsRPCSessionContext(ctx_from) && ctx_to.device_type == kDLCPU) {
+      auto remote_dev = from_tensor.device;
+      if (remote_dev.device_type == kDLCPU) remote_dev = to_tensor.device;
+      GetSess(dev_from)->GetDeviceAPI(remote_dev)->CopyDataFromTo(&from_tensor, &to_tensor, stream);
+    } else if (IsRPCSessionContext(dev_from) && dev_to.device_type == kDLCPU) {
       DLTensor from_tensor = *from;
-      from_tensor.ctx = RemoveRPCSessionMask(ctx_from);
+      from_tensor.device = RemoveRPCSessionMask(dev_from);
       from_tensor.data = static_cast<const RemoteSpace*>(from->data)->data;
       void* to_bytes = static_cast<char*>(to->data) + to->byte_offset;
       size_t nbytes = GetDataSize(*to);
-      GetSess(ctx_from)->CopyFromRemote(&from_tensor, to_bytes, nbytes);
-    } else if (ctx_from.device_type == kDLCPU && IsRPCSessionContext(ctx_to)) {
+      GetSess(dev_from)->CopyFromRemote(&from_tensor, to_bytes, nbytes);
+    } else if (dev_from.device_type == kDLCPU && IsRPCSessionContext(dev_to)) {
       DLTensor to_tensor = *to;
-      to_tensor.ctx = RemoveRPCSessionMask(ctx_to);
+      to_tensor.device = RemoveRPCSessionMask(dev_to);
       to_tensor.data = static_cast<const RemoteSpace*>(to->data)->data;
       void* from_bytes = static_cast<char*>(from->data) + from->byte_offset;
       size_t nbytes = GetDataSize(*from);
-      GetSess(ctx_to)->CopyToRemote(from_bytes, &to_tensor, nbytes);
+      GetSess(dev_to)->CopyToRemote(from_bytes, &to_tensor, nbytes);
     } else {
       LOG(FATAL) << "expect copy from/to remote or between remote";
     }
   }
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
-    auto remote_ctx = RemoveRPCSessionMask(ctx);
-    GetSess(ctx)->GetDeviceAPI(remote_ctx)->StreamSync(remote_ctx, stream);
+  void StreamSync(Device dev, TVMStreamHandle stream) final {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    GetSess(dev)->GetDeviceAPI(remote_dev)->StreamSync(remote_dev, stream);
   }
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                      size_t num_bytes, Device dev_from, Device dev_to,
                       DLDataType type_hint, TVMStreamHandle stream) final {
     LOG(FATAL) << "Not implemented.";
   }
 
  private:
-  std::shared_ptr<RPCSession> GetSess(TVMContext ctx) {
-    int tbl_index = GetRPCSessionIndex(ctx);
+  std::shared_ptr<RPCSession> GetSess(Device dev) {
+    int tbl_index = GetRPCSessionIndex(dev);
     return RPCSession::Get(tbl_index);
   }
 };

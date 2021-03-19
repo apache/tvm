@@ -590,36 +590,36 @@ int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_END();
 }
 
-int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint,
+int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDataType type_hint,
                             void** out_data) {
   API_BEGIN();
-  out_data[0] = DeviceAPIManager::Get(ctx)->AllocDataSpace(ctx, nbytes, alignment, type_hint);
+  out_data[0] = DeviceAPIManager::Get(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
   API_END();
 }
 
-int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
+int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape,
                                      DLDataType dtype, const char* mem_scope, void** out_data) {
   API_BEGIN();
   Optional<String> scope;
   if (mem_scope != nullptr) {
     scope = String(std::string(mem_scope));
   }
-  out_data[0] = DeviceAPIManager::Get(ctx)->AllocDataSpace(ctx, ndim, shape, dtype, scope);
+  out_data[0] = DeviceAPIManager::Get(dev)->AllocDataSpace(dev, ndim, shape, dtype, scope);
   API_END();
 }
 
-int TVMDeviceFreeDataSpace(DLContext ctx, void* ptr) {
+int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr) {
   API_BEGIN();
-  DeviceAPIManager::Get(ctx)->FreeDataSpace(ctx, ptr);
+  DeviceAPIManager::Get(dev)->FreeDataSpace(dev, ptr);
   API_END();
 }
 
 int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   API_BEGIN();
-  TVMContext ctx_from = from->ctx;
-  TVMContext ctx_to = to->ctx;
-  TVMContext ctx = ctx_from.device_type != kDLCPU ? ctx_from : ctx_to;
-  DeviceAPIManager::Get(ctx)->CopyDataFromTo(from, to, stream);
+  DLDevice dev_from = from->device;
+  DLDevice dev_to = to->device;
+  DLDevice dev = dev_from.device_type != kDLCPU ? dev_from : dev_to;
+  DeviceAPIManager::Get(dev)->CopyDataFromTo(from, to, stream);
   API_END();
 }
 

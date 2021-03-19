@@ -117,12 +117,12 @@ void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
   exit(-1);
 }
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  return g_memory_manager->Allocate(g_memory_manager, num_bytes, ctx, out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  return g_memory_manager->Allocate(g_memory_manager, num_bytes, dev, out_ptr);
 }
 
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
-  return g_memory_manager->Free(g_memory_manager, ptr, ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  return g_memory_manager->Free(g_memory_manager, ptr, dev);
 }
 
 tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorFunctionCallNotImplemented; }

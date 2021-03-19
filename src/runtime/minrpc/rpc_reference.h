@@ -306,8 +306,8 @@ struct RPCReference {
           channel->template Write<int32_t>(padding);
           break;
         }
-        case kTVMContext: {
-          channel->Write(value.v_ctx);
+        case kDLDevice: {
+          channel->Write(value.v_device);
           break;
         }
 
@@ -408,8 +408,8 @@ struct RPCReference {
           channel->template Read<int32_t>(&padding);
           break;
         }
-        case kTVMContext: {
-          channel->Read(&(value.v_ctx));
+        case kDLDevice: {
+          channel->Read(&(value.v_device));
           break;
         }
         case kTVMPackedFuncHandle:

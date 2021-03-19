@@ -53,7 +53,7 @@ pub mod packed_func;
 pub mod value;
 
 pub use byte_array::ByteArray;
-pub use context::{Context, DeviceType};
+pub use device::{Device, DeviceType};
 pub use datatype::DataType;
 pub use errors::*;
 pub use packed_func::{ArgValue, RetValue};

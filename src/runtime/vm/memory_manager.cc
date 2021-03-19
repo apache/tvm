@@ -161,9 +161,9 @@ Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
   return it->second.get();
 }
 
-NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
-  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, ctx);
+  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);

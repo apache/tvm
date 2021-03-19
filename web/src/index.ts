@@ -18,7 +18,7 @@
  */
 
 export {
-  Scalar, DLContext, DLDataType,
+  Scalar, DLDevice, DLDataType,
   PackedFunc, Module, NDArray, Instance,
   instantiate
 } from "./runtime";

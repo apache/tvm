@@ -108,7 +108,7 @@ typedef enum {
   kTVMOpaqueHandle = 3U,
   kTVMNullptr = 4U,
   kTVMDataType = 5U,
-  kTVMContext = 6U,
+  kDLDevice = 6U,
   kTVMDLTensorHandle = 7U,
   kTVMObjectHandle = 8U,
   kTVMModuleHandle = 9U,
@@ -129,11 +129,6 @@ typedef enum {
   kTVMExtEnd = 128U,
 } TVMArgTypeCode;
 
-/*!
- * \brief The Device information, abstract away common device types.
- */
-typedef DLContext TVMContext;
-
 /*! \brief the array handle */
 typedef DLTensor* TVMArrayHandle;
 
@@ -147,7 +142,7 @@ typedef union {
   void* v_handle;
   const char* v_str;
   DLDataType v_type;
-  TVMContext v_ctx;
+  DLDevice v_device;
 } TVMValue;
 
 /*!
@@ -548,7 +543,7 @@ TVM_DLL int TVMByteArrayFree(TVMByteArray* arr);
 
 /*!
  * \brief Allocate a data space on device.
- * \param ctx The device context to perform operation.
+ * \param dev The device to perform operation.
  * \param nbytes The number of bytes in memory.
  * \param alignment The alignment of the memory.
  * \param type_hint The type of elements. Only needed by certain backends such
@@ -556,14 +551,14 @@ TVM_DLL int TVMByteArrayFree(TVMByteArray* arr);
  * \param out_data The allocated device pointer.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment,
+TVM_DLL int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment,
                                     DLDataType type_hint, void** out_data);
 
 /*!
  * \brief Allocate a data space on device with special memory scope.
  * \note The memory could use a special multi-dimensional memory layout.
  *       That is why we pass shape and dtype instead of raw number of bytes.
- * \param ctx The device context to perform operation.
+ * \param dev The device to perform operation.
  * \param ndim The number of dimension of the tensor.
  * \param shape The shape of the tensor.
  * \param dtype The type of elements.
@@ -572,17 +567,17 @@ TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignme
  * \param out_data The allocated device pointer.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
+TVM_DLL int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape,
                                              DLDataType dtype, const char* mem_scope,
                                              void** out_data);
 
 /*!
  * \brief Free a data space on device.
- * \param ctx The device context to perform operation.
+ * \param dev The device to perform operation.
  * \param ptr The data space.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr);
+TVM_DLL int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr);
 
 /*!
  * \brief Copy data from one place to another.

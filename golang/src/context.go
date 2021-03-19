@@ -50,7 +50,7 @@ var KOpenGL                 = int32(C.kOpenGL)
 // KExtDev is golang enum correspond to TVM device type kDLExtDev.
 var KExtDev                 = int32(C.kDLExtDev)
 
-// Context dtype corresponding to TVMContext aka DLContext
+// Context dtype corresponding to TVMContext aka DLDevice
 type Context struct {
     DeviceType int32
     DeviceID    int32

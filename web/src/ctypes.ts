@@ -204,7 +204,7 @@ export const enum SizeOf {
   F64 = 8,
   TVMValue = 8,
   DLDataType = I32,
-  DLContext = I32 + I32,
+  DLDevice = I32 + I32,
 }
 
 /**

@@ -36,15 +36,15 @@
 
 namespace std {
 template <>
-struct hash<TVMContext> {
-  std::size_t operator()(const TVMContext& ctx) const {
-    return ((ctx.device_id << 8) | ctx.device_type);
+struct hash<Device> {
+  std::size_t operator()(const tvm::Device& dev) const {
+    return ((dev.device_id << 8) | dev.device_type);
   }
 };
 
 template <>
-struct equal_to<TVMContext> {
-  bool operator()(const TVMContext& lhs, const TVMContext& rhs) const {
+struct equal_to<Device> {
+  bool operator()(const tvm::Device& lhs, const tvm::Device& rhs) const {
     return (lhs.device_type == rhs.device_type && lhs.device_id == rhs.device_id);
   }
 };
@@ -61,7 +61,7 @@ struct Buffer {
   /*! \brief The size of the block. */
   size_t size{0};
   /*! \brief The context of the allocated buffers. */
-  TVMContext ctx;
+  Device device;
 };
 
 enum AllocatorType {
@@ -76,10 +76,10 @@ class Allocator {
   /*! \brief Allocate an empty NDArray using from the allocator.
    *  \param shape The shape of the NDArray.
    *  \param dtype The datatype of the NDArray.
-   *  \param ctx The context where the array is allocated.
+   *  \param dev The device where the array is allocated.
    *  \return The empty NDArray.
    */
-  NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx);
+  NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -107,24 +107,24 @@ class MemoryManager {
   static MemoryManager* Global();
   /*!
    * \brief Get or create an allocator given the context and allocator type.
-   * \param ctx The TVM context
+   * \param dev The TVM device
    * \param type The allocator type
    * \return The memory allocator.
    */
-  static Allocator* GetOrCreateAllocator(TVMContext ctx, AllocatorType type);
+  static Allocator* GetOrCreateAllocator(Device dev, AllocatorType type);
   /*!
    * \brief Get an allocator given the context.
-   * \param ctx The TVM context
+   * \param dev The TVM device
    * \return The memory allocator.
    */
-  static Allocator* GetAllocator(TVMContext ctx);
+  static Allocator* GetAllocator(Device dev);
 
  private:
   MemoryManager() {}
 
  private:
   std::mutex mu_;
-  std::unordered_map<TVMContext, std::unique_ptr<Allocator>> allocators_;
+  std::unordered_map<Device, std::unique_ptr<Allocator>> allocators_;
 };
 
 /*! \brief An object representing a storage allocation. */
@@ -140,7 +140,7 @@ class StorageObj : public Object {
   static void Deleter(Object* ptr);
 
   ~StorageObj() {
-    auto alloc = MemoryManager::Global()->GetAllocator(buffer.ctx);
+    auto alloc = MemoryManager::Global()->GetAllocator(buffer.device);
     alloc->Free(buffer);
   }
 

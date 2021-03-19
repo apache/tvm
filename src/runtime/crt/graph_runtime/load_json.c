@@ -85,7 +85,7 @@ void SeqPop(Seq* seq) {
 }
 
 tvm_crt_error_t SeqCreate(uint64_t len, Seq** seq) {
-  DLContext ctx = {kDLCPU, 0};
+  DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(Seq), ctx, (void**)seq);
   if (err != kTvmErrorNoError) {
     return err;
@@ -104,7 +104,7 @@ tvm_crt_error_t SeqCreate(uint64_t len, Seq** seq) {
 }
 
 tvm_crt_error_t SeqRelease(Seq* seq) {
-  DLContext ctx = {kDLCPU, 0};
+  DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryFree(seq->data, ctx);
   if (err != kTvmErrorNoError) {
     return err;
@@ -472,7 +472,7 @@ tvm_crt_error_t JSONReader_Create(const char* is, JSONReader* reader) {
   reader->NextObjectItem = JSONReader_NextObjectItem;
   reader->ArrayLength = JSONReader_ArrayLength;
 
-  DLContext ctx = {kDLCPU, 0};
+  DLDevice dev = {kDLCPU, 0};
   err = TVMPlatformMemoryAllocate(strlen(is) + 1, ctx, (void**)&reader->is_);
   if (err != kTvmErrorNoError) {
     return err;
@@ -490,6 +490,6 @@ tvm_crt_error_t JSONReader_Release(JSONReader* reader) {
     return err;
   }
 
-  DLContext ctx = {kDLCPU, 0};
+  DLDevice dev = {kDLCPU, 0};
   return TVMPlatformMemoryFree(reader->is_, ctx);
 }

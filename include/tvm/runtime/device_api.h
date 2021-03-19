@@ -67,28 +67,28 @@ class TVM_DLL DeviceAPI {
   /*! \brief virtual destructor */
   virtual ~DeviceAPI() {}
   /*!
-   * \brief Set the environment device id to ctx
-   * \param ctx The context to be set.
+   * \brief Set the environment device id to device
+   * \param dev The device to be set.
    */
-  virtual void SetDevice(TVMContext ctx) = 0;
+  virtual void SetDevice(Device dev) = 0;
   /*!
    * \brief Get attribute of specified device.
-   * \param ctx The device context
+   * \param dev The device context
    * \param kind The result kind
    * \param rv The return value.
    * \sa DeviceAttrKind
    */
-  virtual void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) = 0;
+  virtual void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) = 0;
   /*!
    * \brief Allocate a data space on device.
-   * \param ctx The device context to perform operation.
+   * \param dev The device context to perform operation.
    * \param nbytes The number of bytes in memory.
    * \param alignment The alignment of the memory.
    * \param type_hint The type of elements. Only needed by certain backends such
    * as OpenGL, as nbytes & alignment are sufficient for most backends.
    * \return The allocated device pointer.
    */
-  virtual void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
+  virtual void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                DLDataType type_hint) = 0;
   /*!
    * \brief Allocate a data space on device with memory scope support.
@@ -288,7 +288,7 @@ inline TVMContext RemoveRPCSessionMask(TVMContext ctx) {
   return ctx;
 }
 
-inline std::ostream& operator<<(std::ostream& os, DLContext ctx);
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev);
 
 /*!
  * \brief Add a RPC session mask to a TVMContext.
@@ -305,7 +305,7 @@ inline TVMContext AddRPCSessionMask(TVMContext ctx, int session_table_index) {
   return ctx;
 }
 
-inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
   if (IsRPCSessionContext(ctx)) {
     os << "remote[" << GetRPCSessionIndex(ctx) << "]-";
     ctx = RemoveRPCSessionMask(ctx);

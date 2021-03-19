@@ -1170,7 +1170,7 @@ void VMCompiler::Codegen() {
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {
-  TVMContext default_device;
+  Device default_device;
   ExprDeviceMap expr_device_map;
   if (targets_.size() > 1) {
     int fallback_dev = GetFallbackDevice();

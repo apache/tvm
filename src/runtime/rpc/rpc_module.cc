@@ -112,8 +112,8 @@ class RPCWrappedFunc : public Object {
           temp_dltensors.emplace_back(std::move(dptr));
           break;
         }
-        case kTVMContext: {
-          values[i].v_ctx = RemoveSessMask(values[i].v_ctx);
+        case kDLDevice: {
+          values[i].v_device = RemoveSessMask(values[i].v_device);
           break;
         }
         case kTVMPackedFuncHandle:

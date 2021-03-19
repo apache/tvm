@@ -176,9 +176,9 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       if (tcode == kTVMObjectHandle || tcode == kTVMObjectRValueRefArg) {
         LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type "
                    << args[i].AsObjectRef<ObjectRef>()->GetTypeKey() << " is not supported by RPC";
-      } else if (tcode == kTVMContext) {
-        DLContext ctx = args[i];
-        ICHECK(!IsRPCSessionContext(ctx))
+      } else if (tcode == kDLDevice) {
+        DLDevice dev = args[i];
+        ICHECK(!IsRPCSessionContext(dev))
             << "InternalError: cannot pass RPC context in the channel";
       }
     }

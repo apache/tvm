@@ -124,7 +124,7 @@ void MultiMap_Insert(struct MultiMap* map, uint32_t npage, Page* p) {
  * \return The virtual address
  */
 tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t num_bytes,
-                                       DLContext ctx, void** out_ptr) {
+                                       DLDevice dev, void** out_ptr) {
   MemoryManager* mgr = (MemoryManager*)interface;
 
   *out_ptr = 0;
@@ -259,7 +259,7 @@ tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** 
  * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
-tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr, DLContext ctx) {
+tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr, DLDevice dev) {
   MemoryManager* mgr = (MemoryManager*)interface;
 
   TLB* pmap = &(mgr->pmap);

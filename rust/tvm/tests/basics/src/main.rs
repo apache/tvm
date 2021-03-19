@@ -26,9 +26,9 @@ fn main() {
     let mut data = vec![3f32, 4.0];
 
     let (ctx, ctx_name) = if cfg!(feature = "cpu") {
-        (Context::cpu(0), "cpu")
+        (Device::cpu(0), "cpu")
     } else {
-        (Context::gpu(0), "gpu")
+        (Device::gpu(0), "gpu")
     };
 
     let dtype = DataType::from_str("float32").unwrap();
