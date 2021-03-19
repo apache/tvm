@@ -152,6 +152,34 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   OPENCL_CALL(clReleaseMemObject(mptr));
 }
 
+void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
+  this->Init();
+  ICHECK(context != nullptr) << "No OpenCL device";
+  cl_int err_code;
+  // TODO(csullivan): [BEFORE PR] Support more types
+  ICHECK_EQ(type_hint.code, DLDataTypeCode::kDLFloat) << "Only support image2d allocations for fp32";
+  cl_image_format format = { CL_RGBA, CL_FLOAT };
+  cl_image_desc descriptor = { CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0 };
+  cl_mem mptr = clCreateImage(
+    this->context,
+    CL_MEM_READ_WRITE,
+    &format,
+    &descriptor,
+    nullptr,
+    &err_code);
+  OPENCL_CHECK_ERROR(err_code);
+  return mptr;
+}
+
+void OpenCLWorkspace::FreeTexture(TVMContext ctx, void* ptr) {
+  // We have to make sure that the memory object is not in the command queue
+  // for some OpenCL platforms.
+  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
+
+  cl_mem mptr = static_cast<cl_mem>(ptr);
+  OPENCL_CALL(clReleaseMemObject(mptr));
+}
+
 void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
                                      size_t to_offset, size_t size, Device dev_from, Device dev_to,
                                      DLDataType type_hint, TVMStreamHandle stream) {
@@ -295,6 +323,13 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   DeviceAPI* ptr = OpenCLWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+// TVM_REGISTER_GLOBAL("device_api.opencl.AllocImage2d").set_body([](TVMArgs args, TVMRetValue* rv) {
+//     OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
+//     DLDataType dtype = runtime::String2DLDataType(args[0]);
+//     void* image = ptr->AllocImage2d(args[2], args[1], dtype);
+//     *rv = image;
+// });
 
 }  // namespace cl
 }  // namespace runtime
