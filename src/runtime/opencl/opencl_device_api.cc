@@ -58,21 +58,6 @@ namespace {
     // return row_pitch == slice_pitch == 0
     return std::make_tuple(0 , 0);
   }
-
-  std::pair<size_t, size_t> ApplyImage2DLoweringConvention(int ndim, const int64_t* shape, std::string cv = "") {
-    size_t width = 1;
-    size_t height = 1;
-    int separator = cv.empty() ? ndim - 2 : 1;
-    for (int i = 0; i < ndim-1; i++) {
-      if (i < separator) {
-        height *= shape[i];
-      } else {
-        width *= shape[i];
-      }
-    }
-    return std::make_pair(width, height);
-  }
-
 }
 
 OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() { return OpenCLThreadEntry::ThreadLocal(); }
@@ -191,18 +176,13 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* s
   if (!mem_scope.defined() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(ctx, ndim, shape, dtype, mem_scope);
   }
+  ICHECK(std::string(mem_scope.value()).find("texture") != std::string::npos)
+    << "Device does not support allocate data space with "
+    << "specified memory scope: " << mem_scope.value();
 
   size_t width, height;
-  if (mem_scope.value() == "texture") {
-    std::tie(width, height) = ApplyImage2DLoweringConvention(ndim, shape);
-  } else if (std::string(mem_scope.value()).substr(0, 7) == "texture") {
-    std::tie(width, height) = ApplyImage2DLoweringConvention(ndim, shape, "weight");
-  } else {
-    LOG(FATAL) << "Device does not support allocate data space with "
-               << "specified memory scope: " << mem_scope.value();
-    return nullptr;
-  }
-
+  size_t axis_separator = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
+  std::tie(width, height) = ApplyTexture2DFlattening<size_t>(shape, ndim, axis_separator);
   return AllocTexture(ctx, width, height, dtype);
 }
 

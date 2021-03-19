@@ -32,6 +32,45 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \param shape_rank Rank N of the Nd-shape
+ * \param convention Storage scope convention to use for flattening
+ * \return The axis separator that defines the Nd shape partitioning in 2d
+ */
+inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, std::string convention = "texture") {
+  // Texture activation:
+  // e.g. [N,C,H,W,c] -> Texture2d[N*C*H, W, c]
+  // Texture weight:
+  // e.g. [O,I,H,W,c] -> Texture2d[O, I*H*W, c]
+  size_t separator;
+  if (convention == "texture"){
+    separator = shape_rank - 2;
+  } else if (convention == "texture:weight") {
+    separator = 1;
+  }
+  return separator;
+}
+
+/*!
+ * \param shape Nd shape
+ * \param rank Number of dimensions N of the Nd shape
+ * \param axis The axis separator that splits the Nd axes into two sets
+ * \return Width and height of the 2d shape
+ */
+template<typename A, typename S>
+std::pair<A, A> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t axis) {
+  ICHECK(axis < rank) << "Number of axes to flatten into rows must be less than shape rank for 2d flattening";
+  A width = 1, height = 1;
+  for (size_t i = 0; i < rank - 1; i++) {
+    if (i < axis) {
+      height *= shape[i];
+    } else {
+      width *= shape[i];
+    }
+  }
+  return std::make_pair(width, height);
+}
+
 class TVM_DLL TexturePool {
  public:
   /*!
