@@ -202,11 +202,6 @@ void* DeviceAPI::AllocTexture(TVMContext ctx, size_t width, size_t height, DLDat
   return nullptr;
 }
 
-void DeviceAPI::FreeTexture(TVMContext ctx, void* ptr) {
-  LOG(FATAL) << "Device does not support texture memory.";
-}
-
-
 void* DeviceAPI::AllocTextureWorkspace(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
   LOG(FATAL) << "Device does not support texture memory.";
   return nullptr;

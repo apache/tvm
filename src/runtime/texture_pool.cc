@@ -71,7 +71,7 @@ class TexturePool::Pool {
       else if (min_added_size <= req_size) {
         // if added size is less or equal to
         // what is needed by alloc, then grow entry
-        device->FreeTexture(ctx, best_mem->data);
+        device->FreeDataSpace(ctx, best_mem->data);
         free_list_.erase(best_mem);
         new_mem.type = type_hint;
         new_mem.data = device->AllocTexture(ctx, new_mem.x, new_mem.y, new_mem.type);
@@ -112,10 +112,10 @@ class TexturePool::Pool {
   // Release all resources immediately
   void Release(TVMContext ctx, DeviceAPI* device) {
     for (auto& e : allocated_) {
-      device->FreeTexture(ctx, e.data);
+      device->FreeDataSpace(ctx, e.data);
     }
     for (auto& e : free_list_) {
-      device->FreeTexture(ctx, e.data);
+      device->FreeDataSpace(ctx, e.data);
     }
     allocated_.clear();
     free_list_.clear();

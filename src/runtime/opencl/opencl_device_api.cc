@@ -220,12 +220,6 @@ void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height,
   return mptr;
 }
 
-void OpenCLWorkspace::FreeTexture(TVMContext ctx, void* ptr) {
-  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
-  cl_mem mptr = static_cast<cl_mem>(ptr);
-  OPENCL_CALL(clReleaseMemObject(mptr));
-}
-
 void* OpenCLWorkspace::AllocTextureWorkspace(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
   return GetThreadEntry()->texture_pool.AllocTexture(ctx, width, height, type_hint);
 }
