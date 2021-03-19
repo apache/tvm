@@ -647,19 +647,28 @@ def test_forward_transpose():
 # ----
 
 
-def _test_cast(data, cast_dtype):
+def _test_cast(data, cast_dtype, use_mlir=False):
     """ One iteration of CAST """
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
         out = math_ops.cast(in_data, cast_dtype)
-        compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out])
+        compare_tflite_with_tvm(
+            data, "Placeholder:0", [in_data], [out], experimental_new_converter=use_mlir
+        )
 
 
 def test_forward_cast():
     """ CAST """
-    _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.int32)
-    _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.uint8)
-    _test_cast(np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64)
+    for use_mlir in [False, True]:
+        _test_cast(
+            np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.int32, use_mlir=use_mlir
+        )
+        _test_cast(
+            np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.uint8, use_mlir=use_mlir
+        )
+        _test_cast(
+            np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64, use_mlir=use_mlir
+        )
 
 
 #######################################################################
