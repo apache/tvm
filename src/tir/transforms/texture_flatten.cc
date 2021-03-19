@@ -18,10 +18,9 @@
  */
 
 /*!
- * \file storage_flatten.cc
- * \brief Flattens storage from multi-dimensional array to 1D buffer access
+ * \file texture_flatten.cc
+ * \brief Flattens texture from multi-dimensional array to 2D buffer access
  */
-// The pass definition originates from Halide pipeline.
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/device_api.h>
@@ -262,37 +261,70 @@ size_t GetAxisSeparator(size_t shape_rank) {
 }
 }
 
-class TextureFlattener : public StmtExprMutator {
+class TextureLoweringBase : public StmtExprMutator {
  public:
-  explicit TextureFlattener() {}
+  explicit TextureLoweringBase(const Map<Var, Buffer>& extern_buffer_map) {
+    for (auto kv : extern_buffer_map) {
+      extern_buf_.insert(kv.second);
+    }
+  }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  virtual Stmt VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::realize_scope) {
-      storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
+      std::string realize_scope = op->value.as<StringImmNode>()->value;
+      // If realize_scope for external buffer is unset, infer from buffer scope
+      if (realize_scope == "" && op->body->IsInstance<BufferRealizeNode>()) {
+        const auto* realize = Downcast<BufferRealize>(op->body).get();
+        if (extern_buf_.count(realize->buffer)) {
+          realize_scope = realize->buffer->scope;
+        }
+      }
+      storage_scope_[op->node.get()] = realize_scope;
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
+ protected:
+
+  std::string GetStorageScope(const Buffer& buffer) {
+    std::string storage_scope;
+    auto it = storage_scope_.find(buffer.get());
+    // If buffer has a realize_scope attr return it
+    if (it != storage_scope_.end()) {
+      storage_scope = it->second;
+    } else {
+      storage_scope = buffer->scope;
+    }
+    return storage_scope;
+  }
+
+  // Buffer set
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buf_;
+  // Storage scope
+  std::unordered_map<const Object*, std::string> storage_scope_;
+};
+
+class TextureFlattener : public TextureLoweringBase {
+ public:
+  explicit TextureFlattener(const Map<Var, Buffer>& extern_buffer_map,
+                            const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& extern_buffer_binds_)
+    : TextureLoweringBase(extern_buffer_map), buffer_binds_(extern_buffer_binds_) {;}
+
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    if (extern_buf_.count(op->buffer)) {
+      return this->VisitStmt(op->body);
+    }
+
     Var buffer_var(op->buffer->data->name_hint, TextureType(op->buffer->dtype));
     let_binding_.insert({op->buffer->data, buffer_var});
 
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferRealizeNode>();
+    Stmt body = this->VisitStmt(op->body);
 
-    std::string storage_scope;
-    auto it = storage_scope_.find(op->buffer.get());
-    if (it != storage_scope_.end())
-    {
-      storage_scope = it->second;
-    }
-    else
-    {
-      storage_scope = op->buffer->scope;
-    }
-    if (storage_scope == "texture")
-    {
-      Stmt body = this->VisitStmt(op->body);
+    std::string storage_scope = GetStorageScope(op->buffer);
+    if (storage_scope == "texture") {
+      body = this->VisitStmt(op->body);
       ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
       int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
       ICHECK(vec_length == 4 || vec_length == 1) << "FCD of texture must be vector of length 1 or 4 (RGBA)";
@@ -304,9 +336,9 @@ class TextureFlattener : public StmtExprMutator {
       // the last dimension isn't previously set to a vector(4)
       for (size_t i = 0; i < op->bounds.size()-1; i++) {
         if (i < GetAxisSeparator(op->bounds.size())) {
-          width *= op->bounds[i]->extent;
-        } else {
           height *= op->bounds[i]->extent;
+        } else {
+          width *= op->bounds[i]->extent;
         }
       }
 
@@ -321,37 +353,23 @@ class TextureFlattener : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
 
-    std::string storage_scope;
-    auto it = storage_scope_.find(op->buffer.get());
-    if (it != storage_scope_.end())
-    {
-      storage_scope = it->second;
-    }
-    else
-    {
-      storage_scope = op->buffer->scope;
-    }
-    if (storage_scope == "texture")
-    {
+    std::string storage_scope = GetStorageScope(op->buffer);
+    if (storage_scope == "texture") {
       Array<PrimExpr> args;
-      if (let_binding_.count(op->buffer->data))
-      {
+      if (let_binding_.count(op->buffer->data)) {
         args.push_back(let_binding_[op->buffer->data]);
-      }
-      else
-      {
+      } else {
         args.push_back(op->buffer->data);
       }
 
       Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
-      for (size_t i = 0; i < op->buffer->shape.size()-1; i++)
-      {
+      for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
         if (i < GetAxisSeparator(op->buffer->shape.size())) {
-          row_dims.push_back(op->buffer->shape[i]);
-          row_indices.push_back(op->indices[i]);
-        } else {
           col_dims.push_back(op->buffer->shape[i]);
           col_indices.push_back(op->indices[i]);
+        } else {
+          row_dims.push_back(op->buffer->shape[i]);
+          row_indices.push_back(op->indices[i]);
         }
       }
 
@@ -372,38 +390,29 @@ class TextureFlattener : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
 
-    std::string storage_scope;
-    auto it = storage_scope_.find(op->buffer.get());
-    if (it != storage_scope_.end())
-    {
-      storage_scope = it->second;
+    auto buffer = op->buffer;
+    if (buffer_binds_.count(op->buffer)) {
+      buffer = buffer_binds_[op->buffer];
     }
-    else
-    {
-      storage_scope = op->buffer->scope;
-    }
-    if (storage_scope == "texture")
-    {
+
+    std::string storage_scope = GetStorageScope(buffer);
+    if (storage_scope == "texture") {
       Array<PrimExpr> args;
-      if (let_binding_.count(op->buffer->data))
-      {
+      if (let_binding_.count(op->buffer->data)) {
         args.push_back(let_binding_[op->buffer->data]);
-      }
-      else
-      {
-        args.push_back(op->buffer->data);
+      } else {
+        args.push_back(buffer->data);
       }
 
 
       Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
-      for (size_t i = 0; i < op->buffer->shape.size()-1; i++)
-      {
+      for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
         if (i < GetAxisSeparator(op->buffer->shape.size())) {
-          row_dims.push_back(op->buffer->shape[i]);
-          row_indices.push_back(op->indices[i]);
-        } else {
           col_dims.push_back(op->buffer->shape[i]);
           col_indices.push_back(op->indices[i]);
+        } else {
+          row_dims.push_back(op->buffer->shape[i]);
+          row_indices.push_back(op->indices[i]);
         }
       }
 
@@ -418,16 +427,78 @@ class TextureFlattener : public StmtExprMutator {
     return expr;
   }
 
- private:
-  // Storage scope
-  std::unordered_map<const Object*, std::string> storage_scope_;
+ protected:
+
   // Let binding
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_binds_;
 };
+
+
+class ExternalBufferForwarding : public TextureLoweringBase {
+ public:
+  explicit ExternalBufferForwarding(const Map<Var, Buffer>& extern_buffer_map)
+    : TextureLoweringBase(extern_buffer_map) {;}
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    Stmt stmt = TextureLoweringBase::VisitStmt_(op);
+    if (op->attr_key == attr::realize_scope) {
+      if (op->body->IsInstance<BufferRealizeNode>()) {
+        const auto* realize = Downcast<BufferRealize>(op->body).get();
+        std::string realize_scope = GetStorageScope(realize->buffer);
+        if (realize_scope == "texture" && extern_buffer_copy_.count(realize->buffer)) {
+          return realize_attrs_.back();
+        } else {
+          if (realize_attrs_.size()) {
+            realize_attrs_.pop_back();
+          }
+          realize_attrs_.push_back(stmt);
+        }
+        return stmt;
+      }
+    }
+
+    return stmt;
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<BufferStoreNode>();
+
+    if (auto load = op->value.as<BufferLoadNode>()) {
+      if (extern_buf_.count(load->buffer)) {
+        // If the buffer to load and the buffer to store to are both texture
+        // check for identical access
+        if (GetStorageScope(load->buffer) == "texture" && GetStorageScope(op->buffer) == "texture") {
+          auto store_index = SimplifyOffset(op->buffer->shape, op->indices);
+          auto load_index = SimplifyOffset(load->buffer->shape, load->indices);
+          if (arith::Analyzer().CanProve(store_index == load_index)) {
+            extern_buffer_copy_.insert(op->buffer);
+            buffer_map_.insert({op->buffer, load->buffer});
+          }
+        }
+      }
+    }
+
+    return stmt;
+  }
+
+  const std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>& GetForwardedBuffers() {
+    return buffer_map_;
+  }
+
+ private:
+  std::deque<Stmt> realize_attrs_;
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buffer_copy_;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
+};
+
 
 PrimFunc TextureFlatten(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  fptr->body = TextureFlattener()(std::move(fptr->body));
+  ExternalBufferForwarding forward(fptr->buffer_map);
+  fptr->body = forward(std::move(fptr->body));
+  fptr->body = TextureFlattener(fptr->buffer_map, forward.GetForwardedBuffers())(std::move(fptr->body));
   return func;
 }
 
