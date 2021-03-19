@@ -140,7 +140,6 @@
 #define COND_CHECK_2(quit_on_assert, x) COND_CHECK_3(quit_on_assert, x, return false)
 #define COND_LOG_2(quit_on_assert, x) COND_LOG_3(quit_on_assert, x, return false)
 
-
 namespace tvm {
 namespace runtime {
 

@@ -17,18 +17,7 @@
  * under the License.
  */
 
-#if TVM_USE_LIBBACKTRACE == 0
-#include <dmlc/logging.h>
-
-#include <string>
-
-namespace tvm {
-namespace runtime {
-// Fallback to the dmlc implementation when backtrace is not available.
-std::string Backtrace() { return dmlc::StackTrace(); }
-}  // namespace runtime
-}  // namespace tvm
-#else
+#if TVM_USE_LIBBACKTRACE
 
 #include <backtrace.h>
 #include <cxxabi.h>
@@ -147,4 +136,18 @@ std::string Backtrace() {
 }
 }  // namespace runtime
 }  // namespace tvm
+
+#else
+
+#include <dmlc/logging.h>
+
+#include <string>
+
+namespace tvm {
+namespace runtime {
+// Fallback to the dmlc implementation when backtrace is not available.
+std::string Backtrace() { return dmlc::StackTrace(); }
+}  // namespace runtime
+}  // namespace tvm
+
 #endif
