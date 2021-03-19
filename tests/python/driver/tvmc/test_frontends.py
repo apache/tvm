@@ -196,9 +196,7 @@ def test_load_model__pth(pytorch_resnet18):
     pytest.importorskip("torch")
     pytest.importorskip("torchvision")
 
-    mod, params = tvmc.load(
-        pytorch_resnet18, shape_dict={"input": [1, 3, 224, 224]}
-    )
+    mod, params = tvmc.load(pytorch_resnet18, shape_dict={"input": [1, 3, 224, 224]})
     assert type(mod) is IRModule
     assert type(params) is dict
     # check whether one known value is part of the params dict

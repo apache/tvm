@@ -91,9 +91,7 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    graph, lib, params, dumps = tvmc.compile(
-        keras_resnet50, target="llvm", dump_code="ll"
-    )
+    graph, lib, params, dumps = tvmc.compile(keras_resnet50, target="llvm", dump_code="ll")
 
     expected_temp_dir = tmpdir_factory.mktemp("saved_output")
     expected_file_name = "saved.tar"
