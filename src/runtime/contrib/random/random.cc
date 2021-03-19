@@ -22,8 +22,8 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 

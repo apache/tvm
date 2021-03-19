@@ -39,7 +39,6 @@ int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
 #include <iostream>
 #include <string>
 #include <vector>
-
 #include "../../src/support/utils.h"
 #include "rpc_env.h"
 
@@ -85,25 +84,31 @@ void CleanDir(const std::string& dirname);
  */
 std::string BuildSharedLibrary(std::string file_in);
 
-RPCEnv::RPCEnv() {
-#if defined(ANDROID) || defined(__ANDROID__)
-  char cwd[PATH_MAX];
-  auto cmdline = fopen("/proc/self/cmdline", "r");
-  fread(cwd, 1, sizeof(cwd), cmdline);
-  fclose(cmdline);
-  base_ = "/data/data/" + std::string(cwd) + "/cache/rpc";
-#elif !defined(_WIN32)
-  char cwd[PATH_MAX];
-  if (getcwd(cwd, sizeof(cwd))) {
-    base_ = std::string(cwd) + "/rpc";
+RPCEnv::RPCEnv(const std::string& wd) {
+  if (wd != "") {
+    base_ = wd + "/.cache";
+    mkdir(wd.c_str(), 0777);
+    mkdir(base_.c_str(), 0777);
   } else {
-    base_ = "./rpc";
-  }
+#if defined(ANDROID) || defined(__ANDROID__)
+    char cwd[PATH_MAX];
+    auto cmdline = fopen("/proc/self/cmdline", "r");
+    fread(cwd, 1, sizeof(cwd), cmdline);
+    fclose(cmdline);
+    base_ = "/data/data/" + std::string(cwd) + "/cache/rpc";
+#elif !defined(_WIN32)
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd))) {
+      base_ = std::string(cwd) + "/rpc";
+    } else {
+      base_ = "./rpc";
+    }
 #else
-  base_ = "./rpc";
+    base_ = "./rpc";
 #endif
+    mkdir(base_.c_str(), 0777);
+  }
 
-  mkdir(base_.c_str(), 0777);
   TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([this](TVMArgs args, TVMRetValue* rv) {
     *rv = this->GetPath(args[0]);
   });

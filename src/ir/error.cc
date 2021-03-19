@@ -132,7 +132,8 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
   LOG(FATAL) << annotated_prog.str() << std::endl;
 }
 
-void ErrorReporter::ReportAt(const GlobalVar& global, const ObjectRef& node, const Error& err) {
+void ErrorReporter::ReportAt(const GlobalVar& global, const ObjectRef& node,
+                             const CompileError& err) {
   size_t index_to_insert = this->errors_.size();
   this->errors_.push_back(err);
   auto it = this->node_to_error_.find(node);

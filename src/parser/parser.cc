@@ -28,9 +28,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <fstream>
 
@@ -172,8 +172,8 @@ class ScopeStack {
   void PopStack() { this->scope_stack.pop_back(); }
 };
 
-struct DuplicateKeyError : public dmlc::Error {
-  explicit DuplicateKeyError(const std::string& msg) : dmlc::Error(msg) {}
+struct DuplicateKeyError : public Error {
+  explicit DuplicateKeyError(const std::string& msg) : Error(msg) {}
 };
 
 /*! \brief A table of interning strings as global function and type names. */
@@ -1492,7 +1492,7 @@ class Parser {
     DLOG(INFO) << "op_name=" << op_name << " span=" << span;
     try {
       return Op::Get(op_name);
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
       // we can relax this, but probably need to relax checks or return non-null here.
       this->diag_ctx.EmitFatal(Diagnostic::Error(span)
                                << "operator `" << op_name

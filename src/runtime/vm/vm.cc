@@ -24,10 +24,10 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm/vm.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <chrono>

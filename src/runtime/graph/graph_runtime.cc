@@ -66,10 +66,11 @@ void GraphRuntime::Run() {
  * processor.
  * \param ctxs The context of the host and devices where graph nodes will be
  * executed on.
- * \param lookup_linked_param_func Linked parameter lookup function.
+ * \param lookup_linked_param_func Linked parameter lookup function. Default is nullptr.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs, PackedFunc lookup_linked_param_func) {
+                        const std::vector<TVMContext>& ctxs,
+                        const PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
@@ -491,7 +492,7 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "share_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       const auto& module = args[0].operator Module();
-      ICHECK_EQ(module.operator->()->type_key(), "GraphRuntime");
+      ICHECK_EQ(module.operator->()->type_key(), std::string("GraphRuntime"));
       const auto& param_blob = args[1].operator std::string();
       dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
       this->ShareParams(dynamic_cast<const GraphRuntime&>(*module.operator->()), &strm);

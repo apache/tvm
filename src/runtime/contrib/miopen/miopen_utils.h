@@ -26,7 +26,7 @@
 
 #include <miopen/miopen.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 
