@@ -27,7 +27,6 @@ from ..utils import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
 
-from ..nn.utils import infer_pad
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 
 
@@ -298,17 +297,13 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
         cfg["unroll_kw"].val,
     )
 
-    # no stride and padding info here
-    padding = infer_pad(data, data_pad)
-    hpad, wpad = padding
-    DOPAD = hpad != 0 or wpad != 0
-
     _, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
 
     # schedule data
-    if DOPAD:
+    if isinstance(data_pad.op, tvm.te.ComputeOp) and "pad" in data_pad.op.tag:
         s[A0].compute_inline()
+
     groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
 
     parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
