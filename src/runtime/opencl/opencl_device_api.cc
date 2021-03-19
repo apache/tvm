@@ -156,9 +156,14 @@ void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height,
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
-  // TODO(csullivan): [BEFORE PR] Support more types
-  ICHECK_EQ(type_hint.code, DLDataTypeCode::kDLFloat) << "Only support image2d allocations for fp32";
-  cl_image_format format = { CL_RGBA, CL_FLOAT };
+  ICHECK(type_hint.code == DLDataTypeCode::kDLFloat) << "Only float and half image2d allocations are supported";
+  ICHECK(type_hint.bits == 16 || type_hint.bits == 32) << "Only CL_FLOAT and CL_HALF_FLOAT image2d allocations are supported";
+  cl_channel_type cl_type = CL_FLOAT;
+  if (type_hint.bits == 16) {
+    cl_type = CL_HALF_FLOAT;
+  }
+
+  cl_image_format format = { CL_RGBA, cl_type };
   cl_image_desc descriptor = { CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0 };
   cl_mem mptr = clCreateImage(
     this->context,
@@ -328,13 +333,6 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   DeviceAPI* ptr = OpenCLWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
-
-// TVM_REGISTER_GLOBAL("device_api.opencl.AllocImage2d").set_body([](TVMArgs args, TVMRetValue* rv) {
-//     OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-//     DLDataType dtype = runtime::String2DLDataType(args[0]);
-//     void* image = ptr->AllocImage2d(args[2], args[1], dtype);
-//     *rv = image;
-// });
 
 }  // namespace cl
 }  // namespace runtime
