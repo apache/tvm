@@ -1688,8 +1688,20 @@ class PyTorchOpConverter:
 
     def clamp(self, inputs, input_types):
         data = inputs[0]
-        amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
-        amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
+
+        def get_v(v, default_v):
+            if isinstance(v, _expr.Constant):
+                return float(v.data.asnumpy())
+            if isinstance(v, _expr.Expr):
+                infer_v, success = try_infer_value(v, lambda ret: float(ret))
+                if success:
+                    return infer_v
+            if v is not None:
+                return v
+            return default_v
+
+        amin = get_v(inputs[1], np.finfo(np.float32).min)
+        amax = get_v(inputs[2], np.finfo(np.float32).max)
         return _op.clip(data, amin, amax)
 
     def to(self, inputs, input_types):
