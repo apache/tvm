@@ -50,6 +50,10 @@ namespace tvm {
 namespace tir {
 namespace {
 
+using runtime::IsTextureStorage;
+using runtime::DefaultTextureLayoutSeparator;
+using runtime::ApplyTexture2DFlattening;
+
 inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExpr>& index) {
   PrimExpr base = make_const(DataType::Int(32), 0);
   ICHECK_EQ(shape.size(), index.size());
@@ -62,10 +66,6 @@ inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExp
     base = base + offset;
   }
   return base;
-}
-
-bool IsTextureStorage(std::string scope) {
-  return scope.find("texture") != std::string::npos;
 }
 }
 
@@ -137,15 +137,13 @@ class TextureFlattener : public TextureLoweringBase {
       int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
       ICHECK(vec_length == 4 || vec_length == 1) << "FCD of texture must be vector of length 1 or 4 (RGBA)";
 
-      Array<PrimExpr> shape;
-      Integer width = 1, height = 1;
-      size_t axis = runtime::DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
       struct Shape {
-        Array<Range> bounds;
+        const Array<Range>& bounds;
         PrimExpr operator[](size_t i) const { return bounds[i]->extent; }
       };
-      std::tie(width, height) = runtime::ApplyTexture2DFlattening<Integer>(Shape{op->bounds}, op->bounds.size(), axis);
-      Array<PrimExpr> args = {width, height};
+      size_t axis = DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
+      auto texture = ApplyTexture2DFlattening<PrimExpr>(Shape{op->bounds}, op->bounds.size(), axis);
+      Array<PrimExpr> args = {texture.width, texture.height};
       stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
     }
 
@@ -197,7 +195,7 @@ class TextureFlattener : public TextureLoweringBase {
     }
     Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
     for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
-      if (i < runtime::DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
+      if (i < DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
         col_dims.push_back(op->buffer->shape[i]);
         col_indices.push_back(op->indices[i]);
       } else {
