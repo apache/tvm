@@ -31,17 +31,20 @@ class BlockInfo:
     """Information for block and block_realize signature"""
 
     alloc_buffers: List[Buffer] = []
-    """List[Buffer]: alloc_buffers list for the block"""
+    """List[Buffer]: list of tir.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
-    """List[MatchBufferRegion]: match_buffer_region list for the block"""
+    """List[MatchBufferRegion]: list of tir.match_buffer_region statements in the block signature"""
     iter_bindings: Mapping[Var, PrimExpr] = {}
-    """Mapping[Var, PrimExpr]: block iter var and its values"""
+    """Mapping[Var, PrimExpr]: map of block iter var to its values"""
     reads: Optional[List[BufferSlice]] = None
-    """Optional[List[BufferSlice]]: block read buffer regions, None for not-visited"""
+    """Optional[List[BufferSlice]]: 
+    list of tir.reads statements in the block signature, None for not-visited"""
     writes: Optional[List[BufferSlice]] = None
-    """Optional[List[BufferSlice]]: block write buffer regions, None for not-visited"""
+    """Optional[List[BufferSlice]]: 
+    list of tir.writes statements in the block signature, None for not-visited"""
     annotations: Optional[Mapping[str, Object]] = None
-    """Optional[Mapping[str, Object]]: block annotations, None for not-visited"""
+    """Optional[Mapping[str, Object]]: 
+    list of tir.block_attr statements in the block signature, None for not-visited"""
     predicate: Optional[PrimExpr] = None
     """Optional[PrimExpr]: block realize predicate, None for not-visited"""
     init: Optional[Stmt] = None
@@ -110,6 +113,12 @@ class ContextMaintainer:
     def enter_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
         """Creates a new scope
 
+        Note
+        ------
+        This function is used for normal scopes that does not
+        involve a `with block` scope. Use `enter_block_scope`
+        for the other case.
+
         Parameters
         ----------
         nodes : Optional[List[synr.ast.Node]]
@@ -124,7 +133,11 @@ class ContextMaintainer:
         """Creates a new block scope, the function will call `enter_scope` implicitly
         Besides the behaviors of `enter_scope`, it will update loop_stack and block_info_stack
         to maintain block info.
-        It should be used when the scope is a block (or likely to be a block)
+
+        Note
+        ------
+        This function should be used for the block scope,
+        aka the blocks that involves a `with block` scope.
 
         Parameters
         ----------
