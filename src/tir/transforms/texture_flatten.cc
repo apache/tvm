@@ -41,6 +41,7 @@
 
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../runtime/texture.h"
 #include "../ir/buffer_common.h"
 #include "arg_binder.h"
 #include "ir_utils.h"
@@ -61,24 +62,6 @@ inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExp
     base = base + offset;
   }
   return base;
-}
-
-size_t GetAxisSeparator(size_t shape_rank, std::string scope = "texture") {
-  // Convention is that shape is packed with the last axis
-  // as RGBA (length 4) and the second to last axis
-  // will be the packed texure columns. All other
-  // axes are packed into rows.
-  // Texture activation:
-  // e.g. [N,C,H,W,c] -> TextureFlattening -> [N*C*H, W, c]
-  // Texture weight:
-  // e.g. [O,I,H,W,c] -> TextureFlattening -> [O, I*H*W, c]
-  size_t separator;
-  if (scope == "texture"){
-    separator = shape_rank - 2;
-  } else if (scope == "texture:weight") {
-    separator = 1;
-  }
-  return separator;
 }
 
 bool IsTextureStorage(std::string scope) {
@@ -155,15 +138,13 @@ class TextureFlattener : public TextureLoweringBase {
       ICHECK(vec_length == 4 || vec_length == 1) << "FCD of texture must be vector of length 1 or 4 (RGBA)";
 
       Array<PrimExpr> shape;
-      auto width = IntImm(DataType::Int(32), 1);
-      auto height = IntImm(DataType::Int(32), 1);
-      for (size_t i = 0; i < op->bounds.size()-1; i++) {
-        if (i < GetAxisSeparator(op->bounds.size(), storage_scope)) {
-          height *= op->bounds[i]->extent;
-        } else {
-          width *= op->bounds[i]->extent;
-        }
-      }
+      Integer width = 1, height = 1;
+      size_t axis = runtime::DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
+      struct Shape {
+        Array<Range> bounds;
+        PrimExpr operator[](size_t i) const { return bounds[i]->extent; }
+      };
+      std::tie(width, height) = runtime::ApplyTexture2DFlattening<Integer>(Shape{op->bounds}, op->bounds.size(), axis);
       Array<PrimExpr> args = {width, height};
       stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
     }
@@ -216,7 +197,7 @@ class TextureFlattener : public TextureLoweringBase {
     }
     Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
     for (size_t i = 0; i < op->buffer->shape.size()-1; i++) {
-      if (i < GetAxisSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
+      if (i < runtime::DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
         col_dims.push_back(op->buffer->shape[i]);
         col_indices.push_back(op->indices[i]);
       } else {
