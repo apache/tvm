@@ -16,39 +16,26 @@
 # under the License.
 # pylint: disable=invalid-name
 """Cumsum operator"""
-from ..tir import decl_buffer, ir_builder
+from typing import Callable, Optional
+
+import tvm
+
 from ..te import extern
-from .utils import prod, get_const_int
+from ..tir import decl_buffer, generic, ir_builder
 from .math import cast
+from .utils import get_const_int, prod
 
 
-def cumsum(data, axis=None, dtype=None, exclusive=None):
-    """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        The input data to the operator.
-
-    axis : int, optional
-        Axis along which the cumulative sum is computed. The default (None) is to compute
-        the cumsum over the flattened array.
-
-    dtype : string, optional
-        Type of the returned array and of the accumulator in which the elements are summed.
-        If dtype is not specified, it defaults to the dtype of data.
-
-    exclusive : int, optional
-        If set to 1 will return exclusive sum in which the first element is not
-        included. In other terms, if set to 1, the j-th output element would be
-        the sum of the first (j-1) elements. Otherwise, it would be the sum of
-        the first j elements.
-
-    Returns
-    -------
-    result : tvm.te.Tensor
-        The result has the same size as data, and the same shape as data if axis is not None.
-        If axis is None, the result is a 1-d array.
+def cumbinop(
+    data: tvm.te.Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[str] = None,
+    exclusive: Optional[bool] = None,
+    binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"] = generic.add,
+    identity_value: "tvm.Expr" = 0,
+) -> tvm.te.Tensor:
+    """
+    TODO
     """
     if dtype is None or dtype == "":
         dtype = data.dtype
@@ -82,7 +69,7 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
                 axis_mul_after *= value
 
     if exclusive is None:
-        exclusive = 0
+        exclusive = False
 
     def gen_ir(data_buf, out_buf):
         ib = ir_builder.create()
@@ -93,18 +80,18 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
             i = fused // axis_mul_after
             j = fused % axis_mul_after
             base_idx = i * cumsum_axis_len * axis_mul_after + j
-            if exclusive == 0:
+            if exclusive:
                 out_buf[base_idx] = maybe_cast(data_buf[base_idx])
             else:
-                out_buf[base_idx] = cast(0, dtype)
+                out_buf[base_idx] = cast(identity_value, dtype)
             with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
                 k = _k + 1
                 cur_idx = base_idx + k * axis_mul_after
                 prev_idx = base_idx + (k - 1) * axis_mul_after
                 if exclusive == 0:
-                    out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[cur_idx])
+                    out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[cur_idx]))
                 else:
-                    out_buf[cur_idx] = out_buf[prev_idx] + maybe_cast(data_buf[prev_idx])
+                    out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[prev_idx]))
 
         return ib.get()
 
@@ -118,4 +105,42 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         out_buffers=[out_buf],
         name="cumsum_generic",
         tag="cumsum_generic",
+    )
+
+
+def cumsum(
+    data: tvm.te.Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[int] = None,
+    exclusive: Optional[bool] = None,
+):
+    """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : bool, optional
+        If True, will return exclusive sum in which the first element is not
+        included. In other terms, if True, the j-th output element would be
+        the sum of the first (j-1) elements. Otherwise, it would be the sum of
+        the first j elements.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+    """
+    cumbinop(
+        data=data, axis=axis, dtype=dtype, exclusive=exclusive, binop=generic.add, identity_value=0
     )
