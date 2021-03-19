@@ -256,7 +256,7 @@ def traverse_to_get_io_tensors(outs):
 
 
 @tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
-def auto_schedule_topi(outs):
+def auto_schedule_topi(func_name, outs):
     """Use auto-scheduler to schedule any topi compute function.
 
     Note: This is used internally for relay integration. Do
@@ -264,6 +264,9 @@ def auto_schedule_topi(outs):
 
     Parameters
     ----------
+    func_name: str
+        The name of the function being scheduled.
+
     outs: List[Tensor]
         The output tensors of topi compute functions
 
@@ -289,7 +292,7 @@ def auto_schedule_topi(outs):
     target = tvm.target.Target.current()
 
     dispatch_ctx = DispatchContext.current
-    state = dispatch_ctx.query(target, key, has_complex_op, dag)
+    state = dispatch_ctx.query(target, key, has_complex_op, dag, func_name)
     schedule = None
 
     env = TracingEnvironment.current
