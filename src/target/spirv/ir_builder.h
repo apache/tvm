@@ -472,7 +472,8 @@ class IRBuilder {
    * \param binding The binding locaiton in descriptor set.
    * \param The argument type.
    */
-  Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding);
+  Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding, bool uniform=false);
+
   /*!
    * \brief Declare POD arguments through push constants.
    *

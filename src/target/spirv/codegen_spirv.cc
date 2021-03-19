@@ -66,16 +66,30 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   spirv::Value func_ptr = builder_->NewFunction();
   builder_->StartFunction(func_ptr);
 
-  // All the POD arguments are passed in through PushConstant
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    spirv::Value ptr = builder_->DeclarePushConstant(value_types);
-    for (size_t i = 0; i < pod_args.size(); ++i) {
-      spirv::Value value = builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
-      var_map_[pod_args[i].get()] = value;
+    // All the POD arguments are passed in through PushConstant
+    if (pod_args.size() * 8 <= 128) {
+      spirv::Value ptr = builder_->DeclarePushConstant(value_types);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value =
+            builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
+    } else {
+      DataType value_storage_type = DataType::Int(64);
+      spirv::Value ptr_ubo =
+          builder_->BufferArgument(builder_->GetSType(value_storage_type), 0, num_buffer, true);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::SType ptr_type = builder_->GetPointerType(value_types[i], spv::StorageClassUniform);
+        spirv::Value ptr = builder_->StructArrayAccess(
+            ptr_type, ptr_ubo, MakeValue(PrimExpr(static_cast<int32_t>(i * 8))));
+        var_map_[pod_args[i].get()] =
+            builder_->MakeValue(spv::OpLoad, value_types[i], ptr, spv::MemoryAccessMaskNone);
+      }
     }
   }
   this->VisitStmt(f->body);

@@ -185,14 +185,15 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
 }
 
 Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set,
-                                uint32_t binding) {
+                                uint32_t binding, bool uniform) {
   // NOTE: BufferBlock was deprecated in SPIRV 1.3
   // use StorageClassStorageBuffer instead.
-#if SPV_VERSION >= 0x10300
-  spv::StorageClass storage_class = spv::StorageClassStorageBuffer;
-#else
-  spv::StorageClass storage_class = spv::StorageClassUniform;
-#endif
+  spv::StorageClass storage_class;
+  if (uniform) {
+    storage_class = spv::StorageClassUniform;
+  } else {
+    storage_class = spv::StorageClassStorageBuffer;
+  }
 
   SType sarr_type = GetStructArrayType(value_type, 0);
   SType ptr_type = GetPointerType(sarr_type, storage_class);
