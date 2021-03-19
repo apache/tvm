@@ -109,6 +109,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
 #ifdef TVM_GRAPH_RUNTIME_TENSORRT
+  /*! \brief Destroy engines and contexts. */
+  ~TensorRTRuntime() {
+    for (auto& it : trt_engine_cache_) {
+      it.second.context->destroy();
+      it.second.engine->destroy();
+    }
+  }
+
   /*! \brief Run inference using built engine. */
   void Run() override {
     BuildEngine();
