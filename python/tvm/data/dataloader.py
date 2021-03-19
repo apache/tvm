@@ -18,8 +18,6 @@
 """A universal API for handling data in TVM. Useful for when you may want to use datasets from
 different machine learning frameworks interchangably. """
 
-import numpy as np
-
 
 class DataLoader:
     """Wrapper class for data loader or data set classes implemented by other machine learning

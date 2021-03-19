@@ -17,7 +17,8 @@
 
 """DataLoader that returns random output of specific shapes. Useful for testing."""
 
-from tvm.relay.data import DataLoader
+from tvm.data import DataLoader
+import numpy as np
 
 
 class RandomDataLoader(DataLoader):
@@ -97,7 +98,7 @@ class RandomDataLoader(DataLoader):
         is_empty : bool
             Whether we've run out of batches and we need to reset.
         """
-        return self.idx >= self.total_batches
+        return self.idx >= self.num_batches
 
     def reset(self):
         """Resets the DataLoader to the beginning of all the batches."""

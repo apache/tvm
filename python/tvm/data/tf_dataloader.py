@@ -17,10 +17,10 @@
 
 """DataLoader wrapping TFDatasets."""
 
-from tvm.relay.data import DataLoader
+from tvm.data import DataLoader
 
 
-class TFDataloader(DataLoader):
+class TFDataLoader(DataLoader):
     """DatasetManager wrapping a tensorflow dataset.
     See https://www.tensorflow.org/datasets/keras_example for an example of how to construct a tensorflow
     dataset to use as input to this class.
@@ -91,9 +91,9 @@ class TFDataloader(DataLoader):
         is_empty : bool
             Whether there are any batches left in the DataLoader.
         """
-        return self.idx >= self.total_batches
+        return self.idx >= self.num_batches
 
     def reset(self):
-        """Resets the DataLoader to the beginning of all the datapoints."""
+        """Resets the DataLoader to the beginning."""
         self.tf_iter = iter(self.tf_dataset)
         self.idx = 0

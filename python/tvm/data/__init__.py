@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """Module containing data-related utilities."""
-from .dataloader import Dataloader
-from .tf_dataloader import TFDataloader
-from .random_dataloader import RandomDataloader
+from .dataloader import DataLoader
+from .tf_dataloader import TFDataLoader
+from .random_dataloader import RandomDataLoader
+from .numpy_dataloader import NumpyDataLoader
