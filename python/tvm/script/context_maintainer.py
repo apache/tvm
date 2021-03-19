@@ -115,7 +115,7 @@ class ContextMaintainer:
 
         Note
         ----
-        This function is used for normal scopes that do not involve 
+        This function is used for normal scopes that do not involve
         a `with block` scope. Use `enter_block_scope`
         for block scope cases.
 
