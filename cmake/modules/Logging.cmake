@@ -16,7 +16,6 @@
 # under the License.
 
 # This script configures the logging module and dependency on libbacktrace
-#   - add_lib_info - A function to add definition flags to a specific file
 
 if("${USE_LIBBACKTRACE}" STREQUAL "AUTO")
   if(CMAKE_SYSTEM_NAME MATCHES "Linux")
