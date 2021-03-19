@@ -114,10 +114,10 @@ class ContextMaintainer:
         """Creates a new scope
 
         Note
-        ------
-        This function is used for normal scopes that does not
-        involve a `with block` scope. Use `enter_block_scope`
-        for the other case.
+        ----
+        This function is used for normal scopes that do not involve 
+        a `with block` scope. Use `enter_block_scope`
+        for block scope cases.
 
         Parameters
         ----------
@@ -135,9 +135,9 @@ class ContextMaintainer:
         to maintain block info.
 
         Note
-        ------
-        This function should be used for the block scope,
-        aka the blocks that involves a `with block` scope.
+        ----
+        This function should be used to handle a block scope,
+        aka the blocks that involve a `with block` scope.
 
         Parameters
         ----------
