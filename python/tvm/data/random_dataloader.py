@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Description"""
+"""DataLoader that returns random output of specific shapes. Useful for testing."""
 
-from tvm.relay.data import Dataloader
+from tvm.relay.data import DataLoader
 
 
-class RandomDataloader(Dataloader):
-    """Dataloader that creates a random input of a specific shape.
+class RandomDataLoader(DataLoader):
+    """DataLoader that creates a random input of a specific shape.
     This class is mostly used for testing, and as an example of how to
     implement a DatasetManager.
 
@@ -38,7 +38,7 @@ class RandomDataloader(Dataloader):
         in data_shapes.
 
     num_batches : int
-        Total number of batches in the Dataloader before we need to reset.
+        Total number of batches in the DataLoader before we need to reset.
     """
 
     def __init__(self, data_shapes, dtypes, batch_size, num_batches):
@@ -85,12 +85,12 @@ class RandomDataloader(Dataloader):
         Returns
         -------
         num_batches : int
-            The number of batches in the Dataloader.
+            The number of batches in the DataLoader.
         """
         return self.num_batches
 
     def is_empty(self):
-        """Returns whether the Dataloader is empty or not.
+        """Returns whether the DataLoader is empty or not.
 
         Returns
         -------
@@ -100,5 +100,5 @@ class RandomDataloader(Dataloader):
         return self.idx >= self.total_batches
 
     def reset(self):
-        """Resets the Dataloader to the beginning of all the batches."""
+        """Resets the DataLoader to the beginning of all the batches."""
         self.idx = 0

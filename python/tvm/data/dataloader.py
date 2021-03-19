@@ -37,13 +37,13 @@ class DataLoader:
 
         labels: List
             The expected outputs of the graph.
-            The length of labels should be equal to the batch size. If the dataloader doesn't
+            The length of labels should be equal to the batch size. If the DataLoader doesn't
             have labels, labels will be None.
         """
         raise NotImplementedError
 
     def get_batch_size(self):
-        """Returns the size of each batch the dataloader has.
+        """Returns the size of each batch the DataLoader has.
 
         Returns
         -------
@@ -52,17 +52,17 @@ class DataLoader:
         """
 
     def get_num_batches(self):
-        """Returns the number of batches the dataloader has.
+        """Returns the number of batches the DataLoader has.
 
         Returns
         ------
         num_batches : int
-            The number of batches the dataloader contains.
+            The number of batches the DataLoader contains.
         """
         raise NotImplementedError
 
     def is_empty(self):
-        """Checks whether the dataloader has gone through all its batches.
+        """Checks whether the DataLoader has gone through all its batches.
         Returns
         -------
         is_empty : bool
@@ -72,5 +72,5 @@ class DataLoader:
         raise NotImplementedError
 
     def reset(self):
-        """Starts the Dataloader over at the beginning of all the data."""
+        """Starts the DataLoader over at the beginning of all the data."""
         raise NotImplementedError

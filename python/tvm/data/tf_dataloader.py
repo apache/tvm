@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Dataloader wrapping TFDatasets."""
+"""DataLoader wrapping TFDatasets."""
 
-from tvm.relay.data import Dataloader
+from tvm.relay.data import DataLoader
 
 
-class TFDataloader(Dataloader):
+class TFDataloader(DataLoader):
     """DatasetManager wrapping a tensorflow dataset.
     See https://www.tensorflow.org/datasets/keras_example for an example of how to construct a tensorflow
     dataset to use as input to this class.
@@ -69,7 +69,7 @@ class TFDataloader(Dataloader):
         Returns
         -------
         num_batches : int
-            The total number of batches in the Dataloader.
+            The total number of batches in the DataLoader.
         """
         return self.num_batches
 
@@ -79,21 +79,21 @@ class TFDataloader(Dataloader):
         Returns
         -------
         batch_size : int
-            The size of the batch returned by the Dataloader.
+            The size of the batch returned by the DataLoader.
         """
         return self.batch_size
 
     def is_empty(self):
-        """Checks whether the Dataloader has any batches left.
+        """Checks whether the DataLoader has any batches left.
 
         Returns
         -------
         is_empty : bool
-            Whether there are any batches left in the Dataloader.
+            Whether there are any batches left in the DataLoader.
         """
         return self.idx >= self.total_batches
 
     def reset(self):
-        """Resets the Dataloader to the beginning of all the datapoints."""
+        """Resets the DataLoader to the beginning of all the datapoints."""
         self.tf_iter = iter(self.tf_dataset)
         self.idx = 0
