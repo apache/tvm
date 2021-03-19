@@ -100,6 +100,7 @@ struct VulkanPipeline {
   VkPipelineLayout pipeline_layout{VK_NULL_HANDLE};
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkDescriptorUpdateTemplateKHR descriptor_update_template{VK_NULL_HANDLE};
+  VulkanBuffer ubo;
 };
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
@@ -747,7 +748,9 @@ class VulkanModuleNode final : public runtime::ModuleNode {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : smap_(smap), fmap_(fmap), source_(source) {}
+      : smap_(smap), fmap_(fmap), source_(source) {
+    LOG(INFO) << source;
+  }
 
   const char* type_key() const final { return "vulkan"; }
 
@@ -843,6 +846,31 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       }
     }
 
+    if (num_pod != 0 && num_pod * 8 > 120) {
+      ICHECK(num_pod == num_pack_args);
+      // UBO
+      // TODO: allocate ubo
+      {
+        VkDescriptorSetLayoutBinding bd;
+        bd.binding = num_buffer;
+        bd.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bd.descriptorCount = 1;
+        bd.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bd.pImmutableSamplers = nullptr;
+        arg_binding.push_back(bd);
+      }
+      {
+        VkDescriptorUpdateTemplateEntryKHR tpl;
+        tpl.dstBinding = num_buffer;
+        tpl.dstArrayElement = 0;
+        tpl.descriptorCount = 1;
+        tpl.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        tpl.offset = num_buffer * sizeof(VkDescriptorBufferInfo);
+        tpl.stride = sizeof(VkDescriptorBufferInfo);
+        arg_template.push_back(tpl);
+      }
+    }
+
     {
       VkDescriptorSetLayoutCreateInfo descrip_cinfo;
       descrip_cinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -894,7 +922,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     playout_cinfo.setLayoutCount = 1;
     playout_cinfo.pSetLayouts = &(pe->descriptor_set_layout);
 
-    if (num_pack_args != 0) {
+    if (num_pack_args != 0 && num_pack_args * 8 <= 120) {
       playout_cinfo.pushConstantRangeCount = 1;
       playout_cinfo.pPushConstantRanges = &crange;
       ICHECK_LE(crange.size, vctx.phy_device_prop.limits.maxPushConstantsSize);
@@ -1075,6 +1103,15 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     binfo.offset = 0;
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers[i] = binfo;
+  }
+  if (num_pack_args_ != 0 && num_pack_args_ * 8 > 120) {
+    // UBO
+    // TODO: copy pack_args
+    VkDescriptorBufferInfo binfo;
+    binfo.buffer = pipeline->ubo.buffer;
+    binfo.offset = 0;
+    binfo.range = VK_WHOLE_SIZE;
+    descriptor_buffers.push_back(binfo);
   }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
