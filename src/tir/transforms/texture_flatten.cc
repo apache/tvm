@@ -274,7 +274,7 @@ class TextureFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    Var buffer_var(op->buffer->data->name_hint, TextureType(DataType::Float(32, 1)));
+    Var buffer_var(op->buffer->data->name_hint, TextureType(op->buffer->dtype));
     let_binding_.insert({op->buffer->data, buffer_var});
 
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -299,7 +299,8 @@ class TextureFlattener : public StmtExprMutator {
       Array<PrimExpr> shape;
       auto width = IntImm(DataType::Int(32), 1);
       auto height = IntImm(DataType::Int(32), 1);
-      //TODO(csulivan): this does not handle the case where the last dimension isn't previously set to a vector(4)
+      // TODO(csulivan): We do not currently handle the case where
+      // the last dimension isn't previously set to a vector(4)
       for (size_t i = 0; i < op->bounds.size()-1; i++) {
         if (i < GetAxisSeparator(op->bounds.size())) {
           width *= op->bounds[i]->extent;
@@ -307,9 +308,6 @@ class TextureFlattener : public StmtExprMutator {
           height *= op->bounds[i]->extent;
         }
       }
-
-      // ICHECK_EQ(shape.size(), 3) << "Only 2d RGBA texture is currently supported";
-      // ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
 
       Array<PrimExpr> args = {width, height};
       stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
@@ -427,10 +425,8 @@ class TextureFlattener : public StmtExprMutator {
 };
 
 PrimFunc TextureFlatten(PrimFunc func) {
-  // std::cout << "Before TextureFlattening: " << func << std::endl;
   auto fptr = func.CopyOnWrite();
   fptr->body = TextureFlattener()(std::move(fptr->body));
-  // std::cout << "After TextureFlattening: " << func << std::endl;
   return func;
 }
 
