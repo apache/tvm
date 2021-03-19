@@ -98,14 +98,15 @@ class RPCServer {
    * \brief Constructor.
    */
   RPCServer(std::string host, int port, int port_end, std::string tracker_addr, std::string key,
-            std::string custom_addr)
+            std::string custom_addr, std::string work_dir)
       : host_(std::move(host)),
         port_(port),
         my_port_(0),
         port_end_(port_end),
         tracker_addr_(std::move(tracker_addr)),
         key_(std::move(key)),
-        custom_addr_(std::move(custom_addr)) {}
+        custom_addr_(std::move(custom_addr)),
+        work_dir_(std::move(work_dir)) {}
 
   /*!
    * \brief Destructor.
@@ -174,7 +175,7 @@ class RPCServer {
         const pid_t worker_pid = fork();
         if (worker_pid == 0) {
           // Worker process
-          ServerLoopProc(conn, addr);
+          ServerLoopProc(conn, addr, work_dir_);
           _exit(0);
         }
 
@@ -201,7 +202,7 @@ class RPCServer {
       } else {
         auto pid = fork();
         if (pid == 0) {
-          ServerLoopProc(conn, addr);
+          ServerLoopProc(conn, addr, work_dir_);
           exit(0);
         }
         // Wait for the result
@@ -308,9 +309,10 @@ class RPCServer {
    * \param sock The socket information
    * \param addr The socket address information
    */
-  static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr) {
+  static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr,
+                             std::string work_dir) {
     // Server loop
-    const auto env = RPCEnv();
+    const auto env = RPCEnv(work_dir);
     RPCServerLoop(int(sock.sockfd));
     LOG(INFO) << "Finish serving " << addr.AsString();
     env.CleanUp();
@@ -339,6 +341,7 @@ class RPCServer {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
+  std::string work_dir_;
   support::TCPSocket listen_sock_;
   support::TCPSocket tracker_sock_;
 };
@@ -370,19 +373,19 @@ void ServerLoopFromChild(SOCKET socket) {
  * silent mode. Default=True
  */
 void RPCServerCreate(std::string host, int port, int port_end, std::string tracker_addr,
-                     std::string key, std::string custom_addr, bool silent) {
+                     std::string key, std::string custom_addr, std::string work_dir, bool silent) {
   if (silent) {
     // Only errors and fatal is logged
     dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
   RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key),
-                std::move(custom_addr));
+                std::move(custom_addr), std::move(work_dir));
   rpc.Start();
 }
 
 TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body([](TVMArgs args, TVMRetValue* rv) {
-  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
 });
 }  // namespace runtime
 }  // namespace tvm

@@ -39,7 +39,7 @@ struct RPCEnv {
   /*!
    * \brief Constructor Init The RPC Environment initialize function
    */
-  RPCEnv();
+  RPCEnv(const std::string& word_dir = "");
   /*!
    * \brief GetPath To get the workpath from packed function
    * \param name The file name
