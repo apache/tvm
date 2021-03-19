@@ -65,9 +65,9 @@ namespace {
     int separator = cv.empty() ? ndim - 2 : 1;
     for (int i = 0; i < ndim-1; i++) {
       if (i < separator) {
-        width *= shape[i];
-      } else {
         height *= shape[i];
+      } else {
+        width *= shape[i];
       }
     }
     return std::make_pair(width, height);
