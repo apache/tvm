@@ -245,7 +245,7 @@ class ApplyHistoryBest(DispatchContext):
 
         logger.debug("Finish loading %d records", counter)
 
-    def _query_inside(self, target, workload_key, _):
+    def _query_inside(self, target, workload_key, func_name):
         if target is None:
             raise RuntimeError(
                 "Need a target context to find the history best. "
@@ -360,9 +360,7 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
         return ret
 
     def _query_inside(self, target, workload_key, func_name):
-        ret = super(ApplyHistoryBestOrSample, self)._query_inside(
-            target, workload_key, func_name=func_name
-        )
+        ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key, func_name)
         if ret is not None:
             return ret
 
