@@ -489,6 +489,15 @@ class IRBuilder {
    * \return the value of push constant
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
+
+  Value DeclareUBO(const std::vector<SType>& value_types, uint32_t binding);
+  /*!
+   * \brief Get i-th push constant
+   * \param v_type The value type
+   * \param index The push constant index
+   * \return the value of push constant
+   */
+  Value GetUBO(Value ptr_ubo, const SType& v_type, uint32_t index);
   /*!
    * \brief Declare a new function
    * \return The created function ID.

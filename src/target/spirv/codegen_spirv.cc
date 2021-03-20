@@ -80,16 +80,22 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
         var_map_[pod_args[i].get()] = value;
       }
     } else {
-      DataType value_storage_type = DataType::Int(64);
-      spirv::Value ptr_ubo =
-          builder_->BufferArgument(builder_->GetSType(value_storage_type), 0, num_buffer, true);
+      spirv::Value ptr = builder_->DeclareUBO(value_types, num_buffer);
       for (size_t i = 0; i < pod_args.size(); ++i) {
-        spirv::SType ptr_type = builder_->GetPointerType(value_types[i], spv::StorageClassUniform);
-        spirv::Value ptr = builder_->StructArrayAccess(
-            ptr_type, ptr_ubo, MakeValue(PrimExpr(static_cast<int32_t>(i * 8))));
-        var_map_[pod_args[i].get()] =
-            builder_->MakeValue(spv::OpLoad, value_types[i], ptr, spv::MemoryAccessMaskNone);
+        spirv::Value value =
+            builder_->GetUBO(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
       }
+      // DataType value_storage_type = DataType::Int(64);
+      // spirv::Value ptr_ubo =
+      //     builder_->BufferArgument(builder_->GetSType(value_storage_type), 0, num_buffer, true);
+      // for (size_t i = 0; i < pod_args.size(); ++i) {
+      //   spirv::SType ptr_type = builder_->GetPointerType(value_types[i], spv::StorageClassUniform);
+      //   spirv::Value ptr = builder_->StructArrayAccess(
+      //       ptr_type, ptr_ubo, MakeValue(PrimExpr(static_cast<int32_t>(i))));
+      //   var_map_[pod_args[i].get()] =
+      //       builder_->MakeValue(spv::OpLoad, value_types[i], ptr, spv::MemoryAccessMaskNone);
+      //}
     }
   }
   this->VisitStmt(f->body);

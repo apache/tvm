@@ -120,6 +120,7 @@ uint32_t FindMemoryType(VkDevice logical_device, VkPhysicalDevice phy_device, Vk
   for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
     if ((type_bits & 1) == 1 &&
         (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
+      LOG(INFO) << "Find memory type index " << i;
       return i;
     }
     type_bits >>= 1;
@@ -893,6 +894,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
     if (nbytes_scalars > 120) {
       ICHECK(num_pod == num_pack_args);
+      LOG(INFO) << "Adding ubo to the pipeline with binding = " << num_buffer;
       // UBO
       {
         VkDescriptorSetLayoutBinding bd;
@@ -997,11 +999,13 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
     if (nbytes_scalars > 120) {
       // Allocate, bind and map UBO
-      UniformBuffer ubo = pe->ubo;
-      ubo.host_buf = new ArgUnion64[nbytes_scalars];
+      LOG(INFO) << "Allocate ubo of size " << nbytes_scalars;
+      UniformBuffer& ubo = pe->ubo;
+      ubo.host_buf = new ArgUnion64[num_pod];
       ubo.vk_buf = CreateBuffer(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
       void* host_ptr = ubo.host_buf;
       vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &host_ptr);
+      LOG(INFO) << "Mapping done";
     }
 
     if (vctx.UseImmediate()) {
@@ -1159,7 +1163,10 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   if (num_pack_args_ != 0 && num_pack_args_ * sizeof(ArgUnion64) > 120) {
     // UBO
+    LOG(INFO) << "Copy ubo of size " << num_pack_args_ * sizeof(ArgUnion64);
+    CHECK(pipeline->ubo.host_buf != nullptr);
     memcpy(pipeline->ubo.host_buf, pack_args, num_pack_args_ * sizeof(ArgUnion64));
+    LOG(INFO) << "copy done";
     VkDescriptorBufferInfo binfo;
     binfo.buffer = pipeline->ubo.vk_buf->buffer;
     binfo.offset = 0;
