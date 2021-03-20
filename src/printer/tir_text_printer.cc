@@ -476,8 +476,7 @@ inline const char* ForKind2String(ForKind t) {
     case ForKind::kUnrolled:
       return "unroll";
     case ForKind::kThreadBinding:
-      LOG(FATAL) << "Loop ThreadBinding is reserved for future used and "
-                 << "not yet supported in TIR";
+      return "thread_binding";
   }
   LOG(FATAL) << "Unknown ForKind";
   return "Unknown";
