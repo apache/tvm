@@ -28,7 +28,47 @@ from .node import BufferSlice
 
 
 class BlockInfo:
-    """Information for block and block_realize signature"""
+    """Information for block and block_realize signature
+
+    Examples
+    ________
+
+    .. code-block:: python
+
+
+        @tvm.script.tir
+        def example_func(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+            A = tir.match_buffer(a, (16, 16), "float32")
+            B = tir.match_buffer(b, (16, 16), "float32")
+            C = tir.match_buffer(a, (16, 16), "float32")
+
+            for i, j, k in tir.grid(16, 16, 16):
+                with tir.block([16, 16, tir.reduce_axis(16)], "matmul") as [vi, vj, vk]:
+                    tir.bind(vi, i)
+                    tir.bind(vj, j)
+                    tir.bind(vk, k)         # iter_bindings = {vj: i, vj: j, vk: k}
+
+                    tir.where(True)         # predicate of the block_realize
+
+                    tir.reads(A[0:16, 0:16], B[0: 16, 0: 16])      # reads region of the block
+                    tir.writes(C[0: 16, 0: 16])                    # writes region of the block
+                    tir.block_attr({"attr_key": "attr_value"})     # block annotations
+
+                    # alloc_buffers inside the block
+                    CC = tir.alloc_buffer((1, 1), dtype="float32")
+
+                    # match_buffers of the block,
+                    # which bind a sub-region of source buffer into a new buffer
+                    D = tir.match_buffer_region(C[vi, vj])
+
+                    # init part of the block, executed when all reduce axes are the beginning value
+                    with tir.init():
+                        C[vi, vj] = tir.float32(0)
+
+                    # block body
+                    CC[0, 0] = A[vi, vk] * B[vj, vk]
+                    D[0, 0] += CC[0, 0]         # The same as C[vi, vj] += CC[0, 0]
+    """
 
     alloc_buffers: List[Buffer] = []
     """List[Buffer]: list of tir.alloc_buffer statements in the block signature"""
