@@ -828,10 +828,12 @@ class VulkanModuleNode final : public runtime::ModuleNode {
         vkDestroyDescriptorSetLayout(vctx.device, pe->descriptor_set_layout, nullptr);
         vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
         // UBO
-        vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
-        vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
-        delete pe->ubo.vk_buf;
-        delete[] pe->ubo.host_buf;
+        if (pe->ubo.host_buf) {
+          vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
+          vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
+          delete pe->ubo.vk_buf;
+          delete[] pe->ubo.host_buf;
+        }
       }
     }
   }
