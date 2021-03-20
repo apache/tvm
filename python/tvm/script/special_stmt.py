@@ -45,17 +45,17 @@ def convert_to_int(
     span: Union[Span, synr.ast.Span],
 ) -> int:
     """convert a const int or TVM IntImm to Python int.
-    Report an error when input cannot be converted to int.
+    Reports an error when input cannot be converted to int.
 
     Parameters
     ----------
     value : Union[tvm.tir.IntImm, int]
         The input value to be converted.
     arg_name : str
-        function arg name for error reporting
+        Function argument name for error reporting.
     report_error: Callable
         The report error function handle
-    span : Union[synr.ast.Span, tvm.ir.Span】
+    span : Union[synr.ast.Span, tvm.ir.Span]
         Location of the error
     """
     if isinstance(value, IntImm):

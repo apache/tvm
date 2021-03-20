@@ -109,13 +109,13 @@ def verify_gpu_code(func, constraints):
 
 
 def get_block_access_region(block, buffer_var_map):
-    """Auto detect the block read/write region according to body stmt
-        It will detect the read/write region as an array in order of appearance in AST
+    """Detect which regions of tensors in this block are read or written to.
+       Regions are sorted by order of appearance in the AST.
 
     Parameters
     ----------
     block: tvm.tir.Block
-        The block to be detected.
+        The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
