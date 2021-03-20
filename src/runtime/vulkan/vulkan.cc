@@ -110,6 +110,24 @@ struct VulkanPipeline {
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
 
+uint32_t FindMemoryType(VkDevice logical_device, VkPhysicalDevice phy_device, VkBuffer buffer,
+                        VkMemoryPropertyFlags req_prop) {
+  VkMemoryRequirements mem_reqs;
+  vkGetBufferMemoryRequirements(logical_device, buffer, &mem_reqs);
+  uint32_t type_bits = mem_reqs.memoryTypeBits;
+  VkPhysicalDeviceMemoryProperties phy_mem_prop;
+  vkGetPhysicalDeviceMemoryProperties(phy_device, &phy_mem_prop);
+  for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
+    if ((type_bits & 1) == 1 &&
+        (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
+      return i;
+    }
+    type_bits >>= 1;
+  }
+  LOG(FATAL) << "Requested memory type not found";
+  return 0;
+}
+
 VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage) {
   VkBufferCreateInfo info;
   info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -128,22 +146,8 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
 
   if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
     // Find a memory type that supports UBO
-    VkMemoryRequirements mem_reqs;
-    vkGetBufferMemoryRequirements(vctx.device, buffer, &mem_reqs);
-    uint32_t type_bits = mem_reqs.memoryTypeBits;
-    auto req_prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    VkPhysicalDeviceMemoryProperties phy_mem_prop;
-    vkGetPhysicalDeviceMemoryProperties(vctx.phy_device, &phy_mem_prop);
-    bool found = false;
-    for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
-      if ((type_bits & 1) == 1 &&
-          (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
-        mem_type_index = i;
-        found = true;
-      }
-      type_bits >>= 1;
-    }
-    ICHECK(found);
+    auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    mem_type_index = FindMemoryType(vctx.device, vctx.phy_device, buffer, prop);
   }
 
   // bind to memory
