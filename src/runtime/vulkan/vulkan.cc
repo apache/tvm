@@ -124,6 +124,28 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
   VkBuffer buffer;
   VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
 
+  uint32_t mem_type_index = vctx.compute_mtype_index;
+
+  if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
+    // Find a memory type that supports UBO
+    VkMemoryRequirements mem_reqs;
+    vkGetBufferMemoryRequirements(vctx.device, buffer, &mem_reqs);
+    uint32_t type_bits = mem_reqs.memoryTypeBits;
+    auto req_prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    VkPhysicalDeviceMemoryProperties phy_mem_prop;
+    vkGetPhysicalDeviceMemoryProperties(vctx.phy_device, &phy_mem_prop);
+    bool found = false;
+    for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
+      if ((type_bits & 1) == 1 &&
+          (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
+        mem_type_index = i;
+        found = true;
+      }
+      type_bits >>= 1;
+    }
+    ICHECK(found);
+  }
+
   // bind to memory
   bool dedicated_allocation = false;
   VkMemoryRequirements2KHR req2;
@@ -155,14 +177,14 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     minfo.pNext = nullptr;
     minfo.allocationSize = nbytes;
-    minfo.memoryTypeIndex = vctx.compute_mtype_index;
+    minfo.memoryTypeIndex = mem_type_index;
     VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
   } else {
     VkMemoryAllocateInfo minfo;
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     minfo.pNext = nullptr;
     minfo.allocationSize = req2.memoryRequirements.size;
-    minfo.memoryTypeIndex = vctx.compute_mtype_index;
+    minfo.memoryTypeIndex = mem_type_index;
 
     VkMemoryDedicatedAllocateInfoKHR mdinfo;
     mdinfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
@@ -940,7 +962,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     playout_cinfo.setLayoutCount = 1;
     playout_cinfo.pSetLayouts = &(pe->descriptor_set_layout);
 
-    if (num_pack_args != 0 && num_pack_args * 8 <= 120) {
+    if (0 < nbytes_scalars && nbytes_scalars <= 120) {
       playout_cinfo.pushConstantRangeCount = 1;
       playout_cinfo.pPushConstantRanges = &crange;
       ICHECK_LE(crange.size, vctx.phy_device_prop.limits.maxPushConstantsSize);
