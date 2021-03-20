@@ -28,11 +28,12 @@ from .utils import get_const_int, prod
 
 def cumbinop(
     data: tvm.te.Tensor,
+    binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
+    identity_value: "tvm.Expr",
+    op_name: str,
     axis: Optional[int] = None,
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
-    binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"] = generic.add,
-    identity_value: "tvm.Expr" = 0,
 ) -> tvm.te.Tensor:
     """
     TODO
@@ -103,8 +104,8 @@ def cumbinop(
         lambda ins, outs: gen_ir(ins[0], outs[0]),
         dtype=dtype,
         out_buffers=[out_buf],
-        name="cumsum_generic",
-        tag="cumsum_generic",
+        name=op_name,
+        tag=op_name,
     )
 
 
@@ -142,5 +143,11 @@ def cumsum(
         If axis is None, the result is a 1-d array.
     """
     return cumbinop(
-        data=data, axis=axis, dtype=dtype, exclusive=exclusive, binop=generic.add, identity_value=0
+        data=data,
+        binop=generic.add,
+        identity_value=0,
+        op_name="cumsum_generic",
+        axis=axis,
+        dtype=dtype,
+        exclusive=exclusive,
     )

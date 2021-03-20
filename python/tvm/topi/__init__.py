@@ -43,6 +43,7 @@ from .sparse_reshape import *
 from .scatter_add import *
 from .argwhere import *
 from .cumsum import *
+from .cumprod import *
 from .einsum import *
 from .unique import *
 from . import generic

@@ -57,11 +57,12 @@ def cumprod(
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
     """
-    cumbinop(
+    return cumbinop(
         data=data,
+        binop=generic.multiply,
+        identity_value=1,
+        op_name="cumprod_generic",
         axis=axis,
         dtype=dtype,
         exclusive=exclusive,
-        binop=generic.multiply,
-        identity_value=1,
     )

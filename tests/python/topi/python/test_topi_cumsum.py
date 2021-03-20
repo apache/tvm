@@ -102,7 +102,7 @@ def test_cumsum(ctx, target):
 
 if __name__ == "__main__":
     test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
-    # test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
-    # test_cumsum(tvm.context("nvptx"), tvm.target.Target("nvptx"))
-    # test_cumsum(tvm.context("vulkan"), tvm.target.Target("vulkan"))
-    # test_cumsum(tvm.context("metal"), tvm.target.Target("metal"))
+    test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
+    test_cumsum(tvm.context("nvptx"), tvm.target.Target("nvptx"))
+    test_cumsum(tvm.context("vulkan"), tvm.target.Target("vulkan"))
+    test_cumsum(tvm.context("metal"), tvm.target.Target("metal"))
