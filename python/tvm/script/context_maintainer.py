@@ -31,10 +31,8 @@ class BlockInfo:
     """Information for block and block_realize signature
 
     Examples
-    ________
-
+    ----------
     .. code-block:: python
-
 
         @tvm.script.tir
         def example_func(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
