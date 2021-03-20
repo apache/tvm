@@ -81,9 +81,9 @@ def cumbinop(
             j = fused % axis_mul_after
             base_idx = i * cumsum_axis_len * axis_mul_after + j
             if exclusive:
-                out_buf[base_idx] = maybe_cast(data_buf[base_idx])
-            else:
                 out_buf[base_idx] = cast(identity_value, dtype)
+            else:
+                out_buf[base_idx] = maybe_cast(data_buf[base_idx])
             with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
                 k = _k + 1
                 cur_idx = base_idx + k * axis_mul_after
@@ -113,7 +113,7 @@ def cumsum(
     axis: Optional[int] = None,
     dtype: Optional[int] = None,
     exclusive: Optional[bool] = None,
-):
+) -> tvm.te.Tensor:
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
     Parameters
@@ -141,6 +141,6 @@ def cumsum(
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
     """
-    cumbinop(
+    return cumbinop(
         data=data, axis=axis, dtype=dtype, exclusive=exclusive, binop=generic.add, identity_value=0
     )

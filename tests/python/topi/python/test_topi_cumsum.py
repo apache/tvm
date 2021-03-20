@@ -17,19 +17,34 @@
 import numpy as np
 import tvm
 import tvm.testing
-from tvm import topi
 import tvm.topi.testing
+from tvm import topi
 
 
 @tvm.testing.parametrize_targets
 def test_cumsum(ctx, target):
-    def check_cumsum(np_ref, data, axis=None, dtype=None):
+    def check_cumsum(np_ref, data, axis=None, dtype=None, exclusive=False):
         implementations = {
-            "generic": (lambda x: topi.cumsum(x, axis, dtype), topi.generic.schedule_extern),
-            "cuda": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
-            "nvptx": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
-            "vulkan": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
-            "metal": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
+            "generic": (
+                lambda x: topi.cumsum(x, axis, dtype, exclusive=exclusive),
+                topi.generic.schedule_extern,
+            ),
+            "cuda": (
+                lambda x: topi.cuda.cumsum(x, axis, dtype, exclusive=exclusive),
+                topi.cuda.schedule_scan,
+            ),
+            "nvptx": (
+                lambda x: topi.cuda.cumsum(x, axis, dtype, exclusive=exclusive),
+                topi.cuda.schedule_scan,
+            ),
+            "vulkan": (
+                lambda x: topi.cuda.cumsum(x, axis, dtype, exclusive=exclusive),
+                topi.cuda.schedule_scan,
+            ),
+            "metal": (
+                lambda x: topi.cuda.cumsum(x, axis, dtype, exclusive=exclusive),
+                topi.cuda.schedule_scan,
+            ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm([data], np_ref, target, ctx, fcompute, fschedule)
@@ -70,10 +85,24 @@ def test_cumsum(ctx, target):
         data = np.random.randint(1 << 30, (1 << 31) - 1, size=(100)).astype(in_dtype)
         check_cumsum(np.cumsum(data), data, dtype="int64")
 
+    data = np.random.randint(-100, 100, size=(100, 100)).astype("int64")
+
+    expected_result = np.roll(np.cumsum(data), 1)
+    expected_result[0] = 0
+    check_cumsum(expected_result, data, dtype="int64", exclusive=True)
+
+    expected_result = np.roll(np.cumsum(data, axis=0, dtype=in_dtype), 1, axis=0)
+    expected_result[0, :] = 0
+    check_cumsum(expected_result, data, axis=0, exclusive=True)
+
+    expected_result = np.roll(np.cumsum(data, axis=1, dtype=in_dtype), 1, axis=1)
+    expected_result[:, 0] = 0
+    check_cumsum(np.cumsum(data, axis=1, dtype=in_dtype), data, axis=1)
+
 
 if __name__ == "__main__":
     test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
-    test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
-    test_cumsum(tvm.context("nvptx"), tvm.target.Target("nvptx"))
-    test_cumsum(tvm.context("vulkan"), tvm.target.Target("vulkan"))
-    test_cumsum(tvm.context("metal"), tvm.target.Target("metal"))
+    # test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
+    # test_cumsum(tvm.context("nvptx"), tvm.target.Target("nvptx"))
+    # test_cumsum(tvm.context("vulkan"), tvm.target.Target("vulkan"))
+    # test_cumsum(tvm.context("metal"), tvm.target.Target("metal"))
