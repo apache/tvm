@@ -30,8 +30,9 @@ namespace tvm {
 namespace tir {
 
 /*!
- * \brief Detect which regions of tensors in this block are read or written to. Regions are sorted by order of appearance in the AST.
- * \note This detector can only visit blocks and will not visit child blocks recursively
+ * \brief Detect which regions of tensors in this block are read or written to. Regions are sorted
+ * by order of appearance in the AST. \note This detector can only visit blocks and will not visit
+ * child blocks recursively
  */
 class BlockReadWriteDetector : public StmtExprVisitor {
  public:
