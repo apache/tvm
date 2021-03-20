@@ -30,8 +30,7 @@ namespace tvm {
 namespace tir {
 
 /*!
- * \brief Auto detect the block read write region
- *        It will detect the read/write region as an array in order of appearance in AST
+ * \brief Detect which regions of tensors in this block are read or written to. Regions are sorted by order of appearance in the AST.
  * \note This detector can only visit blocks and will not visit child blocks recursively
  */
 class BlockReadWriteDetector : public StmtExprVisitor {
