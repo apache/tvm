@@ -145,6 +145,8 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
 
   uint32_t mem_type_index = vctx.compute_mtype_index;
 
+  LOG(INFO) << "compute_mtype_index: " << vctx.compute_mtype_index;
+
   if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
     // Find a memory type that supports UBO
     auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -185,6 +187,7 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     minfo.memoryTypeIndex = mem_type_index;
     VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
   } else {
+    LOG(INFO) << "using dedicated allocation";
     VkMemoryAllocateInfo minfo;
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     minfo.pNext = nullptr;
@@ -1174,6 +1177,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     descriptor_buffers.push_back(binfo);
   }
   if (vctx.UseImmediate()) {
+    LOG(INFO) << "Using immediate";
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
