@@ -2622,10 +2622,17 @@ def test_forward_clamp():
         def forward(self, *args):
             return torch.clamp(args[0], max=1.0)
 
+    class Clamp_MinExpr_MaxConstant(Module):
+        def forward(self, *args):
+            h, w = args[0].shape[2:]
+            amin = h / 100.0
+            return torch.clamp(args[0], min=amin, max=w)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Clamp1().float().eval(), input_data=input_data)
     verify_model(Clamp2().float().eval(), input_data=input_data)
     verify_model(Clamp3().float().eval(), input_data=input_data)
+    verify_model(Clamp_MinExpr_MaxConstant().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
