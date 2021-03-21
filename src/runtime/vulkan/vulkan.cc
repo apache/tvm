@@ -1144,8 +1144,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
   bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > MAX_PUSHCONSTANTS;
   if (use_ubo) {
-    // UBO
-    CHECK(pipeline->ubo.host_buf) << "The UBO host is not allocated";
+    CHECK(pipeline->ubo.host_buf) << "The UBO host buffer is not allocated";
     memcpy(pipeline->ubo.host_buf, pack_args, nbytes_scalars);
     VkDescriptorBufferInfo binfo;
     binfo.buffer = pipeline->ubo.vk_buf->buffer;
