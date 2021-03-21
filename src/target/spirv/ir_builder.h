@@ -472,7 +472,7 @@ class IRBuilder {
    * \param binding The binding locaiton in descriptor set.
    * \param The argument type.
    */
-  Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding, bool uniform=false);
+  Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding);
 
   /*!
    * \brief Declare POD arguments through push constants.
@@ -490,13 +490,8 @@ class IRBuilder {
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
 
+  // TODO doc
   Value DeclareUBO(const std::vector<SType>& value_types, uint32_t binding);
-  /*!
-   * \brief Get i-th push constant
-   * \param v_type The value type
-   * \param index The push constant index
-   * \return the value of push constant
-   */
   Value GetUBO(Value ptr_ubo, const SType& v_type, uint32_t index);
   /*!
    * \brief Declare a new function

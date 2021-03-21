@@ -30,8 +30,8 @@
 
 #include <string>
 
-#include "../../runtime/vulkan/vulkan_common.h"
 #include "../../runtime/pack_args.h"
+#include "../../runtime/vulkan/vulkan_common.h"
 
 namespace tvm {
 namespace codegen {
