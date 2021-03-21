@@ -786,8 +786,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : smap_(smap), fmap_(fmap), source_(source) {
-  }
+      : smap_(smap), fmap_(fmap), source_(source) {}
 
   const char* type_key() const final { return "vulkan"; }
 
@@ -826,7 +825,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
           vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
           vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
           delete pe->ubo.vk_buf;
-	  // TOOD(masahi): Fix segfault here
+          // TOOD(masahi): Fix segfault here
           // delete[] (ArgUnion64*)pe->ubo.host_buf;
         }
       }
@@ -888,7 +887,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       ICHECK(fit != fmap_.end());
       for (DLDataType arg_type : fit->second.arg_types) {
         if (arg_type.code == kTVMOpaqueHandle) {
-	  push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+          push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
           ++num_buffer;
         } else {
           ++num_pod;
@@ -1198,10 +1197,10 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       write_descriptor_sets[i].pTexelBufferView = 0;
 
       if (use_ubo && i == write_descriptor_sets.size() - 1) {
-	// The last binding is for UBO
-	write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        // The last binding is for UBO
+        write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
       } else {
-	write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
       }
     }
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
