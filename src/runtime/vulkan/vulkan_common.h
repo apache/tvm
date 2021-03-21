@@ -35,6 +35,9 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
+// TODO(masahi): Query this value using runtime API
+#define MAX_PUSHCONSTANTS 128
+
 inline const char* VKGetErrorString(VkResult error) {
   switch (error) {
     case VK_SUCCESS:

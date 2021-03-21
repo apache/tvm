@@ -45,8 +45,6 @@ static constexpr const int kVulkanMaxNumDevice = 8;
 /*! \brief TVM Vulkan binary pack magic number */
 static constexpr const int kVulkanModuleMagic = 0x02700027;
 
-#define MAX_PUSHCONSTANTS 128
-
 class VulkanThreadEntry {
  public:
   VulkanThreadEntry();
@@ -177,7 +175,6 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
   }
 
   VkDeviceMemory memory;
-  // TODO: revisit memoryTypeIndex
   if (!dedicated_allocation) {
     VkMemoryAllocateInfo minfo;
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -829,6 +826,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
           vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
           vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
           delete pe->ubo.vk_buf;
+	  // TOOD(masahi): Fix segfault here
           // delete[] (ArgUnion64*)pe->ubo.host_buf;
         }
       }
@@ -862,30 +860,35 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     std::vector<VkDescriptorUpdateTemplateEntryKHR> arg_template;
     uint32_t num_pod = 0, num_buffer = 0;
 
+    auto push_arg_info = [&arg_binding, &arg_template](uint32_t binding,
+                                                       VkDescriptorType desc_type) {
+      {
+        VkDescriptorSetLayoutBinding bd;
+        bd.binding = binding;
+        bd.descriptorType = desc_type;
+        bd.descriptorCount = 1;
+        bd.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bd.pImmutableSamplers = nullptr;
+        arg_binding.push_back(bd);
+      }
+      {
+        VkDescriptorUpdateTemplateEntryKHR tpl;
+        tpl.dstBinding = binding;
+        tpl.dstArrayElement = 0;
+        tpl.descriptorCount = 1;
+        tpl.descriptorType = desc_type;
+        tpl.offset = binding * sizeof(VkDescriptorBufferInfo);
+        tpl.stride = sizeof(VkDescriptorBufferInfo);
+        arg_template.push_back(tpl);
+      }
+    };
+
     {
       auto fit = fmap_.find(func_name);
       ICHECK(fit != fmap_.end());
       for (DLDataType arg_type : fit->second.arg_types) {
         if (arg_type.code == kTVMOpaqueHandle) {
-          {
-            VkDescriptorSetLayoutBinding bd;
-            bd.binding = num_buffer;
-            bd.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            bd.descriptorCount = 1;
-            bd.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-            bd.pImmutableSamplers = nullptr;
-            arg_binding.push_back(bd);
-          }
-          {
-            VkDescriptorUpdateTemplateEntryKHR tpl;
-            tpl.dstBinding = num_buffer;
-            tpl.dstArrayElement = 0;
-            tpl.descriptorCount = 1;
-            tpl.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            tpl.offset = num_buffer * sizeof(VkDescriptorBufferInfo);
-            tpl.stride = sizeof(VkDescriptorBufferInfo);
-            arg_template.push_back(tpl);
-          }
+	  push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
           ++num_buffer;
         } else {
           ++num_pod;
@@ -895,28 +898,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
     if (nbytes_scalars > MAX_PUSHCONSTANTS) {
-      ICHECK(num_pod == num_pack_args);
-      //LOG(INFO) << "Adding ubo to the pipeline with binding = " << num_buffer;
-      // UBO
-      {
-        VkDescriptorSetLayoutBinding bd;
-        bd.binding = num_buffer;
-        bd.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        bd.descriptorCount = 1;
-        bd.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-        bd.pImmutableSamplers = nullptr;
-        arg_binding.push_back(bd);
-      }
-      {
-        VkDescriptorUpdateTemplateEntryKHR tpl;
-        tpl.dstBinding = num_buffer;
-        tpl.dstArrayElement = 0;
-        tpl.descriptorCount = 1;
-        tpl.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        tpl.offset = num_buffer * sizeof(VkDescriptorBufferInfo);
-        tpl.stride = sizeof(VkDescriptorBufferInfo);
-        arg_template.push_back(tpl);
-      }
+      push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     }
 
     {
@@ -1160,17 +1142,17 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers[i] = binfo;
   }
-  bool use_ubo = false;
-  if (num_pack_args_ != 0 && num_pack_args_ * sizeof(ArgUnion64) > MAX_PUSHCONSTANTS) {
+  const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
+  bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > MAX_PUSHCONSTANTS;
+  if (use_ubo) {
     // UBO
-    CHECK(pipeline->ubo.host_buf != nullptr);
-    memcpy(pipeline->ubo.host_buf, pack_args, num_pack_args_ * sizeof(ArgUnion64));
+    CHECK(pipeline->ubo.host_buf) << "The UBO host is not allocated";
+    memcpy(pipeline->ubo.host_buf, pack_args, nbytes_scalars);
     VkDescriptorBufferInfo binfo;
     binfo.buffer = pipeline->ubo.vk_buf->buffer;
     binfo.offset = 0;
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers.push_back(binfo);
-    use_ubo = true;
   }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
@@ -1211,15 +1193,16 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       write_descriptor_sets[i].dstBinding = i;
       write_descriptor_sets[i].dstArrayElement = 0;
       write_descriptor_sets[i].descriptorCount = 1;
+      write_descriptor_sets[i].pImageInfo = 0;
+      write_descriptor_sets[i].pBufferInfo = &(descriptor_buffers[i]);
+      write_descriptor_sets[i].pTexelBufferView = 0;
+
       if (use_ubo && i == write_descriptor_sets.size() - 1) {
+	// The last binding is for UBO
 	write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
       } else {
 	write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
       }
-
-      write_descriptor_sets[i].pImageInfo = 0;
-      write_descriptor_sets[i].pBufferInfo = &(descriptor_buffers[i]);
-      write_descriptor_sets[i].pTexelBufferView = 0;
     }
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
                            0, 0);

@@ -30,6 +30,9 @@
 
 #include <string>
 
+#include "../../runtime/vulkan/vulkan_common.h"
+#include "../../runtime/pack_args.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -72,7 +75,7 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
     // All the POD arguments are passed in through PushConstant
-    if (pod_args.size() * 8 <= 128) {
+    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= MAX_PUSHCONSTANTS) {
       spirv::Value ptr = builder_->DeclarePushConstant(value_types);
       for (size_t i = 0; i < pod_args.size(); ++i) {
         spirv::Value value =
