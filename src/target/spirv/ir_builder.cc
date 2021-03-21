@@ -205,8 +205,8 @@ Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set
   return val;
 }
 
-Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
-  ICHECK_EQ(push_const_.id, 0);
+Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
+                                        spv::StorageClass storage_class) {
   SType struct_type;
   struct_type.id = id_counter_++;
   struct_type.type = DataType::Handle();
@@ -226,20 +226,24 @@ Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
     ICHECK_EQ(nbits % 8, 0);
     uint32_t bytes = (nbits / 8);
     if (t.bits() == 32) {
-      // In our Vulkan runtime, each push constant always occupies 64 bit.
+      // In our Vulkan runtime, each scalar argument always occupies 64 bit.
       offset += bytes * 2;
     } else {
       ICHECK_EQ(t.bits(), 64);
       offset += bytes;
     }
   }
-  // Decorate push constants as UBO
   this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
 
-  SType ptr_type = GetPointerType(struct_type, spv::StorageClassPushConstant);
+  SType ptr_type = GetPointerType(struct_type, storage_class);
   Value val = NewValue(ptr_type, kPushConstantPtr);
-  ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, spv::StorageClassPushConstant).Commit(&global_);
+  ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
   return val;
+}
+
+Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
+  ICHECK_EQ(push_const_.id, 0);
+  return DeclareStorageVariable(value_types, spv::StorageClassPushConstant);
 }
 
 Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index) {
@@ -249,45 +253,13 @@ Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint
   return this->MakeValue(spv::OpLoad, v_type, ptr);
 }
 
-Value IRBuilder::DeclareUBO(const std::vector<SType>& value_types, uint32_t binding) {
-  ICHECK_EQ(push_const_.id, 0);
-  SType struct_type;
-  struct_type.id = id_counter_++;
-  struct_type.type = DataType::Handle();
-  ib_.Begin(spv::OpTypeStruct).Add(struct_type);
-  for (const SType& vtype : value_types) {
-    ib_.Add(vtype);
-  }
-  ib_.Commit(&global_);
-
-  uint32_t offset = 0;
-  for (uint32_t i = 0; i < value_types.size(); ++i) {
-    ib_.Begin(spv::OpMemberDecorate)
-        .AddSeq(struct_type, i, spv::DecorationOffset, offset)
-        .Commit(&decorate_);
-    DataType t = value_types[i].type;
-    uint32_t nbits = t.bits() * t.lanes();
-    ICHECK_EQ(nbits % 8, 0);
-    uint32_t bytes = (nbits / 8);
-    if (t.bits() == 32) {
-      // In our Vulkan runtime, each push constant always occupies 64 bit.
-      offset += bytes * 2;
-    } else {
-      ICHECK_EQ(t.bits(), 64);
-      offset += bytes;
-    }
-  }
-  // Decorate push constants as UBO
-  this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
-
-  SType ptr_type = GetPointerType(struct_type, spv::StorageClassUniform);
-  Value val = NewValue(ptr_type, kPushConstantPtr);
+Value IRBuilder::DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding) {
+  Value val = DeclareStorageVariable(value_types, spv::StorageClassUniform);
   this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
-  ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, spv::StorageClassUniform).Commit(&global_);
   return val;
 }
 
-Value IRBuilder::GetUBO(Value ptr_push_const, const SType& v_type, uint32_t index) {
+Value IRBuilder::GetUniform(Value ptr_push_const, const SType& v_type, uint32_t index) {
   SType ptr_vtype = this->GetPointerType(v_type, spv::StorageClassUniform);
   Value ptr = this->MakeValue(spv::OpAccessChain, ptr_vtype, ptr_push_const,
                               IntImm(t_int32_, static_cast<int64_t>(index)));

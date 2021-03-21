@@ -491,8 +491,8 @@ class IRBuilder {
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
 
   // TODO doc
-  Value DeclareUBO(const std::vector<SType>& value_types, uint32_t binding);
-  Value GetUBO(Value ptr_ubo, const SType& v_type, uint32_t index);
+  Value DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding);
+  Value GetUniform(Value ptr_ubo, const SType& v_type, uint32_t index);
   /*!
    * \brief Declare a new function
    * \return The created function ID.
@@ -560,6 +560,11 @@ class IRBuilder {
     val.flag = flag;
     return val;
   }
+
+  // TOOD doc
+  Value DeclareStorageVariable(const std::vector<SType>& value_types,
+                               spv::StorageClass storage_class);
+
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
   // declare type

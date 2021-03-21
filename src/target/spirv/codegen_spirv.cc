@@ -74,7 +74,6 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    // All the POD arguments are passed in through PushConstant
     if (pod_args.size() * sizeof(runtime::ArgUnion64) <= MAX_PUSHCONSTANTS) {
       spirv::Value ptr = builder_->DeclarePushConstant(value_types);
       for (size_t i = 0; i < pod_args.size(); ++i) {
@@ -83,9 +82,9 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
         var_map_[pod_args[i].get()] = value;
       }
     } else {
-      spirv::Value ptr = builder_->DeclareUBO(value_types, num_buffer);
+      spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, num_buffer);
       for (size_t i = 0; i < pod_args.size(); ++i) {
-        spirv::Value value = builder_->GetUBO(ptr, value_types[i], static_cast<uint32_t>(i));
+        spirv::Value value = builder_->GetUniform(ptr, value_types[i], static_cast<uint32_t>(i));
         var_map_[pod_args[i].get()] = value;
       }
     }
