@@ -122,7 +122,6 @@ uint32_t FindMemoryType(VkDevice logical_device, VkPhysicalDevice phy_device, Vk
   for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
     if ((type_bits & 1) == 1 &&
         (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
-      LOG(INFO) << "Find memory type index " << i;
       return i;
     }
     type_bits >>= 1;
@@ -146,8 +145,6 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
   VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
 
   uint32_t mem_type_index = vctx.compute_mtype_index;
-
-  LOG(INFO) << "compute_mtype_index: " << vctx.compute_mtype_index;
 
   if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
     // Find a memory type that supports UBO
@@ -189,7 +186,6 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     minfo.memoryTypeIndex = mem_type_index;
     VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
   } else {
-    LOG(INFO) << "using dedicated allocation";
     VkMemoryAllocateInfo minfo;
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     minfo.pNext = nullptr;
@@ -794,7 +790,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {
-    LOG(INFO) << source;
   }
 
   const char* type_key() const final { return "vulkan"; }
@@ -831,7 +826,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
         vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
         // UBO
         if (pe->ubo.host_buf) {
-	  LOG(INFO) << "destroying UBO";
           vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
           vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
           delete pe->ubo.vk_buf;
@@ -902,7 +896,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
     if (nbytes_scalars > MAX_PUSHCONSTANTS) {
       ICHECK(num_pod == num_pack_args);
-      LOG(INFO) << "Adding ubo to the pipeline with binding = " << num_buffer;
+      //LOG(INFO) << "Adding ubo to the pipeline with binding = " << num_buffer;
       // UBO
       {
         VkDescriptorSetLayoutBinding bd;
@@ -1007,12 +1001,10 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
     if (nbytes_scalars > MAX_PUSHCONSTANTS) {
       // Allocate, bind and map UBO
-      LOG(INFO) << "Allocate ubo of size " << nbytes_scalars;
       UniformBuffer& ubo = pe->ubo;
       ubo.host_buf = new ArgUnion64[num_pod];
       ubo.vk_buf = CreateBuffer(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
       vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &(ubo.host_buf));
-      LOG(INFO) << "Mapping done";
     }
 
     if (vctx.UseImmediate()) {
@@ -1171,10 +1163,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   bool use_ubo = false;
   if (num_pack_args_ != 0 && num_pack_args_ * sizeof(ArgUnion64) > MAX_PUSHCONSTANTS) {
     // UBO
-    LOG(INFO) << "Copy ubo of size " << num_pack_args_ * sizeof(ArgUnion64);
     CHECK(pipeline->ubo.host_buf != nullptr);
     memcpy(pipeline->ubo.host_buf, pack_args, num_pack_args_ * sizeof(ArgUnion64));
-    LOG(INFO) << "copy done";
     VkDescriptorBufferInfo binfo;
     binfo.buffer = pipeline->ubo.vk_buf->buffer;
     binfo.offset = 0;
@@ -1183,7 +1173,6 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     use_ubo = true;
   }
   if (vctx.UseImmediate()) {
-    LOG(INFO) << "Using immediate";
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
