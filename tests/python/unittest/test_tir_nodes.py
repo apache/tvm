@@ -440,9 +440,20 @@ def test_block_blockrealize():
     assert block_realize.predicate == tvm.tir.const(True, "bool")
     assert block_realize.block == block
 
-    # make sure we can print
+    # make sure we can print using ReprPrinter
     str(block)
     str(block_realize)
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], block_realize)
+    output = func.astext()
+    assert output.find("meta[tir.BlockRealise]") == -1
+    assert output.find("bind") != -1
+    assert output.find("reads") != -1
+    assert output.find("writes") != -1
+    assert output.find("alloc_buffer") != -1
+    assert output.find("match_buffer_region") != -1
+    assert output.find("attr") != -1
+    assert output.find("with init()") != -1
 
 
 if __name__ == "__main__":
