@@ -239,7 +239,7 @@ def _sort_common(
 
     # Sort the lower levels of the merge using odd-even sort, it's fast for small inputs
     lower_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(block_size, "float32"))), "int64"
+        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(block_size, "float64"))), "int64"
     )
 
     _odd_even_sort(
@@ -255,7 +255,7 @@ def _sort_common(
     )
 
     upper_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float32"))), "int64"
+        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
     )
 
     def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):

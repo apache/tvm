@@ -491,7 +491,7 @@ class IRBuilder {
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
 
-  // TODO doc
+  // TODO(masahi): doc
   Value DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding);
   Value GetUniform(Value ptr_ubo, const SType& v_type, uint32_t index);
   /*!
