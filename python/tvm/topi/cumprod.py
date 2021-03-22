@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Cumprod operator"""
-from typing import Callable, Optional
+from typing import Optional
 
 import tvm
 

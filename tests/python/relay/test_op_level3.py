@@ -1762,7 +1762,9 @@ def test_adv_index():
 cumbinops_supported = {"cumsum": relay.op.cumsum, "cumprod": relay.op.cumprod}
 
 
-def run_binop_tests(target, ctx, binop_type: str, gt_func: Callable[..., np.array]):
+def run_binop_tests(
+    target, ctx, binop_type: str, gt_func: Callable[..., np.array], identity_value: int
+):
     def assert_relay_cumbinop(
         data_np: np.array,
         np_out: np.array,
@@ -1770,6 +1772,7 @@ def run_binop_tests(target, ctx, binop_type: str, gt_func: Callable[..., np.arra
         out_dtype: str = None,
         rtol: float = 1e-5,
         atol: float = 1e-5,
+        exclusive: bool = False,
     ):
         inp = relay.var("data", relay.TensorType(data_np.shape, str(data_np.dtype)))
 
@@ -1777,7 +1780,7 @@ def run_binop_tests(target, ctx, binop_type: str, gt_func: Callable[..., np.arra
             raise ValueError(
                 f"Unknown function {binop_type}. Options: {cumbinops_supported.keys()}"
             )
-        out = cumbinops_supported[binop_type](inp, axis, out_dtype)
+        out = cumbinops_supported[binop_type](inp, axis, out_dtype, exclusive=exclusive)
         func = relay.Function([inp], out)
 
         for kind in ["graph", "debug"]:
@@ -1805,15 +1808,29 @@ def run_binop_tests(target, ctx, binop_type: str, gt_func: Callable[..., np.arra
     assert_relay_cumbinop(data, gt_func(data, dtype=np.int32))
     assert_relay_cumbinop(data, gt_func(data, dtype="int64"), out_dtype="int64")
 
+    # Test exclusivity operations
+    data = np.random.randint(-100, 100, size=(2, 2)).astype("int64")
+    expected_result = np.roll(gt_func(data), 1)
+    expected_result[0] = identity_value
+    assert_relay_cumbinop(data, expected_result, exclusive=True)
+
+    expected_result = np.roll(gt_func(data, axis=0), 1, axis=0)
+    expected_result[0, :] = identity_value
+    assert_relay_cumbinop(data, expected_result, exclusive=True, axis=0)
+
+    expected_result = np.roll(gt_func(data, axis=1), 1, axis=1)
+    expected_result[:, 0] = identity_value
+    assert_relay_cumbinop(data, expected_result, exclusive=True, axis=1)
+
 
 @tvm.testing.parametrize_targets
 def test_cumsum(target, ctx):
-    run_binop_tests(target, ctx, binop_type="cumsum", gt_func=np.cumsum)
+    run_binop_tests(target, ctx, binop_type="cumsum", gt_func=np.cumsum, identity_value=0)
 
 
 @tvm.testing.parametrize_targets
 def test_cumprod(target, ctx):
-    run_binop_tests(target, ctx, binop_type="cumprod", gt_func=np.cumproduct)
+    run_binop_tests(target, ctx, binop_type="cumprod", gt_func=np.cumprod, identity_value=1)
 
 
 @tvm.testing.parametrize_targets

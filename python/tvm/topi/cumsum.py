@@ -36,24 +36,24 @@ def cumbinop(
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
     """Cumulative binary operator with similar axis behavior as np.cumsum and np.cumprod.
-    
-    See cumprod and cumsum for an example of use. 
-    
-    E.g. if * is your binary operator and the input tensor is [1, 2, 3, 4] the output may be 
+
+    See cumprod and cumsum for an example of use.
+
+    E.g. if * is your binary operator and the input tensor is [1, 2, 3, 4] the output may be
     [1, 1 * 2, 1 * 2 * 3, 1 * 2 * 3 * 4]
-    
+
     Parameters
     ----------
     data : tvm.te.Tensor
         The input data to the operator.
 
     binop: Callable (tvm.Expr, tvm.Expr) -> tvm.Expr
-        A binary operator which should be associative and commutative. E.g. if * is your 
+        A binary operator which should be associative and commutative. E.g. if * is your
         operator then a * (b * c) = (a * b) * c and a * b = b * a
 
     identity_value: tvm.Expr
-        A value for the binary operation which provides the identity property. E.g. if * is 
-        your operator and i is the identity_value then a * i = a for all a in the domain of 
+        A value for the binary operation which provides the identity property. E.g. if * is
+        your operator and i is the identity_value then a * i = a for all a in the domain of
         your operation.
 
     axis : int, optional
@@ -67,7 +67,7 @@ def cumbinop(
     exclusive : int, optional
         If set to 1 will return exclusive cumulative operation in which the first element is not
         included. In other terms, if set to 1, the j-th output element would be
-        the cumulative operation of the first (j-1) elements. Otherwise, it would be the 
+        the cumulative operation of the first (j-1) elements. Otherwise, it would be the
         cumulative operation of the first j elements. The cumulative operation of zero elements
         is assumed to be the identity_value.
 
@@ -79,6 +79,9 @@ def cumbinop(
     """
     if dtype is None or dtype == "":
         dtype = data.dtype
+
+    if exclusive is None:
+        exclusive = False
 
     def maybe_cast(x):
         if dtype != data.dtype:
@@ -108,9 +111,6 @@ def cumbinop(
             elif i > axis:
                 axis_mul_after *= value
 
-    if exclusive is None:
-        exclusive = False
-
     def gen_ir(data_buf, out_buf):
         ib = ir_builder.create()
         data_buf = ib.buffer_ptr(data_buf)
@@ -128,10 +128,10 @@ def cumbinop(
                 k = _k + 1
                 cur_idx = base_idx + k * axis_mul_after
                 prev_idx = base_idx + (k - 1) * axis_mul_after
-                if exclusive == 0:
-                    out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[cur_idx]))
-                else:
+                if exclusive:
                     out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[prev_idx]))
+                else:
+                    out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[cur_idx]))
 
         return ib.get()
 

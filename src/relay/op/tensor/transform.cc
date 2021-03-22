@@ -3805,7 +3805,7 @@ bool CumbinopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive) {
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
   auto attrs = make_object<CumbinopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
@@ -3825,7 +3825,7 @@ RELAY_REGISTER_OP("cumsum")
     .add_type_rel("Cumsum", CumbinopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
-Expr MakeCumprod(Expr data, Integer axis, DataType dtype, Integer exclusive) {
+Expr MakeCumprod(Expr data, Integer axis, DataType dtype, Bool exclusive) {
   auto attrs = make_object<CumbinopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;

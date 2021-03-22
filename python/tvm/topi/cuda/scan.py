@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 "Scan related operators"
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import tvm
 from tvm import te
@@ -35,7 +35,7 @@ def _get_thrust_func_name(tvmop):
     return tvmop_to_thrust_func_name[tvmop]
 
 
-def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
+def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, identity_value=0):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
     Parameters
@@ -53,6 +53,11 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
         A binary associative op to use for scan. The function takes two TIR expressions
         and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
         prefix sum.
+
+    identity_value: int or float
+        A value for the binary operation which provides the identity property. E.g. if * is
+        your operator and i is the identity_value then a * i = a for all a in the domain of
+        your operation.
     """
 
     batch_size = prod(data.shape[:-1])
@@ -137,7 +142,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add):
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
                     reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
-                output[(bx + 1) * scan_axis_size - 1] = cast(0, out_dtype)
+                output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
 
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << (lim - l2_width - 1)
@@ -312,7 +317,12 @@ def scan_thrust(
 
 
 def exclusive_scan(
-    data, axis=-1, return_reduction=False, output_dtype=None, binop=tvm.tir.generic.add
+    data,
+    axis=-1,
+    return_reduction=False,
+    output_dtype=None,
+    binop=tvm.tir.generic.add,
+    identity_value=0,
 ):
     """Do exclusive scan on 1D or multidimensional input.
 
@@ -338,6 +348,11 @@ def exclusive_scan(
         and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
         prefix sum.
 
+    identity_value: int or float
+        A value for the binary operation which provides the identity property. E.g. if * is
+        your operator and i is the identity_value then a * i = a for all a in the domain of
+        your operation.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -354,7 +369,7 @@ def exclusive_scan(
         # TODO: add support for a prod_scan
         if (
             target
-            and binop == tvm.generic.add
+            and binop == tvm.tir.generic.add
             and (
                 can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
                 or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
@@ -375,7 +390,9 @@ def exclusive_scan(
             output, reduction = te.extern(
                 [data.shape, data.shape[:-1]],
                 [data],
-                lambda ins, outs: exclusive_scan_ir(ins[0], outs[0], outs[1], binop=binop),
+                lambda ins, outs: exclusive_scan_ir(
+                    ins[0], outs[0], outs[1], binop=binop, identity_value=identity_value
+                ),
                 dtype=[data.dtype, output_dtype],
                 in_buffers=[data_buf],
                 name="exclusive_scan",
@@ -385,7 +402,9 @@ def exclusive_scan(
             output = te.extern(
                 [data.shape],
                 [data],
-                lambda ins, outs: exclusive_scan_ir(ins[0], outs[0], binop=binop),
+                lambda ins, outs: exclusive_scan_ir(
+                    ins[0], outs[0], binop=binop, identity_value=identity_value
+                ),
                 dtype=[output_dtype],
                 in_buffers=[data_buf],
                 out_buffers=[output_buf],
@@ -432,7 +451,7 @@ def exclusive_scan(
     return output
 
 
-def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add):
+def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add, identity_value=0):
     """Do inclusive scan on 1D or multidimensional input.
 
     Parameters
@@ -451,12 +470,19 @@ def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add):
         and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
         prefix sum.
 
+    identity_value: int or float
+        A value for the binary operation which provides the identity property. E.g. if * is
+        your operator and i is the identity_value then a * i = a for all a in the domain of
+        your operation.
+
     Returns
     -------
     output : tvm.te.Tensor
         A N-D tensor of the same rank N as the input data.
     """
-    ex_scan = exclusive_scan(data, axis, output_dtype=output_dtype, binop=binop)
+    ex_scan = exclusive_scan(
+        data, axis, output_dtype=output_dtype, binop=binop, identity_value=identity_value
+    )
 
     if output_dtype is not None and data.dtype != output_dtype and output_dtype != "":
         data = cast(data, output_dtype)
@@ -498,25 +524,31 @@ def schedule_scan(outs):
 def cumbinop(
     data: tvm.te.Tensor,
     binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
+    identity_value: Union[float, int],
     axis: Optional[int] = None,
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
     """Cumulative binary operator with similar axis behavior as np.cumsum and np.cumprod.
-    
-    See cumprod and cumsum for an example of use. 
-    
-    E.g. if * is your binary operator and the input tensor is [1, 2, 3, 4] the output may be 
+
+    See cumprod and cumsum for an example of use.
+
+    E.g. if * is your binary operator and the input tensor is [1, 2, 3, 4] the output may be
     [1, 1 * 2, 1 * 2 * 3, 1 * 2 * 3 * 4]
-    
+
     Parameters
     ----------
     data : tvm.te.Tensor
         The input data to the operator.
 
     binop: Callable (tvm.Expr, tvm.Expr) -> tvm.Expr
-        A binary operator which should be associative and commutative. E.g. if * is your 
+        A binary operator which should be associative and commutative. E.g. if * is your
         operator then a * (b * c) = (a * b) * c and a * b = b * a
+
+    identity_value: int or float
+        A value for the binary operation which provides the identity property. E.g. if * is
+        your operator and i is the identity_value then a * i = a for all a in the domain of
+        your operation.
 
     axis : int, optional
         Axis along which the operation is computed. The default (None) is to compute
@@ -529,10 +561,8 @@ def cumbinop(
     exclusive : int, optional
         If set to 1 will return exclusive cumulative operation in which the first element is not
         included. In other terms, if set to 1, the j-th output element would be
-        the cumulative operation of the first (j-1) elements. Otherwise, it would be the 
+        the cumulative operation of the first (j-1) elements. Otherwise, it would be the
         cumulative operation of the first j elements.
-
-        TODO: what happens to the identity element?
 
     Returns
     -------
@@ -544,9 +574,13 @@ def cumbinop(
         axis = 0
         data = reshape(data, (prod(data.shape),))
     axis = get_const_int(axis)
-    if exclusive is not None and exclusive != 0:
-        return exclusive_scan(data, axis, output_dtype=dtype, binop=binop)
-    return inclusive_scan(data, axis, output_dtype=dtype, binop=binop)
+    if exclusive is not None and exclusive:
+        return exclusive_scan(
+            data, axis, output_dtype=dtype, binop=binop, identity_value=identity_value
+        )
+    return inclusive_scan(
+        data, axis, output_dtype=dtype, binop=binop, identity_value=identity_value
+    )
 
 
 def cumsum(
@@ -583,7 +617,12 @@ def cumsum(
         If axis is None, the result is a 1-d array.
     """
     return cumbinop(
-        data=data, binop=tvm.tir.generic.add, axis=axis, dtype=dtype, exclusive=exclusive
+        data=data,
+        binop=tvm.tir.generic.add,
+        identity_value=0,
+        axis=axis,
+        dtype=dtype,
+        exclusive=exclusive,
     )
 
 
@@ -621,5 +660,10 @@ def cumprod(
         If axis is None, the result is a 1-d array.
     """
     return cumbinop(
-        data=data, binop=tvm.tir.generic.multiply, axis=axis, dtype=dtype, exclusive=exclusive
+        data=data,
+        binop=tvm.tir.generic.multiply,
+        identity_value=1,
+        axis=axis,
+        dtype=dtype,
+        exclusive=exclusive,
     )

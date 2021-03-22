@@ -442,13 +442,15 @@ struct MatrixSetDiagAttrs : public tvm::AttrsNode<MatrixSetDiagAttrs> {
 struct CumbinopAttrs : public tvm::AttrsNode<CumbinopAttrs> {
   Integer axis;
   DataType dtype;
-  Integer exclusive;
+  Bool exclusive = Bool(false);
   TVM_DECLARE_ATTRS(CumbinopAttrs, "relay.attrs.CumbinopAttrs") {
     TVM_ATTR_FIELD(axis).describe("The axis to operate over").set_default(NullValue<Integer>());
     TVM_ATTR_FIELD(dtype).describe("Output data type").set_default(NullValue<DataType>());
+
+    // Default is 0 which is "false"
     TVM_ATTR_FIELD(exclusive)
         .describe("The first element is not included")
-        .set_default(NullValue<Integer>());
+        .set_default(Bool(false));
   }
 };
 
