@@ -16,13 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 "Scan related operators"
+from typing import Callable, Optional
+
 import tvm
 from tvm import te
-from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
-from ..transform import expand_dims, squeeze, transpose, reshape
-from ..utils import ceil_div, swap, prod, get_const_int
-from ..math import cast
+from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
+
 from .. import tag
+from ..math import cast
+from ..transform import expand_dims, reshape, squeeze, transpose
+from ..utils import ceil_div, get_const_int, prod, swap
 from .injective import schedule_injective_from_existing
 
 
@@ -347,7 +350,9 @@ def exclusive_scan(
 
     def do_scan(data, output_dtype):
         target = tvm.target.Target.current()
-        if target and (
+
+        # TODO: add support for a prod_scan
+        if target and binop == tvm.generic.add and (
             can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
             or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
         ):
@@ -486,7 +491,29 @@ def schedule_scan(outs):
     return s
 
 
-def cumsum(data, axis=None, dtype=None, exclusive=None):
+def cumbinop(
+    data: tvm.te.Tensor,
+    binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
+    axis: Optional[int] = None,
+    dtype: Optional[str] = None,
+    exclusive: Optional[bool] = None,
+) -> tvm.te.Tensor:
+    """TODO"""
+    if axis is None:
+        axis = 0
+        data = reshape(data, (prod(data.shape),))
+    axis = get_const_int(axis)
+    if exclusive is not None and exclusive != 0:
+        return exclusive_scan(data, axis, output_dtype=dtype, binop=binop)
+    return inclusive_scan(data, axis, output_dtype=dtype, binop=binop)
+
+
+def cumsum(
+    data: tvm.te.Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[int] = None,
+    exclusive: Optional[bool] = None,
+) -> tvm.te.Tensor:
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
     Parameters
@@ -514,10 +541,44 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
     """
-    if axis is None:
-        axis = 0
-        data = reshape(data, (prod(data.shape),))
-    axis = get_const_int(axis)
-    if exclusive is not None and exclusive != 0:
-        return exclusive_scan(data, axis, output_dtype=dtype, binop=tvm.tir.generic.add)
-    return inclusive_scan(data, axis, output_dtype=dtype, binop=tvm.tir.generic.add)
+    return cumbinop(
+        data=data, binop=tvm.tir.generic.add, axis=axis, dtype=dtype, exclusive=exclusive
+    )
+
+
+def cumprod(
+    data: tvm.te.Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[int] = None,
+    exclusive: Optional[bool] = None,
+):
+    """Numpy style cumprod op. Return the cumulative sum of the elements along a given axis.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative product is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : bool, optional
+        If True, will return exclusive sum in which the first element is not
+        included. In other terms, if True, the j-th output element would be
+        the product of the first (j-1) elements. Otherwise, it would be the product of
+        the first j elements.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+    """
+    return cumbinop(
+        data=data, binop=tvm.tir.generic.multiply, axis=axis, dtype=dtype, exclusive=exclusive
+    )
