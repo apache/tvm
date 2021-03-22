@@ -241,21 +241,21 @@ class VMExecutor(Executor):
     mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
-    dev : :py:class:`~tvm.runtime.Device`
+    device : :py:class:`~tvm.runtime.Device`
         The runtime context to run the code on.
 
     target : :py:class:`Target`
         The target option to build the function.
     """
 
-    def __init__(self, mod, dev, target):
+    def __init__(self, mod, device, target):
         if mod is None:
             raise RuntimeError("Must provide module to get VM executor.")
         self.mod = mod
-        self.device = dev
+        self.device = device
         self.target = target
         self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable, dev)
+        self.vm = vm_rt.VirtualMachine(self.executable, device)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]

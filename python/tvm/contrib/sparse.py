@@ -30,7 +30,7 @@ itype = "int32"
 class CSRNDArray(object):
     """Sparse tensor object in CSR format."""
 
-    def __init__(self, arg1, dev=None, shape=None):
+    def __init__(self, arg1, device=None, shape=None):
         """Construct a sparse matrix in CSR format.
 
         Parameters
@@ -39,7 +39,7 @@ class CSRNDArray(object):
             The corresponding a dense numpy array,
             or a tuple for constructing a sparse matrix directly.
 
-        dev: Device
+        device: Device
             The corresponding device.
 
         shape : tuple of int
@@ -53,14 +53,14 @@ class CSRNDArray(object):
             source_array = arg1
             ridx, cidx = _np.nonzero(source_array)
             data = source_array[ridx, cidx]
-            self.data = _nd.array(data, dev)
+            self.data = _nd.array(data, device)
             indices = _np.nonzero(source_array)[1].astype(itype)
-            self.indices = _nd.array(indices, dev)
+            self.indices = _nd.array(indices, device)
             indptr = [0] + _np.apply_along_axis(
                 _np.count_nonzero, axis=1, arr=source_array
             ).tolist()
             indptr = _np.cumsum(_np.array(indptr, itype)).astype(itype)
-            self.indptr = _nd.array(indptr, dev)
+            self.indptr = _nd.array(indptr, device)
             self.shape = source_array.shape
         else:
             raise RuntimeError(
@@ -89,11 +89,11 @@ class CSRNDArray(object):
         return full
 
 
-def array(source_array, dev=None, shape=None, stype="csr"):
+def array(source_array, device=None, shape=None, stype="csr"):
     """Construct a sparse NDArray from numpy.ndarray"""
     ret = None
     if stype == "csr":
-        ret = CSRNDArray(source_array, shape=shape, dev=dev)
+        ret = CSRNDArray(source_array, shape=shape, device=device)
     else:
         raise NotImplementedError("stype=%s is not supported yet." % (stype,))
     return ret

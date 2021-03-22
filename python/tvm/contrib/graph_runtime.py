@@ -24,7 +24,7 @@ from tvm._ffi.base import string_types
 from tvm._ffi.runtime_ctypes import Device
 
 
-def create(graph_json_str, libmod, dev):
+def create(graph_json_str, libmod, device):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -37,7 +37,7 @@ def create(graph_json_str, libmod, dev):
     libmod : tvm.runtime.Module
         The module of the corresponding function
 
-    dev : Device or list of Device
+    device : Device or list of Device
         The device to deploy the module. It can be local or remote when there
         is only one Device. Otherwise, the first device in the list will
         be used as this purpose. All device should be given for heterogeneous
@@ -56,7 +56,7 @@ def create(graph_json_str, libmod, dev):
     """
     assert isinstance(graph_json_str, string_types)
 
-    dev, num_rpc_dev, device_type_id = get_device(libmod, dev)
+    dev, num_rpc_dev, device_type_id = get_device(libmod, device)
 
     if num_rpc_dev == len(dev):
         fcreate = dev[0]._rpc_sess.get_function("tvm.graph_runtime.create")
@@ -66,7 +66,7 @@ def create(graph_json_str, libmod, dev):
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 
-def get_device(libmod, dev):
+def get_device(libmod, device):
     """Parse and validate all the device(s).
 
     Parameters
@@ -74,29 +74,29 @@ def get_device(libmod, dev):
     libmod : tvm.runtime.Module
         The module of the corresponding function
 
-    dev : Device or list of Device
+    device : Device or list of Device
 
     Returns
     -------
-    dev : list of Device
+    device : list of Device
     num_rpc_dev : Number of rpc devices
     device_type_id : List of device type and device id
     """
 
-    if isinstance(dev, Device):
-        dev = [dev]
-    elif not isinstance(dev, (list, tuple)):
-        raise ValueError("dev has to be the type of Device or a list of " "Device")
-    for cur_dev in dev:
+    if isinstance(device, Device):
+        device = [device]
+    elif not isinstance(device, (list, tuple)):
+        raise ValueError("dev has to be the type of Device or a list of Device")
+    for cur_dev in device:
         if not isinstance(cur_dev, Device):
-            raise ValueError("dev has to be the type of Device or a list " "of Device")
+            raise ValueError("dev has to be the type of Device or a list of Device")
 
     # device_type_id[0], device_type_id[1] are used as the primary/fallback
     # device type and id. All other ones are used as device for
     # heterogeneous execution.
     num_rpc_dev = 0
     device_type_id = []
-    for cur_dev in dev:
+    for cur_dev in device:
         device_type = cur_dev.device_type
         if device_type >= rpc_base.RPC_SESS_MASK:
             assert libmod.type_key == "rpc"
@@ -106,9 +106,9 @@ def get_device(libmod, dev):
         device_type_id.append(device_type)
         device_type_id.append(cur_dev.device_id)
 
-    if 0 < num_rpc_dev < len(dev):
+    if 0 < num_rpc_dev < len(device):
         raise ValueError("Either all or none of the devices should be rpc.")
-    return dev, num_rpc_dev, device_type_id
+    return device, num_rpc_dev, device_type_id
 
 
 class GraphModule(object):

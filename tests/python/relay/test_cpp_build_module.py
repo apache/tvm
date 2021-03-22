@@ -25,7 +25,7 @@ import tvm.testing
 
 def test_basic_build():
     tgt = "llvm"
-    ctx = tvm.cpu()
+    dev = tvm.cpu()
     # func
     a = relay.var("a", dtype="float32", shape=(16, 8))
     b = relay.var("b", dtype="float32", shape=(8, 8))
@@ -34,9 +34,9 @@ def test_basic_build():
     y = relay.nn.relu(x)
     z = y + c
     func = relay.Function([a, b, c], z)
-    A = tvm.nd.array(np.random.uniform(-1, 1, (16, 8)).astype("float32"), ctx=ctx)
-    B = tvm.nd.array(np.random.uniform(-1, 1, (8, 8)).astype("float32"), ctx=ctx)
-    C = tvm.nd.array(np.random.uniform(-1, 1, (16, 8)).astype("float32"), ctx=ctx)
+    A = tvm.nd.array(np.random.uniform(-1, 1, (16, 8)).astype("float32"), device=dev)
+    B = tvm.nd.array(np.random.uniform(-1, 1, (8, 8)).astype("float32"), device=dev)
+    C = tvm.nd.array(np.random.uniform(-1, 1, (16, 8)).astype("float32"), device=dev)
     params = {"b": B, "c": C}
     # build
     targets = {tvm.tir.IntImm("int32", ctx.device_type): tgt}
@@ -65,7 +65,7 @@ def test_basic_build():
 def test_fp16_build():
     dtype = "float16"
 
-    ctx = tvm.gpu(0)
+    dev = tvm.gpu(0)
     if dtype == "float16" and not have_fp16(ctx.compute_version):
         print("skip because gpu does not support fp16")
         return
@@ -74,8 +74,8 @@ def test_fp16_build():
     y = relay.var("y", dtype=dtype, shape=(4, 4))
     z = x + y
     func = relay.Function([x, y], z)
-    X = tvm.nd.array(np.random.uniform(-1, 1, (4, 4)).astype(dtype), ctx=ctx)
-    Y = tvm.nd.array(np.random.uniform(-1, 1, (4, 4)).astype(dtype), ctx=ctx)
+    X = tvm.nd.array(np.random.uniform(-1, 1, (4, 4)).astype(dtype), device=dev)
+    Y = tvm.nd.array(np.random.uniform(-1, 1, (4, 4)).astype(dtype), device=dev)
     params = {
         "x": X,
         "y": Y,
@@ -85,7 +85,7 @@ def test_fp16_build():
     g_json, mmod, params = relay.build(func, "cuda", params=params)
 
     # test
-    rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
+    rt = tvm.contrib.graph_runtime.create(g_json, mmod, dev)
     rt.load_params(runtime.save_param_dict(params))
     rt.run()
     out = rt.get_output(0)

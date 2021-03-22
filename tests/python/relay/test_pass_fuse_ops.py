@@ -775,7 +775,7 @@ def test_fuse_dynamic_squeeze_slice_take():
     take = relay.op.take(strided_slice, take_val, axis=0)
 
     mod = tvm.IRModule.from_expr(take)
-    ex = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(), target="llvm")
+    ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
 
     result = ex.evaluate()(*input_data)
 

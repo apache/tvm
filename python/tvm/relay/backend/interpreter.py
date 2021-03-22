@@ -191,16 +191,16 @@ class Interpreter(Executor):
     mod : tvm.IRModule
         The module to support the execution.
 
-    dev : Device
+    device : Device
         The runtime context to run the code on.
 
     target : tvm.Target
         The target option to build the function.
     """
 
-    def __init__(self, mod, dev, target):
+    def __init__(self, mod, device, target):
         self.mod = mod
-        self.device = dev
+        self.device = device
         self.target = target
 
     def optimize(self):

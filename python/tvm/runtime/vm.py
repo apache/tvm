@@ -33,7 +33,7 @@ def _convert(arg, cargs):
     if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
-        nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
+        nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
         cargs.append(nd_arr)
     elif isinstance(arg, tvm.runtime.NDArray):
         cargs.append(arg)
@@ -44,7 +44,7 @@ def _convert(arg, cargs):
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
         dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
-        value = tvm.nd.array(np.array(arg, dtype=dtype), ctx=tvm.cpu(0))
+        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     else:
         raise TypeError("Unsupported type: %s" % (type(arg)))
@@ -283,7 +283,7 @@ class VirtualMachine(object):
     exe : Executable
         The VM executable.
 
-    dev : tvm.runtime.Device or List[tvm.runtime.Device]
+    device : tvm.runtime.Device or List[tvm.runtime.Device]
         The device to deploy the module
 
     memory_cfg : str or Dict[tvm.runtime.Device, str], optional
@@ -298,7 +298,7 @@ class VirtualMachine(object):
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
 
-    def __init__(self, exe, dev, memory_cfg=None):
+    def __init__(self, exe, device, memory_cfg=None):
         if not isinstance(exe, Executable):
             raise TypeError(
                 "exe is expected to be the type of Executable, "
@@ -309,7 +309,7 @@ class VirtualMachine(object):
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
         self._set_input = self.module["set_input"]
-        self._setup_ctx(dev, memory_cfg)
+        self._setup_ctx(device, memory_cfg)
 
     def _setup_ctx(self, dev, memory_cfg):
         """Init context and allocators."""

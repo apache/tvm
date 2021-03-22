@@ -2151,9 +2151,9 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
 
     for tgt in targets:
         print("Running on target", tgt)
-        ctx = tvm.device(tgt, 0)
+        dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
+        executor = relay.create_executor("vm", mod=mod, device=dev, target=tgt)
         evaluator = executor.evaluate()
 
         # Inference

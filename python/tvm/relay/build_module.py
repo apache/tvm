@@ -373,17 +373,17 @@ class GraphExecutor(_interpreter.Executor):
     mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
-    dev : :py:class:`Device`
+    device : :py:class:`Device`
         The runtime context to run the code on.
 
     target : :py:class:`Target`
         The target option to build the function.
     """
 
-    def __init__(self, mod, dev, target):
+    def __init__(self, mod, device, target):
         assert mod is not None
         self.mod = mod
-        self.device = dev
+        self.device = device
         self.target = target
 
     def _make_executor(self, expr=None):
@@ -423,7 +423,7 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug", mod=None, dev=None, target="llvm"):
+def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     """Factory function to create an executor.
 
     Example
@@ -450,8 +450,8 @@ def create_executor(kind="debug", mod=None, dev=None, target="llvm"):
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
 
-    dev : :py:class:`Device`
-        The context to execute the code.
+    device : :py:class:`Device`
+        The device to execute the code.
 
     target : :py:class:`tvm.Target`
         The corresponding context
@@ -462,17 +462,17 @@ def create_executor(kind="debug", mod=None, dev=None, target="llvm"):
     """
     if mod is None:
         mod = IRModule()
-    if dev is not None:
-        assert dev.device_type == _nd.device(str(target), 0).device_type
+    if device is not None:
+        assert device.device_type == _nd.device(str(target), 0).device_type
     else:
-        dev = _nd.device(str(target), 0)
+        device = _nd.device(str(target), 0)
 
     if isinstance(target, str):
         target = Target(target)
     if kind == "debug":
-        return _interpreter.Interpreter(mod, dev, target)
+        return _interpreter.Interpreter(mod, device, target)
     if kind == "graph":
-        return GraphExecutor(mod, dev, target)
+        return GraphExecutor(mod, device, target)
     if kind == "vm":
-        return VMExecutor(mod, dev, target)
+        return VMExecutor(mod, device, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

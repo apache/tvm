@@ -155,7 +155,7 @@ class Session:
         self.transport.__exit__(exc_type, exc_value, exc_traceback)
 
 
-def lookup_remote_linked_param(mod, storage_id, template_tensor, dev):
+def lookup_remote_linked_param(mod, storage_id, template_tensor, device):
     """Lookup a parameter that has been pre-linked into a remote (i.e. over RPC) Module.
 
     This function signature matches the signature built by
@@ -170,7 +170,7 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, dev):
         A DLTensor containing metadata that should be filled-in to the returned NDArray. This
         function should mostly not inspect this, and just pass it along to
         NDArrayFromRemoteOpaqueHandle.
-    dev : Device
+    device : Device
         The remote CPU device to be used with the returned NDArray.
 
     Returns
@@ -188,11 +188,11 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, dev):
         return None
 
     return get_global_func("tvm.rpc.NDArrayFromRemoteOpaqueHandle")(
-        mod, remote_data, template_tensor, dev, None
+        mod, remote_data, template_tensor, device, None
     )
 
 
-def create_local_graph_runtime(graph_json_str, mod, dev):
+def create_local_graph_runtime(graph_json_str, mod, device):
     """Create a local graph runtime driving execution on the remote CPU device given.
 
     Parameters
@@ -203,7 +203,7 @@ def create_local_graph_runtime(graph_json_str, mod, dev):
     mod : tvm.runtime.Module
         The remote module containing functions in graph_json_str.
 
-    dev : tvm.runtime.Device
+    device : tvm.runtime.Device
         The remote CPU execution device.
 
     Returns
@@ -211,14 +211,14 @@ def create_local_graph_runtime(graph_json_str, mod, dev):
     tvm.contrib.GraphRuntime :
          A local graph runtime instance that executes on the remote device.
     """
-    device_type_id = [dev.device_type, dev.device_id]
+    device_type_id = [device.device_type, device.device_id]
     fcreate = get_global_func("tvm.graph_runtime.create")
     return graph_runtime.GraphModule(
         fcreate(graph_json_str, mod, lookup_remote_linked_param, *device_type_id)
     )
 
 
-def create_local_debug_runtime(graph_json_str, mod, dev, dump_root=None):
+def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
     """Create a local debug runtime driving execution on the remote CPU device given.
 
     Parameters
@@ -229,7 +229,7 @@ def create_local_debug_runtime(graph_json_str, mod, dev, dump_root=None):
     mod : tvm.runtime.Module
         The remote module containing functions in graph_json_str.
 
-    dev : tvm.runtime.Device
+    device : tvm.runtime.Device
         The remote CPU execution device.
 
     dump_root : Optional[str]
@@ -240,11 +240,11 @@ def create_local_debug_runtime(graph_json_str, mod, dev, dump_root=None):
     tvm.contrib.GraphRuntime :
          A local graph runtime instance that executes on the remote device.
     """
-    device_type_id = [dev.device_type, dev.device_id]
+    device_type_id = [device.device_type, device.device_id]
     fcreate = get_global_func("tvm.graph_runtime_debug.create")
     return debug_runtime.GraphModuleDebug(
         fcreate(graph_json_str, mod, lookup_remote_linked_param, *device_type_id),
-        [dev],
+        [device],
         graph_json_str,
         dump_root=dump_root,
     )

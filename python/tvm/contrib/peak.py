@@ -109,8 +109,8 @@ def measure_bandwidth_sum(
     try:
         func = tvm.build(s, [x, y], target, target_host=target_host)
 
-        x = tvm.nd.empty((n,), dtype=dtype, dev=dev)
-        y = tvm.nd.empty((n // m,), dtype=dtype, dev=dev)
+        x = tvm.nd.empty((n,), dtype=dtype, device=dev)
+        y = tvm.nd.empty((n // m,), dtype=dtype, device=dev)
 
         func = _convert_to_remote(func, remote)
         time_f = func.time_evaluator(func.entry_name, dev, number=n_times)
@@ -275,7 +275,7 @@ def measure_compute_mad(
         func = tvm.build(s, [y], target, target_host=target_host)
         func = _convert_to_remote(func, remote)
         time_f = func.time_evaluator(func.entry_name, dev, number=n_times)
-        y = tvm.nd.empty((n,), dtype=dtype, dev=dev)
+        y = tvm.nd.empty((n,), dtype=dtype, device=dev)
         time = time_f(y).mean
     except tvm._ffi.base.TVMError:
         # build error (occur when device does not support half)

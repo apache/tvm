@@ -205,15 +205,15 @@ def verify_conv2d_nhwc(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     target = "llvm"
-    ctx = tvm.device(target)
+    dev = tvm.device(target)
 
     C = topi.nn.conv2d_winograd_nhwc(A, W, stride, padding, dilation, dtype)
     s = te.create_schedule([C.op])
 
-    a = tvm.nd.array(a_np, ctx=ctx)
-    w = tvm.nd.array(w_np, ctx=ctx)
-    b = tvm.nd.array(b_np, ctx=ctx)
-    c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx=ctx)
+    a = tvm.nd.array(a_np, device=dev)
+    w = tvm.nd.array(w_np, device=dev)
+    b = tvm.nd.array(b_np, device=dev)
+    c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), device=dev)
     func = tvm.build(s, [A, W, C], target=target)
     func(a, w, c)
 

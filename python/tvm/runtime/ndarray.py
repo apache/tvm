@@ -262,7 +262,7 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
     dtype : type or str
         The data type of the array.
 
-    dev : Device
+    device : Device
         The device of the array.
 
     mem_scope : Optional[str]
@@ -500,7 +500,7 @@ def array(arr, device=cpu(0)):
     arr : numpy.ndarray
         The array to be copied from
 
-    dev : Device, optional
+    device : Device, optional
         The device device to create the array
 
     Returns
