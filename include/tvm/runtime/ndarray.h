@@ -421,8 +421,8 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   int64_t data_byte_size = type_bytes * num_elems;
   strm->Write(data_byte_size);
 
-  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU && tensor->strides == nullptr &&
-      tensor->byte_offset == 0) {
+  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
+      tensor->strides == nullptr && tensor->byte_offset == 0) {
     // quick path
     strm->Write(tensor->data, data_byte_size);
   } else {

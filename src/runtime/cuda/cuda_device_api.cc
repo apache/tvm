@@ -106,8 +106,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
     *rv = value;
   }
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLCPUPinned) {

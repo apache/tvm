@@ -104,7 +104,8 @@ class DeviceDomain {
 
   // Check if the current domain equals the other one.
   bool operator==(const DeviceDomain& other) const {
-    return device_.device_type == other.device_.device_type && device_.device_id == other.device_.device_id;
+    return device_.device_type == other.device_.device_type &&
+           device_.device_id == other.device_.device_id;
   }
 
   bool operator!=(const DeviceDomain& other) const { return !(*this == other); }
@@ -701,8 +702,7 @@ AnalysisResultMap ContextAnalysis(const IRModule& mod, const Device& default_dev
 
 // Unpack the device type and deivce id fields in Device for PackedFunc calls
 // as Device is not in the object system.
-PackedAnalysisResultMap ContextAnalysisPacked(const IRModule& mod,
-                                              const Device& default_device) {
+PackedAnalysisResultMap ContextAnalysisPacked(const IRModule& mod, const Device& default_device) {
   PackedAnalysisResultMap ret;
   auto res = ContextAnalysis(mod, default_device);
   for (const auto& it : res) {

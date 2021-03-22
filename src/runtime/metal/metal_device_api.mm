@@ -150,7 +150,7 @@ void MetalWorkspace::Init() {
 }
 
 void MetalWorkspace::SetDevice(Device dev) {
-  MetalThreadEntry::ThreadLocal()->context.device_id = dev.device_id;
+  MetalThreadEntry::ThreadLocal()->device.device_id = dev.device_id;
 }
 
 void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignment,
@@ -190,7 +190,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
   @autoreleasepool {
     this->Init();
     ICHECK(stream == nullptr);
-    TVMContext dev = dev_from;
+    Device dev = dev_from;
     if (dev_from.device_type == kDLCPU) dev = dev_to;
     id<MTLCommandQueue> queue = GetCommandQueue(dev);
     id<MTLCommandBuffer> cb = [queue commandBuffer];

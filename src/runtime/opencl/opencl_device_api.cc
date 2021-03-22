@@ -36,9 +36,7 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
   return inst;
 }
 
-void OpenCLWorkspace::SetDevice(Device dev) {
-  GetThreadEntry()->device.device_id = dev.device_id;
-}
+void OpenCLWorkspace::SetDevice(Device dev) { GetThreadEntry()->device.device_id = dev.device_id; }
 
 void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   this->Init();
@@ -136,9 +134,8 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
 }
 
 void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                                     size_t to_offset, size_t size, Device dev_from,
-                                     Device dev_to, DLDataType type_hint,
-                                     TVMStreamHandle stream) {
+                                     size_t to_offset, size_t size, Device dev_from, Device dev_to,
+                                     DLDataType type_hint, TVMStreamHandle stream) {
   this->Init();
   ICHECK(stream == nullptr);
   if (IsOpenCLDevice(dev_from) && IsOpenCLDevice(dev_to)) {
@@ -264,7 +261,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   }
   cl_int err_code;
   this->device = clCreateContext(nullptr, this->devices.size(), &(this->devices[0]), nullptr,
-                                  nullptr, &err_code);
+                                 nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   ICHECK_EQ(this->queues.size(), 0U);
   for (size_t i = 0; i < this->devices.size(); ++i) {

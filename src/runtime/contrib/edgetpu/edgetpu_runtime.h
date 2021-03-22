@@ -25,9 +25,10 @@
 #ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 
+#include <edgetpu.h>
+
 #include <memory>
 #include <string>
-#include <edgetpu.h>
 
 #include "../tflite/tflite_runtime.h"
 

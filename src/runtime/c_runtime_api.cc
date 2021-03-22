@@ -199,8 +199,7 @@ void DeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {
   LOG(FATAL) << "Device does not support stream api.";
 }
 
-void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src,
-                                 TVMStreamHandle event_dst) {
+void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
   LOG(FATAL) << "Device does not support stream api.";
 }
 
@@ -597,8 +596,8 @@ int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDat
   API_END();
 }
 
-int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape,
-                                     DLDataType dtype, const char* mem_scope, void** out_data) {
+int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape, DLDataType dtype,
+                                     const char* mem_scope, void** out_data) {
   API_BEGIN();
   Optional<String> scope;
   if (mem_scope != nullptr) {

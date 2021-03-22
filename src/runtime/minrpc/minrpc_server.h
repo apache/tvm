@@ -418,8 +418,8 @@ class MinRPCServer {
     DLTensor* arr = reinterpret_cast<DLTensor*>(values[0].v_handle);
     const char* mem_scope = (tcodes[1] == kTVMNullptr ? nullptr : values[1].v_str);
     void* handle;
-    int call_ecode = TVMDeviceAllocDataSpaceWithScope(arr->device, arr->ndim, arr->shape, arr->dtype,
-                                                      mem_scope, &handle);
+    int call_ecode = TVMDeviceAllocDataSpaceWithScope(arr->device, arr->ndim, arr->shape,
+                                                      arr->dtype, mem_scope, &handle);
     if (call_ecode == 0) {
       this->ReturnHandle(handle);
     } else {

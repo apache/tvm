@@ -44,8 +44,7 @@ class CPUDeviceAPI final : public DeviceAPI {
       *rv = 1;
     }
   }
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     void* ptr;
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);

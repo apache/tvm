@@ -302,8 +302,8 @@ struct RemoteSpace {
  * \param f_preproc The function to be executed before we excetute time evaluator.
  * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat,
-                             int min_repeat_ms, PackedFunc f_preproc = nullptr);
+PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
+                             PackedFunc f_preproc = nullptr);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.

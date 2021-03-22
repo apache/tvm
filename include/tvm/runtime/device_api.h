@@ -156,8 +156,7 @@ class TVM_DLL DeviceAPI {
    * \param event_src The source stream to synchronize.
    * \param event_dst The destination stream to synchronize.
    */
-  virtual void SyncStreamFromTo(Device dev, TVMStreamHandle event_src,
-                                TVMStreamHandle event_dst);
+  virtual void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst);
   /*!
    * \brief Allocate temporal workspace for backend execution.
    *
@@ -299,8 +298,8 @@ inline std::ostream& operator<<(std::ostream& os, DLDevice dev);
  * \return A Device with RPC session mask added, valid on the RPC client.
  */
 inline Device AddRPCSessionMask(Device dev, int session_table_index) {
-  CHECK(!IsRPCSessionDevice(dev))
-      << "AddRPCSessionMask: dev already non-zero RPCSessionIndex: " << dev;
+  CHECK(!IsRPCSessionDevice(dev)) << "AddRPCSessionMask: dev already non-zero RPCSessionIndex: "
+                                  << dev;
   dev.device_type =
       static_cast<DLDeviceType>(dev.device_type | (kRPCSessMask * (session_table_index + 1)));
   return dev;

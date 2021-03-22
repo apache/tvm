@@ -67,11 +67,11 @@ class ROCMDeviceAPI final : public DeviceAPI {
       }
       case kComputeVersion: {
         std::ostringstream os;
-        ROCM_CALL(
-            hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMajor, device.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMajor,
+                                        device.device_id));
         os << value << ".";
-        ROCM_CALL(
-            hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMinor, device.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMinor,
+                                        device.device_id));
         os << value;
         *rv = os.str();
         return;
@@ -94,9 +94,12 @@ class ROCMDeviceAPI final : public DeviceAPI {
       }
       case kMaxThreadDimensions: {
         int dims[3];
-        ROCM_CALL(hipDeviceGetAttribute(&dims[0], hipDeviceAttributeMaxBlockDimX, device.device_id));
-        ROCM_CALL(hipDeviceGetAttribute(&dims[1], hipDeviceAttributeMaxBlockDimY, device.device_id));
-        ROCM_CALL(hipDeviceGetAttribute(&dims[2], hipDeviceAttributeMaxBlockDimZ, device.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&dims[0], hipDeviceAttributeMaxBlockDimX, device.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&dims[1], hipDeviceAttributeMaxBlockDimY, device.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&dims[2], hipDeviceAttributeMaxBlockDimZ, device.device_id));
 
         std::stringstream ss;
         ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
@@ -104,8 +107,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         return;
       }
       case kMaxRegistersPerBlock:
-        ROCM_CALL(
-            hipDeviceGetAttribute(&value, hipDeviceAttributeMaxRegistersPerBlock, device.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeMaxRegistersPerBlock,
+                                        device.device_id));
         break;
       case kGcnArch: {
         hipDeviceProp_t prop;
@@ -120,8 +123,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     }
     *rv = value;
   }
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     ROCM_CALL(hipSetDevice(dev.device_id));
     ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;

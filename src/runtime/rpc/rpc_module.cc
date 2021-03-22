@@ -342,8 +342,8 @@ inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
   }
 }
 
-PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat,
-                             int min_repeat_ms, PackedFunc f_preproc) {
+PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
+                             PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
 
   if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {

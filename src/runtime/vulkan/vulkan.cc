@@ -118,8 +118,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
   void SetDevice(Device dev) final { VulkanThreadEntry::ThreadLocal()->device = dev; }
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     if (nbytes == 0) {
       // Vulkan seems to have issues if we return nullptr on zero size alloc
       nbytes = 1;

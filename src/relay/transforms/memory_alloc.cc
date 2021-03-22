@@ -262,8 +262,7 @@ class DialectRewriter : public ExprMutator {
   }
 
   // Allocate a tensor with a statically known shape.
-  Var MakeStaticAllocation(LetList* scope, const TensorType& type, Device dev,
-                           String name_hint) {
+  Var MakeStaticAllocation(LetList* scope, const TensorType& type, Device dev, String name_hint) {
     std::vector<int64_t> int_shape;
     for (auto it : type->shape) {
       const auto* imm = it.as<IntImmNode>();

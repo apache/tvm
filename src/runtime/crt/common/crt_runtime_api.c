@@ -91,8 +91,8 @@ int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDat
   return TVMPlatformMemoryAllocate(nbytes, dev, out_data);
 }
 
-int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape,
-                                     DLDataType dtype, const char* mem_scope, void** out_data) {
+int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape, DLDataType dtype,
+                                     const char* mem_scope, void** out_data) {
   size_t nbytes = 1;
   for (int i = 0; i < ndim; ++i) {
     nbytes *= shape[i];

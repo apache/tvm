@@ -97,8 +97,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
 
   void Init(const std::string& graph_json, tvm::runtime::Module module,
-            const std::vector<Device>& devs,
-            const PackedFunc lookup_linked_param_func = nullptr);
+            const std::vector<Device>& devs, const PackedFunc lookup_linked_param_func = nullptr);
 
   /*!
    * \brief Get the input index given the name of input.

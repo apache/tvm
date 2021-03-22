@@ -48,8 +48,8 @@ class HexagonDeviceAPI : public DeviceAPI {
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t num_bytes, Device dev_from, Device dev_to,
-                      DLDataType type_hint, TVMStreamHandle stream) final;
+                      size_t num_bytes, Device dev_from, Device dev_to, DLDataType type_hint,
+                      TVMStreamHandle stream) final;
 };
 
 // HexagonDeviceAPI.
@@ -72,9 +72,9 @@ inline void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
 }
 
 inline void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                                             size_t to_offset, size_t num_bytes,
-                                             Device dev_from, Device dev_to,
-                                             DLDataType type_hint, TVMStreamHandle stream) {
+                                             size_t to_offset, size_t num_bytes, Device dev_from,
+                                             Device dev_to, DLDataType type_hint,
+                                             TVMStreamHandle stream) {
   const char* src = static_cast<const char*>(from) + from_offset;
   char* dst = static_cast<char*>(to) + to_offset;
 

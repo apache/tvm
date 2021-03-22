@@ -55,8 +55,7 @@ class RPCDeviceAPI final : public DeviceAPI {
     return space;
   }
 
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     auto sess = GetSess(dev);
     auto remote_dev = RemoveRPCSessionMask(dev);
     void* data =
@@ -119,8 +118,8 @@ class RPCDeviceAPI final : public DeviceAPI {
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t num_bytes, Device dev_from, Device dev_to,
-                      DLDataType type_hint, TVMStreamHandle stream) final {
+                      size_t num_bytes, Device dev_from, Device dev_to, DLDataType type_hint,
+                      TVMStreamHandle stream) final {
     LOG(FATAL) << "Not implemented.";
   }
 

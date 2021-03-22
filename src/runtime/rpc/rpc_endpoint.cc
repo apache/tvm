@@ -178,8 +178,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << args[i].AsObjectRef<ObjectRef>()->GetTypeKey() << " is not supported by RPC";
       } else if (tcode == kDLDevice) {
         DLDevice dev = args[i];
-        ICHECK(!IsRPCSessionDevice(dev))
-            << "InternalError: cannot pass RPC context in the channel";
+        ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC context in the channel";
       }
     }
   }
@@ -1004,8 +1003,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     }
   }
 
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     return endpoint_->SysCallRemote(RPCCode::kDevAllocData, dev, nbytes, alignment, type_hint);
   }
 

@@ -308,7 +308,7 @@ void GraphRuntime::SetupStorage() {
     {
       std::vector<int64_t> shape_vec{attrs_.shape[i].begin(), attrs_.shape[i].end()};
       DLTensor template_tensor{nullptr,  Device{kDLCPU, 0}, static_cast<int>(shape_vec.size()),
-                               vtype[i], shape_vec.data(),      nullptr,
+                               vtype[i], shape_vec.data(),  nullptr,
                                0};
       lookup_rv = lookup_linked_param_(module_, sid, &template_tensor, devices_[0]);
     }

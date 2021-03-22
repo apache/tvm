@@ -266,8 +266,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
       }
       DLDevice dev = {kDLCPU, 0};
       tvm_crt_error_t err =
-          TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_DLTYPE * num_items, dev
-, (void**)&attr->dltype);
+          TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_DLTYPE * num_items, dev, (void**)&attr->dltype);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         return -1;
