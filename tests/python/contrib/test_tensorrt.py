@@ -198,10 +198,14 @@ def test_tensorrt_simple():
                 with tvm.transform.PassContext(
                     opt_level=3, config={"relay.ext.tensorrt.options": config}
                 ):
-                    relay_exec = relay.create_executor(mode, mod=mod, device=tvm.gpu(0), target="cuda")
+                    relay_exec = relay.create_executor(
+                        mode, mod=mod, device=tvm.gpu(0), target="cuda"
+                    )
             else:
                 with tvm.transform.PassContext(opt_level=3):
-                    relay_exec = relay.create_executor(mode, mod=mod, device=tvm.gpu(0), target="cuda")
+                    relay_exec = relay.create_executor(
+                        mode, mod=mod, device=tvm.gpu(0), target="cuda"
+                    )
             if not skip_runtime_test():
                 result_dict[result_key] = relay_exec.evaluate()(x_data, y_data, z_data)
 
@@ -702,7 +706,9 @@ def test_dynamic_reshape():
                 assert are_ops_on_trt(mod, op_list=["reshape"]) == should_offload_to_trt
             if not skip_runtime_test():
                 with relay.build_config(opt_level=3):
-                    relay_exec = relay.create_executor("vm", mod=mod, device=tvm.cpu(0), target="llvm")
+                    relay_exec = relay.create_executor(
+                        "vm", mod=mod, device=tvm.cpu(0), target="llvm"
+                    )
 
                 for i, x_data in enumerate(x_data_list):
                     result_arr[i][use_trt] = relay_exec.evaluate()(x_data)

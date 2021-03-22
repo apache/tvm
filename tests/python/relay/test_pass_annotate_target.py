@@ -70,7 +70,7 @@ def check_result(
             rt_mod.set_input(name, data)
         rt_mod.set_input(**param)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, device=device))
+        out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
 
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)

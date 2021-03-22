@@ -89,8 +89,8 @@ class Region:
 
         if self.device:
             assert (
-                self.device.device_type == dev.device_type and
-                self.device.device_id == dev.device_id
+                self.device.device_type == dev.device_type
+                and self.device.device_id == dev.device_id
             ), "must have matching context"
         else:
             assert dev
