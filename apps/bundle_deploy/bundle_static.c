@@ -59,9 +59,9 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   params.data = params_data;
   params.size = params_size;
 
-  TVMContext ctx;
-  ctx.device_type = (DLDeviceType)device_type;
-  ctx.device_id = device_id;
+  DLDevice dev;
+  dev.device_type = (DLDeviceType)device_type;
+  dev.device_id = device_id;
 
   // get pointers
   TVM_CCALL(MemoryManagerCreate(&g_memory_manager, g_crt_memory, sizeof(g_crt_memory),
@@ -76,7 +76,7 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 
   // run modules
   TVMGraphRuntime* graph_runtime = NULL;
-  TVM_CCALL(TVMGraphRuntime_Create(json_data, mod_syslib, &ctx, &graph_runtime));
+  TVM_CCALL(TVMGraphRuntime_Create(json_data, mod_syslib, &dev, &graph_runtime));
   TVM_CCALL(TVMGraphRuntime_LoadParams(graph_runtime, params.data, params.size));
 
   return graph_runtime;
