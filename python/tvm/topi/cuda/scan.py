@@ -352,9 +352,13 @@ def exclusive_scan(
         target = tvm.target.Target.current()
 
         # TODO: add support for a prod_scan
-        if target and binop == tvm.generic.add and (
-            can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
-            or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
+        if (
+            target
+            and binop == tvm.generic.add
+            and (
+                can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
+                or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
+            )
         ):
             return scan_thrust(
                 data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop
@@ -498,7 +502,44 @@ def cumbinop(
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
-    """TODO"""
+    """Cumulative binary operator with similar axis behavior as np.cumsum and np.cumprod.
+    
+    See cumprod and cumsum for an example of use. 
+    
+    E.g. if * is your binary operator and the input tensor is [1, 2, 3, 4] the output may be 
+    [1, 1 * 2, 1 * 2 * 3, 1 * 2 * 3 * 4]
+    
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    binop: Callable (tvm.Expr, tvm.Expr) -> tvm.Expr
+        A binary operator which should be associative and commutative. E.g. if * is your 
+        operator then a * (b * c) = (a * b) * c and a * b = b * a
+
+    axis : int, optional
+        Axis along which the operation is computed. The default (None) is to compute
+        the cumulative operation over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are computed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : int, optional
+        If set to 1 will return exclusive cumulative operation in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the cumulative operation of the first (j-1) elements. Otherwise, it would be the 
+        cumulative operation of the first j elements.
+
+        TODO: what happens to the identity element?
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+    """
     if axis is None:
         axis = 0
         data = reshape(data, (prod(data.shape),))
@@ -552,7 +593,7 @@ def cumprod(
     dtype: Optional[int] = None,
     exclusive: Optional[bool] = None,
 ):
-    """Numpy style cumprod op. Return the cumulative sum of the elements along a given axis.
+    """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
 
     Parameters
     ----------
@@ -561,14 +602,14 @@ def cumprod(
 
     axis : int, optional
         Axis along which the cumulative product is computed. The default (None) is to compute
-        the cumsum over the flattened array.
+        the cumproduct over the flattened array.
 
     dtype : string, optional
-        Type of the returned array and of the accumulator in which the elements are summed.
+        Type of the returned array and of the accumulator in which the elements are multiplied.
         If dtype is not specified, it defaults to the dtype of data.
 
     exclusive : bool, optional
-        If True, will return exclusive sum in which the first element is not
+        If True, will return exclusive product in which the first element is not
         included. In other terms, if True, the j-th output element would be
         the product of the first (j-1) elements. Otherwise, it would be the product of
         the first j elements.

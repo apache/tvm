@@ -30,7 +30,7 @@ def cumprod(
     dtype: Optional[int] = None,
     exclusive: Optional[bool] = None,
 ):
-    """Numpy style cumprod op. Return the cumulative sum of the elements along a given axis.
+    """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
 
     Parameters
     ----------
@@ -39,14 +39,14 @@ def cumprod(
 
     axis : int, optional
         Axis along which the cumulative product is computed. The default (None) is to compute
-        the cumsum over the flattened array.
+        the cumprod over the flattened array.
 
     dtype : string, optional
-        Type of the returned array and of the accumulator in which the elements are summed.
+        Type of the returned array and of the accumulator in which the elements are multiplied.
         If dtype is not specified, it defaults to the dtype of data.
 
     exclusive : bool, optional
-        If True, will return exclusive sum in which the first element is not
+        If True, will return exclusive product in which the first element is not
         included. In other terms, if True, the j-th output element would be
         the product of the first (j-1) elements. Otherwise, it would be the product of
         the first j elements.

@@ -1465,7 +1465,7 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
 
 
 def wrap_compute_cumbinop(topi_compute):
-    """Wrap cumsum topi compute"""
+    """Wrap cumbinop style topi compute"""
 
     def _compute_cumbinop(attrs, inputs, _):
         return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]

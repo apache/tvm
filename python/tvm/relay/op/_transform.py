@@ -162,9 +162,9 @@ _reg.register_shape_func("cumsum", False, elemwise_shape_func)
 
 # cumprod
 @_reg.register_compute("cumprod")
-def compute_cumprod(attrs, inputs, output_type):
+def compute_cumprod(attrs, inputs, output_type)
     """Compute definition of cumprod"""
-    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
+    return [topi.cumprod(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
 
 _reg.register_strategy("cumprod", strategy.cumprod_strategy)

@@ -35,8 +35,47 @@ def cumbinop(
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
-    """
-    TODO
+    """Cumulative binary operator with similar axis behavior as np.cumsum and np.cumprod.
+    
+    See cumprod and cumsum for an example of use. 
+    
+    E.g. if * is your binary operator and the input tensor is [1, 2, 3, 4] the output may be 
+    [1, 1 * 2, 1 * 2 * 3, 1 * 2 * 3 * 4]
+    
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    binop: Callable (tvm.Expr, tvm.Expr) -> tvm.Expr
+        A binary operator which should be associative and commutative. E.g. if * is your 
+        operator then a * (b * c) = (a * b) * c and a * b = b * a
+
+    identity_value: tvm.Expr
+        A value for the binary operation which provides the identity property. E.g. if * is 
+        your operator and i is the identity_value then a * i = a for all a in the domain of 
+        your operation.
+
+    axis : int, optional
+        Axis along which the operation is computed. The default (None) is to compute
+        the cumulative operation over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are computed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : int, optional
+        If set to 1 will return exclusive cumulative operation in which the first element is not
+        included. In other terms, if set to 1, the j-th output element would be
+        the cumulative operation of the first (j-1) elements. Otherwise, it would be the 
+        cumulative operation of the first j elements. The cumulative operation of zero elements
+        is assumed to be the identity_value.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
     """
     if dtype is None or dtype == "":
         dtype = data.dtype
