@@ -3772,20 +3772,20 @@ RELAY_REGISTER_OP("adv_index")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
-TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+TVM_REGISTER_NODE_TYPE(CumbinopAttrs);
 
-bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-               const TypeReporter& reporter) {
+bool CumbinopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
   // types: [data, output]
   ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
-        << "cumsum: expect input type to be TensorType but get " << types[0];
+        << "cumbinop: expect input type to be TensorType but get " << types[0];
     return false;
   }
 
-  const auto* param = attrs.as<CumsumAttrs>();
+  const auto* param = attrs.as<CumbinopAttrs>();
 
   auto dtype = param->dtype;
   if (dtype.is_void()) {
@@ -3806,7 +3806,7 @@ bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive) {
-  auto attrs = make_object<CumsumAttrs>();
+  auto attrs = make_object<CumbinopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
   attrs->exclusive = exclusive;
@@ -3822,7 +3822,27 @@ RELAY_REGISTER_OP("cumsum")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
-    .add_type_rel("Cumsum", CumsumRel)
+    .add_type_rel("Cumsum", CumbinopRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+Expr MakeCumprod(Expr data, Integer axis, DataType dtype, Integer exclusive) {
+  auto attrs = make_object<CumbinopAttrs>();
+  attrs->dtype = dtype;
+  attrs->axis = axis;
+  attrs->exclusive = exclusive;
+  static const Op& op = Op::Get("cumprod");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.cumprod").set_body_typed(MakeCumprod);
+
+RELAY_REGISTER_OP("cumprod")
+    .describe(
+        R"doc(Return the cumulative product of the elements along a given axis.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Cumprod", CumbinopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 TVM_REGISTER_NODE_TYPE(UniqueAttrs);
