@@ -31,6 +31,7 @@
 #include <tvm/runtime/serializer.h>
 
 #include <atomic>
+#include <functional>
 #include <utility>
 #include <vector>
 
