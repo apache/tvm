@@ -50,7 +50,7 @@ class DispatchContext(object):
     def __init__(self):
         self._old_ctx = DispatchContext.current
 
-    def query(self, target, workload_key, has_complex_op, dag):
+    def query(self, target, workload_key, has_complex_op, dag, func_name):
         """
         Query the context to get the specific config for a workload.
         If cannot find the result inside this context, this function will query it
@@ -66,15 +66,17 @@ class DispatchContext(object):
             Whether this workload has at least one complex op.
         dag: ComputeDAG
             The ComputeDAG of the workload.
+        func_name: str
+            The function name of this workload.
 
         Returns
         -------
         state : StateObject
             The state that stores schedule configuration for the workload
         """
-        ret = self._query_inside(target, workload_key)
+        ret = self._query_inside(target, workload_key, func_name)
         if ret is None:
-            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag)
+            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag, func_name)
         return ret
 
     def update(self, target, workload_key, state):
@@ -92,7 +94,7 @@ class DispatchContext(object):
         """
         raise NotImplementedError()
 
-    def _query_inside(self, target, workload_key):
+    def _query_inside(self, target, workload_key, func_name):
         """
         Query the context to get the specific config for a workload.
         This function only query config inside this context.
@@ -103,6 +105,8 @@ class DispatchContext(object):
             The current target
         workload_key : str
             The current workload_key.
+        func_name: str
+            The function name of this workload.
 
         Returns
         -------
@@ -241,7 +245,7 @@ class ApplyHistoryBest(DispatchContext):
 
         logger.debug("Finish loading %d records", counter)
 
-    def _query_inside(self, target, workload_key):
+    def _query_inside(self, target, workload_key, func_name):
         if target is None:
             raise RuntimeError(
                 "Need a target context to find the history best. "
@@ -343,18 +347,20 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
             records, n_lines=None, include_compatible=True
         )
 
-    def query(self, target, workload_key, has_complex_op, dag):
+    def query(self, target, workload_key, has_complex_op, dag, func_name):
         if has_complex_op or self.sample_simple_workloads:
-            ret = self._query_inside(target, workload_key)
+            ret = self._query_inside(target, workload_key, func_name)
         else:
-            ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+            ret = super(ApplyHistoryBestOrSample, self)._query_inside(
+                target, workload_key, func_name
+            )
 
         if ret is None:
-            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag)
+            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag, func_name)
         return ret
 
-    def _query_inside(self, target, workload_key):
-        ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+    def _query_inside(self, target, workload_key, func_name):
+        ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key, func_name)
         if ret is not None:
             return ret
 
@@ -386,7 +392,9 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
 
             # Load the sampled records and query again.
             self.load(log_file)
-            ret = super(ApplyHistoryBestOrSample, self)._query_inside(target, workload_key)
+            ret = super(ApplyHistoryBestOrSample, self)._query_inside(
+                target, workload_key, func_name
+            )
 
         del measure_ctx
         return ret
@@ -411,18 +419,19 @@ class FallbackContext(DispatchContext):
         # a set to prevent print duplicated message
         self.messages = set()
 
-    def query(self, target, workload_key, has_complex_op, dag):
+    def query(self, target, workload_key, has_complex_op, dag, func_name):
         key = (str(target), workload_key)
         if key in self.memory:
             return self.memory[key]
 
         if self.verbose == 2 or (has_complex_op and self.verbose == 1):
             msg = (
-                "-----------------------------------\n"
-                "Cannot find tuned schedules for target=%s, workload_key=%s. "
-                "A fallback TOPI schedule is used, "
-                "which may bring great performance regression or even compilation failure. "
-                "Compute DAG info:\n%s" % (target, workload_key, dag)
+                f"-----------------------------------\n"
+                f"{func_name}\n"
+                f"Cannot find tuned schedules for target={target}, workload_key={workload_key}. "
+                f"A fallback TOPI schedule is used, "
+                f"which may bring great performance regression or even compilation failure. "
+                f"Compute DAG info:\n{dag}"
             )
             if msg not in self.messages:
                 self.messages.add(msg)
@@ -434,8 +443,8 @@ class FallbackContext(DispatchContext):
         self.memory[key] = state
         return state
 
-    def _query_inside(self, target, workload_key):
-        _ = target = workload_key
+    def _query_inside(self, target, workload_key, func_name):
+        _ = target = workload_key = func_name
         raise RuntimeError("This function should never be called")
 
     def update(self, target, workload_key, state):

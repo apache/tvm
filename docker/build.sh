@@ -20,11 +20,15 @@
 #
 # Execute command within a docker container
 #
-# Usage: build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
+# Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
+#                [--dockerfile <DOCKERFILE_PATH>] [-it]
 #                [--net=host] [--cache-from <IMAGE_NAME>] <COMMAND>
 #
-# CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
-#                 (cpu | gpu)
+# CONTAINER_TYPE: Type of the docker container used the run the build,
+#                 e.g. "ci_cpu", "ci_gpu"
+#
+# DOCKER_IMAGE_TAG: (Optional) Docker image tag to be built and used.
+#                   Defaults to 'latest', as it is the default Docker tag.
 #
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
@@ -44,6 +48,12 @@ shift 1
 # Dockerfile to be used in docker build
 DOCKERFILE_PATH="${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}"
 DOCKER_CONTEXT_PATH="${SCRIPT_DIR}"
+
+if [[ "$1" == "--tag" ]]; then
+    DOCKER_IMAGE_TAG="$2"
+    echo "Using custom Docker tag: ${DOCKER_IMAGE_TAG}"
+    shift 2
+fi
 
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
@@ -114,6 +124,7 @@ function upsearch () {
 # reasonable defaults if you run it outside of Jenkins.
 WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../}"
 BUILD_TAG="${BUILD_TAG:-tvm}"
+DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG:-latest}"
 
 # Determine the docker image name
 DOCKER_IMG_NAME="${BUILD_TAG}.${CONTAINER_TYPE}"
@@ -125,6 +136,9 @@ DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | sed -e 's/=/_/g' -e 's/,/-/g')
 # Convert to all lower-case, as per requirement of Docker image names
 DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | tr '[:upper:]' '[:lower:]')
 
+# Compose the full image spec with "name:tag" e.g. "tvm.ci_cpu:v0.03"
+DOCKER_IMG_SPEC="${DOCKER_IMG_NAME}:${DOCKER_IMAGE_TAG}"
+
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
 echo "CI_DOCKER_EXTRA_PARAMS: ${CI_DOCKER_EXTRA_PARAMS[@]}"
@@ -132,12 +146,14 @@ echo "COMMAND: ${COMMAND[@]}"
 echo "CONTAINER_TYPE: ${CONTAINER_TYPE}"
 echo "BUILD_TAG: ${BUILD_TAG}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMG_NAME}"
+echo "DOCKER_IMAGE_TAG: ${DOCKER_IMAGE_TAG}"
+echo "DOCKER_IMG_SPEC: ${DOCKER_IMG_SPEC}"
 echo ""
 
 
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
-docker build -t ${DOCKER_IMG_NAME} \
+docker build -t ${DOCKER_IMG_SPEC} \
     -f "${DOCKERFILE_PATH}" \
     ${CI_DOCKER_BUILD_EXTRA_PARAMS[@]} \
     "${DOCKER_CONTEXT_PATH}"
@@ -149,7 +165,7 @@ if [[ $? != "0" ]]; then
 fi
 
 # Run the command inside the container.
-echo "Running '${COMMAND[@]}' inside ${DOCKER_IMG_NAME}..."
+echo "Running '${COMMAND[@]}' inside ${DOCKER_IMG_SPEC}..."
 
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
@@ -167,6 +183,6 @@ ${DOCKER_BINARY} run --rm --pid=host \
     -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
     ${CUDA_ENV}\
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
-    ${DOCKER_IMG_NAME} \
+    ${DOCKER_IMG_SPEC} \
     bash --login docker/with_the_same_user \
     ${COMMAND[@]}

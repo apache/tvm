@@ -30,6 +30,7 @@
 #define TVM_RUNTIME_LOGGING_H_
 
 #include <dmlc/common.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 #include <ctime>
 #include <iomanip>
@@ -37,7 +38,22 @@
 #include <sstream>
 #include <string>
 
-#include "tvm/runtime/c_runtime_api.h"
+/*!
+ * \brief Macro helper for exception throwing.
+ */
+#ifdef _MSC_VER
+#define TVM_THROW_EXCEPTION noexcept(false) __declspec(noreturn)
+#else
+#define TVM_THROW_EXCEPTION noexcept(false)
+#endif
+
+/*!
+ * \brief Whether or not use libbacktrace library
+ *        for getting backtrace information
+ */
+#ifndef TVM_USE_LIBBACKTRACE
+#define TVM_USE_LIBBACKTRACE 0
+#endif
 
 // a technique that enables overriding macro names on the number of parameters. This is used
 // to define other macros below
@@ -124,19 +140,14 @@
 #define COND_CHECK_2(quit_on_assert, x) COND_CHECK_3(quit_on_assert, x, return false)
 #define COND_LOG_2(quit_on_assert, x) COND_LOG_3(quit_on_assert, x, return false)
 
-#ifdef _MSC_VER
-#define TVM_THROW_EXCEPTION noexcept(false) __declspec(noreturn)
-#else
-#define TVM_THROW_EXCEPTION noexcept(false)
-#endif
-
 namespace tvm {
 namespace runtime {
 
-/* \brief Generate a backtrace when called.
+/*!
+ * \brief Generate a backtrace when called.
  * \return A multiline string of the backtrace. There will be either one or two lines per frame.
  */
-std::string Backtrace();
+TVM_DLL std::string Backtrace();
 
 /*! \brief Base error type for TVM. Wraps a string message. */
 class Error : public ::dmlc::Error {  // for backwards compatibility

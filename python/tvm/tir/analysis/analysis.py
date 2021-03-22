@@ -106,3 +106,26 @@ def verify_gpu_code(func, constraints):
         The result of verification.
     """
     return _ffi_api.verify_gpu_code(func, constraints)
+
+
+def get_block_access_region(block, buffer_var_map):
+    """Detect which regions of tensors in this block are read or written to.
+       Regions are sorted by order of appearance in the AST.
+
+    Parameters
+    ----------
+    block: tvm.tir.Block
+        The block in which we are detecting read/write regions.
+
+    buffer_var_map : Dict[Var, Buffer]
+        The outside buffers which may access the block. Mapping from buffer var to the buffer
+
+    Returns
+    -------
+    result : List[List[BufferRegion]]
+        Array of access regions. There are three arrays of BufferRegion:
+            - first: read regions
+            - second: write regions
+            - third: opaque regions
+    """
+    return _ffi_api.get_block_access_region(block, buffer_var_map)

@@ -122,7 +122,9 @@ def test_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"81637c89339201a07dc96e3b5dbf836a"}
+    _compile_hash = {"bfb5a50607edb50009c58ae9d4287e4d"}
+    if tei.get_ethosn_variant() == 3:
+        _compile_hash = {"896c28b4f06341ea638ead3a593e1aed"}
     if tei.get_ethosn_api_version() == 2008:
         _compile_hash = {"47e216d8ab2bf491708ccf5620bc0d02"}
         if tei.get_ethosn_variant() == 3:
@@ -150,7 +152,9 @@ def test_inception_v3():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"de0e175af610ebd45ccb03d170dc9664"}
+    _compile_hash = {"96116d7e6c7385de0688074a3f889983"}
+    if tei.get_ethosn_variant() == 3:
+        _compile_hash = {"551cde850c6ef960d19be4f317fb8e68"}
     if tei.get_ethosn_api_version() == 2008:
         _compile_hash = {"8c9d75659cd7bc9ff6dd6d490d28f9b2"}
         if tei.get_ethosn_variant() == 3:
@@ -177,7 +181,9 @@ def test_inception_v4():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"06bf6cb56344f3904bcb108e54edfe87"}
+    _compile_hash = {"b34aec2a48c591818761ed6b42c133e5"}
+    if tei.get_ethosn_variant() == 3:
+        _compile_hash = {"30f078bd42757e8686eafa1f28d0d352"}
     if tei.get_ethosn_api_version() == 2008:
         if not tei.get_ethosn_variant() == 0:
             pytest.skip(
@@ -206,7 +212,9 @@ def test_ssd_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"29aec6b184b09454b4323271aadf89b1", "6211d96103880b016baa85e638abddef"}
+    _compile_hash = {"c312edfc9a946ed4dc7c049d472dae6e", "3183f0fa5eba8f6b9557d14eaf47842d"}
+    if tei.get_ethosn_variant() == 3:
+        _compile_hash = {"deee52e136327436411fc725624ae2ea", "6526509d3cbee014e38c79e22bb29d7f"}
     if tei.get_ethosn_api_version() == 2008:
         _compile_hash = {"5999f26e140dee0d7866491997ef78c5", "24e3a690a7e95780052792d5626c85be"}
         if tei.get_ethosn_variant() == 3:
