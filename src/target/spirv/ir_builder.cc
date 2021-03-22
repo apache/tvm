@@ -206,7 +206,7 @@ Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set
 }
 
 Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
-                                        spv::StorageClass storage_class) {
+                                        spv::StorageClass storage_class, ValueKind kind) {
   SType struct_type;
   struct_type.id = id_counter_++;
   struct_type.type = DataType::Handle();
@@ -236,14 +236,14 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
   this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
 
   SType ptr_type = GetPointerType(struct_type, storage_class);
-  Value val = NewValue(ptr_type, kPushConstantPtr);
+  Value val = NewValue(ptr_type, kind);
   ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
   return val;
 }
 
 Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
   ICHECK_EQ(push_const_.id, 0);
-  return DeclareStorageVariable(value_types, spv::StorageClassPushConstant);
+  return DeclareStorageVariable(value_types, spv::StorageClassPushConstant, kPushConstantPtr);
 }
 
 Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index) {
@@ -254,7 +254,7 @@ Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint
 }
 
 Value IRBuilder::DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding) {
-  Value val = DeclareStorageVariable(value_types, spv::StorageClassUniform);
+  Value val = DeclareStorageVariable(value_types, spv::StorageClassUniform, kUniformPtr);
   this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
   return val;
 }

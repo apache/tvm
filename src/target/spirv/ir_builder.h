@@ -60,7 +60,8 @@ enum ValueKind {
   kStructArrayPtr,
   kPushConstantPtr,
   kFunction,
-  kExtInst
+  kExtInst,
+  kUniformPtr
 };
 
 /*! \brief Represent the SPIRV Value */
@@ -563,7 +564,7 @@ class IRBuilder {
 
   // TOOD doc
   Value DeclareStorageVariable(const std::vector<SType>& value_types,
-                               spv::StorageClass storage_class);
+                               spv::StorageClass storage_class, ValueKind kind);
 
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
