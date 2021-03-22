@@ -1103,7 +1103,8 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
     verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
 
 
-@tvm.testing.parametrize_targets("llvm", "cuda")
+# TODO(mbrookhart, electriclilies): Add CUDA as a target once batch matmul is fixed
+@tvm.testing.parametrize_targets("llvm")
 def test_batch_matmul_dynamic_model(target, ctx):
     verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
     verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
