@@ -41,10 +41,6 @@ from .common import infer_type, get_name
 __all__ = ["from_onnx"]
 
 
-class ONNXAttrError(Exception):
-    pass
-
-
 class onnx_input:
     """ Dual purpose list or dictionary access object."""
 
@@ -2464,8 +2460,10 @@ class NonMaxSuppression(OnnxOpConverter):
         dtype = infer_type(boxes).checked_type.dtype
 
         if "center_point_box" in attr:
-            if  attr["center_point_box"] != 0:
-                raise NotImplementedError("Only support center_point_box = 0 in ONNX NonMaxSuprresion")
+            if attr["center_point_box"] != 0:
+                raise NotImplementedError(
+                    "Only support center_point_box = 0 in ONNX NonMaxSuprresion"
+                )
 
         if iou_threshold is None:
             iou_threshold = _expr.const(0.0, dtype="float32")

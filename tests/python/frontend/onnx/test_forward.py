@@ -24,7 +24,6 @@ import pytest
 import tvm.topi.testing
 import tvm
 from tvm import relay
-from tvm.relay.frontend.onnx import ONNXAttrError
 from tvm.contrib import graph_runtime
 import scipy
 import tvm.testing
