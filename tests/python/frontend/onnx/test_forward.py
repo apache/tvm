@@ -4080,51 +4080,51 @@ def test_cumsum():
     verify_cumsum(data, 1, 0, 1, type="int32")
     verify_cumsum(data, 1, 1, 1, type="int32")
 
-@tvm.testing.uses_gpu
-def test_onnx_nodes():
-    from onnx import numpy_helper
-    f = onnx.__file__
-    import glob
-    tests = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
+from onnx import numpy_helper
+f = onnx.__file__
+import glob
+onnx_test_folders = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/test/data/node/*/"))
+
+@pytest.mark.parametrize("test", onnx_test_folders)
+def test_onnx_nodes(test):
     failures = 0
-    for n, test in enumerate(tests):
-        #if "gather" not in test:
-        #    continue
-        print(n, test)
-        if ("cast" in test and "FLOAT16" in test) or "test_slice_start_out_of_bounds" in test: 
-            print("FAILURE: SKIPPING due to segfault")
-            continue
-        try:
-            onnx_model = onnx.load(test + "/model.onnx")
-            inputs = []
-            outputs = []
-            for dataset in glob.glob(test + "/*/"):
-                tensors = sorted(glob.glob(dataset + "/*.pb"))
-                for tensor in tensors:
-                    new_tensor = onnx.TensorProto()
-                    with open(tensor, 'rb') as f:
-                        new_tensor.ParseFromString(f.read())
-                    if "input" in tensor.split('/')[-1]:
-                        inputs.append(numpy_helper.to_array(new_tensor))
-                    elif "output" in tensor.split('/')[-1]:
-                        outputs.append(numpy_helper.to_array(new_tensor))
-                    else:
-                        print(tensor)
-                        raise
-                tvm_val =  get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
-                if len(outputs) == 1:
-                    tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
+    #if "gather" not in test:
+    #    continue
+    print(test)
+    if ("cast" in test and "FLOAT16" in test) or "test_slice_start_out_of_bounds" in test: 
+        print("FAILURE: SKIPPING due to segfault")
+        pytest.skip()
+    try:
+        onnx_model = onnx.load(test + "/model.onnx")
+        inputs = []
+        outputs = []
+        for dataset in glob.glob(test + "/*/"):
+            tensors = sorted(glob.glob(dataset + "/*.pb"))
+            for tensor in tensors:
+                new_tensor = onnx.TensorProto()
+                with open(tensor, 'rb') as f:
+                    new_tensor.ParseFromString(f.read())
+                if "input" in tensor.split('/')[-1]:
+                    inputs.append(numpy_helper.to_array(new_tensor))
+                elif "output" in tensor.split('/')[-1]:
+                    outputs.append(numpy_helper.to_array(new_tensor))
                 else:
-                    for output, val in zip(outputs, tvm_val):
-                        tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
-        except tvm.error.OpNotImplemented as e:
-            print("WARNING, missing Op:", e)
-        except NotImplementedError as e:
-            print("WARNING, missing implementation in Op:", e)
-        except Exception as e:
-            print("------------------TEST FAILURE--------------------")
-            print(e)
-            #raise e
+                    print(tensor)
+                    raise
+            tvm_val =  get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
+            if len(outputs) == 1:
+                tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
+            else:
+                for output, val in zip(outputs, tvm_val):
+                    tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
+    except tvm.error.OpNotImplemented as e:
+        print("WARNING, missing Op:", e)
+        pytest.skip()
+    except NotImplementedError as e:
+        print("WARNING, missing implementation in Op:", e)
+        pytest.skip()
+    except Exception as e:
+        raise e
 
 def test_wrong_input():
     node = helper.make_node(
