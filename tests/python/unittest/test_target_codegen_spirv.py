@@ -72,16 +72,17 @@ def test_bool_load():
     tvm.testing.assert_allclose(b.asnumpy(), ref)
 
 
+def check_mod(mod, x_np, res_np):
+    target = "vulkan"
+    ctx = tvm.context(target, 0)
+    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+    res = ex.evaluate()(x_np).asnumpy()
+    tvm.testing.assert_allclose(res, res_np, atol=1e-5)
+
+
 def test_pushconstants():
     if not tvm.testing.device_enabled("vulkan"):
         return
-
-    def check_mod(mod, x_np, res_np):
-        target = "vulkan"
-        ctx = tvm.context(target, 0)
-        ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
-        res = ex.evaluate()(x_np).asnumpy()
-        tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
     # Three 32 bit pushconstants: any_dim, stride, stride
     dtype = "float32"
@@ -104,6 +105,21 @@ def test_pushconstants():
     check_mod(mod, x_np, res_np)
 
 
+def test_unique():
+    if not tvm.testing.device_enabled("vulkan"):
+        return
+
+    dtype = "int32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    [unique, _, num_unique] = relay.unique(x, is_sorted=True)
+    mod["main"] = relay.Function([x], relay.op.strided_slice(unique, begin=[0], end=num_unique))
+    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
+    res_np = np.unique(x_np)
+    check_mod(mod, x_np, res_np)
+
+
 if __name__ == "__main__":
     test_bool_load()
     test_pushconstants()
+    test_unique()
