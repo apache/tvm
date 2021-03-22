@@ -103,10 +103,9 @@ def get_numpy(tensor_proto):
 def get_type(elem_type):
     """Converts onnx integer datatype to numpy datatype"""
     try:
-        from onnx import TensorProto
+        from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
-    from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 
     return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
