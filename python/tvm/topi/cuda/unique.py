@@ -26,10 +26,11 @@ from ..utils import ceil_div
 
 def _get_max_threads(batch_size):
     target = tvm.target.Target.current()
+    max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
     if "vulkan" in str(target) and not isinstance(batch_size, tvm.tir.IntImm):
         # SPIR-V does not support dynamic thread group size
-        return tvm.target.Target.current(allow_none=False).max_num_threads
-    return tvm.target.Target.current(allow_none=False).max_num_threads
+        return max_threads
+    return tir.min(batch_size, max_threads)
 
 
 def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
