@@ -798,7 +798,7 @@ def test_proposal():
             if not tvm.testing.device_enabled(target):
                 print("Skip test because %s is not enabled." % target)
                 continue
-            ctx = tvm.context(target, 0)
+            ctx = tvm.device(target, 0)
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
             tvm.testing.assert_allclose(op_res1.asnumpy(), np_out, rtol=1e-4)

@@ -2151,7 +2151,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
 
     for tgt in targets:
         print("Running on target", tgt)
-        ctx = tvm.context(tgt, 0)
+        ctx = tvm.device(tgt, 0)
 
         executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
         evaluator = executor.evaluate()
@@ -3589,7 +3589,7 @@ def test_forward_pretrained_bert_base_uncased():
     # Execute on TVM
     # --------------
 
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
     relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
     relay_model.set_input(**relay_params)
     relay_model.set_input(input_1, tokens_tensor)

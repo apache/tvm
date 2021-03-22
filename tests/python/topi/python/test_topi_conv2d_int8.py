@@ -87,7 +87,7 @@ def compile_conv2d_NHWC_gemm_int8_arm(
         compute = device_tuple[1]
         schedule = device_tuple[2]
 
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -176,7 +176,7 @@ def verify_conv2d_NHWC_gemm_int8(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -285,7 +285,7 @@ def verify_conv2d_NCHWc_int8(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -404,7 +404,7 @@ def verify_conv2d_nchw_int8(
         tvm.testing.assert_allclose(ow_tile, out_width)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

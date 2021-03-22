@@ -184,7 +184,7 @@ def test_compile_engine():
 
     # Test JIT target
     for target in ["llvm"]:
-        ctx = tvm.context(target)
+        ctx = tvm.device(target)
         if tvm.testing.device_enabled(target):
             f = engine.jit(get_func((10,)), target)
             x = tvm.nd.array(np.ones(10).astype("float32"), ctx=ctx)

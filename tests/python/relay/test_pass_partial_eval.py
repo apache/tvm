@@ -30,7 +30,7 @@ from tvm.relay.testing import make_nat_expr, run_infer_type
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
-    ctx = tvm.context("llvm", 0)
+    ctx = tvm.device("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
 
     result = intrp.evaluate(expr)

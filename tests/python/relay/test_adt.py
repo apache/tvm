@@ -33,7 +33,7 @@ def count(e):
     return count_(p, e)
 
 
-ctx = tvm.context("llvm", 0)
+ctx = tvm.device("llvm", 0)
 intrp = create_executor(mod=prelude.mod, ctx=ctx, target="llvm")
 
 nat, z, s = prelude.mod.get_type("nat")

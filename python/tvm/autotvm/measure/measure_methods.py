@@ -261,7 +261,7 @@ class RPCRunner(Runner):
             or "vulkan" in self.task.target.keys
         ):
             remote = request_remote(self.key, self.host, self.port)
-            ctx = remote.context(str(self.task.target), 0)
+            ctx = remote.device(str(self.task.target), 0)
             max_dims = ctx.max_thread_dimensions
             kwargs["check_gpu"] = {
                 "max_shared_memory_per_block": ctx.max_shared_memory_per_block,
@@ -555,7 +555,7 @@ def run_through_rpc(
     try:
         # upload built module
         with module_loader(remote_kwargs, build_result) as (remote, mod):
-            ctx = remote.context(str(measure_input.target), 0)
+            ctx = remote.device(str(measure_input.target), 0)
 
             # Limitation:
             # We can not get PackFunction directly in the remote mode as it is wrapped
@@ -698,7 +698,7 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
 
     def _check():
         remote = request_remote(device_key, host, port, priority)
-        ctx = remote.context(str(target))
+        ctx = remote.device(str(target))
         while not ctx.exist:  # wait until we get an available device
             pass
 

@@ -67,7 +67,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_nhwc_implement)
             B = fcompute(A, W, stride, padding, dilation, dtype)
             s = fschedule([B])
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

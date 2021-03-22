@@ -41,7 +41,7 @@ def test_reduce_prims():
 
         # one line to build the function.
         def check_device(device, host="llvm"):
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -240,7 +240,7 @@ def test_rfactor_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -294,7 +294,7 @@ def test_rfactor_elemwise_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -337,7 +337,7 @@ def test_argmax():
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         fapi = tvm.lower(s, args=[idx, val, T0, T1])
         fargmax = tvm.build(fapi, target="llvm", name="argmax")
 
@@ -393,7 +393,7 @@ def test_rfactor_argmax():
     s[B0].set_store_predicate(thread_x.var.equal(0))
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -425,7 +425,7 @@ def test_warp_reduction1():
     thread_y = te.thread_axis((0, nthy), "threadIdx.y")
 
     def check_target(device, m, n):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -488,7 +488,7 @@ def test_warp_reduction2():
     thread_y = te.thread_axis((0, nthdy), "threadIdx.y")
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -502,7 +502,7 @@ def test_warp_reduction2():
         s[T0].bind(xo, block_x)
 
         # validation
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         a0_np = np.random.uniform(size=(m, n)).astype(A0.dtype)
         a1_np = np.random.uniform(size=(m, n)).astype(A1.dtype)
         t0_np = np.zeros((m,), dtype=A0.dtype)

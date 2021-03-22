@@ -38,8 +38,8 @@ OpenCLWorkspace* SDAccelWorkspace::Global() {
 
 void SDAccelWorkspace::Init() { OpenCLWorkspace::Init("sdaccel", "accelerator", "Xilinx"); }
 
-bool SDAccelWorkspace::IsOpenCLDevice(TVMContext ctx) {
-  return ctx.device_type == static_cast<DLDeviceType>(kDLSDAccel);
+bool SDAccelWorkspace::IsOpenCLDevice(Device dev) {
+  return dev.device_type == static_cast<DLDeviceType>(kDLSDAccel);
 }
 
 typedef dmlc::ThreadLocalStore<SDAccelThreadEntry> SDAccelThreadStore;

@@ -119,6 +119,6 @@ def test_threefry_wrapping(target, ctx):
 
 
 if __name__ == "__main__":
-    test_threefry_split(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_generate(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.context("cpu"))
+    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))

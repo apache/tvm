@@ -104,7 +104,7 @@ def verify_conv2d_hwnc(
         w_np = convert_int32_into_int4(w_np)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

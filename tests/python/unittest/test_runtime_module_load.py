@@ -105,7 +105,7 @@ def test_device_module_dump():
     s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -133,7 +133,7 @@ def test_device_module_dump():
             np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     def check_stackvm(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

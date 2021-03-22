@@ -39,10 +39,10 @@ def _get_profile_runtime(mod):
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
-        ctx = tvm.context(target.kind.name)
+        ctx = tvm.device(target.kind.name)
     else:
         target = "llvm"
-        ctx = tvm.context(target)
+        ctx = tvm.device(target)
 
     with tvm.transform.PassContext(opt_level=3):
         lib = _build_module.build(func, target=target)

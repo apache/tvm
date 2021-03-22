@@ -135,7 +135,7 @@ def run_gemm(
     mod.save(temp.relpath("dense.o"))
     remote.upload(temp.relpath("dense.o"))
     f = remote.load_module("dense.o")
-    ctx = remote.context(str(target))
+    ctx = remote.device(str(target))
 
     res_np = np.zeros(topi.utils.get_const_tuple(res.shape)).astype(res.dtype)
     data_arr = tvm.nd.array(data_np, ctx)

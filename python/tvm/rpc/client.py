@@ -72,8 +72,8 @@ class RPCSession(object):
         """
         return self._sess.get_function(name)
 
-    def context(self, dev_type, dev_id=0):
-        """Construct a remote context.
+    def device(self, dev_type, dev_id=0):
+        """Construct a remote device.
 
         Parameters
         ----------
@@ -83,14 +83,14 @@ class RPCSession(object):
 
         Returns
         -------
-        ctx: TVMContext
-            The corresponding encoded remote context.
+        dev: Device
+            The corresponding encoded remote device.
         """
-        ctx = nd.context(dev_type, dev_id)
+        dev = nd.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        ctx.device_type += encode
-        ctx._rpc_sess = self
-        return ctx
+        dev.device_type += encode
+        dev._rpc_sess = self
+        return dev
 
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder

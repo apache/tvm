@@ -56,7 +56,7 @@ def test_opencl_ternary_expression():
         # Only need to test compiling here
         fun(a, c)
 
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
 
     check_if_then_else(ctx, 1, "int8")
     check_if_then_else(ctx, 1, "uint8")
@@ -83,7 +83,7 @@ def test_opencl_inf_nan():
         # Only need to test compiling here
         fun(a, c)
 
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
 
     check_inf_nan(ctx, 1, -float("inf"), "float32")
     check_inf_nan(ctx, 1, -float("inf"), "float64")
@@ -110,7 +110,7 @@ def test_opencl_max():
         # Only need to test compiling here
         fun(a, c)
 
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
 
     check_max(ctx, 1, "int8")
     check_max(ctx, 1, "uint8")

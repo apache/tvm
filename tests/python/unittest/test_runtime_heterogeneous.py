@@ -130,7 +130,7 @@ def test_simplex_data_transferring():
     """
     host = "cpu"
     target_host = "llvm"
-    host_ctx = tvm.context(host)
+    host_ctx = tvm.device(host)
     if not tvm.runtime.enabled(target_host):
         print("Skip test because llvm is not enabled.")
         return
@@ -140,7 +140,7 @@ def test_simplex_data_transferring():
             print("Skip test because {} is not enabled.".format(target_device))
             return
 
-        device_ctx = tvm.context(device)
+        device_ctx = tvm.device(device)
         graph = get_simplex_graph(host_ctx.device_type, device_ctx.device_type)
         shape = (4,)
 
@@ -348,7 +348,7 @@ def test_duplex_data_transferring():
     """
     host = "cpu"
     target_host = "llvm"
-    host_ctx = tvm.context(host)
+    host_ctx = tvm.device(host)
     if not tvm.runtime.enabled(target_host):
         print("Skip test because llvm is not enabled.")
         return
@@ -358,7 +358,7 @@ def test_duplex_data_transferring():
             print("Skip test because {} is not enabled.".format(target_device))
             return
 
-        device_ctx = tvm.context(device)
+        device_ctx = tvm.device(device)
         graph = get_duplex_graph(host_ctx.device_type, device_ctx.device_type)
         shape = (4,)
 

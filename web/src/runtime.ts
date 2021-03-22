@@ -1165,7 +1165,7 @@ export class Instance implements Disposable {
       } else if (val instanceof DLDevice) {
         stack.storeI32(valueOffset, val.deviceType);
         stack.storeI32(valueOffset + SizeOf.I32, val.deviceType);
-        stack.storeI32(codeOffset, ArgTypeCode.TVMContext);
+        stack.storeI32(codeOffset, ArgTypeCode.DLDevice);
       } else if (tp == "number") {
         stack.storeF64(valueOffset, val);
         stack.storeI32(codeOffset, ArgTypeCode.Float);
@@ -1328,7 +1328,7 @@ export class Instance implements Disposable {
         );
       }
       case ArgTypeCode.Null: return undefined;
-      case ArgTypeCode.TVMContext: {
+      case ArgTypeCode.DLDevice: {
         const deviceType = this.memory.loadI32(rvaluePtr);
         const deviceId = this.memory.loadI32(rvaluePtr + SizeOf.I32);
         return this.device(deviceType, deviceId);

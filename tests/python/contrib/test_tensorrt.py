@@ -97,7 +97,7 @@ def run_and_verify_func(config, target="cuda"):
         for k, v in input_shapes.items()
         if k not in is_param
     }
-    ctx = tvm.context(target)
+    ctx = tvm.device(target)
 
     result_dict = dict()
     for mode in ["graph", "vm"]:

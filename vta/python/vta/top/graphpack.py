@@ -201,8 +201,8 @@ class ExprDeviceAnnot(ExprMutator):
     """
 
     def __init__(self, start=-1, end=-1):
-        self.ext_ctx = tvm.context("ext_dev")
-        self.cpu_ctx = tvm.context("cpu")
+        self.ext_ctx = tvm.device("ext_dev")
+        self.cpu_ctx = tvm.device("cpu")
         self.cast = op.op.get("cast")
         self.counter = -1
         self.start = start

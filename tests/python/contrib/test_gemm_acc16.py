@@ -38,7 +38,7 @@ def benchmark_fc_int8_acc16():
             print("skip because %s is not enabled..." % target)
             return
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         X = te.placeholder((m, k), name="X", dtype="uint8")
         W = te.placeholder((n, k), name="W", dtype="int8")
         pc = dot_16x1x16_uint8_int8_int16()

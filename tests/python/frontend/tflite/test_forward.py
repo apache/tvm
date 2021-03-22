@@ -207,7 +207,7 @@ def run_tvm_graph(
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target, params=params)
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         from tvm.contrib import graph_runtime
 
         m = graph_runtime.GraphModule(lib["default"](ctx))
@@ -303,7 +303,7 @@ def compare_tflite_with_tvm(
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
         for device in ["llvm"]:
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue

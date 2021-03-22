@@ -42,7 +42,7 @@ void ConvolutionForward(int mode, int format, int algo, int dims, int groups, co
   // Set Algo
   entry_ptr->conv_entry.fwd_algo = static_cast<cudnnConvolutionFwdAlgo_t>(algo);
   // Set Ctx
-  entry_ptr->conv_entry.ctx = x->ctx;
+  entry_ptr->conv_entry.device = x->device;
   // Set Data Type
   entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(conv_dtype));
   cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);

@@ -222,7 +222,7 @@ def verify_expand_like(in_shape, out_shape, axis):
     def check_device(device):
         print("Running on target: %s" % device)
 
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         f = tvm.build(s, [A, B, C], device, name="expand_like")
         input = np.random.uniform(size=in_shape).astype(A.dtype)
         tvm_input = tvm.nd.array(input, ctx)
@@ -250,7 +250,7 @@ def verify_flip(in_shape, axis):
     B = topi.flip(A, axis) + 1
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -367,7 +367,7 @@ def verify_take(src_shape, indices_src, axis=None, mode="clip"):
         out_tensor = topi.take(a=A, indices=indices, axis=axis, mode=mode)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -403,7 +403,7 @@ def verify_strided_slice(in_shape, begin, end, strides=None):
     B = topi.strided_slice(A, begin, end, strides) + 1
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -432,7 +432,7 @@ def verify_dynamic_strided_slice(in_shape, begin, end, strides=None):
     B = topi.strided_slice(A, Begin, End, Strides) + 1
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -467,7 +467,7 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
         B = topi.strided_set(A, V, b, e) + 1
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -753,7 +753,7 @@ def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT
     matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal, k, align)
 
     def check_device(device, ctx):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(matrix_set_diag_result)
@@ -786,7 +786,7 @@ def verify_adv_index(data_shape, index_shapes):
     out = topi.adv_index(data, indices)
 
     def check_device(device, ctx):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
@@ -897,7 +897,7 @@ def test_squeeze():
     E = topi.squeeze(A)
     C = te.compute((1,), lambda i: E[(2 * A[0] - 1).astype("int32")])
     for device in ["cuda", "opencl"]:
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if tvm.testing.device_enabled(device):
             with tvm.target.Target(device):
                 s = tvm.topi.testing.get_injective_schedule(device)(C)

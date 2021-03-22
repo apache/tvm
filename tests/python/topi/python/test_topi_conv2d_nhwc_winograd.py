@@ -91,7 +91,7 @@ def verify_conv2d_nhwc(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             if bgemm == "direct":

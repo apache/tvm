@@ -31,8 +31,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img").set_body([](TVMArgs args, TVMR
   id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
   MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
   runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
-  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->ctx);
-  id<MTLBuffer> temp = rt->GetTempBuffer(buf->ctx, [mtlbuf length]);
+  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->device);
+  id<MTLBuffer> temp = rt->GetTempBuffer(buf->device, [mtlbuf length]);
   entry_ptr->metal_api->CopyDataFromTo((__bridge void*)mtlbuf, 0, (__bridge void*)temp, 0,
                                        [mtlbuf length], buf -> ctx, buf -> ctx, buf -> dtype,
                                        nullptr);
@@ -63,7 +63,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer").set_body([](TVMArgs args, TVMR
   MPSImage* mpsimg = (__bridge MPSImage*)(img->data);
   MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
   runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
-  id<MTLBuffer> temp = rt->GetTempBuffer(buf->ctx, [mtlbuf length]);
+  id<MTLBuffer> temp = rt->GetTempBuffer(buf->device, [mtlbuf length]);
 
   [mpsimg readBytes:[temp contents]
          dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
@@ -102,8 +102,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetVa
   // Get Metal device API
   MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
   runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
-  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(data->ctx);
-  id<MTLCommandQueue> queue = entry_ptr->metal_api->GetCommandQueue(data->ctx);
+  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(data->device);
+  id<MTLCommandQueue> queue = entry_ptr->metal_api->GetCommandQueue(data->device);
   id<MTLCommandBuffer> cb = [queue commandBuffer];
   // data to MPSImage
   DLTensor tmp_in;
@@ -111,7 +111,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetVa
   MPSImage* tempA = (__bridge MPSImage*)tmp_in.data;
   // weight to temp memory
   id<MTLBuffer> bufB = (__bridge id<MTLBuffer>)(weight->data);
-  id<MTLBuffer> tempB = rt->GetTempBuffer(weight->ctx, [bufB length]);
+  id<MTLBuffer> tempB = rt->GetTempBuffer(weight->device, [bufB length]);
   entry_ptr->metal_api->CopyDataFromTo((__bridge void*)bufB, 0, (__bridge void*)tempB, 0,
                                        [bufB length], weight -> ctx, weight -> ctx, tmp_in.dtype,
                                        nullptr);

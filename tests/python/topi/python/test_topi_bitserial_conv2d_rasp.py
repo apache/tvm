@@ -67,7 +67,7 @@ def verify_bitserial_conv2d_nhwc(
     matches = re.findall("vpadd", assembly)
     assert len(matches) > 0
 
-    ctx = tvm.context(device, 0)
+    ctx = tvm.device(device, 0)
     if "arm" not in os.uname()[4]:
         print("Skipped running code, not an arm device")
         return

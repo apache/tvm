@@ -45,9 +45,9 @@ def test_exp():
     def check_device(device, host="llvm"):
         if not tvm.testing.device_enabled(device):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         fexp = tvm.build(s, [A, B], device, host, name="myexp")
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         # launch the kernel.
         n = 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
@@ -80,9 +80,9 @@ def test_multi_kernel():
     def check_device(device, host="llvm"):
         if not tvm.testing.device_enabled(device):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         fadd = tvm.build(s, [A, B, C, D], device, host, name="myadd")
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         # launch the kernel.
         n = 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)

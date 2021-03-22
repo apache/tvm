@@ -36,7 +36,7 @@ def run_opt_pass(expr, passes):
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
-    ctx = tvm.context("llvm", 0)
+    ctx = tvm.device("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
 
     result = intrp.evaluate(expr)
@@ -149,7 +149,7 @@ def test_nat_add():
     p.mod.import_from_std("nat.rly")
     nat, z, s = p.mod.get_type("nat")
     add = p.mod.get_global_var("nat_add")
-    ctx = tvm.context("llvm", 0)
+    ctx = tvm.device("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2

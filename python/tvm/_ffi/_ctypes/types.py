@@ -86,9 +86,9 @@ def _wrap_arg_func(return_f, type_code):
     return _wrap_func
 
 
-def _ctx_to_int64(ctx):
+def _device_to_int64(dev):
     """Pack context into int64 in native endian"""
-    data = struct.pack("=ii", ctx.device_type, ctx.device_id)
+    data = struct.pack("=ii", dev.device_type, dev.device_id)
     return struct.unpack("=q", data)[0]
 
 
@@ -99,7 +99,7 @@ RETURN_SWITCH = {
     ArgTypeCode.NULL: lambda x: None,
     ArgTypeCode.STR: lambda x: py_str(x.v_str),
     ArgTypeCode.BYTES: _return_bytes,
-    ArgTypeCode.TVM_CONTEXT: _return_device,
+    ArgTypeCode.DLDEVICE: _return_device,
 }
 
 C_TO_PY_ARG_SWITCH = {
@@ -109,5 +109,5 @@ C_TO_PY_ARG_SWITCH = {
     ArgTypeCode.NULL: lambda x: None,
     ArgTypeCode.STR: lambda x: py_str(x.v_str),
     ArgTypeCode.BYTES: _return_bytes,
-    ArgTypeCode.TVM_CONTEXT: _return_device,
+    ArgTypeCode.DLDEVICE: _return_device,
 }

@@ -43,7 +43,7 @@ def test_stable_sort_by_key():
                 print("skip because thrust is not enabled...")
                 return
 
-            ctx = tvm.context(target, 0)
+            ctx = tvm.device(target, 0)
             s = te.create_schedule([keys_out.op, values_out.op])
             f = tvm.build(s, [keys, values, keys_out, values_out], target)
 
@@ -80,7 +80,7 @@ def test_exclusive_scan():
                 scan, reduction = exclusive_scan(values, return_reduction=True)
                 s = schedule_scan([scan, reduction])
 
-                ctx = tvm.context(target, 0)
+                ctx = tvm.device(target, 0)
                 f = tvm.build(s, [values, scan, reduction], target)
 
                 values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)
@@ -123,7 +123,7 @@ def test_inclusive_scan():
                 scan = scan_thrust(values, out_dtype, exclusive=False)
                 s = tvm.te.create_schedule([scan.op])
 
-                ctx = tvm.context(target, 0)
+                ctx = tvm.device(target, 0)
                 f = tvm.build(s, [values, scan], target)
 
                 values_np = np.random.randint(0, 10, size=ishape).astype(np.int32)

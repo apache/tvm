@@ -90,7 +90,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
                 np_out3[i, j] = -1
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -147,7 +147,7 @@ def verify_non_max_suppression(
     indices = te.placeholder((batch, num_anchors), dtype="int32", name="indices")
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -340,7 +340,7 @@ def verify_multibox_prior(
         np_out = np.clip(np_out, 0, 1)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -395,7 +395,7 @@ def test_multibox_detection():
     )
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -446,7 +446,7 @@ def verify_roi_align(
     a_np, rois_np, b_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -507,7 +507,7 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
     a_np, rois_np, b_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -543,7 +543,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
     im_info = te.placeholder(np_im_info.shape)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

@@ -221,7 +221,7 @@ def test_cuda_inf_nan():
         # Only need to test compiling here
         fun(a, c)
 
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
 
     check_inf_nan(ctx, 1, -float("inf"), "float32")
     check_inf_nan(ctx, 1, -float("inf"), "float64")
@@ -435,7 +435,7 @@ def test_cuda_reduction():
         if not tvm.testing.device_enabled(device):
             print("Skipping", device)
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         a = te.placeholder((m, n), name="a", dtype=dtype)
         b = te.placeholder((m, n), name="b", dtype=dtype)
         c = a + b
@@ -466,7 +466,7 @@ def test_cuda_mix_threaded_and_normal_reduction():
         if not tvm.testing.device_enabled(device):
             print("Skipping", device)
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if dtype == "float16" and not have_fp16(ctx.compute_version):
             print("Skip because gpu does not have fp16 support")
             return
@@ -812,7 +812,7 @@ def vcf_check_common(s, args):
     # To check if every vectorize loop transforms to correct instruction
     # print(mod.imported_modules[0].get_source())
 
-    ctx = tvm.context("cuda", 0)
+    ctx = tvm.device("cuda", 0)
     a = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
     b = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
     c = tvm.nd.array(np.zeros((512, 512), dtype="float32"), ctx)
@@ -957,7 +957,7 @@ def test_unrolled_vectorization():
     s[CC].vectorize(j)
 
     # Check correctness
-    ctx = tvm.context(target)
+    ctx = tvm.device(target)
     a_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)
     b_tvm = tvm.nd.array(np.ones((N, N)).astype(dtype), ctx=ctx)
     c_tvm = tvm.nd.empty((N, N), ctx=ctx)

@@ -45,10 +45,10 @@ class GraphRuntimeCudaGraph : public GraphRuntime {
    * \brief Begin CUDA graph capture on stream, the stream enters capture mode.
    */
   void StartCapture() {
-    const TVMContext& ctx = data_entry_[entry_id(0, 0)]->ctx;
+    const Device& dev = data_entry_[entry_id(0, 0)]->device;
 
-    TVMStreamCreate(ctx.device_type, ctx.device_id, &capture_stream_);
-    TVMSetStream(ctx.device_type, ctx.device_id, capture_stream_);
+    TVMStreamCreate(dev.device_type, dev.device_id, &capture_stream_);
+    TVMSetStream(dev.device_type, dev.device_id, capture_stream_);
 
     CUDA_CALL(cudaStreamBeginCapture(static_cast<cudaStream_t>(capture_stream_),
                                      cudaStreamCaptureModeGlobal));
@@ -109,10 +109,10 @@ PackedFunc GraphRuntimeCudaGraph::GetFunction(const std::string& name,
 }
 
 Module GraphRuntimeCudaGraphCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                                   const std::vector<TVMContext>& ctxs,
+                                   const std::vector<Device>& devs,
                                    PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntimeCudaGraph>();
-  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
+  exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
 
@@ -122,13 +122,13 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_cuda_graph.create")
                                      "at least 4, but it has "
                                   << args.num_args;
       PackedFunc lookup_linked_param_func;
-      int ctx_start_arg = 2;
+      int dev_start_arg = 2;
       if (args[2].type_code() == kTVMPackedFuncHandle) {
         lookup_linked_param_func = args[2];
-        ctx_start_arg++;
+        dev_start_arg++;
       }
 
-      *rv = GraphRuntimeCudaGraphCreate(args[0], args[1], GetAllContext(args, ctx_start_arg),
+      *rv = GraphRuntimeCudaGraphCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
                                         lookup_linked_param_func);
     });
 }  // namespace runtime

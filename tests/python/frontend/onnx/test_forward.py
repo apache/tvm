@@ -142,7 +142,7 @@ def verify_with_ort_with_inputs(
         targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
 
     for target in targets:
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         if use_vm:
             tvm_out = get_tvm_output_with_vm(
                 model,

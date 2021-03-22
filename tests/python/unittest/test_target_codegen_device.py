@@ -37,7 +37,7 @@ def test_large_uint_imm():
     def check_target(device):
         if not tvm.testing.device_enabled(device):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         f = tvm.build(s, [A], device)
         # launch the kernel.
         a = tvm.nd.empty((n,), dtype=A.dtype, ctx=ctx)
@@ -70,7 +70,7 @@ def test_add_pipeline():
     def check_target(device, host="stackvm"):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         mhost = tvm.driver.build(s, [A, B, D], target=device, target_host=host)
         f = mhost.entry_func
         # launch the kernel.

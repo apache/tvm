@@ -28,7 +28,7 @@ from . import _ffi_api
 from .feature import Feature
 
 
-def context_analysis(mod, default_context):
+def context_analysis(mod, default_device):
     """Analyze the device context information of each IR node in a Relay
     program.
 
@@ -37,10 +37,10 @@ def context_analysis(mod, default_context):
     mod : tvm.IRModule
         The input module.
 
-    default_context : tvm.runtime.TVMContext
+    default_device : tvm.runtime.Device
         The default context allocated to an IR node.
     """
-    return _ffi_api.ContextAnalysis(mod, default_context)
+    return _ffi_api.ContextAnalysis(mod, default_device)
 
 
 def post_order_visit(expr, fvisit):

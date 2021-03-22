@@ -103,11 +103,11 @@ class NDArray : public ObjectRef {
    */
   TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
   /*!
-   * \brief Copy the data to another context.
-   * \param ctx The target context.
-   * \return The array under another context.
+   * \brief Copy the data to another device.
+   * \param dev The target device.
+   * \return The array under another device.
    */
-  inline NDArray CopyTo(const DLDevice& ctx) const;
+  inline NDArray CopyTo(const Device& dev) const;
   /*!
    * \brief Load NDArray from stream
    * \param stream The input data stream
@@ -351,11 +351,11 @@ inline void NDArray::CopyTo(const NDArray& other) const {
   CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
 }
 
-inline NDArray NDArray::CopyTo(const DLDevice& ctx) const {
+inline NDArray NDArray::CopyTo(const Device& dev) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
   NDArray ret =
-      Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, ctx);
+      Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev);
   this->CopyTo(ret);
   return ret;
 }
@@ -403,12 +403,12 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   // This is used to prevent case when another user loads the parameters
   // back on machine that do not have GPU or related context.
   //
-  // We can always do array.CopyTo(target_ctx) to get a corresponding
+  // We can always do array.CopyTo(target_dev) to get a corresponding
   // array in the target context.
   Device cpu_dev;
   cpu_dev.device_type = kDLCPU;
   cpu_dev.device_id = 0;
-  strm->Write(cpu_ctx);
+  strm->Write(cpu_dev);
   strm->Write(tensor->ndim);
   strm->Write(tensor->dtype);
   int ndim = tensor->ndim;
@@ -421,7 +421,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   int64_t data_byte_size = type_bytes * num_elems;
   strm->Write(data_byte_size);
 
-  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->ctx.device_type == kDLCPU && tensor->strides == nullptr &&
+  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU && tensor->strides == nullptr &&
       tensor->byte_offset == 0) {
     // quick path
     strm->Write(tensor->data, data_byte_size);
@@ -479,5 +479,26 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
 }
 
 }  // namespace runtime
+
+// alias Device
+using tvm::runtime::Device;
+
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<tvm::runtime::Device> {
+  std::size_t operator()(const tvm::runtime::Device& dev) const {
+    return ((dev.device_id << 8) | dev.device_type);
+  }
+};
+
+template <>
+struct equal_to<tvm::runtime::Device> {
+  bool operator()(const tvm::runtime::Device& lhs, const tvm::runtime::Device& rhs) const {
+    return (lhs.device_type == rhs.device_type && lhs.device_id == rhs.device_id);
+  }
+};
+}  // namespace std
+
 #endif  // TVM_RUNTIME_NDARRAY_H_

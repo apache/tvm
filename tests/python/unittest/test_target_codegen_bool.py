@@ -53,7 +53,7 @@ def test_cmp_load_store():
     def check_device(device):
         if not tvm.testing.device_enabled(device):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         s = te.create_schedule(D.op)
         for stage in [C, D]:
             xo, xi = s[stage].split(stage.op.axis[0], factor=4)

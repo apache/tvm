@@ -119,7 +119,7 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(target))
+        ctx = tvm.device(str(target))
         ctx_ref = tvm.cpu()
 
         args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
@@ -166,7 +166,7 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(target))
+        ctx = tvm.device(str(target))
         ctx_ref = tvm.cpu()
 
         args = [tvm.nd.array(x, ctx=ctx) for x in np_args]

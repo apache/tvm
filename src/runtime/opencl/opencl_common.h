@@ -188,8 +188,8 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_platform_id platform_id;
   // global platform name
   std::string platform_name;
-  // global context of this process
-  cl_context context{nullptr};
+  // global device of this process
+  cl_device device{nullptr};
   // whether the workspace it initialized.
   bool initialized_{false};
   // the device type
@@ -209,18 +209,18 @@ class OpenCLWorkspace : public DeviceAPI {
   std::mutex mu;
   // destructor
   ~OpenCLWorkspace() {
-    if (context != nullptr) {
-      OPENCL_CALL(clReleaseContext(context));
+    if (device != nullptr) {
+      OPENCL_CALL(clReleaseContext(device));
     }
   }
   // Initialzie the device.
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
-  // Check whether the context is OpenCL or not.
-  virtual bool IsOpenCLDevice(TVMContext ctx) { return ctx.device_type == kDLOpenCL; }
-  // get the queue of the context
-  cl_command_queue GetQueue(TVMContext ctx) {
+  // Check whether the device is OpenCL or not.
+  virtual bool IsOpenCLDevice(Device ctx) { return ctx.device_type == kDLOpenCL; }
+  // get the queue of the device
+  cl_command_queue GetQueue(Device ctx) {
     ICHECK(IsOpenCLDevice(ctx));
     this->Init();
     ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
@@ -228,13 +228,13 @@ class OpenCLWorkspace : public DeviceAPI {
     return queues[ctx.device_id];
   }
   // override device API
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void SetDevice(Device ctx) final;
+  void GetAttr(Device ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device ctx, size_t size, size_t alignment, DLDataType type_hint) final;
+  void FreeDataSpace(Device ctx, void* ptr) final;
+  void StreamSync(Device ctx, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device ctx, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device ctx, void* data) final;
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -246,7 +246,7 @@ class OpenCLWorkspace : public DeviceAPI {
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      Device ctx_from, Device ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
 };
 
@@ -260,16 +260,16 @@ class OpenCLThreadEntry {
     // timestamp used to recognize stale kernel
     size_t version{0};
   };
-  /*! \brief The current context */
-  TVMContext context;
+  /*! \brief The current device */
+  Device device;
   /*! \brief The thread-local kernel table */
   std::vector<KTEntry> kernel_table;
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
   OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device) : pool(device_type, device) {
-    context.device_id = 0;
-    context.device_type = device_type;
+    device.device_id = 0;
+    device.device_type = device_type;
   }
   OpenCLThreadEntry() : OpenCLThreadEntry(kDLOpenCL, OpenCLWorkspace::Global()) {}
 

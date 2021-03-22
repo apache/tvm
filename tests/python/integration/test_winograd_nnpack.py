@@ -74,7 +74,7 @@ def verify_conv2d_nchw(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skipping %s becuase it is not enabled" % device)
         print("Running on target: %s" % device)

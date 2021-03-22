@@ -48,7 +48,7 @@ def test_fc_int8_acc32():
             print("skip because %s is not enabled..." % target)
             return
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         pc = dot_16x1x16_uint8_int8_int32_cascadelake()
         ak = te.reduce_axis((0, k), name="k")
         packedW = te.placeholder((n // 16, 16 * (k // 4), 4), name="packedW", dtype="int8")

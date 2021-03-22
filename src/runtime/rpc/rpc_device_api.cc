@@ -33,45 +33,45 @@ namespace runtime {
 
 class RPCDeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(TVMContext ctx) final {
-    auto remote_ctx = RemoveRPCSessionMask(ctx);
-    GetSess(ctx)->GetDeviceAPI(remote_ctx)->SetDevice(remote_ctx);
+  void SetDevice(Device dev) final {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    GetSess(dev)->GetDeviceAPI(remote_dev)->SetDevice(remote_dev);
   }
 
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
-    auto remote_ctx = RemoveRPCSessionMask(ctx);
-    GetSess(ctx)->GetDeviceAPI(remote_ctx)->GetAttr(remote_ctx, kind, rv);
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    GetSess(dev)->GetDeviceAPI(remote_dev)->GetAttr(remote_dev, kind, rv);
   }
 
-  void* AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape, DLDataType dtype,
+  void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope) final {
-    auto sess = GetSess(ctx);
-    auto remote_ctx = RemoveRPCSessionMask(ctx);
+    auto sess = GetSess(dev);
+    auto remote_dev = RemoveRPCSessionMask(dev);
     void* data =
-        sess->GetDeviceAPI(remote_ctx)->AllocDataSpace(remote_ctx, ndim, shape, dtype, mem_scope);
+        sess->GetDeviceAPI(remote_dev)->AllocDataSpace(remote_dev, ndim, shape, dtype, mem_scope);
     RemoteSpace* space = new RemoteSpace();
     space->data = data;
     space->sess = std::move(sess);
     return space;
   }
 
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
-    auto sess = GetSess(ctx);
-    auto remote_ctx = RemoveRPCSessionMask(ctx);
+    auto sess = GetSess(dev);
+    auto remote_dev = RemoveRPCSessionMask(dev);
     void* data =
-        sess->GetDeviceAPI(remote_ctx)->AllocDataSpace(remote_ctx, nbytes, alignment, type_hint);
+        sess->GetDeviceAPI(remote_dev)->AllocDataSpace(remote_dev, nbytes, alignment, type_hint);
 
     RemoteSpace* space = new RemoteSpace();
     space->data = data;
     space->sess = std::move(sess);
     return space;
   }
-  void FreeDataSpace(TVMContext ctx, void* ptr) final {
+  void FreeDataSpace(Device dev, void* ptr) final {
     RemoteSpace* space = static_cast<RemoteSpace*>(ptr);
-    auto remote_ctx = RemoveRPCSessionMask(ctx);
+    auto remote_dev = RemoveRPCSessionMask(dev);
     try {
-      GetSess(ctx)->GetDeviceAPI(remote_ctx)->FreeDataSpace(remote_ctx, space->data);
+      GetSess(dev)->GetDeviceAPI(remote_dev)->FreeDataSpace(remote_dev, space->data);
     } catch (const Error& e) {
       // fault tolerance to remote close.
     }
@@ -81,7 +81,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final {
     DLDevice dev_from = from->device;
     DLDevice dev_to = to->device;
-    if (IsRPCSessionContext(dev_from) && IsRPCSessionContext(dev_to)) {
+    if (IsRPCSessionDevice(dev_from) && IsRPCSessionDevice(dev_to)) {
       ICHECK(dev_from.device_type == dev_to.device_type)
           << "Cannot copy across two different remote session";
       DLTensor from_tensor = *from;
@@ -93,14 +93,14 @@ class RPCDeviceAPI final : public DeviceAPI {
       auto remote_dev = from_tensor.device;
       if (remote_dev.device_type == kDLCPU) remote_dev = to_tensor.device;
       GetSess(dev_from)->GetDeviceAPI(remote_dev)->CopyDataFromTo(&from_tensor, &to_tensor, stream);
-    } else if (IsRPCSessionContext(dev_from) && dev_to.device_type == kDLCPU) {
+    } else if (IsRPCSessionDevice(dev_from) && dev_to.device_type == kDLCPU) {
       DLTensor from_tensor = *from;
       from_tensor.device = RemoveRPCSessionMask(dev_from);
       from_tensor.data = static_cast<const RemoteSpace*>(from->data)->data;
       void* to_bytes = static_cast<char*>(to->data) + to->byte_offset;
       size_t nbytes = GetDataSize(*to);
       GetSess(dev_from)->CopyFromRemote(&from_tensor, to_bytes, nbytes);
-    } else if (dev_from.device_type == kDLCPU && IsRPCSessionContext(dev_to)) {
+    } else if (dev_from.device_type == kDLCPU && IsRPCSessionDevice(dev_to)) {
       DLTensor to_tensor = *to;
       to_tensor.device = RemoveRPCSessionMask(dev_to);
       to_tensor.data = static_cast<const RemoteSpace*>(to->data)->data;

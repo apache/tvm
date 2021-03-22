@@ -64,4 +64,4 @@ def test_scatter_nd(ctx, target):
 
 
 if __name__ == "__main__":
-    test_scatter_nd(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_scatter_nd(tvm.device("cpu"), tvm.target.Target("llvm"))

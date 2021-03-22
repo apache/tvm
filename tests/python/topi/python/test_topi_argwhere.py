@@ -41,7 +41,7 @@ def verify_argwhere(data_shape):
     condition = te.placeholder(shape=data_shape, name="condition", dtype=dtype)
 
     def check_device(device, ctx):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not ctx.exist or device not in _argwhere_compute:
             return
 

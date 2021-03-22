@@ -52,7 +52,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
             with tvm.target.Target(device):

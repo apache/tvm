@@ -34,23 +34,6 @@
 #include <unordered_map>
 #include <vector>
 
-namespace std {
-template <>
-struct hash<Device> {
-  std::size_t operator()(const tvm::Device& dev) const {
-    return ((dev.device_id << 8) | dev.device_type);
-  }
-};
-
-template <>
-struct equal_to<Device> {
-  bool operator()(const tvm::Device& lhs, const tvm::Device& rhs) const {
-    return (lhs.device_type == rhs.device_type && lhs.device_id == rhs.device_id);
-  }
-};
-
-}  // namespace std
-
 namespace tvm {
 namespace runtime {
 namespace vm {

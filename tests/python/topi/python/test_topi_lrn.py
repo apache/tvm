@@ -50,7 +50,7 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
         with tvm.target.Target(device):
             s_func = tvm.topi.testing.dispatch(device, _lrn_schedule)
             s = s_func([B])
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)

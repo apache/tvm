@@ -39,9 +39,9 @@ def test_exp():
     def check_device(device, host="stackvm"):
         if not tvm.testing.device_enabled(host):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         fexp = tvm.build(s, [A, B], device, host, name="myexp")
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         # launch the kernel.
         n = 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
@@ -68,7 +68,7 @@ def test_fmod():
         bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
 
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -123,11 +123,11 @@ def test_multiple_cache_write():
     def check_device(device, host="stackvm"):
         if not tvm.testing.device_enabled(host):
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             return
         func = tvm.build(s, [A0, A1, C], device, host, name="multiple_cache_write")
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         # launch the kernel.
         n = 1024
         a0 = tvm.nd.array(np.random.uniform(size=n).astype(A0.dtype), ctx)
@@ -181,7 +181,7 @@ def test_popcount():
         bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
 
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -233,7 +233,7 @@ def test_add():
 
         # one line to build the function.
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -285,7 +285,7 @@ def try_warp_memory():
 
     # one line to build the function.
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return

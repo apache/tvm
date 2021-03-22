@@ -27,7 +27,7 @@ def test_static_tensor():
     dtype = "float32"
     stype = "csr"
     target = "llvm"
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
     m = te.size_var("m")
     n = te.size_var("n")
     A = tvmsp.placeholder(shape=(m, n), name="A", dtype=dtype)
@@ -53,7 +53,7 @@ def test_dynamic_tensor():
     dtype = "float32"
     stype = "csr"
     target = "llvm"
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
     nr, nc, n = te.size_var("nr"), te.size_var("nc"), te.size_var("n")
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name="A", dtype=dtype)
     assert A.stype == "csr"
@@ -80,7 +80,7 @@ def test_sparse_array_tuple():
     dtype, itype = "float32", "int32"
     stype = "csr"
     target = "llvm"
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
     nr, nc, n = te.size_var("nr"), te.size_var("nc"), te.size_var("n")
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name="A", dtype=dtype)
     assert A.stype == "csr"

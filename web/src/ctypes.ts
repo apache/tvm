@@ -217,7 +217,7 @@ export const enum ArgTypeCode {
   TVMOpaqueHandle = 3,
   Null = 4,
   TVMDataType = 5,
-  TVMContext = 6,
+  DLDevice = 6,
   TVMDLTensorHandle = 7,
   TVMObjectHandle = 8,
   TVMModuleHandle = 9,

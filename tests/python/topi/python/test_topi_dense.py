@@ -106,7 +106,7 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
             print("Skip because int8 intrinsics are not available")
             return

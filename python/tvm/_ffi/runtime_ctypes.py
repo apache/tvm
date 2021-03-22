@@ -33,7 +33,7 @@ class ArgTypeCode(object):
     HANDLE = 3
     NULL = 4
     TVM_TYPE = 5
-    TVM_CONTEXT = 6
+    DLDEVICE = 6
     DLTENSOR_HANDLE = 7
     OBJECT_HANDLE = 8
     MODULE_HANDLE = 9

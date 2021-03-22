@@ -108,7 +108,7 @@ def test_cpu():
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
@@ -161,7 +161,7 @@ def test_gpu():
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
@@ -215,7 +215,7 @@ def test_while_vectorize():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [A, B, C], target)
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         a_np = np.random.uniform(size=n).astype(A.dtype)
         b_np = np.random.uniform(size=n).astype(B.dtype)
         a = tvm.nd.array(a_np, ctx)
@@ -283,7 +283,7 @@ def test_while_collatz():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [C], target)
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         func(c)
         ref = np.array([collatz_ref(i) for i in range(n)])
@@ -397,7 +397,7 @@ def test_while_mandel():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [C], target)
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         c = tvm.nd.array(np.zeros(shape, dtype=C.dtype), ctx)
         func(c)
         tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
@@ -480,7 +480,7 @@ def test_while_binary_search():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [A, B, C], target)
 
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         a_np = np.random.uniform(size=n).astype(A.dtype)
         b_np = np.random.uniform(size=n).astype(B.dtype)
         a_np = np.sort(a_np)

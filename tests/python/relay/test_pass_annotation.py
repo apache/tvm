@@ -36,7 +36,7 @@ def check_graph_runtime(
 ):
     with tvm.transform.PassContext(opt_level=opt_level, config=config):
         graph, lib, new_params = relay.build(func, target, params=params)
-        contexts = [tvm.cpu(0), tvm.context(device)]
+        contexts = [tvm.cpu(0), tvm.device(device)]
         graph_json = json.loads(graph)
         if "device_index" in graph_json["attrs"]:
             device_index = graph_json["attrs"]["device_index"][1]
@@ -53,7 +53,7 @@ def check_vm_runtime(target, ref_res, device, func, params, config, opt_level, e
         mod = tvm.IRModule()
         mod["main"] = func
         exe = relay.vm.compile(mod, target)
-        ctx = [tvm.cpu(0), tvm.context(device)]
+        ctx = [tvm.cpu(0), tvm.device(device)]
         vm = tvm.runtime.vm.VirtualMachine(exe, ctx)
         res = vm.invoke("main", **params)
         tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -69,8 +69,8 @@ def run_opt_pass(expr, passes):
 
 
 def test_redundant_annotation():
-    ctx1 = tvm.context(1)
-    ctx2 = tvm.context(2)
+    ctx1 = tvm.device(1)
+    ctx2 = tvm.device(2)
     x = relay.var("x", shape=(3,))
     y = relay.var("y", shape=(3,))
     z = relay.var("z", shape=(3,))
@@ -101,8 +101,8 @@ def test_redundant_annotation():
 
 
 def test_annotate_expr():
-    ctx1 = tvm.context(1)
-    ctx2 = tvm.context(2)
+    ctx1 = tvm.device(1)
+    ctx2 = tvm.device(2)
     x = relay.var("x", shape=(3,))
     y = relay.var("y", shape=(3,))
     z = relay.var("z", shape=(3,))
@@ -127,8 +127,8 @@ def test_annotate_expr():
 
 
 def test_annotate_all():
-    ctx1 = tvm.context(1)
-    ctx2 = tvm.context(2)
+    ctx1 = tvm.device(1)
+    ctx2 = tvm.device(2)
     x = relay.var("x", shape=(3,))
     y = relay.var("y", shape=(3,))
     z = relay.var("z", shape=(3,))
@@ -155,8 +155,8 @@ def test_annotate_all():
 
 
 def test_annotate_none():
-    ctx1 = tvm.context(1)
-    ctx2 = tvm.context(2)
+    ctx1 = tvm.device(1)
+    ctx2 = tvm.device(2)
     x = relay.var("x", shape=(3,))
     y = relay.var("y", shape=(3,))
     z = relay.var("z", shape=(3,))
@@ -200,8 +200,8 @@ def test_conv_network():
     weight = relay.var("weight", shape=(64, 64, 3, 3))
     data1 = relay.var("data1", shape=dshape)
     data2 = relay.var("data2", shape=dshape)
-    dev1 = tvm.context(1)
-    dev2 = tvm.context(2)
+    dev1 = tvm.device(1)
+    dev2 = tvm.device(2)
 
     def original():
         conv2d_1 = relay.nn.conv2d(data1, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
@@ -210,7 +210,7 @@ def test_conv_network():
         conv2d_3 = relay.nn.conv2d(add, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
 
         func = relay.Function([data1, data2, weight], conv2d_3)
-        func = run_opt_pass(func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(tvm.device(3).device_type))
         return func
 
     def annotated():
@@ -224,7 +224,7 @@ def test_conv_network():
         _conv2d_3 = relay.annotation.on_device(conv2d_3, dev2)
 
         func = relay.Function([data1, data2, weight], _conv2d_3)
-        func = run_opt_pass(func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
+        func = run_opt_pass(func, transform.RewriteAnnotatedOps(tvm.device(3).device_type))
         return func
 
     class ScheduleConv2d(ExprMutator):
@@ -303,8 +303,8 @@ def test_propogation():
                   |
                  tan          1
     """
-    ctx1 = tvm.context(1)
-    ctx2 = tvm.context(2)
+    ctx1 = tvm.device(1)
+    ctx2 = tvm.device(2)
 
     expected_dev_type = {"log": ctx1, "log2": ctx2, "log10": ctx2, "add": ctx2, "tan": ctx1}
 
@@ -390,10 +390,10 @@ def run_fusible_network(dev, tgt):
 
     def test_fuse_log_add(device, tgt):
         """ Only log and add are fused."""
-        fallback_device = tvm.context("cpu")
+        fallback_device = tvm.device("cpu")
         target = {"cpu": "llvm", device: tgt}
         cpu_ctx = fallback_device
-        dev_ctx = tvm.context(device)
+        dev_ctx = tvm.device(device)
 
         def annotated():
             add = relay.add(x, y)
@@ -423,7 +423,7 @@ def run_fusible_network(dev, tgt):
 
         annotated_func = annotated()
         expected_func = expected()
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         dev_idx = ctx.device_type
         expected_index = [1, 1, 1, dev_idx, dev_idx, 1, 1, dev_idx, dev_idx]
         check_annotated_graph(annotated_func, expected_func)
@@ -439,10 +439,10 @@ def run_fusible_network(dev, tgt):
 
     def test_fuse_all(device, tgt):
         """Fuse all operators."""
-        fallback_device = tvm.context("cpu")
+        fallback_device = tvm.device("cpu")
         target = {"cpu": "llvm", device: tgt}
         cpu_ctx = fallback_device
-        dev_ctx = tvm.context(device)
+        dev_ctx = tvm.device(device)
 
         def annotated():
             add = relay.add(x, y)
@@ -470,10 +470,10 @@ def run_fusible_network(dev, tgt):
         check_vm_runtime(target, ref_res, device, annotated_func, params, config, opt_level)
 
     def test_fallback_exp(device, tgt):
-        fallback_device = tvm.context("cpu")
+        fallback_device = tvm.device("cpu")
         target = {"cpu": "llvm", device: tgt}
         cpu_ctx = fallback_device
-        dev_ctx = tvm.context(device)
+        dev_ctx = tvm.device(device)
 
         def annotated():
             add = relay.add(x, y)
@@ -500,7 +500,7 @@ def run_fusible_network(dev, tgt):
 
         annotated_func = annotated()
         expected_func = expected()
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         dev_idx = ctx.device_type
         expected_index = [dev_idx, dev_idx, dev_idx, 1, 1]
         opt_level = 1
@@ -550,10 +550,10 @@ def run_unpropagatable_graph(dev, tgt):
     tmp_mul = np.multiply(c_data, d_data)
     ref_res = np.subtract(tmp_add, tmp_mul)
 
-    fallback_device = tvm.context("cpu")
+    fallback_device = tvm.device("cpu")
     target = {"cpu": "llvm", dev: tgt}
     cpu_ctx = fallback_device
-    dev_ctx = tvm.context(dev)
+    dev_ctx = tvm.device(dev)
 
     def annotated():
         add = relay.add(a, b)
@@ -618,7 +618,7 @@ def test_check_run_cuda():
 def test_tuple_get_item():
     dev = "cuda"
     cpu_ctx = tvm.cpu(0)
-    gpu_ctx = tvm.context(dev)
+    gpu_ctx = tvm.device(dev)
 
     def expected():
         x = relay.var("x", relay.ty.TensorType((3, 3, 4), "float32"))

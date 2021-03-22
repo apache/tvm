@@ -58,7 +58,7 @@ def get_data(in_data_shapes, dtype="float32"):
 
 def run_relay(mod, params, in_data):
     target = "llvm"
-    ctx = tvm.context("llvm", 0)
+    ctx = tvm.device("llvm", 0)
     intrp = relay.create_executor("graph", mod, ctx=ctx, target=target)
     in_data = [tvm.nd.array(value) for value in in_data.values()]
     return intrp.evaluate()(*in_data, **params).asnumpy()

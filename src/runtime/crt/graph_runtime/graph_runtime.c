@@ -952,7 +952,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   for (idx = 0; idx < attrs->shape_count; idx++) {
     int storage_id = attrs->storage_id[idx];
     // Use the fallback device if no device index is available.
-    int device_type = runtime->devs[0].device_type;
+    int device_type = runtime->devices[0].device_type;
     uint32_t size = Shape_Accumulate(attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx]);
     DLDataType t = vtype[idx];
     uint32_t bits = t.bits * t.lanes;
@@ -976,7 +976,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   }
   for (idx = 0; idx < pool_entry_count; idx++) {
     TVMGraphRuntimePoolEntry pit = pool_entry[idx];
-    TVMContext dev = runtime->devs[0];
+    DLDevice dev = runtime->devices[0];
     uint8_t did_find_linked_param = 0;
     if (lookup_linked_param_valid) {
       lookup_linked_param.args.values[0].v_int64 = idx;
@@ -1153,7 +1153,7 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
  * \return 0 on success.
  */
 int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
-                         TVMModuleHandle module_handle, const TVMContext* devs) {
+                         TVMModuleHandle module_handle, const DLDevice* devs) {
   JSONReader reader;
   tvm_crt_error_t err = JSONReader_Create(graph_json, &reader);
   if (err != kTvmErrorNoError) {
@@ -1166,7 +1166,7 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
     return -1;
   }
   runtime->module_handle = module_handle;
-  runtime->devs[0] = devs[0];
+  runtime->devices[0] = devs[0];
 
   int status;
   status = TVMGraphRuntime_SetupStorage(runtime);
@@ -1186,7 +1186,7 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
 }
 
 int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const TVMContext* devs, TVMGraphRuntime** runtime) {
+                           const DLDevice* devs, TVMGraphRuntime** runtime) {
   DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntime), dev, (void**)runtime);
   if (err != kTvmErrorNoError) {

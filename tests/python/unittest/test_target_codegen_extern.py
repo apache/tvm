@@ -68,7 +68,7 @@ def test_add_pipeline():
         C = C_gpu if target in ["opencl", "cuda"] else C_cpu
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         # launch the kernel.
         n = nn
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)

@@ -59,7 +59,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -105,7 +105,7 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -152,7 +152,7 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -195,7 +195,7 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -439,7 +439,7 @@ def test_sparse_dense_bsr_randomized():
         X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
 
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 return
@@ -484,7 +484,7 @@ def test_sparse_dense_padded_cuda():
     )
     X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
     with tvm.target.Target("cuda"):
-        ctx = tvm.context("gpu")
+        ctx = tvm.device("gpu")
         Y = topi.cuda.sparse_dense_padded(X, W_data, W_indices, W_indptr)
         s = topi.cuda.schedule_sparse_dense_padded([Y])
         func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])

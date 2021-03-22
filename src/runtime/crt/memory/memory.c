@@ -256,7 +256,7 @@ tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** 
  * \brief Free the memory.
  * \param interface Pointer to this structure.
  * \param ptr A pointer returned from TVMPlatformMemoryAllocate which should be free'd.
- * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
+ * \param dev Execution device passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
 tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr, DLDevice dev) {

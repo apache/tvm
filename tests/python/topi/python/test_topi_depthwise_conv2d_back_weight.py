@@ -54,7 +54,7 @@ def verify_depthwise_conv2d_back_weight(
     schedule = schedule_depthwise_conv2d_backward_weight_nhwc(Weight_grad)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

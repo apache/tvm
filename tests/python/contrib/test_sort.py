@@ -103,7 +103,7 @@ def test_sort_by_key_gpu():
 
         with tvm.target.Target(target):
             keys_out, values_out = sort_by_key(keys, values)
-            ctx = tvm.context(target)
+            ctx = tvm.device(target)
             s = te.create_schedule([keys_out.op, values_out.op])
             f = tvm.build(s, [keys, values, keys_out, values_out], target)
 

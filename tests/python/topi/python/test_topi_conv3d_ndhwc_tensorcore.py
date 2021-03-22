@@ -85,7 +85,7 @@ def verify_conv3d_ndhwc(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(

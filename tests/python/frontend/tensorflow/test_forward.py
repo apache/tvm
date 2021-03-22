@@ -132,7 +132,7 @@ def run_tvm_graph(
     mod, params = relay.frontend.from_tensorflow(
         graph_def, layout=layout, shape=shape_dict, outputs=out_names
     )
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
     if mode == "debug":
         ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
@@ -237,7 +237,7 @@ def compare_tf_with_tvm(
         devices = targets if targets else ["llvm", "cuda"]
 
         for device in devices:
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
@@ -3717,7 +3717,7 @@ def test_forward_resnetv2():
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, "input_tensor:0", out_node + ":0")
                 for device in ["llvm", "cuda"]:
-                    ctx = tvm.context(device, 0)
+                    ctx = tvm.device(device, 0)
                     if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
@@ -3754,7 +3754,7 @@ def _test_ssd_impl():
             )
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                ctx = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -5271,7 +5271,7 @@ def test_forward_dynamic_input_shape():
             tf_output = run_tf_graph(sess, np_data, "data:0", ["{}:0".format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                ctx = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue

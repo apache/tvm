@@ -107,7 +107,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             s = tvm.topi.testing.get_elemwise_schedule(device)(B)
@@ -150,7 +150,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         raise NotImplementedError()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -189,7 +189,7 @@ def verify_conv2d_scalar_bop(
     batch, in_size, in_channel, num_filter, kernel, stride, padding, typ="add"
 ):
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

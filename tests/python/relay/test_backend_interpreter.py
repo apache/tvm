@@ -29,7 +29,7 @@ from tvm.relay import testing, create_executor
 def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
     # TODO(tqchen) add more types once the schedule register is fixed.
     for target in ["llvm"]:
-        ctx = tvm.context(target, 0)
+        ctx = tvm.device(target, 0)
         if not tvm.testing.device_enabled(target):
             return
         intrp = create_executor(mod=mod, ctx=ctx, target=target)

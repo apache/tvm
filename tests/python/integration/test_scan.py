@@ -49,7 +49,7 @@ def test_scan():
 
     # one line to build the function.
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return

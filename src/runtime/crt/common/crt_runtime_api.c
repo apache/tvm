@@ -105,7 +105,7 @@ int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shap
   return TVMDeviceAllocDataSpace(dev, nbytes, align, dtype, out_data);
 }
 
-int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) { return TVMPlatformMemoryFree(ptr, ctx); }
+int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr) { return TVMPlatformMemoryFree(ptr, dev); }
 
 static bool IsContiguous(const DLTensor* arr) {
   if (arr->strides == NULL) return true;
@@ -422,7 +422,7 @@ tvm_crt_error_t TVMInitializeRuntime() {
 typedef struct {
   uint16_t function_index;
   TVMFunctionHandle func_to_time;
-  TVMContext ctx;
+  DLDevice device;
   int number;
   int repeat;
   int min_repeat_ms;
@@ -447,8 +447,8 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
 
   TVMModuleHandle mod = (TVMModuleHandle)args[0].v_handle;
   const char* name = args[1].v_str;
-  g_time_evaluator_state.ctx.device_type = args[2].v_int64;
-  g_time_evaluator_state.ctx.device_id = args[3].v_int64;
+  g_time_evaluator_state.device.device_type = args[2].v_int64;
+  g_time_evaluator_state.device.device_id = args[3].v_int64;
   g_time_evaluator_state.number = args[4].v_int64;
   g_time_evaluator_state.repeat = args[5].v_int64;
   g_time_evaluator_state.min_repeat_ms = args[6].v_int64;

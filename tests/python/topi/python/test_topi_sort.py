@@ -62,7 +62,7 @@ def verify_sort(axis, is_ascend):
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _sort_implement)
@@ -102,7 +102,7 @@ def verify_argsort(axis, is_ascend):
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _argsort_implement)
@@ -143,7 +143,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
     np_indices = np_indices.astype(dtype)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return

@@ -132,11 +132,11 @@ def test_threefry_generate_incorrect_out_size():
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], rand1)),
         target=tvm.target.Target("llvm"),
-        ctx=tvm.context("cpu"),
+        ctx=tvm.device("cpu"),
     ).evaluate()()
 
 
 if __name__ == "__main__":
-    test_threefry_repeatability(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_split(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.context("cpu"))
+    test_threefry_repeatability(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.device("cpu"))

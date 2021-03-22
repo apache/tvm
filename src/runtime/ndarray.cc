@@ -66,15 +66,15 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
 
   DLTensor from;
   from.data = const_cast<void*>(data);
-  from.ctx = Device{kDLCPU, 0};
+  from.device = Device{kDLCPU, 0};
   from.ndim = handle->ndim;
   from.dtype = handle->dtype;
   from.shape = handle->shape;
   from.strides = nullptr;
   from.byte_offset = 0;
-  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(&from, handle, nullptr);
+  DeviceAPI::Get(handle->device)->CopyDataFromTo(&from, handle, nullptr);
   // Synchronize in case data become unavailable later.
-  DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
+  DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
 void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
@@ -84,16 +84,16 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
 
   DLTensor to;
   to.data = const_cast<void*>(data);
-  to.ctx = Device{kDLCPU, 0};
+  to.device = Device{kDLCPU, 0};
   to.ndim = handle->ndim;
   to.dtype = handle->dtype;
   to.shape = handle->shape;
   to.strides = nullptr;
   to.byte_offset = 0;
 
-  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(const_cast<DLTensor*>(handle), &to, nullptr);
+  DeviceAPI::Get(handle->device)->CopyDataFromTo(const_cast<DLTensor*>(handle), &to, nullptr);
   // Synchronize in case data become unavailable later.
-  DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
+  DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
 struct NDArray::Internal {
@@ -103,8 +103,8 @@ struct NDArray::Internal {
     if (ptr->manager_ctx != nullptr) {
       static_cast<NDArray::Container*>(ptr->manager_ctx)->DecRef();
     } else if (ptr->dl_tensor.data != nullptr) {
-      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.ctx)
-          ->FreeDataSpace(ptr->dl_tensor.ctx, ptr->dl_tensor.data);
+      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
+          ->FreeDataSpace(ptr->dl_tensor.device, ptr->dl_tensor.data);
     }
     delete ptr;
   }
@@ -175,7 +175,7 @@ struct NDArray::Internal {
 NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
   ICHECK(data_ != nullptr);
   ICHECK(get_mutable()->dl_tensor.strides == nullptr) << "Can only create view for compact tensor";
-  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.ctx);
+  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.device);
   ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
   size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
   size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
@@ -193,8 +193,8 @@ DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutab
 NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev,
                        Optional<String> mem_scope) {
   NDArray ret = Internal::Create(shape, dtype, dev);
-  ret.get_mutable()->dl_tensor.data = DeviceAPI::Get(ret->ctx)->AllocDataSpace(
-      ret->ctx, shape.size(), shape.data(), ret->dtype, mem_scope);
+  ret.get_mutable()->dl_tensor.data = DeviceAPI::Get(ret->device)->AllocDataSpace(
+      ret->device, shape.size(), shape.data(), ret->dtype, mem_scope);
   return ret;
 }
 
@@ -232,7 +232,7 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCPUPinned ||
          to->device.device_type == kDLCPUPinned)
-      << "Can not copy across different ctx types directly";
+      << "Can not copy across different device types directly";
 
   // Use the context that is *not* a cpu context to get the correct device
   // api manager.
@@ -284,9 +284,9 @@ TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, 
   int ndim = args[1];
   std::vector<int64_t> shape(shape_ptr, shape_ptr + ndim);
   DataType dtype = args[2];
-  TVMContext ctx = args[3];
+  Device dev = args[3];
   Optional<String> mem_scope = args[4];
-  auto ndarray = NDArray::Empty(shape, dtype, ctx, mem_scope);
+  auto ndarray = NDArray::Empty(shape, dtype, dev, mem_scope);
   *ret = ndarray;
 });
 

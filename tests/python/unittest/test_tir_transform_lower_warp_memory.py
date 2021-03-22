@@ -260,7 +260,7 @@ def test_lower_warp_memory_roundup():
             s[AA].bind(yi, tx)
             s[AA].compute_at(s[B], xo)
 
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             func = tvm.build(s, [A, B], device)
             A_np = np.random.uniform(size=(m,)).astype(A.dtype)
             B_np = np.zeros(shape=(m,)).astype(B.dtype)

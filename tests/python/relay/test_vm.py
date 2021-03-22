@@ -176,7 +176,7 @@ def test_multiple_ifs():
     out = relay.Let(v0, relay.Tuple([relay.const(0)]), out)
     fn = relay.Function([b], out)
     mod["main"] = fn
-    ctx = tvm.runtime.ndarray.context("llvm", 0)
+    ctx = tvm.runtime.ndarray.device("llvm", 0)
     vm = relay.create_executor(ctx=ctx, mod=mod, kind="vm")
     res = vmobj_to_list(vm.evaluate()(False))
     assert res == [1, 0]

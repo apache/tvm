@@ -46,7 +46,7 @@ def verify_elemwise_sum(num_args, dtype):
             print("Skip because %s is not enabled" % device)
             return
 
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         f = tvm.build(s, tvm_placeholders + [esum], device, name="elemwise_sum")
         tvm_nd = [tvm.nd.array(nd, ctx) for nd in np_nd] + [out]
@@ -76,7 +76,7 @@ def verify_full(shape, dtype, fill_value):
             print("Skip because %s is not enabled" % device)
             return
 
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         f = tvm.build(s1, [A, B], device, name="full_like")
         f(tvm.nd.array(np.zeros(shape, dtype), ctx), out)
@@ -99,7 +99,7 @@ def verify_vectorization(n, m, dtype):
             print("Skip because gpu does not have fp16 support")
             return
         with tvm.target.Target(device):
-            ctx = tvm.context(device, 0)
+            ctx = tvm.device(device, 0)
             A = te.placeholder((n, m), name="A", dtype=dtype)
             B = te.compute((n, m), lambda i, j: A[i, j] + tvm.tir.const(1, A.dtype), name="B")
             S = tvm.topi.testing.get_elemwise_schedule(device)(B)

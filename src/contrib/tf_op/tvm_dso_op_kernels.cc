@@ -154,7 +154,7 @@ void EnsureAlignment(OpKernelContext* ctx, const tensorflow::Tensor& tensor, Ten
 }
 
 // Create DLPack tensor from TensorFlow tensor
-tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLDevice& ctx, int64_t* tf_shape,
+tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLDevice& dev, int64_t* tf_shape,
                                 DLTensor* out) {
   DLDataType dlpack_type;
   const tensorflow::Tensor& tensor = *src.tensor;
@@ -163,7 +163,7 @@ tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLDevice& ctx, int
   if (!status.ok()) {
     return status;
   }
-  out->ctx = ctx;
+  out->device = dev;
   out->ndim = tensor.shape().dims();
   out->shape = tf_shape;
   out->strides = nullptr;

@@ -59,7 +59,7 @@ def verify_fused_batch_norm(shape):
         constant_graph = graph_util.convert_variables_to_constants(sess, sess.graph_def, ["output"])
 
     for device in ["llvm"]:
-        ctx = tvm.context(device, 0)
+        ctx = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             continue

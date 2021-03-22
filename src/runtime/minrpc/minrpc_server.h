@@ -173,7 +173,7 @@ class MinRPCServer {
     uint64_t data_handle;
     this->Read(&data_handle);
     arr->data = reinterpret_cast<void*>(data_handle);
-    this->Read(&(arr->ctx));
+    this->Read(&(arr->device));
     this->Read(&(arr->ndim));
     this->Read(&(arr->dtype));
     arr->shape = this->ArenaAlloc<int64_t>(arr->ndim);
@@ -186,13 +186,13 @@ class MinRPCServer {
 
     uint8_t* data_ptr;
     int call_ecode = 0;
-    if (arr->ctx.device_type == kDLCPU) {
+    if (arr->device.device_type == kDLCPU) {
       data_ptr = reinterpret_cast<uint8_t*>(data_handle) + arr->byte_offset;
     } else {
       data_ptr = this->ArenaAlloc<uint8_t>(num_bytes);
       DLTensor temp;
       temp.data = reinterpret_cast<void*>(data_ptr);
-      temp.ctx = arr->ctx;
+      temp.device = arr->device;
       temp.ndim = arr->ndim;
       temp.dtype = arr->dtype;
       temp.shape = arr->shape;
@@ -201,7 +201,7 @@ class MinRPCServer {
       call_ecode = TVMDeviceCopyDataFromTo(arr, &temp, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(arr->ctx.device_type, arr->ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
       }
     }
 
@@ -224,7 +224,7 @@ class MinRPCServer {
     uint64_t data_handle;
     this->Read(&data_handle);
     arr->data = reinterpret_cast<void*>(data_handle);
-    this->Read(&(arr->ctx));
+    this->Read(&(arr->device));
     this->Read(&(arr->ndim));
     this->Read(&(arr->dtype));
     arr->shape = this->ArenaAlloc<int64_t>(arr->ndim);
@@ -235,7 +235,7 @@ class MinRPCServer {
     this->Read(&num_bytes);
 
     int call_ecode = 0;
-    if (arr->ctx.device_type == kDLCPU) {
+    if (arr->device.device_type == kDLCPU) {
       uint8_t* dptr = reinterpret_cast<uint8_t*>(data_handle) + arr->byte_offset;
       this->ReadArray(dptr, num_bytes);
     } else {
@@ -243,7 +243,7 @@ class MinRPCServer {
       this->ReadArray(temp_data, num_bytes);
       DLTensor temp;
       temp.data = temp_data;
-      temp.ctx = DLDevice{kDLCPU, 0};
+      temp.device = DLDevice{kDLCPU, 0};
       temp.ndim = arr->ndim;
       temp.dtype = arr->dtype;
       temp.shape = arr->shape;
@@ -252,7 +252,7 @@ class MinRPCServer {
       call_ecode = TVMDeviceCopyDataFromTo(&temp, arr, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(arr->ctx.device_type, arr->ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
       }
     }
 

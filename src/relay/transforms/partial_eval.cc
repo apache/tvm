@@ -613,7 +613,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const ConstantNode* op, LetList* ll) final {
-    return HasStatic(MkSTensor(op->data.CopyTo(context_)), ll->Push(GetRef<Expr>(op)));
+    return HasStatic(MkSTensor(op->data.CopyTo(device_)), ll->Push(GetRef<Expr>(op)));
   }
 
   PStatic VisitExpr_(const TupleNode* op, LetList* ll) final {

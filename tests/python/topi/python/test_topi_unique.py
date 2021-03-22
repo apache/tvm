@@ -106,6 +106,6 @@ def test_unique(ctx, target):
 
 
 if __name__ == "__main__":
-    test_unique(tvm.context("cpu"), tvm.target.Target("llvm"))
-    test_unique(tvm.context("cuda"), tvm.target.Target("cuda"))
-    test_unique(tvm.context("nvptx"), tvm.target.Target("nvptx"))
+    test_unique(tvm.device("cpu"), tvm.target.Target("llvm"))
+    test_unique(tvm.device("cuda"), tvm.target.Target("cuda"))
+    test_unique(tvm.device("nvptx"), tvm.target.Target("nvptx"))

@@ -32,7 +32,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
         assert isinstance(val, (tvm.tir.IntImm,))
         return val.value
 
-    ctx = tvm.context(target, 0)
+    ctx = tvm.device(target, 0)
     op = None
 
     if sch is None:
