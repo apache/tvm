@@ -17,7 +17,6 @@
 import numpy as np
 import onnx
 from onnx import helper, TensorProto, mapping, numpy_helper
-from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 import torch
 import torchvision
 import pytest
@@ -50,11 +49,14 @@ def get_tvm_output_with_vm(
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
+
     mod, params = relay.frontend.from_onnx(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
+
     if convert_to_static:
         mod = relay.transform.DynamicToStatic()(mod)
+
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data, **params)
     if isinstance(result, tvm.runtime.NDArray):
@@ -3477,7 +3479,13 @@ def test_topk():
 @tvm.testing.uses_gpu
 def test_roi_align():
     def verify_roi_align(
-        input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0
+        input_dims,
+        num_roi,
+        output_height,
+        output_width,
+        sampling_ratio=0,
+        spatial_scale=1.0,
+        mode="avg",
     ):
         output_dims = [num_roi, input_dims[1], output_height, output_width]
 
@@ -3485,7 +3493,7 @@ def test_roi_align():
             "RoiAlign",
             inputs=["X", "rois", "batch_indicies"],
             outputs=["Y"],
-            mode="avg",
+            mode=mode,
             output_height=output_height,
             output_width=output_width,
             sampling_ratio=sampling_ratio,
@@ -3529,6 +3537,8 @@ def test_roi_align():
     verify_roi_align((3, 4, 12, 16), 32, 7, 7, sampling_ratio=0, spatial_scale=1.5)
     verify_roi_align((5, 4, 16, 14), 32, 7, 7, sampling_ratio=1, spatial_scale=1.0)
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
+
+    # ONNX implementation of roi_align with max mode is incorrect, so we don't compare outputs here.
 
 
 # @tvm.testing.uses_gpu
