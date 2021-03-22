@@ -223,7 +223,9 @@ Doc TIRTextPrinter::PrintBufferRegion(const BufferRegionNode* op) {
   Doc doc;
   doc << Print(op->buffer) << "[";
   for (size_t i = 0; i < op->region.size(); ++i) {
-    if (i != 0) doc << ", ";
+    if (i != 0) {
+      doc << ", ";
+    }
     const auto& range = op->region[i];
     if (!is_one(range->extent)) {
       doc << Print(range->min) << ":" << Print(range->min + range->extent);
