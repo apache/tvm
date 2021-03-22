@@ -4244,8 +4244,7 @@ def test_onnx_nodes(test):
             elif "output" in tensor.split("/")[-1]:
                 outputs.append(numpy_helper.to_array(new_tensor))
             else:
-                print(tensor)
-                raise
+                raise ImportError(str(tensor) + " not labeled as an import or an output")
         tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
         if len(outputs) == 1:
             tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
