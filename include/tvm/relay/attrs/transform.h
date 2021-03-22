@@ -452,6 +452,20 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   }
 };
 
+/*! \brief Attributes used in cumprod operator */
+struct CumprodAttrs : public tvm::AttrsNode<CumprodAttrs> {
+  Integer axis;
+  DataType dtype;
+  Integer exclusive;
+  TVM_DECLARE_ATTRS(CumprodAttrs, "relay.attrs.CumprodAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis to multiply over").set_default(NullValue<Integer>());
+    TVM_ATTR_FIELD(dtype).describe("Output data type").set_default(NullValue<DataType>());
+    TVM_ATTR_FIELD(exclusive)
+        .describe("The first element is not included")
+        .set_default(NullValue<Integer>());
+  }
+};
+
 /*! \brief Attributes used in unique operator */
 struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
   bool sorted;
