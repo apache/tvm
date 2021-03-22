@@ -171,10 +171,10 @@ def test_gru_like():
     out_shape = (1, rnn_dim)
     z = unit(rnn_dim)
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         with tvm.transform.PassContext(opt_level=2):
             graph, lib, params = relay.build(tvm.IRModule.from_expr(z), target)
-            m = graph_runtime.create(graph, lib, ctx)
+            m = graph_runtime.create(graph, lib, dev)
             m.set_input("X", tvm.nd.array(x.astype(dtype)))
             m.set_input("y", tvm.nd.array(y.astype(dtype)))
             m.set_input(**params)

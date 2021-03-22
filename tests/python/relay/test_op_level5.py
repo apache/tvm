@@ -104,7 +104,7 @@ def test_resize3d_infer_type():
 
 
 @tvm.testing.parametrize_targets
-def test_resize3d(target, ctx):
+def test_resize3d(target, dev):
     def verify_resize(dshape, scale, method, layout):
         if layout == "NDHWC":
             size = (dshape[1] * scale, dshape[2] * scale, dshape[3] * scale)
@@ -798,7 +798,7 @@ def test_proposal():
             if not tvm.testing.device_enabled(target):
                 print("Skip test because %s is not enabled." % target)
                 continue
-            ctx = tvm.device(target, 0)
+            dev = tvm.device(target, 0)
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
             tvm.testing.assert_allclose(op_res1.asnumpy(), np_out, rtol=1e-4)

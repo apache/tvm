@@ -143,7 +143,7 @@ class Session:
                     int(timeouts.session_established_timeout_sec * 1e6),
                 )
             )
-            self.context = self._rpc.cpu(0)
+            self.device = self._rpc.cpu(0)
             return self
 
         except:

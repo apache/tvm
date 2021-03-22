@@ -99,7 +99,7 @@ def test_conv1d_run():
         for target, dev in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
-            ctx = tvm.device(target, 0)
+            dev = tvm.device(target, 0)
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -227,7 +227,7 @@ def test_conv2d_run():
         for target, dev in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
-            ctx = tvm.device(target, 0)
+            dev = tvm.device(target, 0)
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4, atol=1e-4)
@@ -402,10 +402,10 @@ def test_conv2d_winograd():
             for target, dev in tvm.testing.enabled_targets():
                 if target != "cuda":
                     continue
-                ctx = tvm.device(target, 0)
+                dev = tvm.device(target, 0)
                 params = {"w": tvm.nd.array(kernel)}
                 graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-                module = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+                module = tvm.contrib.graph_runtime.create(graph, lib, dev)
                 module.set_input("x", tvm.nd.array(data))
                 module.set_input(**params)
                 module.run()
@@ -513,7 +513,7 @@ def test_conv3d_run():
         for target, dev in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
-            ctx = tvm.device(target, 0)
+            dev = tvm.device(target, 0)
 
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
@@ -578,7 +578,7 @@ def test_conv3d_ndhwc_run():
         for target, dev in tvm.testing.enabled_targets():
             if target in except_targets:
                 continue
-            ctx = tvm.device(target, 0)
+            dev = tvm.device(target, 0)
 
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
@@ -665,10 +665,10 @@ def test_conv3d_winograd():
             for target, dev in tvm.testing.enabled_targets():
                 if target != "cuda":
                     continue
-                ctx = tvm.device(target, 0)
+                dev = tvm.device(target, 0)
                 params = {"w": tvm.nd.array(kernel)}
                 graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-                module = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+                module = tvm.contrib.graph_runtime.create(graph, lib, dev)
                 module.set_input("x", tvm.nd.array(data))
                 module.set_input(**params)
                 module.run()

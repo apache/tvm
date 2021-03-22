@@ -1709,7 +1709,7 @@ def test_segment_sum(data_np, segment_ids_np, num_segments, use_dyn):
 
 def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()):
     assert isinstance(data, list)
-    for target, dev in target_ctx:
+    for target, dev in target_device:
         for kind in ["vm"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
@@ -1763,7 +1763,7 @@ scanops_supported = {"cumsum": relay.op.cumsum, "cumprod": relay.op.cumprod}
 
 
 def run_binop_tests(
-    target, ctx, binop_type: str, gt_func: Callable[..., np.array], identity_value: int
+    target, dev, binop_type: str, gt_func: Callable[..., np.array], identity_value: int
 ):
     def assert_relay_scanop(
         data_np: np.array,
@@ -1822,17 +1822,17 @@ def run_binop_tests(
 
 
 @tvm.testing.parametrize_targets
-def test_cumsum(target, ctx):
-    run_binop_tests(target, ctx, binop_type="cumsum", gt_func=np.cumsum, identity_value=0)
+def test_cumsum(target, dev):
+    run_binop_tests(target, dev, binop_type="cumsum", gt_func=np.cumsum, identity_value=0)
 
 
 @tvm.testing.parametrize_targets
-def test_cumprod(target, ctx):
-    run_binop_tests(target, ctx, binop_type="cumprod", gt_func=np.cumprod, identity_value=1)
+def test_cumprod(target, dev):
+    run_binop_tests(target, dev, binop_type="cumprod", gt_func=np.cumprod, identity_value=1)
 
 
 @tvm.testing.parametrize_targets
-def test_scatter_nd(target, ctx):
+def test_scatter_nd(target, dev):
     def verify_scatter_nd(data_np, indices_np, shape, ref_res, rtol=1e-5, atol=1e-5):
         data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
         indices = relay.var("indices", shape=indices_np.shape, dtype=str(indices_np.dtype))

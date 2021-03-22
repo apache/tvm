@@ -703,7 +703,7 @@ def parametrize_targets(*args):
     Parameters
     ----------
     f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, ctx)`:,
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, device)`:,
         where `xxxxxxxxx` is any name.
     targets : list[str], optional
         Set of targets to run against. If not supplied,
@@ -712,13 +712,13 @@ def parametrize_targets(*args):
     Example
     -------
     >>> @tvm.testing.parametrize
-    >>> def test_mytest(target, ctx):
+    >>> def test_mytest(target, dev):
     >>>     ...  # do something
 
     Or
 
     >>> @tvm.testing.parametrize("llvm", "cuda")
-    >>> def test_mytest(target, ctx):
+    >>> def test_mytest(target, dev):
     >>>     ...  # do something
     """
 
@@ -728,7 +728,7 @@ def parametrize_targets(*args):
                 pytest.param(target, tvm.device(target, 0), marks=_target_to_requirement(target))
                 for target in targets
             ]
-            return pytest.mark.parametrize("target,ctx", params)(f)
+            return pytest.mark.parametrize("target,dev", params)(f)
 
         return func
 

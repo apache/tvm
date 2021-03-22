@@ -69,8 +69,8 @@ def tune_network(network, target):
 
         # Check the correctness
         def get_output(data, lib):
-            ctx = tvm.gpu()
-            module = graph_runtime.GraphModule(lib["default"](ctx))
+            dev = tvm.gpu()
+            module = graph_runtime.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()
             return module.get_output(0).asnumpy()

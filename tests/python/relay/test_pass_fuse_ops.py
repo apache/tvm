@@ -712,7 +712,7 @@ def test_fuse_bcast_reduce_scalar():
 
     orig = before()
     m = fuse2(tvm.IRModule.from_expr(orig))
-    for tgt, ctx in tvm.testing.enabled_targets():
+    for tgt, dev in tvm.testing.enabled_targets():
         relay.build(m, tgt)
     after = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(m["main"], after)

@@ -92,11 +92,11 @@ def test_compile_runtime():
     workspace = tvm.micro.Workspace()
 
     with _make_add_sess(workspace) as sess:
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
@@ -157,11 +157,11 @@ def test_graph_runtime():
 
     with _make_session(workspace, factory.get_lib()) as sess:
         graph_mod = tvm.micro.create_local_graph_runtime(
-            factory.get_json(), sess.get_system_lib(), sess.context
+            factory.get_json(), sess.get_system_lib(), sess.device
         )
-        A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4, 7])).all()
 
         graph_mod.run(a=A_data, b=B_data)
@@ -178,11 +178,11 @@ def test_std_math_functions():
     workspace = tvm.micro.Workspace()
 
     with _make_add_sess(workspace) as sess:
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
@@ -194,8 +194,8 @@ def test_std_math_functions():
     s = tvm.te.create_schedule(B.op)
 
     with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
-        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
-        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
+        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         lib = sess.get_system_lib()
         func = lib["myexpf"]
         func(A_data, B_data)
@@ -213,11 +213,11 @@ def test_platform_timer():
     s = tvm.te.create_schedule(B.op)
 
     with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
-        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
-        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
+        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), device=sess.device)
         lib = sess.get_system_lib()
         time_eval_f = lib.time_evaluator(
-            "myexpf", sess.context, number=2000, repeat=3, min_repeat_ms=40
+            "myexpf", sess.device, number=2000, repeat=3, min_repeat_ms=40
         )
         result = time_eval_f(A_data, B_data)
         assert result.mean > 0

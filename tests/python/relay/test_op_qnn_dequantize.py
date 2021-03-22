@@ -135,12 +135,12 @@ def test_dynamic_dequantize():
 
     mod = tvm.ir.IRModule.from_expr(func)
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         # TODO: (electriclilies) enable AlterOpLayout when it is fixed
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             lib = relay.build(mod, target=target)
 
-    module = graph_runtime.GraphModule(lib["default"](ctx))
+    module = graph_runtime.GraphModule(lib["default"](dev))
     module.set_input(**{"x": data, "scale": scale, "zp": zp})
     module.run()
 

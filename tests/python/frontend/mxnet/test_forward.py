@@ -78,7 +78,7 @@ def verify_mxnet_frontend_impl(
             )
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target, params=params)
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_runtime.GraphModule(lib["default"](dev))
         # set inputs
         m.set_input("data", tvm.nd.array(x.astype(dtype)))
         m.run()
@@ -797,7 +797,7 @@ def test_forward_logical_not():
 @tvm.testing.uses_gpu
 def test_forward_full():
     def verify(val, shape, dtype):
-        ctx = mx.cpu()
+        dev = mx.cpu()
         ref_res = mx.nd.full(shape, val, dtype=dtype)
         mx_sym = mx.sym.full(shape, val, dtype=dtype)
         mod, _ = relay.frontend.from_mxnet(mx_sym, {})
@@ -1930,13 +1930,13 @@ def test_forward_box_nms():
         )
         shape_dict = {"data": data_shape}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             if tvm.contrib.thrust.can_use_thrust(
                 tvm.target.Target(target + " -libs=thrust"), "tvm.contrib.thrust.sort"
             ):
                 target += " -libs=thrust"
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, dev=dev, target=target)
                 op_res = intrp.evaluate()(data)
                 tvm.testing.assert_allclose(
                     op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
@@ -2173,7 +2173,7 @@ def test_forward_np_copy(data_shape, dtype, target, dev, kind):
         ((2, 4, 1, 8), (-4, -3, -1, 2, -6), True),
     ],
 )
-def test_forward_npx_reshape(data_shape, out_shape, dtype, target, reverse, ctx, kind):
+def test_forward_npx_reshape(data_shape, out_shape, dtype, target, reverse, dev, kind):
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     data = mx.sym.var("data")
     ref_res = mx.npx.reshape(mx.np.array(data_np), newshape=out_shape, reverse=reverse)

@@ -115,7 +115,7 @@ class Executable(object):
             f = relay.Function([x], x + x)
             mod = tvm.IRModule({"main": f})
             # create a Relay VM.
-            ctx = tvm.cpu()
+            dev = tvm.cpu()
             target = "llvm"
             executable = relay.vm.compile(mod, target)
             code, lib = executable.save()
@@ -131,7 +131,7 @@ class Executable(object):
             des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_lib)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, ctx)
+            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, dev)
             res = des_vm.run(x_data)
             print(res.asnumpy())
         """
@@ -309,10 +309,10 @@ class VirtualMachine(object):
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
         self._set_input = self.module["set_input"]
-        self._setup_ctx(device, memory_cfg)
+        self._setup_device(device, memory_cfg)
 
-    def _setup_ctx(self, dev, memory_cfg):
-        """Init context and allocators."""
+    def _setup_device(self, dev, memory_cfg):
+        """Init devices and allocators."""
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):
