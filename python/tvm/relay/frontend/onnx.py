@@ -3075,6 +3075,10 @@ class GraphProto:
                 return outputs
             # TODO(zhreshold): support dropout mask?
             outputs = outputs[:-1]
+        elif op_name == "BatchNormalization":
+            if len(outputs) == 1:
+                return outputs
+            outputs = [outputs[0]]
         return outputs
 
 
