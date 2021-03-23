@@ -23,30 +23,35 @@ import tvm
 from tvm import te
 import tvm.relay.testing
 import tvm.relay.transform
+
 from tvm import relay
 from tvm import runtime
+from tvm.relay import transform
 from tvm.contrib import utils
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+
+
+def update_lib(lib):
+    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    source_dir = os.path.join(test_dir, "..", "..", "..")
+    contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
+
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
+    tmp_path = utils.tempdir()
+    lib_name = "lib.so"
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.runtime.load_module(lib_path)
+
+    return lib
 
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu()):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
-
-    def update_lib(lib):
-        test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-        source_dir = os.path.join(test_dir, "..", "..", "..")
-        contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
-
-        kwargs = {}
-        kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = utils.tempdir()
-        lib_name = "lib.so"
-        lib_path = tmp_path.relpath(lib_name)
-        lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.runtime.load_module(lib_path)
-
-        return lib
 
     def check_vm_result():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
@@ -329,6 +334,29 @@ def test_extern_dnnl_const():
     check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
 
+def test_load_params_with_constants_in_ext_codegen():
+    # After binding params and partitioning graph_module.get_params()
+    # might contain parameters that are not an graph runtime input but
+    # for example constants in external function.
+    y_in = np.ones((1,)).astype("float32")
+    params = {"y": y_in}
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1,))
+    xcb = compiler_begin(x, "ccompiler")
+    ycb = compiler_begin(y, "ccompiler")
+    z = relay.add(xcb, ycb)
+    zce = compiler_end(z, "ccompiler")
+    mod["main"] = relay.Function([x, y], zce)
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = transform.PartitionGraph()(mod)
+
+    graph_module = relay.build(mod, target="llvm", params=params)
+    lib = update_lib(graph_module.get_lib())
+    rt_mod = tvm.contrib.graph_runtime.create(graph_module.get_json(), lib, tvm.cpu(0))
+    rt_mod.load_params(runtime.save_param_dict(graph_module.get_params()))
+
+
 if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
@@ -337,3 +365,4 @@ if __name__ == "__main__":
     test_extern_gcc_consts()
     test_extern_dnnl()
     test_extern_dnnl_const()
+    test_load_params_with_constants_in_ext_codegen()

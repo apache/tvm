@@ -42,6 +42,12 @@ ALL_PROVIDERS = (
     "vmware_desktop",
 )
 
+# List of microTVM platforms for testing.
+ALL_MICROTVM_PLATFORMS = (
+    "stm32f746xx",
+    "nrf5340dk",
+)
+
 
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
@@ -109,6 +115,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
             subprocess.check_call(rule_args)
+            # TODO(mehrdadh): skip usb attach if it's already attached
             subprocess.check_call(["VBoxManage", "controlvm", uuid, "usbattach", dev["UUID"]])
             return
 
@@ -308,13 +315,17 @@ def test_command(args):
     test_config_file = os.path.join(base_box_dir, "test-config.json")
     with open(test_config_file) as f:
         test_config = json.load(f)
+
+        # select microTVM test platform
+        microtvm_test_platform = test_config[args.microtvm_platform]
+
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
-            assert key in test_config and isinstance(
-                test_config[key], expected_type
+            assert key in microtvm_test_platform and isinstance(
+                microtvm_test_platform[key], expected_type
             ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
 
-        test_config["vid_hex"] = test_config["vid_hex"].lower()
-        test_config["pid_hex"] = test_config["pid_hex"].lower()
+        microtvm_test_platform["vid_hex"] = microtvm_test_platform["vid_hex"].lower()
+        microtvm_test_platform["pid_hex"] = microtvm_test_platform["pid_hex"].lower()
 
     providers = args.provider
     provider_passed = {p: False for p in providers}
@@ -331,7 +342,7 @@ def test_command(args):
                     release_test_dir, user_box_dir, base_box_dir, provider_name
                 )
             do_run_release_test(
-                release_test_dir, provider_name, test_config, args.test_device_serial
+                release_test_dir, provider_name, microtvm_test_platform, args.test_device_serial
             )
             provider_passed[provider_name] = True
 
@@ -442,6 +453,13 @@ def parse_args():
             "When the build command is given, run packer in debug mode, and write log to the "
             "base-box directory"
         ),
+    )
+
+    parser.add_argument(
+        "--microtvm-platform",
+        default="stm32f746xx",
+        choices=ALL_MICROTVM_PLATFORMS,
+        help="For use with 'test' command. MicroTVM platfrom that are used for testing.",
     )
 
     return parser.parse_args()
