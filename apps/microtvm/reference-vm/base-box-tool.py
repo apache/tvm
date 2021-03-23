@@ -36,17 +36,10 @@ THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
 
 
 # List of vagrant providers supported by this tool
-ALL_PROVIDERS = (
-    "parallels",
-    "virtualbox",
-    "vmware_desktop",
-)
+ALL_PROVIDERS = ("parallels", "virtualbox", "vmware_desktop",)
 
 # List of microTVM platforms for testing.
-ALL_MICROTVM_PLATFORMS = (
-    "stm32f746xx",
-    "nrf5340dk"
-)
+ALL_MICROTVM_PLATFORMS = ("stm32f746xx", "nrf5340dk",)
 
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
@@ -114,7 +107,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
             subprocess.check_call(rule_args)
-            #TODO(mehrdadh): skip usb attach if it's already attached
+            # TODO(mehrdadh): skip usb attach if it's already attached
             subprocess.check_call(["VBoxManage", "controlvm", uuid, "usbattach", dev["UUID"]])
             return
 
@@ -458,7 +451,7 @@ def parse_args():
         "--microtvm-platform",
         default="stm32f746xx",
         choices=ALL_MICROTVM_PLATFORMS,
-        help="For use with 'test' command. MicroTVM platfrom that are used for testing."
+        help="For use with 'test' command. MicroTVM platfrom that are used for testing.",
     )
 
     return parser.parse_args()
