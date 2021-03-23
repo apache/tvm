@@ -54,8 +54,7 @@ workflow is illustrated by a matrix multiplication example.
 #   pip3 install --user psutil xgboost cloudpickle
 #
 # To make TVM run faster in tuning, it is recommended to use cython as FFI of
-# TVM. In the root directory of TVM, execute (change "3" to "2" if you use
-# python2):
+# TVM. In the root directory of TVM, execute:
 #
 # .. code-block:: bash
 #
@@ -80,7 +79,7 @@ from tvm import autotvm
 # -----------------------------------
 # Recall the basic implementation of matrix multiplication using TE. We write
 # it down here with a few changes. We will wrap the multiplication in a python
-# function definition.  For simplicity, we will focus our attention on a split
+# function definition. For simplicity, we will focus our attention on a split
 # optimization, using a fixed value that defines the block size of the
 # reordering.
 
