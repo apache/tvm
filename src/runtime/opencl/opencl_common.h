@@ -268,7 +268,8 @@ class OpenCLThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api) : pool(device_type, device_api) {
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
+      : pool(device_type, device_api) {
     device.device_id = 0;
     device.device_type = device_type;
   }
