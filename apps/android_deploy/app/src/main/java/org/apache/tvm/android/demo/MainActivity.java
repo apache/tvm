@@ -177,7 +177,7 @@ public class MainActivity extends AppCompatActivity {
                 return -1;//failure
             }
 
-            // create java tvm context
+            // create java tvm device
             Device tvmDev = EXE_GPU ? Device.opencl() : Device.cpu();
 
             // tvm module for compiled functions

@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
   DLTensor input;
   input.data = input_storage;
   DLDevice dev = {kDLCPU, 0};
-  input.ctx = ctx;
+  input.device = dev;
   input.ndim = 2;
   DLDataType dtype = {kDLFloat, 32, 1};
   input.dtype = dtype;

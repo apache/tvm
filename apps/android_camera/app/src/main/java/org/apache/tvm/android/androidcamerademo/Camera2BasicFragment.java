@@ -571,8 +571,8 @@ public class Camera2BasicFragment extends Fragment {
                 return -1;//failure
             }
 
-            Log.i(TAG, "creating java tvm context...");
-            // create java tvm context
+            Log.i(TAG, "creating java tvm device...");
+            // create java tvm device
             Device tvmDev = EXE_GPU ? Device.opencl() : Device.cpu();
 
             Log.i(TAG, "loading compiled functions...");
