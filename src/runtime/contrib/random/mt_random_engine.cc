@@ -22,8 +22,8 @@
  * \brief mt19937 random engine
  */
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <ctime>
@@ -126,8 +126,9 @@ class RandomEngine {
     } else {
       runtime::NDArray local = runtime::NDArray::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      FillData(&local.ToDLPack()->dl_tensor, size);
-      runtime::NDArray::CopyFromTo(&local.ToDLPack()->dl_tensor, data);
+      DLTensor* tensor = const_cast<DLTensor*>(local.operator->());
+      FillData(tensor, size);
+      runtime::NDArray::CopyFromTo(tensor, data);
     }
   }
 

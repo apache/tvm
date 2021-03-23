@@ -2336,11 +2336,18 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
-        assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
-        op_options = op.BuiltinOptions()
-        cast_options = CastOptions()
-        cast_options.Init(op_options.Bytes, op_options.Pos)
-        cast_dtype = cast_options.OutDataType()
+        # MLIR-based converter outputs no BuiltinOptions for Cast operator. In this
+        # case the output type can be derived from the Cast operator output tensor.
+        # When TOCO converter is used there will be "normal" BuiltinOptions.CastOptions
+        # with output type.
+        if op.BuiltinOptions() is not None:
+            assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
+            op_options = op.BuiltinOptions()
+            cast_options = CastOptions()
+            cast_options.Init(op_options.Bytes, op_options.Pos)
+            cast_dtype = cast_options.OutDataType()
+        else:
+            cast_dtype = self.get_output_tensors(op)[0].tensor.Type()
 
         out = _op.cast(in_expr, self.get_tensor_type_str(cast_dtype))
 

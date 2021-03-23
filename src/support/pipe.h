@@ -25,7 +25,7 @@
 #define TVM_SUPPORT_PIPE_H_
 
 #include <dmlc/io.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #ifdef _WIN32
 #include <windows.h>

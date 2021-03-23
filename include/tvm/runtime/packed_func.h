@@ -24,10 +24,10 @@
 #ifndef TVM_RUNTIME_PACKED_FUNC_H_
 #define TVM_RUNTIME_PACKED_FUNC_H_
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
@@ -1086,7 +1086,7 @@ struct PackedFuncValueConverter {
       Function(::tvm::runtime::TVMArgs(args, type_code, num_args), &rv);                    \
       rv.MoveToCHost(out_value, out_type_code);                                             \
       return 0;                                                                             \
-    } catch (const ::std::runtime_error& _except_) {                                        \
+    } catch (const ::std::exception& _except_) {                                            \
       TVMAPISetLastError(_except_.what());                                                  \
       return -1;                                                                            \
     }                                                                                       \
@@ -1140,7 +1140,7 @@ struct PackedFuncValueConverter {
           f, ::tvm::runtime::TVMArgs(args, type_code, num_args), &rv);                      \
       rv.MoveToCHost(out_value, out_type_code);                                             \
       return 0;                                                                             \
-    } catch (const ::std::runtime_error& _except_) {                                        \
+    } catch (const ::std::exception& _except_) {                                            \
       TVMAPISetLastError(_except_.what());                                                  \
       return -1;                                                                            \
     }                                                                                       \

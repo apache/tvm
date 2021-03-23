@@ -20,8 +20,8 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
-#include <tvm/support/logging.h>
 
 #include <array>
 #include <memory>

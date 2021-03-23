@@ -22,8 +22,8 @@
 #ifdef __ANDROID__
 #include <android/log.h>
 #endif
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <memory>
 #include <set>

@@ -20,6 +20,7 @@ from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.cuda_graph import cuda_graph_runtime
 import tvm.testing
 
 
@@ -535,6 +536,35 @@ def test_debug_graph_runtime():
     debug_g_mod.set_input("data", data)
     debug_g_mod.run()
     out = debug_g_mod.get_output(0).asnumpy()
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+
+@tvm.testing.requires_cudagraph
+def test_cuda_graph_runtime():
+    mod, params = relay.testing.synthetic.get_workload()
+    with tvm.transform.PassContext(opt_level=3):
+        complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
+    data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
+
+    ctx = tvm.gpu()
+    try:
+        gmod = complied_graph_lib["cuda_graph_create"](ctx)
+    except:
+        print("Skip because cuda_graph not enabled")
+        return
+    set_input = gmod["set_input"]
+    run = gmod["run"]
+    get_output = gmod["get_output"]
+    set_input("data", tvm.nd.array(data))
+    run()
+    out = get_output(0).asnumpy()
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+    # cuda graph runtime wrapper
+    cu_gmod = cuda_graph_runtime.GraphModuleCudaGraph(gmod)
+    cu_gmod.set_input("data", data)
+    cu_gmod.run()
+    out = cu_gmod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 

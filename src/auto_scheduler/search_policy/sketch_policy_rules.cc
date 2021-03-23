@@ -164,6 +164,7 @@ SketchGenerationRule::ConditionKind RuleAddCacheRead::MeetCondition(const Sketch
   // Don't cache_read a stage if it has multiple consumers
   const std::set<int>& consumers = GetConsumers(task, state, stage_id);
 
+  if (consumers.size() == 0) return ConditionKind::kSkip;
   // Don't cache_read a stage if its consumer does not need multi-level tiling
   int target_stage_id = *consumers.begin();
   if (!NeedsMultilevelTiling(task, state, target_stage_id)) {
@@ -1106,7 +1107,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
     }
     try {
       StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
-    } catch (dmlc::Error& e) {
+    } catch (Error& e) {
       return ResultKind::kInvalid;
     }
   }
@@ -1228,7 +1229,7 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
     tmp_s.CopyOnWrite()->transform_steps.push_back(step);
     try {
       StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
-    } catch (dmlc::Error& e) {
+    } catch (Error& e) {
       return ResultKind::kInvalid;
     }
   }

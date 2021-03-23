@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 import logging
-from tvm import te, tir
+from tvm import te
 import tvm.autotvm as autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cublas
@@ -39,14 +39,11 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
     if out_dtype is None:
         out_dtype = data.dtype
     assert out_dtype == data.dtype, "Mixed precision not supported."
-    batch, in_dim = data.shape
-    out_dim, _ = weight.shape
+    batch, in_dim = get_const_tuple(data.shape)
+    out_dim, _ = get_const_tuple(weight.shape)
     matmul = cublas.matmul(data, weight, False, True)
-    if isinstance(batch, int):
+    if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
-    elif isinstance(batch, tir.IntImm):
-        cfg.add_flop(batch.value * in_dim * out_dim * 2)
-    # if we get a te.Var, we cannot add flop counts
     if bias is not None:
         matmul = te.compute(
             (batch, out_dim), lambda i, j: matmul[i, j] + bias[j], tag=tag.BROADCAST
