@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
@@ -188,8 +189,8 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_platform_id platform_id;
   // global platform name
   std::string platform_name;
-  // global device of this process
-  cl_device device{nullptr};
+  // global context of this process
+  cl_context context{nullptr};
   // whether the workspace it initialized.
   bool initialized_{false};
   // the device type
@@ -209,15 +210,15 @@ class OpenCLWorkspace : public DeviceAPI {
   std::mutex mu;
   // destructor
   ~OpenCLWorkspace() {
-    if (device != nullptr) {
-      OPENCL_CALL(clReleaseContext(device));
+    if (context != nullptr) {
+      OPENCL_CALL(clReleaseContext(context));
     }
   }
   // Initialzie the device.
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
-  // Check whether the device is OpenCL or not.
+  // Check whether the context is OpenCL or not.
   virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
   cl_command_queue GetQueue(Device dev) {
@@ -267,7 +268,7 @@ class OpenCLThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device) : pool(device_type, device) {
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api) : pool(device_type, device_api) {
     device.device_id = 0;
     device.device_type = device_type;
   }

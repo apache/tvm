@@ -50,7 +50,7 @@ class OpenCLWrappedFunc {
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    ICHECK(w_->device != nullptr) << "No OpenCL device";
+    ICHECK(w_->context != nullptr) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
@@ -194,7 +194,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
         const char* s = data_.c_str();
         size_t len = data_.length();
         cl_int err;
-        program_ = clCreateProgramWithSource(w->device, 1, &s, &len, &err);
+        program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
         OPENCL_CHECK_ERROR(err);
       }
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
@@ -202,7 +202,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       size_t len = data_.length();
       cl_int err;
       cl_device_id dev = w->devices[device_id];
-      program_ = clCreateProgramWithBinary(w->device, 1, &dev, &len, &s, NULL, &err);
+      program_ = clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;

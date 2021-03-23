@@ -117,9 +117,9 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
                                       DLDataType type_hint) {
   this->Init();
-  ICHECK(device != nullptr) << "No OpenCL device";
+  ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
-  cl_mem mptr = clCreateBuffer(this->device, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+  cl_mem mptr = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
 }
@@ -229,7 +229,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
-  if (device != nullptr) return;
+  if (context != nullptr) return;
   this->type_key = type_key;
   // matched platforms
   std::vector<cl_platform_id> platform_ids = cl::GetPlatformIDs();
@@ -260,13 +260,13 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
     return;
   }
   cl_int err_code;
-  this->device = clCreateContext(nullptr, this->devices.size(), &(this->devices[0]), nullptr,
-                                 nullptr, &err_code);
+  this->context = clCreateContext(nullptr, this->devices.size(), &(this->devices[0]), nullptr,
+                                  nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   ICHECK_EQ(this->queues.size(), 0U);
   for (size_t i = 0; i < this->devices.size(); ++i) {
     cl_device_id did = this->devices[i];
-    this->queues.push_back(clCreateCommandQueue(this->device, did, 0, &err_code));
+    this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));
     OPENCL_CHECK_ERROR(err_code);
   }
   initialized_ = true;
