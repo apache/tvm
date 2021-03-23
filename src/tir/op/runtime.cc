@@ -37,15 +37,5 @@ TVM_REGISTER_OP("tir.TVMBackendFreeWorkspace")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TVM_REGISTER_OP("tir.TVMBackendAllocTexture")
-    .set_num_inputs(6)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocTexture")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TVM_REGISTER_OP("tir.TVMBackendFreeTexture")
-    .set_num_inputs(3)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeTexture")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
 }  // namespace tir
 }  // namespace tvm
