@@ -21,13 +21,13 @@ Working with Operators Using Tensor Expressions
 ===============================================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
-In this tutorial we will turn our attention to how TVM works with Template
+In this tutorial we will turn our attention to how TVM works with Tensor
 Expressions (TE) to create a space to search for performant configurations. TE
 describes tensor computations in a pure functional language (that is each
 expression has no side effects). When viewed in context of the TVM as a whole,
 Relay describes a computation as a set of operators, and each of these
 operators can be represented as a TE expression where each TE expression takes
-an input tensor and produces an output tensor. It's important to note that the
+input tensors and produces an output tensor. It's important to note that the
 tensor isn't necessarily a fully materialized array, rather it is a
 representation of a computation. If you want to produce a computation from a
 TE, you will need to use the scheduling features of TVM.
@@ -46,8 +46,8 @@ features of TVM.
 # Example 1: Writing and Scheduling Vector Addition in TE for CPU
 # ---------------------------------------------------------------
 #
-# Let's look at an example in Python in which we will implement a schedule for
-# vector addition, targeted towards a CPU. We begin by initializing a TVM
+# Let's look at an example in Python in which we will implement a TE for
+# vector addition, followed by a schedule targeted towards a CPU. We begin by initializing a TVM
 # environment.
 
 from __future__ import absolute_import, print_function
@@ -91,17 +91,17 @@ print(type(C))
 # Create a Default Schedule for the Computation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# While the above lines describe the computation rule, we can compute C in many
-# different ways. For a tensor with multiple axes, you can choose which axis to
+# While the above lines describe the computation rule, we can compute ``C`` in many
+# different ways to fit different devices. For a tensor with multiple axes, you can choose which axis to
 # iterate over first, or computations can be split across different threads.
 # TVM requires that the user to provide a schedule, which is a description of
 # how the computation should be performed. Scheduling operations within TE
 # can change loop orders, split computations across different threads, group
 # blocks of data together, amongst other operations. An important concept behind
-# schedules is that different schedules for the same operation will produce the
+# schedules is that they only describe how the computation is performed, so different schedules for the same TE will produce the
 # same result.
 #
-# TVM allows you to create a default schedule that will compute ``C`` in by
+# TVM allows you to create a naive schedule that will compute ``C`` in by
 # iterating in row major order.
 #
 # .. code-block:: c
@@ -129,7 +129,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
-# numpy. We begin by creating a context, which is a device (CPU, GPU) that TVM can
+# numpy. We begin by creating a context, which is a device (CPU in this example) that TVM can
 # compile the schedule to. In this case the context is an LLVM CPU target. We
 # can then initialize the tensors in our context and perform the custom
 # addition operation. To verify that the computation is correct, we can compare
