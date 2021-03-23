@@ -216,7 +216,7 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
 
 @mock.patch("tvm.relay.build")
 @mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
-@mock.patch("tvm.driver.tvmc.frontends.load_model")
+@mock.patch("tvm.tvmc.load")
 @mock.patch("tvm.transform.PassContext")
 def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_relay):
     mock_codegen = {}
@@ -227,9 +227,9 @@ def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_
     mock_ct.return_value = mock_codegen
     mock_relay.return_value = mock.MagicMock()
 
-    #mod, params = tvmc.load() #Wait, no file needed????
+    mod, params = tvmc.load("no_file_needed")
     graph, lib, params, dumps = tvmc.compile(
-        "no_file_needed", target="mockcodegen -testopt=value, llvm"
+        mod, params, target="mockcodegen -testopt=value, llvm"
     )
 
     mock_pc.assert_called_once_with(
