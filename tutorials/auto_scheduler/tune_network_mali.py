@@ -182,14 +182,14 @@ for idx, task in enumerate(tasks):
 #
 #     from tvm.auto_scheduler.utils import request_remote
 #     remote = request_remote(device_key, "0.0.0.0", 9190)
-#     ctx = remote.cl()
-#     max_shared_memory_per_block = ctx.max_shared_memory_per_block
+#     dev = remote.cl()
+#     max_shared_memory_per_block = dev.max_shared_memory_per_block
 #     # There is no explicit local memory limition
 #     # so we can use INT32_MAX to disalbe the check on local_memory.
 #     max_local_memory_per_block = 2147483647 # INT32_MAX
-#     max_threads_per_block = ctx.max_threads_per_block
-#     max_vthread_extent = int(ctx.warp_size / 4) if int(ctx.warp_size / 4) > 1 else ctx.warp_size
-#     warp_size = ctx.warp_size
+#     max_threads_per_block = dev.max_threads_per_block
+#     max_vthread_extent = int(dev.warp_size / 4) if int(dev.warp_size / 4) > 1 else dev.warp_size
+#     warp_size = dev.warp_size
 #     hardware_params = auto_scheduler.HardwareParams(-1, 16, 64,
 #                                                     max_shared_memory_per_block, max_local_memory_per_block,
 #                                                     max_threads_per_block, max_vthread_extent, warp_size)
@@ -247,7 +247,7 @@ def tune_and_evaluate():
     from tvm.auto_scheduler.utils import request_remote
 
     remote = request_remote(device_key, "0.0.0.0", 9190)
-    ctx = remote.cl()
+    dev = remote.cl()
     from tvm.contrib import utils, ndk
 
     temp = utils.tempdir()
@@ -256,14 +256,14 @@ def tune_and_evaluate():
     lib.export_library(path_lib, ndk.create_shared)
     remote.upload(path_lib)
     loaded_lib = remote.load_module(filename)
-    module = graph_runtime.GraphModule(loaded_lib["default"](ctx))
+    module = graph_runtime.GraphModule(loaded_lib["default"](dev))
     data = (np.random.uniform(size=input_shape)).astype(dtype)
     data_tvm = tvm.nd.array(data)
     module.set_input("data", data_tvm)
 
     # Evaluate
     print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+    ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
     print(
         "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))

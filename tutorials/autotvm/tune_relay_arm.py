@@ -348,14 +348,14 @@ def tune_and_evaluate(tuning_opt):
         rlib = remote.load_module(filename)
 
         # upload parameters to device
-        ctx = remote.context(str(target), 0)
-        module = runtime.GraphModule(rlib["default"](ctx))
+        dev = remote.device(str(target), 0)
+        module = runtime.GraphModule(rlib["default"](dev))
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input("data", data_tvm)
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=10)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=10)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"

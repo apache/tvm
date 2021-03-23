@@ -336,8 +336,8 @@ with tvm.transform.PassContext(opt_level=0):  # Currently only support opt_level
     lib = relay.build(mod, target, params=params)
 
 # Generate graph runtime
-ctx = tvm.context(target, 0)
-m = graph_runtime.GraphModule(lib["default"](ctx))
+dev = tvm.device(target, 0)
+m = graph_runtime.GraphModule(lib["default"](dev))
 
 ######################################################################
 # Run the TVM model, test for accuracy and verify with DGL

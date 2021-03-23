@@ -237,14 +237,14 @@ def tune_and_evaluate(tuning_opt):
             lib = relay.build_module.build(mod, target=target, params=params)
 
         # load parameters
-        ctx = tvm.context(str(target), 0)
-        module = runtime.GraphModule(lib["default"](ctx))
+        dev = tvm.device(str(target), 0)
+        module = runtime.GraphModule(lib["default"](dev))
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input("data", data_tvm)
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=600)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=600)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
