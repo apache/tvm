@@ -64,9 +64,9 @@ def cumbinop(
         Type of the returned array and of the accumulator in which the elements are computed.
         If dtype is not specified, it defaults to the dtype of data.
 
-    exclusive : int, optional
-        If set to 1 will return exclusive cumulative operation in which the first element is not
-        included. In other terms, if set to 1, the j-th output element would be
+    exclusive : bool, optional
+        If True will return exclusive cumulative operation in which the first element is not
+        included. In other terms, if True, the j-th output element would be
         the cumulative operation of the first (j-1) elements. Otherwise, it would be the
         cumulative operation of the first j elements. The cumulative operation of zero elements
         is assumed to be the identity_value.

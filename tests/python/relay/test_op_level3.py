@@ -1809,7 +1809,7 @@ def run_binop_tests(
     assert_relay_cumbinop(data, gt_func(data, dtype="int64"), out_dtype="int64")
 
     # Test exclusivity operations
-    data = np.random.randint(-100, 100, size=(2, 2)).astype("int64")
+    data = np.random.randint(-100, 100, size=(10, 10)).astype("int64")
     expected_result = np.roll(gt_func(data), 1)
     expected_result[0] = identity_value
     assert_relay_cumbinop(data, expected_result, exclusive=True)
