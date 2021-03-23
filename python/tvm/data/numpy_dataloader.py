@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""DataLoader wrapping datasets stored in numpy arrays (i.e., keras datasets)."""
 from tvm.data import DataLoader
 
 
@@ -26,23 +27,24 @@ class NumpyDataLoader(DataLoader):
     Parameters
     ----------
     numpy_dataset : ndarray
-        An ndarray containing all the datapoints. For now, the ndarray must be in NCHW format, with the
-        N equaling the total number of inputs in the dataset.
+        An ndarray containing all the datapoints. For now, the ndarray must be in NCHW format, with
+        the Nth dimension equaling the total number of inputs in the dataset.
 
     numpy_labels : ndarray
-        An ndarray containing all the labels. The length of the ndarray must be the same as the N dimension
-        of numpy_dataset.
+        An ndarray containing all the labels. The length of the ndarray must be the same as the
+        Nth dimension of numpy_dataset.
 
     batch_size : int, optional
         Number of datapoints to put in a batch.
 
     num_batches : int, optional
-        Number of batches to iterate through. If None, num_batches will be the maximum number of batches
-        given the batch size. num_batches * batch_size must be less than or equal to the N dimension of
-        the numpy_dataset.
+        Number of batches to iterate through. If None, num_batches will be the maximum number of
+        batches given the batch size. num_batches * batch_size must be less than or equal to the
+        N dimension of the numpy_dataset.
 
     layout : str, optional
-        String representing the layout the numpy_dataset is in. Currently we only support NCHW as the layout.
+        String representing the layout the numpy_dataset is in. Currently we only support NCHW as
+        the layout.
     """
 
     def __init__(self, numpy_data, numpy_labels, batch_size=1, num_batches=None, layout="NCHW"):

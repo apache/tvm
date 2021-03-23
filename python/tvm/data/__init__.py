@@ -20,3 +20,4 @@ from .dataloader import DataLoader
 from .tf_dataloader import TFDataLoader
 from .random_dataloader import RandomDataLoader
 from .numpy_dataloader import NumpyDataLoader
+from .mxnet_dataloader import MxnetDataLoader

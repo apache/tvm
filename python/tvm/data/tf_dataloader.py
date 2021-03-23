@@ -22,8 +22,8 @@ from tvm.data import DataLoader
 
 class TFDataLoader(DataLoader):
     """DatasetManager wrapping a tensorflow dataset.
-    See https://www.tensorflow.org/datasets/keras_example for an example of how to construct a tensorflow
-    dataset to use as input to this class.
+    See https://www.tensorflow.org/datasets/keras_example for an example of how to construct a
+    tensorflow dataset to use as input to this class.
 
     Parameters
     ----------

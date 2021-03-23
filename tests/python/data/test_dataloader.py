@@ -104,6 +104,14 @@ def test_numpy_dataloader():
     verify_numpy_dataloader(normal_test_images[0:4], flat_test_labels[0:4], 3, None)
 
 
+def verify_mxnet_dataloader():
+    pass
+
+
+def test_mxnet_dataloader():
+    pass
+
+
 if __name__ == "__main__":
     test_random_dataloader()
     test_tf_dataloader()
