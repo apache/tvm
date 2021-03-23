@@ -224,7 +224,7 @@ def test_onnx(platform, west_cmd):
 
     # Load ONNX model and convert to Relay.
     onnx_model = onnx.load("testdata/mnist-8.onnx")
-    shape = (1, 1, 28, 28)
+    shape = {"Input3": (1, 1, 28, 28)}
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 

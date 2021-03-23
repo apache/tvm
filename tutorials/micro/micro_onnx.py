@@ -103,7 +103,9 @@ print(f"Loaded ONNX model: {MODEL_FILE}")
 
 ######################################################################
 # Next, we convert the model to Relay format.
-relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=MODEL_SHAPE, freeze_params=True)
+relay_mod, params = relay.frontend.from_onnx(
+    onnx_model, shape={INPUT_TENSOR_NAME: MODEL_SHAPE}, freeze_params=True
+)
 relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
 ######################################################################
