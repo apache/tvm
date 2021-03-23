@@ -184,9 +184,8 @@ void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
 }
 
 void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                                    size_t to_offset, size_t size, Device dev_from,
-                                    Device dev_to, DLDataType type_hint,
-                                    TVMStreamHandle stream) {
+                                    size_t to_offset, size_t size, Device dev_from, Device dev_to,
+                                    DLDataType type_hint, TVMStreamHandle stream) {
   @autoreleasepool {
     this->Init();
     ICHECK(stream == nullptr);
