@@ -22,7 +22,7 @@ from tvm.relay.testing import run_infer_type
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_repeatability(target, device):
+def test_threefry_repeatability(target, dev):
     target, device = "llvm", tvm.cpu(0)
     key1 = tvm.relay.random.threefry_key(1)
     rand1 = tvm.relay.random.threefry_generate(key1, (12,))
@@ -46,7 +46,7 @@ def test_threefry_repeatability(target, device):
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_split(target, device):
+def test_threefry_split(target, dev):
     key = tvm.relay.random.threefry_key(1)
     left, right = tvm.relay.TupleWrapper(tvm.relay.random.threefry_split(key), 2)
     _, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(left, (16,)), 2)
@@ -64,7 +64,7 @@ def test_threefry_split(target, device):
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_sequential_generate(target, device):
+def test_threefry_sequential_generate(target, dev):
     key = tvm.relay.random.threefry_key(1)
     key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (4,)), 2)
     _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (4,)), 2)

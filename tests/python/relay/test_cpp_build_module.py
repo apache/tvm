@@ -94,7 +94,7 @@ def test_fp16_build():
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-def test_fp16_conversion(target, device):
+def test_fp16_conversion(target, dev):
     if target == "cuda" and not have_fp16(device.compute_version):
         print("skip because gpu does not support fp16")
         return

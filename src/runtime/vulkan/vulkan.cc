@@ -123,7 +123,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
       // Vulkan seems to have issues if we return nullptr on zero size alloc
       nbytes = 1;
     }
-    const auto& vctx = context(ctx.device_id);
+    const auto& vctx = context(dev.device_id);
     VkBufferCreateInfo info;
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     info.pNext = nullptr;
