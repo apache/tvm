@@ -44,7 +44,7 @@ ALL_PROVIDERS = (
 
 # List of microTVM platforms for testing.
 ALL_MICROTVM_PLATFORMS = (
-    "stm32f746xx", 
+    "stm32f746xx",
     "nrf5340dk",
 )
 
