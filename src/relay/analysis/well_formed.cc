@@ -24,7 +24,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <unordered_set>
 

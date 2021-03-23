@@ -37,6 +37,15 @@ namespace tvm {
 using tvm::parser::SourceMap;
 using tvm::runtime::TypedPackedFunc;
 
+/*! \brief The diagnostic level, controls the printing of the message. */
+enum class DiagnosticLevel : int {
+  kBug = 10,
+  kError = 20,
+  kWarning = 30,
+  kNote = 40,
+  kHelp = 50,
+};
+
 class DiagnosticBuilder;
 
 /*! \brief A compiler diagnostic. */

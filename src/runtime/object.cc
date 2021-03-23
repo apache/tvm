@@ -20,9 +20,9 @@
  * \file src/runtime/object.cc
  * \brief Object type management system.
  */
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <iostream>
 #include <mutex>

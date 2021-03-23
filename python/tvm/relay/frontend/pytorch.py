@@ -1094,8 +1094,7 @@ class PyTorchOpConverter:
             data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
         )
 
-    @staticmethod
-    def get_dims(data):
+    def get_dims(self, data):
         import torch
 
         if isinstance(data, _expr.Expr):
@@ -1575,15 +1574,31 @@ class PyTorchOpConverter:
 
         # When performing a batch matmul, we need to properly handle N-dim shapes.
         if len(a_shape) > 2 or len(b_shape) > 2:
-            # Convert a and b into 3 dimensional tensors.
-            a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
-            b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
+            # Convert a into a 3 dimensional tensors.
+            need_reshape_output = False
+            if len(a_shape) != 3:
+                a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
+                need_reshape_output = True
+            else:
+                a = inputs_0
+
             # Transpose matrix dimensions of b.
-            b = _op.transpose(b, [0, 2, 1])
+            trans_axes = list(range(len(b_shape)))
+            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
+            b = _op.transpose(inputs_1, trans_axes)
+
+            # Convert b into a 3 dimensional tensor. Note that the last two dimensions
+            # are transposed.
+            if len(b_shape) != 3:
+                b = _op.reshape(b, [-1, b_shape[-1], b_shape[-2]])
+
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
+
             # Reshape output to original dimensions.
-            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+            if need_reshape_output:
+                return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+            return output
 
         # Otherwise a simple dense op will get the job done.
         if len(b_shape) == 1:
@@ -1673,8 +1688,20 @@ class PyTorchOpConverter:
 
     def clamp(self, inputs, input_types):
         data = inputs[0]
-        amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
-        amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
+
+        def get_v(v, default_v):
+            if isinstance(v, _expr.Constant):
+                return float(v.data.asnumpy())
+            if isinstance(v, _expr.Expr):
+                infer_v, success = try_infer_value(v, lambda ret: float(ret))
+                if success:
+                    return infer_v
+            if v is not None:
+                return v
+            return default_v
+
+        amin = get_v(inputs[1], np.finfo(np.float32).min)
+        amax = get_v(inputs[2], np.finfo(np.float32).max)
         return _op.clip(data, amin, amax)
 
     def to(self, inputs, input_types):

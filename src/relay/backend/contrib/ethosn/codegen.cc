@@ -198,7 +198,7 @@ sl::TensorsAndId MakeOps(const sl::TensorAndId<sl::Operand>& op) {
 
 NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   // Initialise everything
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
   auto ctx = transform::PassContext::Current();
   auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options");
   if (!cfg.defined()) {
@@ -206,7 +206,7 @@ NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   }
 #endif
   NetworkWithIDs network_with_ids;
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
   network_ = sl::CreateNetwork(variants[cfg.value()->variant]);
 #else
   network_ = sl::CreateNetwork();
@@ -572,7 +572,7 @@ sl::CompilationOptions EthosnCompiler::CreateOptions() {
     cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
   }
 
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
   sl::CompilationOptions options;
 #else
   sl::CompilationOptions options(variants[cfg.value()->variant]);
@@ -619,7 +619,7 @@ std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetInput
   return std::make_pair(input_order, output_order);
 }
 
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
 auto ctx = transform::PassContext::Current();
 auto cfg = ctx -> GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").defined()
                ? ctx -> GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
@@ -632,7 +632,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.conv2d")
       Call call = args[0];
       ConvolutionParams params;
       auto err = EthosnAPI::QnnConv2d(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       if (params.is_depthwise) {
         *rv = !err &&
               m_Queries.IsDepthwiseConvolutionSupported(params.bias_info, params.weights_info,
@@ -657,7 +657,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.fc")
       Call call = args[0];
       FullyConnectedParams params;
       auto err = EthosnAPI::QnnFullyConnected(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsFullyConnectedSupported(params.bias_info, params.weights_info,
                                                         params.fc_info, params.input_info);
 #else
@@ -671,7 +671,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.max_pool2d")
       Call call = args[0];
       MaxPool2DParams params;
       auto err = EthosnAPI::MaxPool2D(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsPoolingSupported(params.pool_info, params.input_info);
 #else
       *rv = !err && sl::IsPoolingSupported(params.pool_info, params.input_info);
@@ -683,7 +683,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.avg_pool2d")
       Call call = args[0];
       AvgPool2DParams params;
       auto err = EthosnAPI::AvgPool2D(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsPoolingSupported(params.pool_info, params.input_info);
 #else
       *rv = !err && sl::IsPoolingSupported(params.pool_info, params.input_info);
@@ -695,7 +695,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.reshape")
       Call call = args[0];
       ReshapeParams params;
       auto err = EthosnAPI::Reshape(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsReshapeSupported(params.new_shape, params.input_info);
 #else
       *rv = !err && sl::IsReshapeSupported(params.new_shape, params.input_info);
@@ -707,7 +707,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.addition")
       Call call = args[0];
       AdditionParams params;
       auto err = EthosnAPI::Addition(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsAdditionSupported(params.lhs_info, params.rhs_info,
                                                   params.output_quantization_info);
 #else
@@ -721,7 +721,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.sigmoid")
       Call call = args[0];
       SigmoidParams params;
       auto err = EthosnAPI::Sigmoid(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsSigmoidSupported(params.input_info);
 #else
       *rv = !err && sl::IsSigmoidSupported(params.input_info);
@@ -733,7 +733,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")
       Call call = args[0];
       ConcatenateParams params;
       auto err = EthosnAPI::Concatenate(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsConcatenationSupported(params.input_infos, params.concat_info);
 #else
       *rv = !err && sl::IsConcatenationSupported(params.input_infos, params.concat_info);
@@ -745,7 +745,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.split")
       Call call = args[0];
       SplitParams params;
       auto err = EthosnAPI::Split(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsSplitSupported(params.input_info, params.split_info);
 #else
       *rv = !err && sl::IsSplitSupported(params.input_info, params.split_info);
@@ -757,7 +757,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.depth_to_space")
       Call call = args[0];
       DepthToSpaceParams params;
       auto err = EthosnAPI::DepthToSpace(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsDepthToSpaceSupported(params.input_info, params.depth_info);
 #else
       *rv = !err && sl::IsDepthToSpaceSupported(params.input_info, params.depth_info);
@@ -769,7 +769,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.relu")
       Call call = args[0];
       ReluParams params;
       auto err = EthosnAPI::Relu(call, &params);
-#if _ETHOSN_API_VERSION_ == 2011
+#if _ETHOSN_API_VERSION_ >= 2011
       *rv = !err && m_Queries.IsReluSupported(params.relu_info, params.input_info);
 #else
       *rv = !err && sl::IsReluSupported(params.relu_info, params.input_info);

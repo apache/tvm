@@ -36,11 +36,11 @@ namespace tvm {
 /*!
  * \brief A wrapper around std::stringstream to build error.
  *
- * Can be consumed by Error to construct an error.
+ * Can be consumed by CompileError to construct an error.
  *
  * \code
  *
- * void ReportError(const Error& err);
+ * void ReportError(const CompileError& err);
  *
  * void Test(int number) {
  *   // Use error reporter to construct an error.
@@ -59,13 +59,13 @@ struct ErrorBuilder {
 
  private:
   std::stringstream stream_;
-  friend class Error;
+  friend class CompileError;
 };
 
 /*!
  * \brief Custom Error class to be thrown during compilation.
  */
-class Error : public dmlc::Error {
+class CompileError : public Error {
  public:
   /*! \brief Location of the error */
   Span span;
@@ -73,20 +73,20 @@ class Error : public dmlc::Error {
    * \brief construct error from message.
    * \param msg The message
    */
-  explicit Error(const std::string& msg) : dmlc::Error(msg), span(nullptr) {}
+  explicit CompileError(const std::string& msg) : Error(msg), span(nullptr) {}
   /*!
    * \brief construct error from error builder.
    * \param err The error builder
    */
-  Error(const ErrorBuilder& err) : dmlc::Error(err.stream_.str()), span(nullptr) {}  // NOLINT(*)
+  CompileError(const ErrorBuilder& err) : Error(err.stream_.str()), span(nullptr) {}  // NOLINT(*)
   /*!
    * \brief copy constructor.
    * \param other The other ereor.
    */
-  Error(const Error& other) : dmlc::Error(other.what()), span(other.span) {}  // NOLINT(*)
+  CompileError(const CompileError& other) : Error(other.what()), span(other.span) {}  // NOLINT(*)
   /*!
    * \brief default constructor. */
-  Error() : dmlc::Error(""), span(nullptr) {}
+  CompileError() : Error(""), span(nullptr) {}
 };
 
 /*!
@@ -115,13 +115,13 @@ class ErrorReporter {
   ErrorReporter() : errors_(), node_to_error_() {}
 
   /*!
-   * \brief Report a tvm::Error.
+   * \brief Report a CompileError.
    *
    * This API is useful for reporting spanned errors.
    *
    * \param err The error to report.
    */
-  void Report(const Error& err) {
+  void Report(const CompileError& err) {
     if (!err.span.defined()) {
       throw err;
     }
@@ -143,7 +143,7 @@ class ErrorReporter {
    */
   void ReportAt(const GlobalVar& global, const ObjectRef& node, std::stringstream& err) {
     std::string err_msg = err.str();
-    this->ReportAt(global, node, Error(err_msg));
+    this->ReportAt(global, node, CompileError(err_msg));
   }
 
   /*!
@@ -158,7 +158,7 @@ class ErrorReporter {
    * \param node The expression or type to report the error at.
    * \param err The error to report.
    */
-  void ReportAt(const GlobalVar& global, const ObjectRef& node, const Error& err);
+  void ReportAt(const GlobalVar& global, const ObjectRef& node, const CompileError& err);
 
   /*!
    * \brief Render all reported errors and exit the program.
@@ -176,7 +176,7 @@ class ErrorReporter {
   inline bool AnyErrors() { return errors_.size() != 0; }
 
  private:
-  std::vector<Error> errors_;
+  std::vector<CompileError> errors_;
   std::unordered_map<ObjectRef, std::vector<size_t>, ObjectPtrHash, ObjectPtrEqual> node_to_error_;
   std::unordered_map<ObjectRef, GlobalVar, ObjectPtrHash, ObjectPtrEqual> node_to_gv_;
 };

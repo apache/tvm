@@ -60,6 +60,63 @@ def test_simplify_reshape():
     assert tvm.ir.structural_equal(zz, after)
 
 
+def test_simplify_transpose():
+    # Test a series of transpose and layout_transform ops
+    def before1():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.transpose(x, axes=[0, 2, 3, 1])  # To NHWC
+        y = relay.layout_transform(y, "NHWC", "HWCN")  # To HWCN
+        y = relay.transpose(y, axes=[3, 0, 1, 2])  # To NHWC
+        return relay.Function([x], y)
+
+    def expected1():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.transpose(x, axes=[0, 2, 3, 1])  # To NHWC
+        return relay.Function([x], y)
+
+    # Test that all transpose ops can be cancelled
+    def before2():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.nn.relu(x)
+        y = relay.transpose(y, axes=[0, 2, 3, 1])  # To NHWC
+        y = relay.transpose(y, axes=[1, 2, 3, 0])  # To HWCN
+        y = relay.transpose(y, axes=[3, 2, 0, 1])  # To NCHW
+        return relay.Function([x], y)
+
+    def expected2():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
+    # Test default axis (reverse) and negative axis
+    def before3():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.nn.relu(x)
+        y = relay.transpose(y)  # Reverse
+        y = relay.transpose(y)  # Reverse
+        y = relay.transpose(y, axes=[0, 2, -1, 1])
+        y = relay.transpose(y)  # Reverse
+        y = relay.transpose(y)  # Reverse
+        return relay.Function([x], y)
+
+    def expected3():
+        x = relay.var("x", shape=(1, 3, 224, 224), dtype="float32")  # NCHW
+        y = relay.nn.relu(x)
+        y = relay.transpose(y, axes=[0, 2, 3, 1])
+        return relay.Function([x], y)
+
+    for before, expected in [
+        [before1(), expected1()],
+        [before2(), expected2()],
+        [before3(), expected3()],
+    ]:
+        after = run_opt_pass(before, transform.SimplifyExpr())
+        expected = run_opt_pass(expected, transform.InferType())
+        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
+            after, expected
+        )
+
+
 def test_simplify_full_elementwise():
     def validate(shape, value, dtype):
         def before_left(x, elem_op, full):
@@ -126,4 +183,5 @@ def test_simplify_full_elementwise():
 
 if __name__ == "__main__":
     test_simplify_reshape()
+    test_simplify_transpose()
     test_simplify_full_elementwise()

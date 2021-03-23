@@ -22,7 +22,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Process.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <deque>

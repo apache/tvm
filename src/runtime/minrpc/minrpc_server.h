@@ -46,7 +46,7 @@
 #endif
 
 #if TVM_MINRPC_ENABLE_LOGGING
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #endif
 
 namespace tvm {

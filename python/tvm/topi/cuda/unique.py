@@ -24,6 +24,15 @@ from .sort import sort, argsort
 from ..utils import ceil_div
 
 
+def _get_max_threads(batch_size):
+    target = tvm.target.Target.current()
+    max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
+    if "vulkan" in str(target) and not isinstance(batch_size, tvm.tir.IntImm):
+        # SPIR-V does not support dynamic thread group size
+        return max_threads
+    return tir.min(batch_size, max_threads)
+
+
 def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
     """Low level IR to calculate adjacent difference in an 1-D array.
 
@@ -46,7 +55,7 @@ def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
     data_ptr = ib.buffer_ptr(data)
     output_ptr = ib.buffer_ptr(output)
     batch_size = data.shape[0]
-    max_threads = tir.min(batch_size, tvm.target.Target.current(allow_none=False).max_num_threads)
+    max_threads = _get_max_threads(batch_size)
     with ib.new_scope():
         nthread_tx = max_threads
         nthread_bx = ceil_div(batch_size, max_threads)
@@ -157,7 +166,7 @@ def _calc_unique_ir(
         unique_seq_indices_ptr = ib.buffer_ptr(indices)
 
     batch_size = data.shape[0]
-    max_threads = tir.min(batch_size, tvm.target.Target.current(allow_none=False).max_num_threads)
+    max_threads = _get_max_threads(batch_size)
 
     # if need to return counts
     if isinstance(counts, tir.Buffer):
@@ -238,7 +247,7 @@ def _calc_first_occurence_ir(argsorted_indices, inc_scan, first_occurence):
     inc_scan_ptr = ib.buffer_ptr(inc_scan)
     first_occurence_ptr = ib.buffer_ptr(first_occurence)
     batch_size = argsorted_indices.shape[0]
-    max_threads = tir.min(batch_size, tvm.target.Target.current(allow_none=False).max_num_threads)
+    max_threads = _get_max_threads(batch_size)
     with ib.new_scope():
         nthread_tx = max_threads
         nthread_bx = ceil_div(batch_size, max_threads)

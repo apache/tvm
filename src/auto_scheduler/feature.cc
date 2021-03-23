@@ -1328,7 +1328,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     const auto& prim_func = (*it).second.as<PrimFuncNode>();
     GetPerStoreFeature(prim_func->body, task->hardware_params->cache_line_bytes, max_n_bufs,
                        feature);
-  } catch (dmlc::Error& e) {
+  } catch (Error& e) {
     (*error_ct)++;
   }
 }

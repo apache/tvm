@@ -19,6 +19,7 @@ import onnx
 from onnx import helper, TensorProto, mapping, numpy_helper
 import torch
 import torchvision
+import pytest
 import tvm.topi.testing
 import tvm
 from tvm import relay
@@ -57,7 +58,7 @@ def get_tvm_output_with_vm(
         mod = relay.transform.DynamicToStatic()(mod)
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
-    result = ex.evaluate()(*input_data)
+    result = ex.evaluate()(*input_data, **params)
     if isinstance(result, tvm.runtime.NDArray):
         return result.asnumpy()
     return [r.asnumpy() for r in result]
@@ -500,7 +501,7 @@ def test_squeeze():
 
     model = helper.make_model(graph, producer_name="squeeze_test")
     x = np.random.uniform(size=in_shape).astype("float32")
-    verify_with_ort_with_inputs(model, [x], [out_shape])
+    verify_with_ort_with_inputs(model, [x], [out_shape], opset=11)
 
 
 @tvm.testing.uses_gpu
@@ -538,7 +539,7 @@ def test_unsqueeze():
     )
 
     model = helper.make_model(graph, producer_name="squeeze_test")
-    verify_with_ort(model, [in_shape])
+    verify_with_ort(model, [in_shape], opset=11)
 
 
 def verify_gather(in_shape, indices, axis, dtype):
@@ -1584,7 +1585,7 @@ def verify_pad_v11(indata, pads, mode="constant", value=0.0):
     pads = np.array(pads)
     #  onnx graph
     if mode in ["edge", "reflect"]:
-        inputs = [indata, pads]
+        inputs = [indata]
         outdata = np.pad(indata, pad_width=np_pads, mode=mode)
         node = helper.make_node("Pad", inputs=["input", "pads"], outputs=["output"], mode=mode)
         graph = helper.make_graph(
@@ -1600,7 +1601,7 @@ def verify_pad_v11(indata, pads, mode="constant", value=0.0):
             ],
         )
     else:
-        inputs = [indata, pads, np.array([value]).astype("float32")]
+        inputs = [indata]
         outdata = np.pad(indata, pad_width=np_pads, mode="constant", constant_values=value)
         node = helper.make_node(
             "Pad", inputs=["input", "pads", "constant_value"], outputs=["output"], mode="constant"
@@ -1663,7 +1664,7 @@ def verify_reduce_func(func, data, axis, keepdims):
 
     model = helper.make_model(graph, producer_name="reduce_test")
 
-    verify_with_ort_with_inputs(model, [data], [outshape])
+    verify_with_ort_with_inputs(model, [data], [outshape], opset=11)
 
 
 @tvm.testing.uses_gpu
@@ -2489,42 +2490,27 @@ def verify_convtranspose_with_padding(
     dilations,
     auto_pad="NOTSET",
     unset_pad=False,
+    group=1,
 ):
-    if unset_pad:
-        node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "W"],
-            outputs=["y"],
-            kernel_shape=kernel_shape,
-            # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            group=1,
-        )
-    elif padding is None:
-        node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "W"],
-            outputs=["y"],
-            kernel_shape=kernel_shape,
-            # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            group=1,
-            auto_pad=auto_pad,
-        )
-    else:
-        node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "W"],
-            outputs=["y"],
-            kernel_shape=kernel_shape,
-            # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            group=1,
-            pads=padding,
-        )
+    node = helper.make_node(
+        "ConvTranspose",
+        inputs=["x", "W"],
+        outputs=["y"],
+        kernel_shape=kernel_shape,
+        # Default values for other attributes:
+        strides=strides,
+        dilations=dilations,
+    )
+    if not unset_pad:
+        if padding is None:
+            pad_attr = helper.make_attribute("auto_pad", auto_pad)
+        else:
+            pad_attr = helper.make_attribute("pads", padding)
+        node.attribute.append(pad_attr)
+
+    if group is not None:
+        group_attr = helper.make_attribute("group", group)
+        node.attribute.append(group_attr)
 
     graph = helper.make_graph(
         [node],
@@ -2536,21 +2522,24 @@ def verify_convtranspose_with_padding(
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
     )
 
-    model = helper.make_model(graph, producer_name="conv_test")
+    model = helper.make_model(graph, producer_name="convtranspose_pad_test")
 
     verify_with_ort(model, [x_shape, w_shape], [y_shape], use_vm=True, convert_to_static=True)
 
 
-def verify_convtranspose(x_shape, w_shape, y_shape, p):
+def verify_convtranspose(x_shape, w_shape, y_shape, p, group=1):
     node = onnx.helper.make_node(
         "ConvTranspose",
         inputs=["x", "W"],
         outputs=["y"],
         strides=[3, 2],
-        group=1,
         kernel_shape=[3, 3],
         pads=p,
     )
+
+    if group is not None:
+        group_attr = helper.make_attribute("group", group)
+        node.attribute.append(group_attr)
 
     graph = helper.make_graph(
         [node],
@@ -2562,7 +2551,7 @@ def verify_convtranspose(x_shape, w_shape, y_shape, p):
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
     )
 
-    model = helper.make_model(graph, producer_name="convtranspose_trest")
+    model = helper.make_model(graph, producer_name="convtranspose_test")
     verify_with_ort(model, [x_shape, w_shape], y_shape)
 
 
@@ -2574,6 +2563,8 @@ def test_convtranspose():
     # (1, 2, 7, 3) output tensor
     # [1, 2, 1, 2] list for pads
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
+    # Test undefined groups.
+    verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2], group=None)
 
     def repeat(N, D):
         return tuple([N for _ in range(D)])
@@ -4099,6 +4090,31 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+def test_wrong_input():
+    node = helper.make_node(
+        "Softplus",
+        inputs=["X"],
+        outputs=["Y"],
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "softplus_test",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list([5]))],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list([5]))],
+    )
+    model = helper.make_model(graph, producer_name="softplus_test")
+
+    # Check that the graph can import correctly with proper shape definitions.
+    correct_shape_dict = {"X": [5]}
+    relay.frontend.from_onnx(model, shape=correct_shape_dict)
+
+    # Check that an assertion is triggered when an input not in the graph is provided.
+    wrong_shape_dict = {"Z": [5]}
+    with pytest.raises(AssertionError):
+        relay.frontend.from_onnx(model, shape=wrong_shape_dict)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4177,3 +4193,4 @@ if __name__ == "__main__":
     test_maxunpool()
     test_softplus()
     test_cumsum()
+    test_wrong_input()
