@@ -131,11 +131,11 @@ def test_compile_runtime(platform, west_cmd):
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.device)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.device)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.device)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
@@ -153,11 +153,11 @@ def test_platform_timer(platform, west_cmd):
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.device)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.device)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.device)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
@@ -276,7 +276,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
         results = result if isinstance(result, list) else [result]
 
         for idx, shape in enumerate(out_shapes):
-            out = tvm.nd.empty(shape, ctx=session.device)
+            out = tvm.nd.empty(shape, device=session.device)
             out = rt_mod.get_output(idx, out)
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
 
