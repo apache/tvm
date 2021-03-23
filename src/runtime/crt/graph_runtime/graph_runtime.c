@@ -986,7 +986,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
         runtime->storage_pool[runtime->storage_pool_count].is_linked_param = 1;
         DLTensor* tensor = &runtime->storage_pool[runtime->storage_pool_count].array.dl_tensor;
         tensor->data = linked_param_data;
-        tensor->dev = dev;
+        tensor->device = dev;
         tensor->ndim = attrs->ndim[pit.entry_id];
         tensor->shape = attrs->shape + idx * TVM_CRT_MAX_NDIM;
         tensor->strides = NULL;
