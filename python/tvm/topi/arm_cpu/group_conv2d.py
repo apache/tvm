@@ -303,7 +303,11 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
     A0, A1 = data_pad, data_vec
 
     # schedule data
-    if data_pad is not None and isinstance(data_pad.op, tvm.te.ComputeOp) and "pad" in data_pad.op.tag:
+    if (
+        data_pad is not None
+        and isinstance(data_pad.op, tvm.te.ComputeOp)
+        and "pad" in data_pad.op.tag
+    ):
         s[A0].compute_inline()
 
     groups, batch, ic_chunk, ih, ic_block, _ = s[A1].op.axis
