@@ -758,9 +758,9 @@ Then, we implement ``ParseJson`` to parse a subgraph in ExampleJSON format and c
         graph_[curr_subgraph].push_back(entry); // Note 2
       }
       DLDevice dev;
-      ctx.device_type = static_cast<DLDeviceType>(1);
-      ctx.device_id = 0;
-      data_entry_[id] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx); // Note 3
+      dev.device_type = static_cast<DLDeviceType>(1);
+      dev.device_id = 0;
+      data_entry_[id] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, dev); // Note 3
     }
   }
 

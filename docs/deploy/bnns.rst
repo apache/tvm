@@ -147,9 +147,9 @@ Load module and run inference on the target machine with TVM  built with ``USE_B
     import numpy as np
     from tvm.contrib import graph_runtime
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     loaded_lib = tvm.runtime.load_module('compiled.dylib')
-    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](ctx))
+    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](dev))
 
     dtype = "float32"
     input_shape = (1, 3, 224, 224)
