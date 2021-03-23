@@ -215,7 +215,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # Targeting Vector Addition for GPUs (Optional)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # TVM is capable of targeting multiple architectures. In the next example, we
-# will target compilation of the vector addition to GPUs
+# will target compilation of the vector addition to GPUs.
 
 # If you want to run this code, change ``run_cuda = True``
 run_cuda = False
