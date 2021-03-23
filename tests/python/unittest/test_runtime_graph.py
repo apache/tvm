@@ -20,6 +20,7 @@ from tvm import te, runtime
 import numpy as np
 import json
 from tvm import rpc
+from tvm import relay
 from tvm.contrib import utils, graph_runtime
 
 
@@ -82,8 +83,6 @@ def test_graph_simple():
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
     def check_sharing():
-        from tvm import relay
-
         x = relay.var("x", shape=(1, 10))
         y = relay.var("y", shape=(1, 10))
         z = relay.add(x, y)
@@ -120,5 +119,26 @@ def test_graph_simple():
     check_sharing()
 
 
+def test_load_unexpected_params():
+    # Test whether graph_runtime.load_params works if parameters
+    # are provided that are not an expected input.
+    mod = tvm.IRModule()
+    params = {}
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    mod["main"] = relay.Function([x, y], z)
+
+    graph_module = relay.build(mod, target="llvm", params=params)
+    rt_mod = tvm.contrib.graph_runtime.create(
+        graph_module.get_json(), graph_module.get_lib(), tvm.cpu(0)
+    )
+
+    new_params = graph_module.get_params()
+    new_params.update({"y_unknown": np.ones((1,)).astype("float32")})
+    rt_mod.load_params(runtime.save_param_dict(new_params))
+
+
 if __name__ == "__main__":
     test_graph_simple()
+    test_load_unexpected_params()
