@@ -87,9 +87,9 @@ def test_threefry_generate(target, ctx):
     gen = tvm.relay.random.threefry_key(0).data.asnumpy()
 
     # check that we can generate some data
-    a, rands = threefry_generate(target, ctx, gen, (100,))
+    a, rands = threefry_generate(target, ctx, gen, (2048,))
     assert (
-        rands.shape[0] == 100 and len(rands.shape) == 1
+        rands.shape[0] == 2048 and len(rands.shape) == 1
     ), "Output shape should match requested shape"
 
     # check that gen out does not equal input
@@ -99,13 +99,13 @@ def test_threefry_generate(target, ctx):
     gen = np.array(
         [0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 1 << 63, 0], dtype="uint64"
     )  # make counter large
-    a, rands = threefry_generate(target, ctx, gen, (100,))
+    a, rands = threefry_generate(target, ctx, gen, (2048,))
     assert gen[4] != a[4], "Overflow of counter should trigger path change"
-    assert a[7] == 100, "Overflow of counter should still update counter"
+    assert a[7] == 2048, "Overflow of counter should still update counter"
 
     # check generate with path at length limit
     gen = np.array([0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 0, 0], dtype="uint64")  # make counter large
-    a, rands = threefry_generate(target, ctx, gen, (100,))
+    a, rands = threefry_generate(target, ctx, gen, (2048,))
     assert (
         gen[0:4] != a[0:4]
     ).any(), "Overflowing counter with no space left in path should change state"
