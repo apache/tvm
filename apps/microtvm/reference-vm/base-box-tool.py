@@ -36,10 +36,18 @@ THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
 
 
 # List of vagrant providers supported by this tool
-ALL_PROVIDERS = ("parallels", "virtualbox", "vmware_desktop",)
+ALL_PROVIDERS = (
+    "parallels",
+    "virtualbox",
+    "vmware_desktop",
+)
 
 # List of microTVM platforms for testing.
-ALL_MICROTVM_PLATFORMS = ("stm32f746xx", "nrf5340dk",)
+ALL_MICROTVM_PLATFORMS = (
+    "stm32f746xx", 
+    "nrf5340dk",
+)
+
 
 def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
