@@ -276,6 +276,7 @@ def schedule_group_conv2d_nchwc(cfg, outs):
                 s[kernel].compute_inline()
             data_vec = conv_out.op.input_tensors[0]
             data = data_vec.op.input_tensors[0]
+            data_pad = None
             if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
