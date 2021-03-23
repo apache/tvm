@@ -33,7 +33,7 @@ use serde_json;
 
 use tvm_sys::ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
 
-use tvm_sys::{ffi::DLTensor, ArgValue, Device, DataType, DeviceType};
+use tvm_sys::{ffi::DLTensor, ArgValue, DataType, Device, DeviceType};
 
 use crate::{errors::*, Module, Storage, Tensor};
 

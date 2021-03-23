@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
 
     // prepare to get the output
     let output_shape = &[1, 1000];
-    let output = NDArray::empty(output_shape, Drvice::cpu(0), DataType::float(32, 1));
+    let output = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
     graph_rt.get_output_into(0, output.clone())?;
 
     // flatten the output as Vec<f32>

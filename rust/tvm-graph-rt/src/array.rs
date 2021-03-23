@@ -20,7 +20,7 @@
 use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
 use ndarray;
-use tvm_sys::{ffi::DLTensor, Device, DataType};
+use tvm_sys::{ffi::DLTensor, DataType, Device};
 
 use crate::allocator::Allocation;
 use crate::errors::ArrayError;

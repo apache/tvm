@@ -223,7 +223,7 @@ struct RPCReference {
 
   template <typename TChannelPtr>
   static void SendDLTensor(TChannelPtr channel, DLTensor* arr) {
-    Device dev;
+    DLDevice dev;
     uint64_t data;
     // When we return NDArray, we directly return
     // the space and the context

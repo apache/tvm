@@ -395,7 +395,7 @@ class MinRPCServer {
     MINRPC_CHECK(tcodes[2] == kDLInt);
     MINRPC_CHECK(tcodes[3] == kTVMDataType);
 
-    Device dev = values[0].v_device;
+    DLDevice dev = values[0].v_device;
     int64_t nbytes = values[1].v_int64;
     int64_t alignment = values[2].v_int64;
     DLDataType type_hint = values[3].v_type;
@@ -432,7 +432,7 @@ class MinRPCServer {
     MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
 
-    Device dev = values[0].v_device;
+    DLDevice dev = values[0].v_device;
     void* handle = values[1].v_handle;
 
     int call_ecode = TVMDeviceFreeDataSpace(dev, handle);
@@ -449,7 +449,7 @@ class MinRPCServer {
     MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
 
-    Device dev = values[0].v_device;
+    DLDevice dev = values[0].v_device;
     void* handle = values[1].v_handle;
 
     int call_ecode = TVMSynchronize(dev.device_type, dev.device_id, handle);

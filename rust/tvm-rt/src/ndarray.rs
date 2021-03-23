@@ -29,7 +29,7 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_rt::{NDArray, Device, DataType};
+//! # use tvm_rt::{NDArray, DataType, Device};
 //! # use ndarray::{Array, ArrayD};
 //! # use std::str::FromStr;
 //! use std::convert::TryFrom;
@@ -54,7 +54,7 @@ use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 use mem::size_of;
 use tvm_macros::Object;
 use tvm_sys::ffi::DLTensor;
-use tvm_sys::{ffi, ByteArray, Device, DataType};
+use tvm_sys::{ffi, ByteArray, DataType, Device};
 
 use ndarray::{Array, ArrayD};
 use num_traits::Num;
@@ -466,11 +466,7 @@ mod tests {
         assert!(ndarray.is_contiguous());
         assert_eq!(ndarray.byte_offset(), 0);
         let shape = vec![4];
-        let e = NDArray::empty(
-            &shape,
-            Device::cpu(0),
-            DataType::from_str("int32").unwrap(),
-        );
+        let e = NDArray::empty(&shape, Device::cpu(0), DataType::from_str("int32").unwrap());
         let nd = ndarray.copy_to_ndarray(e);
         assert!(nd.is_ok());
         assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);

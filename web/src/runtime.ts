@@ -195,7 +195,7 @@ const DeviceStrToEnum: Record<string, number> = {
  * Represent a runtime context where a NDArray can reside.
  */
 export class DLDevice {
-  /** The device type code of the context. */
+  /** The device type code of the device. */
   deviceType: number;
   /** The device index. */
   deviceId: number;
@@ -219,7 +219,7 @@ export class DLDevice {
   }
 
   /**
-   * Synchronize the context
+   * Synchronize the device
    */
   async sync(): Promise<void> {
     if (this.deviceType == DeviceStrToEnum.webgpu) {
@@ -442,7 +442,7 @@ export class NDArray implements Disposable {
    * @returns The result array.
    */
   toRawBytes(): Uint8Array {
-    if (this.context.deviceType != DeviceStrToEnum.cpu) {
+    if (this.device.deviceType != DeviceStrToEnum.cpu) {
       throw new Error("Can only synchronize copy for GPU array, use copyfrom instead.");
     }
     const size = this.shape.reduce((a, b) => {

@@ -32,7 +32,7 @@
 
 pub use crate::{errors::*, function::Function, module::Module, ndarray::NDArray};
 
-pub use tvm_rt::{Device, DataType, DeviceType};
+pub use tvm_rt::{DataType, Device, DeviceType};
 
 pub use tvm_rt::device;
 pub use tvm_rt::errors;

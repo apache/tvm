@@ -23,7 +23,7 @@ use std::{
 };
 
 use crate::ffi::{
-    DLDevice, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
+    DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLDevice,
     DLDeviceType_kDLCPU, DLTensor,
 };
 
