@@ -289,17 +289,16 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
 
 
 def do_run_release_test(release_test_dir, provider_name, test_config, test_device_serial):
-    # with open(
-    #     os.path.join(release_test_dir, ".vagrant", "machines", "default", provider_name, "id")
-    # ) as f:
-    #     import pdb; pdb.set_trace()
-    #     machine_uuid = f.read()
-    # ATTACH_USB_DEVICE[provider_name](
-    #     machine_uuid,
-    #     vid_hex=test_config["vid_hex"],
-    #     pid_hex=test_config["pid_hex"],
-    #     serial=test_device_serial,
-    # )
+    with open(
+        os.path.join(release_test_dir, ".vagrant", "machines", "default", provider_name, "id")
+    ) as f:
+        machine_uuid = f.read()
+    ATTACH_USB_DEVICE[provider_name](
+        machine_uuid,
+        vid_hex=test_config["vid_hex"],
+        pid_hex=test_config["pid_hex"],
+        serial=test_device_serial,
+    )
     tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
 
     def _quote_cmd(cmd):
