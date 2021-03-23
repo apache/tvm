@@ -113,7 +113,7 @@ def run(lib, dev):
 
 
 for target in ["llvm", "cuda"]:
-    dev = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     if dev.exist:
         lib = build(target)
         class_IDs, scores, bounding_boxs = run(lib, dev)

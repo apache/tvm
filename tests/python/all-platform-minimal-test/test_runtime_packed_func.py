@@ -107,7 +107,7 @@ def test_device():
     x = test_device_func(tvm.gpu(7))
     assert x == tvm.cpu(0)
     x = tvm.opencl(10)
-    x = tvm.testing.context_test(x, x.device_type, x.device_id)
+    x = tvm.testing.device_test(x, x.device_type, x.device_id)
     assert x == tvm.opencl(10)
 
 

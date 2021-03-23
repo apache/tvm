@@ -257,7 +257,7 @@ micro_binary = tvm.micro.build_static_runtime(
 flasher = compiler.flasher()
 with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
     graph_mod = tvm.micro.create_local_graph_runtime(
-        graph, session.get_system_lib(), session.context
+        graph, session.get_system_lib(), session.device
     )
 
     # Set the model parameters using the lowered parameters produced by `relay.build`.

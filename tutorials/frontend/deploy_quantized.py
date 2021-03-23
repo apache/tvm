@@ -39,7 +39,7 @@ import os
 batch_size = 1
 model_name = "resnet18_v1"
 target = "cuda"
-dev = tvm.context(target)
+dev = tvm.device(target)
 
 ###############################################################################
 # Prepare the Dataset
