@@ -67,7 +67,7 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  * \return 0 if successful.
  */
 int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const Device* devices, TVMGraphRuntime** runtime);
+                           const DLDevice* devices, TVMGraphRuntime** runtime);
 
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 

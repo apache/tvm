@@ -52,7 +52,7 @@ class MemoryManagerTest : public ::testing::Test {
   uint8_t* memory_pool;
   MemoryManagerInterface* interface;
   MemoryManager* mgr;
-  tvm::Device dev_;
+  DLDevice dev_;
 };
 
 #define EXPECT_PAGE(expected, actual) EXPECT_EQ(expected, AddressToPageNumber(actual))

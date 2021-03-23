@@ -91,7 +91,7 @@ typedef struct TVMGraphRuntime {
   /*! \brief The code module that contains both host and device code. */
   TVMModuleHandle module_handle;
   /*! \brief Execution context of all devices including the host. */
-  Device devices[1];
+  DLDevice devices[1];
   uint32_t devices_count;
   /*! \brief Common storage pool for all devices. */
   TVMGraphRuntimeStorageEntry* storage_pool;
