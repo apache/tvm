@@ -21,7 +21,7 @@ import pytest
 
 from tvm.ir.module import IRModule
 
-from tvm import tvmc
+from tvm.driver import tvmc
 from tvm.driver.tvmc.common import TVMCException
 
 
@@ -137,16 +137,8 @@ def verify_load_model__onnx(model, **kwargs):
 def test_load_model__onnx(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
-<<<<<<< HEAD
     mod, params = verify_load_model__onnx(onnx_resnet50)
     # check whether one known value is part of the params dict
-=======
-
-    mod, params = tvmc.load(onnx_resnet50)
-    assert type(mod) is IRModule
-    assert type(params) is dict
-    ## check whether one known value is part of the params dict
->>>>>>> adjust tests to new imports
     assert "resnetv24_batchnorm0_gamma" in params.keys()
     mod, params = verify_load_model__onnx(onnx_resnet50, freeze_params=True)
     # check that the parameter dict is empty, implying that they have been folded into constants

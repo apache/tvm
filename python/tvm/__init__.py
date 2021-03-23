@@ -54,7 +54,6 @@ from . import te
 
 # tvm.driver
 from .driver import build, lower
-from .driver import tvmc
 
 # tvm.parser
 from . import parser
