@@ -245,7 +245,9 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   weight_names_.clear();
   Map<String, NDArray> params = ::tvm::runtime::LoadParams(strm);
   for (auto& p : params) {
-    uint32_t eid = this->entry_id(input_nodes_[GetInputIndex(p.first)], 0);
+    int in_idx = GetInputIndex(p.first);
+    if (in_idx < 0) continue;
+    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     data_entry_[eid].CopyFrom(p.second);
     // neo-ai-tvm: Store weight names.
     weight_names_.push_back(p.first);
