@@ -123,7 +123,7 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         dev_ref = tvm.cpu()
 
         args = [tvm.nd.array(x, device=dev) for x in np_args]
-        args_ref = [tvm.nd.array(x, devicd=dev_ref) for x in np_args_ref]
+        args_ref = [tvm.nd.array(x, device=dev_ref) for x in np_args_ref]
         dev.sync()
 
         func(*args)

@@ -143,7 +143,7 @@ def test_rpc_array():
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
     r_cpu = tvm.nd.array(x, remote.cpu(0))
-    assert str(r_cpu.context).startswith("remote")
+    assert str(r_cpu.device).startswith("remote")
     np.testing.assert_equal(r_cpu.asnumpy(), x)
     fremote = remote.get_function("rpc.test.remote_array_func")
     fremote(r_cpu)
