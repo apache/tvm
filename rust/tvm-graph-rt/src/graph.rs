@@ -420,7 +420,7 @@ named! {
 
 // Parses a Device
 named! {
-  tvm_dev<&[u8], Device>,
+  tvm_device<&[u8], Device>,
   do_parse!(
     device_type: le_u32 >>
     device_id:   le_i32 >>
@@ -449,7 +449,7 @@ named! {
     do_parse!(
                 take!(8)      >>
                 le_u64        >>
-        ctx:    tvm_ctx       >>
+        device: tvm_device    >>
         ndim:   le_u32        >>
         dtype:  data_type     >>
         shape:  count!(map!(le_i64, |sz| sz as i64), ndim as usize) >>
@@ -458,7 +458,7 @@ named! {
         (
             Tensor {
                 data: Storage::from(data),
-                ctx: ctx,
+                device: device,
                 dtype: dtype,
                 size: shape.iter().product::<i64>() as usize,
                 shape: shape,

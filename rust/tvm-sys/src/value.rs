@@ -53,7 +53,7 @@ impl_pod_tvm_value!(v_device, DLDevice);
 #[error("unsupported device: {0}")]
 pub struct UnsupportedDeviceError(String);
 
-macro_rules! impl_tvm_context {
+macro_rules! impl_tvm_device {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
         /// Creates a DLDevice from a string (e.g., "cpu", "gpu", "ext_dev")
         impl FromStr for DLDevice {
@@ -84,7 +84,7 @@ macro_rules! impl_tvm_context {
     };
 }
 
-impl_tvm_context!(
+impl_tvm_device!(
     DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
     DLDeviceType_kDLGPU: [gpu, cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],

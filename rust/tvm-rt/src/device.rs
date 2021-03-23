@@ -27,7 +27,7 @@ use tvm_sys::ffi;
 pub use tvm_sys::device::*;
 
 trait DeviceExt {
-    /// Checks whether the context exists or not.
+    /// Checks whether the device exists or not.
     fn exist(&self) -> bool;
     fn sync(&self) -> Result<(), Error>;
     fn max_threads_per_block(&self) -> isize;
@@ -65,7 +65,7 @@ impl DeviceExt for Device {
         exists != 0
     }
 
-    /// Synchronize the context stream.
+    /// Synchronize the device stream.
     fn sync(&self) -> Result<(), Error> {
         check_call!(ffi::TVMSynchronize(
             self.device_type as i32,

@@ -59,7 +59,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup").set_body([](TVMArgs args,
   if (n_group > 1) assert(mode > 1 && "Group /Depthwise Conv mode when num of groups > 1");
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);
-  // Set Ctx
+  // Set Device
   entry_ptr->conv_entry.device = Device{kDLROCM, 0};
   // Set Data Type
   entry_ptr->conv_entry.data_type =
@@ -166,7 +166,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
       entry_ptr->conv_entry.fwd_algo = static_cast<miopenConvFwdAlgorithm_t>(algo);
       // Set Mode
       entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);
-      // Set Ctx
+      // Set Device
       entry_ptr->conv_entry.device = x->device;
       // Set Data Type
       entry_ptr->conv_entry.data_type =

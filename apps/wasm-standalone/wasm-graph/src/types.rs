@@ -114,7 +114,7 @@ impl Tensor {
     pub fn as_dltensor(&self) -> DLTensor {
         DLTensor {
             data: self.data.as_ptr() as *mut c_void,
-            ctx: DLDevice {
+            device: DLDevice {
                 device_type: DLDeviceType_kDLCPU,
                 device_id: 0 as c_int,
             },

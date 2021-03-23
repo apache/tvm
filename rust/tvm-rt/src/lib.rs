@@ -92,7 +92,7 @@ pub(crate) fn set_last_error<E: std::error::Error>(err: &E) {
 }
 
 pub mod array;
-pub mod context;
+pub mod device;
 pub mod errors;
 pub mod function;
 pub mod map;

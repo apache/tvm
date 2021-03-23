@@ -189,7 +189,7 @@ impl NDArray {
         self.len() * self.dtype().itemsize()
     }
 
-    /// Returns the context which the NDArray was defined.
+    /// Returns the device which the NDArray was defined.
     pub fn device(&self) -> Device {
         self.as_dltensor().device.into()
     }
@@ -332,7 +332,7 @@ impl NDArray {
         Ok(target)
     }
 
-    /// Copies the NDArray to a target context.
+    /// Copies the NDArray to a target device.
     pub fn copy_to_device(&self, target: &Device) -> Result<NDArray, NDArrayError> {
         let tmp = NDArray::empty(self.shape(), *target, self.dtype());
         let copy = self.copy_to_ndarray(tmp)?;

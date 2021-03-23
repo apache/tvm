@@ -136,8 +136,8 @@ class Timer : public ObjectRef {
 };
 
 /*!
- * \brief Default timer if one does not exist for the context.
- * \param ctx The context to time on.
+ * \brief Default timer if one does not exist for the device.
+ * \param dev The device to time on.
  *
  * Note that this timer performs synchronization between the device and CPU,
  * which can lead to overhead in the reported results.

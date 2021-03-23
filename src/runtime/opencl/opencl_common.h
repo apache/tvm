@@ -218,23 +218,23 @@ class OpenCLWorkspace : public DeviceAPI {
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
   // Check whether the device is OpenCL or not.
-  virtual bool IsOpenCLDevice(Device ctx) { return ctx.device_type == kDLOpenCL; }
+  virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
-  cl_command_queue GetQueue(Device ctx) {
-    ICHECK(IsOpenCLDevice(ctx));
+  cl_command_queue GetQueue(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
-        << "Invalid OpenCL device_id=" << ctx.device_id;
-    return queues[ctx.device_id];
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << dev.device_id;
+    return queues[dev.device_id];
   }
   // override device API
-  void SetDevice(Device ctx) final;
-  void GetAttr(Device ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(Device ctx, size_t size, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(Device ctx, void* ptr) final;
-  void StreamSync(Device ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(Device ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(Device ctx, void* data) final;
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -246,7 +246,7 @@ class OpenCLWorkspace : public DeviceAPI {
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      Device ctx_from, Device ctx_to, DLDataType type_hint,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
 };
 

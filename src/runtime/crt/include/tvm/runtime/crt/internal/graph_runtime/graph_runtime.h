@@ -92,7 +92,7 @@ typedef struct TVMGraphRuntime {
   TVMModuleHandle module_handle;
   /*! \brief Execution context of all devices including the host. */
   Device devices[1];
-  uint32_t ctxs_count;
+  uint32_t devices_count;
   /*! \brief Common storage pool for all devices. */
   TVMGraphRuntimeStorageEntry* storage_pool;
   uint32_t storage_pool_count;

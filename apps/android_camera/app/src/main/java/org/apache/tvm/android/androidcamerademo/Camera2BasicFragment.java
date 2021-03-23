@@ -587,8 +587,8 @@ public class Camera2BasicFragment extends Fragment {
             Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
             Log.i(TAG, "creating graph runtime...");
 
-            Log.i(TAG, "ctx type: " + tvmDev.deviceType);
-            Log.i(TAG, "ctx id: " + tvmDev.deviceId);
+            Log.i(TAG, "device type: " + tvmDev.deviceType);
+            Log.i(TAG, "device id: " + tvmDev.deviceId);
 
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
