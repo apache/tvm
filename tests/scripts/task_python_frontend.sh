@@ -34,13 +34,12 @@ make cython3
 # Enable tvm.testing decorators in the ONNX importer test (not enabling in the other tests because we
 # they do not consistently use the decorators to indicate that tests should run on GPU)
 # In the future, we should enable tvm.testing decorators for all the test files.
-PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS" run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
 echo "Running relay MXNet frontend test..."
 TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-mxnet tests/python/frontend/mxnet
 
 echo "Running relay ONNX frontend test..."
-TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-onnx tests/python/frontend/onnx
+PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS" run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
 echo "Running relay CoreML frontend test..."
 TVM_PYTHON_FFI_TYPES=cython run_pytest python-frontend-coreml tests/python/frontend/coreml
