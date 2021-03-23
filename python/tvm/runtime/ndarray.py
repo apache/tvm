@@ -251,7 +251,7 @@ def numpyasarray(np_data):
     return arr, shape
 
 
-def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):  # pylint: disable=redefined-outer-name
+def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
     """Create an empty array given shape and device
 
     Parameters
