@@ -222,7 +222,7 @@ def test_tuple_passing():
 
     dev = tvm.cpu()
     target = tvm.target.Target("llvm")
-    exec = relay.create_executor(mod=mod, devicd=dev, target=target)
+    exec = relay.create_executor(mod=mod, device=dev, target=target)
     f = exec.evaluate(gv)
     # First use a Python tuple.
     out = f((10, 8))

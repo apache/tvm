@@ -95,7 +95,7 @@ def test_fp16_build():
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
 def test_fp16_conversion(target, dev):
-    if target == "cuda" and not have_fp16(device.compute_version):
+    if target == "cuda" and not have_fp16(dev.compute_version):
         print("skip because gpu does not support fp16")
         return
 
@@ -114,7 +114,7 @@ def test_fp16_conversion(target, dev):
             g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), target)
 
         # test
-        rt = tvm.contrib.graph_runtime.create(g_json, mmod, device)
+        rt = tvm.contrib.graph_runtime.create(g_json, mmod, dev)
         rt.set_input("x", X)
         rt.run()
         out = rt.get_output(0)

@@ -23,17 +23,16 @@ from tvm.relay.testing import run_infer_type
 
 @tvm.testing.parametrize_targets
 def test_threefry_repeatability(target, dev):
-    target, device = "llvm", tvm.cpu(0)
     key1 = tvm.relay.random.threefry_key(1)
     rand1 = tvm.relay.random.threefry_generate(key1, (12,))
     out_key1, out1 = tvm.relay.create_executor(
-        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand1)), target=target, device=device
+        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand1)), target=target, device=dev
     ).evaluate()()
 
     key2 = tvm.relay.random.threefry_key(1)
     rand2 = tvm.relay.random.threefry_generate(key2, (12,))
     out_key2, out2 = tvm.relay.create_executor(
-        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand2)), target=target, device=device
+        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand2)), target=target, device=dev
     ).evaluate()()
 
     assert (
@@ -55,7 +54,7 @@ def test_threefry_split(target, dev):
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
         target=target,
-        device=device,
+        device=dev,
     ).evaluate()()
 
     assert (
@@ -72,7 +71,7 @@ def test_threefry_sequential_generate(target, dev):
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
         target=target,
-        device=device,
+        device=dev,
     ).evaluate()()
 
     assert (
