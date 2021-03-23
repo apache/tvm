@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-import
+# pylint: disable=invalid-name, unused-import, redefined-outer-name
 """Runtime NDArray API"""
 import ctypes
 import numpy as np
@@ -251,7 +251,7 @@ def numpyasarray(np_data):
     return arr, shape
 
 
-def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
+def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):  # pylint: disable=redefined-outer-name
     """Create an empty array given shape and device
 
     Parameters
