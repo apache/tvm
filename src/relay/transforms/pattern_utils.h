@@ -86,6 +86,9 @@ namespace relay {
   } else if (type == DataType::UInt(8)) {                                             \
     typedef uint8_t DType;                                                            \
     { __VA_ARGS__ }                                                                   \
+  } else if (type == DataType::Bool()) {                                              \
+    typedef bool DType;                                                               \
+    { __VA_ARGS__ }                                                                   \
   } else if ((*tvm::runtime::Registry::Get("runtime._datatype_get_type_registered"))( \
                  static_cast<uint8_t>(type.code()))) {                                \
     typedef double DType;                                                             \

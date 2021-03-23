@@ -418,7 +418,9 @@ def test_multibox_detection():
         check_device(device)
 
 
-def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_scale, sample_ratio):
+def verify_roi_align(
+    batch, in_channel, in_size, num_roi, pooled_size, spatial_scale, sample_ratio, mode
+):  # For mode, 0 = avg, 1 = max
     a_shape = (batch, in_channel, in_size, in_size)
     rois_shape = (num_roi, 5)
 
@@ -427,8 +429,8 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
 
     @memoize("topi.tests.test_topi_vision.verify_roi_align")
     def get_ref_data():
-        a_np = np.random.uniform(size=a_shape).astype("float32")
-        rois_np = np.random.uniform(size=rois_shape).astype("float32") * in_size
+        a_np = np.random.uniform(-1, 1, size=a_shape).astype("float32")
+        rois_np = np.random.uniform(-1, 1, size=rois_shape).astype("float32") * in_size
         rois_np[:, 0] = np.random.randint(low=0, high=batch, size=num_roi)
         b_np = tvm.topi.testing.roi_align_nchw_python(
             a_np,
@@ -436,6 +438,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
             pooled_size=pooled_size,
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
+            mode=mode,
         )
 
         return a_np, rois_np, b_np
@@ -447,8 +450,6 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        print("Running on target: %s" % device)
-
         with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _roi_align_implement)
             b = fcompute(
@@ -457,6 +458,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
                 pooled_size=pooled_size,
                 spatial_scale=spatial_scale,
                 sample_ratio=sample_ratio,
+                mode=mode,
             )
             s = fschedule(b)
 
@@ -465,7 +467,8 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), ctx=ctx)
         f = tvm.build(s, [a, rois, b], device)
         f(tvm_a, tvm_rois, tvm_b)
-        tvm.testing.assert_allclose(tvm_b.asnumpy(), b_np, rtol=1e-3)
+        tvm_val = tvm_b.asnumpy()
+        tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-4)
 
     for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
@@ -473,10 +476,14 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
 
 @tvm.testing.uses_gpu
 def test_roi_align():
-    verify_roi_align(1, 16, 32, 64, 7, 1.0, -1)
-    verify_roi_align(4, 16, 32, 64, 7, 0.5, 2)
-    verify_roi_align(1, 32, 32, 80, 8, 0.0625, 2)
-    verify_roi_align(1, 32, 500, 80, 8, 0.0625, 2)
+    verify_roi_align(1, 16, 32, 64, 7, 1.0, -1, 0)
+    verify_roi_align(4, 16, 32, 64, 7, 0.5, 2, 0)
+    verify_roi_align(1, 32, 32, 80, 8, 0.0625, 2, 0)
+    verify_roi_align(1, 32, 500, 80, 8, 0.0625, 2, 0)
+    verify_roi_align(1, 16, 32, 64, 7, 1.0, -1, 1)
+    verify_roi_align(4, 16, 32, 64, 7, 0.5, 2, 1)
+    verify_roi_align(1, 32, 32, 80, 8, 0.0625, 2, 1)
+    verify_roi_align(1, 32, 500, 80, 8, 0.0625, 2, 1)
 
 
 def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_scale):

@@ -68,22 +68,22 @@ int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, D
 int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   int32_t status = 0;
   uint64_t header, reserved;
-  header = ((uint64_t*)*strm)[0];  // NOLINT(*)
+  memcpy(&header, *strm, sizeof(header));
   *strm += sizeof(header);
   if (header != kTVMNDArrayMagic) {
     fprintf(stderr, "Invalid DLTensor file format\n");
     status = -1;
   }
-  reserved = ((uint64_t*)*strm)[0];  // NOLINT(*)
+  memcpy(&reserved, *strm, sizeof(reserved));
   *strm += sizeof(reserved);
   DLContext ctx;
   int ndim;  // sizeof ndim should match dlpack
   DLDataType dtype;
-  ctx = ((DLContext*)*strm)[0];  // NOLINT(*)
+  memcpy(&ctx, *strm, sizeof(ctx));
   *strm += sizeof(ctx);
-  ndim = ((int*)*strm)[0];  // NOLINT(*)
+  memcpy(&ndim, *strm, sizeof(ndim));
   *strm += sizeof(ndim);
-  dtype = ((DLDataType*)*strm)[0];  // NOLINT(*)
+  memcpy(&dtype, *strm, sizeof(dtype));
   *strm += sizeof(dtype);
   if ((ndim < 0) || (ndim > TVM_CRT_MAX_NDIM)) {
     fprintf(stderr, "Invalid ndim=%d: expected to be 0 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
@@ -97,7 +97,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   int32_t idx;
   if (ndim != 0) {
     for (idx = 0; idx < ndim; idx++) {
-      shape[idx] = ((int64_t*)*strm)[0];  // NOLINT(*)
+      memcpy(&shape[idx], *strm, sizeof(int64_t));
       *strm += sizeof(shape[idx]);
     }
   }
@@ -111,7 +111,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
     num_elems *= ret->dl_tensor.shape[idx];
   }
   int64_t data_byte_size;
-  data_byte_size = ((int64_t*)*strm)[0];  // NOLINT(*)
+  memcpy(&data_byte_size, *strm, sizeof(data_byte_size));
   *strm += sizeof(data_byte_size);
   if (!(data_byte_size == num_elems * elem_bytes)) {
     fprintf(stderr,

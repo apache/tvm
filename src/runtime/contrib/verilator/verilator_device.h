@@ -31,24 +31,51 @@ namespace tvm {
 namespace runtime {
 namespace contrib {
 
+/*! \brief Verilator device resource context  */
 typedef void* VerilatorHandle;
 
-/* allocate Verilator object */
+/*!
+ * \brief Allocate a verilator device resource handle
+ * \return The verilator device handle.
+ */
 extern "C" TVM_DLL VerilatorHandle VerilatorAlloc();
 
-/* deallocate Verilator object */
+/*!
+ * \brief Free a verilator device handle
+ * \param handle The verilator device handle to be freed.
+ */
 extern "C" TVM_DLL void VerilatorDealloc(VerilatorHandle handle);
 
-/* read Verilator register or memory */
+/*!
+ * \brief Read verilator register or memory
+ * \param handle The verilator device handle.
+ * \param id The register or memory identifier.
+ * \param addr The register or memory address (word-level).
+ * \return The value of register or memory.
+ */
 extern "C" TVM_DLL int VerilatorRead(VerilatorHandle handle, int id, int addr);
 
-/* write Verilator register or memory */
+/*!
+ * \brief Write verilator register or memory
+ * \param handle The verilator device handle.
+ * \param id The register or memory identifier.
+ * \param addr The register or memory address (word-level).
+ * \param value The value of register or memory.
+ */
 extern "C" TVM_DLL void VerilatorWrite(VerilatorHandle handle, int id, int addr, int value);
 
-/* reset Verilator for n clock cycles */
+/*!
+ * \brief Reset Verilator for n clock cycles
+ * \param handle The verilator device handle.
+ * \param n The number of reset cycles.
+ */
 extern "C" TVM_DLL void VerilatorReset(VerilatorHandle handle, int n);
 
-/* run Verilator for n clock cycles */
+/*!
+ * \brief Run Verilator for n clock cycles
+ * \param handle The verilator device handle.
+ * \param n The number of run cycles.
+ */
 extern "C" TVM_DLL void VerilatorRun(VerilatorHandle handle, int n);
 
 }  // namespace contrib

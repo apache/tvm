@@ -18,6 +18,7 @@
 Common utility functions shared by TVMC modules.
 """
 import re
+import json
 import logging
 import os.path
 import argparse
@@ -78,6 +79,168 @@ def convert_graph_layout(mod, desired_layout):
             )
 
 
+def validate_targets(parse_targets):
+    """
+    Apply a series of validations in the targets provided via CLI.
+    """
+    tvm_target_kinds = tvm.target.Target.list_kinds()
+    targets = [t["name"] for t in parse_targets]
+
+    if len(targets) > len(set(targets)):
+        raise TVMCException("Duplicate target definitions are not allowed")
+
+    if targets[-1] not in tvm_target_kinds:
+        tvm_target_names = ", ".join(tvm_target_kinds)
+        raise TVMCException(
+            f"The last target needs to be a TVM target. Choices: {tvm_target_names}"
+        )
+
+    tvm_targets = [t for t in targets if t in tvm_target_kinds]
+    if len(tvm_targets) > 1:
+        verbose_tvm_targets = ", ".join(tvm_targets)
+        raise TVMCException(
+            f"Only one of the following targets can be used at a time. "
+            "Found: {verbose_tvm_targets}."
+        )
+
+
+def tokenize_target(target):
+    """
+    Extract a list of tokens from a target specification text.
+
+    It covers some corner-cases that are not covered by the built-in
+    module 'shlex', such as the use of "+" as a punctuation character.
+
+
+    Example
+    -------
+
+    For the input `foo -op1=v1 -op2="v ,2", bar -op3=v-4` we
+    should obtain:
+
+        ["foo", "-op1=v1", "-op2="v ,2"", ",", "bar", "-op3=v-4"]
+
+    Parameters
+    ----------
+    target : str
+        Target options sent via CLI arguments
+
+    Returns
+    -------
+    list of str
+        a list of parsed tokens extracted from the target string
+    """
+
+    target_pattern = (
+        r"(\-{0,2}[\w\-]+\=?"
+        r"(?:[\w\+\-]+(?:,[\w\+\-])*|[\'][\w\+\-,\s]+[\']|[\"][\w\+\-,\s]+[\"])*|,)"
+    )
+
+    return re.findall(target_pattern, target)
+
+
+def parse_target(target):
+    """
+    Parse a plain string of targets provided via a command-line
+    argument.
+
+    To send more than one codegen, a comma-separated list
+    is expected. Options start with -<option_name>=<value>.
+
+    We use python standard library 'shlex' to parse the argument in
+    a POSIX compatible way, so that if options are defined as
+    strings with spaces or commas, for example, this is considered
+    and parsed accordingly.
+
+
+    Example
+    -------
+
+    For the input `--target="foo -op1=v1 -op2="v ,2", bar -op3=v-4"` we
+    should obtain:
+
+      [
+        {
+            name: "foo",
+            opts: {"op1":"v1", "op2":"v ,2"},
+            raw: 'foo -op1=v1 -op2="v ,2"'
+        },
+        {
+            name: "bar",
+            opts: {"op3":"v-4"},
+            raw: 'bar -op3=v-4'
+        }
+      ]
+
+    Parameters
+    ----------
+    target : str
+        Target options sent via CLI arguments
+
+    Returns
+    -------
+    codegens : list of dict
+        This list preserves the order in which codegens were
+        provided via command line. Each Dict contains three keys:
+        'name', containing the name of the codegen; 'opts' containing
+        a key-value for all options passed via CLI; 'raw',
+        containing the plain string for this codegen
+    """
+    codegens = []
+
+    parsed_tokens = tokenize_target(target)
+
+    split_codegens = []
+    current_codegen = []
+    split_codegens.append(current_codegen)
+    for token in parsed_tokens:
+        # every time there is a comma separating
+        # two codegen definitions, prepare for
+        # a new codegen
+        if token == ",":
+            current_codegen = []
+            split_codegens.append(current_codegen)
+        else:
+            # collect a new token for the current
+            # codegen being parsed
+            current_codegen.append(token)
+
+    # at this point we have a list of lists,
+    # each item on the first list is a codegen definition
+    # in the comma-separated values
+    for codegen_def in split_codegens:
+        # the first is expected to be the name
+        name = codegen_def[0]
+        raw_target = " ".join(codegen_def)
+        all_opts = codegen_def[1:] if len(codegen_def) > 1 else []
+        opts = {}
+        for opt in all_opts:
+            try:
+                # deal with -- prefixed flags
+                if opt.startswith("--"):
+                    opt_name = opt[2:]
+                    opt_value = True
+                else:
+                    opt = opt[1:] if opt.startswith("-") else opt
+                    opt_name, opt_value = opt.split("=", maxsplit=1)
+            except ValueError:
+                raise ValueError(f"Error when parsing '{opt}'")
+
+            opts[opt_name] = opt_value
+
+        codegens.append({"name": name, "opts": opts, "raw": raw_target})
+
+    return codegens
+
+
+def is_inline_json(target):
+    try:
+        json.loads(target)
+        return True
+    except json.decoder.JSONDecodeError:
+        return False
+
+
 def target_from_cli(target):
     """
     Create a tvm.target.Target instance from a
@@ -93,18 +256,33 @@ def target_from_cli(target):
     -------
     tvm.target.Target
         an instance of target device information
+    extra_targets : list of dict
+        This list preserves the order in which extra targets were
+        provided via command line. Each Dict contains three keys:
+        'name', containing the name of the codegen; 'opts' containing
+        a key-value for all options passed via CLI; 'raw',
+        containing the plain string for this codegen
     """
+    extra_targets = []
 
     if os.path.exists(target):
         with open(target) as target_file:
-            logger.info("using target input from file: %s", target)
+            logger.debug("target input is a path: %s", target)
             target = "".join(target_file.readlines())
+    elif is_inline_json(target):
+        logger.debug("target input is inline JSON: %s", target)
+    else:
+        logger.debug("target input is plain text: %s", target)
+        try:
+            parsed_targets = parse_target(target)
+        except ValueError as ex:
+            raise TVMCException(f"Error parsing target string '{target}'.\nThe error was: {ex}")
 
-    # TODO(@leandron) We don't have an API to collect a list of supported
-    #       targets yet
-    logger.debug("creating target from input: %s", target)
+        validate_targets(parsed_targets)
+        target = parsed_targets[-1]["raw"]
+        extra_targets = parsed_targets[:-1] if len(parsed_targets) > 1 else []
 
-    return tvm.target.Target(target)
+    return tvm.target.Target(target), extra_targets
 
 
 def tracker_host_port_from_cli(rpc_tracker_str):

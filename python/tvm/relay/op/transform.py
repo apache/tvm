@@ -21,7 +21,7 @@
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-from ..expr import TupleWrapper, const, Expr, Tuple
+from ..expr import TupleWrapper, const, Constant, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -86,7 +86,7 @@ def reinterpret(data, dtype):
 
 
 def expand_dims(data, axis, num_newaxis=1):
-    """Insert `num_newaxis` axises at the position given by `axis`.
+    """Insert `num_newaxis` axes at the position given by `axis`.
 
     Parameters
     ----------
@@ -216,6 +216,8 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Constant):
+        newshape = list(newshape.data.asnumpy())
     if isinstance(newshape, Expr):
         return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
@@ -321,7 +323,7 @@ def scatter_nd(data, indices, out_shape):
     indices : relay.Expr
         The index locations to update.
 
-    out_shape : relay.Expr
+    out_shape : Union[Tuple[int], List[int]]
         Output shape of the scatter.
 
     Returns
@@ -431,6 +433,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.full(fill_value, shape, dtype)
     if isinstance(shape, int):
@@ -614,6 +618,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
+    if isinstance(reps, Constant):
+        reps = list(reps.data.asnumpy())
     if isinstance(reps, Expr):
         return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
@@ -753,6 +759,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.broadcast_to(data, shape)
     if isinstance(shape, int):
@@ -884,6 +892,12 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         The computed result.
     """
     strides = strides or [1]
+    if isinstance(begin, Constant):
+        begin = list(begin.data.asnumpy())
+    if isinstance(end, Constant):
+        end = list(end.data.asnumpy())
+    if isinstance(strides, Constant):
+        strides = list(strides.data.asnumpy())
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
@@ -1170,6 +1184,8 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 1, 0],
              [0, 0, 1]]
     """
+    if isinstance(depth, Constant):
+        depth = depth.data.asnumpy().item()
     if isinstance(depth, Expr):
         return _dyn_make.one_hot(indices, on_value, off_value, depth, axis, dtype)
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
@@ -1320,6 +1336,78 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+
+def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    """
+    Fill rows in a sparse matrix that do no contain any values. Values are placed in the first
+    column of empty rows. The sparse array is in COO format.
+    It returns a TupleWrapper with 3 outputs
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, ndims] of integers containing location of sparse values, where N is
+        the number of sparse values and n_dim is the number of dimensions of the dense_shape.
+        The first column of this relay parameter must be sorted in ascending order.
+    sparse_values : relay.Expr
+        A 1-D tensor[N] containing the sparse values for the sparse indices.
+    dense_shape : relay.Expr
+        A 1-D tensor[ndims] which contains shape of the dense output tensor.
+    default_value : relay.Expr
+        A 1-D tensor[1] containing the default value for the remaining locations.
+    Returns
+    -------
+    new_sparse_indices : relay.Expr
+        A 2-D tensor[?, ndims] of integers containing location of new sparse
+        indices. The first column outputs must be sorted in ascending order.
+    new_sparse_values : relay.Expr
+        A 1-D tensor[?] containing the sparse values for the sparse indices.
+    empty_row_indicator : relay.Expr
+        A 1-D tensor[dense_shape[0]] filled with zeros and ones
+        indicating whether the particular row is empty or full respectively
+
+    Note
+    ----
+    This op exactly follows the documentation here:
+    https://www.tensorflow.org/api_docs/python/tf/sparse/fill_empty_rows
+    There are two exceptions:
+    1. Input Sparse Indices are expected to be in row-major order.
+    2. Empty Row Indicator has int64 output type with 1(for True) and 0(for False).
+
+    Examples
+    -------
+    .. code-block:: python
+        sparse_indices = [[0, 1],
+                         [0, 3],
+                         [2, 0],
+                         [3, 1]]
+        sparse_values = [1, 2, 3, 4]
+        default_value = [10]
+        dense_shape = [5, 6]
+        new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index =
+                            relay.sparse_fill_empty_rows(
+                            sparse_indices,
+                            sparse_values,
+                            default_value,
+                            dense_shape)
+        new_sparse_indices = [[0, 1],
+                             [0, 3],
+                             [1, 0],
+                             [2, 0],
+                             [3, 1],
+                             [4, 0]]
+        empty_row_indicator = [False, True, False, False, True]
+        new_sparse_values = [1, 2, 10, 3, 4, 10]
+
+    """
+    new_sparse_indices, new_sparse_values, empty_row_indicator = TupleWrapper(
+        _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 3
+    )
+    new_sparse_indices = cast_like(new_sparse_indices, sparse_indices)
+    new_sparse_values = cast_like(new_sparse_values, sparse_values)
+    empty_row_indicator = cast(empty_row_indicator, "bool")
+
+    return Tuple((new_sparse_indices, new_sparse_values, empty_row_indicator))
 
 
 def cumsum(data, axis=None, dtype=None, exclusive=None):

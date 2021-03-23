@@ -491,6 +491,12 @@ def infer_type(node, mod=None):
     return ret
 
 
+def fold_constant(node, mod=None):
+    if mod is None:
+        mod = IRModule.from_expr(node)
+    return _transform.FoldConstantExpr(node, mod)
+
+
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
     these attributes. We check the shape of weights provided to get the number.

@@ -1334,6 +1334,8 @@ class Parser {
       case TokenType::kBoolean:
       case TokenType::kStringLiteral:
         return Match(next->token_type)->data;
+      case TokenType::kMetaReference:
+        return ParseMetaRef();
       case TokenType::kLSquare: {
         return ParseSequence<ObjectRef>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare,
                                         [&]() { return ParseAttributeValue(); });
@@ -1408,7 +1410,7 @@ class Parser {
             auto last_meta = Lookahead(2)->token_type == TokenType::kCloseParen;
             auto is_meta_attrs = is_meta_next && last_meta;
 
-            if (is_op && (is_pretty_attrs || is_meta_attrs)) {
+            if (is_pretty_attrs || is_meta_attrs) {
               if (is_meta_attrs) {
                 auto meta_ref = ParseMetaRef();
                 if (meta_ref.as<BaseAttrsNode>()) {
@@ -1420,13 +1422,23 @@ class Parser {
                 }
               } else {
                 auto raw_attrs = ParseAttrs();
-                auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
-                ICHECK(attr_obj.defined());
-                attrs = Downcast<Attrs>(attr_obj);
+                if (is_op && op_key.size()) {
+                  auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
+                  ICHECK(attr_obj.defined());
+                  attrs = Downcast<Attrs>(attr_obj);
+                } else if (raw_attrs.count("attrs_type_key")) {
+                  String attr_key = Downcast<String>(raw_attrs["attrs_type_key"]);
+                  if (attr_key.size()) {
+                    raw_attrs.erase("attrs_type_key");
+                    auto tbl = tvm::ReflectionVTable::Global();
+                    auto attr_obj = tbl->CreateObject(attr_key, raw_attrs);
+                    ICHECK(attr_obj.defined());
+                    attrs = Downcast<Attrs>(attr_obj);
+                  }
+                }
               }
               return true;
             }
-
             return false;
           });
 

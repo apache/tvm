@@ -27,4 +27,4 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-TVM_PYTEST_FFI_TYPES=cython run_pytest python-topi-nightly tests/python/topi/nightly
+run_pytest cython python-topi-nightly tests/python/topi/nightly

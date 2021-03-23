@@ -420,5 +420,51 @@ def @shallow_opt[A](%a: Arith[A]) -> Arith[A] {
     # fromtext parse the module, then checked it (which include strictness checking).
 
 
+def test_expanding_ctor_with_no_args():
+    code = """
+#[version = "0.0.5"]
+type List[A] {
+    Cons(A, List[A]),
+    Nil,
+}
+
+def @expand_on_nil_match(%a: List[(List[()],)]) -> int {
+    match (%a) {
+        Cons((Nil), Nil) => 1,
+        _ => 2,
+    }
+}
+"""
+    # exhausion checks:
+    # * hits Cons((Nil), Nil), expands to Cons(*, *), Nil()
+    # Nil() fails Cons((Nil), Nil), passes _
+    # Cons(*, *) hits Cons((Nil), Nil), expands to Cons((*), Cons(*, *)), Cons((*), Nil())
+    # Cons((*), Cons(*, *)) fails Cons((Nil), Nil), passes _
+    # Cons((*), Nil()) hits Cons((Nil), Nil), expands to Cons((Nil), Nil), Cons((Cons(*, *)), Nil)
+    # Cons((Nil), Nil) passes the first pattern
+    # Cons((Cons(*, *)), Nil) fails the first pattern, passes _
+    # Note Nil() is passed to ExpandWildcardsConstructor many times in the above!
+    tvm.parser.fromtext(code)
+
+
+def test_expanding_empty_tuple():
+    # same principle as above, but with empty tuple
+    code = """
+#[version = "0.0.5"]
+type List[A] {
+    Cons(A, List[A]),
+    Nil,
+}
+
+def @expand_on_empty_tuple_match(%a: (List[()], ())) -> int {
+    match (%a) {
+        (Cons((), Nil), ()) => 1,
+        _ => 2,
+    }
+}
+"""
+    tvm.parser.fromtext(code)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

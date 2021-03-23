@@ -45,12 +45,14 @@ if(USE_MICRO)
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
          "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
          "src/runtime/crt/graph_runtime_module *.c -> src/runtime/crt/graph_runtime_module"
-         "src/runtime/crt/host crt_config.h -> src/runtime/crt/host"
+         "src/runtime/crt/host crt_config.h -> template/host"
+         "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
          "src/runtime/crt/utvm_rpc_common *.cc -> src/runtime/crt/utvm_rpc_common"
          "src/runtime/crt/utvm_rpc_server *.cc -> src/runtime/crt/utvm_rpc_server"
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
+         "src/runtime/crt crt_config-template.h -> template"
          )
 
     set(standalone_crt_base "${CMAKE_CURRENT_BINARY_DIR}/standalone_crt")
@@ -101,9 +103,7 @@ if(USE_MICRO)
     endforeach()
 
     set(make_common_args
-        "DLPACK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/3rdparty/dlpack/include"
-        "TVM_INCLUDE_DIR=${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include"
-        "CRT_CONFIG=src/runtime/crt/host/crt_config.h"
+        "CRT_CONFIG=template/host/crt_config.h"
         "BUILD_DIR=${host_build_dir_abspath}"
         "EXTRA_CFLAGS=-fPIC"
         "EXTRA_CXXFLAGS=-fPIC"

@@ -48,6 +48,23 @@ if(USE_ROCM)
     list(APPEND RUNTIME_SRCS ${ROCBLAS_CONTRIB_SRCS})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_ROCBLAS_LIBRARY})
   endif(USE_ROCBLAS)
+
+  if(USE_THRUST)
+    message(STATUS "Build with rocThrust support")
+    # We need to override CXX to hipcc. This is required by rocthrust
+    if (${CMAKE_CXX_COMPILER} MATCHES "hipcc$")
+      message(STATUS "Using hipcc compiler to compile rocthrust code.")
+    else()
+      message(FATAL_ERROR "Set CXX=hipcc to compile rocthrust code.")
+    endif()
+
+    find_package(rocprim REQUIRED)
+    find_package(rocthrust REQUIRED)
+    set_source_files_properties(src/runtime/contrib/thrust/thrust.cu PROPERTIES LANGUAGE CXX)
+    list(APPEND RUNTIME_SRCS src/runtime/contrib/thrust/thrust.cu)
+    list(APPEND TVM_RUNTIME_LINKER_LIBS roc::rocthrust)
+  endif(USE_THRUST)
+
 else(USE_ROCM)
   list(APPEND COMPILER_SRCS src/target/opt/build_rocm_off.cc)
 endif(USE_ROCM)

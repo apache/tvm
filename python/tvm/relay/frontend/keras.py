@@ -864,29 +864,14 @@ def _convert_reshape(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     inshape = keras_layer.input_shape  # includes batch
     tshape = keras_layer.target_shape  # no batch
-    if len(inshape) == 3 and len(tshape) == 1:
-        # (?, a, b) -> (-1, ab)
-        shape = (-1, tshape[0])
-    elif len(inshape) in [2, 3] and len(tshape) == 2:
-        # (?, cc) -> (-1, c, c)
-        # (?, a, b) -> (-1, c, c)
-        assert tshape[0] == tshape[1], "Only supports square target shapes, but got {}".format(
-            tshape
-        )
-        shape = (-1,) + tshape
-    else:
-        # (?, h, w, c) -> (-1, c, H, W)
-        # (?, h, w, c) -> (-1, c, hw)
-        # (?, hw, c) -> (-1, c, h, w)
-        ch = inshape[-1]
-        assert ch == tshape[-1], (
-            "Only supports last dimension in target shape being equal to "
-            "the channel number of input tensor."
-        )
-        if etab.data_layout == "NCHW":
-            shape = (-1, ch) + tshape[:-1]
-        else:
-            shape = (-1,) + tshape[:-1] + (ch,)
+    shape = (-1,) + tshape
+
+    if etab.data_layout == "NCHW" and (len(inshape) > 3 or len(tshape) > 2):
+        # Perform reshape in original NHWC format.
+        inexpr = _op.transpose(inexpr, [0] + list(range(2, len(inshape))) + [1])
+        inexpr = _op.reshape(inexpr, newshape=shape)
+        return _op.transpose(inexpr, axes=[0, -1] + list(range(1, len(shape) - 1)))
+
     return _op.reshape(inexpr, newshape=shape)
 
 

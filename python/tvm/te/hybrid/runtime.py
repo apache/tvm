@@ -111,6 +111,14 @@ def max_num_threads(allow_none=True):
     return Target.current(allow_none).max_num_threads
 
 
+def inf(dtype):
+    return numpy.iinfo(dtype).max
+
+
+def ninf(dtype):
+    return numpy.iinfo(dtype).min
+
+
 HYBRID_GLOBALS = {
     "unroll": range,
     "vectorize": range,
@@ -142,6 +150,8 @@ HYBRID_GLOBALS = {
     "float64": numpy.float64,
     "ceil_div": lambda a, b: (a + b - 1) // b,
     "max_num_threads": max_num_threads,
+    "inf": inf,
+    "ninf": inf,
 }
 
 

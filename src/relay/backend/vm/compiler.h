@@ -125,8 +125,7 @@ class VMCompiler : public runtime::ModuleNode {
    *
    * \return The optimized IRModule.
    */
-  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets,
-                          const Target& target_host);
+  IRModule OptimizeModule(IRModule mod, const TargetsMap& targets, const Target& target_host);
 
   /*!
    * \brief Populate the global function names in a map where the value is used

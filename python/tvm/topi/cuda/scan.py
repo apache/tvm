@@ -18,7 +18,7 @@
 "Scan related operators"
 import tvm
 from tvm import te
-from tvm._ffi import get_global_func
+from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from ..transform import expand_dims, squeeze, transpose, reshape
 from ..utils import ceil_div, swap, prod, get_const_int
 from ..math import cast
@@ -221,7 +221,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
                 with ib.if_scope(scan_axis_size > 0):
                     reduction[tid] = binop(
                         data_ex_scan[tid * scan_axis_size + scan_axis_size - 1],
-                        data[tid, scan_axis_size - 1],
+                        data[tid * scan_axis_size + scan_axis_size - 1],
                     )
                 with ib.else_scope():
                     reduction[tid] = 0
@@ -247,11 +247,6 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
         return squeeze(reduction, 0)
 
     return reduction
-
-
-def is_thrust_available():
-    """Test if thrust based scan ops are available."""
-    return get_global_func("tvm.contrib.thrust.sum_scan", allow_missing=True) is not None
 
 
 def scan_thrust(
@@ -352,7 +347,10 @@ def exclusive_scan(
 
     def do_scan(data, output_dtype):
         target = tvm.target.Target.current()
-        if target and target.kind.name == "cuda" and is_thrust_available():
+        if target and (
+            can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
+            or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
+        ):
             return scan_thrust(
                 data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop
             )
