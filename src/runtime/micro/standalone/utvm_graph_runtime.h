@@ -113,7 +113,7 @@ class NDArray {
   // tensor dtype
   DLDataType dtype_;
   // tensor device
-  Device device_;
+  DLDevice device_;
 };
 
 // Minimal GraphRuntime implementation
@@ -151,7 +151,7 @@ class MicroGraphRuntime {
   // Additional graph attributes
   GraphAttr attrs_;
   // Execution device
-  Device device_{kDLCPU, 0};
+  DLDevice device_{kDLCPU, 0};
 
   // Common storage pool
   DynArray<NDArray> storage_pool_;
