@@ -377,8 +377,8 @@ TVM_DLL int TVMFuncRemoveGlobal(const char* name);
  * \param dtype_code The type code of the dtype
  * \param dtype_bits The number of bits of dtype
  * \param dtype_lanes The number of lanes in the dtype.
- * \param device_type The device type of context
- * \param device_id The device id of context.
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param out The output handle.
  * \return 0 when success, -1 when failure happens
  */
@@ -446,9 +446,9 @@ TVM_DLL void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor);
 /*!
  * \brief Create a new runtime stream.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context
- * \param out The new stream handle
+ * \param device_type The device type.
+ * \param device_id The device id.
+ * \param out The new stream handle.
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out);
@@ -456,9 +456,9 @@ TVM_DLL int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out
 /*!
  * \brief Free a created stream handle.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context
- * \param stream The stream to be freed
+ * \param device_type The device type.
+ * \param device_id The device id.
+ * \param stream The stream to be freed.
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream);
@@ -469,8 +469,8 @@ TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream
  *  will use the setted stream handle.
  *  The specific type of stream is runtime device dependent.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context.
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param handle The stream handle.
  * \return 0 when success, -1 when failure happens
  */
@@ -479,8 +479,8 @@ TVM_DLL int TVMSetStream(int device_type, int device_id, TVMStreamHandle handle)
 /*!
  * \brief Wait until all computations on stream completes.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context.
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param stream The stream to be synchronized.
  * \return 0 when success, -1 when failure happens
  */
@@ -489,8 +489,8 @@ TVM_DLL int TVMSynchronize(int device_type, int device_id, TVMStreamHandle strea
 /*!
  * \brief Synchronize two streams of execution.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param src The source stream to synchronize.
  * \param dst The destination stream to synchronize.
  * \return 0 when success, -1 when failure happens

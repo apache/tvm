@@ -192,7 +192,7 @@ class Interpreter(Executor):
         The module to support the execution.
 
     device : Device
-        The runtime context to run the code on.
+        The runtime device to run the code on.
 
     target : tvm.Target
         The target option to build the function.

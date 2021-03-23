@@ -90,7 +90,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
     status = -1;
   }
   if (dev.device_type != kDLCPU) {
-    fprintf(stderr, "Invalid DLTensor context: can only save as CPU tensor\n");
+    fprintf(stderr, "Invalid DLTensor device: can only save as CPU tensor\n");
     status = -1;
   }
   int64_t shape[TVM_CRT_MAX_NDIM] = {0};

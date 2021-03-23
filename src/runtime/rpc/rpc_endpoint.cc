@@ -178,7 +178,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << args[i].AsObjectRef<ObjectRef>()->GetTypeKey() << " is not supported by RPC";
       } else if (tcode == kDLDevice) {
         DLDevice dev = args[i];
-        ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC context in the channel";
+        ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC device in the channel";
       }
     }
   }

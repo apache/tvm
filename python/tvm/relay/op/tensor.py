@@ -1160,7 +1160,7 @@ def copy_shape_func(attrs, inputs, _):
 
 def device_copy(data, src_dev, dst_dev):
     """Copy data from the source device to the destination device. This
-    operator helps data transferring between difference contexts for
+    operator helps data transferring between difference devices for
     heterogeneous execution.
 
     Parameters

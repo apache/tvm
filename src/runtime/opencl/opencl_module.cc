@@ -50,7 +50,7 @@ class OpenCLWrappedFunc {
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    ICHECK(w_->context != nullptr) << "No OpenCL device";
+    ICHECK(w_->device != nullptr) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
@@ -65,7 +65,7 @@ class OpenCLWrappedFunc {
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], void_args[i]));
     }
-    cl_command_queue queue = w_->GetQueue(t->context);
+    cl_command_queue queue = w_->GetQueue(t->device);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
@@ -186,7 +186,7 @@ void OpenCLModuleNode::Init() {
 cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                                           const std::string& func_name, const KTRefEntry& e) {
   std::lock_guard<std::mutex> lock(build_lock_);
-  int device_id = t->context.device_id;
+  int device_id = t->device.device_id;
   if (!device_built_flag_[device_id]) {
     // create program
     if (fmt_ == "cl") {
@@ -194,7 +194,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
         const char* s = data_.c_str();
         size_t len = data_.length();
         cl_int err;
-        program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
+        program_ = clCreateProgramWithSource(w->device, 1, &s, &len, &err);
         OPENCL_CHECK_ERROR(err);
       }
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
@@ -202,7 +202,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       size_t len = data_.length();
       cl_int err;
       cl_device_id dev = w->devices[device_id];
-      program_ = clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
+      program_ = clCreateProgramWithBinary(w->device, 1, &dev, &len, &s, NULL, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;

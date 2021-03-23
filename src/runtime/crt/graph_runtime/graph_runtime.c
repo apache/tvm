@@ -1143,11 +1143,11 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
 }
 
 /*!
- * \brief Initialize the graph executor with graph and context.
+ * \brief Initialize the graph executor with graph and device.
  * \param graph_json The execution graph.
  * \param module_handle The module containing the compiled functions for the host
  * processor.
- * \param devs The context of the host and devices where graph nodes will be
+ * \param devs The device of the host and devices where graph nodes will be
  * executed on.
  * \return 0 on success.
  */

@@ -85,7 +85,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         The internal tvm module that holds the actual graph functions.
 
     device : Device
-        The context this module is under.
+        The device that this module is under.
 
     graph_json_str : str or graph class
         Content of graph json file in string format
@@ -103,7 +103,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         graph_runtime.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
 
-    def _format_context(self, device):
+    def _format_device(self, device):
         return str(device[0]).upper().replace("(", ":").replace(")", "")
 
     def _ensure_dir(self, directory):
@@ -124,7 +124,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         Parameters
         ----------
         device : Device
-            The context this module is under.
+            The device that this module is under.
 
         Returns
         -------
@@ -154,14 +154,14 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             List of all the nodes presented in the graph
 
         device : Device
-            The context this module is under.
+            The device that this module is under.
         """
         # make the dump folder if not given
         if not self._dump_root:
             self._dump_root = tempfile.mkdtemp(prefix=_DUMP_ROOT_PREFIX)
 
-        # format the context
-        device = self._format_context(device)
+        # format the device
+        device = self._format_device(device)
 
         # updates the dumping directories
         self._dump_path = self._get_dump_path(device)

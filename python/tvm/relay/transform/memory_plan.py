@@ -91,7 +91,7 @@ class Region:
             assert (
                 self.device.device_type == dev.device_type
                 and self.device.device_id == dev.device_id
-            ), "must have matching context"
+            ), "must have matching device"
         else:
             assert dev
             self.device = dev
@@ -287,7 +287,7 @@ class StorageCoalesce(ExprMutator):
             dynamic_regions.append(lhs)
         else:
             # A new scope is created when entering a new region with different
-            # device context.
+            # device device.
             region = self.current_region(dtype)
             if region.device and region.device.device_type != dev.device_type:
                 self.enter_scope()

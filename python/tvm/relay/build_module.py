@@ -374,7 +374,7 @@ class GraphExecutor(_interpreter.Executor):
         The module to support the execution.
 
     device : :py:class:`Device`
-        The runtime context to run the code on.
+        The runtime device to run the code on.
 
     target : :py:class:`Target`
         The target option to build the function.

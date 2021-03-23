@@ -248,7 +248,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get device from the context list based on a given device type. */
+  /*! \brief Get device from the device list based on a given device type. */
   Device GetDevice(Index device_type) const;
 
   /*!
@@ -275,7 +275,7 @@ class VirtualMachine : public runtime::ModuleNode {
   const Executable* exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
-  /*! \brief The set of TVM contexts the VM is currently executing on. */
+  /*! \brief The set of TVM devices the VM is currently executing on. */
   std::vector<Device> devices_;
   /*! \brief The cached memory allocators. */
   std::vector<Allocator*> allocators_;

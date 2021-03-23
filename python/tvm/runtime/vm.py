@@ -288,9 +288,9 @@ class VirtualMachine(object):
 
     memory_cfg : str or Dict[tvm.runtime.Device, str], optional
         Config the type of memory allocator. The allocator type can be ["naive",
-        "pooled"]. If memory_cfg is None, all contexts will use pooled allocator
-        by default. If memory_cfg is string, all contexts will use the specified
-        allocator type. If memory_cfg is a dict, each context uses the allocator
+        "pooled"]. If memory_cfg is None, all devices will use pooled allocator
+        by default. If memory_cfg is string, all devices will use the specified
+        allocator type. If memory_cfg is a dict, each device uses the allocator
         type specified in the dict, or pooled allocator if not specified in the
         dict.
     """

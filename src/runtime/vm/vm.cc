@@ -182,7 +182,7 @@ inline Device VirtualMachine::GetDevice(Index device_type) const {
 
   auto dev = devices_[device_type];
   ICHECK_EQ(static_cast<Index>(dev.device_type), device_type)
-      << "device type " << device_type << " has not been initialized int the context list.";
+      << "device type " << device_type << " has not been initialized in the device list.";
   return dev;
 }
 
@@ -304,7 +304,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
 void VirtualMachine::Init(const std::vector<Device>& devs,
                           const std::vector<AllocatorType>& alloc_types) {
   ICHECK_EQ(devs.size(), alloc_types.size());
-  // Cache the context
+  // Cache the device
   for (size_t i = 0; i < devs.size(); i++) {
     auto dev_type = static_cast<size_t>(devs[i].device_type);
     auto alloc = MemoryManager::GetOrCreateAllocator(devs[i], alloc_types[i]);
@@ -542,7 +542,7 @@ void VirtualMachine::RunLoop() {
         ICHECK_LT(static_cast<size_t>(dev_type), allocators_.size())
             << "Memory allocator for device " << dev_type << " has not been initialized";
         auto* alloc = allocators_[dev_type];
-        ICHECK(alloc) << "Did you forget to init the VirtualMachine with contexts?";
+        ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
         storage_obj->buffer = alloc->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);
