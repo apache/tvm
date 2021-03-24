@@ -1936,7 +1936,7 @@ def test_forward_box_nms():
             ):
                 target += " -libs=thrust"
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, mod=mod, dev=dev, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(data)
                 tvm.testing.assert_allclose(
                     op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
