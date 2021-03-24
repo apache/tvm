@@ -3775,7 +3775,7 @@ RELAY_REGISTER_OP("adv_index")
 TVM_REGISTER_NODE_TYPE(ScanopAttrs);
 
 bool ScanopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                 const TypeReporter& reporter) {
+               const TypeReporter& reporter) {
   // types: [data, output]
   ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
