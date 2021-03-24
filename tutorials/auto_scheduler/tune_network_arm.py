@@ -52,7 +52,7 @@ import os
 import tvm
 from tvm import relay, auto_scheduler
 from tvm.relay import data_dep_optimization as ddo
-from tvm.topi.sparse.utils import random_bsr_matrix
+from tvm.topi.sparse.utils import random_sparse_dense_params
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
 from tvm.contrib.utils import tempdir
@@ -140,37 +140,14 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
         raise ValueError("Network not found.")
 
     if use_sparse:
-        # This is a test workload that manually transforms a dense model to sparse
-        # Check `tutorials/frontend/deploy_sparse.py` for more examples on how to import a
-        # pretrained model.
-
-        def random_sparse_dense_params(func, params, density, BS_R, BS_C):
-            def deepcopy(param_dic):
-                ret = {}
-                for k, v in param_dic.items():
-                    ret[k] = tvm.nd.array(v.asnumpy())
-                return ret
-
-            new_params = deepcopy(params)
-            dense_weight_names = relay.analysis.sparse_dense._search_dense_op_weight(func)
-            for item in dense_weight_names:
-                name = str(item)
-                shape = new_params[name].shape
-                if shape[0] % BS_R == 0 and shape[1] % BS_C == 0:
-                    new_w = random_bsr_matrix(
-                        shape[0], shape[1], BS_R, BS_C, density, "float32"
-                    ).todense()
-                    new_params[name] = tvm.nd.array(new_w)
-            return new_params
-
         bs_r = 1
+        bs_c = 1
         sparsity = 0.85
-
-        # Currently we only support to conver dense matmul to sparse dense matmul
         mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
-        params = random_sparse_dense_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
-        mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
-
+        # This is a test workload that manually transforms a dense model to sparse
+        params = random_sparse_dense_params(mod, params, BS_R=bs_r, BS_C=bs_c, density=1 - sparsity)
+        # Currently we only support to conver dense matmul to sparse dense matmul
+        mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, bs_c), sparsity_threshold=0.8)
         mod = tvm.IRModule.from_expr(mod)
 
     return mod, params, input_shape, output_shape

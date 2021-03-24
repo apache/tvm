@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Some utils for Sparse operation."""
+import tvm
+from tvm import relay
+from tvm.relay import data_dep_optimization as ddo
 
 
 def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
@@ -47,3 +50,21 @@ def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
     assert s.indices.shape == (num_blocks,)
     assert s.indptr.shape == (m // bs_r + 1,)
     return s
+
+
+def random_sparse_dense_params(func, params, density, BS_R, BS_C):
+    def deepcopy(param_dic):
+        ret = {}
+        for k, v in param_dic.items():
+            ret[k] = tvm.nd.array(v.asnumpy())
+        return ret
+
+    new_params = deepcopy(params)
+    dense_weight_names = relay.analysis.sparse_dense._search_dense_op_weight(func)
+    for item in dense_weight_names:
+        name = str(item)
+        shape = new_params[name].shape
+        if shape[0] % BS_R == 0 and shape[1] % BS_C == 0:
+            new_w = random_bsr_matrix(shape[0], shape[1], BS_R, BS_C, density, "float32").todense()
+            new_params[name] = tvm.nd.array(new_w)
+    return new_params
