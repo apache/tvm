@@ -861,8 +861,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return VisitFunc(GetRef<Function>(op), ll);
   }
 
-  struct ReflectError : dmlc::Error {
-    ReflectError() : dmlc::Error("static value not found") {}
+  struct ReflectError : Error {
+    ReflectError() : Error("static value not found") {}
   };
 
   Expr Reflect(const PStatic& st) {

@@ -120,6 +120,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
   void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
+    if (nbytes == 0) {
+      // Vulkan seems to have issues if we return nullptr on zero size alloc
+      nbytes = 1;
+    }
     const auto& vctx = context(ctx.device_id);
     VkBufferCreateInfo info;
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;

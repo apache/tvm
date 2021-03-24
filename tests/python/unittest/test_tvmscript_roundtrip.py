@@ -2662,6 +2662,169 @@ def test_opt_conv_tensorcore_mod_host():
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 
+@tvm.script.tir
+def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, [128, 128])
+    B = tir.match_buffer(b, [128, 128])
+    C = tir.match_buffer(c, [128, 128])
+
+    with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+        with tir.init():
+            C[vi, vj] = tir.float32(0)
+        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@tvm.script.tir
+def matmul_original(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, [128, 128])
+    B = tir.match_buffer(b, [128, 128])
+    C = tir.match_buffer(c, [128, 128])
+
+    for i, j in tir.grid(128, 128):
+        with tir.block([128, 128], "init") as [vi, vj]:
+            C[vi, vj] = tir.float32(0)
+
+        for k in range(0, 128):
+            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@tvm.script.tir
+def element_wise(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128), "float32")
+    C = tir.match_buffer(c, (128, 128), "float32")
+    B = tir.alloc_buffer((128, 128), "float32")
+
+    with tir.block([128, 128], "B") as [vi, vj]:
+        B[vi, vj] = A[vi, vj] * tir.float32(2)
+
+    with tir.block([128, 128], "C") as [vi, vj]:
+        C[vi, vj] = B[vi, vj] + tir.float32(1)
+
+
+@tvm.script.tir
+def predicate(b: ty.handle, c: ty.handle) -> None:
+    B = tir.match_buffer(b, (16, 16), "float32")
+    C = tir.match_buffer(c, (16, 16), "float32")
+
+    for i, jo, ji in tir.grid(16, 4, 5):
+        with tir.block([16, 16], "update") as [vi, vj]:
+            tir.bind(vi, i)
+            tir.bind(vj, jo * 4 + ji)
+            tir.where(jo * 4 + ji < 16)
+            C[vi, vj] = B[vi, vj] + tir.float32(1)
+
+
+def test_module_define():
+    func1 = tvm.script.create_module({"matmul": matmul})["matmul"]
+    func2 = tvm.script.create_module({"element_wise": element_wise})["element_wise"]
+    func3 = tvm.script.create_module({"predicate": predicate})["predicate"]
+    mod1 = tvm.script.create_module({"func1": func1, "func2": func2, "func3": func3})
+    mod2 = tvm.script.create_module({"func1": matmul, "func2": element_wise, "func3": predicate})
+    tvm.ir.assert_structural_equal(mod1, mod2)
+
+
+def test_matmul():
+    func = matmul
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+def test_matmul_original():
+    func = matmul_original
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body, tir.stmt.SeqStmt)
+    assert isinstance(rt_func.body.block.body.body.body[0].block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body.body.body[1], tir.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tir.stmt.Block)
+
+
+def test_element_wise():
+    func = element_wise
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body, tir.stmt.SeqStmt)
+    assert isinstance(rt_func.body.block.body[0], tir.stmt.For)
+    assert isinstance(rt_func.body.block.body[0].body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body[0].body.body.block, tir.stmt.Block)
+
+    assert isinstance(rt_func.body.block.body[1], tir.stmt.For)
+    assert isinstance(rt_func.body.block.body[1].body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body[1].body.body.block, tir.stmt.Block)
+
+
+def test_predicate():
+    func = predicate
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body, tir.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body.body.block, tir.stmt.Block)
+
+
+@tvm.script.tir
+def for_thread_binding(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    B = tir.match_buffer(b, (16, 16), "float32")
+
+    for i in tir.thread_binding(0, 16, thread="threadIdx.x"):
+        for j in tir.thread_binding(0, 16, thread="threadIdx.y"):
+            A[i, j] = B[i, j] + tir.float32(1)
+
+
+def test_for_thread_binding():
+    func = for_thread_binding
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert isinstance(rt_func.body, tir.stmt.For)
+    assert rt_func.body.kind == 4
+    assert rt_func.body.thread_binding.thread_tag == "threadIdx.x"
+    assert isinstance(rt_func.body.body, tir.stmt.For)
+    assert rt_func.body.body.kind == 4
+    assert rt_func.body.body.thread_binding.thread_tag == "threadIdx.y"
+
+
+@tvm.script.tir
+def block_elements(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    B = tir.match_buffer(b, (1, 1), "float32")
+
+    with tir.block([1], "update") as [vi]:
+        tir.bind(vi, 0)
+        tir.where(True)
+        tir.reads(A[0:16, 0:16])
+        tir.writes(B[0, 0])
+        tir.block_attr({"attr_key": "attr_value"})
+        C = tir.alloc_buffer((4, 4), dtype="float32")
+        D = tir.match_buffer_region(A[0:4, 0])
+        with tir.init():
+            B[0, 0] = tir.float32(0)
+        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2, 0]
+
+
+def test_block_elements():
+    func = block_elements
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body, tir.stmt.BufferStore)
+    assert isinstance(rt_func.body.block.init, tir.stmt.BufferStore)
+    assert len(rt_func.body.block.annotations) == 1
+    assert rt_func.body.block.annotations["attr_key"] == "attr_value"
+
+
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()
@@ -2669,3 +2832,10 @@ if __name__ == "__main__":
     test_opt_conv_tensorcore_normalize()
     test_opt_conv_tensorcore_lower()
     test_opt_conv_tensorcore_mod_host()
+    test_module_define()
+    test_matmul()
+    test_matmul_original()
+    test_element_wise()
+    test_predicate()
+    test_for_thread_binding()
+    test_block_elements()

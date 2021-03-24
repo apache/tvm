@@ -211,7 +211,8 @@ def get_direct_ancestor(node_list, visited_dict, target_ops, node_idx, input_nam
         else:
             tmp = get_direct_ancestor(node_list, visited_dict, target_ops, item_idx[0], input_names)
             for tmp_item in tmp:
-                node_direct_ancestor.append(tmp_item)
+                if tmp_item not in node_direct_ancestor:
+                    node_direct_ancestor.append(tmp_item)
     visited_dict[node_idx] = node_direct_ancestor
     return node_direct_ancestor
 

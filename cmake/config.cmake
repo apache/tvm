@@ -99,6 +99,9 @@ set(USE_STACKVM_RUNTIME OFF)
 # Whether enable tiny embedded graph runtime.
 set(USE_GRAPH_RUNTIME ON)
 
+# Whether enable tiny graph runtime with CUDA Graph
+set(USE_GRAPH_RUNTIME_CUDA_GRAPH OFF)
+
 # Whether to enable the profiler for the graph runtime and vm
 set(USE_PROFILER ON)
 
@@ -272,3 +275,12 @@ set(USE_TARGET_ONNX OFF)
 
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)
+
+# Whether to use libbacktrace
+# Libbacktrace provides line and column information on stack traces from errors.
+# It is only supported on linux and macOS.
+# Possible values:
+# - AUTO: auto set according to system information and feasibility
+# - ON: enable libbacktrace
+# - OFF: disable libbacktrace
+set(USE_LIBBACKTRACE AUTO)

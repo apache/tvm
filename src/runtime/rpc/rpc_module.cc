@@ -130,7 +130,7 @@ class RPCWrappedFunc : public Object {
   ~RPCWrappedFunc() {
     try {
       sess_->FreeHandle(handle_, kTVMPackedFuncHandle);
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
       // fault tolerance to remote close
     }
   }
@@ -165,7 +165,7 @@ class RPCModuleNode final : public ModuleNode {
     if (module_handle_ != nullptr) {
       try {
         sess_->FreeHandle(module_handle_, kTVMModuleHandle);
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         // fault tolerance to remote close
       }
       module_handle_ = nullptr;

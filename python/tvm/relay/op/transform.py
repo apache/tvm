@@ -905,10 +905,13 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
             end = const(list(end))
         if isinstance(strides, (tuple, list)):
             strides = const(list(strides))
-        normalized_begin = _make.where(
+        begin = _make.where(
             begin < cast_like(const(0), begin), begin + cast_like(shape_of(data), begin), begin
         )
-        return _dyn_make.strided_slice(data, normalized_begin, end, strides, slice_mode)
+        begin = _make.where(
+            begin >= cast_like(shape_of(data), begin), cast_like(shape_of(data), begin), begin
+        )
+        return _dyn_make.strided_slice(data, begin, end, strides, slice_mode)
     return _make.strided_slice(data, begin, end, strides, slice_mode)
 
 

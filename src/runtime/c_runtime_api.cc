@@ -384,7 +384,7 @@ typedef dmlc::ThreadLocalStore<TVMRuntimeEntry> TVMAPIRuntimeStore;
 
 const char* TVMGetLastError() { return TVMAPIRuntimeStore::Get()->last_error.c_str(); }
 
-int TVMAPIHandleException(const std::runtime_error& e) {
+int TVMAPIHandleException(const std::exception& e) {
   TVMAPISetLastError(NormalizeError(e.what()).c_str());
   return -1;
 }
@@ -518,7 +518,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, resource_handle);
       if (ret != 0) {
-        throw dmlc::Error(TVMGetLastError() + ::dmlc::StackTrace());
+        throw tvm::Error(TVMGetLastError() + tvm::runtime::Backtrace());
       }
     });
   } else {
@@ -529,7 +529,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, rpack.get());
       if (ret != 0) {
-        throw dmlc::Error(TVMGetLastError() + ::dmlc::StackTrace());
+        throw tvm::Error(TVMGetLastError() + tvm::runtime::Backtrace());
       }
     });
   }

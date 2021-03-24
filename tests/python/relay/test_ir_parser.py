@@ -827,8 +827,8 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 
-def test_resnet():
-    mod, _ = relay.testing.resnet.get_workload()
+def test_mlp():
+    mod, _ = relay.testing.mlp.get_workload(1)
     text = mod.astext()
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
@@ -850,8 +850,8 @@ def inline_params(mod, params):
     return mod
 
 
-def test_resnet_inlined_params():
-    mod, params = relay.testing.resnet.get_workload()
+def test_mlp_inlined_params():
+    mod, params = relay.testing.mlp.get_workload(1)
     mod = inline_params(mod, params)
     mod = relay.transform.InferType()(mod)
     text = mod.astext()

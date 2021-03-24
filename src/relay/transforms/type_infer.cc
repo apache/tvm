@@ -166,7 +166,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
              bool assign_rhs = true) {
     try {
       return solver_.Unify(t1, t2, span, assign_lhs, assign_rhs);
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
       this->EmitFatal(Diagnostic::Error(span)
                       << "Error unifying `" << t1 << "` and `" << t2 << "`: " << e.what());
       return Type();
