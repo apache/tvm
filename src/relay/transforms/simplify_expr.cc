@@ -30,8 +30,8 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/logging.h>
 
-#include <utility>
 #include <limits>
+#include <utility>
 
 #include "../op/tensor/transform.h"
 #include "pattern_utils.h"
@@ -69,8 +69,6 @@ class SimplifyReshape : public DFPatternRewrite {
     }
     return post;
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(SimplifyReshape)
 
  private:
   /*! \brief Pattern input */
@@ -165,8 +163,6 @@ class SimplifyTranspose : public DFPatternRewrite {
     return x;
   }
 
-  TVM_DF_PATTERN_REWRITE_GETTER(SimplifyTranspose);
-
  private:
   /*! \brief Pattern input */
   DFPattern x_;
@@ -230,8 +226,6 @@ class FullElementwise : public DFPatternRewrite {
     }
     return post;
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(FullElementwise);
 
  private:
   /*! \brief binary argument */
@@ -315,8 +309,6 @@ class ConcretizeZerosLikeRewrite : public ConcretizeLikeRewrite {
                   DataType dtype) const override {
     return MakeZeros(shape, dtype);
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeZerosLikeRewrite);
 };
 
 class ConcretizeOnesLikeRewrite : public ConcretizeLikeRewrite {
@@ -327,8 +319,6 @@ class ConcretizeOnesLikeRewrite : public ConcretizeLikeRewrite {
                   DataType dtype) const override {
     return MakeOnes(shape, dtype);
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeOnesLikeRewrite);
 };
 
 class ConcretizeReshapeLikeRewrite : public ConcretizeLikeRewrite {
@@ -339,8 +329,6 @@ class ConcretizeReshapeLikeRewrite : public ConcretizeLikeRewrite {
                   DataType dtype) const override {
     return MakeReshape(node_map[data_pat_][0], shape);
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeReshapeLikeRewrite);
 };
 
 class ConcretizeCollapseSumLikeRewrite : public ConcretizeLikeRewrite {
@@ -357,8 +345,6 @@ class ConcretizeCollapseSumLikeRewrite : public ConcretizeLikeRewrite {
         MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(shape.size())}, shape);
     return Call(op, {node_map[data_pat_][0], cshape}, Attrs(attrs));
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeCollapseSumLikeRewrite);
 };
 
 class ConcretizeBroadcastToLikeRewrite : public ConcretizeLikeRewrite {
@@ -369,8 +355,6 @@ class ConcretizeBroadcastToLikeRewrite : public ConcretizeLikeRewrite {
                   DataType dtype) const override {
     return MakeBroadCastTo(node_map[data_pat_][0], shape);
   }
-
-  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeBroadcastToLikeRewrite);
 };
 
 /*! \brief Eliminates expressions that are equivalent to identity. */
@@ -385,8 +369,10 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
     DFPattern zeros_expr = IsOp("zeros")({}) || IsOp("zeros_like")({IsWildcard()}) || const_;
     DFPattern ones_expr = IsOp("ones")({}) || IsOp("ones_like")({IsWildcard()}) || const_;
 
-    DFPattern add_id = add_op({x_, zeros_expr}) || add_op({zeros_expr, x_});
-    DFPattern mul_id = mul_op({x_, ones_expr}) || mul_op({ones_expr, x_});
+    // add and multiply are commutative so we don't need another pattern for reversed args
+    DFPattern add_id = add_op({x_, zeros_expr});
+    DFPattern mul_id = mul_op({x_, ones_expr});
+
     DFPattern sub_id = IsOp("subtract")({x_, zeros_expr});
     DFPattern div_id = IsOp("divide")({x_, ones_expr});
 
@@ -439,24 +425,23 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
     return post;
   }
 
-  TVM_DF_PATTERN_REWRITE_GETTER(EliminateIdentityRewrite);
-
  private:
   DFPattern x_;
   DFPattern const_;
 };
 
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
-  static Array<DFPatternCallback> callbacks = {ConcretizeZerosLikeRewrite::GetCallback(),
-                                               ConcretizeOnesLikeRewrite::GetCallback(),
-                                               ConcretizeReshapeLikeRewrite::GetCallback(),
-                                               ConcretizeCollapseSumLikeRewrite::GetCallback(),
-                                               ConcretizeBroadcastToLikeRewrite::GetCallback(),
-                                               EliminateIdentityRewrite::GetCallback(),
-                                               SimplifyReshape::GetCallback(),
-                                               SimplifyTranspose::GetCallback(),
-                                               FullElementwise::GetCallback()};
-  return RewritePatterns(callbacks, expr, mod);
+  DFPatternRewriteComposer composer;
+  composer.AddRewrite<ConcretizeZerosLikeRewrite>();
+  composer.AddRewrite<ConcretizeOnesLikeRewrite>();
+  composer.AddRewrite<ConcretizeReshapeLikeRewrite>();
+  composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
+  composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
+  composer.AddRewrite<EliminateIdentityRewrite>();
+  composer.AddRewrite<SimplifyReshape>();
+  composer.AddRewrite<SimplifyTranspose>();
+  composer.AddRewrite<FullElementwise>();
+  return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 
 namespace transform {

@@ -28,21 +28,10 @@
 #include <tvm/relay/expr.h>
 
 #include <vector>
+#include <memory>
 
 namespace tvm {
 namespace relay {
-
-/*! \brief Defines a static function `RewriteType::Get()` that returns a statically initialized
- * instance of RewriteType. */
-#define TVM_DF_PATTERN_REWRITE_GETTER(RewriteType)                    \
-  static DFPatternRewrite* Get() {                                    \
-    static RewriteType rw;                                            \
-    return &rw;                                                       \
-  }                                                                   \
-  static DFPatternCallback GetCallback() {                            \
-    static DFPatternCallback cb = RewriteType::Get()->MakeCallback(); \
-    return cb;                                                        \
-  }
 
 /*! \brief A wrapper class defining a rewrite matching a specific pattern. */
 class DFPatternRewrite {
@@ -71,6 +60,26 @@ class DFPatternRewrite {
   DFPattern pattern_;
   /*! \brief Whether or not the rewrite requires types to be inferred. */
   bool require_type_ = true;
+};
+
+/*! \brief Helper class for composing rewrites and getting callbacks. */
+class DFPatternRewriteComposer {
+ public:
+  template <typename T, typename ...Args>
+  inline void AddRewrite(Args... args) {
+    rewrites_.push_back(std::make_shared<T, Args...>(&args...));
+  }
+
+  inline Array<DFPatternCallback> MakeCallbacks() const {
+    Array<DFPatternCallback> callbacks;
+    for (const auto rewrite : rewrites_) {
+      callbacks.push_back(rewrite->MakeCallback());
+    }
+    return callbacks;
+  }
+
+ private:
+  std::vector<std::shared_ptr<DFPatternRewrite>> rewrites_;
 };
 
 }  // namespace relay
