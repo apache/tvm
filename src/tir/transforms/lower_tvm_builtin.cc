@@ -316,7 +316,7 @@ class BuiltinLower : public StmtExprMutator {
           Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
-    arg_stack_size_ = run_shape_stack_;
+    arg_stack_size_ = run_arg_stack_;
     max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
     max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
     run_shape_stack_ = restore_shape_stack;
@@ -361,7 +361,7 @@ class BuiltinLower : public StmtExprMutator {
           Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
-    arg_stack_size_ = run_shape_stack_;
+    arg_stack_size_ = run_arg_stack_;
     max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
     max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
     run_shape_stack_ = restore_shape_stack;
