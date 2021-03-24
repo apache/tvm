@@ -22,6 +22,8 @@
  * \brief A pass for simplifying the Relay expression.
  */
 
+#include "simplify_expr.h"
+
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -34,32 +36,21 @@
 namespace tvm {
 namespace relay {
 
-class SimplifyPattern {
- public:
-  virtual Expr callback(const Expr& pre, const Expr& post,
-                        const Map<DFPattern, Array<Expr>>& node_map) const = 0;
-
-  DFPattern pattern() const { return pattern_; }
-
- protected:
-  /*! \brief Pattern for rewriting */
-  DFPattern pattern_;
-};
-
 /*!
  * \brief SimplifyReshape matches the pattern of consecutive reshape or reverse_reshape ops,
  *   and merges into one reshape op.
  */
-class SimplifyReshape : public SimplifyPattern {
+class SimplifyReshape : public DFPatternRewrite {
  public:
   SimplifyReshape() {
     x_ = IsWildcard();
     auto reshape1 = IsOp("reshape") || IsOp("contrib_reverse_reshape");
     auto reshape2 = IsOp("reshape") || IsOp("contrib_reverse_reshape");
     pattern_ = reshape1({reshape2({x_})});
+    require_type_ = true;
   }
 
-  Expr callback(const Expr& pre, const Expr& post,
+  Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     auto x = node_map[x_][0];
     bool const_shape = true;
@@ -77,6 +68,8 @@ class SimplifyReshape : public SimplifyPattern {
     return post;
   }
 
+  TVM_DF_PATTERN_REWRITE_GETTER(SimplifyReshape)
+
  private:
   /*! \brief Pattern input */
   DFPattern x_;
@@ -86,16 +79,17 @@ class SimplifyReshape : public SimplifyPattern {
  * \brief SimplifyTranspose matches the pattern of consecutive transpose op,
  *   and merges or cancels them.
  */
-class SimplifyTranspose : public SimplifyPattern {
+class SimplifyTranspose : public DFPatternRewrite {
  public:
   SimplifyTranspose() {
     x_ = IsWildcard();
     auto trans1 = IsOp("transpose") || IsOp("layout_transform");
     auto trans2 = IsOp("transpose") || IsOp("layout_transform");
     pattern_ = trans1({trans2({x_})});
+    require_type_ = true;
   }
 
-  Expr callback(const Expr& pre, const Expr& post,
+  Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     // Helper function to get the axes from call node attribute
     auto get_axes_from_call = [](const Call trans_call, int ndim) {
@@ -170,6 +164,8 @@ class SimplifyTranspose : public SimplifyPattern {
     return x;
   }
 
+  TVM_DF_PATTERN_REWRITE_GETTER(SimplifyTranspose);
+
  private:
   /*! \brief Pattern input */
   DFPattern x_;
@@ -178,7 +174,7 @@ class SimplifyTranspose : public SimplifyPattern {
 /*!
  * \brief FullArgwhere finds full followed by argwhere and turns it into an Arange op
  */
-class FullElementwise : public SimplifyPattern {
+class FullElementwise : public DFPatternRewrite {
  public:
   FullElementwise() {
     x_ = IsWildcard();
@@ -194,9 +190,10 @@ class FullElementwise : public SimplifyPattern {
     DFPattern op = IsWildcard().HasAttr(attrs);
     DFPattern full = full_ || ones_ || zeros_;
     pattern_ = op({full, x_}) || op({x_, full});
+    require_type_ = true;
   }
 
-  Expr callback(const Expr& pre, const Expr& post,
+  Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     const CallNode* call = pre.as<CallNode>();
     ICHECK(call);
@@ -233,6 +230,8 @@ class FullElementwise : public SimplifyPattern {
     return post;
   }
 
+  TVM_DF_PATTERN_REWRITE_GETTER(FullElementwise);
+
  private:
   /*! \brief binary argument */
   DFPattern x_;
@@ -248,37 +247,10 @@ class FullElementwise : public SimplifyPattern {
   DFPattern zeros_;
 };
 
-/*!
- * \brief ExprSimplifier simplifies the Relay expression.
- */
-class ExprSimplifier {
- public:
-  explicit ExprSimplifier(IRModule mod) : mod_(mod) {
-    CreateCallback(SimplifyReshape());
-    CreateCallback(SimplifyTranspose());
-    CreateCallback(FullElementwise());
-  }
-  template <typename T>
-  void CreateCallback(const T& pattern) {
-    auto func = [pattern](TVMArgs args, TVMRetValue* rv) {
-      Expr pre = args[0];
-      Expr post = args[1];
-      Map<DFPattern, Array<Expr>> node_map = args[2];
-      *rv = pattern.callback(pre, post, node_map);
-    };
-    callbacks_.push_back(DFPatternCallback(pattern.pattern(), PackedFunc(func), true));
-  }
-
-  Expr Simplify(const Expr& expr) { return RewritePatterns(callbacks_, expr, mod_); }
-
- private:
-  IRModule mod_;
-  /*! \brief Callbacks for expr simplification */
-  Array<DFPatternCallback> callbacks_;
-};
-
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
-  return ExprSimplifier(mod).Simplify(expr);
+  static Array<DFPatternCallback> callbacks =
+      MakeCallbacks({SimplifyReshape::Get(), SimplifyTranspose::Get(), FullElementwise::Get()});
+  return RewritePatterns(callbacks, expr, mod);
 }
 
 namespace transform {
