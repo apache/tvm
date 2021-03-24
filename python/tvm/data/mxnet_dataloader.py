@@ -23,7 +23,7 @@ from tvm.data import DataLoader
 class MxnetDataLoader(DataLoader):
     """DataLoader wrapping an mxnet dataset.
     See
-    https://mxnet.apache.org/versions/1.7.0/api/python/docs/api/gluon/data/vision/datasets/index.html
+    mxnet.apache.org/versions/1.7.0/api/python/docs/api/gluon/data/vision/datasets/index.html
     for an example of how to construct the keras dataset to pass into this class.
 
     Parameters
@@ -48,12 +48,18 @@ class MxnetDataLoader(DataLoader):
 
     def __init__(self, mxnet_loader, batch_size, num_batches):
         self.data_loader = mxnet_loader
-        self.iter = iter(mxnet_loader)
+        self.iter = None  # Set in __iter__
         self.batch_size = batch_size
         self.num_batches = num_batches
         self.idx = 0
 
-    def get_next_batch(self):
+    def __iter__(self):
+        """Resets the DataLoader to the beginning."""
+        self.iter = iter(self.mxnet_loader)
+        self.idx = 0
+        return self
+
+    def __next__(self):
         """Returns the next batch from the mxnet dataset and its labels.
 
         Returns
@@ -64,8 +70,8 @@ class MxnetDataLoader(DataLoader):
         label : List of int
             List of the labels from the mxnet dataset. Length is equal to batch size.
         """
-        if self.is_empty():
-            raise IndexError
+        if self.idx >= self.num_batches:
+            raise StopIteration
         self.idx += 1
         data, label = next(self.iter)
         return [data.asnumpy()], label
@@ -88,18 +94,3 @@ class MxnetDataLoader(DataLoader):
             The size of the batch returned by the DataLoader.
         """
         return self.batch_size
-
-    def is_empty(self):
-        """Checks whether the DataLoader has any batches left.
-
-        Returns
-        -------
-        is_empty : bool
-            Whether there are any batches left in the DataLoader.
-        """
-        return self.idx >= self.num_batches
-
-    def reset(self):
-        """Resets the DataLoader to the beginning."""
-        self.iter = iter(self.mxnet_loader)
-        self.idx = 0

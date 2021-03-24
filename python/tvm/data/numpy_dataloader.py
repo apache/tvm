@@ -65,7 +65,12 @@ class NumpyDataLoader(DataLoader):
             assert num_batches * batch_size <= numpy_data.shape[0]
             self.num_batches = num_batches
 
-    def get_next_batch(self):
+    def __iter__(self):
+        """Creates a new DataLoaderIterator"""
+        self.idx = 0
+        return self
+
+    def __next__(self):
         """Returns the next batch from the tensorflow dataset and its labels.
 
         Returns
@@ -76,8 +81,8 @@ class NumpyDataLoader(DataLoader):
         label : List of int
             List of the labels from the numpy dataset. Length is equal to batch size.
         """
-        if self.is_empty():
-            raise IndexError
+        if self.idx >= self.num_batches:
+            raise StopIteration
         batched_data = self.numpy_data[
             self.idx * self.batch_size : (self.idx + 1) * self.batch_size
         ]
@@ -105,17 +110,3 @@ class NumpyDataLoader(DataLoader):
             The size of the batch returned by the DataLoader.
         """
         return self.batch_size
-
-    def is_empty(self):
-        """Checks whether the DataLoader has any batches left.
-
-        Returns
-        -------
-        is_empty : bool
-            Whether there are any batches left in the DataLoader.
-        """
-        return self.idx >= self.num_batches
-
-    def reset(self):
-        """Resets the DataLoader to the beginning."""
-        self.idx = 0

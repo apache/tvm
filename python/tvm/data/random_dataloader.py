@@ -50,7 +50,12 @@ class RandomDataLoader(DataLoader):
         self.batch_size = batch_size
         self.num_batches = num_batches
 
-    def get_next_batch(self):
+    def __iter__(self):
+        """Resets the DataLoader to the beginning of all the batches."""
+        self.idx = 0
+        return self
+
+    def __next__(self):
         """
         Returns the next batch.
 
@@ -62,8 +67,8 @@ class RandomDataLoader(DataLoader):
         labels : None
             There is no correct label for the randomly generated data.
         """
-        if self.is_empty():
-            raise IndexError
+        if self.idx >= self.num_batches:
+            raise StopIteration
         self.idx += 1
         return [
             np.random.randn(*data_shape).astype(dtype)
@@ -89,17 +94,3 @@ class RandomDataLoader(DataLoader):
             The number of batches in the DataLoader.
         """
         return self.num_batches
-
-    def is_empty(self):
-        """Returns whether the DataLoader is empty or not.
-
-        Returns
-        -------
-        is_empty : bool
-            Whether we've run out of batches and we need to reset.
-        """
-        return self.idx >= self.num_batches
-
-    def reset(self):
-        """Resets the DataLoader to the beginning of all the batches."""
-        self.idx = 0

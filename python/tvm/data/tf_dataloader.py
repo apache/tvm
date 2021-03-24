@@ -43,9 +43,15 @@ class TFDataLoader(DataLoader):
         self.num_batches = num_batches
         self.batch_size = batch_size
         self.tf_dataset = tf_dataset
-        self.tf_iter = iter(self.tf_dataset)
+        self.tf_iter = None
 
-    def get_next_batch(self):
+    def __iter__(self):
+        """Creates a new DataLoaderIterator."""
+        self.tf_iter = iter(self.tf_dataset)
+        self.idx = 0
+        return self
+
+    def __next__(self):
         """Returns the next batch from the tensorflow dataset and its labels.
 
         Returns
@@ -56,8 +62,8 @@ class TFDataLoader(DataLoader):
         label : List of int
             List of the labels from the tensorflow dataset. Length is equal to batch size.
         """
-        if self.is_empty():
-            raise IndexError
+        if self.idx >= self.num_batches:
+            raise StopIteration
         self.idx += 1
 
         data, label = next(self.tf_iter)
@@ -82,18 +88,3 @@ class TFDataLoader(DataLoader):
             The size of the batch returned by the DataLoader.
         """
         return self.batch_size
-
-    def is_empty(self):
-        """Checks whether the DataLoader has any batches left.
-
-        Returns
-        -------
-        is_empty : bool
-            Whether there are any batches left in the DataLoader.
-        """
-        return self.idx >= self.num_batches
-
-    def reset(self):
-        """Resets the DataLoader to the beginning."""
-        self.tf_iter = iter(self.tf_dataset)
-        self.idx = 0

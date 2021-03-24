@@ -34,8 +34,7 @@ def verify_dataloader_output(
     assert dataloader.get_num_batches() == expected_num_batches
 
     actual_num_batches = 0
-    while not dataloader.is_empty():
-        data, labels = dataloader.get_next_batch()
+    for data, labels in iter(dataloader):
         # Labels is None or there are batch_size number of labels
         assert labels is None or len(labels == expected_batch_size)
         assert len(data) == len(data_shapes) and len(data) == len(data_dtypes)

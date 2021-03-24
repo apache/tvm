@@ -24,7 +24,11 @@ class DataLoader:
     frameworks. Use this class when you want to use different machine learning framework datasets
     interchangably."""
 
-    def get_next_batch(self):
+    def __iter__(self):
+        """Returns the DataLoaderIterator."""
+        return self
+
+    def __next__(self):
         """Returns the next batch of data.
 
         Returns
@@ -40,15 +44,6 @@ class DataLoader:
         """
         raise NotImplementedError
 
-    def get_batch_size(self):
-        """Returns the size of each batch the DataLoader has.
-
-        Returns
-        -------
-        batch_size : int
-            The number of inputs in each batch.
-        """
-
     def get_num_batches(self):
         """Returns the number of batches the DataLoader has.
 
@@ -57,18 +52,4 @@ class DataLoader:
         num_batches : int
             The number of batches the DataLoader contains.
         """
-        raise NotImplementedError
-
-    def is_empty(self):
-        """Checks whether the DataLoader has gone through all its batches.
-        Returns
-        -------
-        is_empty : bool
-            True if there are batches left, False if there are no more
-            batches.
-        """
-        raise NotImplementedError
-
-    def reset(self):
-        """Starts the DataLoader over at the beginning of all the data."""
         raise NotImplementedError
