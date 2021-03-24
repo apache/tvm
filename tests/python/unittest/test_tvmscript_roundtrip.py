@@ -2819,10 +2819,13 @@ def test_block_elements():
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body.block, tir.stmt.Block)
-    assert isinstance(rt_func.body.block.body, tir.stmt.BufferStore)
-    assert isinstance(rt_func.body.block.init, tir.stmt.BufferStore)
-    assert len(rt_func.body.block.annotations) == 1
-    assert rt_func.body.block.annotations["attr_key"] == "attr_value"
+    assert isinstance(rt_func.body.block.body, tir.stmt.BlockRealize)
+    assert isinstance(rt_func.body.block.body.block, tir.stmt.Block)
+    block = rt_func.body.block.body.block
+    assert isinstance(block.body, tir.stmt.BufferStore)
+    assert isinstance(block.init, tir.stmt.BufferStore)
+    assert len(block.annotations) == 1
+    assert block.annotations["attr_key"] == "attr_value"
 
 
 if __name__ == "__main__":
