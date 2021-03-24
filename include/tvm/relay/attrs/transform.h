@@ -439,11 +439,11 @@ struct MatrixSetDiagAttrs : public tvm::AttrsNode<MatrixSetDiagAttrs> {
 };  // struct MatrixSetDiagAttrs
 
 /*! \brief Attributes used in cumsum and cumprod operator */
-struct CumbinopAttrs : public tvm::AttrsNode<CumbinopAttrs> {
+struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
   Integer axis;
   DataType dtype;
   Bool exclusive = Bool(false);
-  TVM_DECLARE_ATTRS(CumbinopAttrs, "relay.attrs.CumbinopAttrs") {
+  TVM_DECLARE_ATTRS(ScanopAttrs, "relay.attrs.ScanopAttrs") {
     TVM_ATTR_FIELD(axis).describe("The axis to operate over").set_default(NullValue<Integer>());
     TVM_ATTR_FIELD(dtype).describe("Output data type").set_default(NullValue<DataType>());
 

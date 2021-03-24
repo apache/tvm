@@ -3772,20 +3772,20 @@ RELAY_REGISTER_OP("adv_index")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
-TVM_REGISTER_NODE_TYPE(CumbinopAttrs);
+TVM_REGISTER_NODE_TYPE(ScanopAttrs);
 
-bool CumbinopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool ScanopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   // types: [data, output]
   ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
-        << "cumbinop: expect input type to be TensorType but get " << types[0];
+        << "Scanop: expect input type to be TensorType but get " << types[0];
     return false;
   }
 
-  const auto* param = attrs.as<CumbinopAttrs>();
+  const auto* param = attrs.as<ScanopAttrs>();
 
   auto dtype = param->dtype;
   if (dtype.is_void()) {
@@ -3806,7 +3806,7 @@ bool CumbinopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
-  auto attrs = make_object<CumbinopAttrs>();
+  auto attrs = make_object<ScanopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
   attrs->exclusive = exclusive;
@@ -3822,11 +3822,11 @@ RELAY_REGISTER_OP("cumsum")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
-    .add_type_rel("Cumsum", CumbinopRel)
+    .add_type_rel("Cumsum", ScanopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 Expr MakeCumprod(Expr data, Integer axis, DataType dtype, Bool exclusive) {
-  auto attrs = make_object<CumbinopAttrs>();
+  auto attrs = make_object<ScanopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
   attrs->exclusive = exclusive;
@@ -3842,7 +3842,7 @@ RELAY_REGISTER_OP("cumprod")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
-    .add_type_rel("Cumprod", CumbinopRel)
+    .add_type_rel("Cumprod", ScanopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 TVM_REGISTER_NODE_TYPE(UniqueAttrs);

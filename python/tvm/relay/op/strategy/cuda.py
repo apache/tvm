@@ -1018,7 +1018,7 @@ def cumsum_strategy_cuda(attrs, inputs, out_type, target):
     """cumsum cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumbinop(topi.cuda.cumsum),
+        wrap_compute_scanop(topi.cuda.cumsum),
         wrap_topi_schedule(topi.cuda.schedule_scan),
         name="cumsum.cuda",
     )
@@ -1030,7 +1030,7 @@ def cumprod_strategy_cuda(attrs, inputs, out_type, target):
     """cumprod cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumbinop(topi.cuda.cumprod),
+        wrap_compute_scanop(topi.cuda.cumprod),
         wrap_topi_schedule(topi.cuda.schedule_scan),
         name="cumprod.cuda",
     )
