@@ -69,7 +69,7 @@ class DFPatternRewrite {
  protected:
   /*! \brief The pattern for matching and rewriting. */
   DFPattern pattern_;
-  bool require_type_;
+  bool require_type_ = true;
 };
 
 }  // namespace relay

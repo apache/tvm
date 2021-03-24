@@ -394,7 +394,9 @@ static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) 
       return reinterpret_cast<int64_t*>(array->data)[i];
     }
   } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
+    if (array->dtype.bits == 1) {  // bool
+      return reinterpret_cast<uint8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 8) {
       return reinterpret_cast<uint8_t*>(array->data)[i];
     } else if (array->dtype.bits == 16) {
       return reinterpret_cast<uint16_t*>(array->data)[i];

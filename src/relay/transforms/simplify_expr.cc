@@ -49,7 +49,6 @@ class SimplifyReshape : public DFPatternRewrite {
     auto reshape1 = IsOp("reshape") || IsOp("contrib_reverse_reshape");
     auto reshape2 = IsOp("reshape") || IsOp("contrib_reverse_reshape");
     pattern_ = reshape1({reshape2({x_})});
-    require_type_ = true;
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
@@ -88,7 +87,6 @@ class SimplifyTranspose : public DFPatternRewrite {
     auto trans1 = IsOp("transpose") || IsOp("layout_transform");
     auto trans2 = IsOp("transpose") || IsOp("layout_transform");
     pattern_ = trans1({trans2({x_})});
-    require_type_ = true;
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
@@ -193,7 +191,6 @@ class FullElementwise : public DFPatternRewrite {
     DFPattern op = IsWildcard().HasAttr(attrs);
     DFPattern full = full_ || ones_ || zeros_;
     pattern_ = op({full, x_}) || op({x_, full});
-    require_type_ = true;
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
@@ -250,24 +247,162 @@ class FullElementwise : public DFPatternRewrite {
   DFPattern zeros_;
 };
 
-/*! \brief Eliminates expressions that are just identity. */
-class EliminateIdentity : public DFPatternRewrite {
+/*!
+ * \brief Converts `*_like` operators to their explicit shape equivalent (e.g. `zeros_like(x, y)` to
+ * `zeros(x, y.shape)`), when the target shape is concrete. This removes unnecessary dependencies
+ * and can enable more opportunities for operator fusion.
+ */
+class ConcretizeLikeRewrite : public DFPatternRewrite {
  public:
-  EliminateIdentity() {
+  explicit ConcretizeLikeRewrite(const Op& op) {
+    ICHECK(op->num_inputs == 1 || op->num_inputs == 2)
+        << "ConcretizeLike does not handle operators that aren't unary or binary, got: " << op;
+    like_pat_ = IsWildcard();
+    data_pat_ = IsWildcard();
+    if (op->num_inputs == 1) {
+      pattern_ = IsExpr(op)({like_pat_});
+    } else {
+      pattern_ = IsExpr(op)({data_pat_, like_pat_});
+    }
+  }
+
+  virtual bool Check(const Expr& pre, const Expr& post,
+                     const Map<DFPattern, Array<Expr>>& node_map) const {
+    const CallNode* call_node = pre.as<CallNode>();
+    ICHECK(call_node);
+
+    if (!call_node->checked_type().as<TensorTypeNode>()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  virtual Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                          DataType dtype) const = 0;
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    if (!Check(pre, post, node_map)) {
+      return post;
+    }
+
+    const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
+    Array<Integer> cshape;
+    for (const auto& dim : like_ty->shape) {
+      if (const auto* imm = dim.as<IntImmNode>()) {
+        cshape.push_back(Integer(GetRef<IntImm>(imm)));
+      } else {
+        // shape is not static, don't concretize
+        return post;
+      }
+    }
+
+    return Concretize(node_map, cshape, like_ty->dtype);
+  }
+
+ protected:
+  DFPattern data_pat_;
+  DFPattern like_pat_;
+};
+
+class ConcretizeZerosLikeRewrite : public ConcretizeLikeRewrite {
+ public:
+  ConcretizeZerosLikeRewrite() : ConcretizeLikeRewrite(Op::Get("zeros_like")) {}
+
+  Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                  DataType dtype) const override {
+    return MakeZeros(shape, dtype);
+  }
+
+  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeZerosLikeRewrite);
+};
+
+class ConcretizeOnesLikeRewrite : public ConcretizeLikeRewrite {
+ public:
+  ConcretizeOnesLikeRewrite() : ConcretizeLikeRewrite(Op::Get("ones_like")) {}
+
+  Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                  DataType dtype) const override {
+    return MakeOnes(shape, dtype);
+  }
+
+  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeOnesLikeRewrite);
+};
+
+class ConcretizeReshapeLikeRewrite : public ConcretizeLikeRewrite {
+ public:
+  ConcretizeReshapeLikeRewrite() : ConcretizeLikeRewrite(Op::Get("reshape_like")) {}
+
+  Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                  DataType dtype) const override {
+    return MakeReshape(node_map[data_pat_][0], shape);
+  }
+
+  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeReshapeLikeRewrite);
+};
+
+class ConcretizeCollapseSumLikeRewrite : public ConcretizeLikeRewrite {
+ public:
+  ConcretizeCollapseSumLikeRewrite() : ConcretizeLikeRewrite(Op::Get("collapse_sum_like")) {}
+
+  Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                  DataType dtype) const override {
+    ICHECK_LE(shape.size(), std::numeric_limits<int64_t>::max());
+    static const Op& op = Op::Get("collapse_sum_to");
+    auto attrs = make_object<InitOpAttrs>();
+    attrs->shape = shape;
+    auto cshape =
+        MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(shape.size())}, shape);
+    return Call(op, {node_map[data_pat_][0], cshape}, Attrs(attrs));
+  }
+
+  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeCollapseSumLikeRewrite);
+};
+
+class ConcretizeBroadcastToLikeRewrite : public ConcretizeLikeRewrite {
+ public:
+  ConcretizeBroadcastToLikeRewrite() : ConcretizeLikeRewrite(Op::Get("broadcast_to_like")) {}
+
+  Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                  DataType dtype) const override {
+    return MakeBroadCastTo(node_map[data_pat_][0], shape);
+  }
+
+  TVM_DF_PATTERN_REWRITE_GETTER(ConcretizeBroadcastToLikeRewrite);
+};
+
+/*! \brief Eliminates expressions that are equivalent to identity. */
+class EliminateIdentityRewrite : public DFPatternRewrite {
+ public:
+  EliminateIdentityRewrite() {
     x_ = IsWildcard();
+    const_ = IsConstant();
 
     DFPattern add_op = IsOp("add");
     DFPattern mul_op = IsOp("multiply");
-    DFPattern zeros_call = IsOp("zeros")({}) || IsOp("zeros_like")({IsWildcard()});
-    DFPattern ones_call = IsOp("ones")({}) || IsOp("ones_like")({IsWildcard()});
+    DFPattern zeros_expr = IsOp("zeros")({}) || IsOp("zeros_like")({IsWildcard()}) || const_;
+    DFPattern ones_expr = IsOp("ones")({}) || IsOp("ones_like")({IsWildcard()}) || const_;
 
-    DFPattern add_id = add_op({x_, zeros_call}) || add_op({zeros_call, x_});
-    DFPattern mul_id = mul_op({x_, ones_call}) || mul_op({ones_call, x_});
-    DFPattern sub_id = IsOp("subtract")({x_, zeros_call});
-    DFPattern div_id = IsOp("divide")({x_, ones_call});
+    DFPattern add_id = add_op({x_, zeros_expr}) || add_op({zeros_expr, x_});
+    DFPattern mul_id = mul_op({x_, ones_expr}) || mul_op({ones_expr, x_});
+    DFPattern sub_id = IsOp("subtract")({x_, zeros_expr});
+    DFPattern div_id = IsOp("divide")({x_, ones_expr});
 
     pattern_ = add_id || mul_id || sub_id || div_id;
-    require_type_ = true;
+  }
+
+  bool CheckConstant(const OpNode* op, const ConstantNode* constant) const {
+    if (!IsScalar(GetRef<Expr>(constant))) {
+      return false;
+    }
+    long double value = ToScalar(constant->data);
+    if (op->name == "add" || op->name == "subtract") {
+      return value == 0.0;
+    } else if (op->name == "multiply" || op->name == "divide") {
+      return value == 1.0;
+    }
+    return false;
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
@@ -285,6 +420,17 @@ class EliminateIdentity : public DFPatternRewrite {
       x_type = call->args[0]->checked_type_;
     }
 
+    if (node_map.count(const_)) {
+      // the other argument is a Constant in this case
+      const ConstantNode* constant = node_map[const_][0].as<ConstantNode>();
+      const OpNode* op = call->op.as<OpNode>();
+      ICHECK(constant);
+      ICHECK(op);
+      if (!CheckConstant(op, constant)) {
+        return post;
+      }
+    }
+
     if (StructuralEqual()(x_type, pre_type)) {
       return x;
     }
@@ -292,34 +438,27 @@ class EliminateIdentity : public DFPatternRewrite {
     return post;
   }
 
-  TVM_DF_PATTERN_REWRITE_GETTER(EliminateIdentity);
+  TVM_DF_PATTERN_REWRITE_GETTER(EliminateIdentityRewrite);
 
  private:
   DFPattern x_;
+  DFPattern const_;
 };
 
-Expr EliminateIdentity(const Expr& expr, const IRModule& mod) {
-  return RewritePatterns({EliminateIdentity::GetCallback()}, expr, mod);
-}
-
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
-  static Array<DFPatternCallback> callbacks = {SimplifyReshape::GetCallback(),
+  static Array<DFPatternCallback> callbacks = {ConcretizeZerosLikeRewrite::GetCallback(),
+                                               ConcretizeOnesLikeRewrite::GetCallback(),
+                                               ConcretizeReshapeLikeRewrite::GetCallback(),
+                                               ConcretizeCollapseSumLikeRewrite::GetCallback(),
+                                               ConcretizeBroadcastToLikeRewrite::GetCallback(),
+                                               EliminateIdentityRewrite::GetCallback(),
+                                               SimplifyReshape::GetCallback(),
                                                SimplifyTranspose::GetCallback(),
                                                FullElementwise::GetCallback()};
   return RewritePatterns(callbacks, expr, mod);
 }
 
 namespace transform {
-
-Pass EliminateIdentity() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(EliminateIdentity(f, m));
-      };
-  return CreateFunctionPass(pass_func, 0, "EliminateIdentity", {"InferType"});
-}
-
-TVM_REGISTER_GLOBAL("relay._transform.EliminateIdentity").set_body_typed(EliminateIdentity);
 
 Pass SimplifyExpr() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
