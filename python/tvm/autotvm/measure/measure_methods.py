@@ -37,7 +37,7 @@ import numpy as np
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd, rpc as _rpc
-from tvm.error import TVMError
+from tvm.error import RPCError, TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
 
@@ -591,7 +591,7 @@ def run_through_rpc(
             costs = list(costs)
             costs.sort()
             costs = tuple(costs[1:-1])
-    except TVMError as exc:
+    except (TVMError, RPCError) as exc:
         msg = str(exc)
         if "Stack trace returned" in msg:
             msg = msg[: msg.index("Stack trace returned")]
