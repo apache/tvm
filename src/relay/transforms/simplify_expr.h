@@ -79,6 +79,7 @@ class DFPatternRewriteComposer {
   }
 
  private:
+  /*! \brief the rewrites to be composed. */
   std::vector<std::shared_ptr<DFPatternRewrite>> rewrites_;
 };
 

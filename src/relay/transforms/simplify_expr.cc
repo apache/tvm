@@ -431,6 +431,7 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
 };
 
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
+  // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
   composer.AddRewrite<ConcretizeZerosLikeRewrite>();
   composer.AddRewrite<ConcretizeOnesLikeRewrite>();
