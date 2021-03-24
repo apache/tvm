@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Cumsum operator"""
+"""Scan (cumulative binary) operators"""
 from typing import Callable, Optional
 
 import tvm
@@ -26,7 +26,7 @@ from .math import cast
 from .utils import get_const_int, prod
 
 
-def cumbinop(
+def scanop(
     data: tvm.te.Tensor,
     binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
     identity_value: "tvm.Expr",
@@ -35,7 +35,7 @@ def cumbinop(
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
-    """Cumulative binary operator with similar axis behavior as np.cumsum and np.cumprod.
+    """Cumulative binary operator (scan) with similar axis behavior as np.cumsum and np.cumprod.
 
     See cumprod and cumsum for an example of use.
 
@@ -181,11 +181,55 @@ def cumsum(
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
     """
-    return cumbinop(
+    return scanop(
         data=data,
         binop=generic.add,
         identity_value=0,
         op_name="cumsum_generic",
+        axis=axis,
+        dtype=dtype,
+        exclusive=exclusive,
+    )
+
+
+def cumprod(
+    data: tvm.te.Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[int] = None,
+    exclusive: Optional[bool] = None,
+) -> tvm.te.Tensor:
+    """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative product is computed. The default (None) is to compute
+        the cumproduct over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are multiplied.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : bool, optional
+        If True, will return exclusive product in which the first element is not
+        included. In other terms, if True, the j-th output element would be
+        the product of the first (j-1) elements. Otherwise, it would be the product of
+        the first j elements.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+    """
+    return scanop(
+        data=data,
+        binop=generic.multiply,
+        identity_value=1,
+        op_name="cumprod_generic",
         axis=axis,
         dtype=dtype,
         exclusive=exclusive,

@@ -521,7 +521,7 @@ def schedule_scan(outs):
     return s
 
 
-def cumbinop(
+def scanop(
     data: tvm.te.Tensor,
     binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
     identity_value: Union[float, int],
@@ -529,7 +529,7 @@ def cumbinop(
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
-    """Cumulative binary operator with similar axis behavior as np.cumsum and np.cumprod.
+    """Cumulative binary operator (scan) with similar axis behavior as np.cumsum and np.cumprod.
 
     See cumprod and cumsum for an example of use.
 
@@ -616,7 +616,7 @@ def cumsum(
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
     """
-    return cumbinop(
+    return scanop(
         data=data,
         binop=tvm.tir.generic.add,
         identity_value=0,
@@ -659,7 +659,7 @@ def cumprod(
         The result has the same size as data, and the same shape as data if axis is not None.
         If axis is None, the result is a 1-d array.
     """
-    return cumbinop(
+    return scanop(
         data=data,
         binop=tvm.tir.generic.multiply,
         identity_value=1,

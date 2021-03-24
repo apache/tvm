@@ -1464,13 +1464,13 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-def wrap_compute_cumbinop(topi_compute):
-    """Wrap cumbinop style topi compute"""
+def wrap_compute_scanop(topi_compute):
+    """Wrap scanop style topi compute"""
 
-    def _compute_cumbinop(attrs, inputs, _):
+    def _compute_scanop(attrs, inputs, _):
         return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
-    return _compute_cumbinop
+    return _compute_scanop
 
 
 @override_native_generic_func("cumsum_strategy")
@@ -1478,7 +1478,7 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumbinop(topi.cumsum),
+        wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
     )
@@ -1490,7 +1490,7 @@ def cumprod_strategy(attrs, inputs, out_type, target):
     """cumprod generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumbinop(topi.cumprod),
+        wrap_compute_scanop(topi.cumprod),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumprod.generic",
     )
