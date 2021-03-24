@@ -64,6 +64,7 @@ tgt_host = "llvm"
 # command ``llc --version`` to get the CPU type, and you can check
 # ``/proc/cpuinfo`` for additional extensions that your processor might
 # support.  For example, ``tgt = "llvm -mcpu=`skylake`
+
 tgt = "llvm"
 
 ################################################################################
@@ -208,7 +209,8 @@ s[C].parallel(C.op.axis[0])
 # The ``tvm.lower`` command will generate the Intermediate Representation (IR)
 # of the TE, with the corresponding schedule. By lowering the expression as we
 # apply different schedule operations, we can see the effect of scheduling on
-# the ordering of the computation.
+# the ordering of the computation. We use the flag ``simple_mode=True`` to
+# return a readable C-style statement.
 
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 
