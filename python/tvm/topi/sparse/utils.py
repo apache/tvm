@@ -17,7 +17,6 @@
 """Some utils for Sparse operation."""
 import tvm
 from tvm import relay
-from tvm.relay import data_dep_optimization as ddo
 
 
 def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
