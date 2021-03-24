@@ -53,3 +53,13 @@ class DataLoader:
             The number of batches the DataLoader contains.
         """
         raise NotImplementedError
+
+    def get_batch_size(self):
+        """Gets the batch size.
+
+        Returns
+        -------
+        batch_size : int
+            The size of the batch returned by the DataLoader.
+        """
+        return self.batch_size
