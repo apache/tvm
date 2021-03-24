@@ -175,7 +175,7 @@ void fromJavaDType(JNIEnv* env, jobject jdtype, DLDataType* dtype) {
   env->DeleteLocalRef(tvmTypeClass);
 }
 
-void fromJavaDevice(JNIEnv* env, jobject jdev, Device* dev) {
+void fromJavaDevice(JNIEnv* env, jobject jdev, DLDevice* dev) {
   jclass deviceClass = env->FindClass("org/apache/tvm/Device");
   dev->device_type = static_cast<DLDeviceType>(
       env->GetIntField(jdev, env->GetFieldID(deviceClass, "deviceType", "I")));

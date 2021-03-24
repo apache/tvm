@@ -282,12 +282,12 @@ id<MTLBuffer> MetalThreadEntry::GetTempBuffer(Device dev, size_t size) {
     temp_buffer_.resize(dev.device_id + 1, nil);
   }
   if (temp_buffer_[dev.device_id] == nil || temp_buffer_[dev.device_id].length < size) {
-    id<MTLDevice> dev = MetalWorkspace::Global()->GetDevice(dev);
+    id<MTLDevice> mtl_dev = MetalWorkspace::Global()->GetDevice(dev);
     if (temp_buffer_[dev.device_id] != nil) {
       [temp_buffer_[dev.device_id] setPurgeableState:MTLPurgeableStateEmpty];
       [temp_buffer_[dev.device_id] release];
     }
-    temp_buffer_[dev.device_id] = [dev newBufferWithLength:size options:MTLStorageModeShared];
+    temp_buffer_[dev.device_id] = [mtl_dev newBufferWithLength:size options:MTLStorageModeShared];
   }
   return temp_buffer_[dev.device_id];
 }
