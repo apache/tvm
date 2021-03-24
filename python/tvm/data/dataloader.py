@@ -62,4 +62,4 @@ class DataLoader:
         batch_size : int
             The size of the batch returned by the DataLoader.
         """
-        return self.batch_size
+        return raise NotImplementedError
