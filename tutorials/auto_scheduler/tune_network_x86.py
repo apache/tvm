@@ -142,7 +142,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
         sparsity = 0.85
         mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
         # This is a test workload that manually transforms a dense model to sparse
-        params = random_sparse_dense_params(mod, params, BS_R=bs_r, BS_C=bs_c, density=1 - sparsity)
+        params = random_sparse_dense_params(mod, params, bs_r=bs_r, bs_c=bs_c, density=1 - sparsity)
         # Currently we only support to conver dense matmul to sparse dense matmul
         mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, bs_c), sparsity_threshold=0.8)
         mod = tvm.IRModule.from_expr(mod)

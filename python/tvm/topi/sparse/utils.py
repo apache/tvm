@@ -52,7 +52,27 @@ def random_bsr_matrix(m, n, bs_r, bs_c, density, dtype):
     return s
 
 
-def random_sparse_dense_params(func, params, density, BS_R, BS_C):
+def random_sparse_dense_params(func, params, bs_r, bs_c, density):
+    """Replace the dense parameters with random sparse parameters. Mainly used for testing.
+
+    Parameters
+    ----------
+    func : tvm.relay.Expr
+        Expr will be optimized to sparse operation.
+    params : Dict[Srting, tvm.nd.array]
+        Parameters of the Expr.
+    bs_r : int
+        The row of BSR matrix block.
+    bs_c : int
+        The column of BSR matrix block.
+    density : float
+        The density of the random sparse parameters.
+
+    Returns
+    -------
+    Dict[Srting, tvm.nd.array]
+        The generated random parameters.
+    """
     def deepcopy(param_dic):
         ret = {}
         for k, v in param_dic.items():
@@ -64,7 +84,7 @@ def random_sparse_dense_params(func, params, density, BS_R, BS_C):
     for item in dense_weight_names:
         name = str(item)
         shape = new_params[name].shape
-        if shape[0] % BS_R == 0 and shape[1] % BS_C == 0:
-            new_w = random_bsr_matrix(shape[0], shape[1], BS_R, BS_C, density, "float32").todense()
+        if shape[0] % bs_r == 0 and shape[1] % bs_c == 0:
+            new_w = random_bsr_matrix(shape[0], shape[1], bs_r, bs_c, density, "float32").todense()
             new_params[name] = tvm.nd.array(new_w)
     return new_params
