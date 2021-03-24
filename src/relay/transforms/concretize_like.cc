@@ -157,10 +157,10 @@ class ConcretizeBroadcastToLikeRewrite : public ConcretizeLikeRewrite {
 };
 
 Expr ConcretizeLike(const Expr& expr, const IRModule& mod) {
-  static Array<DFPatternCallback> callbacks =
-      MakeCallbacks({ConcretizeZerosLikeRewrite::Get(), ConcretizeOnesLikeRewrite::Get(),
-                     ConcretizeReshapeLikeRewrite::Get(), ConcretizeCollapseSumLikeRewrite::Get(),
-                     ConcretizeBroadcastToLikeRewrite::Get()});
+  static Array<DFPatternCallback> callbacks = {
+      ConcretizeZerosLikeRewrite::GetCallback(), ConcretizeOnesLikeRewrite::GetCallback(),
+      ConcretizeReshapeLikeRewrite::GetCallback(), ConcretizeCollapseSumLikeRewrite::GetCallback(),
+      ConcretizeBroadcastToLikeRewrite::GetCallback()};
   return RewritePatterns(callbacks, expr, mod);
 }
 
@@ -168,9 +168,9 @@ namespace transform {
 
 Pass ConcretizeLike() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-  [](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(ConcretizeLike(f, m));
-  };
+      [](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(ConcretizeLike(f, m));
+      };
   return CreateFunctionPass(pass_func, 0, "ConcretizeLike", {});
 }
 

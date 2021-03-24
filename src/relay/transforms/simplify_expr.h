@@ -34,10 +34,14 @@ namespace relay {
 
 /*! \brief Defines a static function `RewriteType::Get()` that returns a statically initialized
  * instance of RewriteType. */
-#define TVM_DF_PATTERN_REWRITE_GETTER(RewriteType) \
-  static DFPatternRewrite* Get() {                 \
-    static RewriteType rw;                         \
-    return &rw;                                    \
+#define TVM_DF_PATTERN_REWRITE_GETTER(RewriteType)                    \
+  static DFPatternRewrite* Get() {                                    \
+    static RewriteType rw;                                            \
+    return &rw;                                                       \
+  }                                                                   \
+  static DFPatternCallback GetCallback() {                            \
+    static DFPatternCallback cb = RewriteType::Get()->MakeCallback(); \
+    return cb;                                                        \
   }
 
 /*! \brief A wrapper class defining a rewrite matching a specific pattern. */
@@ -52,27 +56,21 @@ class DFPatternRewrite {
 
   inline bool RequireType() const { return require_type_; }
 
+  inline DFPatternCallback MakeCallback() const {
+    auto func = [this](TVMArgs args, TVMRetValue* rv) {
+      Expr pre = args[0];
+      Expr post = args[1];
+      Map<DFPattern, Array<Expr>> node_map = args[2];
+      *rv = this->Callback(pre, post, node_map);
+    };
+    return DFPatternCallback(pattern_, PackedFunc(func), require_type_);
+  }
+
  protected:
   /*! \brief The pattern for matching and rewriting. */
   DFPattern pattern_;
   bool require_type_;
 };
-
-/*! \brief Returns an array of DFPatternCallbacks using the given rewrites. */
-inline Array<DFPatternCallback> MakeCallbacks(const std::vector<DFPatternRewrite*>& rewrites) {
-  Array<DFPatternCallback> callbacks;
-  for (const auto& rewrite : rewrites) {
-    auto func = [rewrite](TVMArgs args, TVMRetValue* rv) {
-      Expr pre = args[0];
-      Expr post = args[1];
-      Map<DFPattern, Array<Expr>> node_map = args[2];
-      *rv = rewrite->Callback(pre, post, node_map);
-    };
-    callbacks.push_back(
-        DFPatternCallback(rewrite->Pattern(), PackedFunc(func), rewrite->RequireType()));
-  }
-  return callbacks;
-}
 
 }  // namespace relay
 }  // namespace tvm

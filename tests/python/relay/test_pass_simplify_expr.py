@@ -181,7 +181,45 @@ def test_simplify_full_elementwise():
                 validate(shape, value, dtype)
 
 
+def test_eliminate_identity():
+    def check(x, y, do_nothing=False):
+        after = run_opt_pass(y, transform.EliminateIdentity())
+        if do_nothing:
+            assert tvm.ir.structural_equal(after, y)
+        else:
+            assert tvm.ir.structural_equal(after, x)
+
+    shape = [2, 3, 4]
+    dtype = "float32"
+    x = relay.var("x", shape=shape, dtype=dtype)
+    x = run_opt_pass(x, transform.InferType())
+
+    for (op, op_like, id_op) in [
+        (relay.zeros, relay.zeros_like, relay.add),
+        (relay.ones, relay.ones_like, relay.multiply),
+    ]:
+        check(x, id_op(op_like(x), x))
+        check(x, id_op(op(shape, dtype), x))
+        check(x, id_op(x, op_like(x)))
+        check(x, id_op(x, op(shape, dtype)))
+        check(x, id_op(x, op(shape[1:], dtype)))
+        check(x, id_op(x, op([2] + shape, dtype)), do_nothing=True)
+        check(x, id_op(op([2] + shape, dtype), x), do_nothing=True)
+
+    for (op, op_like, id_op) in [
+        (relay.zeros, relay.zeros_like, relay.subtract),
+        (relay.ones, relay.ones_like, relay.divide),
+    ]:
+        check(x, id_op(x, op_like(x)))
+        check(x, id_op(x, op(shape, dtype)))
+        check(x, id_op(x, op(shape[1:], dtype)))
+        check(x, id_op(x, op([2] + shape, dtype)), do_nothing=True)
+        check(x, id_op(op(shape, dtype), x), do_nothing=True)
+        check(x, id_op(op_like(x), x), do_nothing=True)
+
+
 if __name__ == "__main__":
     test_simplify_reshape()
     test_simplify_transpose()
     test_simplify_full_elementwise()
+    test_eliminate_identity()

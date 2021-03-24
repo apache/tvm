@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tests for the ConcretizeLike pass."""
+import pytest
 import tvm
 import tvm.relay.testing
 from tvm import relay
@@ -120,3 +121,7 @@ def test_multiple():
     mod = tvm.IRModule.from_expr(f)
     mod_concrete = relay.transform.ConcretizeLike()(mod)
     assert tvm.ir.structural_equal(mod_concrete["main"], f_expected)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

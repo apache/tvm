@@ -1136,6 +1136,21 @@ def SimplifyExpr():
     return _ffi_api.SimplifyExpr()
 
 
+def EliminateIdentity():
+    """
+    Eliminates any expressions that are equivalent to identity, such as x + 0
+    and x * 1. Note that these expressions cannot be eliminated when they
+    broadcast x to a new shape (although they could be replaced with explicit
+    broadcasting operations).
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered EliminateIdentity pass.
+    """
+    return _ffi_api.EliminateIdentity()
+
+
 def FoldExplicitPadding():
     """
     FoldExplicitPadding finds explict padding before an op that can support

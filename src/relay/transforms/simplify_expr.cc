@@ -172,7 +172,8 @@ class SimplifyTranspose : public DFPatternRewrite {
 };
 
 /*!
- * \brief FullArgwhere finds full followed by argwhere and turns it into an Arange op
+ * \brief FullElementwise finds full like ops followed by broadcasting ops, and eliminates
+ * the full op by directly passing the fill value into the broadcasting op.
  */
 class FullElementwise : public DFPatternRewrite {
  public:
@@ -247,13 +248,76 @@ class FullElementwise : public DFPatternRewrite {
   DFPattern zeros_;
 };
 
+/*! \brief Eliminates expressions that are just identity. */
+class EliminateIdentity : public DFPatternRewrite {
+ public:
+  EliminateIdentity() {
+    x_ = IsWildcard();
+
+    DFPattern add_op = IsOp("add");
+    DFPattern mul_op = IsOp("multiply");
+    DFPattern zeros_call = IsOp("zeros")({}) || IsOp("zeros_like")({IsWildcard()});
+    DFPattern ones_call = IsOp("ones")({}) || IsOp("ones_like")({IsWildcard()});
+
+    DFPattern add_id = add_op({x_, zeros_call}) || add_op({zeros_call, x_});
+    DFPattern mul_id = mul_op({x_, ones_call}) || mul_op({ones_call, x_});
+    DFPattern sub_id = IsOp("subtract")({x_, zeros_call});
+    DFPattern div_id = IsOp("divide")({x_, ones_call});
+
+    pattern_ = add_id || mul_id || sub_id || div_id;
+    require_type_ = true;
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call = pre.as<CallNode>();
+    ICHECK(call);
+    Type pre_type = pre->checked_type_;
+    ICHECK(pre_type.as<TensorTypeNode>());
+    auto x = node_map[x_][0];
+    bool is_left = post.as<CallNode>()->args[1] == x;
+    Type x_type;
+    if (is_left) {
+      x_type = call->args[1]->checked_type_;
+    } else {
+      x_type = call->args[0]->checked_type_;
+    }
+
+    if (StructuralEqual()(x_type, pre_type)) {
+      return x;
+    }
+
+    return post;
+  }
+
+  TVM_DF_PATTERN_REWRITE_GETTER(EliminateIdentity);
+
+ private:
+  DFPattern x_;
+};
+
+Expr EliminateIdentity(const Expr& expr, const IRModule& mod) {
+  return RewritePatterns({EliminateIdentity::GetCallback()}, expr, mod);
+}
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
-  static Array<DFPatternCallback> callbacks =
-      MakeCallbacks({SimplifyReshape::Get(), SimplifyTranspose::Get(), FullElementwise::Get()});
+  static Array<DFPatternCallback> callbacks = {SimplifyReshape::GetCallback(),
+                                               SimplifyTranspose::GetCallback(),
+                                               FullElementwise::GetCallback()};
   return RewritePatterns(callbacks, expr, mod);
 }
 
 namespace transform {
+
+Pass EliminateIdentity() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(EliminateIdentity(f, m));
+      };
+  return CreateFunctionPass(pass_func, 0, "EliminateIdentity", {"InferType"});
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.EliminateIdentity").set_body_typed(EliminateIdentity);
 
 Pass SimplifyExpr() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
