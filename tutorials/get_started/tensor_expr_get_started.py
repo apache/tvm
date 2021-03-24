@@ -643,7 +643,6 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # schedule.
 
 bn = 32
-s = te.create_schedule(C.op)
 
 # Blocking by loop tiling
 xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
@@ -675,15 +674,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # In this tutorial, we chose to vectorize the inner loop row data since it is
 # already cache friendly from our previous optimizations.
 
-# Begin by applying the previous optimizations again
-s = te.create_schedule(C.op)
-xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-(k,) = s[C].op.reduce_axis
-ko, ki = s[C].split(k, factor=4)
-
-s[C].reorder(xo, yo, ko, ki, xi, yi)
-
-# Now apply the vectorization optimization
+# Apply the vectorization optimization
 s[C].vectorize(yi)
 
 evaluate_operation(s, [A, B, C], target=target, name="mmult", optimization="vectorization", log=log)
@@ -820,22 +811,6 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # modern processors have multiple cores, and computation can benefit from
 # running computations in parallel. The final optimization is to take advantage
 # of thread-level parallelization.
-
-s = te.create_schedule(C.op)
-
-CC = s.cache_write(C, "global")
-
-xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
-
-s[CC].compute_at(s[C], yo)
-
-xc, yc = s[CC].op.axis
-
-(k,) = s[CC].op.reduce_axis
-ko, ki = s[CC].split(k, factor=4)
-s[CC].reorder(ko, xc, ki, yc)
-s[CC].unroll(ki)
-s[CC].vectorize(yc)
 
 # parallel
 s[C].parallel(xo)
