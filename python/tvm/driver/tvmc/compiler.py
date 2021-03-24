@@ -150,7 +150,7 @@ def compile_model(
     mod: IRModule
         The relay module to be compiled.
     params: dict
-        A dictionary containing the module's parameters. 
+        A dictionary containing the module's parameters.
     target : str
         The target for which to compile. Can be a plain string or
         a path.
