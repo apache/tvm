@@ -967,7 +967,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   }
 
   // Allocate the space.
-  err = TVMPlatformMemoryAllocate(sizeof(TVMNDArray) * pool_entry_count, alloc_ctx,
+  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeStorageEntry) * pool_entry_count, alloc_ctx,
                                   (void**)&runtime->storage_pool);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
