@@ -34,7 +34,7 @@ namespace relay {
 
 class ConcretizeLikeRewrite : public DFPatternRewrite {
  public:
-  ConcretizeLikeRewrite(const Op& op) {
+  explicit ConcretizeLikeRewrite(const Op& op) {
     ICHECK(op->num_inputs == 1 || op->num_inputs == 2)
         << "ConcretizeLike does not handle operators that aren't unary or binary, got: " << op;
     like_pat_ = IsWildcard();
