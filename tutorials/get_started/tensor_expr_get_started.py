@@ -50,8 +50,6 @@ features of TVM.
 # vector addition, followed by a schedule targeted towards a CPU. We begin by initializing a TVM
 # environment.
 
-from __future__ import absolute_import, print_function
-
 import tvm
 import tvm.testing
 from tvm import te
@@ -61,11 +59,14 @@ import numpy as np
 
 tgt_host = "llvm"
 
-# You will get better performance if you can identify the CPU you are targeting and specify it.
-# For example, ``tgt = "llvm -mcpu=broadwell``
+# You will get better performance if you can identify the CPU you are targeting
+# and specify it. If you're using llvm, you can get this information from the
+# command ``llc --version`` to get the CPU type, and you can check
+# ``/proc/cpuinfo`` for additional extensions that your processor might
+# support.  For example, ``tgt = "llvm -mcpu=`skylake`
 tgt = "llvm"
 
-######################################################################
+################################################################################
 # Describing the Vector Computation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We describe a vector addition computation. TVM adopts tensor semantics, with
@@ -81,25 +82,34 @@ tgt = "llvm"
 # tensors. Remember, no actual computation happens during this phase, as we
 # are only declaring how the computation should be done.
 
+
 n = te.var("n")
 A = te.placeholder((n,), name="A")
 B = te.placeholder((n,), name="B")
 C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-print(type(C))
 
-######################################################################
+################################################################################
+# .. note:: Lambda Functions
+#
+# The second argument to the ``te.compute`` method is the function that
+# performs the computation. In this example, we're using an anonymous function,
+# also known as a ``lambda`` function, to define the computation, in this case
+# addition on the ``i``th element of ``A`` and ``B``.
+
+################################################################################
 # Create a Default Schedule for the Computation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# While the above lines describe the computation rule, we can compute ``C`` in many
-# different ways to fit different devices. For a tensor with multiple axes, you can choose which axis to
-# iterate over first, or computations can be split across different threads.
-# TVM requires that the user to provide a schedule, which is a description of
-# how the computation should be performed. Scheduling operations within TE
-# can change loop orders, split computations across different threads, group
-# blocks of data together, amongst other operations. An important concept behind
-# schedules is that they only describe how the computation is performed, so different schedules for the same TE will produce the
-# same result.
+# While the above lines describe the computation rule, we can compute ``C`` in
+# many different ways to fit different devices. For a tensor with multiple
+# axes, you can choose which axis to iterate over first, or computations can be
+# split across different threads. TVM requires that the user to provide a
+# schedule, which is a description of how the computation should be performed.
+# Scheduling operations within TE can change loop orders, split computations
+# across different threads, group blocks of data together, amongst other
+# operations. An important concept behind schedules is that they only describe
+# how the computation is performed, so different schedules for the same TE will
+# produce the same result.
 #
 # TVM allows you to create a naive schedule that will compute ``C`` in by
 # iterating in row major order.
@@ -129,12 +139,12 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
-# numpy. We begin by creating a context, which is a device (CPU in this example) that TVM can
-# compile the schedule to. In this case the context is an LLVM CPU target. We
-# can then initialize the tensors in our context and perform the custom
-# addition operation. To verify that the computation is correct, we can compare
-# the result of the output of the c tensor to the same computation performed by
-# numpy.
+# numpy. We begin by creating a context, which is a device (CPU in this
+# example) that TVM can compile the schedule to. In this case the context is an
+# LLVM CPU target. We can then initialize the tensors in our context and
+# perform the custom addition operation. To verify that the computation is
+# correct, we can compare the result of the output of the c tensor to the same
+# computation performed by numpy.
 
 ctx = tvm.context(tgt, 0)
 
@@ -144,6 +154,39 @@ b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
 c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
 fadd(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+################################################################################
+# To get a comparison of how fast this version is compared to numpy, create a
+# helper function to run a profile of the TVM generated code.
+import timeit
+
+np_repeat = 100
+np_running_time = timeit.timeit(
+    setup="import numpy\n"
+    "n = 32768\n"
+    'dtype = "float32"\n'
+    "a = numpy.random.rand(n, 1).astype(dtype)\n"
+    "b = numpy.random.rand(n, 1).astype(dtype)\n",
+    stmt="answer = a + b",
+    number=np_repeat,
+)
+print("Numpy running time: %f" % (np_running_time / np_repeat))
+
+def evaluate_addition(func, target, optimization, log):
+    ctx = tvm.context(target, 0)
+    n = 32768
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+
+    evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
+    mean_time = evaluator(a, b, c).mean
+    print("%s: %f" % (optimization, mean_time))
+
+    log.append((optimization, mean_time))
+
+log = [("numpy", np_running_time/np_repeat)]
+evaluate_addition(fadd, tgt, "naive", log=log) 
 
 ################################################################################
 # Updating the Schedule to Use Paralleism
@@ -178,6 +221,8 @@ fadd_parallel(a, b, c)
 
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
+evaluate_addition(fadd_parallel, tgt, "parallel", log=log) 
+
 ################################################################################
 # Updating the Schedule to Use Vectorization
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -190,7 +235,8 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # can be parallelized using the parallel scheduling primitive. Choose the split
 # factor to be the number of threads on your CPU.
 
-# Recreate the schedule, since we modified it with the parallel operation in the previous example
+# Recreate the schedule, since we modified it with the parallel operation in
+# the previous example
 n = te.var("n")
 A = te.placeholder((n,), name="A")
 B = te.placeholder((n,), name="B")
@@ -198,13 +244,51 @@ C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 s = te.create_schedule(C.op)
 
+# This factor should be chosen to match the number of threads appropriate for
+# your CPU. This will vary depending on architecture, but a good rule is
+# setting this factor to equal the number of available CPU cores.
 factor = 4
 
 outer, inner = s[C].split(C.op.axis[0], factor=factor)
 s[C].parallel(outer)
 s[C].vectorize(inner)
 
+fadd_vector = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd_parallel")
+
+evaluate_addition(fadd_vector, tgt, "vector", log=log) 
+
 print(tvm.lower(s, [A, B, C], simple_mode=True))
+
+################################################################################
+# Comparing the Diferent Schedules
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# We can now compare the different schedules
+
+baseline = log[0][1]
+print("%s\t%s\t%s" % ("Operator".rjust(20), "Timing".rjust(20), "Performance".rjust(20)))
+for result in log:
+    print(
+        "%s\t%s\t%s"
+        % (result[0].rjust(20), str(result[1]).rjust(20), str(result[1] / baseline).rjust(20))
+    )
+
+
+################################################################################
+# .. note:: Code Specialization
+#
+#   As you may have noticed, the declarations of ``A``, ``B`` and ``C`` all
+#   take the same shape argument, ``n``. TVM will take advantage of this to
+#   pass only a single shape argument to the kernel, as you will find in the
+#   printed device code.  This is one form of specialization.
+#
+#   On the host side, TVM will automatically generate check code that checks
+#   the constraints in the parameters. So if you pass arrays with different
+#   shapes into fadd, an error will be raised.
+#
+#   We can do more specializations. For example, we can write :code:`n =
+#   tvm.runtime.convert(1024)` instead of :code:`n = te.var("n")`, in the
+#   computation declaration. The generated function will only take vectors with
+#   length 1024.
 
 ################################################################################
 # We've defined, scheduled, and compiled a vector addition operator, which we
@@ -218,6 +302,8 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # will target compilation of the vector addition to GPUs.
 
 # If you want to run this code, change ``run_cuda = True``
+# Note that by default this example is not run in the docs CI.
+
 run_cuda = False
 if run_cuda:
 
@@ -237,13 +323,12 @@ if run_cuda:
     bx, tx = s[C].split(C.op.axis[0], factor=64)
 
     ################################################################################
-    # Finally we bind the iteration axis bx and tx to threads in the GPU compute
-    # grid. These are GPU specific constructs that allow us to generate code that
-    # runs on GPU.
+    # Finally we must bind the iteration axis bx and tx to threads in the GPU
+    # compute grid. The naive schedule is not valid for GPUs, and these are
+    # specific constructs that allow us to generate code that runs on a GPU.
 
-    if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
-        s[C].bind(bx, te.thread_axis("blockIdx.x"))
-        s[C].bind(tx, te.thread_axis("threadIdx.x"))
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
     fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
 
@@ -256,7 +341,8 @@ if run_cuda:
     #
     # We first create a GPU context. Then tvm.nd.array copies the data to the GPU,
     # fadd runs the actual computation, and asnumpy() copies the GPU array back to the
-    # CPU (so we can verify correctness).
+    # CPU (so we can verify correctness). Note that copying the data to and from the
+    # memory on the GPU is a required step.
 
     ctx = tvm.context(tgt_gpu, 0)
 
@@ -386,23 +472,6 @@ if tgt.startswith("opencl"):
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ################################################################################
-# .. note:: Code Specialization
-#
-#   As you may have noticed, the declarations of A, B and C all take the same
-#   shape argument, n. TVM will take advantage of this to pass only a single
-#   shape argument to the kernel, as you will find in the printed device code.
-#   This is one form of specialization.
-#
-#   On the host side, TVM will automatically generate check code that checks
-#   the constraints in the parameters. So if you pass arrays with different
-#   shapes into fadd, an error will be raised.
-#
-#   We can do more specializations. For example, we can write :code:`n =
-#   tvm.runtime.convert(1024)` instead of :code:`n = te.var("n")`, in the
-#   computation declaration. The generated function will only take vectors with
-#   length 1024.
-
-################################################################################
 # .. note:: TE Scheduling Primitives
 #
 #   TVM includes a number of different scheduling primitives:
@@ -445,10 +514,6 @@ if tgt.startswith("opencl"):
 # `repository <https://github.com/flame/how-to-optimize-gemm>`_. Some of them
 # have been applied by TVM abstraction automatically, but some of them cannot
 # be automatically applied due to TVM constraints.
-#
-# All the experiment results mentioned below are executed on 2015 15" MacBook
-# equipped with Intel i7-4770HQ CPU. The cache line size should be 64 bytes for
-# all the x86 CPUs.
 
 ################################################################################
 # Preparation and Performance Baseline
@@ -461,7 +526,6 @@ import tvm
 import tvm.testing
 from tvm import te
 import numpy
-import timeit
 
 # The size of the matrix
 # (M, K) x (K, N)
@@ -473,12 +537,13 @@ N = 1024
 # The default tensor data type in tvm
 dtype = "float32"
 
-# using Intel AVX2 (Advanced Vector Extensions) ISA for SIMD To get the best
-# performance, please change the following line to llvm -mcpu=core-avx2, or
-# specific type of CPU you use.  If you're using llvm, you can get this
-# information from the command ``llc --version`` to get the CPU type, and
-# you can check ``/proc/cpuinfo`` for additional extensions that your
-# processor might support.
+# You will want to adjust the target to match any CPU vector extensions you
+# might have. For example, if you're using using Intel AVX2 (Advanced Vector
+# Extensions) ISA for SIMD, you can get the best performance by changing the
+# following line to ``llvm -mcpu=core-avx2``, or specific type of CPU you use.
+# Recall that you're using llvm, you can get this information from the command
+# ``llc --version`` to get the CPU type, and you can check ``/proc/cpuinfo``
+# for additional extensions that your processor might support.
 target = "llvm"
 ctx = tvm.context(target, 0)
 
@@ -489,7 +554,7 @@ b = tvm.nd.array(numpy.random.rand(K, N).astype(dtype), ctx)
 # Repeatedly perform a matrix multiplication to get a performance baseline
 # for the default numpy implementation
 np_repeat = 100
-np_runing_time = timeit.timeit(
+np_running_time = timeit.timeit(
     setup="import numpy\n"
     "M = " + str(M) + "\n"
     "K = " + str(K) + "\n"
@@ -500,7 +565,7 @@ np_runing_time = timeit.timeit(
     stmt="answer = numpy.dot(a, b)",
     number=np_repeat,
 )
-print("Numpy running time: %f" % (np_runing_time / np_repeat))
+print("Numpy running time: %f" % (np_running_time / np_repeat))
 
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
 
@@ -524,7 +589,6 @@ c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
 func(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
-
 def evaluate_operation(s, vars, target, name, optimization, log):
     func = tvm.build(s, [A, B, C], target=target, name="mmult")
     assert func
@@ -537,7 +601,6 @@ def evaluate_operation(s, vars, target, name, optimization, log):
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
     log.append((optimization, mean_time))
-
 
 log = []
 
