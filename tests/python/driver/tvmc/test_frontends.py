@@ -21,7 +21,7 @@ import pytest
 
 from tvm.ir.module import IRModule
 
-from tvm import tvmc
+from tvm.driver import tvmc
 from tvm.driver.tvmc.common import TVMCException
 
 

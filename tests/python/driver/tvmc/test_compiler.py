@@ -114,7 +114,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 
     mod, params = tvmc.load(keras_resnet50)
     graph, lib, params, dumps = tvmc.compile(
-        mods,
+        mod,
         params,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
