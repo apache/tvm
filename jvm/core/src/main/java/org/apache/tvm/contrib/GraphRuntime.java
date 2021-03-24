@@ -17,9 +17,9 @@
 
 package org.apache.tvm.contrib;
 
+import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
-import org.apache.tvm.Device;
 import org.apache.tvm.TVMValue;
 import org.apache.tvm.rpc.RPC;
 import org.apache.tvm.rpc.RPCSession;

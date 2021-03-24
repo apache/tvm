@@ -17,9 +17,9 @@
 
 package org.apache.tvm.rpc;
 
+import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
-import org.apache.tvm.Device;
 
 import java.io.File;
 import java.io.FileInputStream;

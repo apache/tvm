@@ -19,10 +19,10 @@
 
 package org.apache.tvm.contrib;
 
+import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.Device;
 
 /**
  * Wrapper runtime module.
