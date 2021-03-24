@@ -73,6 +73,7 @@ def random_sparse_dense_params(func, params, bs_r, bs_c, density):
     Dict[Srting, tvm.nd.array]
         The generated random parameters.
     """
+
     def deepcopy(param_dic):
         ret = {}
         for k, v in param_dic.items():
