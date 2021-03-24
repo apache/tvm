@@ -31,6 +31,7 @@
 #include <tvm/runtime/logging.h>
 
 #include <utility>
+#include <limits>
 
 #include "../op/tensor/transform.h"
 #include "pattern_utils.h"

@@ -69,6 +69,7 @@ class DFPatternRewrite {
  protected:
   /*! \brief The pattern for matching and rewriting. */
   DFPattern pattern_;
+  /*! \brief Whether or not the rewrite requires types to be inferred. */
   bool require_type_ = true;
 };
 
