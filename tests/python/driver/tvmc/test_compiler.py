@@ -216,7 +216,7 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
 
 @mock.patch("tvm.relay.build")
 @mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
-@mock.patch("tvm.tvmc.load")
+@mock.patch("tvm.driver.tvmc.load")
 @mock.patch("tvm.transform.PassContext")
 def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_relay):
     mock_codegen = {}
