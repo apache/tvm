@@ -419,6 +419,7 @@ for rank in ranks[0:5]:
 # improvement in comparing the optimized model to the unoptimized model.
 
 import timeit
+
 timing_number = 10
 timing_repeat = 10
 optimized = (
