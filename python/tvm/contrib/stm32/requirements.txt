@@ -1,0 +1,5 @@
+numpy
+protobuf
+pyserial==3.4
+tqdm==4.50.2
+
