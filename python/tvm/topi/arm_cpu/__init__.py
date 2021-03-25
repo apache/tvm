@@ -26,3 +26,4 @@ from .bitserial_conv2d import *
 from .bitserial_dense import *
 from .injective import *
 from . import cortex_m7
+from .group_conv2d import *
