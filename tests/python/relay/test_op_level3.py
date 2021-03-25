@@ -16,16 +16,16 @@
 # under the License.
 """ Support level3 operator test cases.
 """
+from typing import Callable, Optional
+
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import relay
+import tvm.testing
+from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
-from typing import Optional
-import tvm.testing
 
 
 def test_zeros_ones():
@@ -1758,12 +1758,27 @@ def test_adv_index():
     verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
 
 
-@tvm.testing.parametrize_targets
-def test_cumsum(target, ctx):
-    def verify_cumsum(data_np, np_out, axis=None, out_dtype=None, rtol=1e-5, atol=1e-5):
+# Helper for testing binop functions
+scanops_supported = {"cumsum": relay.op.cumsum, "cumprod": relay.op.cumprod}
+
+
+def run_binop_tests(
+    target, ctx, binop_type: str, gt_func: Callable[..., np.array], identity_value: int
+):
+    def assert_relay_scanop(
+        data_np: np.array,
+        np_out: np.array,
+        axis: int = None,
+        out_dtype: str = None,
+        rtol: float = 1e-5,
+        atol: float = 1e-5,
+        exclusive: bool = False,
+    ):
         inp = relay.var("data", relay.TensorType(data_np.shape, str(data_np.dtype)))
 
-        out = relay.op.cumsum(inp, axis, out_dtype)
+        if binop_type not in scanops_supported.keys():
+            raise ValueError(f"Unknown function {binop_type}. Options: {scanops_supported.keys()}")
+        out = scanops_supported[binop_type](inp, axis, out_dtype, exclusive=exclusive)
         func = relay.Function([inp], out)
 
         for kind in ["graph", "debug"]:
@@ -1772,24 +1787,48 @@ def test_cumsum(target, ctx):
             tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=rtol, atol=atol)
 
     data = np.array([2, 3, 0])
-    verify_cumsum(data, np.cumsum(data))
-    verify_cumsum(data, np.cumsum(data), out_dtype="int64")
+    assert_relay_scanop(data, gt_func(data))
+    assert_relay_scanop(data, gt_func(data), out_dtype="int64")
 
     data = np.random.randn(10, 10)
-    verify_cumsum(data, np.cumsum(data))
-    verify_cumsum(data, np.cumsum(data, axis=0), axis=0)
-    verify_cumsum(data, np.cumsum(data, axis=1), axis=1)
+    assert_relay_scanop(data, gt_func(data))
+    assert_relay_scanop(data, gt_func(data, axis=0), axis=0)
+    assert_relay_scanop(data, gt_func(data, axis=1), axis=1)
 
     data = np.random.randn(10, 5, 10).astype("float32")
-    verify_cumsum(data, np.cumsum(data), rtol=1e-4, atol=1e-4)
-    verify_cumsum(data, np.cumsum(data, axis=0), axis=0, rtol=1e-4, atol=1e-4)
-    verify_cumsum(data, np.cumsum(data, axis=1), axis=1, rtol=1e-4, atol=1e-4)
-    verify_cumsum(data, np.cumsum(data, axis=-1), axis=-1, rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data), rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data, axis=0), axis=0, rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data, axis=1), axis=1, rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data, axis=-1), axis=-1, rtol=1e-4, atol=1e-4)
 
     data = np.random.rand(10) > 0.5
     data = data.astype(np.int32)
-    verify_cumsum(data, np.cumsum(data, dtype=np.int32))
-    verify_cumsum(data, np.cumsum(data, dtype="int64"), out_dtype="int64")
+    assert_relay_scanop(data, gt_func(data, dtype=np.int32))
+    assert_relay_scanop(data, gt_func(data, dtype="int64"), out_dtype="int64")
+
+    # Test exclusivity operations
+    data = np.random.randint(-100, 100, size=(10, 10)).astype("int64")
+    expected_result = np.roll(gt_func(data), 1)
+    expected_result[0] = identity_value
+    assert_relay_scanop(data, expected_result, exclusive=True)
+
+    expected_result = np.roll(gt_func(data, axis=0), 1, axis=0)
+    expected_result[0, :] = identity_value
+    assert_relay_scanop(data, expected_result, exclusive=True, axis=0)
+
+    expected_result = np.roll(gt_func(data, axis=1), 1, axis=1)
+    expected_result[:, 0] = identity_value
+    assert_relay_scanop(data, expected_result, exclusive=True, axis=1)
+
+
+@tvm.testing.parametrize_targets
+def test_cumsum(target, ctx):
+    run_binop_tests(target, ctx, binop_type="cumsum", gt_func=np.cumsum, identity_value=0)
+
+
+@tvm.testing.parametrize_targets
+def test_cumprod(target, ctx):
+    run_binop_tests(target, ctx, binop_type="cumprod", gt_func=np.cumprod, identity_value=1)
 
 
 @tvm.testing.parametrize_targets
