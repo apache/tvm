@@ -366,7 +366,7 @@ int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, in
 }
 
 int TVMFuncFree(TVMFunctionHandle func) {
-  // A no-op, since we don't actually allocate anything in GetFunction
+  // A no-op, since we don't actually allocate anything in GetFunction.
   return 0;
 }
 
