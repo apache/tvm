@@ -23,8 +23,8 @@ Installing TVM
 
 Depending on your needs and your working environment, there are a few different
 methods for installing TVM. These include:
-    * Installing from source (recommended)
-    * Installing from the TLCPack Conda and Pip Packages
+    * Installing from source 
+    * Installing convenient binary package from thirdparty
 """
 
 ################################################################################
@@ -38,13 +38,12 @@ methods for installing TVM. These include:
 # </install/from_source.html>`_ page.
 
 ################################################################################
-# Installing from TLC Pack
-# ------------------------
-# TVM is packaged and distributed as part of the volunteer TLCPack community.
-# TLCPack is not affiliated with the Apache Software Foundation, and software
-# distributed by them may include non-free hardware drivers. You can lean more
-# about TLCPack at their `website <https://tlcpack.ai>`_. TLCPack offers a
-# support matrix with instructions for how to install TVM on different
-# platforms, with different features. You can choose between the latest stable
-# or nightly builds. If your environment isn't supported by TLCPack, you will
-# need to install from source.
+# Install Binary Package
+# ----------------------
+# You may install convenient thirparty binary package distributions 
+# to quickly try things out. TLCPack is a thirdparty volunteer community that
+# builds binary packages from TVM source. It offers support matrix with instructions 
+# to install on different platforms, with different features. 
+# Checkout  `TLCPack <https://tlcpack.ai>`_ to learn more.
+# Note that the thirdparty binary packages could contain 
+# additional terms that comes with the hardware drivers it bundles.
