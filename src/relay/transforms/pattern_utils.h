@@ -27,6 +27,7 @@
 #define TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
 
 #include <builtin_fp16.h>
+#include <dmlc/optional.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
@@ -382,43 +383,45 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \param i element index
  * \return Converted scalar value.
  */
-static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+static inline dmlc::optional<long double> ToScalar(const runtime::NDArray& array, size_t i = 0, bool allow_fail = false) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
-      return reinterpret_cast<int8_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<int16_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<int32_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<int64_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLUInt) {
     if (array->dtype.bits == 1) {  // bool
-      return reinterpret_cast<uint8_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 8) {
-      return reinterpret_cast<uint8_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<uint16_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<uint32_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<uint64_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLFloat) {
     if (array->dtype.bits == 16) {
-      return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
-          reinterpret_cast<uint16_t*>(array->data)[i]);
+      return dmlc::optional<long double>(
+          __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
+              reinterpret_cast<uint16_t*>(array->data)[i]));
     }
     if (array->dtype.bits == 32) {
-      return reinterpret_cast<float*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<double*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
   }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  // make compiler happy
-  return -std::numeric_limits<double>::infinity();
+  if (!allow_fail) {
+    LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  }
+  return dmlc::optional<long double>();
 }
 
 /*!
@@ -432,8 +435,8 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
-    long double elem_val = ToScalar(array, i);
-    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val))));
+    auto elem_val = ToScalar(array, i);
+    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val.value()))));
   }
   return out;
 }
@@ -454,8 +457,8 @@ static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
   for (size_t i = 0; i < dim1; ++i) {
     Array<Integer> inner_out;
     for (size_t j = 0; j < dim2; ++j) {
-      double elem_val = ToScalar(array, i * dim2 + j);
-      inner_out.push_back(Integer(static_cast<int>(elem_val)));
+      auto elem_val = ToScalar(array, i * dim2 + j);
+      inner_out.push_back(Integer(static_cast<int>(elem_val.value())));
     }
     out.push_back(inner_out);
   }

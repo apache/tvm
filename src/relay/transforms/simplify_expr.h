@@ -40,6 +40,8 @@ class DFPatternRewrite {
   virtual Expr Callback(const Expr& pre, const Expr& post,
                         const Map<DFPattern, Array<Expr>>& node_map) const = 0;
 
+  virtual ~DFPatternRewrite() = default;
+
   /*! \brief Returns the pattern to be used for matching and rewriting. */
   inline DFPattern Pattern() const { return pattern_; }
 

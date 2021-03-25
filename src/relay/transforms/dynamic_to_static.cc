@@ -60,8 +60,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
            if (const ConstantNode* k = args[1].as<ConstantNode>()) {
              const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
              ICHECK(param);
-             return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)),
-                             param->axis, param->ret_type, param->is_ascend, param->dtype);
+             auto k_val = ToScalar(k->data, 0);
+             return MakeTopK(call_node->args[0], static_cast<int>(k_val.value()), param->axis,
+                             param->ret_type, param->is_ascend, param->dtype);
            }
            return Expr(nullptr);
          }},
@@ -100,9 +101,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
            if (const ConstantNode* depth = args[3].as<ConstantNode>()) {
              const OneHotAttrs* param = call_node->attrs.as<OneHotAttrs>();
              ICHECK(param);
+             auto depth_val = ToScalar(depth->data, 0);
              return MakeOneHot(call_node->args[0], call_node->args[1], call_node->args[2],
-                               static_cast<int>(ToScalar(depth->data, 0)), param->axis,
-                               param->dtype);
+                               static_cast<int>(depth_val.value()), param->axis, param->dtype);
            }
            return Expr(nullptr);
          }},
@@ -143,9 +144,10 @@ class DynamicToStaticMutator : public MixedModeMutator {
              ICHECK_EQ(scale_w->data->ndim, 0);
              const UpSamplingAttrs* param = call_node->attrs.as<UpSamplingAttrs>();
              ICHECK(param);
-             return MakeUpSampling(call_node->args[0], ToScalar(scale_h->data),
-                                   ToScalar(scale_w->data), param->layout, param->method,
-                                   param->align_corners);
+             auto scale_h_val = ToScalar(scale_h->data);
+             auto scale_w_val = ToScalar(scale_w->data);
+             return MakeUpSampling(call_node->args[0], scale_h_val.value(), scale_w_val.value(),
+                                   param->layout, param->method, param->align_corners);
            }
            return Expr(nullptr);
          }},
@@ -161,10 +163,11 @@ class DynamicToStaticMutator : public MixedModeMutator {
              ICHECK_EQ(scale_w->data->ndim, 0);
              const UpSampling3DAttrs* param = call_node->attrs.as<UpSampling3DAttrs>();
              ICHECK(param);
-
-             return MakeUpSampling3D(call_node->args[0], ToScalar(scale_d->data),
-                                     ToScalar(scale_h->data), ToScalar(scale_w->data),
-                                     param->layout, param->method,
+             auto scale_d_val = ToScalar(scale_d->data);
+             auto scale_h_val = ToScalar(scale_h->data);
+             auto scale_w_val = ToScalar(scale_w->data);
+             return MakeUpSampling3D(call_node->args[0], scale_d_val.value(), scale_h_val.value(),
+                                     scale_w_val.value(), param->layout, param->method,
                                      param->coordinate_transformation_mode);
            }
            return Expr(nullptr);
@@ -180,7 +183,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
 
              const PadAttrs* param = call_node->attrs.as<PadAttrs>();
              ICHECK(param);
-             return MakePad(call_node->args[0], ToMatrix(pad_width->data), ToScalar(pad_fill->data),
+             auto pad_fill_val = ToScalar(pad_fill->data);
+             return MakePad(call_node->args[0], ToMatrix(pad_width->data), pad_fill_val.value(),
                             param->pad_mode);
            }
            return Expr(nullptr);

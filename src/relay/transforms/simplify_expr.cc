@@ -383,11 +383,15 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
     if (!IsScalar(GetRef<Expr>(constant))) {
       return false;
     }
-    long double value = ToScalar(constant->data);
+    auto value = ToScalar(constant->data, 0, true);
+    if (!value) {
+      // unsupported dtype
+      return false;
+    }
     if (op->name == "add" || op->name == "subtract") {
-      return value == 0.0;
+      return value.value() == 0.0;
     } else if (op->name == "multiply" || op->name == "divide") {
-      return value == 1.0;
+      return value.value() == 1.0;
     }
     return false;
   }

@@ -1438,10 +1438,11 @@ bool ArangeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
 
   if ((cstart = attrs->start.as<ConstantNode>()) && (cstop = attrs->stop.as<ConstantNode>()) &&
       (cstep = attrs->step.as<ConstantNode>())) {
-    double start = ToScalar(cstart->data);
-    double stop = ToScalar(cstop->data);
-    double step = ToScalar(cstep->data);
-    int32_t num_elem = static_cast<int32_t>(std::ceil((stop - start) / step));
+    auto start = ToScalar(cstart->data);
+    auto stop = ToScalar(cstop->data);
+    auto step = ToScalar(cstep->data);
+    int32_t num_elem =
+        static_cast<int32_t>(std::ceil((stop.value() - start.value()) / step.value()));
     ICHECK_GT(num_elem, 0) << "Invalid arange attributes (start, stop, step): " << attrs->start
                            << ", " << attrs->stop << ", " << attrs->step;
     reporter->Assign(types[3], TensorType({num_elem}, attrs->dtype));
