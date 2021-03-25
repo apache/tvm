@@ -32,6 +32,9 @@
 
 namespace tvm {
 namespace runtime {
+
+Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream);
+
 /*!
  * \brief Library is the common interface
  *  for storing data in the form of shared libaries.

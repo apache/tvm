@@ -64,6 +64,14 @@ class Executable : public ModuleNode {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
+   * \brief Save the entire executable to a binary stream.
+   * \param stream The binary stream to save to.
+   */
+  void SaveToBinary(dmlc::Stream* stream) final;
+
+  void SaveToFile(const std::string& path, const std::string& format) final;
+
+  /*!
    * \brief Serialize the executable into global section, constant section, and
    * code section.
    *
@@ -125,7 +133,7 @@ class Executable : public ModuleNode {
    * \brief Get the `lib` module in an executable. Users have the flexibility to call
    * `export_library` from the frontend to save the library to disk.
    *
-   * \return The runtime module that contains the hardwre dependent code.
+   * \return The runtime module that contains the hardware dependent code.
    */
   runtime::Module GetLib() const { return lib; }
 

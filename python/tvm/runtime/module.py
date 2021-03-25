@@ -269,10 +269,13 @@ class Module(object):
         return self._collect_from_import_tree(is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
-        """Export the module and its imported device code one library.
+        """
+        Export the module and all imported modules into a single device library.
 
-        This function only works on host llvm modules.
-        It will pack all the imported modules
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses DO NOT work with this API. If you do in fact have an LLVM
+        module, this API will pack the module with all imported modules into
+        a single binary library which can be used with TVM.
 
         Parameters
         ----------

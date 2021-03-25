@@ -281,11 +281,24 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   ICHECK(exec) << "The executable is not created yet.";
   exec_ = exec;
 
-  runtime::Module lib = exec_->lib;
+  runtime::Module lib;
+  if (exec_->lib.defined()) {
+    lib = exec_->lib;
+  } else {
+    ICHECK(exec_->imports().size() > 0)
+      << "fix";
+    lib = exec_->imports()[0];
+  }
+
   // Get the list of packed functions.
-  ICHECK(exec->primitive_map.empty() || lib.operator->())
-      << "runtime module should have been built for primitive functions"
+  ICHECK(!exec->primitive_map.empty())
+      << "runtime module primitive map is empty"
       << "\n";
+
+  ICHECK(lib.operator->())
+      << "library is null"
+      << "\n";
+
   for (const auto& it : exec_->primitive_map) {
     const auto& packed_name = it.first;
     auto packed_index = static_cast<size_t>(it.second);

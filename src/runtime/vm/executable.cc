@@ -38,6 +38,8 @@
 #include <vector>
 
 #include "serialize_utils.h"
+#include "../library_module.h"
+#include "../file_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -73,6 +75,12 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       std::string func_name = args[0];
       int index = args[1];
       *rv = this->GetFunctionParameterName(func_name, index);
+    });
+  } else if (name == "create_vm") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      auto vm = make_object<VirtualMachine>();
+      vm->LoadExecutable(this);
+      *rv = Module(vm);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -476,10 +484,16 @@ void LoadHeader(dmlc::Stream* strm) {
 }
 
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
+  std::cout << "code: " << code.size() << std::endl;
   auto exec = make_object<Executable>();
   exec->lib = lib;
   exec->code_ = code;
   dmlc::MemoryStringStream strm(&exec->code_);
+
+  if (lib.defined()) {
+    std::cout << "Importing: " << std::endl;
+    exec->Import(lib);
+  }
 
   // Load header.
   LoadHeader(&strm);
@@ -764,6 +778,78 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
     this->functions[it->second] = vm_func;
   }
 }
+
+void Executable::SaveToBinary(dmlc::Stream* stream) {
+  auto code_bytes = this->Save();
+  std::string code(code_bytes.data, code_bytes.size);
+  stream->Write(code);
+
+  CHECK(this->lib.defined())
+    << "the library must be defined before serialization";
+
+  // this->lib->SaveToBinary(stream);
+  // std::vector<std::string> names;
+  // std::vector<DLTensor*> arrays;
+  // for (const auto& v : params_) {
+  //   names.emplace_back(v.first);
+  //   arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
+  // }
+  // uint64_t sz = arrays.size();
+  // ICHECK(sz == names.size());
+  // stream->Write(sz);
+  // stream->Write(names);
+  // for (size_t i = 0; i < sz; ++i) {
+  //   tvm::runtime::SaveDLTensor(stream, arrays[i]);
+  // }
+}
+
+Module ExecutableLoadBinary(void* strm) {
+  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  std::string code;
+  stream->Read(&code);
+  auto exec = Executable::Load(code, Module());
+  auto exec_node = exec.as<Executable>();
+  std::cout << exec_node->primitive_map.size() << std::endl;
+
+  // // std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  // std::string module_name;
+  // ICHECK(stream->Read(&graph_json));
+  // uint64_t sz;
+  // ICHECK(stream->Read(&sz));
+  // std::vector<std::string> names;
+  // ICHECK(stream->Read(&names));
+  // ICHECK(sz == names.size());
+  // for (size_t i = 0; i < sz; ++i) {
+  //   tvm::runtime::NDArray temp;
+  //   temp.Load(stream);
+  //   params[names[i]] = temp;
+  // }
+
+  return exec;
+}
+
+void Executable::SaveToFile(const std::string& path, const std::string& format) {
+  std::string data;
+  dmlc::MemoryStringStream writer(&data);
+  dmlc::SeekStream* strm = &writer;
+  SaveToBinary(strm);
+  SaveBinaryToFile(path, data);
+}
+
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VMExecutable")
+    .set_body_typed(ExecutableLoadBinary);
+
+  // Load module from module.
+Module ExecutableLoadFile(const std::string& file_name, const std::string& format) {
+  std::string data;
+  LoadBinaryFromFile(file_name, &data);
+  dmlc::MemoryStringStream reader(&data);
+  dmlc::Stream* strm = &reader;
+  auto exec = ExecutableLoadBinary(reinterpret_cast<void*>(strm));
+  return exec;
+}
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_VMExecutable").set_body_typed(ExecutableLoadFile);
 
 TVM_REGISTER_GLOBAL("runtime.GetNumOfGlobals").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
