@@ -64,15 +64,13 @@ class BuiltinLower : public StmtExprMutator {
     uint64_t run_arg_stack_{0};
   };
 
-  Stmt Build(Stmt stmt) {
-    return this->RealizeAlloca(stmt);
-  }
+  Stmt Build(Stmt stmt) { return this->RealizeAlloca(stmt); }
 
   // Allcoate stack frames, only at parallel-for or root.
   Stmt RealizeAlloca(Stmt stmt) {
     alloca_scope_.emplace_back();
     stmt = this->VisitStmt(stmt);
-    auto &scope = alloca_scope_.back();
+    auto& scope = alloca_scope_.back();
     alloca_scope_.pop_back();
     if (scope.max_shape_stack_ != -1) {
       // scope.stack_shape_ = Var("stack_shape", DataType::Handle());
@@ -95,7 +93,7 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt(const Stmt& s) final {
     auto stmt = StmtExprMutator::VisitStmt(s);
-    auto &scope = alloca_scope_.back();
+    auto& scope = alloca_scope_.back();
     ICHECK_EQ(scope.run_shape_stack_, -1);
     ICHECK_EQ(scope.run_array_stack_, 0);
 
@@ -166,7 +164,7 @@ class BuiltinLower : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const ForNode *op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     PrimExpr min = this->VisitExpr(op->min);
     PrimExpr extent = this->VisitExpr(op->extent);
     Stmt body;
@@ -201,7 +199,7 @@ class BuiltinLower : public StmtExprMutator {
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()
-    auto &scope = alloca_scope_.back();
+    auto& scope = alloca_scope_.back();
     if (scope.run_shape_stack_ == -1) {
       scope.run_shape_stack_ = 0;
     }
@@ -218,7 +216,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   // make array
   PrimExpr MakeArray(const CallNode* op) {
-    auto &scope = alloca_scope_.back();
+    auto& scope = alloca_scope_.back();
     size_t idx = scope.run_array_stack_;
     scope.run_array_stack_ += 1;
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
@@ -257,7 +255,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   // call packed.
   PrimExpr MakeCallPacked(const CallNode* op) {
-    auto &scope = alloca_scope_.back();
+    auto& scope = alloca_scope_.back();
     int64_t restore_shape_stack = scope.run_shape_stack_;
     size_t restore_array_stack = scope.run_array_stack_;
     size_t arg_stack_begin = scope.run_arg_stack_;
@@ -273,7 +271,8 @@ class BuiltinLower : public StmtExprMutator {
       if (t != api_type) {
         arg = Cast(api_type, arg);
       }
-      prep_seq_.emplace_back(TVMStructSet(scope.stack_value_, static_cast<int>(arg_stack_begin + i - 1),
+      prep_seq_.emplace_back(TVMStructSet(scope.stack_value_,
+                                          static_cast<int>(arg_stack_begin + i - 1),
                                           builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       if (api_type.is_handle() && arg.as<StringImmNode>()) {
@@ -297,7 +296,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
-    auto &scope = alloca_scope_.back();
+    auto& scope = alloca_scope_.back();
     int64_t restore_shape_stack = scope.run_shape_stack_;
     size_t restore_array_stack = scope.run_array_stack_;
     size_t arg_stack_begin = scope.run_arg_stack_;
@@ -314,7 +313,8 @@ class BuiltinLower : public StmtExprMutator {
       if (t != api_type) {
         arg = Cast(api_type, arg);
       }
-      prep_seq_.emplace_back(TVMStructSet(scope.stack_value_, static_cast<int>(arg_stack_begin + i - 1),
+      prep_seq_.emplace_back(TVMStructSet(scope.stack_value_,
+                                          static_cast<int>(arg_stack_begin + i - 1),
                                           builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       ICHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
