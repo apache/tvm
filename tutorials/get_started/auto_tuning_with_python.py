@@ -20,7 +20,7 @@ Compiling and Optimizing a Model with the Python AutoScheduler
 **Author**:
 `Chris Hoge <https://github.com/hogepodge>`_
 
-In the `TVMC Tutorial <>`_, we covered how to compile, run, and tune a
+In the `TVMC Tutorial <tvmc_command_line_driver>`_, we covered how to compile, run, and tune a
 pre-trained vision model, ResNet-50-v2 using the command line interface for
 TVM, TVMC. TVM is more that just a command-line tool though, it is an
 optimizing framework with APIs available for a number of different languages
