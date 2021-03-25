@@ -62,6 +62,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
+    import pdb; pdb.set_trace()
     project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
     compiler = zephyr.ZephyrCompiler(
         project_dir=project_dir,
@@ -120,6 +121,7 @@ PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
+    "riscv32_host": ("riscv32_host", "qemu_riscv32"),
 }
 
 
@@ -184,12 +186,14 @@ def test_relay(platform, west_cmd):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
-
+    import pdb
+    
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(func, target=target)
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
+        pdb.set_trace()
         graph_mod = tvm.micro.create_local_graph_runtime(
             graph, session.get_system_lib(), session.context
         )
