@@ -383,7 +383,8 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \param i element index
  * \return Converted scalar value.
  */
-static inline dmlc::optional<long double> ToScalar(const runtime::NDArray& array, size_t i = 0, bool allow_fail = false) {
+static inline dmlc::optional<long double> ToScalar(const runtime::NDArray& array, size_t i = 0,
+                                                   bool allow_fail = false) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
       return dmlc::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
