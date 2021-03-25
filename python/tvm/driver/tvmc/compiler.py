@@ -135,7 +135,6 @@ def compile_model(
     target,
     dump_code=None,
     target_host=None,
-    model_format=None,
     tuning_records=None,
     alter_layout=None,
 ):
@@ -160,8 +159,6 @@ def compile_model(
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
-    model_format: str, optional
-        A string representing a name of a frontend to be used
     tuning_records: str, optional
         Path to the file produced by the tuning to be used during
         compilation.
