@@ -1030,7 +1030,7 @@ class PyTorchOpConverter:
             kernel_layout=kernel_layout,
             out_layout="",
             out_dtype="",
-            **additional_arguments
+            **additional_arguments,
         )
         if use_bias:
             res = _op.nn.bias_add(conv_out, bias)
