@@ -51,10 +51,6 @@ find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
-# cleanup stale states for rust
-rm rust/tvm-sys/src/c_runtime_api.rs
-rm -rf rust/target/doc
-
 cd docs
 PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
