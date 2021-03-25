@@ -207,11 +207,10 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            logger.warning("group_conv2d with layout NCHW is not optimized for arm cpu.")
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.generic",
+                wrap_compute_conv2d(topi.arm_cpu.group_conv2d_nchw, has_groups=True),
+                wrap_topi_schedule(topi.arm_cpu.schedule_group_conv2d_nchw),
+                name="group_conv2d_nchw.arm_cpu",
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
