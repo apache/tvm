@@ -953,7 +953,7 @@ def test_forward_conv():
 @pytest.mark.parametrize("groups", [1], ids=lambda x: 'groups=' + str(x))
 @pytest.mark.parametrize("bias", [True, False], ids=lambda x: 'bias=' + str(x))
 def test_forward_conv_transpose(in_channels, out_channels, kernel_size, output_padding, bias, groups):
-    # Note we do not test withg roups  > 1 because that is not supported in tvm for conv transpose operations
+    # Note we do not test within groups  > 1 because that is not supported in tvm for conv transpose operations
 
     # output padding must be smaller than either stride or dilation so we opt to make the stride 1 + output padding
     stride = output_padding + 1
@@ -967,7 +967,8 @@ def test_forward_conv_transpose(in_channels, out_channels, kernel_size, output_p
                                                 stride=stride,
                                                 output_padding=output_padding,
                                                 groups=groups,
-                                                bias=bias).eval()
+                                                bias=bias,
+                                                ).eval()
     verify_model(conv3d_transpose, conv3d_input_data)
 
     # Conv 2D Transpose Tests
@@ -979,7 +980,8 @@ def test_forward_conv_transpose(in_channels, out_channels, kernel_size, output_p
                                                 stride=stride,
                                                 output_padding=output_padding,
                                                 groups=groups,
-                                                bias=bias).eval()
+                                                bias=bias,
+                                                ).eval()
     verify_model(conv2d_transpose, conv2d_input_data)
 
     # # Conv 1D Transpose Tests
@@ -991,7 +993,8 @@ def test_forward_conv_transpose(in_channels, out_channels, kernel_size, output_p
                                                 stride=stride,
                                                 output_padding=output_padding,
                                                 groups=groups,
-                                                bias=bias).eval()
+                                                bias=bias,
+                                                ).eval()
     verify_model(conv1d_transpose, conv1d_input_data)
 
 
