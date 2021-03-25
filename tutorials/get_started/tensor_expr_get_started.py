@@ -173,6 +173,7 @@ np_running_time = timeit.timeit(
 )
 print("Numpy running time: %f" % (np_running_time / np_repeat))
 
+
 def evaluate_addition(func, target, optimization, log):
     ctx = tvm.context(target, 0)
     n = 32768
@@ -186,8 +187,9 @@ def evaluate_addition(func, target, optimization, log):
 
     log.append((optimization, mean_time))
 
-log = [("numpy", np_running_time/np_repeat)]
-evaluate_addition(fadd, tgt, "naive", log=log) 
+
+log = [("numpy", np_running_time / np_repeat)]
+evaluate_addition(fadd, tgt, "naive", log=log)
 
 ################################################################################
 # Updating the Schedule to Use Paralleism
@@ -223,7 +225,7 @@ fadd_parallel(a, b, c)
 
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-evaluate_addition(fadd_parallel, tgt, "parallel", log=log) 
+evaluate_addition(fadd_parallel, tgt, "parallel", log=log)
 
 ################################################################################
 # Updating the Schedule to Use Vectorization
@@ -257,7 +259,7 @@ s[C].vectorize(inner)
 
 fadd_vector = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd_parallel")
 
-evaluate_addition(fadd_vector, tgt, "vector", log=log) 
+evaluate_addition(fadd_vector, tgt, "vector", log=log)
 
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 
@@ -591,6 +593,7 @@ c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
 func(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
+
 def evaluate_operation(s, vars, target, name, optimization, log):
     func = tvm.build(s, [A, B, C], target=target, name="mmult")
     assert func
@@ -603,6 +606,7 @@ def evaluate_operation(s, vars, target, name, optimization, log):
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
     log.append((optimization, mean_time))
+
 
 log = []
 
