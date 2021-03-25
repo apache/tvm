@@ -208,8 +208,6 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
     with tvm.transform.PassContext(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
-            print(target, ctx)
-            print(tvm.testing.enabled_targets())
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
