@@ -86,7 +86,9 @@ import tvm.micro
 from tvm import autotvm
 from tvm import relay
 from tvm.contrib import graph_runtime as runtime
-from tvm.micro.contrib import zephyr
+
+# from tvm.micro.contrib import zephyr
+
 from PIL import Image
 import numpy as np
 
@@ -167,12 +169,29 @@ UTVM_ZEPHYR_RUNTIME_DIR = "../../apps/microtvm/zephyr/demo_runtime"
 # flashing devices.
 UTVM_WEST_CMD = "west"
 
-compiler = zephyr.ZephyrCompiler(
-    project_dir=UTVM_ZEPHYR_RUNTIME_DIR,
-    board=UTVM_ZEPHYR_BOARD,
-    zephyr_toolchain_variant="zephyr",
-    west_cmd=UTVM_WEST_CMD,
+# %%
+# Here, we are using the ``DefaultCompiler``, which emulates the
+# ``ZephyrCompiler`` on the host. If you have Zephyr and a physical device,
+# comment out the following lines and uncomment those below.
+compiler = tvm.micro.DefaultCompiler(target=target)
+opts = tvm.micro.default_options(
+    os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
 )
+
+# %%
+# Compiling for physical hardware
+#  For physical hardware, comment out the previous section and use this compiler definition instead.
+#
+#  .. code-block:: python
+#
+#     from tvm.micro.contrib import zephyr
+#
+#     compiler = zephyr.ZephyrCompiler(
+#         project_dir=UTVM_ZEPHYR_RUNTIME_DIR,
+#         board=UTVM_ZEPHYR_BOARD,
+#         zephyr_toolchain_variant="zephyr",
+#         west_cmd=UTVM_WEST_CMD,
+#     )
 
 ######################################################################
 # Do the actual build.
