@@ -49,7 +49,10 @@ enum class RPCCode : int {
   kDevGetAttr,
   kDevAllocData,
   kDevFreeData,
+  kDevCreateStream,
+  kDevFreeStream,
   kDevStreamSync,
+  kDevSetStream,
   kCopyAmongRemote,
   kDevAllocDataWithScope,
 };
@@ -104,8 +107,14 @@ inline const char* RPCCodeToString(RPCCode code) {
       return "kDevAllocData";
     case RPCCode::kDevFreeData:
       return "kDevFreeData";
+    case RPCCode::kDevCreateStream:
+      return "kDevCreateStream";
+    case RPCCode::kDevFreeStream:
+      return "kDevFreeStream";
     case RPCCode::kDevStreamSync:
       return "kDevStreamSync";
+    case RPCCode::kDevSetStream:
+      return "kDevSetStream";
     case RPCCode::kCopyAmongRemote:
       return "kCopyAmongRemote";
     case RPCCode::kDevAllocDataWithScope:
