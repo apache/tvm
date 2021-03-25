@@ -129,6 +129,7 @@ PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
+    "riscv32_host": ("riscv32_host", "qemu_riscv32"),
 }
 
 
@@ -193,7 +194,8 @@ def test_relay(platform, west_cmd):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
-
+    import pdb
+    
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(func, target=target)
