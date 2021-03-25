@@ -183,7 +183,7 @@ def test_cast():
                 s = tvm.topi.testing.get_injective_schedule(target)(B)
             foo = tvm.build(s, [A, B], target)
             a = tvm.nd.array(a_np, dev)
-            b = tvm.nd.empty(shape=shape, dtype=to_dtype, target=dev)
+            b = tvm.nd.empty(shape=shape, dtype=to_dtype, device=dev)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np)
 
@@ -219,7 +219,7 @@ def test_fastmath():
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
         check_target("llvm")
-        check_target("llvm -target=arm-cpu")
+        check_target("llvm -device=arm-cpu")
 
     test_apply(topi.fast_exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(topi.fast_erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)

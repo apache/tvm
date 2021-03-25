@@ -156,7 +156,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
         tvm_data = tvm.nd.array(np_data, dev)
         tvm_res = []
         for t in outs:
-            tvm_res.append(tvm.nd.empty(t.shape, dtype=t.dtype, target=dev))
+            tvm_res.append(tvm.nd.empty(t.shape, dtype=t.dtype, device=dev))
         f = tvm.build(s, [data] + outs, target)
         f(tvm_data, *tvm_res)
         if ret_type == "both":

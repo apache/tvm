@@ -78,7 +78,7 @@ def compile_depthwise_NHWC_int8_arm(
     bias = te.placeholder((in_channel * depth_multiplier,), name="bias", dtype="int32")
     dtype = "int32"
 
-    target = "llvm -target=arm_cpu -mtriple=aarch64-linux-gnu"
+    target = "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"
     compute = topi.arm_cpu.compute_depthwise_conv2d_nhwc
     schedule = topi.arm_cpu.schedule_depthwise_conv2d_nhwc
 

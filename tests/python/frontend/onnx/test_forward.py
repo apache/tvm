@@ -68,8 +68,9 @@ def get_tvm_output(
     graph_def, input_data, target, device, output_shape=None, output_dtype="float32", opset=None
 ):
     """ Generic function to execute and get tvm output"""
-    # TODO: Remove the following line
+    # TODO: Resolve the issues and remove the following lines
     target = "llvm"
+    device = tvm.cpu(0)
 
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
