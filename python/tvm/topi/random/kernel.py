@@ -141,7 +141,7 @@ def _threefry(
         return [x, y]
 
     # temporary buffer for holding the results of _PERMUTATIONS
-    tmp = irb.allocate(out_buf.dtype, out_shape, name="tmp", scope="global")
+    tmp = irb.allocate(out_buf.dtype, out_shape * nwords, name="tmp", scope="global")
     tmp_offset = 0
 
     # Initialize entire key. It is composed of the original key with one

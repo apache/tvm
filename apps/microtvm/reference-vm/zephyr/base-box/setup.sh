@@ -59,17 +59,22 @@ sudo apt install -y llvm
 sudo apt install -y protobuf-compiler libprotoc-dev
 
 # nrfjprog
+NRF_COMMANDLINE_TOOLS_FILE=nRFCommandLineToolsLinuxamd64.tar.gz
+NRF_COMMANDLINE_TOOLS_URL=https://www.nordicsemi.com/-/media/Software-and-other-downloads/Desktop-software/nRF-command-line-tools/sw/Versions-10-x-x/10-12-1/nRFCommandLineTools10121Linuxamd64.tar.gz
+NRF_COMMANDLINE_TOOLS_INSTALLER=nRF-Command-Line-Tools_10_12_1_Linux-amd64.deb
+JLINK_LINUX_INSTALLER=JLink_Linux_V688a_x86_64.deb
+
 cd ~
 mkdir -p nrfjprog
-wget --no-verbose -O nRFCommandLineTools1090Linuxamd64.tar.gz https://www.nordicsemi.com/-/media/Software-and-other-downloads/Desktop-software/nRF-command-line-tools/sw/Versions-10-x-x/10-9-0/nRFCommandLineTools1090Linuxamd64tar.gz
+wget --no-verbose -O $NRF_COMMANDLINE_TOOLS_FILE $NRF_COMMANDLINE_TOOLS_URL
 cd nrfjprog
-tar -xzvf ../nRFCommandLineTools1090Linuxamd64.tar.gz
-sudo apt install -y ./JLink_Linux_V680a_x86_64.deb
-sudo apt install -y ./nRF-Command-Line-Tools_10_9_0_Linux-amd64.deb
+tar -xzvf "../${NRF_COMMANDLINE_TOOLS_FILE}"
+sudo apt install -y "./${JLINK_LINUX_INSTALLER}"
+sudo apt install -y "./${NRF_COMMANDLINE_TOOLS_INSTALLER}"
 source ~/.profile
 nrfjprog --help
 cd ..
-rm -rf nrfjprog nRFCommandLineTools1090Linuxamd64.tar.gz
+rm -rf nrfjprog "${NRF_COMMANDLINE_TOOLS_FILE}"
 
 # Zephyr
 pip3 install --user -U west
