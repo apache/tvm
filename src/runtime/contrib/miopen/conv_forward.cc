@@ -24,6 +24,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
+#include <cassert>
+
 #include "miopen_utils.h"
 
 namespace tvm {
