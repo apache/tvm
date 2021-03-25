@@ -64,3 +64,7 @@ RUN bash /install/ubuntu_install_qemu.sh
 COPY install/ubuntu_install_zephyr.sh /install/ubuntu_install_zephyr.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
+
+# Install ONNX
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh
