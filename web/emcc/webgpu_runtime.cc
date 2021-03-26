@@ -22,10 +22,13 @@
  * \brief WebGPU runtime based on the TVM JS.
  */
 
-// configurations for tvm logging.
+// configurations for tvm logging
 #define TVM_LOG_DEBUG 0
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #define TVM_BACKTRACE_DISABLED 1
+#define TVM_LOG_DEBUG 0
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
+#define TVM_USE_LIBBACKTRACE 0
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
