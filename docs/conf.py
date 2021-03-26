@@ -212,6 +212,7 @@ within_subsection_order = {
     "get_started": [
         "tvmc_command_line_driver.py",
         "tensor_expr_get_started.py",
+        "autotvm_matmul.py",
         "autoschedule_matmul.py",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
