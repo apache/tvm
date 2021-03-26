@@ -675,10 +675,10 @@ def from_auto_ml(model, shape=None, dtype="float32", func_name="transform"):
                 )
             )
 
-        for proc_name, _, _ in column_transformer.transformers_:
+        for proc_name, _, cols in column_transformer.transformers_:
             if proc_name == "datetime_processing":
                 inexpr_datetime = _expr.var(
-                    "input_datetime", shape=(shape[0], kNumDateTimeCols), dtype=dtype
+                    "input_datetime", shape=(shape[0], len(cols) * kNumDateTimeCols), dtype=dtype
                 )
                 inexpr.append(inexpr_datetime)
 
