@@ -686,15 +686,6 @@ class PatternGrouper {
             fuzzy_matches.insert(node->ref_);
           }
         }
-        //} else if (node_map.count(node->ref_)) {
-        //  // if pattern params aren't defined, treat all input params as fuzzy
-        //  auto matches = node_map[node->ref_];
-        //  for (auto match : matches) {
-        //    for (auto input : match.as<FunctionNode>()->params) {
-        //      fuzzy_matches.insert(input);
-        //    }
-        //  }
-        //}
       }
     }
 
