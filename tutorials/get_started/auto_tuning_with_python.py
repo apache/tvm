@@ -53,7 +53,6 @@ how to use them through the Python API.
 # the Python Image Library for working with the image data, ``numpy`` for pre
 # and post-processing of the image data, the TVM Relay framework, and the TVM
 # Graph Runtime.
-#
 
 import onnx
 from tvm.contrib.download import download_testdata
