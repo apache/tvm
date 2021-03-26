@@ -50,8 +50,8 @@ def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
         ceil_mode=ceil_mode,
     )
 
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp = relay.create_executor(ctx=ctx, target=target)
+    for target, dev in tvm.testing.enabled_targets():
+        intrp = relay.create_executor(device=dev, target=target)
         op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
@@ -99,8 +99,8 @@ def verify_avg_pool2d_grad(
             ceil_mode=ceil_mode,
         )
 
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor(device=dev, target=target)
             op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
             np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
@@ -155,8 +155,8 @@ def verify_global_avg_pool2d_grad(x_shape):
         ceil_mode=False,
     )
 
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp = relay.create_executor(ctx=ctx, target=target)
+    for target, dev in tvm.testing.enabled_targets():
+        intrp = relay.create_executor(device=dev, target=target)
         op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 

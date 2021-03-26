@@ -61,12 +61,12 @@ void TVMPlatformAbort(tvm_crt_error_t error_code) {
 
 MemoryManagerInterface* memory_manager;
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  return memory_manager->Allocate(memory_manager, num_bytes, ctx, out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  return memory_manager->Allocate(memory_manager, num_bytes, dev, out_ptr);
 }
 
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
-  return memory_manager->Free(memory_manager, ptr, ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  return memory_manager->Free(memory_manager, ptr, dev);
 }
 
 steady_clock::time_point g_utvm_start_time;

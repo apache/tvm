@@ -41,7 +41,7 @@ def test_reduce_prims():
 
         # one line to build the function.
         def check_device(device, host="llvm"):
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
@@ -49,8 +49,8 @@ def test_reduce_prims():
             # launch the kernel.
             n = 1028
             m = 129
-            x = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), ctx)
-            y = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+            x = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), dev)
+            y = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
             freduce(x, y)
             npy = y.asnumpy()
             npy[:2] = 0
@@ -80,13 +80,13 @@ def test_init_imm():
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
         fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros((), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
         res = 10.0 + np.sum(a.asnumpy(), axis=0)
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -108,16 +108,16 @@ def test_init():
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, C, I, B])
         print(fapi)
         mmult = tvm.build(fapi, target=target, name="mmult")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), ctx)
-        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), ctx)
-        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), dev)
+        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), dev)
+        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), dev)
+        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), dev)
         mmult(a, c, ii, b)
         res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -139,13 +139,13 @@ def test_rfactor():
     def check_target(target="llvm"):
         if not tvm.testing.device_enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
         fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros((), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -170,16 +170,16 @@ def test_rfactor_init():
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, C, I, B])
         print(fapi)
         mmult = tvm.build(fapi, target=target, name="mmult")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), ctx)
-        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), ctx)
-        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), dev)
+        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), dev)
+        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), dev)
+        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), dev)
         mmult(a, c, ii, b)
         res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -201,13 +201,13 @@ def test_rfactor_factor_axis():
     def check_target(target="llvm"):
         if not tvm.testing.device_enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
         fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros((), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -240,7 +240,7 @@ def test_rfactor_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -250,8 +250,8 @@ def test_rfactor_threads():
         # launch the kernel.
         n = nn
         m = mm
-        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1)
         res[:2] = 0
@@ -294,15 +294,15 @@ def test_rfactor_elemwise_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fapi = tvm.lower(s, args=[A, C])
         fsum = tvm.build(fapi, target=device, name="mysum")
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1) + 2
         tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
@@ -337,7 +337,7 @@ def test_argmax():
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         fapi = tvm.lower(s, args=[idx, val, T0, T1])
         fargmax = tvm.build(fapi, target="llvm", name="argmax")
 
@@ -347,10 +347,10 @@ def test_argmax():
         np_val = np.random.uniform(size=(mm, nn)).astype("float32")
         np_res = np.argmax(np_val, axis=1)
 
-        nd_idx = tvm.nd.array(np_idx, ctx)
-        nd_val = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), ctx)
+        nd_idx = tvm.nd.array(np_idx, dev)
+        nd_val = tvm.nd.array(np_val, dev)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), dev)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), dev)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
         tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
@@ -393,7 +393,7 @@ def test_rfactor_argmax():
     s[B0].set_store_predicate(thread_x.var.equal(0))
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -404,10 +404,10 @@ def test_rfactor_argmax():
         np_val = np.random.uniform(size=(mm, nn)).astype("float32")
         np_res = np.argmax(np_val, axis=1)
 
-        nd_idx = tvm.nd.array(np_idx, ctx)
-        nd_val = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), ctx)
+        nd_idx = tvm.nd.array(np_idx, dev)
+        nd_val = tvm.nd.array(np_val, dev)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), dev)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), dev)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
         tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
@@ -425,7 +425,7 @@ def test_warp_reduction1():
     thread_y = te.thread_axis((0, nthy), "threadIdx.y")
 
     def check_target(device, m, n):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -450,8 +450,8 @@ def test_warp_reduction1():
         func = tvm.build(s, [A, B], device, name="warp_reduction")
         a_np = np.random.uniform(size=(m, n)).astype(A.dtype)
         b_np = np.zeros((m,), dtype=A.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
         b_np = np.max(a_np, axis=1)
         func(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
@@ -488,7 +488,7 @@ def test_warp_reduction2():
     thread_y = te.thread_axis((0, nthdy), "threadIdx.y")
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -502,15 +502,15 @@ def test_warp_reduction2():
         s[T0].bind(xo, block_x)
 
         # validation
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         a0_np = np.random.uniform(size=(m, n)).astype(A0.dtype)
         a1_np = np.random.uniform(size=(m, n)).astype(A1.dtype)
         t0_np = np.zeros((m,), dtype=A0.dtype)
         t1_np = np.zeros((m,), dtype=A1.dtype)
-        a0 = tvm.nd.array(a0_np, ctx)
-        a1 = tvm.nd.array(a1_np, ctx)
-        t0 = tvm.nd.array(t0_np, ctx)
-        t1 = tvm.nd.array(t1_np, ctx)
+        a0 = tvm.nd.array(a0_np, dev)
+        a1 = tvm.nd.array(a1_np, dev)
+        t0 = tvm.nd.array(t0_np, dev)
+        t1 = tvm.nd.array(t1_np, dev)
         func = tvm.build(s, [A0, A1, T0, T1], device, name="reduction")
         func(a0, a1, t0, t1)
         t0_np = np.sum(a0_np, axis=1)

@@ -140,7 +140,7 @@ How to use Debugger?
 ::
 
     from tvm.contrib.debugger import debug_runtime as graph_runtime
-    m = graph_runtime.create(graph, lib, ctx, dump_root="/tmp/tvmdbg")
+    m = graph_runtime.create(graph, lib, dev, dump_root="/tmp/tvmdbg")
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)

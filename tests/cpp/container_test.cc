@@ -676,7 +676,7 @@ TEST(Optional, PackedCall) {
     ICHECK_EQ(args[0].type_code(), tcode);
   });
   String s = "xyz";
-  auto nd = NDArray::Empty({0, 1}, DataType::Float(32), DLContext{kDLCPU, 0});
+  auto nd = NDArray::Empty({0, 1}, DataType::Float(32), DLDevice{kDLCPU, 0});
   test_ffi(Optional<NDArray>(nd), static_cast<int>(kTVMNDArrayHandle));
   test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
   test_ffi(s, static_cast<int>(kTVMObjectHandle));

@@ -762,15 +762,15 @@ def test_hoisting_op_conv():
     kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
 
     params = {"w": tvm.nd.array(kernel)}
-    for target, ctx in enabled_targets():
+    for target, dev in enabled_targets():
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
+            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](dev))
             x = np.random.uniform(size=dshape)
             data_tvm = tvm.nd.array(data)
             m.set_input("x", data_tvm)
             m.run()
-            e = m.module.time_evaluator("run", ctx, number=300, repeat=3)
+            e = m.module.time_evaluator("run", dev, number=300, repeat=3)
             t1 = e(data_tvm).results
             t1 = np.array(t1) * 1000
             print("{} ms".format(t1.mean()))
@@ -779,13 +779,13 @@ def test_hoisting_op_conv():
             opt_level=3, config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
         ):
             lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
+            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](dev))
             x = np.random.uniform(size=dshape)
             data_tvm = tvm.nd.array(data)
             m.set_input("x", data_tvm)
             m.set_input(**params)
             m.run()
-            e = m.module.time_evaluator("run", ctx, number=300, repeat=3)
+            e = m.module.time_evaluator("run", dev, number=300, repeat=3)
             t2 = e(data_tvm).results
             t2 = np.array(t2) * 1000
 

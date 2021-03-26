@@ -57,24 +57,24 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
   if (device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
   } else if (device_type == kDLGPU || device_type == kDLROCM) {
-    auto ctx = TVMContext{static_cast<DLDeviceType>(device_type), 0};
+    auto dev = Device{static_cast<DLDeviceType>(device_type), 0};
     auto device_name = device_type == kDLGPU ? "device_api.gpu" : "device_api.rocm";
     auto func = tvm::runtime::Registry::Get(device_name);
     ICHECK(func != nullptr) << "Cannot find GPU device_api in registry";
     auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     int max_shared_memory_per_block = ret;
 
     // There is no explicit local memory limition in CUDA runtime,
     // so we can use INT32_MAX to disalbe the check on local_memory.
     int max_local_memory_per_block = INT32_MAX;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
     int max_threads_per_block = ret;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
     int warp_size = ret;
 
     int max_vthread_extent = warp_size / 4;
@@ -107,22 +107,22 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
       LOG(FATAL) << "No default hardware parameters for opencl target device: " << target_device;
     }
   } else if (device_type == kDLVulkan) {
-    auto ctx = TVMContext{static_cast<DLDeviceType>(device_type), 0};
+    auto dev = Device{static_cast<DLDeviceType>(device_type), 0};
     auto device_name = "device_api.vulkan";
     auto func = tvm::runtime::Registry::Get(device_name);
     ICHECK(func != nullptr) << "Cannot find Vulkan device_api in registry";
     auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     int max_shared_memory_per_block = ret;
 
     int max_local_memory_per_block = INT32_MAX;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
     int max_threads_per_block = ret;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
     int warp_size = ret;
 
     int max_vthread_extent = std::max(1, warp_size / 4);

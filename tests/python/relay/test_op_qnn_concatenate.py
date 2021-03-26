@@ -51,7 +51,7 @@ def test_same_io_qnn_params():
 
     golden_output = np.concatenate((x_data, y_data), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
@@ -86,7 +86,7 @@ def test_different_io_qnn_params():
 
     golden_output = np.concatenate((x_data - 2, y_data - 3), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
@@ -121,7 +121,7 @@ def test_few_same_io_qnn_params():
 
     golden_output = np.concatenate((x_data + 1, y_data), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
@@ -156,7 +156,7 @@ def test_same_i_qnn_params():
 
     golden_output = np.concatenate((x_data + 1, y_data + 1), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
@@ -183,7 +183,7 @@ def test_call_input():
     )
     func = relay.Function([x], z)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data)
     np.testing.assert_equal(op_res.asnumpy(), x_data)
 

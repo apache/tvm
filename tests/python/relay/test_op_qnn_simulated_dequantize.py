@@ -39,7 +39,7 @@ def dequantize_test_driver(in_dtype, quant_args, axis, in_data):
     mod = tvm.IRModule.from_expr(mod)
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, "llvm", params=None)
-    rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+    rt_mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
     rt_mod.set_input(input_data=in_data)
     rt_mod.set_input(**params)
     rt_mod.run()

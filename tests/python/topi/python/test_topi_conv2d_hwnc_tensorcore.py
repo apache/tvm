@@ -103,28 +103,28 @@ def verify_conv2d_hwnc(
         a_np = convert_int32_into_int4(a_np)
         w_np = convert_int32_into_int4(w_np)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        if not nvcc.have_tensorcore(ctx.compute_version):
+        if not nvcc.have_tensorcore(dev.compute_version):
             print("skip because gpu does not support Tensor Cores")
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = topi.testing.dispatch(device, _conv2d_hwnc_tensorcore_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = topi.testing.dispatch(target, _conv2d_hwnc_tensorcore_implement)
             C = fcompute(A, W, stride, padding, dilation, dtype, "int32")
             s = fschedule([C])
 
-        a = tvm.nd.array(a_np.transpose((1, 2, 0, 3)), ctx)
-        w = tvm.nd.array(w_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np.transpose((1, 2, 0, 3)), dev)
+        w = tvm.nd.array(w_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
 
         func = tvm.build(
             s,
             [A, W, C],
-            device,
+            target,
             name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
             % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
         )
@@ -133,7 +133,7 @@ def verify_conv2d_hwnc(
         rtol = 1e-3
         tvm.testing.assert_allclose(c.asnumpy().transpose((2, 0, 1, 3)), c_np, rtol=rtol)
 
-    check_device("cuda")
+    check_target("cuda")
 
 
 @tvm.testing.requires_tensorcore

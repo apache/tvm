@@ -116,20 +116,20 @@ def test_mobilenet():
         remote = rpc.connect(proxy_host, proxy_port, key=key)
 
         if target == "metal":
-            ctx = remote.metal(0)
+            dev = remote.metal(0)
         else:
-            ctx = remote.cpu(0)
+            dev = remote.cpu(0)
         lib = remote.load_module("deploy.dylib")
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_runtime.GraphModule(lib["default"](dev))
 
-        m.set_input("data", tvm.nd.array(image, ctx))
+        m.set_input("data", tvm.nd.array(image, dev))
         m.run()
         tvm_output = m.get_output(0)
         top1 = np.argmax(tvm_output.asnumpy()[0])
         print("TVM prediction top-1:", top1, synset[top1])
 
         # evaluate
-        ftimer = m.module.time_evaluator("run", ctx, number=3, repeat=10)
+        ftimer = m.module.time_evaluator("run", dev, number=3, repeat=10)
         prof_res = np.array(ftimer().results) * 1000
         print("%-19s (%s)" % ("%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
 

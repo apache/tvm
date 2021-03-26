@@ -211,7 +211,7 @@ def qnn_dense_driver(test_configuration):
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     with tvm.transform.PassContext(opt_level=2):
         graph, lib, params = relay.build(mod, "llvm", params=None)
-        mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+        mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
         mod.set_input(quantized_data_name, test_configuration[quantized_data_name])
         mod.set_input(quantized_kernel_name, test_configuration[quantized_kernel_name])
         if test_configuration[bias_name] is not None:

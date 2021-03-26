@@ -80,7 +80,7 @@ class Timer : public ObjectRef {
  public:
   /*!
    * \brief Get a device specific timer.
-   * \param ctx The device context to time.
+   * \param dev The device to time.
    * \return A `Timer` that has already been started.
    *
    * Use this function to time runtime of arbitrary regions of code on a specific
@@ -95,7 +95,7 @@ class Timer : public ObjectRef {
    *
    * Example usage:
    * \code{.cpp}
-   * Timer t = Timer::Start(TVMContext::cpu());
+   * Timer t = Timer::Start(Device::cpu());
    * my_long_running_function();
    * t->Stop();
    * ... // some more computation
@@ -104,7 +104,7 @@ class Timer : public ObjectRef {
    *
    * To add a new device-specific timer, register a new function
    * "profiler.timer.my_device" (where `my_device` is the `DeviceName` of your
-   * device). This function should accept a `TVMContext` and return a new `Timer`
+   * device). This function should accept a `Device` and return a new `Timer`
    * that has already been started.
    *
    * For example, this is how the CPU timer is implemented:
@@ -125,24 +125,24 @@ class Timer : public ObjectRef {
    *  };
    *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
    *
-   *  TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
+   *  TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
    *    return Timer(make_object<CPUTimerNode>());
    *  });
    * \endcode
    */
-  static TVM_DLL Timer Start(TVMContext ctx);
+  static TVM_DLL Timer Start(Device dev);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Timer, ObjectRef, TimerNode);
 };
 
 /*!
- * \brief Default timer if one does not exist for the context.
- * \param ctx The context to time on.
+ * \brief Default timer if one does not exist for the device.
+ * \param dev The device to time on.
  *
  * Note that this timer performs synchronization between the device and CPU,
  * which can lead to overhead in the reported results.
  */
-Timer DefaultTimer(TVMContext ctx);
+Timer DefaultTimer(Device dev);
 
 }  // namespace runtime
 }  // namespace tvm

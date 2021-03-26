@@ -274,14 +274,14 @@ print(tvm.lower(sch, args, simple_mode=True))
 
 func = tvm.build(sch, args, target)
 
-ctx = tvm.cpu()
+dev = tvm.cpu()
 
-X_tvm = tvm.nd.array(X_np, ctx=ctx)
-W_data_tvm = tvm.nd.array(W_sp_np.data, ctx=ctx)
-W_indices_tvm = tvm.nd.array(W_sp_np.indices, ctx=ctx)
-W_indptr_tvm = tvm.nd.array(W_sp_np.indptr, ctx=ctx)
-B_tvm = tvm.nd.array(B_np, ctx=ctx)
-Y_tvm = tvm.nd.empty(Y_np.shape, ctx=ctx)
+X_tvm = tvm.nd.array(X_np, device=dev)
+W_data_tvm = tvm.nd.array(W_sp_np.data, device=dev)
+W_indices_tvm = tvm.nd.array(W_sp_np.indices, device=dev)
+W_indptr_tvm = tvm.nd.array(W_sp_np.indptr, device=dev)
+B_tvm = tvm.nd.array(B_np, device=dev)
+Y_tvm = tvm.nd.empty(Y_np.shape, device=dev)
 
 func(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm)
 
@@ -289,7 +289,7 @@ func(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm)
 tvm.testing.assert_allclose(Y_np, Y_tvm.asnumpy(), atol=1e-4, rtol=1e-4)
 
 # Evaluate execution time.
-evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
+evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)
 print(
     "Execution time of this operator: %.3f ms"
     % (

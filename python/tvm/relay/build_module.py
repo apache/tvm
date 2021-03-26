@@ -45,11 +45,11 @@ def _update_target(target):
 
     tgts = {}
     if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.context(str(target)).device_type)
+        dev_type = tvm_expr.IntImm("int32", _nd.device(str(target)).device_type)
         tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
-            dev_type = tvm_expr.IntImm("int32", _nd.context(dev).device_type)
+            dev_type = tvm_expr.IntImm("int32", _nd.device(dev).device_type)
             tgts[dev_type] = Target(tgt)
     else:
         raise TypeError(
@@ -373,17 +373,17 @@ class GraphExecutor(_interpreter.Executor):
     mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
-    ctx : :py:class:`TVMContext`
-        The runtime context to run the code on.
+    device : :py:class:`Device`
+        The runtime device to run the code on.
 
     target : :py:class:`Target`
         The target option to build the function.
     """
 
-    def __init__(self, mod, ctx, target):
+    def __init__(self, mod, device, target):
         assert mod is not None
         self.mod = mod
-        self.ctx = ctx
+        self.device = device
         self.target = target
 
     def _make_executor(self, expr=None):
@@ -394,7 +394,7 @@ class GraphExecutor(_interpreter.Executor):
         if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
         mod = build(self.mod, target=self.target)
-        gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
+        gmodule = _graph_rt.GraphModule(mod["default"](self.device))
 
         def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
@@ -423,7 +423,7 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
+def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     """Factory function to create an executor.
 
     Example
@@ -450,8 +450,8 @@ def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
 
-    ctx : :py:class:`tvmContext`
-        The context to execute the code.
+    device : :py:class:`Device`
+        The device to execute the code.
 
     target : :py:class:`tvm.Target`
         The corresponding context
@@ -462,17 +462,17 @@ def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     """
     if mod is None:
         mod = IRModule()
-    if ctx is not None:
-        assert ctx.device_type == _nd.context(str(target), 0).device_type
+    if device is not None:
+        assert device.device_type == _nd.device(str(target), 0).device_type
     else:
-        ctx = _nd.context(str(target), 0)
+        device = _nd.device(str(target), 0)
 
     if isinstance(target, str):
         target = Target(target)
     if kind == "debug":
-        return _interpreter.Interpreter(mod, ctx, target)
+        return _interpreter.Interpreter(mod, device, target)
     if kind == "graph":
-        return GraphExecutor(mod, ctx, target)
+        return GraphExecutor(mod, device, target)
     if kind == "vm":
-        return VMExecutor(mod, ctx, target)
+        return VMExecutor(mod, device, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

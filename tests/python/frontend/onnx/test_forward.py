@@ -43,7 +43,7 @@ def get_input_data_shape_dict(graph_def, input_data):
 
 
 def get_tvm_output_with_vm(
-    graph_def, input_data, target, ctx, opset=None, freeze_params=False, convert_to_static=False
+    graph_def, input_data, target, device, opset=None, freeze_params=False, convert_to_static=False
 ):
     """ Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
@@ -57,7 +57,7 @@ def get_tvm_output_with_vm(
     if convert_to_static:
         mod = relay.transform.DynamicToStatic()(mod)
 
-    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+    ex = relay.create_executor("vm", mod=mod, device=device, target=target)
     result = ex.evaluate()(*input_data, **params)
     if isinstance(result, tvm.runtime.NDArray):
         return result.asnumpy()
@@ -65,10 +65,12 @@ def get_tvm_output_with_vm(
 
 
 def get_tvm_output(
-    graph_def, input_data, target, ctx, output_shape=None, output_dtype="float32", opset=None
+    graph_def, input_data, target, device, output_shape=None, output_dtype="float32", opset=None
 ):
     """ Generic function to execute and get tvm output"""
+    # TODO: Resolve the issues and remove the following lines
     target = "llvm"
+    device = tvm.cpu(0)
 
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
@@ -76,8 +78,7 @@ def get_tvm_output(
     with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod, target, params=params)
 
-    ctx = tvm.cpu(0)
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.create(graph, lib, device)
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_names):
@@ -142,19 +143,19 @@ def verify_with_ort_with_inputs(
         targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
 
     for target in targets:
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         if use_vm:
             tvm_out = get_tvm_output_with_vm(
                 model,
                 inputs,
                 target,
-                ctx,
+                dev,
                 opset=opset,
                 freeze_params=freeze_params,
                 convert_to_static=convert_to_static,
             )
         else:
-            tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
+            tvm_out = get_tvm_output(model, inputs, target, dev, out_shape, dtype, opset=opset)
         if not isinstance(tvm_out, list):
             tvm_out = [tvm_out]
         if not isinstance(ort_out, list):
@@ -233,9 +234,9 @@ def test_reshape():
 
     model = helper.make_model(graph, producer_name="reshape_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("int32")
-        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
+        tvm_out = get_tvm_output(model, x, target, dev, ref_shape, "float32")
         tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
@@ -269,9 +270,9 @@ def test_double_reshape():
 
     model = helper.make_model(graph, producer_name="reshape_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("int32")
-        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
+        tvm_out = get_tvm_output(model, x, target, dev, ref_shape, "float32")
         tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
@@ -317,8 +318,8 @@ def test_expand():
 
         model = helper.make_model(graph, producer_name=name)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            tvm_out = get_tvm_output_with_vm(model, data, target, ctx, freeze_params=True)
+        for target, dev in tvm.testing.enabled_targets():
+            tvm_out = get_tvm_output_with_vm(model, data, target, dev, freeze_params=True)
             tvm.testing.assert_allclose(ref_data, tvm_out)
 
     in_shape = (3, 1)
@@ -409,9 +410,9 @@ def test_shape():
 
     model = helper.make_model(graph, producer_name="shape_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         x = np.random.uniform(size=in_shape).astype("int32")
-        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "int32")
+        tvm_out = get_tvm_output(model, x, target, dev, ref_shape, "int32")
         tvm.testing.assert_allclose(ref_shape, tvm_out)
 
 
@@ -438,8 +439,8 @@ def _test_power_iteration(x_shape, y_shape):
 
     model = helper.make_model(graph, producer_name="power_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, [x, y], target, ctx, np_res.shape)
+    for target, dev in tvm.testing.enabled_targets():
+        tvm_out = get_tvm_output(model, [x, y], target, dev, np_res.shape)
         tvm.testing.assert_allclose(np_res, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -1002,9 +1003,9 @@ def test_onehot():
     model = helper.make_model(graph, producer_name="onehot_test")
 
     # TODO(jwfromm): Replace test against np with test against onnxrt once we update versions.
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output_with_vm(
-            model, [indices_array, np.array([depth]).astype("int32"), values], target, ctx
+            model, [indices_array, np.array([depth]).astype("int32"), values], target, dev
         )
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
@@ -1070,7 +1071,7 @@ def test_matmul():
     verify_with_ort_with_inputs(model, [a_array, b_array])
 
 
-def verify_batch_matmul(a_shape, b_shape, out_shape, target, ctx):
+def verify_batch_matmul(a_shape, b_shape, out_shape, target, dev):
     a_array = np.random.uniform(size=a_shape).astype("float32")
     b_array = np.random.uniform(size=b_shape).astype("float32")
 
@@ -1092,17 +1093,17 @@ def verify_batch_matmul(a_shape, b_shape, out_shape, target, ctx):
 
 # TODO(mbrookhart): enable cuda once VM supports heterogenous execution
 @tvm.testing.parametrize_targets("llvm")
-def test_batch_matmul(target, ctx):
-    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4), target, ctx)
-    verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4), target, ctx)
-    verify_batch_matmul((2, 3, 4, 3), (3, 4), (2, 3, 4, 4), target, ctx)
+def test_batch_matmul(target, dev):
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4), target, dev)
+    verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4), target, dev)
+    verify_batch_matmul((2, 3, 4, 3), (3, 4), (2, 3, 4, 4), target, dev)
     # Test implicit broadcasting.
-    verify_batch_matmul((4, 3), (2, 3, 4), (2, 4, 4), target, ctx)
-    verify_batch_matmul((2, 4, 3), (1, 3, 4), (2, 4, 4), target, ctx)
-    verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((4, 3), (2, 3, 4), (2, 4, 4), target, dev)
+    verify_batch_matmul((2, 4, 3), (1, 3, 4), (2, 4, 4), target, dev)
+    verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4), target, dev)
 
 
-def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
+def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     def verify_model(ex, a_shape, b_shape):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
@@ -1139,7 +1140,7 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
 
     mod, params = relay.frontend.from_onnx(model, {"a": a_anys, "b": b_anys})
 
-    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
     verify_model(ex, a_shape, b_shape)
     verify_model(ex, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
     verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
@@ -1147,10 +1148,10 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
 
 # TODO(mbrookhart): enable cuda once VM supports heterogenous execution
 @tvm.testing.parametrize_targets("llvm")
-def test_batch_matmul_dynamic_model(target, ctx):
-    verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
-    verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
-    verify_simple_dynamic_model((2, 3, 4, 3), (3, 4), target, ctx)
+def test_batch_matmul_dynamic_model(target, dev):
+    verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, dev)
+    verify_simple_dynamic_model((2, 4, 3), (3, 4), target, dev)
+    verify_simple_dynamic_model((2, 3, 4, 3), (3, 4), target, dev)
 
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
@@ -1313,8 +1314,8 @@ def verify_upsample3d_trilinear():
     model = helper.make_model(graph, producer_name="upsample_trilinear_test")
     # TODO(jwfromm): Trilinear upsampling not supported in 1.0.0 onnxruntime.
     # Replace topi comparison with verify_with_ort once we update.
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, "float32")
+    for target, dev in tvm.testing.enabled_targets():
+        tvm_out = get_tvm_output(model, in_array, target, dev, out_shape, "float32")
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -3878,8 +3879,8 @@ def verify_if(cond_array):
 
     # TODO(jwfromm): Onnxruntime 1.0.0 is buggy with If statements. Replace this with
     # verify_with_ort once we update versions.
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output_with_vm(if_model, [cond], target, ctx, freeze_params=True)
+    for target, dev in tvm.testing.enabled_targets():
+        tvm_out = get_tvm_output_with_vm(if_model, [cond], target, dev, freeze_params=True)
         for i in range(len(tvm_out)):
             tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 

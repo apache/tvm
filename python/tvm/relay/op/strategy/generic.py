@@ -17,11 +17,12 @@
 """Definition of generic operator strategy."""
 # pylint: disable=invalid-name,unused-argument
 import logging
-
 import re
-from tvm import topi, _ffi, te, ir
-from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
+
+from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
+from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
+
 from .. import op as _op
 
 logger = logging.getLogger("strategy")
@@ -1463,13 +1464,13 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-def wrap_compute_cumsum(topi_compute):
-    """Wrap cumsum topi compute"""
+def wrap_compute_scanop(topi_compute):
+    """Wrap scanop style topi compute"""
 
-    def _compute_cumsum(attrs, inputs, _):
+    def _compute_scanop(attrs, inputs, _):
         return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
-    return _compute_cumsum
+    return _compute_scanop
 
 
 @override_native_generic_func("cumsum_strategy")
@@ -1477,9 +1478,21 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumsum(topi.cumsum),
+        wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("cumprod_strategy")
+def cumprod_strategy(attrs, inputs, out_type, target):
+    """cumprod generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.cumprod),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumprod.generic",
     )
     return strategy
 

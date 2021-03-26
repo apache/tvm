@@ -140,19 +140,20 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
-# numpy. We begin by creating a context, which is a device (CPU in this
-# example) that TVM can compile the schedule to. In this case the context is an
-# LLVM CPU target. We can then initialize the tensors in our context and
+# numpy. The compiled TVM function is exposes a concise C API that can be invoked
+# from any language. We begin by creating a device, which is a device (CPU in this
+# example) that TVM can compile the schedule to. In this case the device is an
+# LLVM CPU target. We can then initialize the tensors in our device and
 # perform the custom addition operation. To verify that the computation is
 # correct, we can compare the result of the output of the c tensor to the same
 # computation performed by numpy.
 
-ctx = tvm.context(tgt, 0)
+dev = tvm.device(tgt, 0)
 
 n = 1024
-a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
 fadd(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -175,13 +176,13 @@ print("Numpy running time: %f" % (np_running_time / np_repeat))
 
 
 def evaluate_addition(func, target, optimization, log):
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     n = 32768
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
 
-    evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=10)
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
 
@@ -340,20 +341,22 @@ if run_cuda:
     # The compiled TVM function is exposes a concise C API that can be invoked from
     # any language.
     #
-    # We provide a minimal array API in python to aid quick testing and
-    # prototyping. The array API is based on the DLPack standard.
+    # We provide a minimal array API in python to aid quick testing and prototyping.
+    # The array API is based on the `DLPack <https://github.com/dmlc/dlpack>`_ standard.
     #
-    # We first create a GPU context. Then tvm.nd.array copies the data to the GPU,
-    # fadd runs the actual computation, and asnumpy() copies the GPU array back to the
-    # CPU (so we can verify correctness). Note that copying the data to and from the
-    # memory on the GPU is a required step.
+    # - We first create a GPU device. 
+    # - Then tvm.nd.array copies the data to the GPU.
+    # - ``fadd`` runs the actual computation
+    # - ``asnumpy()`` copies the GPU array back to the CPU (so we can verify correctness).
+    # 
+    # Note that copying the data to and from the memory on the GPU is a required step.
 
-    ctx = tvm.context(tgt_gpu, 0)
+    dev = tvm.device(tgt_gpu, 0)
 
     n = 1024
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
     fadd(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -467,11 +470,11 @@ if tgt.startswith("opencl"):
     fadd_cl = tvm.build(s, [A, B, C], tgt, name="myadd")
     print("------opencl code------")
     print(fadd_cl.imported_modules[0].get_source())
-    ctx = tvm.cl(0)
+    dev = tvm.cl(0)
     n = 1024
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
     fadd_cl(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -549,11 +552,11 @@ dtype = "float32"
 # ``llc --version`` to get the CPU type, and you can check ``/proc/cpuinfo``
 # for additional extensions that your processor might support.
 target = "llvm"
-ctx = tvm.context(target, 0)
+dev = tvm.device(target, 0)
 
 # Random generated tensor for testing
-a = tvm.nd.array(numpy.random.rand(M, K).astype(dtype), ctx)
-b = tvm.nd.array(numpy.random.rand(K, N).astype(dtype), ctx)
+a = tvm.nd.array(numpy.random.rand(M, K).astype(dtype), dev)
+b = tvm.nd.array(numpy.random.rand(K, N).astype(dtype), dev)
 
 # Repeatedly perform a matrix multiplication to get a performance baseline
 # for the default numpy implementation
@@ -589,7 +592,7 @@ C = te.compute((M, N), lambda x, y: te.sum(A[x, k] * B[k, y], axis=k), name="C")
 s = te.create_schedule(C.op)
 func = tvm.build(s, [A, B, C], target=target, name="mmult")
 
-c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
+c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), dev)
 func(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
@@ -598,11 +601,11 @@ def evaluate_operation(s, vars, target, name, optimization, log):
     func = tvm.build(s, [A, B, C], target=target, name="mmult")
     assert func
 
-    c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
+    c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), dev)
     func(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
-    evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=10)
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
     log.append((optimization, mean_time))
