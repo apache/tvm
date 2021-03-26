@@ -88,3 +88,32 @@ def random_sparse_dense_params(func, params, bs_r, bs_c, density):
             new_w = random_bsr_matrix(shape[0], shape[1], bs_r, bs_c, density, "float32").todense()
             new_params[name] = tvm.nd.array(new_w)
     return new_params
+
+
+def convert_model_dense_to_sparse(mod, params, random_params=False, bs_r=1, bs_c=1, sparsity=0.85):
+    """Convert a dense model to sparse model.
+
+    Parameters
+    ----------
+    mod : tvm.Module
+        The dense model.
+    params : Dict[Srting, tvm.nd.array]
+        Parameters of the dense model.
+    random_params : Bool = False
+        True to replace the parameters of the dense model with some random sparse tensors.
+        This is used for testing.
+    bs_r : int
+        The row of BSR matrix block.
+    bs_c : int
+        The column of BSR matrix block.
+    sparsity : float
+        The sparsity of the random sparse parameters.
+    """
+    mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
+    if random_params:
+        # Manually replace the parameters of dense model to sparse tensors
+        params = random_sparse_dense_params(mod, params, bs_r=bs_r, bs_c=bs_c, density=1 - sparsity)
+    # Currently we only support to conver dense matmul to sparse dense matmul
+    mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, bs_c), sparsity_threshold=0.8)
+
+    return tvm.IRModule.from_expr(mod), params

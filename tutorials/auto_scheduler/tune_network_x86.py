@@ -50,7 +50,6 @@ import numpy as np
 import tvm
 from tvm import relay, auto_scheduler
 from tvm.relay import data_dep_optimization as ddo
-from tvm.topi.sparse.utils import random_sparse_dense_params
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
 
@@ -137,15 +136,8 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
         raise ValueError("Network not found.")
 
     if use_sparse:
-        bs_r = 1
-        bs_c = 1
-        sparsity = 0.85
-        mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
-        # This is a test workload that manually transforms a dense model to sparse
-        params = random_sparse_dense_params(mod, params, bs_r=bs_r, bs_c=bs_c, density=1 - sparsity)
-        # Currently we only support to conver dense matmul to sparse dense matmul
-        mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, bs_c), sparsity_threshold=0.8)
-        mod = tvm.IRModule.from_expr(mod)
+        from tvm.topi.sparse.utils import convert_model_dense_to_sparse
+        mod, params = convert_model_dense_to_sparse(mod, params, True)
 
     return mod, params, input_shape, output_shape
 
