@@ -85,11 +85,11 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   void Run();
 
   /*!
-   * \brief Initialize the graph executor with graph and context.
+   * \brief Initialize the graph executor with graph and device.
    * \param graph_json The execution graph.
    * \param module The module containing the compiled functions for the host
    *  processor.
-   * \param ctxs The context of the host and devices where graph nodes will be
+   * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
    * \param lookup_linked_param_func If given, a PackedFunc invoked to lookup linked parameters
    *  by storage_id. If not given, linked parameters are looked-up using an internal implementation,
@@ -97,8 +97,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
 
   void Init(const std::string& graph_json, tvm::runtime::Module module,
-            const std::vector<TVMContext>& ctxs,
-            const PackedFunc lookup_linked_param_func = nullptr);
+            const std::vector<Device>& devs, const PackedFunc lookup_linked_param_func = nullptr);
 
   /*!
    * \brief Get the input index given the name of input.
@@ -407,7 +406,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   /*! \brief The code module that contains both host and device code. */
   tvm::runtime::Module module_;
   /*! \brief Execution context of all devices including the host. */
-  std::vector<TVMContext> ctxs_;
+  std::vector<Device> devices_;
   /*! \brief Common storage pool for all devices. */
   std::vector<NDArray> storage_pool_;
   /*! \brief Data entry of each node. */
@@ -427,7 +426,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   bool module_lookup_linked_param_valid_;
 };
 
-std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg);
+std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
 }  // namespace runtime
 }  // namespace tvm
 

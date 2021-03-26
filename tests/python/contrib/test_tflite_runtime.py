@@ -130,7 +130,6 @@ def test_remote():
     # inference via remote tvm tflite runtime
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
-    ctx = remote.cpu(0)
     a = remote.upload(tflite_model_path)
 
     with open(tflite_model_path, "rb") as model_fin:

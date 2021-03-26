@@ -20,7 +20,7 @@
 use std::convert::TryInto;
 
 use crate::runtime::Function;
-use crate::{runtime::function::Result, runtime::ByteArray, Context, Module, NDArray};
+use crate::{runtime::function::Result, runtime::ByteArray, Device, Module, NDArray};
 
 /// An instance of the C++ graph runtime.
 ///
@@ -35,25 +35,25 @@ pub struct GraphRt {
 
 impl GraphRt {
     /// Create a graph runtime directly from a runtime module.
-    pub fn from_module(module: Module, ctx: Context) -> Result<GraphRt> {
-        let default: Box<dyn Fn(Context) -> Result<Module>> =
+    pub fn from_module(module: Module, dev: Device) -> Result<GraphRt> {
+        let default: Box<dyn Fn(Device) -> Result<Module>> =
             module.get_function("default", false)?.into();
 
         Ok(Self {
-            module: default(ctx)?,
+            module: default(dev)?,
         })
     }
 
-    /// Create a graph runtime from the deprecated graph, lib, ctx triple.
-    pub fn create_from_parts(graph: &str, lib: Module, ctx: Context) -> Result<Self> {
+    /// Create a graph runtime from the deprecated graph, lib, dev triple.
+    pub fn create_from_parts(graph: &str, lib: Module, dev: Device) -> Result<Self> {
         let runtime_create_fn = Function::get("tvm.graph_runtime.create").unwrap();
 
         let runtime_create_fn_ret = runtime_create_fn.invoke(vec![
             graph.into(),
             lib.into(),
-            (&ctx.device_type).into(),
+            (&dev.device_type).into(),
             // NOTE you must pass the device id in as i32 because that's what TVM expects
-            (ctx.device_id as i32).into(),
+            (dev.device_id as i32).into(),
         ]);
         let graph_runtime_module: Module = runtime_create_fn_ret?.try_into()?;
         Ok(Self {

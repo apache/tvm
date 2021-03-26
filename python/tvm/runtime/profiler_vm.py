@@ -32,15 +32,15 @@ def enabled():
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""
 
-    def __init__(self, exe, ctx, memory_cfg=None):
-        super(VirtualMachineProfiler, self).__init__(exe, ctx, memory_cfg)
+    def __init__(self, exe, device, memory_cfg=None):
+        super(VirtualMachineProfiler, self).__init__(exe, device, memory_cfg)
         self.module = _ffi_api._VirtualMachineDebug(exe.module)
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
         self._get_stat = self.module["get_stat"]
         self._set_input = self.module["set_input"]
         self._reset = self.module["reset"]
-        self._setup_ctx(ctx, memory_cfg)
+        self._setup_device(device, memory_cfg)
 
     def get_stat(self, sort_by_time=True):
         """Get the statistics of executed ops.

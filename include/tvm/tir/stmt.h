@@ -1231,10 +1231,10 @@ constexpr const char* storage_scope = "storage_scope";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
-/*! \brief The allocation context for global malloc in host. */
-constexpr const char* device_context_id = "device_context_id";
+/*! \brief The allocation device for global malloc in host. */
+constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
-constexpr const char* device_context_type = "device_context_type";
+constexpr const char* device_type = "device_type";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */

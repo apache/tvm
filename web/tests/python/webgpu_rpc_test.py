@@ -65,10 +65,10 @@ def test_rpc():
 
     def check(remote):
         # basic function checks.
-        ctx = remote.webgpu(0)
+        dev = remote.webgpu(0)
         adata = np.random.uniform(size=n).astype(A.dtype)
-        a = tvm.nd.array(adata, ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), ctx)
+        a = tvm.nd.array(adata, dev)
+        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
 
         np.testing.assert_equal(a.asnumpy(), adata)
         f1 = remote.system_lib()

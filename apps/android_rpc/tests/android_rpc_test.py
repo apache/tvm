@@ -68,12 +68,12 @@ def test_rpc_module():
 
     # Execute the portable graph on cpu target
     print("Run CPU test ...")
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
     remote.upload(path_dso_cpu)
     f2 = remote.load_module("cpu_lib.so")
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-    time_f = f2.time_evaluator(f2.entry_name, ctx, number=10)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op\n" % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
@@ -91,12 +91,12 @@ def test_rpc_module():
         f.export_library(path_dso_cl, ndk.create_shared)
 
         print("Run GPU(OpenCL Flavor) test ...")
-        ctx = remote.cl(0)
+        dev = remote.cl(0)
         remote.upload(path_dso_cl)
         f1 = remote.load_module("dev_lib_cl.so")
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-        time_f = f1.time_evaluator(f1.entry_name, ctx, number=10)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+        time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print("%g secs/op\n" % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
@@ -114,12 +114,12 @@ def test_rpc_module():
         f.export_library(path_dso_vulkan, ndk.create_shared)
 
         print("Run GPU(Vulkan Flavor) test ...")
-        ctx = remote.vulkan(0)
+        dev = remote.vulkan(0)
         remote.upload(path_dso_vulkan)
         f1 = remote.load_module("dev_lib_vulkan.so")
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-        time_f = f1.time_evaluator(f1.entry_name, ctx, number=10)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+        time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print("%g secs/op\n" % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)

@@ -31,7 +31,7 @@ use tvm::runtime::graph_rt::GraphRt;
 use tvm::*;
 
 fn main() -> anyhow::Result<()> {
-    let ctx = Context::cpu(0);
+    let dev = Device::cpu(0);
     println!("{}", concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"));
 
     let img = image::open(concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"))
@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
     // make arr shape as [1, 3, 224, 224] acceptable to resnet
     let arr = arr.insert_axis(Axis(0));
     // create input tensor from rust's ndarray
-    let input = NDArray::from_rust_ndarray(&arr, Context::cpu(0), DataType::float(32, 1))?;
+    let input = NDArray::from_rust_ndarray(&arr, Device::cpu(0), DataType::float(32, 1))?;
     println!(
         "input shape is {:?}, len: {}, size: {}",
         input.shape(),
@@ -78,7 +78,7 @@ fn main() -> anyhow::Result<()> {
         "/deploy_lib.so"
     )))?;
 
-    let mut graph_rt = GraphRt::create_from_parts(&graph, lib, ctx)?;
+    let mut graph_rt = GraphRt::create_from_parts(&graph, lib, dev)?;
 
     // parse parameters and convert to TVMByteArray
     let params: Vec<u8> = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params"))?;
@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
 
     // prepare to get the output
     let output_shape = &[1, 1000];
-    let output = NDArray::empty(output_shape, Context::cpu(0), DataType::float(32, 1));
+    let output = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
     graph_rt.get_output_into(0, output.clone())?;
 
     // flatten the output as Vec<f32>

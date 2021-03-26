@@ -230,15 +230,15 @@ a_np = np.random.uniform(size=(N, CI, H, W)).astype(np.float32)
 w_np = np.random.uniform(size=(CO, CI, KH, KW)).astype(np.float32)
 c_np = conv2d_nchw_python(a_np, w_np, strides, padding)
 
-ctx = tvm.gpu()
-a_tvm = tvm.nd.array(a_np, ctx=ctx)
-w_tvm = tvm.nd.array(w_np, ctx=ctx)
-c_tvm = tvm.nd.empty(c_np.shape, ctx=ctx)
+dev = tvm.gpu()
+a_tvm = tvm.nd.array(a_np, device=dev)
+w_tvm = tvm.nd.array(w_np, device=dev)
+c_tvm = tvm.nd.empty(c_np.shape, device=dev)
 func(a_tvm, w_tvm, c_tvm)
 
 tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 
 # Evaluate running time. Here we choose a large repeat number (400) to reduce the noise
 # and the overhead of kernel launch. You can also use nvprof to validate the result.
-evaluator = func.time_evaluator(func.entry_name, ctx, number=400)
+evaluator = func.time_evaluator(func.entry_name, dev, number=400)
 print("Time cost of this operator: %f" % evaluator(a_tvm, w_tvm, c_tvm).mean)

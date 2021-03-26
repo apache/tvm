@@ -17,13 +17,13 @@
 
 package org.apache.tvm.rpc;
 
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 
 // always related to RPCSession. Cannot construct by users.
-public class TVMRemoteContext extends TVMContext {
+public class TVMRemoteDevice extends Device {
   public final RPCSession rpcSession;
 
-  TVMRemoteContext(int deviceType, int deviceId, RPCSession rpcSession) {
+  TVMRemoteDevice(int deviceType, int deviceId, RPCSession rpcSession) {
     super(deviceType, deviceId);
     this.rpcSession = rpcSession;
   }

@@ -131,11 +131,11 @@ def test_compile_runtime(platform, west_cmd):
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
@@ -153,16 +153,16 @@ def test_platform_timer(platform, west_cmd):
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         time_eval_f = system_lib.time_evaluator(
-            "add", sess.context, number=20, repeat=3, min_repeat_ms=40
+            "add", sess.device, number=20, repeat=3, min_repeat_ms=40
         )
         result = time_eval_f(A_data, B_data, C_data)
         assert (C_data.asnumpy() == np.array([6, 7])).all()
@@ -191,7 +191,7 @@ def test_relay(platform, west_cmd):
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
         graph_mod = tvm.micro.create_local_graph_runtime(
-            graph, session.get_system_lib(), session.context
+            graph, session.get_system_lib(), session.device
         )
         graph_mod.set_input(**params)
         x_in = np.random.randint(10, size=shape[0], dtype=dtype)
@@ -264,7 +264,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
         rt_mod = tvm.micro.create_local_graph_runtime(
-            graph, session.get_system_lib(), session.context
+            graph, session.get_system_lib(), session.device
         )
         rt_mod.set_input(**params)
         for name, data in map_inputs.items():
@@ -276,7 +276,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
         results = result if isinstance(result, list) else [result]
 
         for idx, shape in enumerate(out_shapes):
-            out = tvm.nd.empty(shape, ctx=session.context)
+            out = tvm.nd.empty(shape, device=session.device)
             out = rt_mod.get_output(idx, out)
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
 

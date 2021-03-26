@@ -96,9 +96,9 @@ shape_dict = {"input_1": data.shape}
 mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
 target = "cuda"
-ctx = tvm.gpu(0)
+dev = tvm.gpu(0)
 with tvm.transform.PassContext(opt_level=3):
-    executor = relay.build_module.create_executor("graph", mod, ctx, target)
+    executor = relay.build_module.create_executor("graph", mod, dev, target)
 
 ######################################################################
 # Execute on TVM

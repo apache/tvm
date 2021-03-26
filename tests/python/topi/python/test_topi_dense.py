@@ -64,23 +64,23 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     # get the test data
     a_np, b_np, c_np, d_np = get_ref_data()
 
-    def check_device(device, ctx):
+    def check_device(device, dev):
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
             with tvm.target.Target(device):
                 D = fcompute(A, B, C if use_bias else None)
                 D = topi.nn.relu(D)
                 s = fschedule([D])
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(b_np, ctx)
-            c = tvm.nd.array(c_np, ctx)
-            d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(b_np, dev)
+            c = tvm.nd.array(c_np, dev)
+            d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
             f = tvm.build(s, [A, B, C, D], device, name="dense")
             f(a, b, c, d)
             tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for device, dev in tvm.testing.enabled_targets():
+        check_device(device, dev)
 
 
 def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
@@ -106,8 +106,8 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
+        dev = tvm.device(device, 0)
+        if device == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
 
@@ -116,10 +116,10 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
             D = topi.cuda.dense_int8(A, B, C if use_bias else None, out_dtype)
             D = topi.nn.relu(D)
             s = topi.cuda.schedule_dense_int8([D])
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(c_np, ctx)
-        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=out_dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(c_np, dev)
+        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=out_dtype), dev)
         f = tvm.build(s, [A, B, C, D], device, name="dense")
         f(a, b, c, d)
         tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)

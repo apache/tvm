@@ -49,8 +49,8 @@ def test_binary_op():
             ref_res = ref(x_data, y_data)
             func = relay.Function([x, y], z)
 
-            for target, ctx in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            for target, dev in tvm.testing.enabled_targets():
+                intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
@@ -87,8 +87,8 @@ def test_cmp_type():
             ref_res = ref(x_data, y_data)
             func = relay.Function([x, y], z)
 
-            for target, ctx in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            for target, dev in tvm.testing.enabled_targets():
+                intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
@@ -112,8 +112,8 @@ def test_binary_int_broadcast_1():
             func = relay.Function([x, y], z)
             ref_res = ref(x_data, y_data)
 
-            for target, ctx in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            for target, dev in tvm.testing.enabled_targets():
+                intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
@@ -137,8 +137,8 @@ def test_binary_int_broadcast_2():
             func = relay.Function([x, y], z)
             ref_res = ref(x_data, y_data)
 
-            for target, ctx in tvm.testing.enabled_targets():
-                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            for target, dev in tvm.testing.enabled_targets():
+                intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
@@ -146,9 +146,9 @@ def test_binary_int_broadcast_2():
 @tvm.testing.uses_gpu
 def test_where():
     def run(func, inputs, ref_res):
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, device=dev, target=target)
                 op_res = intrp.evaluate(func)(*inputs)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
@@ -257,9 +257,9 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
             return
         ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
 
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+    for target, dev in tvm.testing.enabled_targets():
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
         op_res2 = intrp2.evaluate(func)(x_data)
@@ -351,9 +351,9 @@ def verify_mean_var_std(funcs, shape, axis, keepdims):
     ref_mean = np.mean(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
     ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
 
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+    for target, dev in tvm.testing.enabled_targets():
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1[0].asnumpy(), ref_mean, rtol=1e-5)
         tvm.testing.assert_allclose(op_res1[1].asnumpy(), ref_res, rtol=1e-5)
@@ -405,8 +405,8 @@ def test_strided_slice():
 
         if not test_ref:
             return
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
@@ -461,9 +461,9 @@ def test_dyn_strided_slice():
 
         if not test_ref:
             return
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+            intrp = relay.create_executor("vm", mod=mod, device=dev, target=target)
             op_res = intrp.evaluate()(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
@@ -513,8 +513,8 @@ def test_strided_set():
         x_data = np.random.uniform(size=dshape).astype("float32")
         v_data = np.random.uniform(size=vshape).astype("float32")
         ref_res = tvm.topi.testing.strided_set_python(x_data, v_data, begin, end, strides)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data, v_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
