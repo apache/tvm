@@ -37,9 +37,9 @@
 #include <utility>
 #include <vector>
 
-#include "serialize_utils.h"
-#include "../library_module.h"
 #include "../file_utils.h"
+#include "../library_module.h"
+#include "serialize_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -491,9 +491,9 @@ runtime::Module Executable::Load(const std::string& code, const runtime::Module 
   // deserialization before we have we have deserialized the imports.
   if (lib.defined()) {
     ICHECK_EQ(exec->imports_.size(), 0)
-      << "A VMExecutable should never have more than one import inside an the executable, \n"
-      << "the first import should *always* be the library containing"
-      << "the platform specific kernel code";
+        << "A VMExecutable should never have more than one import inside an the executable, \n"
+        << "the first import should *always* be the library containing"
+        << "the platform specific kernel code";
     exec->Import(lib);
   }
 
@@ -789,8 +789,7 @@ void Executable::SaveToBinary(dmlc::Stream* stream) {
   std::string code(code_bytes.data, code_bytes.size);
   stream->Write(code);
 
-  ICHECK(this->imports()[0].defined())
-    << "the library must be imported before serialization";
+  ICHECK(this->imports()[0].defined()) << "the library must be imported before serialization";
 }
 
 Module ExecutableLoadBinary(void* strm) {
@@ -809,10 +808,9 @@ void Executable::SaveToFile(const std::string& path, const std::string& format) 
   SaveBinaryToFile(path, data);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VMExecutable")
-    .set_body_typed(ExecutableLoadBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VMExecutable").set_body_typed(ExecutableLoadBinary);
 
-  // Load module from module.
+// Load module from module.
 Module ExecutableLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
   LoadBinaryFromFile(file_name, &data);

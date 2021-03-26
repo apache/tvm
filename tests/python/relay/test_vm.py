@@ -801,6 +801,7 @@ def test_constant_shape_with_external_codegen():
     opt_mod, _ = comp.optimize(mod, target="llvm")
     assert "shape_func" in opt_mod.astext(False)
 
+
 def test_vm_rpc():
     target = "llvm"
     target_host = "llvm"
@@ -824,6 +825,7 @@ def test_vm_rpc():
     input_tensor = tvm.nd.array(np_input, ctx)
     out = vm_factory.invoke("main", [input_tensor])
     np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

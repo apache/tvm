@@ -41,7 +41,7 @@ namespace runtime {
  * \param type_key The type key of the serialized module.
  * \param stream A pointer to the stream containing the serialized module.
  * \return module The deserialized module.
-*/
+ */
 Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream);
 
 /*!

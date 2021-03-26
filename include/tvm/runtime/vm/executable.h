@@ -138,11 +138,9 @@ class Executable : public ModuleNode {
   runtime::Module GetLib() const { return this->imports_[0]; }
 
   void SetLib(const runtime::Module& lib) {
-    ICHECK(lib.defined())
-      << "library can not be null";
+    ICHECK(lib.defined()) << "library can not be null";
 
-    ICHECK_EQ(this->imports().size(), 0)
-      << "can only import the library once";
+    ICHECK_EQ(this->imports().size(), 0) << "can only import the library once";
 
     this->Import(lib);
   }
