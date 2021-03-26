@@ -267,10 +267,10 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
         os << "dtype.lanes";
         break;
       case builtin::kArrDeviceId:
-        os << "ctx.device_id";
+        os << "device.device_id";
         break;
       case builtin::kArrDeviceType:
-        os << "ctx.device_type";
+        os << "device.device_type";
         break;
       default:
         LOG(FATAL) << "unknown field code";

@@ -32,10 +32,10 @@ def test_nearbyint():
     A_rounded = te.compute((m,), lambda *i: tvm.tir.nearbyint(A(*i)), name="A")
     s = te.create_schedule(A_rounded.op)
     f = tvm.build(s, [A, A_rounded], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(high=100, size=n).astype(A.dtype), ctx)
-    a_rounded = tvm.nd.array(np.random.uniform(size=n).astype(A_rounded.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(high=100, size=n).astype(A.dtype), dev)
+    a_rounded = tvm.nd.array(np.random.uniform(size=n).astype(A_rounded.dtype), dev)
     f(a, a_rounded)
     # Note that numpys rint rounds to nearest integer with
     # ties to halfway is broken by rounding to even.
@@ -80,10 +80,10 @@ def test_unary_intrin():
         B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-5, rtol=1e-5)
 
@@ -108,11 +108,11 @@ def test_binary_intrin():
         C = te.compute((m,), lambda *i: tvm_intrin(A(*i), B(*i)), name="C")
         s = te.create_schedule(C.op)
         f = tvm.build(s, [A, B, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.asnumpy(), np_func(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5
@@ -131,11 +131,11 @@ def test_ldexp():
     C = te.compute((m,), lambda *i: tvm.tir.ldexp(A(*i), B(*i)), name="C")
     s = te.create_schedule(C.op)
     f = tvm.build(s, [A, B, C], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), dev)
+    c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(
         c.asnumpy(), np.ldexp(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5

@@ -69,7 +69,7 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
 
   auto arr_type = arr.DataType();
   CHECK(arr.IsContiguous()) << "CodegenParams: only support contiguous arrays";
-  CHECK_EQ(arr->ctx.device_type, kDLCPU) << "CodegenParams: only support contiguous arrays";
+  CHECK_EQ(arr->device.device_type, kDLCPU) << "CodegenParams: only support contiguous arrays";
   CHECK_EQ(arr_type.lanes(), 1) << "CodegenParams: only support generating 1-lane parameters; saw "
                                 << arr_type.lanes();
 

@@ -564,8 +564,8 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
     /* The following "kinds" are accessing the members of DLTensor:
        typedef struct {
          void* data;            kArrData
-         DLContext ctx;         kArrDeviceType (ctx.device_type)
-                                kArrDeviceId (ctx.device_id)
+         DLDevice device;       kArrDeviceType (device.device_type)
+                                kArrDeviceId (device.device_id)
          int ndim;              kArrNDim
          DLDataType dtype;      kArrTypeCode (dtype.code)
                                 kArrTypeBits (dtype.bits)
@@ -602,7 +602,7 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
          void* v_handle;
          const char* v_str;
          TVMType v_type;
-         TVMContext v_ctx;
+         DLDevice v_device;
        } TVMValue;
     */
     ICHECK_EQ(t.lanes(), 1);

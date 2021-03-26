@@ -62,57 +62,57 @@ class MetalWorkspace final : public DeviceAPI {
   std::mutex mutex;
   // Destructor
   ~MetalWorkspace();
-  // Get command queue for given context.
-  id<MTLCommandQueue> GetCommandQueue(TVMContext ctx) {
-    ICHECK_EQ(ctx.device_type, kDLMetal);
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
-        << "Invalid Metal device_id=" << ctx.device_id;
-    return queues[ctx.device_id];
+  // Get command queue for given device.
+  id<MTLCommandQueue> GetCommandQueue(Device dev) {
+    ICHECK_EQ(dev.device_type, kDLMetal);
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+        << "Invalid Metal device_id=" << dev.device_id;
+    return queues[dev.device_id];
   }
-  // Get device for given context
-  id<MTLDevice> GetDevice(TVMContext ctx) {
-    ICHECK_EQ(ctx.device_type, kDLMetal);
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < devices.size())
-        << "Invalid Metal device_id=" << ctx.device_id;
-    return devices[ctx.device_id];
+  // Get device for given device
+  id<MTLDevice> GetDevice(Device dev) {
+    ICHECK_EQ(dev.device_type, kDLMetal);
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < devices.size())
+        << "Invalid Metal device_id=" << dev.device_id;
+    return devices[dev.device_id];
   }
   // Initialize workspace
   // Return false if already initialized, otherwise return true.
   void Init();
   // override device API
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
   // get the global workspace
   static MetalWorkspace* Global();
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_size, void* to, size_t to_size, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
 };
 
 /*! \brief Thread local workspace */
 class MetalThreadEntry {
  public:
-  /*! \brief The current context */
-  TVMContext context;
+  /*! \brief The current device */
+  Device device;
   /*! \brief The shared buffer used for copy. */
   std::vector<id<MTLBuffer> > temp_buffer_;
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
   MetalThreadEntry() : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
-    context.device_id = 0;
-    context.device_type = static_cast<DLDeviceType>(kDLMetal);
+    device.device_id = 0;
+    device.device_type = static_cast<DLDeviceType>(kDLMetal);
   }
   ~MetalThreadEntry();
-  // Get temp buffer with at least size under ctx.
-  id<MTLBuffer> GetTempBuffer(TVMContext ctx, size_t size);
+  // Get temp buffer with at least size under dev.
+  id<MTLBuffer> GetTempBuffer(Device dev, size_t size);
   // get the global workspace
   static MetalThreadEntry* ThreadLocal();
 };
