@@ -124,9 +124,9 @@ have to be built.
 
 .. code:: python
 
-    ctx = tvm.gpu(0)
+    dev = tvm.gpu(0)
     loaded_lib = tvm.runtime.load_module('compiled.so')
-    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](ctx))
+    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](dev))
     input_data = np.random.uniform(0, 1, input_shape).astype(dtype)
     gen_module.run(data=input_data)
 

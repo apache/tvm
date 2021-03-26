@@ -38,15 +38,15 @@ namespace {
 
 // calls the device api to get the max threads per block
 static inline int DetectROCMmaxThreadsPerBlock() {
-  TVMContext tvm_ctx;
-  tvm_ctx.device_type = kDLROCM;
-  tvm_ctx.device_id = 0;
-  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
+  Device tvm_dev;
+  tvm_dev.device_type = kDLROCM;
+  tvm_dev.device_id = 0;
+  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_dev, true);
   if (api != nullptr) {
     TVMRetValue val;
-    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
+    api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
     if (val.operator int() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kMaxThreadsPerBlock,
+      tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
                                                      &val);
       return val.operator int();
     }

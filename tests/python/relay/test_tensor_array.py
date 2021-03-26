@@ -60,11 +60,10 @@ def vmobj_to_list(mod, o, dtype="float32"):
 
 def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
     for kind in ["debug", "vm"]:
-        for target, ctx in [("llvm", tvm.cpu(0))]:  # testing.enabled_targets():
-            # for target, ctx in testing.enabled_targets():
-            if kind == "debug" and ctx.device_type != tvm.cpu().device_type:
+        for target, dev in [("llvm", tvm.cpu(0))]:  # testing.enabled_targets():
+            if kind == "debug" and dev.device_type != tvm.cpu().device_type:
                 continue
-            ex = relay.create_executor(kind, mod=ta_mod, ctx=ctx, target=target)
+            ex = relay.create_executor(kind, mod=ta_mod, device=dev, target=target)
             result = ex.evaluate()(*args)
             got = vmobj_to_list(ta_mod, result, dtype)
             tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)

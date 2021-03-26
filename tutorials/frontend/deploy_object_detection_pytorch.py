@@ -134,8 +134,8 @@ with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
 ######################################################################
 # Inference with Relay VM
 # -----------------------
-ctx = tvm.cpu()
-vm = VirtualMachine(vm_exec, ctx)
+dev = tvm.cpu()
+vm = VirtualMachine(vm_exec, dev)
 vm.set_input("main", **{input_name: img})
 tvm_res = vm.run()
 

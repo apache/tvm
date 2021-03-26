@@ -60,22 +60,22 @@ void GraphRuntime::Run() {
   }
 }
 /*!
- * \brief Initialize the graph executor with graph and context.
+ * \brief Initialize the graph executor with graph and device.
  * \param graph_json The execution graph.
  * \param module The module containing the compiled functions for the host
  * processor.
- * \param ctxs The context of the host and devices where graph nodes will be
+ * \param devs The devices of the host and devices where graph nodes will be
  * executed on.
  * \param lookup_linked_param_func Linked parameter lookup function. Default is nullptr.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs,
+                        const std::vector<Device>& devs,
                         const PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   module_ = module;
-  ctxs_ = ctxs;
+  devices_ = devs;
   lookup_linked_param_ = lookup_linked_param_func;
   if (lookup_linked_param_ == nullptr) {
     lookup_linked_param_ = PackedFunc(
@@ -125,8 +125,8 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
   ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
   ICHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
-  ICHECK_EQ(old_t->ctx.device_type, data_ref->ctx.device_type);
-  ICHECK_EQ(old_t->ctx.device_id, data_ref->ctx.device_id);
+  ICHECK_EQ(old_t->device.device_type, data_ref->device.device_type);
+  ICHECK_EQ(old_t->device.device_id, data_ref->device.device_id);
   for (auto i = 0; i < data_ref->ndim; ++i) {
     ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
   }
@@ -243,7 +243,7 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   Module mod = args[0];
   int64_t storage_id = args[1];
   DLTensor* template_tensor = args[2];
-  TVMContext ctx = args[3];
+  Device dev = args[3];
   // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
   // params are present.
   if (!module_lookup_linked_param_valid_) {
@@ -265,7 +265,7 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
                                  template_tensor->shape + template_tensor->ndim};
 
   std::unique_ptr<NDArray::Container> container{new NDArray::Container(
-      static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, ctx)};
+      static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, dev)};
   container->SetDeleter(GraphRuntime::LinkedNDArrayDeleter);
   *rv = NDArray(GetObjectPtr<Object>(container.release()));
 }
@@ -283,7 +283,7 @@ void GraphRuntime::SetupStorage() {
   for (size_t i = 0; i < attrs_.shape.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     // Use the fallback device if no device index is available.
-    int device_type = static_cast<int>(ctxs_[0].device_type);
+    int device_type = static_cast<int>(devices_[0].device_type);
     if (!attrs_.device_index.empty()) {
       device_type = attrs_.device_index[i];
     }
@@ -307,10 +307,10 @@ void GraphRuntime::SetupStorage() {
     TVMRetValue lookup_rv;
     {
       std::vector<int64_t> shape_vec{attrs_.shape[i].begin(), attrs_.shape[i].end()};
-      DLTensor template_tensor{nullptr,  TVMContext{kDLCPU, 0}, static_cast<int>(shape_vec.size()),
-                               vtype[i], shape_vec.data(),      nullptr,
+      DLTensor template_tensor{nullptr,  Device{kDLCPU, 0}, static_cast<int>(shape_vec.size()),
+                               vtype[i], shape_vec.data(),  nullptr,
                                0};
-      lookup_rv = lookup_linked_param_(module_, sid, &template_tensor, ctxs_[0]);
+      lookup_rv = lookup_linked_param_(module_, sid, &template_tensor, devices_[0]);
     }
     if (lookup_rv.type_code() != kTVMNullptr) {
       pool_entry[sid].linked_param = lookup_rv;
@@ -324,16 +324,16 @@ void GraphRuntime::SetupStorage() {
   for (const auto& pit : pool_entry) {
     // This for loop is very fast since there are usually only a couple of
     // devices available on the same hardware.
-    const auto& cit = std::find_if(ctxs_.begin(), ctxs_.end(), [&pit](const TVMContext& c) {
-      return pit.device_type == static_cast<int>(c.device_type);
+    const auto& cit = std::find_if(devices_.begin(), devices_.end(), [&pit](const Device& d) {
+      return pit.device_type == static_cast<int>(d.device_type);
     });
-    TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
+    Device dev = cit == devices_.end() ? devices_[0] : *cit;
     if (pit.linked_param.defined()) {
       storage_pool_.push_back(pit.linked_param);
     } else {
       std::vector<int64_t> shape;
       shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
-      storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
+      storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, dev));
     }
   }
 
@@ -505,23 +505,23 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
 }
 
 Module GraphRuntimeCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                          const std::vector<TVMContext>& ctxs,
+                          const std::vector<Device>& devs,
                           const PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntime>();
-  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
+  exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
 
-// Get all context for the host and other runtime devices.
-std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg) {
+// Get all devices for the host and other runtime devices.
+std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg) {
   // Reserve the first item as the fallback device.
-  std::vector<TVMContext> ret;
-  TVMContext ctx;
-  for (int i = ctx_start_arg; i < args.num_args; i += 2) {
+  std::vector<Device> ret;
+  Device dev;
+  for (int i = dev_start_arg; i < args.num_args; i += 2) {
     int dev_type = args[i];
-    ctx.device_type = static_cast<DLDeviceType>(dev_type);
-    ctx.device_id = args[i + 1];
-    ret.push_back(ctx);
+    dev.device_type = static_cast<DLDeviceType>(dev_type);
+    dev.device_id = args[i + 1];
+    ret.push_back(dev);
   }
   return ret;
 }
@@ -530,19 +530,19 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg) {
 // from tvm4j and javascript, since they don't have heterogeneous
 // execution support yet. For heterogenenous execution, at least 5 arguments will
 // be passed in. The third one is the number of devices.
-// Eventually, we will only probably pass TVMContext for all the languages.
+// Eventually, we will only probably pass Device for all the languages.
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
   ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;
-  int ctx_start_arg = 2;
+  int dev_start_arg = 2;
   if (args[2].type_code() == kTVMPackedFuncHandle) {
     lookup_linked_param_func = args[2];
-    ctx_start_arg++;
+    dev_start_arg++;
   }
-  const auto& contexts = GetAllContext(args, ctx_start_arg);
-  *rv = GraphRuntimeCreate(args[0], args[1], contexts, lookup_linked_param_func);
+  const auto& devices = GetAllDevice(args, dev_start_arg);
+  *rv = GraphRuntimeCreate(args[0], args[1], devices, lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

@@ -106,20 +106,20 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
                 )
     b_np = np.maximum(b_np, 0.0)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _pool_schedule)
             s = s_func(B, layout)
 
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=2e-5, atol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 def verify_pool_grad(
@@ -181,21 +181,21 @@ def verify_pool_grad(
     if add_relu:
         pool_grad_np = np.maximum(pool_grad_np, 0.0)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_grad_schedule)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _pool_grad_schedule)
             s = s_func(PoolGrad)
 
-        a = tvm.nd.array(a_np, ctx)
-        out_grad = tvm.nd.array(out_grad_np, ctx)
-        pool_grad = tvm.nd.array(np.zeros(get_const_tuple(PoolGrad.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, OutGrad, PoolGrad], device)
+        a = tvm.nd.array(a_np, dev)
+        out_grad = tvm.nd.array(out_grad_np, dev)
+        pool_grad = tvm.nd.array(np.zeros(get_const_tuple(PoolGrad.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, OutGrad, PoolGrad], target)
         f(a, out_grad, pool_grad)
         tvm.testing.assert_allclose(pool_grad.asnumpy(), pool_grad_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -256,22 +256,22 @@ def verify_global_pool(dshape, pool_type, layout="NCHW"):
         b_np = np.max(a_np, axis=axis, keepdims=True)
     b_np = np.maximum(b_np, 0.0)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _adaptive_pool_schedule)
-            if device == "cuda":
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _adaptive_pool_schedule)
+            if target == "cuda":
                 s = s_func(B, layout)
             else:
                 s = s_func(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -300,22 +300,22 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
         assert len(out_size) == 3
         out = topi.nn.adaptive_pool3d(data, out_size, pool_type, layout)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _adaptive_pool_schedule)
-            if device == "cuda":
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _adaptive_pool_schedule)
+            if target == "cuda":
                 s = s_func(out, layout)
             else:
                 s = s_func(out)
-        a = tvm.nd.array(np_data, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
-        f = tvm.build(s, [data, out], device)
+        a = tvm.nd.array(np_data, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), dev)
+        f = tvm.build(s, [data, out], target)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), np_out, rtol=4e-5, atol=1e-6)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -367,20 +367,20 @@ def verify_pool3d(
         input_np, kernel, stride, padding, output_shape, pool_type, count_include_pad, ceil_mode
     )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _pool_schedule)
             s = s_func(B, layout)
 
-        a = tvm.nd.array(input_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array(input_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -428,20 +428,20 @@ def verify_pool1d(
         input_np, kernel, stride, padding, output_shape, pool_type, count_include_pad, ceil_mode
     )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _pool_schedule)
             s = s_func(B, layout)
 
-        a = tvm.nd.array(input_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array(input_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

@@ -53,12 +53,12 @@ def check_result(
         expected = [expected]
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
-        for tgt, ctx in targets:
+        for tgt, dev in targets:
             if disable_targets and tgt in disable_targets:
                 continue
-            if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
+            if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
-            ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
+            ex = relay.create_executor(kind, mod=mod, device=dev, target=tgt)
             result = ex.evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
                 result = [r.asnumpy() for r in result]
@@ -751,7 +751,7 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
     mod["main"] = relay.Function([data], y.astuple())
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data_np)
         for ret, ref_ret in zip(result, ref_out_shape):
             assert ret.asnumpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
@@ -964,9 +964,9 @@ def test_any_get_valid_counts():
     # Check failed: err_code == CL_SUCCESS == false: OpenCL Error,
     # code=-61: CL_INVALID_BUFFER_SIZE
     targets = []
-    for tgt, ctx in tvm.testing.enabled_targets():
+    for tgt, dev in tvm.testing.enabled_targets():
         if "opencl" not in tgt:
-            targets.append((tgt, ctx))
+            targets.append((tgt, dev))
     verify_any_get_valid_counts(0, "float32", targets=targets)
 
 

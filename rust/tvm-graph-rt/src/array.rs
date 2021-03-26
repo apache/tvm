@@ -20,7 +20,7 @@
 use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
 use ndarray;
-use tvm_sys::{ffi::DLTensor, Context, DataType};
+use tvm_sys::{ffi::DLTensor, DataType, Device};
 
 use crate::allocator::Allocation;
 use crate::errors::ArrayError;
@@ -151,7 +151,7 @@ impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
 pub struct Tensor<'a> {
     /// The bytes which contain the data this `Tensor` represents.
     pub(crate) data: Storage<'a>,
-    pub(crate) ctx: Context,
+    pub(crate) device: Device,
     pub(crate) dtype: DataType,
     pub(crate) shape: Vec<i64>,
     // ^ not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
@@ -243,7 +243,7 @@ impl<'a> Tensor<'a> {
     pub fn to_owned(&self) -> Tensor<'static> {
         let t = Tensor {
             data: self.data.to_owned(),
-            ctx: self.ctx,
+            device: self.device,
             dtype: self.dtype,
             size: self.size,
             shape: self.shape.clone(),
@@ -262,7 +262,7 @@ impl<'a> Tensor<'a> {
 
         Tensor {
             data: storage,
-            ctx: Context::default(),
+            device: Device::default(),
             dtype: dtype_fn(8 * type_width, 1),
             size: arr.len(),
             shape: arr.shape().iter().map(|&v| v as i64).collect(),
@@ -275,7 +275,7 @@ impl<'a> Tensor<'a> {
         assert!(!flatten || self.is_contiguous());
         DLTensor {
             data: unsafe { self.data.as_mut_ptr().offset(self.byte_offset) } as *mut c_void,
-            ctx: self.ctx.into(),
+            device: self.device.into(),
             ndim: if flatten { 1 } else { self.shape.len() } as i32,
             dtype: self.dtype.into(),
             shape: if flatten {
@@ -356,7 +356,7 @@ impl<'a> From<DLTensor> for Tensor<'a> {
             ));
             Self {
                 data: storage,
-                ctx: Context::default(),
+                device: Device::default(),
                 dtype,
                 size,
                 shape,

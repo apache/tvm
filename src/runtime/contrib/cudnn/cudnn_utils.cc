@@ -133,12 +133,12 @@ void ConvEntry::UpdateWorkspace(const size_t wsize) {
       CleanWorkspace();
     }
     workspace_size = wsize;
-    workspace = cuda_api->AllocWorkspace(ctx, workspace_size);
+    workspace = cuda_api->AllocWorkspace(device, workspace_size);
   }
 }
 
 void ConvEntry::CleanWorkspace() {
-  if (workspace) cuda_api->FreeWorkspace(ctx, workspace);
+  if (workspace) cuda_api->FreeWorkspace(device, workspace);
   workspace_size = 0;
 }
 

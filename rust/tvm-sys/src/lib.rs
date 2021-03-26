@@ -45,16 +45,16 @@ pub mod ffi {
 
 pub mod array;
 pub mod byte_array;
-pub mod context;
 pub mod datatype;
+pub mod device;
 pub mod errors;
 #[macro_use]
 pub mod packed_func;
 pub mod value;
 
 pub use byte_array::ByteArray;
-pub use context::{Context, DeviceType};
 pub use datatype::DataType;
+pub use device::{Device, DeviceType};
 pub use errors::*;
 pub use packed_func::{ArgValue, RetValue};
 

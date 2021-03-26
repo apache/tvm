@@ -54,17 +54,17 @@ def evaluate_network(network, target, target_host, repeat):
 
     # upload library and params
     print_progress("%-20s uploading..." % network)
-    ctx = remote.context(str(target), 0)
+    dev = remote.device(str(target), 0)
     remote.upload(tmp.relpath(filename))
 
     rlib = remote.load_module(filename)
-    module = runtime.GraphModule(rlib["default"](ctx))
+    module = runtime.GraphModule(rlib["default"](dev))
     data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
     module.set_input("data", data_tvm)
 
     # evaluate
     print_progress("%-20s evaluating..." % network)
-    ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=repeat)
+    ftimer = module.module.time_evaluator("run", dev, number=1, repeat=repeat)
     prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
     print(
         "%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))

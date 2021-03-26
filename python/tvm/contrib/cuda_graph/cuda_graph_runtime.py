@@ -21,7 +21,7 @@ from tvm._ffi.base import string_types
 from tvm.contrib import graph_runtime
 
 
-def create(graph_json_str, libmod, ctx):
+def create(graph_json_str, libmod, device):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -34,8 +34,8 @@ def create(graph_json_str, libmod, ctx):
     libmod : tvm.runtime.Module
         The module of the corresponding function
 
-    ctx : TVMContext
-        The context to deploy the module, only supports CUDA GPU
+    device : Device
+        The device to deploy the module, only supports CUDA GPU
 
     Returns
     -------
@@ -50,9 +50,9 @@ def create(graph_json_str, libmod, ctx):
     """
     assert isinstance(graph_json_str, string_types)
     try:
-        ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
-        if num_rpc_ctx == len(ctx):
-            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_cuda_graph.create")
+        dev, num_rpc_dev, device_type_id = graph_runtime.get_device(libmod, device)
+        if num_rpc_dev == len(dev):
+            fcreate = dev[0]._rpc_sess.get_function("tvm.graph_runtime_cuda_graph.create")
         else:
             fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_cuda_graph.create")
     except ValueError:

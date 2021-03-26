@@ -27,12 +27,12 @@ import java.util.List;
  */
 public class NDArray extends NDArrayBase {
   private final TVMType dtype;
-  private final TVMContext context;
+  private final Device device;
 
-  NDArray(long handle, boolean isView, TVMType dtype, TVMContext ctx) {
+  NDArray(long handle, boolean isView, TVMType dtype, Device dev) {
     super(handle, isView);
     this.dtype = dtype;
-    this.context = ctx;
+    this.device = dev;
   }
 
   @Override protected void finalize() throws Throwable {
@@ -364,26 +364,26 @@ public class NDArray extends NDArrayBase {
   }
 
   /**
-   * Get the context of current array.
-   * @return the context.
+   * Get the device of current array.
+   * @return the device.
    */
-  public TVMContext ctx() {
-    return context;
+  public Device device() {
+    return device;
   }
 
   /**
    * Create an empty array given shape, type and device.
    * @param shape The shape of the array.
    * @param dtype The data type of the array.
-   * @param ctx The context of the array.
+   * @param dev The device of the array.
    * @return The array tvm supported.
    */
-  public static NDArray empty(long[] shape, TVMType dtype, TVMContext ctx) {
+  public static NDArray empty(long[] shape, TVMType dtype, Device dev) {
     Base.RefLong refHandle = new Base.RefLong();
     Base.checkCall(Base._LIB.tvmArrayAlloc(
         shape, dtype.typeCode, dtype.bits, dtype.lanes,
-        ctx.deviceType, ctx.deviceId, refHandle));
-    return new NDArray(refHandle.value, false, dtype, ctx);
+        dev.deviceType, dev.deviceId, refHandle));
+    return new NDArray(refHandle.value, false, dtype, dev);
   }
 
   /**
@@ -393,7 +393,7 @@ public class NDArray extends NDArrayBase {
    * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape, TVMType dtype) {
-    return empty(shape, dtype, new TVMContext(1, 0));
+    return empty(shape, dtype, new Device(1, 0));
   }
 
   /**
@@ -402,17 +402,17 @@ public class NDArray extends NDArrayBase {
    * @return The array tvm supported.
    */
   public static NDArray empty(long[] shape) {
-    return empty(shape, new TVMType("float32", 1), new TVMContext(1, 0));
+    return empty(shape, new TVMType("float32", 1), new Device(1, 0));
   }
 
   /**
    * Create an empty float32 array given shape and device.
    * @param shape The shape of the array.
-   * @param ctx The context of the array.
+   * @param dev The device of the array.
    * @return The array tvm supported.
    */
-  public static NDArray empty(long[] shape, TVMContext ctx) {
-    return empty(shape, new TVMType("float32", 1), ctx);
+  public static NDArray empty(long[] shape, Device dev) {
+    return empty(shape, new TVMType("float32", 1), dev);
   }
 
   private static ByteBuffer wrapBytes(byte[] bytes) {

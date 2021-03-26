@@ -18,8 +18,8 @@
  */
 
 /*!
- * \brief gotvm package source for TVMContext interface
- * \file context.go
+ * \brief gotvm package source for Device interface
+ * \file device.go
  */
 
 package gotvm
@@ -50,58 +50,58 @@ var KOpenGL                 = int32(C.kOpenGL)
 // KExtDev is golang enum correspond to TVM device type kDLExtDev.
 var KExtDev                 = int32(C.kDLExtDev)
 
-// Context dtype corresponding to TVMContext aka DLContext
-type Context struct {
+// Device dtype corresponding to Device aka DLDevice
+type Device struct {
     DeviceType int32
     DeviceID    int32
 }
 
-// CPU returns the Context object for CPU target on given index
-func CPU(index int32) Context {
-    return Context{KDLCPU, index}
+// CPU returns the Device object for CPU target on given index
+func CPU(index int32) Device {
+    return Device{KDLCPU, index}
 }
 
-// GPU returns the Context object for GPU target on given index
-func GPU(index int32) Context {
-    return Context{KDLGPU, index}
+// GPU returns the Device object for GPU target on given index
+func GPU(index int32) Device {
+    return Device{KDLGPU, index}
 }
 
-// CPUPinned returns the Context object for CPUPinned target on given index
-func CPUPinned(index int32) Context {
-    return Context{KDLCPUPinned, index}
+// CPUPinned returns the Device object for CPUPinned target on given index
+func CPUPinned(index int32) Device {
+    return Device{KDLCPUPinned, index}
 }
 
-// OpenCL returns the Context object for OpenCL target on given index
-func OpenCL(index int32) Context {
-    return Context{KDLOpenCL, index}
+// OpenCL returns the Device object for OpenCL target on given index
+func OpenCL(index int32) Device {
+    return Device{KDLOpenCL, index}
 }
 
-// Metal returns the Context object for Metal target on given index
-func Metal(index int32) Context {
-    return Context{KDLMetal, index}
+// Metal returns the Device object for Metal target on given index
+func Metal(index int32) Device {
+    return Device{KDLMetal, index}
 }
 
-// VPI returns the Context object for VPI target on given index
-func VPI(index int32) Context {
-    return Context{KDLVPI, index}
+// VPI returns the Device object for VPI target on given index
+func VPI(index int32) Device {
+    return Device{KDLVPI, index}
 }
 
-// ROCM returns the Context object for ROCM target on given index
-func ROCM(index int32) Context {
-    return Context{KDLROCM, index}
+// ROCM returns the Device object for ROCM target on given index
+func ROCM(index int32) Device {
+    return Device{KDLROCM, index}
 }
 
-// SDAccel returns the Context object for SDAccel target on given index
-func SDAccel(index int32) Context {
-    return Context{KDLSDAccel, index}
+// SDAccel returns the Device object for SDAccel target on given index
+func SDAccel(index int32) Device {
+    return Device{KDLSDAccel, index}
 }
 
-// Vulkan returns the Context object for Vulkan target on given index
-func Vulkan(index int32) Context {
-    return Context{KDLVulkan, index}
+// Vulkan returns the Device object for Vulkan target on given index
+func Vulkan(index int32) Device {
+    return Device{KDLVulkan, index}
 }
 
-// OpenGL returns the Context object for OpenGL target on given index
-func OpenGL(index int32) Context {
-    return Context{KOpenGL, index}
+// OpenGL returns the Device object for OpenGL target on given index
+func OpenGL(index int32) Device {
+    return Device{KOpenGL, index}
 }

@@ -26,9 +26,9 @@ def test_basic():
     if not profiler_vm.enabled():
         return
 
-    for target, ctx in enabled_targets():
+    for target, dev in enabled_targets():
         exe = relay.vm.compile(mod, target, params=params)
-        vm = profiler_vm.VirtualMachineProfiler(exe, ctx)
+        vm = profiler_vm.VirtualMachineProfiler(exe, dev)
 
         data = np.random.rand(1, 3, 224, 224).astype("float32")
         res = vm.invoke("main", [data])

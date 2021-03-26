@@ -40,7 +40,7 @@ def set_func_attr(func, compile_name, symbol_name):
 
 
 def check_result(
-    mod, ref_mod, map_inputs, out_shape, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
+    mod, ref_mod, map_inputs, out_shape, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
 ):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
@@ -50,13 +50,13 @@ def check_result(
     compile_engine.get().clear()
     with tvm.transform.PassContext(opt_level=3):
         json, lib, param = relay.build(ref_mod, target=target, params=params)
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, device)
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
     rt_mod.set_input(**param)
     rt_mod.run()
-    out = tvm.nd.empty(out_shape, ctx=ctx)
+    out = tvm.nd.empty(out_shape, device=device)
     out = rt_mod.get_output(0, out)
     ref_result = out.asnumpy()
 
@@ -66,7 +66,7 @@ def check_result(
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, ctx)
+        vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
 
@@ -74,13 +74,13 @@ def check_result(
         compile_engine.get().clear()
         with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        rt_mod = tvm.contrib.graph_runtime.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
         rt_mod.set_input(**param)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
         tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
 
@@ -636,8 +636,8 @@ def test_partial_constant():
     data3 = np.random.uniform(0, 1, ishape).astype(dtype)
 
     params = {
-        "in_1": tvm.nd.array(data1, ctx=tvm.cpu(0)),
-        "in_3": tvm.nd.array(data3, ctx=tvm.cpu(0)),
+        "in_1": tvm.nd.array(data1, device=tvm.cpu(0)),
+        "in_3": tvm.nd.array(data3, device=tvm.cpu(0)),
     }
     ref_mod["main"] = bind_params_by_name(ref_mod["main"], params)
 

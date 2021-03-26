@@ -102,7 +102,7 @@ mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # Compile the graph to llvm target with given input specification.
 target = "llvm"
 target_host = "llvm"
-ctx = tvm.cpu(0)
+dev = tvm.cpu(0)
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
@@ -113,7 +113,7 @@ with tvm.transform.PassContext(opt_level=3):
 from tvm.contrib import graph_runtime
 
 dtype = "float32"
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_runtime.GraphModule(lib["default"](dev))
 # Set inputs
 m.set_input(input_name, tvm.nd.array(img.astype(dtype)))
 # Execute

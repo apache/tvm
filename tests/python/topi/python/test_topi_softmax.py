@@ -34,15 +34,15 @@ _softmax_schedule = {
 }
 
 
-def check_device(A, B, a_np, b_np, device, ctx, name):
-    print("Running on target: %s" % device)
-    with tvm.target.Target(device):
-        s_func = tvm.topi.testing.dispatch(device, _softmax_schedule)
+def check_target(A, B, a_np, b_np, target, dev, name):
+    print("Running on target: %s" % target)
+    with tvm.target.Target(target):
+        s_func = tvm.topi.testing.dispatch(target, _softmax_schedule)
         s = s_func(B)
 
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-    f = tvm.build(s, [A, B], device, name=name)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    f = tvm.build(s, [A, B], target, name=name)
     f(a, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
@@ -57,8 +57,8 @@ def verify_softmax(m, n, dtype="float32"):
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = tvm.topi.testing.softmax_python(a_np)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(A, B, a_np, b_np, device, ctx, "softmax")
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(A, B, a_np, b_np, target, dev, "softmax")
 
 
 def verify_softmax_4d(shape, dtype="float32"):
@@ -70,8 +70,8 @@ def verify_softmax_4d(shape, dtype="float32"):
     b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))
     b_np = b_np.reshape(1, h, w, c).transpose(0, 3, 1, 2)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(A, B, a_np, b_np, device, ctx, "softmax")
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(A, B, a_np, b_np, target, dev, "softmax")
 
 
 @tvm.testing.uses_gpu
@@ -91,8 +91,8 @@ def verify_log_softmax(m, n, dtype="float32"):
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = tvm.topi.testing.log_softmax_python(a_np)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(A, B, a_np, b_np, device, ctx, "log_softmax")
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(A, B, a_np, b_np, target, dev, "log_softmax")
 
 
 @tvm.testing.uses_gpu
