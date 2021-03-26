@@ -52,7 +52,7 @@ def get_sample_compiled_module(target_dir):
     )
 
     mod, params = tvmc.frontends.load_model(model_file)
-    return tvmc.compiler.compile_model(model_file, target="llvm")
+    return tvmc.compiler.compile_model(mod, params, target="llvm")
 
 
 # PyTest fixtures
