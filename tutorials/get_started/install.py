@@ -24,7 +24,7 @@ Installing TVM
 Depending on your needs and your working environment, there are a few different
 methods for installing TVM. These include:
     * Installing from source 
-    * Installing convenient binary package from thirdparty
+    * Installing from third-party binary package.
 """
 
 ################################################################################
@@ -38,12 +38,12 @@ methods for installing TVM. These include:
 # </install/from_source.html>`_ page.
 
 ################################################################################
-# Install Binary Package
-# ----------------------
-# You may install convenient thirparty binary package distributions 
-# to quickly try things out. TLCPack is a thirdparty volunteer community that
-# builds binary packages from TVM source. It offers support matrix with instructions 
-# to install on different platforms, with different features. 
-# Checkout  `TLCPack <https://tlcpack.ai>`_ to learn more.
-# Note that the thirdparty binary packages could contain 
-# additional terms that comes with the hardware drivers it bundles.
+# Installing From Binary Packages
+# --------------------------------
+# You may install convenient third-party binary package distributions to
+# quickly try things out. TLCPack is a thirdparty volunteer community that
+# builds binary packages from TVM source. It offers support matrix with
+# instructions to install on different platforms, with different features.
+# Checkout  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
+# thirdparty binary packages could contain additional terms licensing terms for
+# the hardware drivers that are bundled with it.
