@@ -24,10 +24,15 @@
  *        We do not need to link this file in standalone wasm.
  */
 
-// configurations for the dmlc log.
+// configurations for tvm logging
+#define DMLC_LOG_CUSTOMIZE 0
+#define DMLC_LOG_STACK_TRACE 0
+#define DMLC_LOG_DEBUG 0
+#define DMLC_LOG_NODATE 1
+#define DMLC_LOG_FATAL_THROW 0
 #define TVM_LOG_DEBUG 0
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_BACKTRACE_DISABLED 1
+#define TVM_USE_LIBBACKTRACE 0
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container.h>
