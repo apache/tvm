@@ -300,6 +300,26 @@ class VirtualMachine(object):
     POOLED_ALLOCATOR = 2
 
     def __init__(self, exe, device, memory_cfg=None):
+        """
+        Construct a VirtualMachine wrapper class which provides a simple
+        interface over the raw C++ Module based API.
+
+        Parameters
+        ----------
+        exe: Union[Executable, Module]
+            The executable either with the wrapper Python type or the raw runtime.Module.
+
+        device: Union[Device, List[Device]]
+            The device, or devices on which to execute the VM code.
+
+        memory_cfg: Optional[str]
+            The allocator behavior to use for the VM.
+
+        Returns
+        -------
+        vm: VirtualMachine
+            A VM wrapper object.
+        """
         if not isinstance(exe, Executable) and not isinstance(exe, Module):
             raise TypeError(
                 "exe is expected to be the type of Executable, "

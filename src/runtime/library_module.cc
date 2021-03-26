@@ -106,16 +106,16 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
   if (f == nullptr) {
     std::string loaders = "";
     for (auto name : Registry::ListNames()) {
-      if (name.rfind(loadkey, 0) == 0) {
+      if (name.find(loadkey, 0) == 0) {
         if (loaders.size() > 0) {
           loaders += ", ";
         }
         loaders += name.substr(loadkey.size());
       }
     }
-    ICHECK(f != nullptr) << "Binary was created using " << type_key
-                         << " but a loader of that name is not registered. Available loaders are "
-                         << loaders << ". Perhaps you need to recompile with this runtime enabled.";
+    LOG(FATAL) << "Binary was created using " << type_key
+               << " but a loader of that name is not registered. Available loaders are "
+               << loaders << ". Perhaps you need to recompile with this runtime enabled.";
   }
 
   return (*f)(static_cast<void*>(stream));

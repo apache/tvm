@@ -272,7 +272,7 @@ class Module(object):
         """
         Export the module and all imported modules into a single device library.
 
-        This function only works on hos LLVM modules, other runtime::Module
+        This function only works on host LLVM modules, other runtime::Module
         subclasses will work with this API but they must support implement
         the save and load mechanisms of modules completely including saving
         from streams and files. This will pack your non-shared library module
@@ -285,8 +285,12 @@ class Module(object):
 
         fcompile : function(target, file_list, kwargs), optional
             The compilation function to use create the final library object during
-            export. For example this is used to link together all produced artifacts
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
             into a final dynamic library.
+
             This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".

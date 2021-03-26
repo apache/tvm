@@ -64,11 +64,16 @@ class Executable : public ModuleNode {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
-   * \brief Save the entire executable to a binary stream.
-   * \param stream The binary stream to save to.
+   * \brief Write the Executable to the binary stream in serialized form.
+   * \param stream The binary stream to save the executable to.
    */
   void SaveToBinary(dmlc::Stream* stream) final;
 
+  /*!
+   * \brief Write the Executable to the provided path as a file contianing its serialized content.
+   * \param path The path to write the serialized data to.
+   * \param format The format of the serialized blob.
+   */
   void SaveToFile(const std::string& path, const std::string& format) final;
 
   /*!
@@ -135,18 +140,35 @@ class Executable : public ModuleNode {
    *
    * \return The runtime module that contains the hardware dependent code.
    */
-  runtime::Module GetLib() const { return this->imports_[0]; }
+  runtime::Module GetLib() const {
+    ICHECK_EQ(this->imports_.size(), 1)
+      << "The kernel library must be imported as the only module in an Executable";
 
+    return this->imports_[0];
+  }
+
+  /*!
+   * \brief Set the `lib` module in an executable.
+   *
+   * This allows us to do partial initialization in the case of (de|ser)ialization cases.
+   * This method also ensures correct initialization of library ensuring we only Import a
+   * single library.
+   *
+   * NB: This also provides some abstraction over how libraries are stored as there are plans
+   * to iterate on the way runtime::Module works in the backend of the compiler.
+   */
   void SetLib(const runtime::Module& lib) {
-    ICHECK(lib.defined()) << "library can not be null";
+    ICHECK(lib.defined())
+      << "the provided library can not be null";
 
-    ICHECK_EQ(this->imports().size(), 0) << "can only import the library once";
+    ICHECK_EQ(this->imports().size(), 0)
+      << "you can only import one device specific library";
 
     this->Import(lib);
   }
 
   /*!
-   * \brief Get the arity of the VM Fucntion.
+   * \brief Get the arity of the VMFunction.
    * \param func Function name.
    * \return The number of parameters.
    */

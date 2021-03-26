@@ -484,7 +484,6 @@ void LoadHeader(dmlc::Stream* strm) {
 }
 
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
-  std::cout << "code: " << code.size() << std::endl;
   auto exec = make_object<Executable>();
 
   // Support null-initialization of lib, to enable initialization during
