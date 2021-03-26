@@ -45,5 +45,5 @@ methods for installing TVM. These include:
 # builds binary packages from TVM source. It offers support matrix with
 # instructions to install on different platforms, with different features.
 # Checkout  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
-# thirdparty binary packages could contain additional terms licensing terms for
+# thirdparty binary packages could contain additional licensing terms for
 # the hardware drivers that are bundled with it.
