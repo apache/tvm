@@ -23,6 +23,7 @@ Implements a Python interface to executing the compiled VM object.
 import numpy as np
 
 import tvm
+from tvm.runtime import Module
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
@@ -299,12 +300,16 @@ class VirtualMachine(object):
     POOLED_ALLOCATOR = 2
 
     def __init__(self, exe, device, memory_cfg=None):
-        if not isinstance(exe, Executable):
+        if not isinstance(exe, Executable) and not isinstance(exe, Module):
             raise TypeError(
                 "exe is expected to be the type of Executable, "
                 + "but received {}".format(type(exe))
             )
-        self.module = _ffi_api._VirtualMachine(exe.module)
+
+        if not isinstance(exe, Executable):
+            exe = Executable(exe)
+
+        self.module = exe.mod["create_vm"]()
         self._exec = exe
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]

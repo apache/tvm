@@ -19,11 +19,14 @@ import pytest
 
 import tvm
 from tvm import runtime
-from tvm import relay
+from tvm import relay, IRModule
+from tvm.relay.backend import vm
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.relay.loops import while_loop
 from tvm.relay import testing
+from tvm.contrib import utils
+from tvm import rpc
 import tvm.testing
 
 
@@ -798,6 +801,29 @@ def test_constant_shape_with_external_codegen():
     opt_mod, _ = comp.optimize(mod, target="llvm")
     assert "shape_func" in opt_mod.astext(False)
 
+def test_vm_rpc():
+    target = "llvm"
+    target_host = "llvm"
+
+    x = relay.var("x", shape=(10, 1))
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+    vm_exec = vm.compile(mod, target=target, target_host=target_host)
+
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    vm_exec.mod.export_library(path)
+
+    remote = rpc.LocalSession()
+    remote.upload(path)
+    rexec = remote.load_module("vm_library.so")
+
+    ctx = remote.cpu()
+    vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+    np_input = np.random.uniform(size=(10, 1)).astype("float32")
+    input_tensor = tvm.nd.array(np_input, ctx)
+    out = vm_factory.invoke("main", [input_tensor])
+    np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
 
 if __name__ == "__main__":
     pytest.main([__file__])
