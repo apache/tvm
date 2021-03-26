@@ -140,7 +140,8 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
-# numpy. We begin by creating a device, which is a device (CPU in this
+# numpy. The compiled TVM function is exposes a concise C API that can be invoked
+# from any language. We begin by creating a device, which is a device (CPU in this
 # example) that TVM can compile the schedule to. In this case the device is an
 # LLVM CPU target. We can then initialize the tensors in our device and
 # perform the custom addition operation. To verify that the computation is
@@ -340,13 +341,15 @@ if run_cuda:
     # The compiled TVM function is exposes a concise C API that can be invoked from
     # any language.
     #
-    # We provide a minimal array API in python to aid quick testing and
-    # prototyping. The array API is based on the DLPack standard.
+    # We provide a minimal array API in python to aid quick testing and prototyping.
+    # The array API is based on the `DLPack <https://github.com/dmlc/dlpack>`_ standard.
     #
-    # We first create a GPU device. Then tvm.nd.array copies the data to the GPU,
-    # fadd runs the actual computation, and asnumpy() copies the GPU array back to the
-    # CPU (so we can verify correctness). Note that copying the data to and from the
-    # memory on the GPU is a required step.
+    # - We first create a GPU device. 
+    # - Then tvm.nd.array copies the data to the GPU.
+    # - ``fadd`` runs the actual computation
+    # - ``asnumpy()`` copies the GPU array back to the CPU (so we can verify correctness).
+    # 
+    # Note that copying the data to and from the memory on the GPU is a required step.
 
     dev = tvm.device(tgt_gpu, 0)
 
