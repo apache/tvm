@@ -18,6 +18,7 @@
 """Defines a compiler integration that uses an externally-supplied Zephyr project."""
 
 import collections
+import copy
 import logging
 import multiprocessing
 import os
@@ -428,12 +429,29 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             f"runner {flash_runner}"
         )
 
+    def _zephyr_transport(self, micro_binary):
+        qemu_debugger = None
+        if self._debug_rpc_session:
+            qemu_debugger = debugger.RpcDebugger(
+                self._debug_rpc_session,
+                debugger.DebuggerFactory(
+                    QemuGdbDebugger,
+                    (
+                        micro_binary.abspath(micro_binary.debug_files[0]),
+                    ),
+                    {},
+                ),
+            )
+
+        return ZephyrQemuTransport(micro_binary.base_dir, startup_timeout_sec=30.0, debugger=qemu_debugger)
+
+
     def flash(self, micro_binary):
         cmake_entries = read_cmake_cache(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
         )
         if "qemu" in cmake_entries["BOARD"]:
-            return ZephyrQemuTransport(micro_binary.base_dir, startup_timeout_sec=30.0)
+            return self._zephyr_transport(micro_binary)
 
         build_dir = os.path.dirname(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
@@ -531,6 +549,19 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             serial_transport,
         )
 
+
+class QemuGdbDebugger(debugger.GdbDebugger):
+
+    def __init__(self, elf_file):
+        super(QemuGdbDebugger, self).__init__()
+        self._elf_file = elf_file
+
+    def popen_kwargs(self):
+        return {
+            "args": ["gdb", "-ex", "target remote :1234", "-ex", f"file {self._elf_file}"],
+        }
+
+
 class QemuStartupFailureError(Exception):
     """Raised when the qemu pipe is not present within startup_timeout_sec."""
 
@@ -577,12 +608,13 @@ class ZephyrQemuTransport(Transport):
         self.proc = None
         self.fd_transport = None
         self.pipe_dir = None
+        self.debugger = debugger
 
     def timeouts(self):
         return TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
             session_start_timeout_sec=self.startup_timeout_sec,
-            session_established_timeout_sec=5.0,
+            session_established_timeout_sec=5.0 if self.debugger is None else 0,
         )
 
     def open(self):
@@ -604,13 +636,27 @@ class ZephyrQemuTransport(Transport):
         #     os.mknod(log_path)
 
         # with open(log_path, "w") as f_log:
+        if self.debugger is not None:
+            if 'env' in self.kwargs:
+                self.kwargs["env"] = copy.copy(self.kwargs["env"])
+            else:
+                self.kwargs["env"] = copy.copy(os.environ)
+
+            self.kwargs["env"]["TVM_QEMU_DEBUG"] = "1"
+
         self.proc = subprocess.Popen(
-            ["make", "run", f"QEMU_PIPE={self.pipe}"],
+            ["make",
+             "run",
+             f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
             # stdout=f_log,
             # stderr=f_log
         )
+        print('START DEBUG', self.debugger)
+        if self.debugger is not None:
+            self.debugger.start()
+
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
         # FIFO are always considered ready to read when no one has opened them for writing.
@@ -625,6 +671,9 @@ class ZephyrQemuTransport(Transport):
         self.fd_transport.open()
 
     def close(self):
+        if self.debugger is not None:
+            self.debugger.stop()
+
         if self.fd_transport is not None:
             self.fd_transport.child_transport.write_monitor_quit()
             self.proc.wait()
