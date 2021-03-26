@@ -16,18 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/logging.h>
+
+#include <string>
 
 #if TVM_LOG_STACK_TRACE
 #if TVM_USE_LIBBACKTRACE
 
 #include <backtrace.h>
 #include <cxxabi.h>
-#include <tvm/runtime/logging.h>
 
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <string>
 #include <vector>
 
 namespace tvm {
@@ -142,8 +143,6 @@ std::string Backtrace() {
 
 #include <dmlc/logging.h>
 
-#include <string>
-
 namespace tvm {
 namespace runtime {
 // Fallback to the dmlc implementation when backtrace is not available.
@@ -153,8 +152,6 @@ std::string Backtrace() { return dmlc::StackTrace(); }
 
 #endif  // TVM_USE_LIBBACKTRACE
 #else
-
-#include <string>
 
 namespace tvm {
 namespace runtime {

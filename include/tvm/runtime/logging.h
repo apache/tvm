@@ -69,7 +69,7 @@
 /*!
  * \brief Whether or not customize the logging output.
  *  If log customize is enabled, the user must implement
- *  runtime::detail::LogFatalImpl and runtime::detail::LogMessageImpl
+ *  tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl.
  */
 #ifndef TVM_LOG_CUSTOMIZE
 #define TVM_LOG_CUSTOMIZE 0
