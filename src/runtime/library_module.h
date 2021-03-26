@@ -29,6 +29,7 @@
 #include <tvm/runtime/module.h>
 
 #include <functional>
+#include <string>
 
 namespace tvm {
 namespace runtime {
