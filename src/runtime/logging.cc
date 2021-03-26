@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#if TVM_LOG_STACK_TRACE
 #if TVM_USE_LIBBACKTRACE
 
 #include <backtrace.h>
@@ -150,4 +151,15 @@ std::string Backtrace() { return dmlc::StackTrace(); }
 }  // namespace runtime
 }  // namespace tvm
 
-#endif
+#endif  // TVM_USE_LIBBACKTRACE
+#else
+
+#include <string>
+
+namespace tvm {
+namespace runtime {
+// stacktrace logging is completely disabled
+std::string Backtrace() { return ""; }
+}  // namespace runtime
+}  // namespace tvm
+#endif  // TVM_LOG_STACK_TRACE
