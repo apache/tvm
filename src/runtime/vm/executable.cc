@@ -76,7 +76,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       int index = args[1];
       *rv = this->GetFunctionParameterName(func_name, index);
     });
-  } else if (name == "create_vm") {
+  } else if (name == "vm_load_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto vm = make_object<VirtualMachine>();
       vm->LoadExecutable(this);
@@ -486,14 +486,19 @@ void LoadHeader(dmlc::Stream* strm) {
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
   std::cout << "code: " << code.size() << std::endl;
   auto exec = make_object<Executable>();
-  exec->lib = lib;
-  exec->code_ = code;
-  dmlc::MemoryStringStream strm(&exec->code_);
 
+  // Support null-initialization of lib, to enable initialization during
+  // deserialization before we have we have deserialized the imports.
   if (lib.defined()) {
-    std::cout << "Importing: " << std::endl;
+    ICHECK_EQ(exec->imports_.size(), 0)
+      << "A VMExecutable should never have more than one import inside an the executable, \n"
+      << "the first import should *always* be the library containing"
+      << "the platform specific kernel code";
     exec->Import(lib);
   }
+
+  exec->code_ = code;
+  dmlc::MemoryStringStream strm(&exec->code_);
 
   // Load header.
   LoadHeader(&strm);
@@ -784,23 +789,8 @@ void Executable::SaveToBinary(dmlc::Stream* stream) {
   std::string code(code_bytes.data, code_bytes.size);
   stream->Write(code);
 
-  CHECK(this->lib.defined())
-    << "the library must be defined before serialization";
-
-  // this->lib->SaveToBinary(stream);
-  // std::vector<std::string> names;
-  // std::vector<DLTensor*> arrays;
-  // for (const auto& v : params_) {
-  //   names.emplace_back(v.first);
-  //   arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
-  // }
-  // uint64_t sz = arrays.size();
-  // ICHECK(sz == names.size());
-  // stream->Write(sz);
-  // stream->Write(names);
-  // for (size_t i = 0; i < sz; ++i) {
-  //   tvm::runtime::SaveDLTensor(stream, arrays[i]);
-  // }
+  ICHECK(this->imports()[0].defined())
+    << "the library must be imported before serialization";
 }
 
 Module ExecutableLoadBinary(void* strm) {
@@ -808,23 +798,6 @@ Module ExecutableLoadBinary(void* strm) {
   std::string code;
   stream->Read(&code);
   auto exec = Executable::Load(code, Module());
-  auto exec_node = exec.as<Executable>();
-  std::cout << exec_node->primitive_map.size() << std::endl;
-
-  // // std::unordered_map<std::string, tvm::runtime::NDArray> params;
-  // std::string module_name;
-  // ICHECK(stream->Read(&graph_json));
-  // uint64_t sz;
-  // ICHECK(stream->Read(&sz));
-  // std::vector<std::string> names;
-  // ICHECK(stream->Read(&names));
-  // ICHECK(sz == names.size());
-  // for (size_t i = 0; i < sz; ++i) {
-  //   tvm::runtime::NDArray temp;
-  //   temp.Load(stream);
-  //   params[names[i]] = temp;
-  // }
-
   return exec;
 }
 

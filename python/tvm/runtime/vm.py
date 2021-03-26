@@ -309,7 +309,7 @@ class VirtualMachine(object):
         if not isinstance(exe, Executable):
             exe = Executable(exe)
 
-        self.module = exe.mod["create_vm"]()
+        self.module = exe.mod["vm_load_executable"]()
         self._exec = exe
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]

@@ -135,7 +135,17 @@ class Executable : public ModuleNode {
    *
    * \return The runtime module that contains the hardware dependent code.
    */
-  runtime::Module GetLib() const { return lib; }
+  runtime::Module GetLib() const { return this->imports_[0]; }
+
+  void SetLib(const runtime::Module& lib) {
+    ICHECK(lib.defined())
+      << "library can not be null";
+
+    ICHECK_EQ(this->imports().size(), 0)
+      << "can only import the library once";
+
+    this->Import(lib);
+  }
 
   /*!
    * \brief Get the arity of the VM Fucntion.
@@ -156,9 +166,6 @@ class Executable : public ModuleNode {
 
   const char* type_key() const final { return "VMExecutable"; }
 
-  /*! \brief The runtime module/library that contains both the host and also the device
-   * code when executing on non-CPU devices. */
-  runtime::Module lib;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
   /*! \brief A map from globals (as strings) to their index in the function map. */
