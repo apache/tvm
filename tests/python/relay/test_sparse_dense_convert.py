@@ -54,9 +54,9 @@ def run_func(func, params, x):
 
     from tvm.contrib import graph_runtime
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     dtype = "float32"
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.create(graph, lib, dev)
     # set inputs
     m.set_input("data", tvm.nd.array(x.astype(dtype)))
     m.set_input(**new_params)

@@ -113,9 +113,8 @@ void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
 void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
                                        Index output_size, const std::vector<ObjectRef>& args) {
   ICHECK(exec_);
-  ICHECK(!ctxs_.empty()) << "Context has not been initialized yet.";
-  // The device context of any input of the operator is used for
-  // synchronization.
+  ICHECK(!devices_.empty()) << "Device has not been initialized yet.";
+  // The device of any input of the operator is used for synchronization.
   ICHECK_GT(arg_count, 0U);
   ObjectRef arg = args[0];
   while (arg->IsInstance<ADTObj>()) {
@@ -124,9 +123,9 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   }
   ICHECK(arg->IsInstance<NDArray::ContainerType>());
   auto nd_array = Downcast<NDArray>(arg);
-  auto ctx = nd_array->ctx;
+  auto dev = nd_array->device;
 
-  Timer t = Timer::Start(ctx);
+  Timer t = Timer::Start(dev);
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
   t->Stop();
 

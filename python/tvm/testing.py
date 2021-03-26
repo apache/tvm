@@ -375,7 +375,7 @@ def _get_targets():
         if len(dev) == 0:
             continue
         target_kind = dev.split()[0]
-        if tvm.runtime.enabled(target_kind) and tvm.context(target_kind, 0).exist:
+        if tvm.runtime.enabled(target_kind) and tvm.device(target_kind, 0).exist:
             targets.add(dev)
     if len(targets) == 0:
         logging.warning(
@@ -450,7 +450,7 @@ def enabled_targets():
     targets: list
         A list of pairs of all enabled devices and the associated context
     """
-    return [(tgt, tvm.context(tgt)) for tgt in _get_targets()]
+    return [(tgt, tvm.device(tgt)) for tgt in _get_targets()]
 
 
 def _compose(args, decs):
@@ -703,7 +703,7 @@ def parametrize_targets(*args):
     Parameters
     ----------
     f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, ctx)`:,
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, device)`:,
         where `xxxxxxxxx` is any name.
     targets : list[str], optional
         Set of targets to run against. If not supplied,
@@ -712,23 +712,23 @@ def parametrize_targets(*args):
     Example
     -------
     >>> @tvm.testing.parametrize
-    >>> def test_mytest(target, ctx):
+    >>> def test_mytest(target, dev):
     >>>     ...  # do something
 
     Or
 
     >>> @tvm.testing.parametrize("llvm", "cuda")
-    >>> def test_mytest(target, ctx):
+    >>> def test_mytest(target, dev):
     >>>     ...  # do something
     """
 
     def wrap(targets):
         def func(f):
             params = [
-                pytest.param(target, tvm.context(target, 0), marks=_target_to_requirement(target))
+                pytest.param(target, tvm.device(target, 0), marks=_target_to_requirement(target))
                 for target in targets
             ]
-            return pytest.mark.parametrize("target,ctx", params)(f)
+            return pytest.mark.parametrize("target,dev", params)(f)
 
         return func
 

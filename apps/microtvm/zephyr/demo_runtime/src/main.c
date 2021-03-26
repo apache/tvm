@@ -124,7 +124,15 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
     random = sys_rand32_get();
     memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
   }
+}
 
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
+  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
+}
+
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  k_free(ptr);
   return kTvmErrorNoError;
 }
 

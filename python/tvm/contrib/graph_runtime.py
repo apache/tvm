@@ -21,10 +21,10 @@ import tvm._ffi
 from tvm.rpc import _ffi_api as _rpc_ffi_api
 from tvm.rpc import base as rpc_base
 from tvm._ffi.base import string_types
-from tvm._ffi.runtime_ctypes import TVMContext
+from tvm._ffi.runtime_ctypes import Device
 
 
-def create(graph_json_str, libmod, ctx):
+def create(graph_json_str, libmod, device):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -37,10 +37,10 @@ def create(graph_json_str, libmod, ctx):
     libmod : tvm.runtime.Module
         The module of the corresponding function
 
-    ctx : TVMContext or list of TVMContext
-        The context to deploy the module. It can be local or remote when there
-        is only one TVMContext. Otherwise, the first context in the list will
-        be used as this purpose. All context should be given for heterogeneous
+    device : Device or list of Device
+        The device to deploy the module. It can be local or remote when there
+        is only one Device. Otherwise, the first device in the list will
+        be used as this purpose. All device should be given for heterogeneous
         execution.
 
     Returns
@@ -56,59 +56,59 @@ def create(graph_json_str, libmod, ctx):
     """
     assert isinstance(graph_json_str, string_types)
 
-    ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
+    dev, num_rpc_dev, device_type_id = get_device(libmod, device)
 
-    if num_rpc_ctx == len(ctx):
-        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.create")
+    if num_rpc_dev == len(dev):
+        fcreate = dev[0]._rpc_sess.get_function("tvm.graph_runtime.create")
     else:
         fcreate = tvm._ffi.get_global_func("tvm.graph_runtime.create")
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 
-def get_device_ctx(libmod, ctx):
-    """Parse and validate all the device context(s).
+def get_device(libmod, device):
+    """Parse and validate all the device(s).
 
     Parameters
     ----------
     libmod : tvm.runtime.Module
         The module of the corresponding function
 
-    ctx : TVMContext or list of TVMContext
+    device : Device or list of Device
 
     Returns
     -------
-    ctx : list of TVMContext
-    num_rpc_ctx : Number of rpc contexts
+    device : list of Device
+    num_rpc_dev : Number of rpc devices
     device_type_id : List of device type and device id
     """
 
-    if isinstance(ctx, TVMContext):
-        ctx = [ctx]
-    elif not isinstance(ctx, (list, tuple)):
-        raise ValueError("ctx has to be the type of TVMContext or a list of " "TVMContext")
-    for cur_ctx in ctx:
-        if not isinstance(cur_ctx, TVMContext):
-            raise ValueError("ctx has to be the type of TVMContext or a list " "of TVMContext")
+    if isinstance(device, Device):
+        device = [device]
+    elif not isinstance(device, (list, tuple)):
+        raise ValueError("dev has to be the type of Device or a list of Device")
+    for cur_dev in device:
+        if not isinstance(cur_dev, Device):
+            raise ValueError("dev has to be the type of Device or a list of Device")
 
     # device_type_id[0], device_type_id[1] are used as the primary/fallback
-    # context type and id. All other ones are used as device context for
+    # device type and id. All other ones are used as device for
     # heterogeneous execution.
-    num_rpc_ctx = 0
+    num_rpc_dev = 0
     device_type_id = []
-    for cur_ctx in ctx:
-        device_type = cur_ctx.device_type
+    for cur_dev in device:
+        device_type = cur_dev.device_type
         if device_type >= rpc_base.RPC_SESS_MASK:
             assert libmod.type_key == "rpc"
-            assert _rpc_ffi_api.SessTableIndex(libmod) == cur_ctx._rpc_sess._tbl_index
-            num_rpc_ctx += 1
-            device_type = cur_ctx.device_type % rpc_base.RPC_SESS_MASK
+            assert _rpc_ffi_api.SessTableIndex(libmod) == cur_dev._rpc_sess._tbl_index
+            num_rpc_dev += 1
+            device_type = cur_dev.device_type % rpc_base.RPC_SESS_MASK
         device_type_id.append(device_type)
-        device_type_id.append(cur_ctx.device_id)
+        device_type_id.append(cur_dev.device_id)
 
-    if 0 < num_rpc_ctx < len(ctx):
-        raise ValueError("Either all or none of the contexts should be rpc.")
-    return ctx, num_rpc_ctx, device_type_id
+    if 0 < num_rpc_dev < len(device):
+        raise ValueError("Either all or none of the devices should be rpc.")
+    return device, num_rpc_dev, device_type_id
 
 
 class GraphModule(object):
@@ -144,7 +144,7 @@ class GraphModule(object):
         lib: tvm.runtime.Module = tvm.runtime.load_module("compiled_lib.so")
         # Call the library factory function for default and create
         # a new runtime.Module, wrap with graph module.
-        gmod = graph_runtime.GraphModule(lib["default"](ctx))
+        gmod = graph_runtime.GraphModule(lib["default"](dev))
         # use the graph module.
         gmod.set_input("x", data)
         gmod.run()

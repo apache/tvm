@@ -71,14 +71,14 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     s = te.create_schedule(Y.op)
 
     # validation
-    ctx = tvm.gpu(0)
+    dev = tvm.gpu(0)
     f = tvm.build(s, [X, W, Y], "cuda", target_host="llvm", name="conv2d")
     x_np = np.random.uniform(-1, 1, xshape).astype(data_dtype)
     w_np = np.random.uniform(-1, 1, wshape).astype(data_dtype)
     y_np = np.zeros(yshape).astype(data_dtype)
-    x = tvm.nd.array(x_np, ctx)
-    w = tvm.nd.array(w_np, ctx)
-    y = tvm.nd.array(y_np, ctx)
+    x = tvm.nd.array(x_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    y = tvm.nd.array(y_np, dev)
     if tensor_format == 0:
         c_np = tvm.topi.testing.conv2d_nchw_python(x_np, w_np, 1, 1, groups=groups)
     elif tensor_format == 1:
@@ -149,14 +149,14 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     s = te.create_schedule(Y.op)
 
     # validation
-    ctx = tvm.gpu(0)
+    dev = tvm.gpu(0)
     f = tvm.build(s, [X, W, Y], "cuda", target_host="llvm", name="conv3d")
     x_np = np.random.uniform(-1, 1, xshape).astype(data_dtype)
     w_np = np.random.uniform(-1, 1, wshape).astype(data_dtype)
     y_np = np.zeros(yshape).astype(data_dtype)
-    x = tvm.nd.array(x_np, ctx)
-    w = tvm.nd.array(w_np, ctx)
-    y = tvm.nd.array(y_np, ctx)
+    x = tvm.nd.array(x_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    y = tvm.nd.array(y_np, dev)
     if tensor_format == 0:
         c_np = tvm.topi.testing.conv3d_ncdhw_python(x_np, w_np, 1, 1, groups)
     else:
@@ -177,11 +177,11 @@ def verify_softmax(shape, axis, dtype="float32"):
     B = cudnn.softmax(A, axis)
     s = te.create_schedule([B.op])
 
-    ctx = tvm.gpu(0)
+    dev = tvm.gpu(0)
     a_np = np.random.uniform(size=shape).astype(dtype)
     b_np = tvm.topi.testing.softmax_python(a_np)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
     f = tvm.build(s, [A, B], "cuda", target_host="llvm", name="softmax")
     f(a, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3)
@@ -192,13 +192,13 @@ def verify_softmax_4d(shape, dtype="float32"):
     B = cudnn.softmax(A, axis=1)
     s = te.create_schedule([B.op])
 
-    ctx = tvm.gpu(0)
+    dev = tvm.gpu(0)
     n, c, h, w = shape
     a_np = np.random.uniform(size=shape).astype(dtype)
     b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))
     b_np = b_np.reshape(n, h, w, c).transpose(0, 3, 1, 2)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
     f = tvm.build(s, [A, B], "cuda", target_host="llvm", name="softmax")
     f(a, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3)

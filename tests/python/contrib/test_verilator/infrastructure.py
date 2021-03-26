@@ -113,6 +113,6 @@ def compile_module(mod):
 def run_module(exe, inputs):
     """Run Relay module"""
 
-    ctx = tvm.cpu()
-    vm = runtime.vm.VirtualMachine(exe, ctx)
+    dev = tvm.cpu()
+    vm = runtime.vm.VirtualMachine(exe, dev)
     return vm.run(**inputs)

@@ -39,8 +39,8 @@ class PooledAllocator final : public Allocator {
  public:
   static constexpr size_t kDefaultPageSize = 4096;
 
-  explicit PooledAllocator(TVMContext ctx, size_t page_size = kDefaultPageSize)
-      : Allocator(kPooled), page_size_(page_size), used_memory_(0), ctx_(ctx) {}
+  explicit PooledAllocator(Device dev, size_t page_size = kDefaultPageSize)
+      : Allocator(kPooled), page_size_(page_size), used_memory_(0), device_(dev) {}
 
   ~PooledAllocator() { ReleaseAll(); }
 
@@ -55,9 +55,9 @@ class PooledAllocator final : public Allocator {
       return ret;
     }
     Buffer buf;
-    buf.ctx = ctx_;
+    buf.device = device_;
     buf.size = size;
-    buf.data = DeviceAPI::Get(ctx_)->AllocDataSpace(ctx_, size, alignment, type_hint);
+    buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, size, alignment, type_hint);
     used_memory_.fetch_add(size, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
     return buf;
@@ -80,7 +80,7 @@ class PooledAllocator final : public Allocator {
     for (auto const& it : memory_pool_) {
       auto const& pool = it.second;
       for (auto const& buf : pool) {
-        DeviceAPI::Get(buf.ctx)->FreeDataSpace(buf.ctx, buf.data);
+        DeviceAPI::Get(buf.device)->FreeDataSpace(buf.device, buf.data);
       }
     }
     memory_pool_.clear();
@@ -93,7 +93,7 @@ class PooledAllocator final : public Allocator {
   std::atomic<size_t> used_memory_;
   std::unordered_map<size_t, std::vector<Buffer> > memory_pool_;
   std::mutex mu_;
-  TVMContext ctx_;
+  Device device_;
 };
 
 }  // namespace vm

@@ -133,7 +133,7 @@ class GraphRuntimeDebug : public GraphRuntime {
       return 0;
     }
 
-    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
+    const Device& dev = data_entry_[entry_id(index, 0)]->device;
     TVMOpParam param = nodes_[index].param;
     std::string name = param.func_name;
     uint32_t num_inputs = param.num_inputs;
@@ -141,8 +141,8 @@ class GraphRuntimeDebug : public GraphRuntime {
 
     PackedFunc time_eval = runtime::Registry::Get("runtime.RPCTimeEvaluator")
                                ->
-                               operator()(module_, name, static_cast<int>(ctx.device_type),
-                                          ctx.device_id, number, repeat, min_repeat_ms, "");
+                               operator()(module_, name, static_cast<int>(dev.device_type),
+                                          dev.device_id, number, repeat, min_repeat_ms, "");
 
     int num_flat_args = num_inputs + num_outputs;
     std::unique_ptr<TVMValue> values(new TVMValue[num_flat_args]);
@@ -171,8 +171,8 @@ class GraphRuntimeDebug : public GraphRuntime {
   }
 
   Timer RunOpHost(int index) {
-    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-    Timer t = Timer::Start(ctx);
+    const Device& dev = data_entry_[entry_id(index, 0)]->device;
+    Timer t = Timer::Start(dev);
     op_execs_[index]();
     t->Stop();
     return t;
@@ -269,13 +269,13 @@ PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
  * \brief GraphRuntimeDebugCreate Get the function based on input.
  * \param sym_json The graph symbol in json format.
  * \param m Compiled module which will be loaded.
- * \param ctxs All devices contexts.
+ * \param devs All devices.
  */
 Module GraphRuntimeDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                               const std::vector<TVMContext>& ctxs,
+                               const std::vector<Device>& devs,
                                PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntimeDebug>();
-  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
+  exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
 
@@ -284,13 +284,13 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, 
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;
-  int ctx_start_arg = 2;
+  int dev_start_arg = 2;
   if (args[2].type_code() == kTVMPackedFuncHandle) {
     lookup_linked_param_func = args[2];
-    ctx_start_arg++;
+    dev_start_arg++;
   }
 
-  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args, ctx_start_arg),
+  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
                                 lookup_linked_param_func);
 });
 }  // namespace runtime

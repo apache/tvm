@@ -29,10 +29,10 @@ from tvm.relay import testing, create_executor
 def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
     # TODO(tqchen) add more types once the schedule register is fixed.
     for target in ["llvm"]:
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         if not tvm.testing.device_enabled(target):
             return
-        intrp = create_executor(mod=mod, ctx=ctx, target=target)
+        intrp = create_executor(mod=mod, device=dev, target=target)
         result = intrp.evaluate(expr)(*args)
         # use tvm.testing which also set atol
         tvm.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
@@ -220,9 +220,9 @@ def test_tuple_passing():
     mod[gv] = fn
     mod = relay.transform.InferType()(mod)
 
-    ctx = tvm.cpu()
+    dev = tvm.cpu()
     target = tvm.target.Target("llvm")
-    exec = relay.create_executor(mod=mod, ctx=ctx, target=target)
+    exec = relay.create_executor(mod=mod, device=dev, target=target)
     f = exec.evaluate(gv)
     # First use a Python tuple.
     out = f((10, 8))

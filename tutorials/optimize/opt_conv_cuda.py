@@ -238,12 +238,12 @@ s[WW].vectorize(fi)  # vectorize memory load
 #
 
 func = tvm.build(s, [A, W, B], "cuda")
-ctx = tvm.gpu(0)
+dev = tvm.gpu(0)
 a_np = np.random.uniform(size=(in_size, in_size, in_channel, batch)).astype(A.dtype)
 w_np = np.random.uniform(size=(kernel, kernel, in_channel, out_channel)).astype(W.dtype)
-a = tvm.nd.array(a_np, ctx)
-w = tvm.nd.array(w_np, ctx)
-b = tvm.nd.array(np.zeros((out_size, out_size, out_channel, batch), dtype=B.dtype), ctx)
+a = tvm.nd.array(a_np, dev)
+w = tvm.nd.array(w_np, dev)
+b = tvm.nd.array(np.zeros((out_size, out_size, out_channel, batch), dtype=B.dtype), dev)
 func(a, w, b)
-evaluator = func.time_evaluator(func.entry_name, ctx, number=1)
+evaluator = func.time_evaluator(func.entry_name, dev, number=1)
 print("Convolution: %f ms" % (evaluator(a, w, b).mean * 1e3))

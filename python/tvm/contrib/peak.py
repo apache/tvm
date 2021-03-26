@@ -45,7 +45,7 @@ def measure_bandwidth_sum(
     target,
     target_host,
     remote,
-    ctx,
+    dev,
     n_times,
 ):
     """measure memory bandwidth of gpu by product reduction for a given type
@@ -74,8 +74,8 @@ def measure_bandwidth_sum(
         the target and option of the compilation.
     target_host : str or :any:`tvm.target.Target`
         host compilation target
-    ctx: TVMcontext
-        the context of array
+    dev: Device
+        the device of array
     remote: tvm.rpc.RPCSession
         remote rpc session
     n_times: int
@@ -109,11 +109,11 @@ def measure_bandwidth_sum(
     try:
         func = tvm.build(s, [x, y], target, target_host=target_host)
 
-        x = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
-        y = tvm.nd.empty((n // m,), dtype=dtype, ctx=ctx)
+        x = tvm.nd.empty((n,), dtype=dtype, device=dev)
+        y = tvm.nd.empty((n // m,), dtype=dtype, device=dev)
 
         func = _convert_to_remote(func, remote)
-        time_f = func.time_evaluator(func.entry_name, ctx, number=n_times)
+        time_f = func.time_evaluator(func.entry_name, dev, number=n_times)
         time = time_f(x, y).mean
     except tvm._ffi.base.TVMError:
         # build error (occur when device does not support half)
@@ -123,7 +123,7 @@ def measure_bandwidth_sum(
 
 
 def measure_bandwidth_all_types(
-    total_item, item_per_thread, n_times, target, target_host, remote, ctx, verbose=True
+    total_item, item_per_thread, n_times, target, target_host, remote, dev, verbose=True
 ):
     """measure memory bandwidth for all types
 
@@ -141,8 +141,8 @@ def measure_bandwidth_all_types(
         host compilation target
     remote: tvm.rpc.RPCSession
         remote rpc session
-    ctx: TVMcontext
-        the context of array
+    dev: Device
+        the device of array
     verbose: bool
         whether outputs immediate result
 
@@ -170,7 +170,7 @@ def measure_bandwidth_all_types(
                         target,
                         target_host,
                         remote,
-                        ctx,
+                        dev,
                         n_times,
                     )
                     max_speed = max(max_speed, speed)
@@ -182,7 +182,7 @@ def measure_bandwidth_all_types(
 
 
 def measure_compute_mad(
-    total_item, item_per_thread, base_type, bits, lanes, target, target_host, remote, ctx, n_times
+    total_item, item_per_thread, base_type, bits, lanes, target, target_host, remote, dev, n_times
 ):
     """measure peak compute speed by computing mad for a type
 
@@ -211,8 +211,8 @@ def measure_compute_mad(
         host compilation target
     remote: tvm.rpc.RPCSession
         if it is not None, use remote rpc session
-    ctx: TVMcontext
-        the context of array
+    dev: Device
+        the device of array
     n_times: int
         number of runs for taking mean
 
@@ -274,8 +274,8 @@ def measure_compute_mad(
     try:
         func = tvm.build(s, [y], target, target_host=target_host)
         func = _convert_to_remote(func, remote)
-        time_f = func.time_evaluator(func.entry_name, ctx, number=n_times)
-        y = tvm.nd.empty((n,), dtype=dtype, ctx=ctx)
+        time_f = func.time_evaluator(func.entry_name, dev, number=n_times)
+        y = tvm.nd.empty((n,), dtype=dtype, device=dev)
         time = time_f(y).mean
     except tvm._ffi.base.TVMError:
         # build error (occur when device does not support half)
@@ -285,7 +285,7 @@ def measure_compute_mad(
 
 
 def measure_compute_all_types(
-    total_item, item_per_thread, n_times, target, target_host, remote, ctx, verbose=True
+    total_item, item_per_thread, n_times, target, target_host, remote, dev, verbose=True
 ):
     """measure peak flops for all types
 
@@ -303,8 +303,8 @@ def measure_compute_all_types(
         host compilation target
     remote: tvm.rpc.RPCSession
         remote rpc session
-    ctx: TVMcontext
-        the context of array
+    dev: Device
+        the device of array
     verbose: bool
         whether outputs immediate result
 
@@ -331,7 +331,7 @@ def measure_compute_all_types(
                         target,
                         target_host,
                         remote,
-                        ctx,
+                        dev,
                         n_times,
                     )
                     max_speed = max(max_speed, speed)
@@ -368,20 +368,20 @@ def measure_peak_all(target, target_host, host, port):
     compute_item_per_thread = 4096
 
     if str(target).startswith("opencl"):
-        ctx = remote.cl()
+        dev = remote.cl()
     elif str(target).startswith("cuda"):
-        ctx = remote.gpu()
+        dev = remote.gpu()
     elif str(target).startswith("metal"):
-        ctx = remote.metal()
+        dev = remote.metal()
     else:
         raise RuntimeError("Unsupported target")
 
     logging.info("========== measure memory bandwidth ==========")
     measure_bandwidth_all_types(
-        bandwidth_total_item, bandwidth_item_per_thread, n_times, target, target_host, remote, ctx
+        bandwidth_total_item, bandwidth_item_per_thread, n_times, target, target_host, remote, dev
     )
 
     logging.info("========== measure peak compute ==========")
     measure_compute_all_types(
-        compute_total_item, compute_item_per_thread, n_times, target, target_host, remote, ctx
+        compute_total_item, compute_item_per_thread, n_times, target, target_host, remote, dev
     )

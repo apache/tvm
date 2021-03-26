@@ -108,11 +108,11 @@ def test_cpu():
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -161,11 +161,11 @@ def test_gpu():
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -215,12 +215,12 @@ def test_while_vectorize():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [A, B, C], target)
 
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         a_np = np.random.uniform(size=n).astype(A.dtype)
         b_np = np.random.uniform(size=n).astype(B.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(a, b, c)
         ref = num_iter * (a_np + b_np)
         tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
@@ -283,8 +283,8 @@ def test_while_collatz():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [C], target)
 
-        ctx = tvm.context(target, 0)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        dev = tvm.device(target, 0)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(c)
         ref = np.array([collatz_ref(i) for i in range(n)])
         tvm.testing.assert_allclose(c.asnumpy(), ref)
@@ -397,8 +397,8 @@ def test_while_mandel():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [C], target)
 
-        ctx = tvm.context(target, 0)
-        c = tvm.nd.array(np.zeros(shape, dtype=C.dtype), ctx)
+        dev = tvm.device(target, 0)
+        c = tvm.nd.array(np.zeros(shape, dtype=C.dtype), dev)
         func(c)
         tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
 
@@ -480,13 +480,13 @@ def test_while_binary_search():
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(s, [A, B, C], target)
 
-        ctx = tvm.context(target, 0)
+        dev = tvm.device(target, 0)
         a_np = np.random.uniform(size=n).astype(A.dtype)
         b_np = np.random.uniform(size=n).astype(B.dtype)
         a_np = np.sort(a_np)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(a, b, c)
         ref = np.searchsorted(a_np, b_np)
         tvm.testing.assert_allclose(c.asnumpy(), ref)

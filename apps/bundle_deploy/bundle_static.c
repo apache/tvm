@@ -59,9 +59,9 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   params.data = params_data;
   params.size = params_size;
 
-  TVMContext ctx;
-  ctx.device_type = (DLDeviceType)device_type;
-  ctx.device_id = device_id;
+  DLDevice dev;
+  dev.device_type = (DLDeviceType)device_type;
+  dev.device_id = device_id;
 
   // get pointers
   TVM_CCALL(MemoryManagerCreate(&g_memory_manager, g_crt_memory, sizeof(g_crt_memory),
@@ -76,7 +76,7 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 
   // run modules
   TVMGraphRuntime* graph_runtime = NULL;
-  TVM_CCALL(TVMGraphRuntime_Create(json_data, mod_syslib, &ctx, &graph_runtime));
+  TVM_CCALL(TVMGraphRuntime_Create(json_data, mod_syslib, &dev, &graph_runtime));
   TVM_CCALL(TVMGraphRuntime_LoadParams(graph_runtime, params.data, params.size));
 
   return graph_runtime;
@@ -117,12 +117,12 @@ void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
   exit(-1);
 }
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  return g_memory_manager->Allocate(g_memory_manager, num_bytes, ctx, out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  return g_memory_manager->Allocate(g_memory_manager, num_bytes, dev, out_ptr);
 }
 
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
-  return g_memory_manager->Free(g_memory_manager, ptr, ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  return g_memory_manager->Free(g_memory_manager, ptr, dev);
 }
 
 tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorFunctionCallNotImplemented; }

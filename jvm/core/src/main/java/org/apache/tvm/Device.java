@@ -22,7 +22,7 @@ import org.apache.tvm.rpc.RPC;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TVMContext {
+public class Device {
   private static final Map<Integer, String> MASK2STR = new HashMap<Integer, String>();
   private static final Map<String, Integer> STR2MASK = new HashMap<String, Integer>();
 
@@ -49,103 +49,103 @@ public class TVMContext {
   /**
    * Construct a CPU device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext cpu(int devId) {
-    return new TVMContext(1, devId);
+  public static Device cpu(int devId) {
+    return new Device(1, devId);
   }
 
-  public static TVMContext cpu() {
+  public static Device cpu() {
     return cpu(0);
   }
 
   /**
    * Construct a GPU device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext gpu(int devId) {
-    return new TVMContext(2, devId);
+  public static Device gpu(int devId) {
+    return new Device(2, devId);
   }
 
-  public static TVMContext gpu() {
+  public static Device gpu() {
     return gpu(0);
   }
 
   /**
    * Construct a OpenCL device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext opencl(int devId) {
-    return new TVMContext(4, devId);
+  public static Device opencl(int devId) {
+    return new Device(4, devId);
   }
 
-  public static TVMContext opencl() {
+  public static Device opencl() {
     return opencl(0);
   }
 
   /**
    * Construct a Vulkan device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext vulkan(int devId) {
-    return new TVMContext(7, devId);
+  public static Device vulkan(int devId) {
+    return new Device(7, devId);
   }
 
-  public static TVMContext vulkan() {
+  public static Device vulkan() {
     return vulkan(0);
   }
 
   /**
    * Construct a metal device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext metal(int devId) {
-    return new TVMContext(8, devId);
+  public static Device metal(int devId) {
+    return new Device(8, devId);
   }
 
-  public static TVMContext metal() {
+  public static Device metal() {
     return metal(0);
   }
 
   /**
    * Construct a VPI simulated device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext vpi(int devId) {
-    return new TVMContext(9, devId);
+  public static Device vpi(int devId) {
+    return new Device(9, devId);
   }
 
-  public static TVMContext vpi() {
+  public static Device vpi() {
     return vpi(0);
   }
 
   /**
    * Construct a Hexagon device.
    * @param devId The device id
-   * @return The created context
+   * @return The created device
    */
-  public static TVMContext hexagon(int devId) {
-    return new TVMContext(14, devId);
+  public static Device hexagon(int devId) {
+    return new Device(14, devId);
   }
 
-  public static TVMContext hexagon() {
+  public static Device hexagon() {
     return hexagon(0);
   }
 
   public final int deviceType;
   public final int deviceId;
 
-  public TVMContext(int deviceType, int deviceId) {
+  public Device(int deviceType, int deviceId) {
     this.deviceType = deviceType;
     this.deviceId = deviceId;
   }
 
-  public TVMContext(String deviceType, int deviceId) {
+  public Device(String deviceType, int deviceId) {
     this(STR2MASK.get(deviceType), deviceId);
   }
 
@@ -180,7 +180,7 @@ public class TVMContext {
   }
 
   /**
-   * Synchronize until jobs finished at the context.
+   * Synchronize until jobs finished at the device.
    */
   public void sync() {
     Base.checkCall(Base._LIB.tvmSynchronize(deviceType, deviceId));
@@ -191,8 +191,8 @@ public class TVMContext {
   }
 
   @Override public boolean equals(Object other) {
-    if (other != null && other instanceof TVMContext) {
-      TVMContext obj = (TVMContext) other;
+    if (other != null && other instanceof Device) {
+      Device obj = (Device) other;
       return deviceId == obj.deviceId && deviceType == obj.deviceType;
     }
     return false;

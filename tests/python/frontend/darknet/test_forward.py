@@ -79,8 +79,8 @@ def _get_tvm_output(net, data, build_dtype="float32", states=None):
     lib = relay.build(mod, target, params=params)
 
     # Execute on TVM
-    ctx = tvm.cpu(0)
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    dev = tvm.cpu(0)
+    m = graph_runtime.GraphModule(lib["default"](dev))
     # set inputs
     m.set_input("data", tvm.nd.array(data.astype(dtype)))
     if states:

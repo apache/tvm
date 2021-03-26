@@ -87,7 +87,7 @@ class GraphRuntimeCodegen(object):
         params = {}
         for key in param_names:
             arr = self._get_param_by_name(key)
-            param = empty(arr.shape, dtype=arr.dtype, ctx=arr.ctx)
+            param = empty(arr.shape, dtype=arr.dtype, device=arr.device)
             arr.copyto(param)
             params[key] = param
         return graph_json, lowered_func, params

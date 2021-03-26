@@ -64,11 +64,11 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
   return os;
 }
 
-inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
+inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev) {
   if (src->IsInstance<NDArray::ContainerType>()) {
     auto nd_array = Downcast<NDArray>(src);
-    if (nd_array->ctx.device_type != ctx.device_type) {
-      return nd_array.CopyTo(ctx);
+    if (nd_array->device.device_type != dev.device_type) {
+      return nd_array.CopyTo(dev);
     }
     return src;
   } else {
@@ -77,7 +77,7 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
     std::vector<ObjectRef> ret;
     ADT adt = Downcast<ADT>(src);
     for (size_t i = 0; i < adt.size(); i++) {
-      ret.push_back(CopyTo(adt[i], ctx));
+      ret.push_back(CopyTo(adt[i], dev));
     }
     return ADT(adt->tag, ret.begin(), ret.end());
   }
@@ -135,18 +135,18 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size() % 3, 0);
-      std::vector<TVMContext> contexts;
+      std::vector<Device> devices;
       std::vector<AllocatorType> alloc_types;
       for (int i = 0; i < args.size() / 3; ++i) {
-        TVMContext ctx;
+        Device dev;
         int device_type = args[i * 3];
-        ctx.device_type = DLDeviceType(device_type);
-        ctx.device_id = args[i * 3 + 1];
+        dev.device_type = DLDeviceType(device_type);
+        dev.device_id = args[i * 3 + 1];
         int type = args[i * 3 + 2];
-        contexts.push_back(ctx);
+        devices.push_back(dev);
         alloc_types.push_back(AllocatorType(type));
       }
-      this->Init(contexts, alloc_types);
+      this->Init(devices, alloc_types);
     });
   } else if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -164,8 +164,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       std::vector<ObjectRef> func_args(param_names.size());
       for (int i = 1; i < args.size(); ++i) {
         Index device_type = vm_func.params_device_type[i - 1];
-        DLContext ctx = GetContext(device_type);
-        ObjectRef obj = CopyTo(args[i], ctx);
+        Device dev = GetDevice(device_type);
+        ObjectRef obj = CopyTo(args[i], dev);
         func_args[i - 1] = obj;
       }
       inputs_.erase(func_name);
@@ -177,13 +177,13 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   }
 }
 
-inline TVMContext VirtualMachine::GetContext(Index device_type) const {
-  ICHECK_GE(ctxs_.size(), device_type) << "ctxs_ list doesn't contain device:" << device_type;
+inline Device VirtualMachine::GetDevice(Index device_type) const {
+  ICHECK_GE(devices_.size(), device_type) << "devices_ doesn't contain device:" << device_type;
 
-  auto ctx = ctxs_[device_type];
-  ICHECK_EQ(static_cast<Index>(ctx.device_type), device_type)
-      << "device type " << device_type << " has not been initialized int the context list.";
-  return ctx;
+  auto dev = devices_[device_type];
+  ICHECK_EQ(static_cast<Index>(dev.device_type), device_type)
+      << "device type " << device_type << " has not been initialized in the device list.";
+  return dev;
 }
 
 void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
@@ -301,18 +301,18 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   }
 }
 
-void VirtualMachine::Init(const std::vector<TVMContext>& ctxs,
+void VirtualMachine::Init(const std::vector<Device>& devs,
                           const std::vector<AllocatorType>& alloc_types) {
-  ICHECK_EQ(ctxs.size(), alloc_types.size());
-  // Cache the context
-  for (size_t i = 0; i < ctxs.size(); i++) {
-    auto dev_type = static_cast<size_t>(ctxs[i].device_type);
-    auto alloc = MemoryManager::GetOrCreateAllocator(ctxs[i], alloc_types[i]);
-    if (ctxs_.size() <= dev_type) {
-      ctxs_.resize(dev_type + 1);
+  ICHECK_EQ(devs.size(), alloc_types.size());
+  // Cache the device
+  for (size_t i = 0; i < devs.size(); i++) {
+    auto dev_type = static_cast<size_t>(devs[i].device_type);
+    auto alloc = MemoryManager::GetOrCreateAllocator(devs[i], alloc_types[i]);
+    if (devices_.size() <= dev_type) {
+      devices_.resize(dev_type + 1);
       allocators_.resize(dev_type + 1);
     }
-    ctxs_[dev_type] = ctxs[i];
+    devices_[dev_type] = devs[i];
     allocators_[dev_type] = alloc;
   }
 }
@@ -388,8 +388,8 @@ void VirtualMachine::RunLoop() {
         }
 
         if (!const_pool_[instr.const_index].defined()) {
-          TVMContext ctx = GetContext(exec_->const_device_type[instr.const_index]);
-          const_pool_[instr.const_index] = CopyTo(constant_obj, ctx);
+          Device dev = GetDevice(exec_->const_device_type[instr.const_index]);
+          const_pool_[instr.const_index] = CopyTo(constant_obj, dev);
         }
         WriteRegister(instr.dst, const_pool_[instr.const_index]);
         pc_++;
@@ -497,9 +497,9 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::AllocTensorReg: {
-        DLContext cpu_ctx = GetContext(static_cast<Index>(kDLCPU));
+        Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
         auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
-        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_ctx));
+        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
         auto shape = ToShape(shape_tensor);
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
@@ -542,7 +542,7 @@ void VirtualMachine::RunLoop() {
         ICHECK_LT(static_cast<size_t>(dev_type), allocators_.size())
             << "Memory allocator for device " << dev_type << " has not been initialized";
         auto* alloc = allocators_[dev_type];
-        ICHECK(alloc) << "Did you forget to init the VirtualMachine with contexts?";
+        ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
         storage_obj->buffer = alloc->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);
@@ -577,12 +577,12 @@ void VirtualMachine::RunLoop() {
         }
       }
       case Opcode::ReshapeTensor: {
-        DLContext cpu_ctx = GetContext(static_cast<Index>(kDLCPU));
+        Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
         auto tensor_obj = ReadRegister(instr.reshape_tensor.tensor);
         NDArray tensor_arr = Downcast<NDArray>(tensor_obj);
         // Read the shape from shape tensor
         auto shape_obj = ReadRegister(instr.reshape_tensor.newshape);
-        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_ctx));
+        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
         const DLTensor* dl_tensor = shape_tensor.operator->();
         ICHECK_EQ(dl_tensor->dtype.code, 0u);
         ICHECK_EQ(dl_tensor->dtype.bits, 64);
@@ -598,14 +598,14 @@ void VirtualMachine::RunLoop() {
       case Opcode::DeviceCopy: {
         auto tensor_src = ReadRegister(instr.src);
         NDArray src_data = Downcast<NDArray>(tensor_src);
-        DLContext src_ctx = src_data->ctx;
-        ICHECK_EQ(static_cast<Index>(src_ctx.device_type), instr.src_device_type);
+        Device src_dev = src_data->device;
+        ICHECK_EQ(static_cast<Index>(src_dev.device_type), instr.src_device_type);
 
-        DLContext dst_ctx;
-        dst_ctx.device_type = static_cast<DLDeviceType>(instr.dst_device_type);
-        dst_ctx.device_id = 0;
+        Device dst_dev;
+        dst_dev.device_type = static_cast<DLDeviceType>(instr.dst_device_type);
+        dst_dev.device_id = 0;
 
-        NDArray dst_data = src_data.CopyTo(dst_ctx);
+        NDArray dst_data = src_data.CopyTo(dst_dev);
         WriteRegister(instr.dst, dst_data);
         pc_++;
         goto main_loop;

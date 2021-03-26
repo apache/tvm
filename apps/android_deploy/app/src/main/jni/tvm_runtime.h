@@ -26,7 +26,7 @@
 #include <fstream>
 
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_BACKTRACE_DISABLED 1
+#define TVM_USE_LIBBACKTRACE 0
 
 #include "../src/runtime/c_runtime_api.cc"
 #include "../src/runtime/cpu_device_api.cc"

@@ -42,11 +42,11 @@ struct MemoryManagerInterface {
    * \brief Allocate a chunk of memory.
    * \param interface Pointer to this structure.
    * \param num_bytes Number of bytes requested.
-   * \param ctx Execution context that will be used with the allocated memory. Must be {kDLCPU, 0}.
+   * \param dev Execution device that will be used with the allocated memory. Must be {kDLCPU, 0}.
    * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.
    * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
    */
-  tvm_crt_error_t (*Allocate)(MemoryManagerInterface* interface, size_t num_bytes, DLContext ctx,
+  tvm_crt_error_t (*Allocate)(MemoryManagerInterface* interface, size_t num_bytes, DLDevice dev,
                               void** out_ptr);
 
   /*!
@@ -54,10 +54,10 @@ struct MemoryManagerInterface {
    *
    * \param interface Pointer to this structure.
    * \param ptr A pointer returned from TVMPlatformMemoryAllocate which should be free'd.
-   * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
+   * \param dev Execution device passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
    * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
    */
-  tvm_crt_error_t (*Free)(MemoryManagerInterface* interface, void* ptr, DLContext ctx);
+  tvm_crt_error_t (*Free)(MemoryManagerInterface* interface, void* ptr, DLDevice dev);
 
   /*! \brief Used in testing; the number of allocated objects. */
   int vleak_size;

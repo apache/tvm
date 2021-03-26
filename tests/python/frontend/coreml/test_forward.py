@@ -33,11 +33,11 @@ import tvm.testing
 
 
 def get_tvm_output(
-    func, x, params, target, ctx, out_shape=(1, 1000), input_name="image", dtype="float32"
+    func, x, params, target, device, out_shape=(1, 1000), input_name="image", dtype="float32"
 ):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(func, target, params=params)
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_runtime.GraphModule(lib["default"](device))
     # set inputs
     m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
     m.run()
@@ -52,10 +52,10 @@ def run_model_checkonly(model_file, model_name="", input_name="image"):
     shape_dict = {input_name: x.shape}
     # Some Relay passes change operators on the fly. Ensuring that we generate
     # new graph for each target.
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         mod, params = relay.frontend.from_coreml(model, shape_dict)
-        tvm_output = get_tvm_output(mod["main"], x, params, target, ctx)
-        print(target, ctx, model_name, "prediction id: ", np.argmax(tvm_output.flat))
+        tvm_output = get_tvm_output(mod["main"], x, params, target, dev)
+        print(target, dev, model_name, "prediction id: ", np.argmax(tvm_output.flat))
 
 
 @tvm.testing.uses_gpu
@@ -71,7 +71,7 @@ def test_resnet50_checkonly():
 
 
 def run_tvm_graph(
-    coreml_model, target, ctx, input_data, input_name, output_shape, output_dtype="float32"
+    coreml_model, target, device, input_data, input_name, output_shape, output_dtype="float32"
 ):
     """ Generic function to compile on relay and execute on tvm """
     if isinstance(input_data, list):
@@ -90,7 +90,7 @@ def run_tvm_graph(
 
     from tvm.contrib import graph_runtime
 
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_runtime.GraphModule(lib["default"](device))
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_name):
@@ -129,9 +129,9 @@ def verify_AddLayerParams(input_dim, alpha=2):
         name="Add", alpha=alpha, input_names=["input1", "input2"], output_name="output", mode="ADD"
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
-            model, target, ctx, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
+            model, target, dev, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
         )
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
@@ -161,9 +161,9 @@ def verify_MultiplyLayerParams(input_dim, alpha):
         mode="MULTIPLY",
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
-            model, target, ctx, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
+            model, target, dev, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
         )
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
@@ -189,9 +189,9 @@ def verify_ConcatLayerParams(input1_dim, input2_dim):
         name="Concate", input_names=["input1", "input2"], output_name="output", mode="CONCAT"
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
-            model, target, ctx, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
+            model, target, dev, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
         )
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
@@ -226,8 +226,8 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, a_np, "input", b_np.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, a_np, "input", b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 
@@ -249,8 +249,8 @@ def verify_l2_normalize(input_dim, eps):
     builder.add_l2_normalize(name="L2", epsilon=eps, input_name="input", output_name="output")
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, a_np, "input", b_np.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, a_np, "input", b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 
@@ -279,8 +279,8 @@ def verify_lrn(input_dim, size, bias, alpha, beta):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, a_np, "input", b_np.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, a_np, "input", b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 
@@ -304,9 +304,9 @@ def verify_average(input_dim1, input_dim2, axis=0):
         name="MEAN", input_names=["input1", "input2"], output_name="output", mode="AVE"
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
-            model, target, ctx, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
+            model, target, dev, [a_np1, a_np2], ["input1", "input2"], b_np.shape, dtype
         )
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
@@ -338,11 +338,11 @@ def verify_max(input_dim):
         name="Max", input_names=["input1", "input2", "input3"], output_name="output", mode="MAX"
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
             model,
             target,
-            ctx,
+            dev,
             [a_np1, a_np2, a_np3],
             ["input1", "input2", "input3"],
             b_np.shape,
@@ -377,11 +377,11 @@ def verify_min(input_dim):
         name="Min", input_names=["input1", "input2", "input3"], output_name="output", mode="MIN"
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
             model,
             target,
-            ctx,
+            dev,
             [a_np1, a_np2, a_np3],
             ["input1", "input2", "input3"],
             b_np.shape,
@@ -408,8 +408,8 @@ def verify_unary_sqrt(input_dim):
     builder.add_unary(name="sqrt", input_name="input", output_name="output", mode="sqrt")
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -427,8 +427,8 @@ def verify_unary_rsqrt(input_dim, epsilon=0):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -446,8 +446,8 @@ def verify_unary_inverse(input_dim, epsilon=0):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -465,8 +465,8 @@ def verify_unary_power(input_dim, alpha):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -482,8 +482,8 @@ def verify_unary_exp(input_dim):
     builder.add_unary(name="exp", input_name="input", output_name="output", mode="exp")
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -499,8 +499,8 @@ def verify_unary_log(input_dim):
     builder.add_unary(name="log", input_name="input", output_name="output", mode="log")
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -516,8 +516,8 @@ def verify_unary_abs(input_dim):
     builder.add_unary(name="abs", input_name="input", output_name="output", mode="abs")
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -535,8 +535,8 @@ def verify_unary_threshold(input_dim, alpha):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -596,8 +596,8 @@ def test_forward_reduce():
         )
 
         model = cm.models.MLModel(builder.spec)
-        for target, ctx in tvm.testing.enabled_targets():
-            out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+        for target, dev in tvm.testing.enabled_targets():
+            out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
             tvm.testing.assert_allclose(out, ref_val, rtol=1e-5, atol=1e-5)
 
     dshapes = [[10, 10], [1, 10, 10], [1, 3, 10, 10]]
@@ -634,8 +634,8 @@ def verify_reshape(input_dim, target_shape, mode):
     )
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input"], ref_val.shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input"], ref_val.shape, dtype)
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
 
@@ -666,9 +666,9 @@ def verify_split(input_dim, nOutputs):
     builder.add_split(name="split", input_name="input", output_names=output_names)
 
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
-            model, target, ctx, [a_np], ["input"], output_shapes, [dtype] * len(output_shapes)
+            model, target, dev, [a_np], ["input"], output_shapes, [dtype] * len(output_shapes)
         )
         tvm.testing.assert_allclose(out, ref_val, rtol=1e-5)
 
@@ -721,9 +721,9 @@ def verify_image_scaler(input_dim, blue_bias=0.0, green_bias=0.0, red_bias=0.0, 
         name="add", input_names=["input1", "input2"], output_name="output", alpha=0, mode="ADD"
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         out = run_tvm_graph(
-            model, target, ctx, [a_np, a_np], ["input1", "input2"], b_np.shape, dtype
+            model, target, dev, [a_np, a_np], ["input1", "input2"], b_np.shape, dtype
         )
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
@@ -769,8 +769,8 @@ def verify_convolution(input_dim, filter, padding):
         output_name="output",
     )
     model = cm.models.MLModel(builder.spec)
-    for target, ctx in tvm.testing.enabled_targets():
-        out = run_tvm_graph(model, target, ctx, [a_np], ["input1"], output_shape=None)
+    for target, dev in tvm.testing.enabled_targets():
+        out = run_tvm_graph(model, target, dev, [a_np], ["input1"], output_shape=None)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 

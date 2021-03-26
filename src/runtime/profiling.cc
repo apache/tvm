@@ -34,30 +34,30 @@ namespace runtime {
 class DefaultTimerNode : public TimerNode {
  public:
   virtual void Start() {
-    TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     start_ = std::chrono::high_resolution_clock::now();
   }
   virtual void Stop() {
-    TVMSynchronize(ctx_.device_type, ctx_.device_id, nullptr);
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     duration_ = std::chrono::high_resolution_clock::now() - start_;
   }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~DefaultTimerNode() {}
 
-  explicit DefaultTimerNode(TVMContext ctx) : ctx_(ctx) {}
+  explicit DefaultTimerNode(Device dev) : device_(dev) {}
   static constexpr const char* _type_key = "DefaultTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(DefaultTimerNode, TimerNode);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
   std::chrono::duration<int64_t, std::nano> duration_;
-  TVMContext ctx_;
+  Device device_;
 };
 
 TVM_REGISTER_OBJECT_TYPE(DefaultTimerNode);
 TVM_REGISTER_OBJECT_TYPE(TimerNode);
 
-Timer DefaultTimer(TVMContext ctx) { return Timer(make_object<DefaultTimerNode>(ctx)); }
+Timer DefaultTimer(Device dev) { return Timer(make_object<DefaultTimerNode>(dev)); }
 
 class CPUTimerNode : public TimerNode {
  public:
@@ -75,18 +75,18 @@ class CPUTimerNode : public TimerNode {
 };
 TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](TVMContext ctx) {
+TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
   return Timer(make_object<CPUTimerNode>());
 });
 
-Timer Timer::Start(TVMContext ctx) {
-  auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(ctx.device_type));
+Timer Timer::Start(Device dev) {
+  auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(dev.device_type));
   if (f == nullptr) {
-    Timer t = DefaultTimer(ctx);
+    Timer t = DefaultTimer(dev);
     t->Start();
     return t;
   } else {
-    Timer t = f->operator()(ctx);
+    Timer t = f->operator()(dev);
     t->Start();
     return t;
   }

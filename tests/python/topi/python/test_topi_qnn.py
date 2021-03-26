@@ -37,13 +37,13 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
     z_np = np.random.uniform(low=-10, high=10, size=channels).astype("int32")
     q_np = np.zeros(shape=data_shape, dtype="float32")
 
-    def check_device(device, ctx):
+    def check_target(target, dev):
         # Wrap the numpy arrays in nd arrays.
-        a = tvm.nd.array(a_np, ctx)
-        d = tvm.nd.array(d_np, ctx)
-        s = tvm.nd.array(s_np, ctx)
-        z = tvm.nd.array(z_np, ctx)
-        q = tvm.nd.array(q_np, ctx)
+        a = tvm.nd.array(a_np, dev)
+        d = tvm.nd.array(d_np, dev)
+        s = tvm.nd.array(s_np, dev)
+        z = tvm.nd.array(z_np, dev)
+        q = tvm.nd.array(q_np, dev)
 
         # Construct equivalent relay graph.
         per_channel = channels[0] != 1
@@ -56,19 +56,19 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
             z_var = relay.const(z_np[0])
         real_q_op = relay.qnn.op.quantize(a_var, s_var, z_var, axis=axis, out_dtype=out_dtype)
         with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build(tvm.IRModule.from_expr(real_q_op), target=device)
+            lib = relay.build(tvm.IRModule.from_expr(real_q_op), target=target)
 
         # Get real qnn quantize output.
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_runtime.GraphModule(lib["default"](dev))
         m.set_input("a", a_np)
 
         m.run()
         real_q_out = m.get_output(0)
 
         # Compile the simulated quantize function.
-        with tvm.target.Target(device):
-            sched = tvm.topi.testing.get_injective_schedule(device)(SIM_Q)
-        func = tvm.build(sched, [A, D, S, Z, SIM_Q], device, name="sim_quantize")
+        with tvm.target.Target(target):
+            sched = tvm.topi.testing.get_injective_schedule(target)(SIM_Q)
+        func = tvm.build(sched, [A, D, S, Z, SIM_Q], target, name="sim_quantize")
         func(a, d, s, z, q)
 
         # Check correctness against the true qnn output.
@@ -76,8 +76,8 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
         # Allow some rounding errors due to GPU fp32 arithmetic.
         assert np.sum(mismatch) <= 3
 
-    for target, ctx in tvm.testing.enabled_targets():
-        check_device(target, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 def test_simulated_quantize():
@@ -104,13 +104,13 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
     z_np = np.random.uniform(low=-10, high=10, size=channels).astype("int32")
     dq_np = np.zeros(shape=data_shape, dtype="float32")
 
-    def check_device(device, ctx):
+    def check_target(target, dev):
         # Wrap the numpy arrays in nd arrays.
-        a = tvm.nd.array(a_np_f, ctx)
-        d = tvm.nd.array(d_np, ctx)
-        s = tvm.nd.array(s_np, ctx)
-        z = tvm.nd.array(z_np, ctx)
-        dq = tvm.nd.array(dq_np, ctx)
+        a = tvm.nd.array(a_np_f, dev)
+        d = tvm.nd.array(d_np, dev)
+        s = tvm.nd.array(s_np, dev)
+        z = tvm.nd.array(z_np, dev)
+        dq = tvm.nd.array(dq_np, dev)
 
         # Construct equivalent relay graph.
         per_channel = channels[0] != 1
@@ -123,19 +123,19 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
             z_var = relay.const(z_np[0])
         real_dq_op = relay.qnn.op.dequantize(a_var, s_var, z_var, axis=axis)
         with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build(tvm.IRModule.from_expr(real_dq_op), target=device)
+            lib = relay.build(tvm.IRModule.from_expr(real_dq_op), target=target)
 
         # Get real qnn quantize output.
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_runtime.GraphModule(lib["default"](dev))
         m.set_input("a", a_np)
 
         m.run()
         real_dq_out = m.get_output(0)
 
         # Compile the simulated quantize function.
-        with tvm.target.Target(device):
-            sched = tvm.topi.testing.get_injective_schedule(device)(SIM_DQ)
-        func = tvm.build(sched, [A, D, S, Z, SIM_DQ], device, name="sim_quantize")
+        with tvm.target.Target(target):
+            sched = tvm.topi.testing.get_injective_schedule(target)(SIM_DQ)
+        func = tvm.build(sched, [A, D, S, Z, SIM_DQ], target, name="sim_quantize")
         func(a, d, s, z, dq)
 
         # Check correctness against the true qnn output.
@@ -143,8 +143,8 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
             dq.asnumpy(), real_dq_out.asnumpy().astype("float32"), rtol=1e-5
         )
 
-    for target, ctx in tvm.testing.enabled_targets():
-        check_device(target, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 def test_simulated_dequantize():

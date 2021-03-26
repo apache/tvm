@@ -535,8 +535,8 @@ def infer_value(input_val, params, mod=None):
         func = _function.Function(analysis.free_vars(input_val), input_val)
         with tvm.transform.PassContext(opt_level=0):
             lib = tvm.relay.build(func, target="llvm", params=params)
-        ctx = tvm.cpu(0)
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        dev = tvm.cpu(0)
+        m = graph_runtime.GraphModule(lib["default"](dev))
         m.run()
         return m.get_output(0)
     except Exception:
@@ -544,7 +544,7 @@ def infer_value(input_val, params, mod=None):
             mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
-        exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
+        exc = tvm.relay.create_executor("debug", mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             inputs.append(params[param.name_hint])

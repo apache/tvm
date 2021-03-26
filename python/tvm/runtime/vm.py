@@ -33,7 +33,7 @@ def _convert(arg, cargs):
     if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
-        nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
+        nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
         cargs.append(nd_arr)
     elif isinstance(arg, tvm.runtime.NDArray):
         cargs.append(arg)
@@ -44,7 +44,7 @@ def _convert(arg, cargs):
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
         dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
-        value = tvm.nd.array(np.array(arg, dtype=dtype), ctx=tvm.cpu(0))
+        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     else:
         raise TypeError("Unsupported type: %s" % (type(arg)))
@@ -115,7 +115,7 @@ class Executable(object):
             f = relay.Function([x], x + x)
             mod = tvm.IRModule({"main": f})
             # create a Relay VM.
-            ctx = tvm.cpu()
+            dev = tvm.cpu()
             target = "llvm"
             executable = relay.vm.compile(mod, target)
             code, lib = executable.save()
@@ -131,7 +131,7 @@ class Executable(object):
             des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_lib)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, ctx)
+            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, dev)
             res = des_vm.run(x_data)
             print(res.asnumpy())
         """
@@ -283,14 +283,14 @@ class VirtualMachine(object):
     exe : Executable
         The VM executable.
 
-    ctx : tvm.runtime.TVMContext or List[tvm.runtime.TVMContext]
-        The context to deploy the module
+    device : tvm.runtime.Device or List[tvm.runtime.Device]
+        The device to deploy the module
 
-    memory_cfg : str or Dict[tvm.runtime.TVMContext, str], optional
+    memory_cfg : str or Dict[tvm.runtime.Device, str], optional
         Config the type of memory allocator. The allocator type can be ["naive",
-        "pooled"]. If memory_cfg is None, all contexts will use pooled allocator
-        by default. If memory_cfg is string, all contexts will use the specified
-        allocator type. If memory_cfg is a dict, each context uses the allocator
+        "pooled"]. If memory_cfg is None, all devices will use pooled allocator
+        by default. If memory_cfg is string, all devices will use the specified
+        allocator type. If memory_cfg is a dict, each device uses the allocator
         type specified in the dict, or pooled allocator if not specified in the
         dict.
     """
@@ -298,7 +298,7 @@ class VirtualMachine(object):
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
 
-    def __init__(self, exe, ctx, memory_cfg=None):
+    def __init__(self, exe, device, memory_cfg=None):
         if not isinstance(exe, Executable):
             raise TypeError(
                 "exe is expected to be the type of Executable, "
@@ -309,22 +309,22 @@ class VirtualMachine(object):
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
         self._set_input = self.module["set_input"]
-        self._setup_ctx(ctx, memory_cfg)
+        self._setup_device(device, memory_cfg)
 
-    def _setup_ctx(self, ctx, memory_cfg):
-        """Init context and allocators."""
-        ctxs = ctx
-        if not isinstance(ctx, (list, tuple)):
-            if not isinstance(ctx, tvm.runtime.TVMContext):
+    def _setup_device(self, dev, memory_cfg):
+        """Init devices and allocators."""
+        devs = dev
+        if not isinstance(dev, (list, tuple)):
+            if not isinstance(dev, tvm.runtime.Device):
                 raise TypeError(
-                    "ctx is expected to be TVMContext or \
-                                List[TVMContext]"
+                    "dev is expected to be Device or \
+                                List[Device]"
                 )
-            ctxs = [ctx]
+            devs = [dev]
 
         # CPU is required for executing shape functions
-        if not any(c.device_type == tvm.cpu().device_type for c in ctxs):
-            ctxs.append(tvm.cpu())
+        if not any(c.device_type == tvm.cpu().device_type for c in devs):
+            devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
         if memory_cfg is None:
@@ -340,10 +340,10 @@ class VirtualMachine(object):
                 + "but received {}".format(type(memory_cfg))
             )
         init_args = []
-        for context in ctxs:
-            init_args.append(context.device_type)
-            init_args.append(context.device_id)
-            alloc_type = memory_cfg[context] if context in memory_cfg else default_alloc_type
+        for device in devs:
+            init_args.append(device.device_type)
+            init_args.append(device.device_id)
+            alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
         self._init(*init_args)
 
