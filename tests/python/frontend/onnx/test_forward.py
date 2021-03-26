@@ -2703,7 +2703,7 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
     )
 
     model = helper.make_model(graph, producer_name="pooling_test")
-    verify_with_ort(model, [x_shape], [out_shape], use_vm=True, convert_to_static=True)
+    verify_with_ort(model, [x_shape], [out_shape], use_vm=False, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
