@@ -141,7 +141,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
     if use_sparse:
         from tvm.topi.sparse.utils import convert_model_dense_to_sparse
 
-        mod, params = convert_model_dense_to_sparse(mod, params, True)
+        mod, params = convert_model_dense_to_sparse(mod, params, random_params=True)
 
     return mod, params, input_shape, output_shape
 

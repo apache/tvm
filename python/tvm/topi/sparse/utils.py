@@ -101,13 +101,20 @@ def convert_model_dense_to_sparse(mod, params, random_params=False, bs_r=1, bs_c
         Parameters of the dense model.
     random_params : Bool = False
         True to replace the parameters of the dense model with some random sparse tensors.
-        This is used for testing.
+        This is mainly used for testing.
     bs_r : int
         The row of BSR matrix block.
     bs_c : int
         The column of BSR matrix block.
     sparsity : float
         The sparsity of the random sparse parameters.
+    
+    Returns
+    -------
+    tvm.Module
+        The updated sparse model.
+    Dict[Srting, tvm.nd.array]
+        The updated parameters.
     """
     mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
     if random_params:
