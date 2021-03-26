@@ -168,8 +168,8 @@ def tune_and_check(mod, data, weight):
             lib2 = relay.build(mod, target=target, params={"weight": weight})
 
         def get_output(data, lib):
-            ctx = tvm.cpu()
-            module = graph_runtime.GraphModule(lib["default"](ctx))
+            dev = tvm.cpu()
+            module = graph_runtime.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()
 

@@ -27,11 +27,11 @@ namespace tvm {
 namespace runtime {
 TEST(DefaultTimer, Basic) {
   using namespace tvm::runtime;
-  DLContext ctx;
-  ctx.device_type = kDLCPU;
-  ctx.device_id = 0;
+  Device dev;
+  dev.device_type = kDLCPU;
+  dev.device_id = 0;
 
-  Timer t = Timer::Start(ctx);
+  Timer t = Timer::Start(dev);
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   t->Stop();
   int64_t elapsed = t->SyncAndGetElapsedNanos();

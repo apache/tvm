@@ -128,11 +128,11 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::device_context_id) {
+    if (op->attr_key == attr::device_id) {
       ICHECK(!device_id_.defined());
       device_id_ = op->value;
       return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::device_context_type) {
+    } else if (op->attr_key == attr::device_type) {
       ICHECK(!device_type_.defined());
       device_type_ = op->value;
       return this->VisitStmt(op->body);

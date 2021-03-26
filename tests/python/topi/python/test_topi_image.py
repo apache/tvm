@@ -66,19 +66,19 @@ def verify_resize(
         scale_w = out_width / in_width
         b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -153,19 +153,19 @@ def verify_resize3d(
         scale_w = out_width / in_width
         b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -225,21 +225,21 @@ def test_crop_and_resize():
             np_images, np_boxes, np_box_indices, np_crop_size, layout, method, extrapolation_value
         )
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(out)
-            tvm_images = tvm.nd.array(np_images, ctx)
-            tvm_boxes = tvm.nd.array(np_boxes, ctx)
-            tvm_indices = tvm.nd.array(np_box_indices, ctx)
-            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype="float32"), ctx)
-            f = tvm.build(s, [images, boxes, box_ind, out], device, name="crop_and_resize")
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(out)
+            tvm_images = tvm.nd.array(np_images, dev)
+            tvm_boxes = tvm.nd.array(np_boxes, dev)
+            tvm_indices = tvm.nd.array(np_box_indices, dev)
+            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype="float32"), dev)
+            f = tvm.build(s, [images, boxes, box_ind, out], target, name="crop_and_resize")
             f(tvm_images, tvm_boxes, tvm_indices, tvm_out)
 
             tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            check_device(device, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     boxes_1 = np.array([[0.2, 0.3, 0.7, 0.9]], dtype="float32")
     boxes_2 = np.array([[0.2, 0.3, 0.7, 0.9], [0, 0.1, 0.8, 1]], dtype="float32")
@@ -272,19 +272,19 @@ def test_affine_grid():
 
         data_np, out_np = get_ref_data()
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(out)
-            tvm_data = tvm.nd.array(data_np, ctx)
-            tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
-            f = tvm.build(s, [data, out], device)
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(out)
+            tvm_data = tvm.nd.array(data_np, dev)
+            tvm_out = tvm.nd.empty(out_np.shape, dtype, dev)
+            f = tvm.build(s, [data, out], target)
             f(tvm_data, tvm_out)
 
             tvm.testing.assert_allclose(tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            check_device(device, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     verify_affine_grid(1, (16, 32))
     verify_affine_grid(4, (16, 32))
@@ -308,20 +308,20 @@ def test_grid_sample():
 
         data_np, grid_np, out_np = get_ref_data()
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(out)
-            tvm_data = tvm.nd.array(data_np, ctx)
-            tvm_grid = tvm.nd.array(grid_np, ctx)
-            tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
-            f = tvm.build(s, [data, grid, out], device)
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(out)
+            tvm_data = tvm.nd.array(data_np, dev)
+            tvm_grid = tvm.nd.array(grid_np, dev)
+            tvm_out = tvm.nd.empty(out_np.shape, dtype, dev)
+            f = tvm.build(s, [data, grid, out], target)
             f(tvm_data, tvm_grid, tvm_out)
 
             tvm.testing.assert_allclose(tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            check_device(device, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))

@@ -91,35 +91,35 @@ void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes)
   ICHECK_EQ(nbytes, GetDataSize(*to));
   DLTensor from;
   from.data = from_bytes;
-  from.ctx = {kDLCPU, 0};
+  from.device = {kDLCPU, 0};
   from.ndim = to->ndim;
   from.shape = to->shape;
   from.dtype = to->dtype;
   from.strides = nullptr;
   from.byte_offset = 0;
-  TVMContext ctx_to = to->ctx;
-  this->GetDeviceAPI(ctx_to)->CopyDataFromTo(&from, to, nullptr);
+  Device dev_to = to->device;
+  this->GetDeviceAPI(dev_to)->CopyDataFromTo(&from, to, nullptr);
   // Copy can happen asynchrously
   // synchronize to make sure that copy is completed
-  this->GetDeviceAPI(ctx_to)->StreamSync(ctx_to, nullptr);
+  this->GetDeviceAPI(dev_to)->StreamSync(dev_to, nullptr);
 }
 
 void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
   ICHECK_EQ(nbytes, GetDataSize(*from));
   DLTensor to;
   to.data = to_bytes;
-  to.ctx = {kDLCPU, 0};
+  to.device = {kDLCPU, 0};
   to.ndim = from->ndim;
   to.shape = from->shape;
   to.dtype = from->dtype;
   to.strides = nullptr;
   to.byte_offset = 0;
 
-  TVMContext ctx_from = from->ctx;
-  this->GetDeviceAPI(ctx_from)->CopyDataFromTo(from, &to, nullptr);
+  Device dev_from = from->device;
+  this->GetDeviceAPI(dev_from)->CopyDataFromTo(from, &to, nullptr);
   // Copy can happen asynchrously
   // synchronize to make sure that copy is completed
-  this->GetDeviceAPI(ctx_from)->StreamSync(ctx_from, nullptr);
+  this->GetDeviceAPI(dev_from)->StreamSync(dev_from, nullptr);
 }
 
 void LocalSession::FreeHandle(void* handle, int type_code) {
@@ -129,8 +129,8 @@ void LocalSession::FreeHandle(void* handle, int type_code) {
   TVMRetValue rv = TVMRetValue::MoveFromCHost(value, type_code);
 }
 
-DeviceAPI* LocalSession::GetDeviceAPI(TVMContext ctx, bool allow_missing) {
-  return DeviceAPI::Get(ctx, allow_missing);
+DeviceAPI* LocalSession::GetDeviceAPI(Device dev, bool allow_missing) {
+  return DeviceAPI::Get(dev, allow_missing);
 }
 
 TVM_REGISTER_GLOBAL("rpc.LocalSession").set_body_typed([]() {

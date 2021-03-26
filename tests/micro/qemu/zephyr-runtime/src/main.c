@@ -71,12 +71,12 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
 
 K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 120, 4);
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
   *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   k_free(ptr);
   return kTvmErrorNoError;
 }

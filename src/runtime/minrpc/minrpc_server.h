@@ -173,7 +173,7 @@ class MinRPCServer {
     uint64_t data_handle;
     this->Read(&data_handle);
     arr->data = reinterpret_cast<void*>(data_handle);
-    this->Read(&(arr->ctx));
+    this->Read(&(arr->device));
     this->Read(&(arr->ndim));
     this->Read(&(arr->dtype));
     arr->shape = this->ArenaAlloc<int64_t>(arr->ndim);
@@ -186,13 +186,13 @@ class MinRPCServer {
 
     uint8_t* data_ptr;
     int call_ecode = 0;
-    if (arr->ctx.device_type == kDLCPU) {
+    if (arr->device.device_type == kDLCPU) {
       data_ptr = reinterpret_cast<uint8_t*>(data_handle) + arr->byte_offset;
     } else {
       data_ptr = this->ArenaAlloc<uint8_t>(num_bytes);
       DLTensor temp;
       temp.data = reinterpret_cast<void*>(data_ptr);
-      temp.ctx = arr->ctx;
+      temp.device = arr->device;
       temp.ndim = arr->ndim;
       temp.dtype = arr->dtype;
       temp.shape = arr->shape;
@@ -201,7 +201,7 @@ class MinRPCServer {
       call_ecode = TVMDeviceCopyDataFromTo(arr, &temp, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(arr->ctx.device_type, arr->ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
       }
     }
 
@@ -224,7 +224,7 @@ class MinRPCServer {
     uint64_t data_handle;
     this->Read(&data_handle);
     arr->data = reinterpret_cast<void*>(data_handle);
-    this->Read(&(arr->ctx));
+    this->Read(&(arr->device));
     this->Read(&(arr->ndim));
     this->Read(&(arr->dtype));
     arr->shape = this->ArenaAlloc<int64_t>(arr->ndim);
@@ -235,7 +235,7 @@ class MinRPCServer {
     this->Read(&num_bytes);
 
     int call_ecode = 0;
-    if (arr->ctx.device_type == kDLCPU) {
+    if (arr->device.device_type == kDLCPU) {
       uint8_t* dptr = reinterpret_cast<uint8_t*>(data_handle) + arr->byte_offset;
       this->ReadArray(dptr, num_bytes);
     } else {
@@ -243,7 +243,7 @@ class MinRPCServer {
       this->ReadArray(temp_data, num_bytes);
       DLTensor temp;
       temp.data = temp_data;
-      temp.ctx = DLContext{kDLCPU, 0};
+      temp.device = DLDevice{kDLCPU, 0};
       temp.ndim = arr->ndim;
       temp.dtype = arr->dtype;
       temp.shape = arr->shape;
@@ -252,7 +252,7 @@ class MinRPCServer {
       call_ecode = TVMDeviceCopyDataFromTo(&temp, arr, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(arr->ctx.device_type, arr->ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
       }
     }
 
@@ -390,18 +390,18 @@ class MinRPCServer {
 
   void SyscallDevAllocData(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 4);
-    MINRPC_CHECK(tcodes[0] == kTVMContext);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kDLInt);
     MINRPC_CHECK(tcodes[2] == kDLInt);
     MINRPC_CHECK(tcodes[3] == kTVMDataType);
 
-    TVMContext ctx = values[0].v_ctx;
+    DLDevice dev = values[0].v_device;
     int64_t nbytes = values[1].v_int64;
     int64_t alignment = values[2].v_int64;
     DLDataType type_hint = values[3].v_type;
 
     void* handle;
-    int call_ecode = TVMDeviceAllocDataSpace(ctx, nbytes, alignment, type_hint, &handle);
+    int call_ecode = TVMDeviceAllocDataSpace(dev, nbytes, alignment, type_hint, &handle);
 
     if (call_ecode == 0) {
       this->ReturnHandle(handle);
@@ -418,8 +418,8 @@ class MinRPCServer {
     DLTensor* arr = reinterpret_cast<DLTensor*>(values[0].v_handle);
     const char* mem_scope = (tcodes[1] == kTVMNullptr ? nullptr : values[1].v_str);
     void* handle;
-    int call_ecode = TVMDeviceAllocDataSpaceWithScope(arr->ctx, arr->ndim, arr->shape, arr->dtype,
-                                                      mem_scope, &handle);
+    int call_ecode = TVMDeviceAllocDataSpaceWithScope(arr->device, arr->ndim, arr->shape,
+                                                      arr->dtype, mem_scope, &handle);
     if (call_ecode == 0) {
       this->ReturnHandle(handle);
     } else {
@@ -429,13 +429,13 @@ class MinRPCServer {
 
   void SyscallDevFreeData(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 2);
-    MINRPC_CHECK(tcodes[0] == kTVMContext);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
 
-    TVMContext ctx = values[0].v_ctx;
+    DLDevice dev = values[0].v_device;
     void* handle = values[1].v_handle;
 
-    int call_ecode = TVMDeviceFreeDataSpace(ctx, handle);
+    int call_ecode = TVMDeviceFreeDataSpace(dev, handle);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
@@ -446,13 +446,13 @@ class MinRPCServer {
 
   void SyscallDevStreamSync(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 2);
-    MINRPC_CHECK(tcodes[0] == kTVMContext);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
 
-    TVMContext ctx = values[0].v_ctx;
+    DLDevice dev = values[0].v_device;
     void* handle = values[1].v_handle;
 
-    int call_ecode = TVMSynchronize(ctx.device_type, ctx.device_id, handle);
+    int call_ecode = TVMSynchronize(dev.device_type, dev.device_id, handle);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
@@ -511,7 +511,7 @@ class MinRPCServer {
       size_t npages = ((min_size + kPageSize - 1) / kPageSize);
       void* data;
 
-      if (TVMDeviceAllocDataSpace(DLContext{kDLCPU, 0}, npages * kPageSize, kPageAlign,
+      if (TVMDeviceAllocDataSpace(DLDevice{kDLCPU, 0}, npages * kPageSize, kPageAlign,
                                   DLDataType{kDLInt, 1, 1}, &data) != 0) {
         io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
       }
@@ -523,7 +523,7 @@ class MinRPCServer {
     }
 
     void deallocate(ArenaPageHeader* page) {
-      if (TVMDeviceFreeDataSpace(DLContext{kDLCPU, 0}, page) != 0) {
+      if (TVMDeviceFreeDataSpace(DLDevice{kDLCPU, 0}, page) != 0) {
         io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
       }
     }

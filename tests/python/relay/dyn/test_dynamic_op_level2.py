@@ -56,10 +56,10 @@ def test_dyn_upsampling_run():
         zz = run_infer_type(z)
         func = relay.Function([x, scale_h_var, scale_w_var], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(
                     x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32")
                 )
@@ -125,10 +125,10 @@ def test_dyn_upsampling3d_run():
         zz = run_infer_type(z)
         func = relay.Function([x, scale_d_var, scale_h_var, scale_w_var], z)
 
-        for target, ctx in enabled_targets():
+        for target, dev in enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(
                     x_data,
                     np.array(scale_d).astype("float32"),

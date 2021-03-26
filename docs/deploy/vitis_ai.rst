@@ -696,7 +696,7 @@ as root (execute ``su`` in terminal to log into root).
    import tvm
    from tvm.contrib import graph_runtime
 
-   ctx = tvm.cpu()
+   dev = tvm.cpu()
    
    # input_name = ...
    # input_data = ...
@@ -704,6 +704,6 @@ as root (execute ``su`` in terminal to log into root).
    # load the module into memory
    lib = tvm.runtime.load_module("tvm_dpu_arm.so")
 
-   module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+   module = graph_runtime.GraphModule(lib["default"](dev))
    module.set_input(input_name, input_data)
    module.run()

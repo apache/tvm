@@ -49,11 +49,11 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
         bb = 10.0
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
@@ -119,11 +119,11 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
-        a = tvm.nd.array(np.random.randint(low=0, high=50, size=ashape).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.randint(low=0, high=50, size=bshape).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+        a = tvm.nd.array(np.random.randint(low=0, high=50, size=ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.randint(low=0, high=50, size=bshape).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
         bb = 10
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
@@ -171,11 +171,11 @@ def verify_batch_matmul(
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A, B, D], target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(
             d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5

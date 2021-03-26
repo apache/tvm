@@ -72,8 +72,8 @@ class RPCSession(object):
         """
         return self._sess.get_function(name)
 
-    def context(self, dev_type, dev_id=0):
-        """Construct a remote context.
+    def device(self, dev_type, dev_id=0):
+        """Construct a remote device.
 
         Parameters
         ----------
@@ -83,14 +83,14 @@ class RPCSession(object):
 
         Returns
         -------
-        ctx: TVMContext
-            The corresponding encoded remote context.
+        dev: Device
+            The corresponding encoded remote device.
         """
-        ctx = nd.context(dev_type, dev_id)
+        dev = nd.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        ctx.device_type += encode
-        ctx._rpc_sess = self
-        return ctx
+        dev.device_type += encode
+        dev._rpc_sess = self
+        return dev
 
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder
@@ -199,35 +199,35 @@ class RPCSession(object):
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""
-        return self.context(1, dev_id)
+        return self.device(1, dev_id)
 
     def gpu(self, dev_id=0):
         """Construct GPU device."""
-        return self.context(2, dev_id)
+        return self.device(2, dev_id)
 
     def cl(self, dev_id=0):
         """Construct OpenCL device."""
-        return self.context(4, dev_id)
+        return self.device(4, dev_id)
 
     def vulkan(self, dev_id=0):
         """Construct Vulkan device."""
-        return self.context(7, dev_id)
+        return self.device(7, dev_id)
 
     def metal(self, dev_id=0):
         """Construct Metal device."""
-        return self.context(8, dev_id)
+        return self.device(8, dev_id)
 
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
-        return self.context(12, dev_id)
+        return self.device(12, dev_id)
 
     def hexagon(self, dev_id=0):
         """Construct Hexagon device."""
-        return self.context(14, dev_id)
+        return self.device(14, dev_id)
 
     def webgpu(self, dev_id=0):
         """Construct WebGPU device."""
-        return self.context(15, dev_id)
+        return self.device(15, dev_id)
 
 
 class LocalSession(RPCSession):

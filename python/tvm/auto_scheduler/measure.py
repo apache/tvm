@@ -544,9 +544,9 @@ class LocalRPCMeasureContext:
         from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
 
-        ctx = tvm.context("cuda", 0)
-        if ctx.exist:
-            cuda_arch = "sm_" + "".join(ctx.compute_version.split("."))
+        dev = tvm.device("cuda", 0)
+        if dev.exist:
+            cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
         host = "0.0.0.0"
         self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
@@ -835,7 +835,7 @@ def _timed_eval_func(
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        ctx = ndarray.context(str(inp.task.target), 0)
+        dev = ndarray.device(str(inp.task.target), 0)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -844,7 +844,7 @@ def _timed_eval_func(
         f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
             func.entry_name,
-            ctx,
+            dev,
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
@@ -870,7 +870,7 @@ def _timed_eval_func(
                     if tensor_name in task_input_names:
                         args.append(
                             ndarray.array(
-                                get_task_input_buffer(inp.task.workload_key, tensor_name), ctx
+                                get_task_input_buffer(inp.task.workload_key, tensor_name), dev
                             )
                         )
                         task_inputs_count += 1
@@ -880,14 +880,14 @@ def _timed_eval_func(
                             + "should provide with `SearchTask(..., task_inputs={...})`"
                         )
                 else:
-                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
+                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
                     random_fill(empty_array)
                     args.append(empty_array)
             if task_inputs_count != len(task_input_names):
                 logger.warning(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
-            ctx.sync()
+            dev.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
         except Exception:
@@ -1048,7 +1048,7 @@ def _timed_rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        ctx = remote.context(str(inp.task.target), 0)
+        dev = remote.device(str(inp.task.target), 0)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -1057,7 +1057,7 @@ def _timed_rpc_run(
         f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
             func.entry_name,
-            ctx,
+            dev,
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
@@ -1085,7 +1085,7 @@ def _timed_rpc_run(
                     if tensor_name in task_input_names:
                         args.append(
                             ndarray.array(
-                                get_task_input_buffer(inp.task.workload_key, tensor_name), ctx
+                                get_task_input_buffer(inp.task.workload_key, tensor_name), dev
                             )
                         )
                         task_inputs_count += 1
@@ -1095,14 +1095,14 @@ def _timed_rpc_run(
                             + "should provide with `SearchTask(..., task_inputs={...})`"
                         )
                 else:
-                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
+                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
                     random_fill(empty_array)
                     args.append(empty_array)
             if task_inputs_count != len(task_input_names):
                 logger.warning(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
-            ctx.sync()
+            dev.sync()
             costs = time_f(*args).results
 
             # clean up remote files

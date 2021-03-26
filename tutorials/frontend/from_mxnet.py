@@ -106,9 +106,9 @@ with tvm.transform.PassContext(opt_level=3):
 # Now, we would like to reproduce the same forward computation using TVM.
 from tvm.contrib import graph_runtime
 
-ctx = tvm.gpu(0)
+dev = tvm.gpu(0)
 dtype = "float32"
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_runtime.GraphModule(lib["default"](dev))
 # set inputs
 m.set_input("data", tvm.nd.array(x.astype(dtype)))
 # execute

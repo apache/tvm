@@ -48,7 +48,7 @@ def update_lib(lib):
     return lib
 
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu()):
+def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
@@ -59,7 +59,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ct
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, ctx)
+        vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
@@ -67,12 +67,12 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ct
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             json, lib, _ = relay.build(mod, target=target)
         lib = update_lib(lib)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        rt_mod = tvm.contrib.graph_runtime.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
 
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
@@ -290,7 +290,7 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
     check_result(
         mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
@@ -329,7 +329,7 @@ def test_extern_dnnl_const():
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data)
     check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 

@@ -547,9 +547,9 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     return Module(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
-  operator TVMContext() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
-    return value_.v_ctx;
+  operator Device() const {
+    TVM_CHECK_TYPE_CODE(type_code_, kDLDevice);
+    return value_.v_device;
   }
   int type_code() const { return type_code_; }
   /*!
@@ -606,7 +606,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
-  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Device;
   using TVMPODValue_::operator Module;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::IsObjectRef;
@@ -666,7 +666,7 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
-  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Device;
   using TVMPODValue_::operator Module;
   // reuse conversion rule from ArgValue.
   operator std::string() const { return AsArgValue().operator std::string(); }
@@ -760,7 +760,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator DLTensor*;
-  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Device;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Module;
   using TVMPODValue_::AsObjectRef;
@@ -827,9 +827,9 @@ class TVMRetValue : public TVMPODValue_ {
     value_.v_int64 = value;
     return *this;
   }
-  TVMRetValue& operator=(TVMContext value) {
-    this->SwitchToPOD(kTVMContext);
-    value_.v_ctx = value;
+  TVMRetValue& operator=(DLDevice value) {
+    this->SwitchToPOD(kDLDevice);
+    value_.v_device = value;
     return *this;
   }
   TVMRetValue& operator=(DLDataType t) {
@@ -1180,8 +1180,8 @@ inline const char* ArgTypeCode2Str(int type_code) {
       return "ArrayHandle";
     case kTVMDataType:
       return "DLDataType";
-    case kTVMContext:
-      return "TVMContext";
+    case kDLDevice:
+      return "DLDevice";
     case kTVMPackedFuncHandle:
       return "FunctionHandle";
     case kTVMModuleHandle:
@@ -1295,9 +1295,9 @@ class TVMArgsSetter {
     values_[i].v_handle = value;
     type_codes_[i] = kTVMDLTensorHandle;
   }
-  TVM_ALWAYS_INLINE void operator()(size_t i, TVMContext value) const {
-    values_[i].v_ctx = value;
-    type_codes_[i] = kTVMContext;
+  TVM_ALWAYS_INLINE void operator()(size_t i, Device value) const {
+    values_[i].v_device = value;
+    type_codes_[i] = kDLDevice;
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, DLDataType value) const {
     values_[i].v_type = value;

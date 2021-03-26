@@ -188,11 +188,11 @@ class VMCompiler(object):
             raise ValueError("Target is not set in env or passed as argument.")
         tgts = {}
         if isinstance(target, (str, tvm.target.Target)):
-            dev_type = tvm.tir.IntImm("int32", tvm.nd.context(str(target)).device_type)
+            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(str(target)).device_type)
             tgts[dev_type] = tvm.target.Target(target)
         elif isinstance(target, dict):
             for dev, tgt in target.items():
-                dev_type = tvm.tir.IntImm("int32", tvm.nd.context(dev).device_type)
+                dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
                 tgts[dev_type] = tvm.target.Target(tgt)
         else:
             raise TypeError(
@@ -241,21 +241,21 @@ class VMExecutor(Executor):
     mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
-    ctx : :py:class:`~tvmContext`
-        The runtime context to run the code on.
+    device : :py:class:`~tvm.runtime.Device`
+        The runtime device to run the code on.
 
     target : :py:class:`Target`
         The target option to build the function.
     """
 
-    def __init__(self, mod, ctx, target):
+    def __init__(self, mod, device, target):
         if mod is None:
             raise RuntimeError("Must provide module to get VM executor.")
         self.mod = mod
-        self.ctx = ctx
+        self.device = device
         self.target = target
         self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable, ctx)
+        self.vm = vm_rt.VirtualMachine(self.executable, device)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]

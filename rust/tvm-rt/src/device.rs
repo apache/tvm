@@ -24,10 +24,10 @@ use crate::errors::Error;
 
 use tvm_sys::ffi;
 
-pub use tvm_sys::context::*;
+pub use tvm_sys::device::*;
 
-trait ContextExt {
-    /// Checks whether the context exists or not.
+trait DeviceExt {
+    /// Checks whether the device exists or not.
     fn exist(&self) -> bool;
     fn sync(&self) -> Result<(), Error>;
     fn max_threads_per_block(&self) -> isize;
@@ -57,7 +57,7 @@ crate::external! {
     fn get_device_attr(device_type: i32, device_id: i32, device_kind: i32) -> i32;
 }
 
-impl ContextExt for Context {
+impl DeviceExt for Device {
     fn exist(&self) -> bool {
         let exists = get_device_attr(self.device_type as i32, self.device_id as i32, 0)
             .expect("should not fail");
@@ -65,7 +65,7 @@ impl ContextExt for Context {
         exists != 0
     }
 
-    /// Synchronize the context stream.
+    /// Synchronize the device stream.
     fn sync(&self) -> Result<(), Error> {
         check_call!(ffi::TVMSynchronize(
             self.device_type as i32,
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn sync() {
-        let ctx = Context::cpu(0);
-        assert!(ctx.sync().is_ok())
+        let dev = Device::cpu(0);
+        assert!(dev.sync().is_ok())
     }
 }

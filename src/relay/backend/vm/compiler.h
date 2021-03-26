@@ -62,7 +62,7 @@ using GlobalMap = NodeMap<GlobalVar, Index>;
 using ConstMap = NodeMap<Constant, Index>;
 using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
-using ExprDeviceMap = std::unordered_map<Expr, TVMContext, ObjectPtrHash, ObjectPtrEqual>;
+using ExprDeviceMap = std::unordered_map<Expr, Device, ObjectPtrHash, ObjectPtrEqual>;
 
 struct VMCompilerContext {
   // The module context for the compilation

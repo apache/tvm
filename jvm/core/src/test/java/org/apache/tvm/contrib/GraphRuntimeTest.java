@@ -19,7 +19,7 @@ package org.apache.tvm.contrib;
 
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 import org.apache.tvm.TestUtils;
 import org.apache.tvm.rpc.Client;
 import org.apache.tvm.rpc.RPCSession;
@@ -51,14 +51,14 @@ public class GraphRuntimeTest {
         loadingDir + File.separator + "graph_addone.json"))
         .useDelimiter("\\Z").next();
 
-    TVMContext ctx = TVMContext.cpu();
-    GraphModule graph = GraphRuntime.create(graphJson, libmod, ctx);
+    Device dev = Device.cpu();
+    GraphModule graph = GraphRuntime.create(graphJson, libmod, dev);
 
     long[] shape = new long[]{4};
-    NDArray arr = NDArray.empty(shape, ctx);
+    NDArray arr = NDArray.empty(shape, dev);
     arr.copyFrom(new float[]{1f, 2f, 3f, 4f});
 
-    NDArray out = NDArray.empty(shape, ctx);
+    NDArray out = NDArray.empty(shape, dev);
 
     graph.setInput("x", arr).run();
     graph.getOutput(0, out);
@@ -87,18 +87,18 @@ public class GraphRuntimeTest {
     try {
       server = TestUtils.startServer(port);
       RPCSession remote = Client.connect("localhost", port.value);
-      TVMContext ctx = remote.cpu();
+      Device dev = remote.cpu();
 
       remote.upload(new File(libPath));
       Module mlib = remote.loadModule("graph_addone_lib.so");
 
-      GraphModule graph = GraphRuntime.create(graphJson, mlib, ctx);
+      GraphModule graph = GraphRuntime.create(graphJson, mlib, dev);
 
       long[] shape = new long[]{4};
-      NDArray arr = NDArray.empty(shape, ctx);
+      NDArray arr = NDArray.empty(shape, dev);
       arr.copyFrom(new float[]{1f, 2f, 3f, 4f});
 
-      NDArray out = NDArray.empty(shape, ctx);
+      NDArray out = NDArray.empty(shape, dev);
 
       graph.setInput("x", arr).run();
       graph.getOutput(0, out);

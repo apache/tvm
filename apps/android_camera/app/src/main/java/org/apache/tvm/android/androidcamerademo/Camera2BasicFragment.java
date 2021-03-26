@@ -57,7 +57,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 import org.apache.tvm.TVMType;
 import org.apache.tvm.TVMValue;
 import org.json.JSONException;
@@ -571,9 +571,9 @@ public class Camera2BasicFragment extends Fragment {
                 return -1;//failure
             }
 
-            Log.i(TAG, "creating java tvm context...");
-            // create java tvm context
-            TVMContext tvmCtx = EXE_GPU ? TVMContext.opencl() : TVMContext.cpu();
+            Log.i(TAG, "creating java tvm device...");
+            // create java tvm device
+            Device tvmDev = EXE_GPU ? Device.opencl() : Device.cpu();
 
             Log.i(TAG, "loading compiled functions...");
             Log.i(TAG, libCacheFilePath);
@@ -587,13 +587,13 @@ public class Camera2BasicFragment extends Fragment {
             Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
             Log.i(TAG, "creating graph runtime...");
 
-            Log.i(TAG, "ctx type: " + tvmCtx.deviceType);
-            Log.i(TAG, "ctx id: " + tvmCtx.deviceId);
+            Log.i(TAG, "device type: " + tvmDev.deviceType);
+            Log.i(TAG, "device id: " + tvmDev.deviceId);
 
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
-                    .pushArg(tvmCtx.deviceType)
-                    .pushArg(tvmCtx.deviceId)
+                    .pushArg(tvmDev.deviceType)
+                    .pushArg(tvmDev.deviceId)
                     .invoke();
 
             Log.i(TAG, "as module...");
