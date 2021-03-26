@@ -309,6 +309,14 @@ class VirtualMachine(object):
         exe: Union[Executable, Module]
             The executable either with the wrapper Python type or the raw runtime.Module.
 
+            In most cases this will be the Python wrapper class tvm.runtime.vm.Executable but
+            if you instead get the underlying runtime.Module subclass (i.e `exe.mod`) you
+            can directly pass it to this method.
+
+            This case can occur when doing things such as RPC where TVM's module APIs
+            return the raw modules, not the wrapped modules. This constructor will
+            handle this internally.
+
         device: Union[Device, List[Device]]
             The device, or devices on which to execute the VM code.
 
