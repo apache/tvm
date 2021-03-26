@@ -74,7 +74,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
 def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
-    mod, params = tvmc.load(flite_mobilenet_v1_1_quant)
+    mod, params = tvmc.load(tflite_mobilenet_v1_1_quant)
     graph, lib, params, dumps = tvmc.compile(
         mod,
         params,
