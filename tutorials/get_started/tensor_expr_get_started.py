@@ -147,7 +147,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # correct, we can compare the result of the output of the c tensor to the same
 # computation performed by numpy.
 
-dev = tvm.device(tgt, 0)
+dev = tvm.context(tgt, 0)
 
 n = 1024
 a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -175,7 +175,7 @@ print("Numpy running time: %f" % (np_running_time / np_repeat))
 
 
 def evaluate_addition(func, target, optimization, log):
-    dev = tvm.device(target, 0)
+    dev = tvm.context(target, 0)
     n = 32768
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
@@ -549,7 +549,7 @@ dtype = "float32"
 # ``llc --version`` to get the CPU type, and you can check ``/proc/cpuinfo``
 # for additional extensions that your processor might support.
 target = "llvm"
-dev = tvm.device(target, 0)
+dev = tvm.context(target, 0)
 
 # Random generated tensor for testing
 a = tvm.nd.array(numpy.random.rand(M, K).astype(dtype), dev)
