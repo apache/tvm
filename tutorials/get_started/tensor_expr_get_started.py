@@ -344,11 +344,11 @@ if run_cuda:
     # We provide a minimal array API in python to aid quick testing and prototyping.
     # The array API is based on the `DLPack <https://github.com/dmlc/dlpack>`_ standard.
     #
-    # - We first create a GPU device. 
+    # - We first create a GPU device.
     # - Then tvm.nd.array copies the data to the GPU.
     # - ``fadd`` runs the actual computation
     # - ``asnumpy()`` copies the GPU array back to the CPU (so we can verify correctness).
-    # 
+    #
     # Note that copying the data to and from the memory on the GPU is a required step.
 
     dev = tvm.device(tgt_gpu, 0)
