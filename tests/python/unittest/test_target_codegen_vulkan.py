@@ -65,9 +65,9 @@ bx = te.thread_axis("blockIdx.x")
 def test_vulkan_copy():
     def check_vulkan(dtype, n):
         A = te.placeholder((n,), name="A", dtype=dtype)
-        ctx = tvm.vulkan(0)
+        dev = tvm.vulkan(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
-        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(a_np)
+        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(a_np)
         b_np = a.asnumpy()
         tvm.testing.assert_allclose(a_np, b_np)
         tvm.testing.assert_allclose(a_np, a.asnumpy())
@@ -91,9 +91,9 @@ def test_vulkan_vectorize_add():
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
         fun = tvm.build(s, [A, B], "vulkan")
-        ctx = tvm.vulkan(0)
-        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.nd.empty((n,), B.dtype, ctx)
+        dev = tvm.vulkan(0)
+        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+        c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
@@ -139,10 +139,10 @@ def test_vulkan_stress():
             fs = [
                 build_f(random.choice(functions)) for _ in range(np.random.randint(low=1, high=10))
             ]
-            ctx = tvm.vulkan(0)
-            a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np.random.uniform(size=(n,)))
-            b = tvm.nd.empty((n,), B.dtype, ctx).copyfrom(np.random.uniform(size=(n,)))
-            cs = [tvm.nd.empty((n,), A.dtype, ctx) for _ in fs]
+            dev = tvm.vulkan(0)
+            a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n,)))
+            b = tvm.nd.empty((n,), B.dtype, dev).copyfrom(np.random.uniform(size=(n,)))
+            cs = [tvm.nd.empty((n,), A.dtype, dev) for _ in fs]
             for ((f, _), c) in zip(fs, cs):
                 f(a, b, c)
 
