@@ -124,6 +124,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
     random = sys_rand32_get();
     memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
   }
+  return kTvmErrorNoError;
 }
 
 // Memory pool for use by TVMPlatformMemoryAllocate.
