@@ -100,6 +100,13 @@ bool Analyzer::CanProveLess(const PrimExpr& expr, int64_t upper_bound) {
   return false;
 }
 
+bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
+  const auto* clhs = lhs.as<IntImmNode>();
+  const auto* crhs = rhs.as<IntImmNode>();
+  if (clhs && crhs) return clhs->value == crhs->value;
+  return CanProve(lhs - rhs == 0);
+}
+
 bool Analyzer::CanProve(const PrimExpr& expr) {
   if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value != 0;
