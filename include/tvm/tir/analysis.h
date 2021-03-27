@@ -172,6 +172,12 @@ TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constrain
 Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
                                                 const Map<Var, Buffer>& buffer_var_map);
 
+/*!
+ * \brief Calculate the expresion complexity based on number of symbols it contains.
+ * \param expr The expr to be calculated.
+ */
+TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
+
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
 namespace transform {
