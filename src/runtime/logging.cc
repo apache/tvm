@@ -161,6 +161,7 @@ std::string Backtrace() { return ""; }
 }  // namespace tvm
 #endif  // TVM_LOG_STACK_TRACE
 
+#if (TVM_LOG_CUSTOMIZE == 0)
 namespace tvm {
 namespace runtime {
 namespace detail {
@@ -172,3 +173,4 @@ LogFatal::Entry& LogFatal::GetEntry() {
 }  // namespace detail
 }  // namespace runtime
 }  // namespace tvm
+#endif  // TVM_LOG_CUSTOMIZE
