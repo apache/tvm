@@ -126,11 +126,11 @@ def test_split():
     fld = tvm.tir.floordiv
     flm = tvm.tir.floormod
 
-    res = tvm.arith.detect_iter_map([fld(x, 3), flm(x, 3) + c1], var_dom([(x, 24)]))
+    res = tvm.arith.detect_iter_map([fld(x, 3), flm(x, 3) * 2 + c1], var_dom([(x, 24)]))
 
     assert len(res) == 2
     assert_iter_sum_pattern(res[0], 8, 0)
-    assert_iter_sum_pattern(res[1], 3, c1, 1)
+    assert_iter_sum_pattern(res[1], 3, c1, 2)
 
     res = tvm.arith.detect_iter_map([fld(x, 6), fld(flm(x, 6), 2), flm(x, 2)], var_dom([(x, 24)]))
 
@@ -143,6 +143,7 @@ def test_split():
     # TODO(tvm-team) improve symbolic divisible check to enable
     # more complicated symbolic bound
     res = tvm.arith.detect_iter_map([fld(x, c0), flm(x, c0)], var_dom([(x, c1 * c0)]))
+
     assert len(res) == 2
     assert_iter_sum_pattern(res[0], c1, 0)
     assert_iter_sum_pattern(res[1], c0, 0)
