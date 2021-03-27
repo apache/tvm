@@ -206,7 +206,7 @@ micro_bin = tvm.micro.build_static_runtime(workspace, compiler, lowered.lib, opt
 
 flasher = compiler.flasher()
 with tvm.micro.Session(binary=micro_bin, flasher=flasher) as sess:
-    mod = tvm.micro.create_local_graph_runtime(graph_json_str, sess.get_system_lib(), sess.context)
+    mod = tvm.micro.create_local_graph_runtime(graph_json_str, sess.get_system_lib(), sess.device)
 
     # Load test images.
     DIGIT_2_IMAGE = "../../tests/micro/zephyr/testdata/digit-2.jpg"

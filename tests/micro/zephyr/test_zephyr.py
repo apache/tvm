@@ -240,7 +240,7 @@ def test_onnx(platform, west_cmd):
 
     with _make_session(model, target, zephyr_board, west_cmd, lowered.lib) as session:
         graph_mod = tvm.micro.create_local_graph_runtime(
-            graph, session.get_system_lib(), session.context
+            graph, session.get_system_lib(), session.device
         )
 
         # Send the digit-2 image and confirm that the correct result is returned.
