@@ -48,11 +48,31 @@
 #endif
 
 /*!
+ * \brief Whether or not enable backtrace logging during a
+ *        fatal error.
+ *
+ * \note TVM won't depend on LIBBACKTRACE or other exec_info
+ *       library when this option is disabled.
+ */
+#ifndef TVM_LOG_STACK_TRACE
+#define TVM_LOG_STACK_TRACE 1
+#endif
+
+/*!
  * \brief Whether or not use libbacktrace library
  *        for getting backtrace information
  */
 #ifndef TVM_USE_LIBBACKTRACE
 #define TVM_USE_LIBBACKTRACE 0
+#endif
+
+/*!
+ * \brief Whether or not customize the logging output.
+ *  If log customize is enabled, the user must implement
+ *  tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl.
+ */
+#ifndef TVM_LOG_CUSTOMIZE
+#define TVM_LOG_CUSTOMIZE 0
 #endif
 
 // a technique that enables overriding macro names on the number of parameters. This is used
@@ -152,13 +172,15 @@ TVM_DLL std::string Backtrace();
 /*! \brief Base error type for TVM. Wraps a string message. */
 class Error : public ::dmlc::Error {  // for backwards compatibility
  public:
-  /*! \brief Construct an error.
+  /*!
+   * \brief Construct an error.
    * \param s The message to be displayed with the error.
    */
   explicit Error(const std::string& s) : ::dmlc::Error(s) {}
 };
 
-/*! \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
+/*!
+ * \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
  * contains a backtrace of where it occured.
  */
 class InternalError : public Error {
@@ -214,10 +236,60 @@ class InternalError : public Error {
   std::string full_message_;  // holds the full error string
 };
 
+/*! \brief Internal implementation */
 namespace detail {
-#ifndef TVM_LOG_CUSTOMIZE
+// Provide support for customized logging.
+#if TVM_LOG_CUSTOMIZE
+/*!
+ * \brief Custom implementations of LogFatal.
+ *
+ * \sa TVM_LOG_CUSTOMIZE
+ */
+TVM_DLL void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
 
-/*! \brief Class to accumulate an error message and throw it. Do not use
+/*!
+ * \brief Custom implementations of LogMessage.
+ *
+ * \sa TVM_LOG_CUSTOMIZE
+ */
+TVM_DLL void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
+
+/*!
+ * \brief Class to accumulate an error message and throw it. Do not use
+ * directly, instead use LOG(FATAL).
+ */
+class LogFatal {
+ public:
+  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+  std::string file_;
+  int lineno_;
+};
+
+/*!
+ * \brief Class to accumulate an log message. Do not use directly, instead use
+ * LOG(INFO), LOG(WARNING), LOG(ERROR).
+ */
+class LogMessage {
+ public:
+  LogMessage(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+  ~LogMessage() { LogMessageImpl(file_, lineno_, stream_.str()); }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::string file_;
+  int lineno_;
+  std::ostringstream stream_;
+};
+
+#else
+
+/*!
+ * \brief Class to accumulate an error message and throw it. Do not use
  * directly, instead use LOG(FATAL).
  */
 class LogFatal {
@@ -239,7 +311,8 @@ class LogFatal {
   int lineno_;
 };
 
-/*! \brief Class to accumulate an log message. Do not use directly, instead use
+/*!
+ * \brief Class to accumulate an log message. Do not use directly, instead use
  * LOG(INFO), LOG(WARNING), LOG(ERROR).
  */
 class LogMessage {
@@ -253,34 +326,6 @@ class LogMessage {
   std::ostringstream& stream() { return stream_; }
 
  private:
-  std::ostringstream stream_;
-};
-#else
-// Custom implementations of LogFatal and LogMessage that allow the user to
-// override handling of the message. The user must implement LogFatalImpl and LogMessageImpl
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
-class LogFatal {
- public:
-  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-  std::string file_;
-  int lineno_;
-};
-
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
-class LogMessage {
- public:
-  LogMessage(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogMessage() { LogMessageImpl(file_, lineno_, stream_.str()); }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::string file_;
-  int lineno_;
   std::ostringstream stream_;
 };
 #endif
