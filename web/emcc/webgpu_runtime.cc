@@ -23,12 +23,10 @@
  */
 
 // configurations for tvm logging
+#define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
+#define TVM_LOG_CUSTOMIZE 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_BACKTRACE_DISABLED 1
-#define TVM_LOG_DEBUG 0
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_USE_LIBBACKTRACE 0
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -45,18 +43,6 @@
 
 namespace tvm {
 namespace runtime {
-namespace detail {
-// Override logging mechanism
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
-  std::cerr << file << ":" << lineno << ": " << message << std::endl;
-  abort();
-}
-
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
-  std::cerr << file << ":" << lineno << ": " << message << std::endl;
-}
-
-}  // namespace detail
 
 /*! \brief Thread local workspace */
 class WebGPUThreadEntry {

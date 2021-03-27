@@ -55,7 +55,7 @@ crttest:
 	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
 
 # EMCC; Web related scripts
-EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
+EMCC_FLAGS= -std=c++11\
 	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\
 	-s TOTAL_MEMORY=1073741824\
 	-s EXTRA_EXPORTED_RUNTIME_METHODS="['addFunction','cwrap','getValue','setValue']"\

@@ -25,14 +25,10 @@
  */
 
 // configurations for tvm logging
-#define DMLC_LOG_CUSTOMIZE 0
-#define DMLC_LOG_STACK_TRACE 0
-#define DMLC_LOG_DEBUG 0
-#define DMLC_LOG_NODATE 1
-#define DMLC_LOG_FATAL_THROW 0
+#define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
+#define TVM_LOG_CUSTOMIZE 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_USE_LIBBACKTRACE 0
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container.h>
