@@ -339,7 +339,7 @@ class LogFatal {
     int lineno_;
   };
 
-  TVM_NO_INLINE static Entry& GetEntry();
+  TVM_DLL TVM_NO_INLINE static Entry& GetEntry();
 };
 
 /*!
