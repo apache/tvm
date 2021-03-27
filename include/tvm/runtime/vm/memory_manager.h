@@ -50,6 +50,7 @@ struct Buffer {
 enum AllocatorType {
   kNaive = 1,
   kPooled,
+  kCustomized
 };
 
 class Allocator {

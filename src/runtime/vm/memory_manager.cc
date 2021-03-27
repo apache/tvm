@@ -21,6 +21,7 @@
  * \file tvm/runtime/vm/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/memory_manager.h>
 
 #include <memory>
@@ -117,28 +118,43 @@ MemoryManager* MemoryManager::Global() {
   return inst;
 }
 
+TVM_REGISTER_GLOBAL("vm.allocator.naive").set_body_typed([](Device dev) -> Allocator* {
+  return new NaiveAllocator(dev);
+});
+TVM_REGISTER_GLOBAL("vm.allocator.pooled").set_body_typed([](Device dev) -> Allocator* {
+  return new PooledAllocator(dev);
+});
+
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
   if (m->allocators_.find(dev) == m->allocators_.end()) {
     std::unique_ptr<Allocator> alloc;
+    std::string factory = "vm.allocator.";
     switch (type) {
       case kNaive: {
-        DLOG(INFO) << "New naive allocator for " << DeviceName(dev.device_type) << "("
-                   << dev.device_id << ")";
-        alloc.reset(new NaiveAllocator(dev));
+        factory += "naive";
         break;
       }
       case kPooled: {
-        DLOG(INFO) << "New pooled allocator for " << DeviceName(dev.device_type) << "("
-                   << dev.device_id << ")";
-        alloc.reset(new PooledAllocator(dev));
+        factory += "pooled";
+        break;
+      }
+      case kCustomized: {
+        factory += "customized";
         break;
       }
       default:
         LOG(FATAL) << "Unknown allocator type: " << type;
     }
-    auto ret = alloc.get();
+    auto* f = Registry::Get(factory);
+    if (!f) {
+      LOG(FATAL) << "Cannot find allocator for " << factory;
+    }
+    DLOG(INFO) << "New " << factory << " allocator for " << DeviceName(dev.device_type) << "("
+               << dev.device_id << ")";
+    auto ret = (*f)(dev).ptr<Allocator>();
+    alloc.reset(ret);
     m->allocators_.emplace(dev, std::move(alloc));
     return ret;
   }
