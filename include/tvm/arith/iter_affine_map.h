@@ -136,6 +136,7 @@ class IterMark : public ObjectRef {
   TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IterMark, ObjectRef, IterMarkNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };
 
 /*!
@@ -259,7 +260,6 @@ class IterSumExpr : public IterMapExpr {
 
 /*!
  * \brief Detect if indices can be written as
- *
  *  [y_0 + c_0, y_1 + c_1, ..., y_n + c_n]
  *
  *  Here y = some-quasi-affine-iter-map(input_iters)
@@ -272,12 +272,15 @@ class IterSumExpr : public IterMapExpr {
  *
  * \param indices The indices to detect pattern for.
  * \param input_iters Map from variable to iterator's range.
+ * \param predicate The predicate constraints on the input iterators
+ * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
  *
  * \return The detected pattern if a match exists,
  *         otherwise return an empty array.
  */
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+                                 const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer);
 
 }  // namespace arith
