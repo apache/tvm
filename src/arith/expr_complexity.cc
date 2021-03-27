@@ -30,7 +30,7 @@ namespace tir {
 /*! \brief Count the size of the PrimExpr. */
 class PrimExprSizeCounter : public ExprVisitor {
  public:
-  explicit PrimExprSizeCounter() = default;
+  PrimExprSizeCounter() = default;
 
   static size_t Count(const PrimExpr& expr) {
     PrimExprSizeCounter prim_expr_size_counter;
