@@ -4285,7 +4285,7 @@ def test_aten():
     def _convert_to_onnx(model, inputs):
         file_name = "{}.onnx".format("aten_model")
         torch.onnx.export(
-            model, inputs, file_name, export_params=True, verbose=False, opset_version=10
+            model, inputs, file_name, export_params=True, verbose=False, opset_version=10, aten=True
         )
         onnx_model = onnx.load(file_name)
         return onnx_model

@@ -1617,7 +1617,14 @@ class Constant(OnnxOpConverter):
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
             raise tvm.errors.OpAttributeRequired("no value in Constant")
-        np_value = get_numpy(attr.pop("value"))
+        value = attr.pop("value")
+        # Constants may rarely have string types. These are likely exported
+        # from other frameworks and not actually used in TVM. We'll just use
+        # a zero valued constant for compatibility.
+        if isinstance(value, bytes):
+            np_value = np.asarray([0]).astype("int64")
+        else:
+            np_value = get_numpy(value)
         dtype = np_value.dtype.name
         value = _expr.const(np_value, dtype)
         return value
@@ -2707,17 +2714,38 @@ class ATen(OnnxOpConverter):
     @classmethod
     def _op_dispatch(cls, operator, inputs, attr, params):
         op_map = {
+            "size": cls._size,
+            "arange": cls._arange,
+            "reshape": cls._reshape,
             "embedding_bag": cls._embedding_bag,
         }
         assert operator in op_map, "Operator %s is not supported." % operator
         return op_map[operator](inputs, attr, params)
 
     @classmethod
+    def _size(cls, inputs, attr, params):
+        return _op.take(
+            _op.shape_of(inputs[0], dtype="int64"),
+            _expr.const(-1, dtype="int64"),
+            axis=0,
+            mode="wrap",
+        )
+
+    @classmethod
+    def _arange(cls, inputs, attr, params):
+        return _op.arange(inputs[0], inputs[1], inputs[2], dtype="int64")
+
+    @classmethod
+    def _reshape(cls, inputs, attr, params):
+        return _op.reshape(inputs[0], inputs[1])
+
+    @classmethod
     def _embedding_bag(cls, inputs, attr, params):
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
 
-        reduction_fn = mode_map[attr["mode"]]
-        weights, indices, offsets = inputs
+        mode = attr.get("mode", 1)
+        reduction_fn = mode_map[mode]
+        weights, indices, offsets = inputs[0], inputs[1], inputs[2]
         offsets_shape = _op.shape_of(offsets, dtype="int64")
         indices_shape = _op.stack(
             [
@@ -3244,7 +3272,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
-            except Exception as e:  # pylint: disable=c-extension-no-member
+            except Exception as e:  # pylint: disable=c-extension-no-member, broad-except
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:
