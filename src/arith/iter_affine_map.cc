@@ -171,7 +171,7 @@ class IterMapRewriter : public ExprMutator {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
       if (is_one(vrng->extent)) {
-        var_map_[kv.first] = IterSumExpr({}, vrng->min);
+        var_map_[var] = IterSumExpr({}, vrng->min);
       } else if (is_zero(vrng->min)) {
         IterMark mark(var, vrng->extent);
         var_map_[var] = IterSplitExpr(mark);
@@ -209,7 +209,7 @@ class IterMapRewriter : public ExprMutator {
    *   - bindings = [x / 4, x % 4] won't pass because y is not used.
    *
    *   If require_bijective is false, this function checks one condition:
-   *   - C0: Each iter mark exists chance to be fully covered by non-overlapping splits.
+   *   - C0: Each iter mark has a chance to be fully covered by non-overlapping splits.
    *   Example: given x in [0, 8) y in [0, 6)
    *   - bindings = [x / 4] will pass because x / 4 can be one split of x
    *   - bindings = [x / 4, x % 4] will pass because x / 4 and x % 4
@@ -611,7 +611,6 @@ class IterMapRewriter : public ExprMutator {
   }
 
   bool CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
-    if (analyzer_->CanProveEqual(lhs, rhs)) return true;
     const auto* clhs = lhs.as<IntImmNode>();
     const auto* crhs = rhs.as<IntImmNode>();
     if (clhs && crhs) return clhs->value % crhs->value == 0;
