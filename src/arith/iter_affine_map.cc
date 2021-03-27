@@ -614,7 +614,7 @@ class IterMapRewriter : public ExprMutator {
     const auto* clhs = lhs.as<IntImmNode>();
     const auto* crhs = rhs.as<IntImmNode>();
     if (clhs && crhs) return clhs->value % crhs->value == 0;
-    return analyzer_->CanProve(floormod(lhs, rhs) == 0);
+    return analyzer_->CanProveEqual(lhs, rhs) || analyzer_->CanProve(floormod(lhs, rhs) == 0);
   }
 
   PrimExpr SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr& orig);
@@ -700,26 +700,6 @@ std::vector<IterConstraint> MatchUpperBoundConstraints(PrimExpr pred) {
   return result;
 }
 
-/*! \brief Count the size of the PrimExpr. */
-class PrimExprSizeCounter : public ExprVisitor {
- public:
-  explicit PrimExprSizeCounter() = default;
-
-  static size_t Count(const PrimExpr& expr) {
-    PrimExprSizeCounter prim_expr_size_counter;
-    prim_expr_size_counter.VisitExpr(expr);
-    return prim_expr_size_counter.counter_;
-  }
-
- private:
-  void VisitExpr(const PrimExpr& expr) final {
-    counter_++;
-    ExprVisitor::VisitExpr(expr);
-  }
-
-  size_t counter_{0};
-};
-
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer) {
@@ -733,8 +713,8 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
   // We have to make sure when we visit an iterator, all the constraints related with its successors
   // in the iter var graph has been visited, where the expression of this iterator will contain the
   // expression of its successor, so we sort them by their sizes.
-  for (auto& constraint : constraints) {
-    constraint.expr_size = PrimExprSizeCounter::Count(constraint.iter);
+  for (IterConstraint& constraint : constraints) {
+    constraint.expr_size = CalculateExprComplexity(constraint.iter);
   }
 
   std::sort(
