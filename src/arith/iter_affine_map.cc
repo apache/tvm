@@ -29,6 +29,7 @@
 
 #include "../support/utils.h"
 #include "const_fold.h"
+#include "pattern_match.h"
 
 namespace tvm {
 namespace arith {
@@ -123,11 +124,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /*!
- * \brief Collector that collects
- *  the outgoing split reference of each IterMark.
+ * \brief Collector that collects the outgoing split reference of each IterMark.
  *
- *  These out-going splits can then be used to
- *  check if the iterators are independent.
+ *  These out-going splits can then be used to check if the iterators are independent.
  */
 class IterMarkSplitCollector {
  public:
@@ -161,8 +160,7 @@ class IterMarkSplitCollector {
   }
 };
 
-// Rewriter to rewrite PrimExpr to IterMapExpr
-// when possible
+/*! \brief Rewriter to rewrite PrimExpr to IterMapExpr when possible */
 class IterMapRewriter : public ExprMutator {
  public:
   using Parent = ExprMutator;
@@ -170,16 +168,19 @@ class IterMapRewriter : public ExprMutator {
   explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters)
       : analyzer_(analyzer) {
     for (auto kv : input_iters) {
-      const auto& vrng = kv.second;
-      if (is_zero(vrng->min)) {
-        IterMark mark(kv.first, vrng->extent);
-        var_map_[kv.first] = IterSplitExpr(mark);
+      const Var& var = kv.first;
+      const Range& vrng = kv.second;
+      if (is_one(vrng->extent)) {
+        var_map_[var] = IterSumExpr({}, vrng->min);
+      } else if (is_zero(vrng->min)) {
+        IterMark mark(var, vrng->extent);
+        var_map_[var] = IterSplitExpr(mark);
         input_marks_.push_back(mark);
       } else {
-        IterMark mark(kv.first - vrng->min, vrng->extent);
-        auto sum_expr = ToIterSumExpr(IterSplitExpr(mark));
+        IterMark mark(var - vrng->min, vrng->extent);
+        IterSumExpr sum_expr = ToIterSumExpr(IterSplitExpr(mark));
         sum_expr.CopyOnWrite()->base = vrng->min;
-        var_map_[kv.first] = sum_expr;
+        var_map_[var] = sum_expr;
         input_marks_.push_back(mark);
       }
     }
@@ -187,33 +188,88 @@ class IterMapRewriter : public ExprMutator {
 
   size_t unresolved_count() const { return unresolved_count_; }
 
-  IterSumExpr Rewrite(PrimExpr expr) {
+  IterSumExpr Rewrite(const PrimExpr& expr) {
     return NormalizeToIterWithOffset(ToIterSumExpr(DirectMutate(expr)));
   }
 
-  bool CheckBijective(const Array<IterSumExpr>& indices) {
-    // This function checks two conditions:
-    // - C0: Each iter mark should be fully covered by non-overlapping splits.
-    // - C1: All of the input iterators are used.
-    //
-    // Example: given x in [0, 8) y in [0, 6)
-    // - indices = [x, x+1, y] won't pass because x and x+1 contribute
-    //   two splits that overlaps with each other.
-    // - indices = [x / 4, x % 4, y] will pass because x / 4 and x % 4
-    //   contribute two non-overlapping splits that covers x.
-    // - indices = [x / 4, x % 4] won't pass because y is not used.
-    //
+  IterSumExpr RewriteIterConstraint(const PrimExpr& expr,
+                                    const PrimExpr& predicate_induced_extent) {
+    return NormalizeToIterOnBoundExpr(ToIterSumExpr(DirectMutate(expr)), predicate_induced_extent);
+  }
+
+  /*!
+   * \brief If require_bijective is true, this function checks two conditions:
+   *   - C0: Each iter mark should be fully covered by non-overlapping splits.
+   *   - C1: All of the input iterators are used.
+   *   Example: given x in [0, 8) y in [0, 6)
+   *   - bindings = [x, x + 1, y] won't pass because x and x+1 contribute
+   *     two splits that overlaps with each other.
+   *   - bindings = [x / 4, x % 4, y] will pass because x / 4 and x % 4
+   *     contribute two non-overlapping splits that covers x.
+   *   - bindings = [x / 4, x % 4] won't pass because y is not used.
+   *
+   *   If require_bijective is false, this function checks one condition:
+   *   - C0: Each iter mark has a chance to be fully covered by non-overlapping splits.
+   *   Example: given x in [0, 8) y in [0, 6)
+   *   - bindings = [x / 4] will pass because x / 4 can be one split of x
+   *   - bindings = [x / 4, x % 4] will pass because x / 4 and x % 4
+   *     contribute two non-overlapping splits that covers x.
+   *   - bindings = [x / 3] will not pass because x / 3 can not be one split of x
+   * \return whether the bindings are valid
+   */
+  bool CheckMapping(const Array<IterSumExpr>& bindings, bool require_bijective) {
     IterMarkSplitCollector collector;
     // We can check that for each iter mark:
-    // All the splits that refers to the itermark covers its extent.
+    // All the splits that refers to the iter_mark covers its extent.
     // The splits do not overlap with each other.
-    collector.Collect(indices);
+    collector.Collect(bindings);
     for (const IterMark& mark : collector.visited_) {
-      if (TryNormalizeSplits(mark, collector.mark2splits_[mark]).empty()) return false;
+      if (TryNormalizeSplits(mark, collector.mark2splits_[mark], require_bijective).empty())
+        return false;
     }
-    // all input marks must be visited
-    for (const auto& mark : input_marks_) {
-      if (collector.visited_.count(mark) == 0) return false;
+    if (require_bijective) {
+      // all input marks must be visited
+      for (const IterMark& mark : input_marks_) {
+        if (collector.visited_.count(mark) == 0) return false;
+      }
+    }
+    return true;
+  }
+
+  /*!
+   * \brief Check the validity of iterator constraints
+   *    The flattened forms of two different iterator constraints
+   *    either 1) follow inclusion relation or 2) have no intersection
+   *
+   *    For Example, x = i0*30 + i1*15 + i2*3 + i3,
+   *    1) [i0*2 + i1 < 3, i2*3 + i3 < 5] is valid, since {i0, i1} \intersect {i2, i3} = empty set.
+   *    2) [i0*2 + i1 < 3, i1*5 + i2 < 5] is not valid,
+   *       since {i0, i1} \intersect {i1, i2} = {i1}, i0 \in {i0, i1}, i0 \notin {i1, i2}
+   * \return whether the predicates are valid;
+   */
+  bool CheckConstraints() const {
+    // the constrained_iters_flattened_ are in the order of shorter to longer
+    // since we visit the predicates in the order of size
+    for (size_t i = 0; i < constrained_iters_flattened_.size(); ++i) {
+      for (size_t j = i + 1; j < constrained_iters_flattened_.size(); ++j) {
+        // state: 0(start), -1(no intersection), 1(inclusion)
+        int state = 0;
+        for (const IterSplitExpr& arg1 : constrained_iters_flattened_[i]->args) {
+          bool found = false;
+          for (const IterSplitExpr& arg2 : constrained_iters_flattened_[j]->args) {
+            if (IterSplitEqual(arg1, arg2)) {
+              found = true;
+              break;
+            }
+          }
+          // Check either it is inclusion or intersection, but not both
+          if (state == 0) {
+            state = found ? 1 : -1;
+          } else if ((state == -1 && found) || (state == 1 && !found)) {
+            return false;
+          }
+        }
+      }
     }
     return true;
   }
@@ -243,12 +299,22 @@ class IterMapRewriter : public ExprMutator {
     size_t operator()(const IterSumExpr& value) const {
       // for now only hash on source index.
       size_t hash = value->args.size();
-      for (const auto& arg : value->args) {
+      for (const IterSplitExpr& arg : value->args) {
         hash = support::HashCombine(hash, std::hash<const Object*>()(arg->source.get()));
       }
       return hash;
     }
   };
+
+  static bool IterSplitEqual(const IterSplitExpr& lhs, const IterSplitExpr& rhs,
+                             bool check_scale = true) {
+    tir::ExprDeepEqual equal;
+    if (!lhs->source.same_as(rhs->source)) return false;
+    if (!equal(lhs->lower_factor, rhs->lower_factor)) return false;
+    if (check_scale && !equal(lhs->scale, rhs->scale)) return false;
+    if (!equal(lhs->extent, rhs->extent)) return false;
+    return true;
+  }
 
   struct IterSumEqual {
     bool operator()(const IterSumExpr& lhs, const IterSumExpr& rhs) const {
@@ -256,12 +322,7 @@ class IterMapRewriter : public ExprMutator {
       if (lhs->args.size() != rhs->args.size()) return false;
       if (!equal(lhs->base, rhs->base)) return false;
       for (size_t i = 0; i < lhs->args.size(); ++i) {
-        auto lvalue = lhs->args[i];
-        auto rvalue = rhs->args[i];
-        if (!lvalue->source.same_as(rvalue->source)) return false;
-        if (!equal(lvalue->lower_factor, rvalue->lower_factor)) return false;
-        if (!equal(lvalue->scale, rvalue->scale)) return false;
-        if (!equal(lvalue->extent, rvalue->extent)) return false;
+        if (!IterSplitEqual(lhs->args[i], rhs->args[i])) return false;
       }
       return true;
     }
@@ -275,19 +336,64 @@ class IterMapRewriter : public ExprMutator {
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
   // input iter marks
   std::vector<IterMark> input_marks_;
-  // The canonical map for sum
-  std::unordered_map<IterSumExpr, IterSplitExpr, IterSumHash, IterSumEqual> sum_fuse_map_;
+  // The map for sum that maps flattened form to IterMark with normal form and extent
+  // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+  //          predicate: j*2 + k < 9
+  // Then,    flattened form = IterSum(IterSplit(i, scale=9),
+  //                                   IterSplit(j, scale=2),
+  //                                   IterSplit(k, scale=1))
+  //          normal form    = IterSum(IterSplit(i, scale=9),
+  //                                   IterSplit(IterMark(IterSum(IterSplit(j, scale=2),
+  //                                                              IterSplit(k, scale=1)),
+  //                                                      extent=9)
+  //                                             scale=1))
+  std::unordered_map<IterSumExpr, IterMark, IterSumHash, IterSumEqual> sum_fuse_map_;
+  // The map for sum that maps normal form to flattened form
+  std::unordered_map<IterSumExpr, IterSumExpr, IterSumHash, IterSumEqual> flattened_map_;
+  // The flattened forms of constrained iters
+  std::vector<IterSumExpr> constrained_iters_flattened_;
 
   /*!
-   * \brief Verify that splits fully covers mark in a non-overlapping fashion.
-   *        If verification passes, return splits from outermost to inner most order.
-   *        If not, return an empty array
+   * \brief Look for a split in splits that is not used such that its lower_factor is smallest.
+   *        Note that here we use division to compare lower_factor.
+   * \param splits the split array to search in.
+   * \param used the input used array.
+   * \param expected_lower_factor the skipped lower factor.
+   * \return the index of the expected split, split.size() if not found.
+   */
+  size_t SearchSkipLowerFactor(const std::vector<IterSplitExpr>& splits,
+                               const std::vector<bool>& used,
+                               const PrimExpr& expected_lower_factor) {
+    size_t res = splits.size();
+    for (size_t i = 0; i < splits.size(); ++i) {
+      if (used[i]) continue;
+      if (!used[i] && !CanProveDivisible(splits[i]->lower_factor, expected_lower_factor)) {
+        // all the remaining unused splits should have their lower factor divisible
+        return splits.size();
+      }
+      if (res == splits.size() ||
+          CanProveDivisible(splits[res]->lower_factor, splits[i]->lower_factor)) {
+        // note down the split with smaller lower factor
+        res = i;
+      }
+    }
+    return res;
+  }
+
+  /*!
+   * \brief If bijective is required, verify that splits fully covers mark in a non-overlapping
+   *   fashion, If not, verify that splits are valid and compatible for the mark.
+   *   If verification passes, return splits from outermost to innermost order.
+   *   If not, return an empty array.
    * \param mark The iterator of interest.
    * \param splits The splits to be verified.
+   * \param require_bijective A boolean flag that indicates whether the bindings should be
+   * bijective.
    * \return The normalized splits.
    */
   Array<IterSplitExpr> TryNormalizeSplits(const IterMark& mark,
-                                          const std::vector<IterSplitExpr>& splits) {
+                                          const std::vector<IterSplitExpr>& splits,
+                                          bool require_bijective) {
     std::vector<bool> used(splits.size(), false);
     std::vector<IterSplitExpr> iters;
     PrimExpr expected_lower_factor = make_const(mark->source->dtype, 1);
@@ -296,17 +402,68 @@ class IterMapRewriter : public ExprMutator {
       size_t j = 0;
       for (; j < splits.size(); ++j) {
         if (used[j]) continue;
-        if (!used[j] && CanProveEqual(splits[j]->lower_factor, expected_lower_factor)) break;
+        if (!used[j] && analyzer_->CanProveEqual(splits[j]->lower_factor, expected_lower_factor))
+          break;
       }
       if (j == splits.size()) {
-        return Array<IterSplitExpr>();
+        // we do not allow incomplete split if the bindings should be bijective
+        if (require_bijective) return Array<IterSplitExpr>();
+        // look for the next split skipping this lower factor
+        // For example, y \in [0, 24) has 3 splits [y / 6, (y / 2) % 6, y % 2]
+        // It is valid to only have [y / 6, y % 2] if bijective is not required
+        // We can skip (y / 2) % 6
+        j = SearchSkipLowerFactor(splits, used, expected_lower_factor);
+        // split not found
+        if (j == splits.size()) return Array<IterSplitExpr>();
       }
       used[j] = true;
       iters.push_back(splits[j]);
-      expected_lower_factor *= splits[j]->extent;
+      expected_lower_factor = splits[j]->lower_factor * splits[j]->extent;
     }
-    if (!CanProveEqual(expected_lower_factor, mark->extent)) return Array<IterSplitExpr>();
+    // Case 1. bijective is required.
+    //         We check the extent we calculate is consistent with the extent of the mark
+    // Case 2. bijective is not required.
+    //         We check the extent we calculate is a factor of the extent of the mark
+    //         For example, y \in [0, 24) [(y / 2) % 6, y % 2] is valid, but y \in [0, 25) is not.
+    if ((require_bijective && !analyzer_->CanProveEqual(expected_lower_factor, mark->extent)) ||
+        (!require_bijective && !CanProveDivisible(mark->extent, expected_lower_factor))) {
+      return Array<IterSplitExpr>();
+    }
     return Array<IterSplitExpr>(iters.rbegin(), iters.rend());
+  }
+
+  /*!
+   * \brief Normalize the left hand side of iter constraint(expr < predicate_induced_extent)
+   * \param expr The left hand side of iter constraint.
+   * \param predicate_induced_extent Extent from iter constraint.
+   * \return The Normalized expression.
+   */
+  IterSumExpr NormalizeToIterOnBoundExpr(IterSumExpr expr,
+                                         const PrimExpr& predicate_induced_extent) {
+    // We are normalizing the left hand side of iter constraint(iter < predicate_induced_extent)
+    Optional<IterSplitExpr> opt = TryFuseIters(expr);
+    // scale should be 1
+    if (opt.defined() && is_one(opt.value()->scale)) {
+      IterSumExpr sum = Downcast<IterSumExpr>(opt.value()->source->source);
+      // get the flattened form
+      auto it = flattened_map_.find(sum);
+      ICHECK(it != flattened_map_.end());
+      IterSumExpr flattened_form = it->second;
+      // get the mark
+      auto it_mark = sum_fuse_map_.find(flattened_form);
+      ICHECK(it_mark != sum_fuse_map_.end());
+      IterMark mark = it_mark->second;
+      mark.CopyOnWrite()->extent = min(predicate_induced_extent, mark->extent);
+      // update the bound of the lhs based on predicate_induced_extent
+      sum_fuse_map_[flattened_form] = mark;
+      // we need to note down the flattened form of constrained iterators
+      // to check the validity of constraints, see also CheckConstraints()
+      constrained_iters_flattened_.push_back(flattened_form);
+      expr.CopyOnWrite()->args = Array<IterSplitExpr>({opt.value()});
+      return expr;
+    }
+    ++unresolved_count_;
+    return expr;
   }
 
   /*!
@@ -315,25 +472,19 @@ class IterMapRewriter : public ExprMutator {
    * \return The Normalized expression.
    */
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
+    // We are normalizing a regular iter
     if (expr->args.size() <= 1) return expr;
     PrimExpr base = expr->base;
     expr.CopyOnWrite()->base = make_zero(expr->dtype);
-    auto opt = TryFuseIters(expr);
+    Optional<IterSplitExpr> opt = TryFuseIters(expr);
     expr.CopyOnWrite()->base = base;
-    if (opt) {
+    if (opt.defined()) {
       expr.CopyOnWrite()->args = Array<IterSplitExpr>({opt.value()});
       return expr;
     } else {
       ++unresolved_count_;
       return expr;
     }
-  }
-
-  bool CanProveEqual(PrimExpr lhs, PrimExpr rhs) {
-    const auto* clhs = lhs.as<IntImmNode>();
-    const auto* crhs = rhs.as<IntImmNode>();
-    if (clhs && crhs) return clhs->value == crhs->value;
-    return analyzer_->CanProve(lhs - rhs == 0);
   }
 
   /*!
@@ -352,22 +503,24 @@ class IterMapRewriter : public ExprMutator {
     }
   }
 
-  // Try to normalize IterSum into a fused IterMark
-  // return a corresponding splitexpr if needed.
-  // IterSum = x1*c1 + x2*c2 + ... + xn*cn
-  //         = (x1*s1 + x2*s2 + ... + xn)*cn
-  //         = y*cn (IterMark y => x1*s1 + x2*s2 + ... + xn)
-  //         = [IterSplit(IterMark(y), scale=cn)]
-  // return a corresponding IterSplitExpr if needed.
+  /*!
+   * \brief IterSum = x1*c1 + x2*c2 + ... + xn*cn
+   *      = (x1*s1 + x2*s2 + ... + xn)*cn
+   *      = y*cn (IterMark y => x1*s1 + x2*s2 + ... + xn)
+   *      = [IterSplit(IterMark(y), scale=cn)]
+   *    return a corresponding IterSplitExpr if needed.
+   *    Try to normalize IterSum into a fused IterMark
+   * \param expr The input sum.
+   * \return The split with the fused IterMark if succeed.
+   */
   Optional<IterSplitExpr> TryFuseIters(IterSumExpr expr) {
     if (!is_zero(expr->base)) return NullOpt;
     if (expr->args.size() == 1) return expr->args[0];
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
-    std::vector<IterSplitExpr> iters;
-    iters.reserve(expr->args.size());
-    // canonicalize the expression
-    // find the base scale first
+    std::vector<IterSplitExpr> flattened_iters, grouped_iters;
+    // canonicalize the expression into two different forms: flattened form and structured form
+    // step0. check if find the base scale first
     Optional<IntImm> base_scale = NullOpt;
     size_t base_index = 0;
     for (size_t i = 0; i < expr->args.size(); ++i) {
@@ -381,35 +534,87 @@ class IterMapRewriter : public ExprMutator {
     if (!base_scale) return NullOpt;
     // check if it can be remapped into a fused pattern.
     PrimExpr expected_scale = base_scale.value();
-    for (size_t i = 0; i < expr->args.size(); ++i) {
+    for (size_t i = 0; i < expr->args.size();) {
+      // find j such that expr->args[j] has expected scale
       size_t j = i == 0 ? base_index : 0;
       for (; j < expr->args.size(); ++j) {
-        if (!visited[j] && CanProveEqual(expr->args[j]->scale, expected_scale)) break;
+        if (!visited[j] && analyzer_->CanProveEqual(expr->args[j]->scale, expected_scale)) break;
       }
-      if (j == expr->args.size()) {
-        return NullOpt;
+      if (j == expr->args.size()) return NullOpt;
+      // look for the longest constrained iter started from expr->args[j]
+      // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+      //          predicate: j*2 + k < 9
+      // We need to match the predicate in expr and adjust the expected scale,
+      // otherwise we expect the scale of i to be 2*5=10
+      Optional<IterSumExpr> constraint_to_match;
+      for (const IterSumExpr& iter : constrained_iters_flattened_) {
+        if (IterSplitEqual(expr->args[j], iter->args.back(), false)) {
+          // find a predicate started from expr->args[j]
+          if (!constraint_to_match ||
+              constraint_to_match.value()->args.size() < iter->args.size()) {
+            constraint_to_match = iter;
+          }
+        }
       }
-      visited[j] = true;
-      auto arg = expr->args[j];
-      arg.CopyOnWrite()->scale = div(expr->args[j]->scale, base_scale.value());
-      iters.push_back(arg);
-      expected_scale *= expr->args[j]->extent;
+      if (constraint_to_match) {
+        // match the predicate and mark the iterators in the constraint_to_match as visited
+        // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+        //          predicate = j*2 + k < 9
+        //          then j*2 + k matches the lower two splits of expr
+        for (auto it = constraint_to_match.value()->args.rbegin();
+             it != constraint_to_match.value()->args.rend(); ++it) {
+          size_t k = 0;
+          for (; k < expr->args.size(); ++k) {
+            if (!visited[k] && IterSplitEqual(expr->args[k], *it, false)) {
+              if (analyzer_->CanProveEqual((*it)->scale * expected_scale, expr->args[k]->scale))
+                break;
+            }
+          }
+          if (k == expr->args.size()) return NullOpt;
+          visited[k] = true;
+          flattened_iters.push_back(expr->args[k]);
+        }
+        auto iter = sum_fuse_map_.find(constraint_to_match.value());
+        ICHECK(iter != sum_fuse_map_.end());
+        IterMark iter_matched = iter->second;
+        grouped_iters.emplace_back(iter_matched, expected_scale);
+        expected_scale *= iter_matched->extent;
+        // move forward
+        i += constraint_to_match.value()->args.size();
+      } else {
+        // constraint_to_match not found, skip this iterator
+        visited[j] = true;
+        flattened_iters.push_back(expr->args[j]);
+        grouped_iters.push_back(expr->args[j]);
+        expected_scale *= expr->args[j]->extent;
+        ++i;
+      }
     }
-    // update the iterator to use the canonicalized form
-    expr.CopyOnWrite()->args = Array<IterSplitExpr>(iters.rbegin(), iters.rend());
-    auto it = sum_fuse_map_.find(expr);
-    if (it != sum_fuse_map_.end()) return it->second;
-    auto mark = IterMark(expr, div(expected_scale, base_scale.value()));
-    IterSplitExpr split(mark, base_scale.value());
-    sum_fuse_map_[expr] = split;
-    return split;
+    // Get the flattened form and structured form
+    // both forms have splits from outermost to innermost
+    IterSumExpr structured_form = expr, flattened_form = expr;
+    flattened_form.CopyOnWrite()->args =
+        Array<IterSplitExpr>(flattened_iters.rbegin(), flattened_iters.rend());
+    structured_form.CopyOnWrite()->args =
+        Array<IterSplitExpr>(grouped_iters.rbegin(), grouped_iters.rend());
+    auto it = sum_fuse_map_.find(flattened_form);
+    if (it != sum_fuse_map_.end()) {
+      // old iter
+      return IterSplitExpr(it->second, base_scale.value());
+    } else {
+      // new iter, form a new mark
+      IterMark mark = IterMark(structured_form, div(expected_scale, base_scale.value()));
+      sum_fuse_map_[flattened_form] = mark;
+      flattened_map_[structured_form] = flattened_form;
+      return IterSplitExpr(mark, base_scale.value());
+    }
   }
 
   bool CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
     const auto* clhs = lhs.as<IntImmNode>();
     const auto* crhs = rhs.as<IntImmNode>();
     if (clhs && crhs) return clhs->value % crhs->value == 0;
-    return analyzer_->CanProve(floormod(lhs, rhs) == 0);
+    return analyzer_->CanProveEqual(lhs, rhs) || analyzer_->CanProve(floormod(lhs, rhs) == 0);
   }
 
   PrimExpr SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr& orig);
@@ -459,27 +664,87 @@ class IterMapRewriter : public ExprMutator {
   }
 };
 
+/*! \brief An internal struct to represent range extent on iterators(iter < upper_bound). */
+struct IterConstraint {
+  // The expr of the iter
+  PrimExpr iter;
+  // The expr of the upper_bound
+  PrimExpr upper_bound;
+  // The size of the iter, which is the number of nodes
+  size_t expr_size = 0;
+
+  IterConstraint(PrimExpr iter, PrimExpr upper_bound, size_t size)
+      : iter(std::move(iter)), upper_bound(std::move(upper_bound)), expr_size(size) {}
+};
+
+/*!
+ * \brief Split the predicate into `(a < b) && (c < d) && ...`
+ * \param pred The predicate to be split.
+ * \return A list of pairs, each element of which are lhs and rhs of the '<' sign,
+ *         empty if the split failed.
+ */
+std::vector<IterConstraint> MatchUpperBoundConstraints(PrimExpr pred) {
+  std::vector<IterConstraint> result;
+  arith::PVar<PrimExpr> lhs, rhs, rest;
+  for (;;) {
+    if ((rest && (lhs < rhs)).Match(pred)) {
+      result.emplace_back(lhs.Eval(), rhs.Eval(), 0);
+      pred = rest.Eval();
+    } else if ((lhs < rhs).Match(pred)) {
+      result.emplace_back(lhs.Eval(), rhs.Eval(), 0);
+      break;
+    } else {
+      return std::vector<IterConstraint>();
+    }
+  }
+  return result;
+}
+
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+                                 const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer) {
   // Overall detection algorithm is divided into two steps:
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
   // - Step1: IterIndependenceChecker checks if the iterator are independent.
-  IterMapRewriter rewriter(analyzer, input_iters);
-  Array<IterSumExpr> results;
 
+  std::vector<IterConstraint> constraints = MatchUpperBoundConstraints(predicate);
+  if (!is_one(predicate) && constraints.empty()) return Array<IterSumExpr>();
+
+  // We have to make sure when we visit an iterator, all the constraints related with its successors
+  // in the iter var graph has been visited, where the expression of this iterator will contain the
+  // expression of its successor, so we sort them by their sizes.
+  for (IterConstraint& constraint : constraints) {
+    constraint.expr_size = CalculateExprComplexity(constraint.iter);
+  }
+
+  std::sort(
+      constraints.begin(), constraints.end(),
+      [](const IterConstraint& a, const IterConstraint& b) { return a.expr_size < b.expr_size; });
+
+  IterMapRewriter rewriter(analyzer, input_iters);
+  // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
+  for (const IterConstraint& constraint : constraints) {
+    PrimExpr res = rewriter.RewriteIterConstraint(constraint.iter, constraint.upper_bound);
+    if (rewriter.unresolved_count() != 0) return Array<IterSumExpr>();
+  }
+  if (!rewriter.CheckConstraints()) return Array<IterSumExpr>();
+  // Step0.1: rewrite indices
+  Array<IterSumExpr> results;
   for (PrimExpr value : indices) {
     results.push_back(rewriter.Rewrite(value));
     if (rewriter.unresolved_count() != 0) return Array<IterSumExpr>();
   }
-  if (!rewriter.CheckBijective(results)) return Array<IterSumExpr>();
+  // Step1: IterIndependenceChecker checks if the iterator are independent.
+  if (!rewriter.CheckMapping(results, require_bijective)) return Array<IterSumExpr>();
 
   return results;
 }
 
 TVM_REGISTER_GLOBAL("arith.DetectIterMap")
-    .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters) {
+    .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+                       const PrimExpr& input_pred, bool is_bijective) {
       arith::Analyzer ana;
-      return DetectIterMap(indices, input_iters, &ana);
+      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana);
     });
 
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
@@ -675,7 +940,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
 
   if (a->IsInstance<IterSumExprNode>()) {
     IterSumExpr ret = Downcast<IterSumExpr>(a);
-    if (auto opt = TryFuseIters(ret)) {
+    if (Optional<IterSplitExpr> opt = TryFuseIters(ret)) {
       return SplitFloorDivConst(opt.value(), b, GetRef<PrimExpr>(op));
     } else {
       ++unresolved_count_;
@@ -750,7 +1015,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
 
   if (a->IsInstance<IterSumExprNode>()) {
     IterSumExpr ret = Downcast<IterSumExpr>(a);
-    if (auto opt = TryFuseIters(ret)) {
+    if (Optional<IterSplitExpr> opt = TryFuseIters(ret)) {
       return SplitFloorModConst(opt.value(), b, GetRef<PrimExpr>(op));
     } else {
       ++unresolved_count_;
