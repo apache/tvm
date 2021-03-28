@@ -160,3 +160,17 @@ std::string Backtrace() { return ""; }
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_LOG_STACK_TRACE
+
+#if (TVM_LOG_CUSTOMIZE == 0)
+namespace tvm {
+namespace runtime {
+namespace detail {
+
+LogFatal::Entry& LogFatal::GetEntry() {
+  static thread_local LogFatal::Entry result;
+  return result;
+}
+}  // namespace detail
+}  // namespace runtime
+}  // namespace tvm
+#endif  // TVM_LOG_CUSTOMIZE

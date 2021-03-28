@@ -46,14 +46,6 @@
 #define TVM_RUNTIME_HEADER_ONLY 0
 #endif
 
-// Always inline macro only use in template
-// expansion cases where we know inline is important.
-#ifdef _MSC_VER
-#define TVM_ALWAYS_INLINE __forceinline
-#else
-#define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
-#endif
-
 namespace tvm {
 namespace runtime {
 
@@ -743,7 +735,7 @@ class TVMRetValue : public TVMPODValue_ {
   /*! \brief default constructor */
   TVMRetValue() {}
   /*!
-   * \brief move constructor from anoter return value.
+   * \brief move constructor from another return value.
    * \param other The other return value.
    */
   TVMRetValue(TVMRetValue&& other) : TVMPODValue_(other.value_, other.type_code_) {
@@ -1119,7 +1111,7 @@ struct PackedFuncValueConverter {
  * });
  *
  * // The following code will cause compilation error.
- * // Because the same Function and ExortName
+ * // Because the same Function and ExportName
  * // TVM_DLL_EXPORT_TYPED_FUNC(AddOne_, AddOne_);
  *
  * // The following code is OK, assuming the macro
