@@ -298,10 +298,11 @@ def test_normalize_iter_map_to_expr():
 
     res = tvm.arith.detect_iter_map([z[0], xi[0]], var_dom([x, y]))
 
-    tvm.ir.assert_structural_equal(tvm.arith.normalize_iter_map_to_expr(res[0]),
-                                   fld(y[0], 3)*6 + fld(x[0], 5)*3 + flm(y[0], 3))
-    tvm.ir.assert_structural_equal(tvm.arith.normalize_iter_map_to_expr(res[1]),
-                                   flm(x[0], 5))
+    tvm.ir.assert_structural_equal(
+        tvm.arith.normalize_iter_map_to_expr(res[0]),
+        fld(y[0], 3) * 6 + fld(x[0], 5) * 3 + flm(y[0], 3),
+    )
+    tvm.ir.assert_structural_equal(tvm.arith.normalize_iter_map_to_expr(res[1]), flm(x[0], 5))
 
 
 if __name__ == "__main__":
