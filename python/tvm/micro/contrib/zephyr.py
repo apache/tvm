@@ -619,23 +619,13 @@ class ZephyrQemuTransport(Transport):
 
     def open(self):
         self.pipe_dir = tempfile.mkdtemp()
-        # self.pipe_dir = "/tmp/test123"
         self.pipe = os.path.join(self.pipe_dir, "fifo")
         self.write_pipe = os.path.join(self.pipe_dir, "fifo.in")
         self.read_pipe = os.path.join(self.pipe_dir, "fifo.out")
         
-        # if os.path.exists(self.read_pipe):
-        #     os.remove(self.read_pipe)
-        # if os.path.exists(self.write_pipe):
-        #     os.remove(self.write_pipe)
-
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
-        # log_path = "/Users/mhessar/work/tvm/proc.log"
-        # if not os.path.exists(log_path):
-        #     os.mknod(log_path)
 
-        # with open(log_path, "w") as f_log:
         if self.debugger is not None:
             if 'env' in self.kwargs:
                 self.kwargs["env"] = copy.copy(self.kwargs["env"])
@@ -650,8 +640,6 @@ class ZephyrQemuTransport(Transport):
              f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
-            # stdout=f_log,
-            # stderr=f_log
         )
         print('START DEBUG', self.debugger)
         if self.debugger is not None:
@@ -684,7 +672,7 @@ class ZephyrQemuTransport(Transport):
             self.proc = None
 
         if self.pipe_dir is not None:
-            # shutil.rmtree(self.pipe_dir)
+            shutil.rmtree(self.pipe_dir)
             self.pipe_dir = None
 
     def read(self, n, timeout_sec):
