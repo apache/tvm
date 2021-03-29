@@ -114,8 +114,8 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
       }
     }
     LOG(FATAL) << "Binary was created using " << type_key
-               << " but a loader of that name is not registered. Available loaders are "
-               << loaders << ". Perhaps you need to recompile with this runtime enabled.";
+               << " but a loader of that name is not registered. Available loaders are " << loaders
+               << ". Perhaps you need to recompile with this runtime enabled.";
   }
 
   return (*f)(static_cast<void*>(stream));

@@ -484,17 +484,15 @@ void LoadHeader(dmlc::Stream* strm) {
 }
 
 void Executable::SetLib(const runtime::Module& lib) {
-    ICHECK(lib.defined())
-      << "the provided library can not be null";
+  ICHECK(lib.defined()) << "the provided library can not be null";
 
-    ICHECK_EQ(this->imports_.size(), 0)
-        << "A VMExecutable should never have more than one import inside an the executable, \n"
-        << "the first import should *always* be the library containing"
-        << "the platform specific kernel code";
+  ICHECK_EQ(this->imports_.size(), 0)
+      << "A VMExecutable should never have more than one import inside an the executable, \n"
+      << "the first import should *always* be the library containing"
+      << "the platform specific kernel code";
 
-    this->Import(lib);
-  }
-
+  this->Import(lib);
+}
 
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
   auto exec = make_object<Executable>();

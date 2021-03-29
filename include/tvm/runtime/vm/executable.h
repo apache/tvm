@@ -142,7 +142,7 @@ class Executable : public ModuleNode {
    */
   runtime::Module GetLib() const {
     ICHECK_EQ(this->imports_.size(), 1)
-      << "The kernel library must be imported as the only module in an Executable";
+        << "The kernel library must be imported as the only module in an Executable";
 
     return this->imports_[0];
   }
