@@ -23,6 +23,7 @@ import logging
 import os
 import subprocess
 import sys
+import logging
 
 import pytest
 import numpy as np
@@ -48,6 +49,7 @@ BUILD = True
 #   python -m tvm.exec.microtvm_debug_shell
 DEBUG = False
 
+_LOG = logging.getLogger(__name__)
 
 def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     target = tvm.target.target.micro(model)
@@ -59,10 +61,10 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
 
 
 def _make_session(model, target, zephyr_board, west_cmd, mod):
-    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}-{model}"
+    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{model}"
     prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
-        f'{test_name}-workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
+        f'{test_name}_workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
     )
     workspace_parent = os.path.dirname(workspace_root)
     if not os.path.exists(workspace_parent):
@@ -127,9 +129,10 @@ def _make_add_sess(model, zephyr_board, west_cmd):
 # (model, zephyr_board).
 PLATFORMS = {
     "host": ("host", "qemu_x86"),
+    "host-riscv32": ("host_riscv32", "qemu_riscv32"),
+    "host-riscv64": ("host_riscv64", "qemu_riscv64"),
     "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
-    "riscv32_host": ("riscv32_host", "qemu_riscv32"),
 }
 
 
@@ -194,7 +197,6 @@ def test_relay(platform, west_cmd):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
-    import pdb
     
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):

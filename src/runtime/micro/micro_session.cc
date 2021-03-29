@@ -331,13 +331,16 @@ class MicroTransportChannel : public RPCChannel {
     size_t message_size_bytes;
     switch (message_type) {
       case MessageType::kStartSessionInit:
+        LOG(ERROR) << "kStartSessionInit";
         break;
 
       case MessageType::kStartSessionReply:
+        LOG(ERROR) << "kStartSessionReply";
         state_ = State::kSessionEstablished;
         break;
 
       case MessageType::kTerminateSession:
+        LOG(ERROR) << "kTerminateSession";
         if (state_ == State::kReset) {
           state_ = State::kSessionTerminated;
         } else if (state_ == State::kSessionTerminated) {
@@ -349,6 +352,7 @@ class MicroTransportChannel : public RPCChannel {
         break;
 
       case MessageType::kLog:
+        LOG(ERROR) << "kLog";
         uint8_t message[1024];
         message_size_bytes = buf->ReadAvailable();
         if (message_size_bytes == 0) {
@@ -366,6 +370,7 @@ class MicroTransportChannel : public RPCChannel {
         return;
 
       case MessageType::kNormal:
+        LOG(ERROR) << "kNormal";
         did_receive_message_ = true;
         message_buffer_ = buf;
         break;
