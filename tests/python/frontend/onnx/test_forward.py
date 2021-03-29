@@ -4285,12 +4285,15 @@ def test_aten():
     def _convert_to_onnx(model, inputs):
         file_name = "{}.onnx".format("aten_model")
         torch.onnx.export(
-            model, inputs, file_name, export_params=True, verbose=False, opset_version=10
+            model,
+            inputs,
+            file_name,
+            export_params=True,
+            verbose=False,
+            opset_version=10,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN,
         )
         onnx_model = onnx.load(file_name)
-        # Check that the onnx model has an aten embedding bag node. If this test assert fails,
-        # it's probably because we've updated torch versions. Add aten=True to torch.onnx.export
-        # to force aten exports.
         assert 's: "embedding_bag"' in str(onnx_model)
         return onnx_model
 
