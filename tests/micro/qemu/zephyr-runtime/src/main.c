@@ -64,15 +64,18 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
 }
 
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  sys_reboot(SYS_REBOOT_COLD);
+  TVMLogf("TVMPlatformAbort: %x", error);
+  sys_reboot(SYS_REBOOT_WARM);
   for (;;)
     ;
 }
 
-K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 120, 4);
+// K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 120, 4);
+K_HEAP_DEFINE(tvm_memory_pool, 120*1024);
 
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
+  // *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
+  *out_ptr = k_heap_alloc(&tvm_memory_pool, num_bytes, K_NO_WAIT);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
@@ -248,11 +251,15 @@ void main(void) {
 
   utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
   TVMLogf("uTVM On-Device Runtime");
+  TVMLogf("Mehrdad");
 
   while (true) {
     uint8_t buf[256];
     int bytes_read = uart_rx_buf_read(&uart_rx_buf, buf, sizeof(buf));
+    // TVMLogf("mehrdad: loop r: %d", bytes_read);
     if (bytes_read > 0) {
+      // for (int i_read=0; i_read<bytes_read; i_read++) {
+      // }
       size_t bytes_remaining = bytes_read;
       uint8_t* cursor = buf;
       while (bytes_remaining > 0) {

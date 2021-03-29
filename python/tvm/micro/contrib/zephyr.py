@@ -531,7 +531,6 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             serial_transport,
         )
 
-
 class QemuStartupFailureError(Exception):
     """Raised when the qemu pipe is not present within startup_timeout_sec."""
 
@@ -571,7 +570,7 @@ class QemuFdTransport(file_descriptor.FdTransport):
 class ZephyrQemuTransport(Transport):
     """The user-facing Zephyr QEMU transport class."""
 
-    def __init__(self, base_dir, startup_timeout_sec=5.0, **kwargs):
+    def __init__(self, base_dir, startup_timeout_sec=5.0, debugger=None, **kwargs):
         self.base_dir = base_dir
         self.startup_timeout_sec = startup_timeout_sec
         self.kwargs = kwargs
@@ -588,15 +587,29 @@ class ZephyrQemuTransport(Transport):
 
     def open(self):
         self.pipe_dir = tempfile.mkdtemp()
+        # self.pipe_dir = "/tmp/test123"
         self.pipe = os.path.join(self.pipe_dir, "fifo")
         self.write_pipe = os.path.join(self.pipe_dir, "fifo.in")
         self.read_pipe = os.path.join(self.pipe_dir, "fifo.out")
+        
+        # if os.path.exists(self.read_pipe):
+        #     os.remove(self.read_pipe)
+        # if os.path.exists(self.write_pipe):
+        #     os.remove(self.write_pipe)
+
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
+        # log_path = "/Users/mhessar/work/tvm/proc.log"
+        # if not os.path.exists(log_path):
+        #     os.mknod(log_path)
+
+        # with open(log_path, "w") as f_log:
         self.proc = subprocess.Popen(
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
+            # stdout=f_log,
+            # stderr=f_log
         )
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
@@ -622,7 +635,7 @@ class ZephyrQemuTransport(Transport):
             self.proc = None
 
         if self.pipe_dir is not None:
-            shutil.rmtree(self.pipe_dir)
+            # shutil.rmtree(self.pipe_dir)
             self.pipe_dir = None
 
     def read(self, n, timeout_sec):
