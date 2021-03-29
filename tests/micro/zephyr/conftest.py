@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,15 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
-set -e
-set -u
-set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
+import tvm.target.target
 
-source tests/scripts/setup-pytest-env.sh
 
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
+def pytest_addoption(parser):
+    parser.addoption(
+        "--microtvm-platforms",
+        default="host",
+        choices=tvm.target.target.MICRO_SUPPORTED_MODELS.keys(),
+        help=(
+            "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
+            "for microTVM tests."
+        ),
+    )
+    parser.addoption(
+        "--west-cmd", default="west", help="Path to `west` command for flashing device."
+    )
 
-make cython3
-run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr
+
+def pytest_generate_tests(metafunc):
+    if "platform" in metafunc.fixturenames:
+        metafunc.parametrize("platform", metafunc.config.getoption("microtvm_platforms").split(","))
+
+
+@pytest.fixture
+def west_cmd(request):
+    return request.config.getoption("--west-cmd")
