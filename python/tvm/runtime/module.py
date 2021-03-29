@@ -454,7 +454,7 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
+    # TODO(weberlo): we should probably use a more distinctive suffix for microTVM object files
     elif path.endswith(".obj"):
         fmt = "micro_dev"
     # Redirect to the load API
