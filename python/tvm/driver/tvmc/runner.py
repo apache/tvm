@@ -287,7 +287,7 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
 
 def run_module(
     module_file,
-    hostname,
+    hostname=None,
     port=9090,
     rpc_key=None,
     device,
