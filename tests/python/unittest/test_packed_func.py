@@ -19,9 +19,11 @@ from tvm import te
 import numpy as np
 from tvm import testing
 
+
 @tvm.register_func("tvm.test_matmul")
 def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.asnumpy(), b.asnumpy()))
+
 
 def test_packed_func(parallel=True, target="llvm"):
     M, K, N = 4, 4, 2
@@ -37,7 +39,6 @@ def test_packed_func(parallel=True, target="llvm"):
     s[C].reorder(xo, yo, xi, yi, k)
     if parallel:
         s[C].parallel(xo)
-
 
     def intrin_libxsmm(m, k, n):
         a = te.placeholder((m, k), name="a", dtype="float64")
@@ -56,11 +57,7 @@ def test_packed_func(parallel=True, target="llvm"):
 
         def intrin_func(ins, outs):
             ib = tvm.tir.ir_builder.create()
-            ib.emit(
-                tvm.tir.call_packed(
-                    "tvm.test_matmul", ins[0], ins[1], outs[0]
-                )
-            )
+            ib.emit(tvm.tir.call_packed("tvm.test_matmul", ins[0], ins[1], outs[0]))
             return ib.get()
 
         return te.decl_tensor_intrin(
