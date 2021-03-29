@@ -15,17 +15,28 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-# microTVM
+This directory contains tests for MicroTVM's integration with Zephyr.
 
-microTVM is the effort that allows TVM to build and execute models on bare-metal microcontrollers.
-
-The `pyproject.toml` file in this directory can be used to create a
-[Poetry](https://python-poetry.org/) Python environment with all of the required
-dependencies installed for running microTVM. To use it, run:
+To run the test, you first need to be running in a Python environment with
+all of the appropriate TVM dependencies installed. If you have [Poetry](https://python-poetry.org/)
+installed, you can do the following to get an appropriately-configured Python
+environment:
 
 ```
-$ poetry lock && poetry install
-$ poetry shell
+$ cd tvm/apps/microtvm/
+$ poetry lock && poetry install && poetry shell
 ```
 
+You can then run this test (either on real hardware or on a QEMU-emulated
+device) using:
 
+```
+$ cd tvm/tests/micro/zephyr
+$ pytest test_zephyr.py --microtvm-platforms=host       # For QEMU emulation
+$ pytest test_zephyr.py --microtvm-platforms=nrf5340dk  # For nRF5340DK
+```
+
+To see the list of supported values for `--microtvm-platforms`, run:
+```
+$ pytest test_zephyr.py --help
+```

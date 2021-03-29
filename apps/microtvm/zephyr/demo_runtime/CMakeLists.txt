@@ -9,7 +9,6 @@ set(QEMU_PIPE "\${QEMU_PIPE}")  # QEMU_PIPE is set by the calling TVM instance.
 find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
 project(microtvm_zephyr_runtime)
 
-
 set(CMAKE_VERBOSE_MAKEFILE ON)
 file(GLOB TVM_SOURCES ${CMAKE_SOURCE_DIR}/__tvm*.c)
 target_sources(app PRIVATE src/main.c ${TVM_SOURCES})

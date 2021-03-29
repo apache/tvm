@@ -237,26 +237,28 @@ def intel_graphics(model="unknown", options=None):
     return Target(" ".join(["opencl"] + opts))
 
 
+MICRO_SUPPORTED_MODELS = {
+    "host": [],
+    "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
+    "nrf5340dk": ["-mcpu=cortex-m33"],
+}
+
+
 def micro(model="unknown", options=None):
     """Returns a microTVM target.
 
     Parameters
     ----------
     model : str
-        Canonically identifies the target device. This is typically a CPU or board level name (other
-        flags such as -mcpu identify the ISA).
+        Canonically identifies the target device. This is typically a device board level name.
+        The allowed values are MICRO_SUPPORTED_MODELS.keys().
     options : str or list of str
         Additional options
     """
-    trans_table = {
-        "host": [],
-        "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
-        "nrf5340dk": ["-mcpu=cortex-m33"],
-    }
-    if model not in trans_table:
+    if model not in MICRO_SUPPORTED_MODELS:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
-        trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
+        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
         options,
     )
 

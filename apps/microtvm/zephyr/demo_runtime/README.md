@@ -15,17 +15,7 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-# microTVM
-
-microTVM is the effort that allows TVM to build and execute models on bare-metal microcontrollers.
-
-The `pyproject.toml` file in this directory can be used to create a
-[Poetry](https://python-poetry.org/) Python environment with all of the required
-dependencies installed for running microTVM. To use it, run:
-
-```
-$ poetry lock && poetry install
-$ poetry shell
-```
-
-
+This directory contains a Zephyr-based "demo" runtime environment that
+pulls together the microTVM runtime dependencies into a single application
+that can communicate with a Python-based host program via the UART, using
+TVM's RPC protocol.
