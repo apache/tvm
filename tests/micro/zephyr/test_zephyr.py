@@ -40,6 +40,8 @@ from tvm.contrib import utils
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
+import conftest
+
 # If set, build the uTVM binary from scratch on each test.
 # Otherwise, reuses the build from the previous test run.
 BUILD = True
@@ -50,6 +52,8 @@ BUILD = True
 DEBUG = False
 
 _LOG = logging.getLogger(__name__)
+
+PLATFORMS = conftest.PLATFORMS
 
 def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     target = tvm.target.target.micro(model)
@@ -123,18 +127,6 @@ def _make_add_sess(model, zephyr_board, west_cmd):
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C])
-
-
-# The models that should pass this configuration. Maps a short, identifying platform string to
-# (model, zephyr_board).
-PLATFORMS = {
-    "host": ("host", "qemu_x86"),
-    "host-riscv32": ("host_riscv32", "qemu_riscv32"),
-    "host-riscv64": ("host_riscv64", "qemu_riscv64"),
-    "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
-    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
-}
-
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 def test_compile_runtime(platform, west_cmd):
