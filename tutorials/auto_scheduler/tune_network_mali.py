@@ -181,8 +181,8 @@ for idx, task in enumerate(tasks):
 #
 #     from tvm.auto_scheduler.utils import request_remote
 #     remote = request_remote(device_key, "localhost", 9190)
-#     ctx = remote.cl()
-#     max_shared_memory_per_block = ctx.max_shared_memory_per_block
+#     dev = remote.cl()
+#     max_shared_memory_per_block = dev.max_shared_memory_per_block
 #     # There is no explicit local memory limition
 #     # so we can use INT32_MAX to disalbe the check on local_memory.
 #     max_local_memory_per_block = 2147483647 # INT32_MAX
