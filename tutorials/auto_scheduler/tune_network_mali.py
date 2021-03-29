@@ -248,7 +248,7 @@ def tune_and_evaluate():
     from tvm.auto_scheduler.utils import request_remote
 
     remote = request_remote(device_key, "localhost", 9190)
-    ctx = remote.cl()
+    dev = remote.cl()
     from tvm.contrib import utils, ndk
 
     temp = utils.tempdir()
