@@ -140,12 +140,7 @@ class Executable : public ModuleNode {
    *
    * \return The runtime module that contains the hardware dependent code.
    */
-  runtime::Module GetLib() const {
-    ICHECK_EQ(this->imports_.size(), 1)
-        << "The kernel library must be imported as the only module in an Executable";
-
-    return this->imports_[0];
-  }
+  runtime::Module GetLib() const;
 
   /*!
    * \brief Set the `lib` module in an executable.

@@ -483,6 +483,17 @@ void LoadHeader(dmlc::Stream* strm) {
   STREAM_CHECK(version == TVM_VERSION, "version");
 }
 
+runtime::Module Executable::GetLib() const {
+  ICHECK_LE(this->imports_.size(), 1)
+      << "The kernel library must be imported as the only module in an Executable";
+
+  if (this->imports().size() == 0) {
+    return Module(nullptr);
+  } else {
+    return this->imports_[0];
+  }
+}
+
 void Executable::SetLib(const runtime::Module& lib) {
   ICHECK(lib.defined()) << "the provided library can not be null";
 
