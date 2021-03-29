@@ -285,9 +285,30 @@ def test_predicate():
     assert len(res) == 0
 
 
+def test_normalize_iter_map_to_expr():
+    fld = tvm.tir.floordiv
+    flm = tvm.tir.floormod
+
+    x = tvm.tir.Var("x", "int32"), 10
+    y = tvm.tir.Var("y", "int32"), 9
+
+    xo, xi = isplit(x, 5)
+    yo, yi = isplit(y, 3)
+    z = ifuse([yo, xo, yi])
+
+    res = tvm.arith.detect_iter_map([z[0], xi[0]], var_dom([x, y]))
+
+    tvm.ir.assert_structural_equal(
+        tvm.arith.normalize_iter_map_to_expr(res[0]),
+        fld(y[0], 3) * 6 + fld(x[0], 5) * 3 + flm(y[0], 3),
+    )
+    tvm.ir.assert_structural_equal(tvm.arith.normalize_iter_map_to_expr(res[1]), flm(x[0], 5))
+
+
 if __name__ == "__main__":
     test_split()
     test_trivial()
     test_fuse()
     test_compound()
     test_predicate()
+    test_normalize_iter_map_to_expr()

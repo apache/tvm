@@ -112,3 +112,19 @@ def detect_iter_map(indices, input_iters, predicate=True, require_bijective=Fals
         Empty array if no match can be found.
     """
     return _ffi_api.DetectIterMap(indices, input_iters, predicate, require_bijective)
+
+
+def normalize_iter_map_to_expr(expr):
+    """Given an IterMapExpr, transform it to normal PrimExpr
+
+    Parameters
+    ----------
+    expr : IterMapExpr
+        the input IterMapExpr
+
+    Returns
+    -------
+    result : PrimExpr
+        the corresponding normal PrimExpr
+    """
+    return _ffi_api.NormalizeIterMapToExpr(expr)

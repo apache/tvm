@@ -1028,5 +1028,63 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
   }
 }
 
+/*! * \brief Given an IterVarMapExpr, transform it to normal PrimExpr. */
+class IterMapToExprNormalizer {
+ public:
+  explicit IterMapToExprNormalizer(Analyzer* analyzer) : analyzer_(analyzer) {}
+
+  PrimExpr Convert(const IterMapExpr& expr) {
+    if (const auto* op = expr.as<IterSplitExprNode>()) {
+      return ConvertIterSplitExpr(GetRef<IterSplitExpr>(op));
+    } else if (const auto* op = expr.as<IterSumExprNode>()) {
+      return ConvertIterSumExpr(GetRef<IterSumExpr>(op));
+    } else {
+      ICHECK(expr.defined());
+      LOG(FATAL) << "Unknown IterMapExpr type " << expr->GetTypeKey();
+      return 0;
+    }
+  }
+
+  PrimExpr ConvertIterSumExpr(const IterSumExpr& expr) {
+    PrimExpr res = 0;
+    for (const IterSplitExpr& arg : expr->args) {
+      res += ConvertIterSplitExpr(arg);
+    }
+    res += expr->base;
+    return res;
+  }
+
+  PrimExpr ConvertIterSplitExpr(const IterSplitExpr& expr) {
+    PrimExpr source;
+    if (const auto* op = expr->source->source.as<VarNode>()) {
+      source = GetRef<Var>(op);
+    } else if (const auto* op = expr->source->source.as<IterSumExprNode>()) {
+      source = ConvertIterSumExpr(GetRef<IterSumExpr>(op));
+    } else {
+      LOG(FATAL) << "Unexpected source of IterSplitExpr";
+    }
+    if (analyzer_->CanProve(expr->extent == expr->source->extent) && is_one(expr->lower_factor)) {
+      return source * expr->scale;
+    } else if (analyzer_->CanProve(expr->source->extent == expr->lower_factor * expr->extent)) {
+      return floordiv(source, expr->lower_factor) * expr->scale;
+    } else {
+      return floormod(floordiv(source, expr->lower_factor), expr->extent) * expr->scale;
+    }
+  }
+
+ private:
+  Analyzer* analyzer_;
+};
+
+PrimExpr NormalizeIterMapToExpr(const IterMapExpr& expr) {
+  arith::Analyzer analyzer;
+  IterMapToExprNormalizer normalizer(&analyzer);
+  return normalizer.Convert(expr);
+}
+
+TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed([](const IterMapExpr& expr) {
+  return NormalizeIterMapToExpr(expr);
+});
+
 }  // namespace arith
 }  // namespace tvm
