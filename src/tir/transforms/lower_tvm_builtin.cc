@@ -171,12 +171,16 @@ class BuiltinLower : public StmtExprMutator {
     } else {
       body = this->VisitStmt(op->body);
     }
-    auto n = CopyOnWrite(op);
-    n->min = std::move(min);
-    n->extent = std::move(extent);
-    n->body = std::move(body);
-    Stmt stmt(n);
-    return stmt;
+
+    if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
+      return GetRef<Stmt>(op);
+    } else {
+      auto n = CopyOnWrite(op);
+      n->min = std::move(min);
+      n->extent = std::move(extent);
+      n->body = std::move(body);
+      return Stmt(n);
+    }
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
