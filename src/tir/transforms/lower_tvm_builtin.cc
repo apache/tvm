@@ -70,6 +70,7 @@ class BuiltinLower : public StmtExprMutator {
   Stmt VisitBodyAndRealizeAlloca(Stmt stmt) {
     alloca_scope_.emplace_back();
     stmt = this->VisitStmt(stmt);
+    ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     if (scope.max_shape_stack_ != -1) {
       stmt = LetStmt(scope.stack_shape_, StackAlloca("shape", scope.max_shape_stack_), stmt);
@@ -195,6 +196,7 @@ class BuiltinLower : public StmtExprMutator {
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()
+    ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     if (scope.run_shape_stack_ == -1) {
       scope.run_shape_stack_ = 0;
@@ -212,6 +214,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   // make array
   PrimExpr MakeArray(const CallNode* op) {
+    ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     size_t idx = scope.run_array_stack_;
     scope.run_array_stack_ += 1;
@@ -292,6 +295,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
+    ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     int64_t restore_shape_stack = scope.run_shape_stack_;
     size_t restore_array_stack = scope.run_array_stack_;
