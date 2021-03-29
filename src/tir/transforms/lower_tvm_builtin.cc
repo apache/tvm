@@ -64,29 +64,25 @@ class BuiltinLower : public StmtExprMutator {
     uint64_t run_arg_stack_{0};
   };
 
-  Stmt Build(Stmt stmt) { return this->RealizeAlloca(stmt); }
+  Stmt Build(Stmt stmt) { return this->VisitBodyAndRealizeAlloca(stmt); }
 
   // Allcoate stack frames, only at parallel-for or root.
-  Stmt RealizeAlloca(Stmt stmt) {
+  Stmt VisitBodyAndRealizeAlloca(Stmt stmt) {
     alloca_scope_.emplace_back();
     stmt = this->VisitStmt(stmt);
     auto& scope = alloca_scope_.back();
-    alloca_scope_.pop_back();
     if (scope.max_shape_stack_ != -1) {
-      // scope.stack_shape_ = Var("stack_shape", DataType::Handle());
       stmt = LetStmt(scope.stack_shape_, StackAlloca("shape", scope.max_shape_stack_), stmt);
     }
 
     if (scope.max_array_stack_ != 0) {
-      // scope.stack_array_ = Var("stack_array", DataType::Handle());
       stmt = LetStmt(scope.stack_array_, StackAlloca("array", scope.max_array_stack_), stmt);
     }
     if (scope.max_arg_stack_ != 0) {
-      // scope.stack_value_ = Var("stack_value", DataType::Handle());
-      // scope.stack_tcode_ = Var("stack_tcode", DataType::Handle());
       stmt = LetStmt(scope.stack_value_, StackAlloca("arg_value", scope.max_arg_stack_), stmt);
       stmt = LetStmt(scope.stack_tcode_, StackAlloca("arg_tcode", scope.max_arg_stack_), stmt);
     }
+    alloca_scope_.pop_back();
 
     return stmt;
   }
@@ -170,7 +166,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt body;
 
     if (op->kind == ForKind::kParallel) {
-      body = this->RealizeAlloca(op->body);
+      body = this->VisitBodyAndRealizeAlloca(op->body);
     } else {
       body = this->VisitStmt(op->body);
     }
