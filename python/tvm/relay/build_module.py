@@ -392,7 +392,9 @@ class GraphExecutor(_interpreter.Executor):
         self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
-            raise ValueError("Graph Executor only supports static graphs, got output type", ret_type)
+            raise ValueError(
+                "Graph Executor only supports static graphs, got output type", ret_type
+            )
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.device))
 
