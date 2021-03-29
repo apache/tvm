@@ -1058,8 +1058,10 @@ class IterMapToExprNormalizer {
     PrimExpr source;
     if (const auto* op = expr->source->source.as<VarNode>()) {
       source = GetRef<Var>(op);
-    } else if (const auto& op = expr->source->source.as<IterSumExprNode>()) {
+    } else if (const auto* op = expr->source->source.as<IterSumExprNode>()) {
       source = ConvertIterSumExpr(GetRef<IterSumExpr>(op));
+    } else {
+      LOG(FATAL) << "Unexpected source of IterSplitExpr";
     }
     if (analyzer_->CanProve(expr->extent == expr->source->extent) && is_one(expr->lower_factor)) {
       return source * expr->scale;
