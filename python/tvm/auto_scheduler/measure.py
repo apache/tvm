@@ -552,7 +552,7 @@ class LocalRPCMeasureContext:
         if dev.exist:
             cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
-        host = "0.0.0.0"
+        host = "localhost"
         self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(

@@ -42,7 +42,7 @@ def run(run_func):
         # the port it's listening to, e.g. 9090
         local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))
         if local_rpc:
-            remote = rpc.connect("127.0.0.1", local_rpc)
+            remote = rpc.connect("localhost", local_rpc)
             run_func(env, remote)
         else:
             # Make sure simulation library exists

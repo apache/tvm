@@ -167,7 +167,7 @@ You should see the following being displayed when starting the RPC server. In or
 
 .. code:: bash
 
-   INFO:root:RPCServer: bind to 0.0.0.0:9091
+   INFO:root:RPCServer: bind to localhost:9091
 
 
 Tips regarding the Pynq RPC Server:

@@ -93,7 +93,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
 
     flasher_kw = {}
     if DEBUG:
-        flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
+        flasher_kw["debug_rpc_session"] = tvm.rpc.connect("localhost", 9090)
 
     session_kw = {
         "flasher": compiler.flasher(**flasher_kw),

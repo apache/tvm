@@ -53,7 +53,7 @@ class Session:
     .. code-block:: python
 
       c_mod = ...  # some module generated with "c" as the target
-      dev_config = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
+      dev_config = micro.device.arm.stm32f746xx.default_config('localhost', 6666)
       with tvm.micro.Session(dev_config) as sess:
           micro_mod = sess.create_micro_mod(c_mod)
     """

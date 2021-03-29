@@ -35,7 +35,7 @@ fn main() {
     let mut exec = tvm_runtime::GraphExecutor::new(graph, &syslib).unwrap();
     exec.load_params(params);
 
-    let listener = std::net::TcpListener::bind("127.0.0.1:4242").unwrap();
+    let listener = std::net::TcpListener::bind("localhost:4242").unwrap();
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
         if let Err(_) =

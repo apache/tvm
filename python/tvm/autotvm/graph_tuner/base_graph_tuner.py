@@ -393,7 +393,7 @@ class BaseGraphTuner(object):
 
         device_key : str, optional
             Remote device key which can be queried by
-            python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
+            python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
 
         host : str, optional
             IP address used to create RPC tracker on host machine.

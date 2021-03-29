@@ -58,7 +58,7 @@ a jupyter notebook on macOS. You can change the binding IP address by
 
 .. code:: bash
 
-   jupyter notebook --ip=0.0.0.0
+   jupyter notebook --ip=localhost
 
 Note that on macOS, because we use bridge network, jupyter notebook will be reportedly running
 at an URL like ``http://{container_hostname}:8888/?token=...``. You should replace the ``container_hostname``

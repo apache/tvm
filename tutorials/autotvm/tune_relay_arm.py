@@ -139,13 +139,13 @@ def get_network(name, batch_size):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
+#   python -m tvm.exec.rpc_tracker --host=localhost --port=9190
 #
 # The expected output is
 #
 # .. code-block:: bash
 #
-#   INFO:RPCTracker:bind to 0.0.0.0:9190
+#   INFO:RPCTracker:bind to localhost:9190
 
 #################################################################
 # Register Devices to RPC Tracker
@@ -173,7 +173,7 @@ def get_network(name, batch_size):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
 #
 # For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 3B and 2 rk3399,
 # the output can be
@@ -224,7 +224,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(build_func="ndk" if use_android else "default"),
         runner=autotvm.RPCRunner(
             device_key,
-            host="0.0.0.0",
+            host="localhost",
             port=9190,
             number=5,
             timeout=10,
@@ -343,7 +343,7 @@ def tune_and_evaluate(tuning_opt):
 
         # upload module to device
         print("Upload...")
-        remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9190, timeout=10000)
+        remote = autotvm.measure.request_remote(device_key, "localhost", 9190, timeout=10000)
         remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
 

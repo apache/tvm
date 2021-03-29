@@ -49,7 +49,7 @@ using namespace tvm::support;
 static const string kUsage =
     "Command line usage\n"
     " server       - Start the server\n"
-    "--host        - The hostname of the server, Default=0.0.0.0\n"
+    "--host        - The hostname of the server, Default=localhost\n"
     "--port        - The port of the RPC, Default=9090\n"
     "--port-end    - The end search port of the RPC, Default=9099\n"
     "--tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=\"\"\n"
@@ -59,13 +59,13 @@ static const string kUsage =
     "--silent      - Whether to run in silent mode. Default=False\n"
     "\n"
     "  Example\n"
-    "  ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 "
-    " --tracker=127.0.0.1:9190 --key=rasp"
+    "  ./tvm_rpc server --host=localhost --port=9000 --port-end=9090 "
+    " --tracker=localhost:9190 --key=rasp"
     "\n";
 
 /*!
  * \brief RpcServerArgs.
- * \arg host The hostname of the server, Default=0.0.0.0
+ * \arg host The hostname of the server, Default=localhost
  * \arg port The port of the RPC, Default=9090
  * \arg port_end The end search port of the RPC, Default=9099
  * \arg tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
@@ -75,7 +75,7 @@ static const string kUsage =
  * \arg silent Whether run in silent mode. Default=False
  */
 struct RpcServerArgs {
-  string host = "0.0.0.0";
+  string host = "localhost";
   int port = 9090;
   int port_end = 9099;
   string tracker;

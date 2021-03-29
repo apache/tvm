@@ -400,10 +400,10 @@ class LocalRunner(RPCRunner):
         from ...rpc.server import Server
 
         self.task = task
-        tracker = Tracker("0.0.0.0", port=9000, port_end=10000, silent=True)
+        tracker = Tracker("localhost", port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % tracker.port
         server = Server(
-            "0.0.0.0",
+            "localhost",
             port=9000,
             port_end=10000,
             key=device_key,

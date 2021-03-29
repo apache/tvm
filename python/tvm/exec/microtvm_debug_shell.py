@@ -46,7 +46,7 @@ _LOG = logging.getLogger(__name__)
 def parse_args():
     """Parse command line arguments to this script."""
     parser = argparse.ArgumentParser(description="microTVM debug-tool runner")
-    parser.add_argument("--host", default="0.0.0.0", help="hostname to listen on")
+    parser.add_argument("--host", default="localhost", help="hostname to listen on")
     parser.add_argument("--port", type=int, default=9090, help="hostname to listen on")
     parser.add_argument(
         "--impl",
