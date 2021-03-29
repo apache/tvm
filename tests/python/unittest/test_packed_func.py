@@ -19,6 +19,9 @@ from tvm import te
 import numpy as np
 from tvm import testing
 
+@tvm.register_func("tvm.test_matmul")
+def my_matmul(a, b, c):
+    c.copyfrom(np.dot(a.asnumpy(), b.asnumpy()))
 
 def test_packed_func(parallel=True, target="llvm"):
     M, K, N = 4, 4, 2
@@ -35,6 +38,7 @@ def test_packed_func(parallel=True, target="llvm"):
     if parallel:
         s[C].parallel(xo)
 
+
     def intrin_libxsmm(m, k, n):
         a = te.placeholder((m, k), name="a", dtype="float64")
         b = te.placeholder((k, n), name="b", dtype="float64")
@@ -42,7 +46,7 @@ def test_packed_func(parallel=True, target="llvm"):
         c = te.compute((m, n), lambda i, j: te.sum(a[i, k] * b[k, j], axis=k), name="c")
         a_buffer = tvm.tir.decl_buffer(
             a.shape, a.dtype, name="a_buffer", offset_factor=1, strides=[te.var("s1"), 1]
-        )  # [te.var('s1'), te.var('s11')])
+        )
         b_buffer = tvm.tir.decl_buffer(
             b.shape, b.dtype, name="b_buffer", offset_factor=1, strides=[te.var("s2"), 1]
         )
@@ -54,7 +58,7 @@ def test_packed_func(parallel=True, target="llvm"):
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_packed(
-                    "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], False, False
+                    "tvm.test_matmul", ins[0], ins[1], outs[0]
                 )
             )
             return ib.get()
