@@ -384,7 +384,7 @@ def test_crt_link_params():
             flasher = compiler.flasher(**flasher_kw)
             with tvm.micro.Session(binary=micro_binary, flasher=flasher) as sess:
                 graph_rt = tvm.micro.session.create_local_graph_runtime(
-                    graph_json, sess.get_system_lib(), sess.context
+                    graph_json, sess.get_system_lib(), sess.device
                 )
 
                 # NOTE: not setting params here.

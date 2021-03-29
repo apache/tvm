@@ -48,15 +48,13 @@ class LocalSession : public RPCSession {
   void CallFunc(PackedFuncHandle func, const TVMValue* arg_values, const int* arg_type_codes,
                 int num_args, const FEncodeReturn& fencode_return) override;
 
-  void CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                    TVMContext ctx_to, DLDataType type_hint) override;
+  void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) override;
 
-  void CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                      TVMContext ctx_from, DLDataType type_hint) override;
+  void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) override;
 
   void FreeHandle(void* handle, int type_code) override;
 
-  DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) override;
+  DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing = false) override;
 
   bool IsLocalSession() const override { return true; }
 

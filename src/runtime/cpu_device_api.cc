@@ -22,8 +22,8 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -38,14 +38,13 @@ namespace tvm {
 namespace runtime {
 class CPUDeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(TVMContext ctx) final {}
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void SetDevice(Device dev) final {}
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == kExist) {
       *rv = 1;
     }
   }
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     void* ptr;
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
@@ -61,7 +60,7 @@ class CPUDeviceAPI final : public DeviceAPI {
     return ptr;
   }
 
-  void FreeDataSpace(TVMContext ctx, void* ptr) final {
+  void FreeDataSpace(Device dev, void* ptr) final {
 #if _MSC_VER
     _aligned_free(ptr);
 #else
@@ -69,16 +68,10 @@ class CPUDeviceAPI final : public DeviceAPI {
 #endif
   }
 
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final {
-    memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
-  }
+  void StreamSync(Device dev, TVMStreamHandle stream) final {}
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {}
-
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
 
   static CPUDeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state
@@ -86,18 +79,25 @@ class CPUDeviceAPI final : public DeviceAPI {
     static auto* inst = new CPUDeviceAPI();
     return inst;
   }
+
+ protected:
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
+                      TVMStreamHandle stream) final {
+    memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
+  }
 };
 
 struct CPUWorkspacePool : public WorkspacePool {
   CPUWorkspacePool() : WorkspacePool(kDLCPU, CPUDeviceAPI::Global()) {}
 };
 
-void* CPUDeviceAPI::AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) {
-  return dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->AllocWorkspace(ctx, size);
+void* CPUDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  return dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->AllocWorkspace(dev, size);
 }
 
-void CPUDeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
-  dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(ctx, data);
+void CPUDeviceAPI::FreeWorkspace(Device dev, void* data) {
+  dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
 TVM_REGISTER_GLOBAL("device_api.cpu").set_body([](TVMArgs args, TVMRetValue* rv) {

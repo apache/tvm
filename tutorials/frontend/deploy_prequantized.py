@@ -90,7 +90,7 @@ def run_tvm_model(mod, params, input_name, inp, target="llvm"):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
 
-    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.context(target, 0)))
+    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.device(target, 0)))
 
     runtime.set_input(input_name, inp)
     runtime.run()
@@ -198,8 +198,8 @@ print("%d in 1000 raw floating outputs identical." % np.sum(tvm_result[0] == pt_
 # -------------------------
 # Here we give an example of how to measure performance of TVM compiled models.
 n_repeat = 100  # should be bigger to make the measurement more accurate
-ctx = tvm.cpu(0)
-ftimer = rt_mod.module.time_evaluator("run", ctx, number=1, repeat=n_repeat)
+dev = tvm.cpu(0)
+ftimer = rt_mod.module.time_evaluator("run", dev, number=1, repeat=n_repeat)
 prof_res = np.array(ftimer().results) * 1e3
 print("Elapsed average ms:", np.mean(prof_res))
 

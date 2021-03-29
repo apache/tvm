@@ -18,8 +18,8 @@
  */
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <cstring>
@@ -31,16 +31,13 @@ namespace runtime {
 
 class HexagonDeviceAPI : public DeviceAPI {
  public:
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
-                      DLDataType type_hint, TVMStreamHandle stream) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint = {}) final;
-  void FreeWorkspace(TVMContext ctx, void* ptr) final;
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t nbytes, DLDataType type_hint = {}) final;
+  void FreeWorkspace(Device dev, void* ptr) final;
 
   static HexagonDeviceAPI* Global() {
     // NOTE: explicitly use new to avoid destruction of global state
@@ -48,31 +45,36 @@ class HexagonDeviceAPI : public DeviceAPI {
     static HexagonDeviceAPI* inst = new HexagonDeviceAPI();
     return inst;
   }
+
+ protected:
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                      size_t num_bytes, Device dev_from, Device dev_to, DLDataType type_hint,
+                      TVMStreamHandle stream) final;
 };
 
 // HexagonDeviceAPI.
 
-inline void HexagonDeviceAPI::SetDevice(TVMContext ctx) {}
+inline void HexagonDeviceAPI::SetDevice(Device dev) {}
 
-inline void HexagonDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
+inline void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   if (kind == kExist) *rv = 1;
 }
 
-inline void* HexagonDeviceAPI::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
+inline void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                               DLDataType type_hint) {
-  ICHECK(hexagon::Device::ValidateDeviceId(ctx.device_id));
+  ICHECK(hexagon::Device::ValidateDeviceId(dev.device_id));
   return hexagon::Device::Global()->Alloc(nbytes, alignment);
 }
 
-inline void HexagonDeviceAPI::FreeDataSpace(TVMContext ctx, void* ptr) {
-  ICHECK(hexagon::Device::ValidateDeviceId(ctx.device_id));
+inline void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
+  ICHECK(hexagon::Device::ValidateDeviceId(dev.device_id));
   hexagon::Device::Global()->Free(ptr);
 }
 
 inline void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                                             size_t to_offset, size_t num_bytes,
-                                             TVMContext ctx_from, TVMContext ctx_to,
-                                             DLDataType type_hint, TVMStreamHandle stream) {
+                                             size_t to_offset, size_t num_bytes, Device dev_from,
+                                             Device dev_to, DLDataType type_hint,
+                                             TVMStreamHandle stream) {
   const char* src = static_cast<const char*>(from) + from_offset;
   char* dst = static_cast<char*>(to) + to_offset;
 
@@ -81,45 +83,45 @@ inline void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offse
   };
   (void)Is32bit;
 
-  if (ctx_from.device_type == ctx_to.device_type) {
-    if (ctx_from.device_type == kDLCPU) {
+  if (dev_from.device_type == dev_to.device_type) {
+    if (dev_from.device_type == kDLCPU) {
       memmove(dst, src, num_bytes);
-    } else if (static_cast<int>(ctx_from.device_type) == kDLHexagon) {
-      ICHECK(hexagon::Device::ValidateDeviceId(ctx_from.device_id));
-      ICHECK_EQ(ctx_from.device_id, ctx_to.device_id);
+    } else if (static_cast<int>(dev_from.device_type) == kDLHexagon) {
+      ICHECK(hexagon::Device::ValidateDeviceId(dev_from.device_id));
+      ICHECK_EQ(dev_from.device_id, dev_to.device_id);
       ICHECK(Is32bit(dst) && Is32bit(src));
       hexagon::Device::Global()->CopyDeviceToDevice(dst, src, num_bytes);
     }
   } else {
-    if (ctx_from.device_type == kDLCPU) {
-      ICHECK_EQ(static_cast<int>(ctx_to.device_type), kDLHexagon);
+    if (dev_from.device_type == kDLCPU) {
+      ICHECK_EQ(static_cast<int>(dev_to.device_type), kDLHexagon);
       ICHECK(Is32bit(dst));
-      ICHECK(hexagon::Device::ValidateDeviceId(ctx_to.device_id));
+      ICHECK(hexagon::Device::ValidateDeviceId(dev_to.device_id));
       hexagon::Device::Global()->CopyHostToDevice(dst, src, num_bytes);
     } else {
-      ICHECK_EQ(static_cast<int>(ctx_from.device_type), kDLHexagon);
-      ICHECK_EQ(ctx_to.device_type, kDLCPU);
+      ICHECK_EQ(static_cast<int>(dev_from.device_type), kDLHexagon);
+      ICHECK_EQ(dev_to.device_type, kDLCPU);
       ICHECK(Is32bit(src));
-      ICHECK(hexagon::Device::ValidateDeviceId(ctx_from.device_id));
+      ICHECK(hexagon::Device::ValidateDeviceId(dev_from.device_id));
       hexagon::Device::Global()->CopyDeviceToHost(dst, src, num_bytes);
     }
   }
 }
 
-inline void HexagonDeviceAPI::StreamSync(TVMContext ctx, TVMStreamHandle stream) {}
+inline void HexagonDeviceAPI::StreamSync(Device dev, TVMStreamHandle stream) {}
 
-inline void* HexagonDeviceAPI::AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint) {
-  ICHECK(hexagon::Device::ValidateDeviceId(ctx.device_id));
+inline void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t nbytes, DLDataType type_hint) {
+  ICHECK(hexagon::Device::ValidateDeviceId(dev.device_id));
   if (type_hint.code == 100) {
     size_t align = std::min(nbytes, 2048lu);
     return hexagon::Device::Global()->AllocVtcm(nbytes, align);
   }
-  return DeviceAPI::AllocWorkspace(ctx, nbytes, type_hint);
+  return DeviceAPI::AllocWorkspace(dev, nbytes, type_hint);
 }
 
-inline void HexagonDeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
-  ICHECK(hexagon::Device::ValidateDeviceId(ctx.device_id));
-  DeviceAPI::FreeWorkspace(ctx, ptr);
+inline void HexagonDeviceAPI::FreeWorkspace(Device dev, void* ptr) {
+  ICHECK(hexagon::Device::ValidateDeviceId(dev.device_id));
+  DeviceAPI::FreeWorkspace(dev, ptr);
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {

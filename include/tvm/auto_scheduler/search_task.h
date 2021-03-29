@@ -26,6 +26,7 @@
 #define TVM_AUTO_SCHEDULER_SEARCH_TASK_H_
 
 #include <tvm/auto_scheduler/compute_dag.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -120,6 +121,8 @@ class SearchTaskNode : public Object {
   HardwareParams hardware_params;
   /*! \brief The layout rewrite option used for measuring programs. */
   LayoutRewriteOption layout_rewrite_option;
+  /*! \brief Names of some user defined input data used in program measuring. */
+  Array<String> task_input_names;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("compute_dag", &compute_dag);
@@ -128,6 +131,7 @@ class SearchTaskNode : public Object {
     v->Visit("target_host", &target_host);
     v->Visit("hardware_params", &hardware_params);
     v->Visit("layout_rewrite_option", &layout_rewrite_option);
+    v->Visit("task_input_names", &task_input_names);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.SearchTask";
@@ -148,9 +152,11 @@ class SearchTask : public ObjectRef {
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
    * \param layout_rewrite_option The layout rewrite option used for measuring programs.
+   * \param task_input_names Names of some user defined input data used in program measuring.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
-             Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option);
+             Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option,
+             Array<String> task_input_names);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };

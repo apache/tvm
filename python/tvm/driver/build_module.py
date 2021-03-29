@@ -233,7 +233,7 @@ def _build_for_device(input_mod, target, target_host):
     """
     target = Target(target)
     target_host = Target(target_host)
-    device_type = ndarray.context(target.kind.name, 0).device_type
+    device_type = ndarray.device(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
@@ -402,7 +402,7 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     if not target_host:
         for tar, _ in target_input_mod.items():
             tar = Target(tar)
-            device_type = ndarray.context(tar.kind.name, 0).device_type
+            device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break

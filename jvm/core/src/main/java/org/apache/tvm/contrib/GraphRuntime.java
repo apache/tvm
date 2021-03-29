@@ -17,13 +17,13 @@
 
 package org.apache.tvm.contrib;
 
+import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
-import org.apache.tvm.TVMContext;
 import org.apache.tvm.TVMValue;
 import org.apache.tvm.rpc.RPC;
 import org.apache.tvm.rpc.RPCSession;
-import org.apache.tvm.rpc.TVMRemoteContext;
+import org.apache.tvm.rpc.TVMRemoteDevice;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -34,20 +34,20 @@ public class GraphRuntime {
    * Create a runtime executor module given a graph and module.
    * @param graphJson The graph deployed in json format output by compiler.
    * @param libmod The module of the corresponding function.
-   * @param ctx The local or remote context to deploy the module.
+   * @param dev The local or remote device to deploy the module.
    * @return Runtime graph module that can be used to execute the graph.
    */
-  public static GraphModule create(String graphJson, Module libmod, TVMContext ctx) {
+  public static GraphModule create(String graphJson, Module libmod, Device dev) {
     Function fcreate = Function.getFunction("tvm.graph_runtime.create");
     if (fcreate == null) {
       throw new RuntimeException("Cannot find global function tvm.graph_runtime.create."
           + "Did you compile tvm_runtime with correct version?");
     }
     Module graphModule = fcreate.pushArg(graphJson)
-        .pushArg(libmod).pushArg(ctx.deviceType).pushArg(ctx.deviceId)
+        .pushArg(libmod).pushArg(dev.deviceType).pushArg(dev.deviceId)
         .invoke().asModule();
 
-    return new GraphModule(graphModule, ctx);
+    return new GraphModule(graphModule, dev);
   }
 
   private static Object reflectionGetField(Object obj, String fieldName) {

@@ -61,10 +61,10 @@ bool BiasAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (axis < 0) {
     axis = data->shape.size() + axis;
   }
-  if (axis >= static_cast<int>(data->shape.size())) {
+  if (axis >= static_cast<int>(data->shape.size()) || axis < 0) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "The axis in bias_add must be in range for the shape; "
-                                     << "attempted to access index " << axis << " of "
+                                     << "attempted to access index " << param->axis << " of "
                                      << PrettyPrint(data->shape));
     return false;
   }
@@ -590,8 +590,10 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_support_level(1)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .add_type_rel("Dropout", DropoutRel);
+    .add_type_rel("Dropout", DropoutRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true);
 
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);

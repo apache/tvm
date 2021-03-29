@@ -56,7 +56,7 @@ import java.util.Vector;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 import org.apache.tvm.TVMValue;
 import org.apache.tvm.TVMType;
 
@@ -177,8 +177,8 @@ public class MainActivity extends AppCompatActivity {
                 return -1;//failure
             }
 
-            // create java tvm context
-            TVMContext tvmCtx = EXE_GPU ? TVMContext.opencl() : TVMContext.cpu();
+            // create java tvm device
+            Device tvmDev = EXE_GPU ? Device.opencl() : Device.cpu();
 
             // tvm module for compiled functions
             Module modelLib = Module.load(libCacheFilePath);
@@ -187,8 +187,8 @@ public class MainActivity extends AppCompatActivity {
             Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
-                    .pushArg(tvmCtx.deviceType)
-                    .pushArg(tvmCtx.deviceId)
+                    .pushArg(tvmDev.deviceType)
+                    .pushArg(tvmDev.deviceId)
                     .invoke();
             graphRuntimeModule = runtimeCreFunRes.asModule();
 

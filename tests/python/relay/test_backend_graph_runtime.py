@@ -102,7 +102,7 @@ def test_with_params():
     y_data = np.random.rand(1, 5).astype("float32")
     params = {"y": y_data}
     graph, lib, params = relay.build(tvm.IRModule.from_expr(func), "llvm", params=params)
-    mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+    mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
     mod.set_input(**params)
     mod.set_input(x=x_data)
     mod.run()
@@ -171,10 +171,10 @@ def test_gru_like():
     out_shape = (1, rnn_dim)
     z = unit(rnn_dim)
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         with tvm.transform.PassContext(opt_level=2):
             graph, lib, params = relay.build(tvm.IRModule.from_expr(z), target)
-            m = graph_runtime.create(graph, lib, ctx)
+            m = graph_runtime.create(graph, lib, dev)
             m.set_input("X", tvm.nd.array(x.astype(dtype)))
             m.set_input("y", tvm.nd.array(y.astype(dtype)))
             m.set_input(**params)
@@ -194,7 +194,7 @@ def test_compile_nested_tuples():
     func = relay.Function([x], out)
 
     graph, lib, _ = relay.build(tvm.IRModule.from_expr(func), "llvm")
-    mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+    mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
 
     x_data = np.random.uniform(size=(10,)).astype(np.float32)
     mod.set_input(x=x_data)
@@ -207,6 +207,27 @@ def test_compile_nested_tuples():
         out = mod.get_output(i).asnumpy()
         tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
         ref = ref + 1
+
+
+def test_graph_executor_nested_tuples():
+    x, y, z, w = [relay.var(c, shape=(2, 3), dtype="float32") for c in "xyzw"]
+    out = relay.Tuple([x, relay.Tuple([y, relay.Tuple([z, w])])])
+    func = relay.Function([x, y, z, w], out)
+
+    exe = relay.create_executor(
+        kind="graph", mod=tvm.IRModule.from_expr(func), device=tvm.cpu(0), target="llvm"
+    )
+    f = exe.evaluate()
+
+    data = [np.random.uniform(size=(2, 3)).astype("float32") for _ in "xyzw"]
+    out = f(*data)
+    assert len(out) == 2
+    tvm.testing.assert_allclose(out[0].asnumpy(), data[0])
+    assert len(out[1]) == 2
+    tvm.testing.assert_allclose(out[1][0].asnumpy(), data[1])
+    assert len(out[1][1]) == 2
+    tvm.testing.assert_allclose(out[1][1][0].asnumpy(), data[2])
+    tvm.testing.assert_allclose(out[1][1][1].asnumpy(), data[3])
 
 
 if __name__ == "__main__":

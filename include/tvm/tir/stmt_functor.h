@@ -26,8 +26,8 @@
 #ifndef TVM_TIR_STMT_FUNCTOR_H_
 #define TVM_TIR_STMT_FUNCTOR_H_
 
-#include <tvm/node/container.h>
 #include <tvm/node/functor.h>
+#include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt.h>
@@ -86,6 +86,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -96,6 +97,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const PrefetchNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     return R();
@@ -109,6 +112,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
+    IR_STMT_FUNCTOR_DISPATCH(WhileNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
@@ -119,6 +123,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
     IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
     IR_STMT_FUNCTOR_DISPATCH(BufferRealizeNode);
+    IR_STMT_FUNCTOR_DISPATCH(BlockNode);
+    IR_STMT_FUNCTOR_DISPATCH(BlockRealizeNode);
     return vtable;
   }
 };
@@ -148,6 +154,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
@@ -158,6 +165,8 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const PrefetchNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
+  void VisitStmt_(const BlockNode* op) override;
+  void VisitStmt_(const BlockRealizeNode* op) override;
 };
 
 /*!
@@ -239,6 +248,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
+  Stmt VisitStmt_(const WhileNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
@@ -249,6 +259,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const PrefetchNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const EvaluateNode* op) override;
+  Stmt VisitStmt_(const BlockNode* op) override;
+  Stmt VisitStmt_(const BlockRealizeNode* op) override;
   /*!
    * \brief Alternative advance method for SeqStmtNode.
    *
@@ -374,6 +386,15 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
   return Substitute(std::move(input), vmap);
 }
 
+/*!
+ * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
+ * If fvisit returns false, it won't visit the children of the node.
+ * \param stmt_or_expr The ir to be visited.
+ * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
+ * children of the node
+ */
+TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
+                           const std::function<bool(const ObjectRef&)>& fvisit);
 }  // namespace tir
 }  // namespace tvm
 

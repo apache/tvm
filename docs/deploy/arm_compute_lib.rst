@@ -148,9 +148,9 @@ https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html
 
 .. code:: python
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     loaded_lib = tvm.runtime.load_module('lib_acl.so')
-    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](ctx))
+    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](dev))
     d_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     map_inputs = {'data': d_data}
     gen_module.set_input(**map_inputs)

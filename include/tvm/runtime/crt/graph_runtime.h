@@ -62,12 +62,12 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  *
  * \param sym_json JSON-encoded graph.
  * \param module_handle TVM Module that exposes the functions to call.
- * \param ctxs runtime execution context.
+ * \param devices runtime execution device.
  * \param runtime Pointer which receives a pointer to the newly-created instance.
  * \return 0 if successful.
  */
 int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
-                           const TVMContext* ctxs, TVMGraphRuntime** runtime);
+                           const DLDevice* devices, TVMGraphRuntime** runtime);
 
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 

@@ -93,8 +93,8 @@ struct Node {
 // Minimal NDArray abstraction
 class NDArray {
  public:
-  // initialize NDArray with shape/dtype/ctx
-  static NDArray Empty(const DynArray<int64_t>& shape, DLDataType dtype, DLContext ctx);
+  // initialize NDArray with shape/dtype/device
+  static NDArray Empty(const DynArray<int64_t>& shape, DLDataType dtype, DLDevice dev);
   // create a view of the NDArray storage, with the given shape/dtype
   NDArray CreateView(const DynArray<int64_t>& shape, DLDataType dtype);
   // Copy into the internal storage.
@@ -112,8 +112,8 @@ class NDArray {
   DynArray<int64_t> shape_;
   // tensor dtype
   DLDataType dtype_;
-  // tensor context
-  DLContext ctx_;
+  // tensor device
+  DLDevice device_;
 };
 
 // Minimal GraphRuntime implementation
@@ -150,8 +150,8 @@ class MicroGraphRuntime {
   DynArray<NodeEntry> outputs_;
   // Additional graph attributes
   GraphAttr attrs_;
-  // Execution context
-  DLContext ctx_{kDLCPU, 0};
+  // Execution device
+  DLDevice device_{kDLCPU, 0};
 
   // Common storage pool
   DynArray<NDArray> storage_pool_;

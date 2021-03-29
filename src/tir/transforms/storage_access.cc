@@ -132,6 +132,10 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
       StmtExprVisitor::VisitStmt_(op);
     }
     env_threads_.pop_back();
+  } else if (op->attr_key == attr::hand_threaded) {
+    // skip this pass on blocks that were hand_threaded
+    // this avoids control flow and read/write conflicts
+    // between hand-threaded kernels and automatic threading
   } else {
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -176,6 +180,19 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
     scope_.pop_back();
     s.access.insert(s.access.end(), v.begin(), v.end());
   }
+  scope_.back().emplace_back(std::move(s));
+  --condition_counter_;
+}
+
+void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
+  ++condition_counter_;
+  this->VisitExpr(op->condition);
+  scope_.push_back(std::vector<StmtEntry>());
+  this->VisitStmt(op->body);
+  StmtEntry s;
+  s.stmt = op;
+  s.access = Summarize(std::move(scope_.back()), nullptr);
+  scope_.pop_back();
   scope_.back().emplace_back(std::move(s));
   --condition_counter_;
 }

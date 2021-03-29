@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 import logging
-from tvm import te, tir
+from tvm import te
 import tvm.autotvm as autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cublas
@@ -39,14 +39,11 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
     if out_dtype is None:
         out_dtype = data.dtype
     assert out_dtype == data.dtype, "Mixed precision not supported."
-    batch, in_dim = data.shape
-    out_dim, _ = weight.shape
+    batch, in_dim = get_const_tuple(data.shape)
+    out_dim, _ = get_const_tuple(weight.shape)
     matmul = cublas.matmul(data, weight, False, True)
-    if isinstance(batch, int):
+    if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
-    elif isinstance(batch, tir.IntImm):
-        cfg.add_flop(batch.value * in_dim * out_dim * 2)
-    # if we get a te.Var, we cannot add flop counts
     if bias is not None:
         matmul = te.compute(
             (batch, out_dim), lambda i, j: matmul[i, j] + bias[j], tag=tag.BROADCAST
@@ -81,13 +78,26 @@ def schedule_dense_small_batch(cfg, outs):
 
 
 def _schedule_dense_small_batch(cfg, s, C):
-    A, _ = C.op.input_tensors
-    _, in_dim = get_const_tuple(A.shape)
-    cfg.define_split("tile_k", in_dim, num_outputs=2)
-    if cfg.is_fallback:
-        cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
+    A, weights = C.op.input_tensors
+    _, in_dim_weights = get_const_tuple(weights.shape)
+    _, in_dim_A = get_const_tuple(A.shape)
 
-    _, kf = cfg["tile_k"].apply(s, C, C.op.reduce_axis[0])
+    if isinstance(in_dim_A, int):
+        in_dim = in_dim_A
+    elif isinstance(in_dim_weights, int):
+        in_dim = in_dim_weights
+    else:
+        in_dim = None
+
+    if in_dim is not None:
+        cfg.define_split("tile_k", in_dim, num_outputs=2)
+        if cfg.is_fallback:
+            cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
+        _, kf = cfg["tile_k"].apply(s, C, C.op.reduce_axis[0])
+    else:
+        tile_k = 64
+        _, kf = s[C].split(C.op.reduce_axis[0], tile_k)
+
     CF = s.rfactor(C, kf)
 
     if C.op in s.outputs:

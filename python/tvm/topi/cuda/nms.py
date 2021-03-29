@@ -19,6 +19,7 @@
 """Non-maximum suppression operator"""
 import tvm
 from tvm import te
+from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from tvm.tir import if_then_else
 from .sort import argsort, argsort_thrust
@@ -473,7 +474,9 @@ def nms_ir(
                     box_indices[i * num_anchors + j] = -1
 
         with ib.else_scope():
-            with ib.if_scope(j < valid_count[i]):
+            # Need to copy all boxes if not using return_indices
+            bounds = valid_count[i] if return_indices else num_anchors
+            with ib.if_scope(j < bounds):
                 src_offset = base_src_idx + j * box_data_length
 
                 with ib.for_range(0, 4, kind="unroll") as k:
@@ -492,6 +495,14 @@ def nms_ir(
     with ib.new_scope():
         nthread_by = batch_size
         nthread_tx = max_threads
+
+        # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock
+        # vs 64K for most GPUs. Since this kernel uses many registers (around 35), the limit will
+        # be exceeded with 1024 threads.
+        target = tvm.target.Target.current(allow_none=False)
+        if target.kind.name == "cuda":
+            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
+                nthread_tx = 512
 
         by = te.thread_axis("blockIdx.y")
         tx = te.thread_axis("threadIdx.x")
@@ -521,7 +532,7 @@ def nms_ir(
             offset_j = j * 4
             num_iter_per_thread = ceil_div(nkeep - (j + 1), nthread_tx)
 
-            with ib.for_range(0, num_iter_per_thread) as _k:
+            with ib.for_range(0, num_iter_per_thread, name="_k") as _k:
                 k = j + 1 + _k * nthread_tx + tx
                 offset_k = k * 4
 
@@ -555,16 +566,22 @@ def nms_ir(
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
-            with ib.for_range(0, nkeep) as j:
-                # Proceed to the inner loop if the box j is still valid
-                with ib.if_scope(out_scores[i, j] > -1.0):
-                    with ib.if_scope(max_output_size > 0):
-                        # No need to do more iteration if we have already reached max_output_size
-                        # boxes
-                        # TODO(masahi): Add TIR while loop to realize early exit from the outer loop
-                        with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
-                            nms_inner_loop(ib, j)
-                    with ib.else_scope():
+            with ib.if_scope(max_output_size > 0):
+                # No need to do more iteration if we have already reached max_output_size boxes
+                box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+                box_idx[0] = 0
+                with ib.while_loop(
+                    tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+                ):
+                    # Proceed to the inner loop if the box with id box_idx is still valid
+                    with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+                        nms_inner_loop(ib, box_idx[0])
+                    box_idx[0] += 1
+
+            with ib.else_scope():
+                with ib.for_range(0, nkeep, name="j") as j:
+                    # Proceed to the inner loop if the box j is still valid
+                    with ib.if_scope(out_scores[i, j] > -1.0):
                         nms_inner_loop(ib, j)
 
             with ib.if_scope(tx + 0 == 0):
@@ -854,10 +871,10 @@ def non_max_suppression(
         np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "cuda")
-        ctx = tvm.gpu(0)
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
+        dev = tvm.gpu(0)
+        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_valid_count = tvm.nd.array(np_valid_count, dev)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), dev)
         f(tvm_data, tvm_valid_count, tvm_out)
     """
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)

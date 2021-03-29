@@ -92,11 +92,13 @@ def get_model(model_name, batch_size, qconfig, target=None, original=False, simu
     return qfunc
 
 
-def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), log_interval=100):
+def eval_acc(
+    model, dataset, batch_fn, target=tvm.target.cuda(), device=tvm.gpu(), log_interval=100
+):
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(model, target)
     # create runtime module
-    m = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+    m = tvm.contrib.graph_runtime.create(graph, lib, device)
     m.set_input(**params)
 
     # setup evaluaiton metric

@@ -23,6 +23,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <chrono>
@@ -77,16 +78,25 @@ class GraphRuntimeDebug : public GraphRuntime {
                                                number * 1.618));  // 1.618 is chosen by random
           }
           tbegin = std::chrono::high_resolution_clock::now();
+          std::vector<std::vector<Timer>> op_timers;
+          for (size_t index = 0; index < op_execs_.size(); index++) {
+            op_timers.push_back({});
+          }
           for (int k = 0; k < number; k++) {
             for (size_t index = 0; index < op_execs_.size(); ++index) {
               if (op_execs_[index]) {
-                time_sec_per_op[index] += RunOpHost(index);
+                op_timers[index].push_back(RunOpHost(index));
               }
+            }
+          }
+          for (size_t index = 0; index < op_execs_.size(); ++index) {
+            for (auto t : op_timers[index]) {
+              time_sec_per_op[index] += t->SyncAndGetElapsedNanos() / 1e9;
             }
           }
           tend = std::chrono::high_resolution_clock::now();
           duration_ms =
-              std::chrono::duration_cast<std::chrono::duration<double> >(tend - tbegin).count() *
+              std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() *
               1000;
         } while (duration_ms < min_repeat_ms);
 
@@ -110,7 +120,20 @@ class GraphRuntimeDebug : public GraphRuntime {
   }
 
   double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
-    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
+    // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes which
+    // represent inputs/parameters to the graph. Other types may be supported in the future, but
+    // consideration would be needed as to how to do that over RPC before we support it here.
+    if (nodes_[index].op_type != "tvm_op") {
+      CHECK_EQ(nodes_[index].op_type, "null")
+          << "Don't know how to run op type " << nodes_[index].op_type
+          << " remotely over RPC right now";
+
+      // NOTE: GraphRuntimeDebug expects graph nodes to have an "op" attribute of "tvm_op" or "null"
+      // and "null" is a placeholder node for a parameter or input.
+      return 0;
+    }
+
+    const Device& dev = data_entry_[entry_id(index, 0)]->device;
     TVMOpParam param = nodes_[index].param;
     std::string name = param.func_name;
     uint32_t num_inputs = param.num_inputs;
@@ -118,8 +141,8 @@ class GraphRuntimeDebug : public GraphRuntime {
 
     PackedFunc time_eval = runtime::Registry::Get("runtime.RPCTimeEvaluator")
                                ->
-                               operator()(module_, name, static_cast<int>(ctx.device_type),
-                                          ctx.device_id, number, repeat, min_repeat_ms, "");
+                               operator()(module_, name, static_cast<int>(dev.device_type),
+                                          dev.device_id, number, repeat, min_repeat_ms, "");
 
     int num_flat_args = num_inputs + num_outputs;
     std::unique_ptr<TVMValue> values(new TVMValue[num_flat_args]);
@@ -147,15 +170,12 @@ class GraphRuntimeDebug : public GraphRuntime {
     return results_arr[0];
   }
 
-  double RunOpHost(int index) {
-    auto op_tbegin = std::chrono::high_resolution_clock::now();
+  Timer RunOpHost(int index) {
+    const Device& dev = data_entry_[entry_id(index, 0)]->device;
+    Timer t = Timer::Start(dev);
     op_execs_[index]();
-    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-    auto op_tend = std::chrono::high_resolution_clock::now();
-    double op_duration =
-        std::chrono::duration_cast<std::chrono::duration<double> >(op_tend - op_tbegin).count();
-    return op_duration;
+    t->Stop();
+    return t;
   }
 
   /*!
@@ -249,13 +269,13 @@ PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
  * \brief GraphRuntimeDebugCreate Get the function based on input.
  * \param sym_json The graph symbol in json format.
  * \param m Compiled module which will be loaded.
- * \param ctxs All devices contexts.
+ * \param devs All devices.
  */
 Module GraphRuntimeDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                               const std::vector<TVMContext>& ctxs,
+                               const std::vector<Device>& devs,
                                PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntimeDebug>();
-  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
+  exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
 
@@ -264,13 +284,13 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, 
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;
-  int ctx_start_arg = 2;
+  int dev_start_arg = 2;
   if (args[2].type_code() == kTVMPackedFuncHandle) {
     lookup_linked_param_func = args[2];
-    ctx_start_arg++;
+    dev_start_arg++;
   }
 
-  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args, ctx_start_arg),
+  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
                                 lookup_linked_param_func);
 });
 }  // namespace runtime

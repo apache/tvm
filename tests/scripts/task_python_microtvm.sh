@@ -18,6 +18,7 @@
 
 set -e
 set -u
+set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
 
 source tests/scripts/setup-pytest-env.sh
 
@@ -25,4 +26,4 @@ source tests/scripts/setup-pytest-env.sh
 find . -type f -path "*.pyc" | xargs rm -f
 
 make cython3
-run_pytest ctypes python-microtvm-qemu tests/micro/qemu
+run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr

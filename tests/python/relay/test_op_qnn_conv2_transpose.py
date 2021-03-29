@@ -191,7 +191,7 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
             golden_data, golden_weight = golden_inputs
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()

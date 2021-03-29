@@ -35,7 +35,7 @@ CuBlasThreadEntry::CuBlasThreadEntry() { CHECK_CUBLAS_ERROR(cublasCreate(&handle
 CuBlasThreadEntry::~CuBlasThreadEntry() {
   if (handle) {
     cublasDestroy(handle);
-    handle = 0;
+    handle = nullptr;
   }
 }
 

@@ -145,7 +145,7 @@ def verify_result(
     result,
     tol=1e-5,
     target="llvm",
-    ctx=tvm.cpu(),
+    device=tvm.cpu(),
     params=None,
     dpu_target="DPUCADX8G",
     tvm_ops=0,
@@ -154,7 +154,6 @@ def verify_result(
 
     lib = build_module(mod, target, params=params, dpu_target=dpu_target, tvm_ops=tvm_ops)
     lib = update_lib(lib)
-    ctx = tvm.cpu()
     rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
 
     for name, data in map_inputs.items():
@@ -166,6 +165,6 @@ def verify_result(
     results = result if isinstance(result, list) else [result]
 
     for idx, shape in enumerate(out_shapes):
-        out = tvm.nd.empty(shape, ctx=ctx)
+        out = tvm.nd.empty(shape, device=device)
         out = rt_mod.get_output(idx, out)
         tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
