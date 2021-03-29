@@ -166,8 +166,8 @@ mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 with tvm.transform.PassContext(opt_level=1):
     lib = relay.build(mod, target=target, params=params)
 
-ctx = tvm.context(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](ctx))
+dev = tvm.device(str(target), 0)
+module = graph_runtime.GraphModule(lib["default"](dev))
 
 ######################################################################
 # Execute on TVM Runtime
@@ -381,8 +381,8 @@ with autotvm.apply_history_best(tuning_option["tuning_records"]):
     with tvm.transform.PassContext(opt_level=3, config={}):
         lib = relay.build(mod, target=target, params=params)
 
-ctx = tvm.context(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](ctx))
+dev = tvm.device(str(target), 0)
+module = graph_runtime.GraphModule(lib["default"](dev))
 
 ################################################################################
 # Verify that the optimized model runs and produces the same results:
