@@ -157,15 +157,7 @@ class Executable : public ModuleNode {
    * NB: This also provides some abstraction over how libraries are stored as there are plans
    * to iterate on the way runtime::Module works in the backend of the compiler.
    */
-  void SetLib(const runtime::Module& lib) {
-    ICHECK(lib.defined())
-      << "the provided library can not be null";
-
-    ICHECK_EQ(this->imports().size(), 0)
-      << "you can only import one device specific library";
-
-    this->Import(lib);
-  }
+  void SetLib(const runtime::Module& lib);
 
   /*!
    * \brief Get the arity of the VMFunction.
