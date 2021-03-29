@@ -290,7 +290,7 @@ def run_module(
     hostname,
     port=9090,
     rpc_key=None,
-    device=None,
+    device,
     inputs_file=None,
     fill_mode="random",
     repeat=1,
