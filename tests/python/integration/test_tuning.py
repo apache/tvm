@@ -142,7 +142,7 @@ def get_sample_task(target=tvm.target.cuda(), target_host=None):
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl")
-def test_tuning_gpu(target, ctx):
+def test_tuning_gpu(target, dev):
     # init task
     task, target = get_sample_task(target, None)
     logging.info("task config space: %s", task.config_space)

@@ -47,22 +47,22 @@ PackedFunc GraphRuntimeFactory::GetFunction(
     const std::string& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
   if (name == module_name_) {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      std::vector<TVMContext> contexts;
+      std::vector<Device> devices;
       for (int i = 0; i < args.num_args; ++i) {
-        contexts.emplace_back(args[i].operator TVMContext());
+        devices.emplace_back(args[i].operator Device());
       }
-      *rv = this->RuntimeCreate(contexts);
+      *rv = this->RuntimeCreate(devices);
     });
   } else if (name == "debug_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_GE(args.size(), 2);
       std::string module_name = args[0].operator String();
       ICHECK(module_name == module_name_) << "Currently we only support single model for now.";
-      std::vector<TVMContext> contexts;
+      std::vector<Device> devices;
       for (int i = 1; i < args.num_args; ++i) {
-        contexts.emplace_back(args[i].operator TVMContext());
+        devices.emplace_back(args[i].operator Device());
       }
-      *rv = this->DebugRuntimeCreate(contexts);
+      *rv = this->DebugRuntimeCreate(devices);
     });
   } else if (name == "remove_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -74,11 +74,11 @@ PackedFunc GraphRuntimeFactory::GetFunction(
     });
   } else if (name == "cuda_graph_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      std::vector<TVMContext> contexts;
+      std::vector<Device> devices;
       for (int i = 0; i < args.num_args; ++i) {
-        contexts.emplace_back(args[i].operator TVMContext());
+        devices.emplace_back(args[i].operator Device());
       }
-      *rv = this->CudaGraphRuntimeCreate(contexts);
+      *rv = this->CudaGraphRuntimeCreate(devices);
     });
   } else {
     return PackedFunc();
@@ -103,32 +103,32 @@ void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(module_name_);
 }
 
-Module GraphRuntimeFactory::RuntimeCreate(const std::vector<TVMContext>& ctxs) {
+Module GraphRuntimeFactory::RuntimeCreate(const std::vector<Device>& devs) {
   auto exec = make_object<GraphRuntime>();
-  exec->Init(this->graph_json_, this->imports_[0], ctxs, PackedFunc());
+  exec->Init(this->graph_json_, this->imports_[0], devs, PackedFunc());
   // set params
   SetParams(exec.get(), this->params_);
   return Module(exec);
 }
 
-Module GraphRuntimeFactory::DebugRuntimeCreate(const std::vector<TVMContext>& ctxs) {
+Module GraphRuntimeFactory::DebugRuntimeCreate(const std::vector<Device>& devs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_debug.create");
   ICHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_debug.create in registry. "
                            "Do you enable debug graph runtime build?";
-  // Debug runtime create packed function will call GetAllContexs, so we unpack the ctxs.
-  std::vector<int> unpacked_ctxs;
-  for (const auto& ctx : ctxs) {
-    unpacked_ctxs.emplace_back(ctx.device_type);
-    unpacked_ctxs.emplace_back(ctx.device_id);
+  // Debug runtime create packed function will call GetAllContexs, so we unpack the devs.
+  std::vector<int> unpacked_devs;
+  for (const auto& dev : devs) {
+    unpacked_devs.emplace_back(dev.device_type);
+    unpacked_devs.emplace_back(dev.device_id);
   }
-  size_t args_size = unpacked_ctxs.size() + 2;
+  size_t args_size = unpacked_devs.size() + 2;
   std::vector<TVMValue> values(args_size);
   std::vector<int> codes(args_size);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   setter(0, this->graph_json_);
   setter(1, this->imports_[0]);
-  for (size_t i = 0; i < unpacked_ctxs.size(); ++i) {
-    setter(i + 2, unpacked_ctxs[i]);
+  for (size_t i = 0; i < unpacked_devs.size(); ++i) {
+    setter(i + 2, unpacked_devs[i]);
   }
   TVMRetValue rv;
   pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);
@@ -138,23 +138,23 @@ Module GraphRuntimeFactory::DebugRuntimeCreate(const std::vector<TVMContext>& ct
   return mod;
 }
 
-Module GraphRuntimeFactory::CudaGraphRuntimeCreate(const std::vector<TVMContext>& ctxs) {
+Module GraphRuntimeFactory::CudaGraphRuntimeCreate(const std::vector<Device>& devs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_cuda_graph.create");
   ICHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_cuda_graph.create in registry. "
                            "Did you set(USE_GRAPH_RUNTIME_CUGRAPH=ON)?";
-  std::vector<int> unpacked_ctxs;
-  for (const auto& ctx : ctxs) {
-    unpacked_ctxs.emplace_back(ctx.device_type);
-    unpacked_ctxs.emplace_back(ctx.device_id);
+  std::vector<int> unpacked_devs;
+  for (const auto& dev : devs) {
+    unpacked_devs.emplace_back(dev.device_type);
+    unpacked_devs.emplace_back(dev.device_id);
   }
-  size_t args_size = unpacked_ctxs.size() + 2;
+  size_t args_size = unpacked_devs.size() + 2;
   std::vector<TVMValue> values(args_size);
   std::vector<int> codes(args_size);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   setter(0, this->graph_json_);
   setter(1, this->imports_[0]);
-  for (size_t i = 0; i < unpacked_ctxs.size(); ++i) {
-    setter(i + 2, unpacked_ctxs[i]);
+  for (size_t i = 0; i < unpacked_devs.size(); ++i) {
+    setter(i + 2, unpacked_devs[i]);
   }
   TVMRetValue rv;
   pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);

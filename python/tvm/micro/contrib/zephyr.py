@@ -663,10 +663,10 @@ class ZephyrDebugger(debugger.GdbDebugger):
         env = dict(os.environ)
         env["ZEPHYR_BASE"] = self._zephyr_base
 
-        return dict(
+        args = dict(
             args=self._west_cmd
             + [
-                "debug",
+                "attach",
                 "--skip-rebuild",
                 "--build-dir",
                 self._build_dir,
@@ -675,3 +675,4 @@ class ZephyrDebugger(debugger.GdbDebugger):
             ],
             env=env,
         )
+        return args

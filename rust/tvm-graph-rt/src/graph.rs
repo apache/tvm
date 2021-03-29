@@ -33,7 +33,7 @@ use serde_json;
 
 use tvm_sys::ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
 
-use tvm_sys::{ffi::DLTensor, ArgValue, Context, DataType, DeviceType};
+use tvm_sys::{ffi::DLTensor, ArgValue, DataType, Device, DeviceType};
 
 use crate::{errors::*, Module, Storage, Tensor};
 
@@ -240,7 +240,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 let storage = storages[storage_id].view();
                 Tensor {
                     data: mem::replace(&mut storages[storage_id], storage),
-                    ctx: Context::default(),
+                    device: Device::default(),
                     dtype,
                     size: shape.iter().product::<i64>() as usize,
                     shape,
@@ -418,14 +418,14 @@ named! {
     )
 }
 
-// Parses a Context
+// Parses a Device
 named! {
-  tvm_ctx<&[u8], Context>,
+  tvm_device<&[u8], Device>,
   do_parse!(
     device_type: le_u32 >>
     device_id:   le_i32 >>
     (
-        Context {
+        Device {
             device_type: DeviceType::from(device_type),
             device_id: device_id as usize,
         }
@@ -449,7 +449,7 @@ named! {
     do_parse!(
                 take!(8)      >>
                 le_u64        >>
-        ctx:    tvm_ctx       >>
+        device: tvm_device    >>
         ndim:   le_u32        >>
         dtype:  data_type     >>
         shape:  count!(map!(le_i64, |sz| sz as i64), ndim as usize) >>
@@ -458,7 +458,7 @@ named! {
         (
             Tensor {
                 data: Storage::from(data),
-                ctx: ctx,
+                device: device,
                 dtype: dtype,
                 size: shape.iter().product::<i64>() as usize,
                 shape: shape,

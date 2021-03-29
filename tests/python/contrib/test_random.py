@@ -35,9 +35,9 @@ def test_randint():
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.asnumpy()
         assert abs(np.mean(na)) < 0.3
@@ -60,9 +60,9 @@ def test_uniform():
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.asnumpy()
         assert abs(np.mean(na) - 0.5) < 1e-1
@@ -85,9 +85,9 @@ def test_normal():
         if not tvm.get_global_func("tvm.contrib.random.normal", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.asnumpy()
         assert abs(np.mean(na) - 3) < 1e-1
@@ -98,12 +98,12 @@ def test_normal():
 
 @tvm.testing.uses_gpu
 def test_random_fill():
-    def test_local(ctx, dtype):
+    def test_local(dev, dtype):
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
             return
         np_ones = np.ones((512, 512), dtype=dtype)
-        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, ctx)
+        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, dev)
         random_fill = tvm.get_global_func("tvm.contrib.random.random_fill")
         random_fill(value)
 
@@ -146,8 +146,8 @@ def test_random_fill():
         "float32",
         "float64",
     ]:
-        for _, ctx in tvm.testing.enabled_targets():
-            test_local(ctx, dtype)
+        for _, dev in tvm.testing.enabled_targets():
+            test_local(dev, dtype)
         test_rpc(dtype)
 
 

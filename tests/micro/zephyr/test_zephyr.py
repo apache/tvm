@@ -19,6 +19,7 @@ import contextlib
 import copy
 import datetime
 import glob
+import logging
 import os
 import subprocess
 import sys
@@ -26,6 +27,8 @@ import logging
 
 import pytest
 import numpy as np
+import onnx
+from PIL import Image
 
 import tvm
 import tvm.rpc
@@ -37,11 +40,14 @@ from tvm.contrib import utils
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
+# If set, build the uTVM binary from scratch on each test.
+# Otherwise, reuses the build from the previous test run.
 BUILD = True
+
+# If set, enable a debug session while the test is running.
+# Before running the test, in a separate shell, you should run:
+#   python -m tvm.exec.microtvm_debug_shell
 DEBUG = False
-
-
-TARGET = None
 
 _LOG = logging.getLogger(__name__)
 
@@ -64,15 +70,17 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
-    project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
+    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
+    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
     compiler = zephyr.ZephyrCompiler(
-        project_dir=project_dir,
+        project_dir=runtime_path,
         board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
         west_cmd=west_cmd,
     )
 
-    opts = tvm.micro.default_options(f"{project_dir}/crt")
+    opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
     # TODO(weberlo) verify this is necessary
     opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
     opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
@@ -135,11 +143,11 @@ def test_compile_runtime(platform, west_cmd):
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
@@ -157,16 +165,16 @@ def test_platform_timer(platform, west_cmd):
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
-        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
         assert (B_data.asnumpy() == np.array([4])).all()
-        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         time_eval_f = system_lib.time_evaluator(
-            "add", sess.context, number=20, repeat=3, min_repeat_ms=40
+            "add", sess.device, number=20, repeat=3, min_repeat_ms=40
         )
         result = time_eval_f(A_data, B_data, C_data)
         assert (C_data.asnumpy() == np.array([6, 7])).all()
@@ -195,7 +203,7 @@ def test_relay(platform, west_cmd):
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
         graph_mod = tvm.micro.create_local_graph_runtime(
-            graph, session.get_system_lib(), session.context
+            graph, session.get_system_lib(), session.device
         )
         graph_mod.set_input(**params)
         x_in = np.random.randint(10, size=shape[0], dtype=dtype)
@@ -203,6 +211,53 @@ def test_relay(platform, west_cmd):
         result = graph_mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(graph_mod.get_input(0).asnumpy(), x_in)
         tvm.testing.assert_allclose(result, x_in * x_in + 1)
+
+
+def test_onnx(platform, west_cmd):
+    """Testing a simple ONNX model."""
+    model, zephyr_board = PLATFORMS[platform]
+
+    # Load test images.
+    this_dir = os.path.dirname(__file__)
+    digit_2 = Image.open(f"{this_dir}/testdata/digit-2.jpg").resize((28, 28))
+    digit_2 = np.asarray(digit_2).astype("float32")
+    digit_2 = np.expand_dims(digit_2, axis=0)
+
+    digit_9 = Image.open(f"{this_dir}/testdata/digit-9.jpg").resize((28, 28))
+    digit_9 = np.asarray(digit_9).astype("float32")
+    digit_9 = np.expand_dims(digit_9, axis=0)
+
+    # Load ONNX model and convert to Relay.
+    onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
+    shape = {"Input3": (1, 1, 28, 28)}
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
+    relay_mod = relay.transform.DynamicToStatic()(relay_mod)
+
+    # We add the -link-params=1 option to ensure the model parameters are compiled in.
+    # There is currently a bug preventing the demo_runtime environment from receiving
+    # the model weights when set using graph_mod.set_input().
+    # See: https://github.com/apache/tvm/issues/7567
+    target = tvm.target.target.micro(model, options=["-link-params=1"])
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(relay_mod, target, params=params)
+        graph = lowered.get_json()
+
+    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib) as session:
+        graph_mod = tvm.micro.create_local_graph_runtime(
+            graph, session.get_system_lib(), session.device
+        )
+
+        # Send the digit-2 image and confirm that the correct result is returned.
+        graph_mod.set_input("Input3", tvm.nd.array(digit_2))
+        graph_mod.run()
+        result = graph_mod.get_output(0).asnumpy()
+        assert np.argmax(result) == 2
+
+        # Send the digit-9 image and confirm that the correct result is returned.
+        graph_mod.set_input("Input3", tvm.nd.array(digit_9))
+        graph_mod.run()
+        result = graph_mod.get_output(0).asnumpy()
+        assert np.argmax(result) == 9
 
 
 class CcompilerAnnotator(ExprMutator):
@@ -268,7 +323,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
         rt_mod = tvm.micro.create_local_graph_runtime(
-            graph, session.get_system_lib(), session.context
+            graph, session.get_system_lib(), session.device
         )
         rt_mod.set_input(**params)
         for name, data in map_inputs.items():
@@ -280,7 +335,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
         results = result if isinstance(result, list) else [result]
 
         for idx, shape in enumerate(out_shapes):
-            out = tvm.nd.empty(shape, ctx=session.context)
+            out = tvm.nd.empty(shape, device=session.device)
             out = rt_mod.get_output(idx, out)
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
 

@@ -201,11 +201,11 @@ def _run_tvm(data, proto_file, blob_file):
     target = "llvm"
     target_host = "llvm"
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, target_host=target_host, params=params)
     dtype = "float32"
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_runtime.GraphModule(lib["default"](dev))
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
             m.set_input("data" + str(idx), tvm.nd.array(d.astype(dtype)))

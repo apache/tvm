@@ -221,7 +221,7 @@ def run(lib, inputs, outputs, npu=True):
 
 
 def build_and_run(
-    mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
+    mod, inputs, outputs, params, device=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
 ):
     lib = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(lib, inputs, outputs, npu)

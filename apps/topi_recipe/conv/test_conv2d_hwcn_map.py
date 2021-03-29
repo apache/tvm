@@ -75,11 +75,11 @@ def test_conv2d_hwcn_map():
         if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.context(device, 0)
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        dev = tvm.device(device, 0)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
 
         with tvm.transform.PassContext(
             config={

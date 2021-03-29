@@ -26,7 +26,7 @@ from collections import namedtuple
 import tvm.testing
 
 
-def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="float32"):
+def get_tvm_output(model, input_data, target, device, output_shape, output_dtype="float32"):
     """ Generic function to execute and get tvm output"""
     # supporting multiple inputs in caffe2 in a bit tricky,
     # because the input names can appear at the beginning or end of model.predict_net.external_input
@@ -42,7 +42,7 @@ def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="f
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target, params=params)
 
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_runtime.GraphModule(lib["default"](device))
 
     # set inputs
     m.set_input(input_names, tvm.nd.array(input_data.astype(input_data.dtype)))
@@ -78,8 +78,8 @@ def verify_caffe2_forward_impl(model, data_shape, out_shape):
     dtype = "float32"
     data = np.random.uniform(size=data_shape).astype(dtype)
     c2_out = get_caffe2_output(model, data, dtype)
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, data, target, ctx, out_shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        tvm_out = get_tvm_output(model, data, target, dev, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 

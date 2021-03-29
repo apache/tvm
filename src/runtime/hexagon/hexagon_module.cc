@@ -379,7 +379,7 @@ void HexagonModuleNode::RemapArgs(const TVMArgs& args, std::vector<TVMValue>& va
       case kTVMNDArrayHandle:
       case kTVMDLTensorHandle: {
         DLTensor* t = static_cast<DLTensor*>(a);
-        assert(TVMDeviceExtType(t->ctx.device_type) == kDLHexagon);
+        assert(TVMDeviceExtType(t->device.device_type) == kDLHexagon);
         TVMValue v;
         v.v_handle = CreateRemoteTensor(t);
         remote_tensors.push_back(v.v_handle);
@@ -401,25 +401,25 @@ void* HexagonModuleNode::CreateRemoteTensor(const DLTensor* t) const {
     Layout of the DLTensor structure on Hexagon.
 
     DLTensor:                       Size  offset
-      data              void*          4       0
-      ctx.device_type   enum           1       4
-      <pad>                            3       5
-      ctx.device_id     int            4       8
-      ndim              int            4      12
-      dtype.code        uint8_t        1      16
-      dtype.bits        uint8_t        1      17
-      dtype.lanes       uint16_t       2      18
-      shape             int64_t*       4      20
-      strides           int64_t*       4      24
-      <pad>                            4      28
-      byte_offset       uint64_t       8      32
+      data               void*          4       0
+      device.device_type enum           1       4
+      <pad>                             3       5
+      device.device_id   int            4       8
+      ndim               int            4      12
+      dtype.code         uint8_t        1      16
+      dtype.bits         uint8_t        1      17
+      dtype.lanes        uint16_t       2      18
+      shape              int64_t*       4      20
+      strides            int64_t*       4      24
+      <pad>                             4      28
+      byte_offset        uint64_t       8      32
       .. end ................................ 40
   */
   struct __attribute__((packed)) HexagonDLTensor {
     uint32_t data;
-    uint8_t ctx_device_type;
+    uint8_t device_type;
     uint8_t pad0[3];  // MUST BE ZERO!
-    int32_t ctx_device_id;
+    int32_t device_id;
     int32_t ndim;
     uint8_t dtype_code;
     uint8_t dtype_bits;
@@ -444,9 +444,9 @@ void* HexagonModuleNode::CreateRemoteTensor(const DLTensor* t) const {
 
   HexagonDLTensor local;
   local.data = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t->data));
-  local.ctx_device_type = uint8_t(t->ctx.device_type);
+  local.device_type = uint8_t(t->device.device_type);
   local.pad0[0] = local.pad0[1] = local.pad0[2] = 0;
-  local.ctx_device_id = t->ctx.device_id;
+  local.device_id = t->device.device_id;
   local.ndim = t->ndim;
   local.dtype_code = t->dtype.code;
   local.dtype_bits = t->dtype.bits;

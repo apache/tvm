@@ -80,7 +80,7 @@ def test_tflite_same_io_qnn_params():
         y_rec = recover(y_data, rhs_scale, rhs_zero_point)
         golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
-        intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
         op_res = intrp.evaluate(func)(x_data, y_data)
 
         np.testing.assert_equal(op_res.asnumpy(), np.uint8(golden))
@@ -134,7 +134,7 @@ def test_tflite_different_io_qnn_params():
         y_rec = recover(y_data, rhs_scale, rhs_zero_point)
         golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
-        intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
         op_res = intrp.evaluate(func)(x_data, y_data)
         np.testing.assert_equal(op_res.asnumpy(), np.uint8(golden))
 
@@ -172,7 +172,7 @@ def test_saturation():
 
     golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), np.uint8(golden))
 
@@ -206,7 +206,7 @@ def test_saturation():
 
     golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), np.uint8(golden))
 
@@ -241,7 +241,7 @@ def test_saturation():
 
     golden = generate_golden_output(x_rec, y_rec, output_scale, output_zero_point)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
+    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), np.uint8(golden))
 

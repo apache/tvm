@@ -45,7 +45,7 @@ def test_save_dumps(tmpdir_factory):
 def verify_compile_tflite_module(model, shape_dict=None):
     pytest.importorskip("tflite")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         model, target="llvm", dump_code="ll", alter_layout="NCHW", shape_dict=shape_dict
     )
 
@@ -74,7 +74,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
 def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         tflite_mobilenet_v1_1_quant,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
@@ -91,9 +91,7 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        keras_resnet50, target="llvm", dump_code="ll"
-    )
+    graph, lib, params, dumps = tvmc.compile(keras_resnet50, target="llvm", dump_code="ll")
 
     expected_temp_dir = tmpdir_factory.mktemp("saved_output")
     expected_file_name = "saved.tar"
@@ -111,7 +109,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         keras_resnet50,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
@@ -129,7 +127,7 @@ def verify_compile_onnx_module(model, shape_dict=None):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         model, target="llvm", dump_code="ll", shape_dict=shape_dict
     )
 
@@ -158,7 +156,7 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         onnx_resnet50,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
         dump_code="asm",
@@ -176,7 +174,7 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
 def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     pytest.importorskip("tflite")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         tflite_mobilenet_v1_0_25_128,
         target="opencl",
         target_host="llvm",
@@ -197,7 +195,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
 def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         tflite_mobilenet_v1_1_quant, target="ethos-n77, llvm", dump_code="relay"
     )
 
@@ -221,7 +219,7 @@ def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_
     mock_ct.return_value = mock_codegen
     mock_relay.return_value = mock.MagicMock()
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
+    graph, lib, params, dumps = tvmc.compile(
         "no_file_needed", target="mockcodegen -testopt=value, llvm"
     )
 

@@ -132,9 +132,9 @@ def run_tvm_graph(
     mod, params = relay.frontend.from_tensorflow(
         graph_def, layout=layout, shape=shape_dict, outputs=out_names
     )
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -167,7 +167,7 @@ def run_tvm_graph(
             graph, lib, params = relay.build(mod, target, target_host, params)
         from tvm.contrib import graph_runtime
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_runtime.create(graph, lib, dev)
         # set inputs
         for e, i in zip(input_node, input_data):
             if e != "":
@@ -237,7 +237,7 @@ def compare_tf_with_tvm(
         devices = targets if targets else ["llvm", "cuda"]
 
         for device in devices:
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
@@ -1689,7 +1689,7 @@ def test_forward_variable():
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-def test_read_variable_op(target, ctx):
+def test_read_variable_op(target, dev):
     """ Read Variable op test """
 
     tf.reset_default_graph()
@@ -3717,7 +3717,7 @@ def test_forward_resnetv2():
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, "input_tensor:0", out_node + ":0")
                 for device in ["llvm", "cuda"]:
-                    ctx = tvm.context(device, 0)
+                    dev = tvm.device(device, 0)
                     if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
@@ -3754,7 +3754,7 @@ def _test_ssd_impl():
             )
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -3858,8 +3858,8 @@ def test_forward_ptb():
             graph, lib, params = relay.build(mod, target, params=params)
         from tvm.contrib import graph_runtime
 
-        ctx = tvm.cpu(0)
-        return params, graph_runtime.create(graph, lib, ctx)
+        dev = tvm.cpu(0)
+        return params, graph_runtime.create(graph, lib, dev)
 
     def _do_tvm_sample(model, data, in_states, params, num_samples):
         """Sampled from the model"""
@@ -5271,7 +5271,7 @@ def test_forward_dynamic_input_shape():
             tf_output = run_tf_graph(sess, np_data, "data:0", ["{}:0".format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue

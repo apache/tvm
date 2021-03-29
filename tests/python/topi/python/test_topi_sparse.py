@@ -59,17 +59,17 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        a = tvmsp.array(a_np, ctx)
+        a = tvmsp.array(a_np, dev)
         _nr, _nc, _n = a.shape[0], a.shape[1], a.data.shape[0]
         assert a.shape[0] == a.indptr.shape[0] - 1
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(c_np, ctx)
-        d = tvm.nd.array(np.zeros((_nr, 1), dtype=dtype), ctx)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(c_np, dev)
+        d = tvm.nd.array(np.zeros((_nr, 1), dtype=dtype), dev)
         assert a.data.dtype == A.data.dtype
         assert a.indices.dtype == A.indices.dtype
         assert a.indptr.dtype == A.indptr.dtype
@@ -105,17 +105,17 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        a = tvmsp.array(a_np, ctx)
+        a = tvmsp.array(a_np, dev)
         _nr, _nc, _n = a.shape[0], a.shape[1], a.data.shape[0]
         assert a.shape[0] == a.indptr.shape[0] - 1
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(c_np, ctx)
-        d = tvm.nd.array(np.zeros((_nr, out_dim), dtype=dtype), ctx)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(c_np, dev)
+        d = tvm.nd.array(np.zeros((_nr, out_dim), dtype=dtype), dev)
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmm")
 
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
@@ -152,15 +152,15 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        a = tvmsp.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(c_np, ctx)
-        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+        a = tvmsp.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(c_np, dev)
+        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
         f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
         f(a.data, a.indices, a.indptr, b, c, d)
         tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
@@ -195,15 +195,15 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvmsp.array(b_np, ctx)
-        c = tvm.nd.array(c_np, ctx)
-        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvmsp.array(b_np, dev)
+        c = tvm.nd.array(c_np, dev)
+        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B.data, B.indices, B.indptr, C, D], device, name="dense")
         f(a, b.data, b.indices, b.indptr, c, d)
         tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
@@ -355,7 +355,7 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     return s
 
 
-def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu, ctx, target):
+def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu, device, target):
     X_np = np.random.randn(M, K).astype("float32")
     W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
     W_np = W_sp_np.todense()
@@ -375,22 +375,22 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu, ctx, target)
             Y = topi.nn.relu(Y)
         s = fschedule([Y])
         func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), device=device)
         func(
-            tvm.nd.array(X_np, ctx=ctx),
-            tvm.nd.array(W_sp_np.data, ctx=ctx),
-            tvm.nd.array(W_sp_np.indices, ctx=ctx),
-            tvm.nd.array(W_sp_np.indptr, ctx=ctx),
+            tvm.nd.array(X_np, device=device),
+            tvm.nd.array(W_sp_np.data, device=device),
+            tvm.nd.array(W_sp_np.indices, device=device),
+            tvm.nd.array(W_sp_np.indptr, device=device),
             Y_tvm,
         )
         tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-def test_sparse_dense_bsr_relu(ctx, target):
+def test_sparse_dense_bsr_relu(dev, target):
     M, N, K, BS_R, BS_C, density = 1, 64, 128, 8, 16, 0.9
-    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, True, ctx, target)
-    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, False, ctx, target)
+    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, True, dev, target)
+    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, False, dev, target)
 
 
 def test_sparse_dense_bsr_reverse():
@@ -439,7 +439,7 @@ def test_sparse_dense_bsr_randomized():
         X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
 
         def check_device(device):
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 return
@@ -449,12 +449,12 @@ def test_sparse_dense_bsr_randomized():
                 Y = fcompute(X, W_data, W_indices, W_indptr)
                 s = fschedule([Y])
                 func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-                Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+                Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), device=dev)
                 func(
-                    tvm.nd.array(X_np, ctx=ctx),
-                    tvm.nd.array(W_sp_np.data, ctx=ctx),
-                    tvm.nd.array(W_sp_np.indices, ctx=ctx),
-                    tvm.nd.array(W_sp_np.indptr, ctx=ctx),
+                    tvm.nd.array(X_np, device=dev),
+                    tvm.nd.array(W_sp_np.data, device=dev),
+                    tvm.nd.array(W_sp_np.indices, device=dev),
+                    tvm.nd.array(W_sp_np.indptr, device=dev),
                     Y_tvm,
                 )
                 tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
@@ -484,16 +484,16 @@ def test_sparse_dense_padded_cuda():
     )
     X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
     with tvm.target.Target("cuda"):
-        ctx = tvm.context("gpu")
+        dev = tvm.device("gpu")
         Y = topi.cuda.sparse_dense_padded(X, W_data, W_indices, W_indptr)
         s = topi.cuda.schedule_sparse_dense_padded([Y])
         func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), device=dev)
         func(
-            tvm.nd.array(X_np, ctx=ctx),
-            tvm.nd.array(W_sp_np_padded.data, ctx=ctx),
-            tvm.nd.array(W_sp_np_padded.indices, ctx=ctx),
-            tvm.nd.array(W_sp_np_padded.indptr, ctx=ctx),
+            tvm.nd.array(X_np, device=dev),
+            tvm.nd.array(W_sp_np_padded.data, device=dev),
+            tvm.nd.array(W_sp_np_padded.indices, device=dev),
+            tvm.nd.array(W_sp_np_padded.indptr, device=dev),
             Y_tvm,
         )
         tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)

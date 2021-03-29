@@ -305,20 +305,20 @@ else:
     remote = tracker.request(key, priority=0, session_timeout=60)
 
 if local_demo:
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
 elif test_target == "opencl":
-    ctx = remote.cl(0)
+    dev = remote.cl(0)
 elif test_target == "vulkan":
-    ctx = remote.vulkan(0)
+    dev = remote.vulkan(0)
 else:
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
 rlib = remote.load_module("net.so")
 
 # create the remote runtime module
-module = runtime.GraphModule(rlib["default"](ctx))
+module = runtime.GraphModule(rlib["default"](dev))
 
 ######################################################################
 # Execute on TVM
@@ -336,7 +336,7 @@ top1 = np.argmax(out.asnumpy())
 print("TVM prediction top-1: {}".format(synset[top1]))
 
 print("Evaluate inference time cost...")
-ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=10)
+ftimer = module.module.time_evaluator("run", dev, number=1, repeat=10)
 prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
 print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 

@@ -132,7 +132,7 @@ class RPCEndpoint {
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_to The target context.
+   * \param dev_to The target device.
    * \param type_hint Hint of content data type.
    */
   void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes);
@@ -143,7 +143,7 @@ class RPCEndpoint {
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_from The source context.
+   * \param dev_from The source device.
    * \param type_hint Hint of content data type.
    */
   void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes);

@@ -78,8 +78,8 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
     else:
         raise NotImplementedError
 
-    data_tvm = tvm.nd.array(in_npy, ctx=tvm.gpu())
-    out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=tvm.gpu())
+    data_tvm = tvm.nd.array(in_npy, device=tvm.gpu())
+    out_tvm = tvm.nd.empty(shape=out_npy.shape, device=tvm.gpu())
 
     for _ in range(2):
         fcuda(data_tvm, out_tvm)

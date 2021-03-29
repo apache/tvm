@@ -86,17 +86,17 @@ void DeploySingleOp() {
 void DeployGraphRuntime() {
   LOG(INFO) << "Running graph runtime...";
   // load in the library
-  DLContext ctx{kDLCPU, 0};
+  DLDevice dev{kDLCPU, 0};
   tvm::runtime::Module mod_factory = tvm::runtime::Module::LoadFromFile("lib/test_relay_add.so");
   // create the graph runtime module
-  tvm::runtime::Module gmod = mod_factory.GetFunction("default")(ctx);
+  tvm::runtime::Module gmod = mod_factory.GetFunction("default")(dev);
   tvm::runtime::PackedFunc set_input = gmod.GetFunction("set_input");
   tvm::runtime::PackedFunc get_output = gmod.GetFunction("get_output");
   tvm::runtime::PackedFunc run = gmod.GetFunction("run");
 
   // Use the C++ API
-  tvm::runtime::NDArray x = tvm::runtime::NDArray::Empty({2, 2}, DLDataType{kDLFloat, 32, 1}, ctx);
-  tvm::runtime::NDArray y = tvm::runtime::NDArray::Empty({2, 2}, DLDataType{kDLFloat, 32, 1}, ctx);
+  tvm::runtime::NDArray x = tvm::runtime::NDArray::Empty({2, 2}, DLDataType{kDLFloat, 32, 1}, dev);
+  tvm::runtime::NDArray y = tvm::runtime::NDArray::Empty({2, 2}, DLDataType{kDLFloat, 32, 1}, dev);
 
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 2; ++j) {

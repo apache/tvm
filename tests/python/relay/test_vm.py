@@ -40,13 +40,13 @@ def check_result(args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
-    for target, ctx in tvm.testing.enabled_targets():
-        vm = relay.create_executor("vm", ctx=ctx, target=target, mod=mod)
+    for target, dev in tvm.testing.enabled_targets():
+        vm = relay.create_executor("vm", device=dev, target=target, mod=mod)
         rts_result = vm.evaluate()(*args)
         tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
 
 
-def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
+def veval(f, *args, device=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
         mod = tvm.IRModule()
         mod["main"] = f
@@ -54,7 +54,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         assert isinstance(f, tvm.IRModule), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = runtime.vm.VirtualMachine(exe, ctx)
+    vm = runtime.vm.VirtualMachine(exe, device)
     return vm.invoke("main", *args)
 
 
@@ -80,8 +80,8 @@ def test_split():
         12,
     ).astype("float32")
     ref_res = np.split(x_data, 3, axis=0)
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, x_data, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        res = veval(f, x_data, device=dev, target=tgt)
         for i in range(3):
             tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
 
@@ -96,8 +96,8 @@ def test_split_no_fuse():
     x_data = np.random.rand(
         12,
     ).astype("float32")
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, x_data, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        res = veval(f, x_data, device=dev, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
 
@@ -176,8 +176,8 @@ def test_multiple_ifs():
     out = relay.Let(v0, relay.Tuple([relay.const(0)]), out)
     fn = relay.Function([b], out)
     mod["main"] = fn
-    ctx = tvm.runtime.ndarray.context("llvm", 0)
-    vm = relay.create_executor(ctx=ctx, mod=mod, kind="vm")
+    dev = tvm.runtime.device("llvm", 0)
+    vm = relay.create_executor(device=dev, mod=mod, kind="vm")
     res = vmobj_to_list(vm.evaluate()(False))
     assert res == [1, 0]
 
@@ -214,8 +214,8 @@ def test_count_loop():
     i_data = np.array(0, dtype="int32")
     iarg = relay.var("i", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, i_data, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, i_data, device=dev, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), i_data)
     check_result([i_data], i_data, mod=mod)
 
@@ -283,8 +283,8 @@ def test_list_constructor():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         assert len(result) == 2
         assert len(result[1]) == 2
 
@@ -361,8 +361,8 @@ def test_compose():
     mod["main"] = f
 
     x_data = np.array(np.random.rand()).astype("float32")
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, [x_data], ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, [x_data], device=dev, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
 
 
@@ -382,8 +382,8 @@ def test_list_hd():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), 3)
 
 
@@ -399,8 +399,8 @@ def test_list_tl_empty_list():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
 
 
 @tvm.testing.uses_gpu
@@ -419,8 +419,8 @@ def test_list_tl():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2, 1]))
 
 
@@ -441,8 +441,8 @@ def test_list_nth():
 
         f = relay.Function([], nth(l, relay.const(i)))
         mod["main"] = f
-        for tgt, ctx in tvm.testing.enabled_targets():
-            result = veval(mod, ctx=ctx, target=tgt)
+        for tgt, dev in tvm.testing.enabled_targets():
+            result = veval(mod, device=dev, target=tgt)
             tvm.testing.assert_allclose(result.asnumpy(), expected[i])
 
 
@@ -467,8 +467,8 @@ def test_list_update():
 
     f = relay.Function([], l)
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
 
 
@@ -491,8 +491,8 @@ def test_list_length():
 
     f = relay.Function([], l)
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), 10)
 
 
@@ -511,8 +511,8 @@ def test_list_map():
 
     f = relay.Function([], map(add_one_func, l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
 
 
@@ -531,8 +531,8 @@ def test_list_foldl():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldl(rev_dup_func, nil(), l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
 
 
@@ -551,8 +551,8 @@ def test_list_foldr():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldr(identity_func, nil(), l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
 
 
@@ -567,8 +567,8 @@ def test_list_sum():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], sum(l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(result.asnumpy(), 6)
 
 
@@ -590,8 +590,8 @@ def test_list_filter():
     )
     f = relay.Function([], filter(greater_than_one, l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        result = veval(mod, device=dev, target=tgt)
         tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
 
 
@@ -603,8 +603,8 @@ def test_closure():
     ff = relay.Function([y], f)
     clo = ff(relay.const(1.0))
     main = clo(relay.const(2.0))
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(main, ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        res = veval(main, device=dev, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), 3.0)
 
 
@@ -769,8 +769,8 @@ def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     x_data = np.random.uniform(size=x_shape).astype("float32")
     y_data = np.random.uniform(size=y_shape).astype("float32")
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, (x_data, y_data), ctx=ctx, target=tgt)
+    for tgt, dev in tvm.testing.enabled_targets():
+        res = veval(f, (x_data, y_data), device=dev, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
 
 

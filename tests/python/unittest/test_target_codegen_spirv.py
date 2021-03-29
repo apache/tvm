@@ -62,11 +62,11 @@ def test_bool_load():
     with tvm.transform.PassContext(opt_level=3):
         func = tvm.build(s, [A, B], target)
 
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     a_np = np.random.uniform(size=n) > 0.5
     b_np = np.zeros((n,), dtype="int32")
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
     func(a, b)
     ref = a_np.astype(np.int32)
     tvm.testing.assert_allclose(b.asnumpy(), ref)
@@ -74,8 +74,8 @@ def test_bool_load():
 
 def check_mod(mod, x_np, res_np):
     target = "vulkan"
-    ctx = tvm.context(target, 0)
-    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+    dev = tvm.device(target, 0)
+    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
     res = ex.evaluate()(x_np).asnumpy()
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 

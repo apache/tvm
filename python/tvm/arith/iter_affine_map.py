@@ -88,16 +88,22 @@ class IterSumExpr(IterMapExpr):
         self.__init_handle_by_constructor__(_ffi_api.IterSumExpr, args, base)
 
 
-def detect_iter_map(indices, input_iters):
-    """Detect if indices can be written mapped iters from input_iters.
+def detect_iter_map(indices, input_iters, predicate=True, require_bijective=False):
+    """Detect if indices can be written as mapped iters from input iters
 
     Parameters
     ----------
     indices : List[PrimExpr]
-        The input indices.
+        The input indices
 
     input_iters : Map[Var, Range]
         The domain of each input iterators.
+
+    predicate : PrimExpr
+        The predicate constraints on the input iterators
+
+    require_bijective : bool
+        A boolean flag that indicates whether the mapping should be bijective
 
     Returns
     -------
@@ -105,4 +111,4 @@ def detect_iter_map(indices, input_iters):
         The iter map matching result.
         Empty array if no match can be found.
     """
-    return _ffi_api.DetectIterMap(indices, input_iters)
+    return _ffi_api.DetectIterMap(indices, input_iters, predicate, require_bijective)

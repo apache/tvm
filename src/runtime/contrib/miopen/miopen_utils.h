@@ -52,7 +52,7 @@ struct ConvEntry {
   miopenTensorDescriptor_t input_desc;
   miopenTensorDescriptor_t output_desc;
   miopenConvFwdAlgorithm_t fwd_algo;
-  TVMContext ctx;
+  Device device;
   runtime::DeviceAPI* rocm_api;
   void* workspace{nullptr};
   size_t workspace_size{0};

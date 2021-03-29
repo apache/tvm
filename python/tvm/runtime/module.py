@@ -168,7 +168,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
+    def time_evaluator(self, func_name, dev, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -176,8 +176,8 @@ class Module(object):
         func_name: str
             The name of the function in the module.
 
-        ctx: TVMContext
-            The context we should run this function on.
+        dev: Device
+            The device we should run this function on.
 
         number: int
             The number of times to run this function for taking average.
@@ -215,8 +215,8 @@ class Module(object):
             feval = _ffi_api.RPCTimeEvaluator(
                 self,
                 func_name,
-                ctx.device_type,
-                ctx.device_id,
+                dev.device_type,
+                dev.device_id,
                 number,
                 repeat,
                 min_repeat_ms,
@@ -454,7 +454,7 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
+    # TODO(weberlo): we should probably use a more distinctive suffix for microTVM object files
     elif path.endswith(".obj"):
         fmt = "micro_dev"
     # Redirect to the load API

@@ -392,16 +392,16 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 # Since TensorCores are only supported in NVIDIA GPU with Compute Capability 7.0 or higher, it may not
 # be able to run on our build server
 
-ctx = tvm.gpu(0)
-if nvcc.have_tensorcore(ctx.compute_version):
+dev = tvm.gpu(0)
+if nvcc.have_tensorcore(dev.compute_version):
     with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 16}}):
         func = tvm.build(s, [A, W, Conv], "cuda")
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)
-    a = tvm.nd.array(a_np, ctx)
-    w = tvm.nd.array(w_np, ctx)
-    c = tvm.nd.array(np.zeros(output_shape, dtype=Conv.dtype), ctx)
-    evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
+    a = tvm.nd.array(a_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    c = tvm.nd.array(np.zeros(output_shape, dtype=Conv.dtype), dev)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=10)
     print("conv2d with tensor core: %f ms" % (evaluator(a, w, c).mean * 1e3))
 
 ###############################################################################
