@@ -381,10 +381,9 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \brief Convert an element of a NDArray with type int or float to scalar.
  * \param array Input NDArray
  * \param i element index
- * \return Converted scalar value.
+ * \return Converted scalar value, or None if conversion failed
  */
-static inline dmlc::optional<long double> ToScalar(const runtime::NDArray& array, size_t i = 0,
-                                                   bool allow_fail = false) {
+static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& array, size_t i = 0) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
       return dmlc::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
@@ -419,10 +418,19 @@ static inline dmlc::optional<long double> ToScalar(const runtime::NDArray& array
       return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
   }
-  if (!allow_fail) {
-    LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  }
   return dmlc::optional<long double>();
+}
+
+/*!
+ * \brief Convert an element of a NDArray with type int or float to scalar.
+ * \param array Input NDArray
+ * \param i element index
+ * \return Converted scalar value
+ */
+static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+  auto try_value = TryToScalar(array, i);
+  ICHECK(try_value) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  return try_value.value();
 }
 
 /*!
@@ -436,8 +444,8 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
-    auto elem_val = ToScalar(array, i);
-    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val.value()))));
+    long double elem_val = ToScalar(array, i);
+    out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val))));
   }
   return out;
 }
@@ -458,8 +466,8 @@ static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
   for (size_t i = 0; i < dim1; ++i) {
     Array<Integer> inner_out;
     for (size_t j = 0; j < dim2; ++j) {
-      auto elem_val = ToScalar(array, i * dim2 + j);
-      inner_out.push_back(Integer(static_cast<int>(elem_val.value())));
+      double elem_val = ToScalar(array, i * dim2 + j);
+      inner_out.push_back(Integer(static_cast<int>(elem_val)));
     }
     out.push_back(inner_out);
   }
