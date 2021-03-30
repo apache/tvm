@@ -36,7 +36,7 @@ extern "C" {
  * \brief Initialize various data structures used by the runtime.
  * Prior to calling this, any initialization needed to support TVMPlatformMemory* functions should
  * be completed.
- * \return An error code describing the outcome of intialization. Generally, initialization
+ * \return An error code describing the outcome of initialization. Generally, initialization
  *     is only expected to fail due to a misconfiguration.
  */
 tvm_crt_error_t TVMInitializeRuntime();
