@@ -1872,7 +1872,7 @@ class OperatorConverter(object):
                 out_dtype="int32",
             )
         else:
-            out = _op.nn.dense(in_expr, weight_expr)
+            out = _op.nn.dense(in_expr, weight_expr, units=weight_shape[0])
 
         # if we have bias
         if len(input_tensors) == 3:
