@@ -298,8 +298,14 @@ static tvm_crt_error_t FindFunctionOrSetAPIError(tvm_module_index_t module_index
 }
 
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
-  return FindFunctionOrSetAPIError(kGlobalFuncModuleIndex, &global_func_registry.registry, name,
-                                   out);
+  tvm_crt_error_t to_return =
+      FindFunctionOrSetAPIError(kGlobalFuncModuleIndex, &global_func_registry.registry, name, out);
+  // For compatibility with C++
+  if (to_return == kTvmErrorFunctionNameNotFound) {
+    *out = NULL;
+    to_return = kTvmErrorNoError;
+  }
+  return to_return;
 }
 
 int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_imports,
@@ -343,7 +349,6 @@ int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* r
   if (to_return == kTvmErrorFunctionNameNotFound) {
     to_return = kTvmErrorNoError;
   }
-
   return to_return;
 }
 
@@ -372,6 +377,15 @@ int TVMFuncFree(TVMFunctionHandle func) {
 
 int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
                      int* ret_type_code);
+
+// Sends maximum transfer size for RPC.
+int RPCGetTransferMaxSize(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value,
+                          int* ret_type_codes) {
+  ret_value[0].v_int64 = TVM_CRT_RPC_MAX_TRANSFER_SIZE_BYTES;
+  ret_type_codes[0] = kTVMArgInt;
+  return 0;
+}
+
 tvm_crt_error_t TVMInitializeRuntime() {
   int idx = 0;
   tvm_crt_error_t error = kTvmErrorNoError;
@@ -410,6 +424,10 @@ tvm_crt_error_t TVMInitializeRuntime() {
 
   if (error == kTvmErrorNoError) {
     error = TVMFuncRegisterGlobal("runtime.RPCTimeEvaluator", &RPCTimeEvaluator, 0);
+  }
+
+  if (error == kTvmErrorNoError) {
+    error = TVMFuncRegisterGlobal("tvm.rpc.server.GetTransferMaxSize", &RPCGetTransferMaxSize, 0);
   }
 
   if (error != kTvmErrorNoError) {

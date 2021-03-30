@@ -46,10 +46,13 @@
 #define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 256
 
 /*! Maximum packet size, in bytes, including the length header. */
-#define TVM_CRT_MAX_PACKET_SIZE_BYTES 64000
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES 8 * 1024
 
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
+
+/*! Size of the global function for max RPC transfer, in bytes. */
+#define TVM_CRT_RPC_MAX_TRANSFER_SIZE_BYTES 2048
 
 // #define TVM_CRT_FRAMER_ENABLE_LOGS
 
