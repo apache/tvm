@@ -32,6 +32,7 @@ interactive bash session with a given image_name.
 ```
 
 The script does the following things:
+
 - Mount current directory to /workspace and set it as home
 - Switch user to be the same user that calls the bash.sh
 - Use the host-side network
@@ -64,7 +65,7 @@ To build and run docker images, we can run the following command
 at the root of the project.
 
 ```bash
-./docker/build.sh image_name [command]
+./docker/build.sh image_name [command(optional)]
 ```
 
 Here image_name corresponds to the docker defined in the
