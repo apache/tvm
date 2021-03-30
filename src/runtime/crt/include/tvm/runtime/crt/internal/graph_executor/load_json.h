@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/runtime/crt/include/tvm/runtime/crt/internal/graph_runtime/load_json.h
+ * \file src/runtime/crt/include/tvm/runtime/crt/internal/graph_executor/load_json.h
  * \brief Lightweight JSON Reader that read save into C++ data structs.
  */
-#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_LOAD_JSON_H_
-#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_LOAD_JSON_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_LOAD_JSON_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_LOAD_JSON_H_
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -38,9 +38,9 @@ enum {
   JSON_READ_TYPE_S32 = 6,
   JSON_READ_TYPE_F32 = 7,
   JSON_READ_TYPE_F64 = 8,
-  JSON_READ_TYPE_GRAPH_RUNTIME_NODE = 9,
-  JSON_READ_TYPE_GRAPH_RUNTIME_NODE_ENTRY = 10,
-  JSON_READ_TYPE_GRAPH_RUNTIME_GRAPH_ATTR = 11
+  JSON_READ_TYPE_GRAPH_EXECUTOR_NODE = 9,
+  JSON_READ_TYPE_GRAPH_EXECUTOR_NODE_ENTRY = 10,
+  JSON_READ_TYPE_GRAPH_EXECUTOR_GRAPH_ATTR = 11
 };
 
 typedef struct Seq {
@@ -100,4 +100,4 @@ tvm_crt_error_t JSONReader_Create(const char* is, JSONReader* reader);
  */
 tvm_crt_error_t JSONReader_Release(JSONReader* reader);
 
-#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_LOAD_JSON_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_LOAD_JSON_H_

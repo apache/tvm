@@ -105,7 +105,7 @@ def test_compile_and_run():
 
     with relay.build_config(opt_level=3):
         lib = relay.build(_create_graph_annotated(), target=target)
-    m = tvm.contrib.graph_runtime.GraphModule(lib["default"](dev))
+    m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
     shape = (10, 10)
     x_data = np.random.rand(*shape).astype("float32")

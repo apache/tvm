@@ -30,7 +30,7 @@ from ..strategy.generic import is_depthwise_conv2d
 
 
 def is_arm_compute_runtime_enabled():
-    """Check if the ACL graph runtime is present.
+    """Check if the ACL graph executor is present.
 
     Returns
     -------

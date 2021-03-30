@@ -48,7 +48,7 @@ def test_basic_build():
     assert mod["main"] == func_in_mod, "relay.build changed module in-place"
 
     # test
-    rt = tvm.contrib.graph_runtime.GraphModule(lib["default"](dev))
+    rt = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
     rt.set_input("a", A)
     rt.run()
     out = rt.get_output(0)
@@ -85,7 +85,7 @@ def test_fp16_build():
     g_json, mmod, params = relay.build(func, "cuda", params=params)
 
     # test
-    rt = tvm.contrib.graph_runtime.create(g_json, mmod, dev)
+    rt = tvm.contrib.graph_executor.create(g_json, mmod, dev)
     rt.load_params(runtime.save_param_dict(params))
     rt.run()
     out = rt.get_output(0)
@@ -114,7 +114,7 @@ def test_fp16_conversion(target, dev):
             g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), target)
 
         # test
-        rt = tvm.contrib.graph_runtime.create(g_json, mmod, dev)
+        rt = tvm.contrib.graph_executor.create(g_json, mmod, dev)
         rt.set_input("x", X)
         rt.run()
         out = rt.get_output(0)

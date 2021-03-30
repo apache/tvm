@@ -44,6 +44,6 @@ Python API
    rpc
    micro
    contrib
-   graph_runtime
+   graph_executor
    topi
    vta/index

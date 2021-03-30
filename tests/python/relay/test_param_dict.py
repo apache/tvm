@@ -24,7 +24,7 @@ from tvm._ffi.base import py_str
 from tvm.relay.op import add
 from tvm import relay
 from tvm import rpc
-from tvm.contrib import utils, graph_runtime
+from tvm.contrib import utils, graph_executor
 
 
 def test_save_load():
@@ -60,7 +60,7 @@ def test_bigendian_rpc_param():
     if host is None:
         return
 
-    def verify_graph_runtime(remote, target, shape, dtype):
+    def verify_graph_executor(remote, target, shape, dtype):
         x = relay.var("x")
         y = relay.const(1)
         z = relay.add(x, y)
@@ -76,7 +76,7 @@ def test_bigendian_rpc_param():
         remote.upload(path_dso)
         lib = remote.load_module("dev_lib.o")
         dev = remote.cpu(0)
-        mod = graph_runtime.create(graph, lib, dev)
+        mod = graph_executor.create(graph, lib, dev)
         mod.load_params(runtime.save_param_dict(params))
         mod.run()
         out = mod.get_output(0, tvm.nd.empty(shape, dtype=dtype, device=dev))
@@ -86,7 +86,7 @@ def test_bigendian_rpc_param():
     remote = rpc.connect(host, port)
     target = "llvm -mtriple=powerpc-linux-gnu"
     for dtype in ["float32", "float64", "int32", "int8"]:
-        verify_graph_runtime(remote, target, (10,), dtype)
+        verify_graph_executor(remote, target, (10,), dtype)
 
 
 if __name__ == "__main__":

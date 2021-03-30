@@ -47,7 +47,7 @@ def call_all_topi_funcs(mod, params, target):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_runtime_codegen
+    from tvm.relay.backend import graph_executor_codegen
 
     # Turn off AutoTVM config not found warnings
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
@@ -63,11 +63,11 @@ def call_all_topi_funcs(mod, params, target):
     ):
         try:
             opt_mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(opt_mod["main"])
         except tvm.TVMError:
             print(
-                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Get errors with GraphExecutorCodegen for task extraction. "
                 "Fallback to VMCompiler."
             )
             compiler = relay.vm.VMCompiler()

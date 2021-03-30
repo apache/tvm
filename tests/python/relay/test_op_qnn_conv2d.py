@@ -21,7 +21,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 # We use llvm target for testing functionality. `llvm` points to an older Intel
@@ -198,7 +198,7 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
             golden_data, golden_weight = golden_inputs
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
@@ -722,7 +722,7 @@ def test_tflite_large_irregular():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
@@ -767,7 +767,7 @@ def test_tflite_output_multiplier_greater_than_one():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
@@ -830,7 +830,7 @@ def test_tflite_anistropic_strides():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()

@@ -29,7 +29,7 @@ import tvm
 from tvm import te
 from tvm import relay, runtime
 from tvm.relay import testing
-from tvm.contrib import graph_runtime, cc
+from tvm.contrib import graph_executor, cc
 from PIL import Image
 from tvm.contrib.download import download_testdata
 from mxnet.gluon.model_zoo.vision import get_model
@@ -141,7 +141,7 @@ def test_build(build_dir):
     params = bytearray(open(osp.join(build_dir, "deploy_param.params"), "rb").read())
     input_data = get_cat_image()
     dev = tvm.cpu()
-    module = graph_runtime.create(graph, lib, dev)
+    module = graph_executor.create(graph, lib, dev)
     module.load_params(params)
     module.run(data=input_data)
     out = module.get_output(0).asnumpy()
@@ -151,7 +151,7 @@ def test_build(build_dir):
 
 
 if __name__ == "__main__":
-    logger.info("Compiling the model to graph runtime.")
+    logger.info("Compiling the model to graph executor.")
     build(build_dir)
     logger.info("Testing the model's predication on test data.")
     test_build(build_dir)

@@ -34,7 +34,7 @@ To begin with, we import Relay and TVM.
 import tvm
 from tvm import te
 import numpy as np
-from tvm.contrib import graph_runtime as runtime
+from tvm.contrib import graph_executor as runtime
 from tvm import relay
 from tvm.relay import testing
 import tvm.testing

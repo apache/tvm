@@ -19,7 +19,7 @@
 name = "tvm-graph-rt"
 version = "0.1.0"
 license = "Apache-2.0"
-description = "A static graph runtime for TVM."
+description = "A static graph executor for TVM."
 repository = "https://github.com/apache/tvm"
 readme = "README.md"
 keywords = ["tvm"]

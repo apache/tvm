@@ -21,7 +21,7 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.contrib import utils, graph_runtime
+from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 
@@ -118,7 +118,7 @@ def process(model_name):
         dev = tvm.cpu(0)
         loaded_lib = tvm.runtime.load_module(path_dso)
 
-        module = graph_runtime.GraphModule(loaded_lib["default"](dev))
+        module = graph_executor.GraphModule(loaded_lib["default"](dev))
         module.run()
         return module.get_output(0).asnumpy()
 

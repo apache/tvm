@@ -43,7 +43,7 @@ from tvm import relay
 from tvm.relay import testing
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm.testing
 
 ######################################################################
@@ -104,13 +104,13 @@ with tvm.transform.PassContext(opt_level=opt_level):
 #####################################################################
 # Run the generate library
 # ------------------------
-# Now we can create graph runtime and run the module on Nvidia GPU.
+# Now we can create graph executor and run the module on Nvidia GPU.
 
 # create random input
 dev = tvm.gpu()
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
 # create module
-module = graph_runtime.GraphModule(lib["default"](dev))
+module = graph_executor.GraphModule(lib["default"](dev))
 # set input and parameters
 module.set_input("data", data)
 # run
@@ -143,7 +143,7 @@ print(temp.listdir())
 loaded_lib = tvm.runtime.load_module(path_lib)
 input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
 
-module = graph_runtime.GraphModule(loaded_lib["default"](dev))
+module = graph_executor.GraphModule(loaded_lib["default"](dev))
 module.run(data=input_data)
 out_deploy = module.get_output(0).asnumpy()
 

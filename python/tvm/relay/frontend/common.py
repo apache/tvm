@@ -530,13 +530,13 @@ def infer_value(input_val, params, mod=None):
     try:
         # TODO(kevinthesun): Use VM for all cases.
         # pylint: disable=import-outside-toplevel
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
         func = _function.Function(analysis.free_vars(input_val), input_val)
         with tvm.transform.PassContext(opt_level=0):
             lib = tvm.relay.build(func, target="llvm", params=params)
         dev = tvm.cpu(0)
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         m.run()
         return m.get_output(0)
     except Exception:

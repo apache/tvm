@@ -27,8 +27,8 @@ import tvm.testing
 from tvm import te
 import numpy as np
 
-from tvm.contrib import utils, graph_runtime
-from tvm.contrib.cuda_graph import cuda_graph_runtime
+from tvm.contrib import utils, graph_executor
+from tvm.contrib.cuda_graph import cuda_graph_executor
 
 
 bx = te.thread_axis("blockIdx.x")
@@ -75,7 +75,7 @@ def test_graph_simple():
         mlib = tvm.build(s, [A, B], "cuda", name="myadd")
         dev = tvm.gpu(0)
         try:
-            mod = cuda_graph_runtime.create(graph, mlib, dev)
+            mod = cuda_graph_executor.create(graph, mlib, dev)
         except ValueError:
             return
 

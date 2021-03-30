@@ -110,10 +110,10 @@ with tvm.transform.PassContext(opt_level=3):
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now we can try deploying the compiled model on target.
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 dtype = "float32"
-m = graph_runtime.GraphModule(lib["default"](dev))
+m = graph_executor.GraphModule(lib["default"](dev))
 # Set inputs
 m.set_input(input_name, tvm.nd.array(img.astype(dtype)))
 # Execute

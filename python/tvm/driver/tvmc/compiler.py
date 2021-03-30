@@ -143,7 +143,7 @@ def compile_model(
 
     This function takes a union of the arguments of both frontends.load_model
     and compiler.compile_relay. The resulting TVM module can be executed using
-    the graph runtime.
+    the graph executor.
 
     Parameters
     ----------

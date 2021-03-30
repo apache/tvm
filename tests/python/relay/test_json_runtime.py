@@ -50,7 +50,7 @@ def check_result(
     compile_engine.get().clear()
     with tvm.transform.PassContext(opt_level=3):
         json, lib, param = relay.build(ref_mod, target=target, params=params)
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, device)
+    rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
@@ -70,11 +70,11 @@ def check_result(
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result():
+    def check_graph_executor_result():
         compile_engine.get().clear()
         with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, device)
+        rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
@@ -85,7 +85,7 @@ def check_result(
         tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
 
     check_vm_result()
-    check_graph_runtime_result()
+    check_graph_executor_result()
 
 
 def test_conv2d():

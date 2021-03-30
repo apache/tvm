@@ -110,7 +110,7 @@ def run_tvm_graph(
     target="llvm",
     out_names=None,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     layout=None,
     disabled_pass=None,
@@ -165,9 +165,9 @@ def run_tvm_graph(
     else:
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             graph, lib, params = relay.build(mod, target, target_host, params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.create(graph, lib, dev)
+        m = graph_executor.create(graph, lib, dev)
         # set inputs
         for e, i in zip(input_node, input_data):
             if e != "":
@@ -207,7 +207,7 @@ def compare_tf_with_tvm(
     init_global_variables=False,
     no_gpu=False,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
     targets=None,
@@ -3856,10 +3856,10 @@ def test_forward_ptb():
         target = "llvm"
         with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod, target, params=params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
         dev = tvm.cpu(0)
-        return params, graph_runtime.create(graph, lib, dev)
+        return params, graph_executor.create(graph, lib, dev)
 
     def _do_tvm_sample(model, data, in_states, params, num_samples):
         """Sampled from the model"""
@@ -4073,7 +4073,7 @@ def test_forward_floor():
 def test_forward_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.relu(in1)
@@ -4083,7 +4083,7 @@ def test_forward_relu():
 def test_forward_leaky_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.leaky_relu(in1, alpha=0.4)

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-A compiler from a Relay expression to TVM's graph runtime.
+A compiler from a Relay expression to TVM's graph executor.
 
 The compiler is built from a few pieces.
 
@@ -29,9 +29,9 @@ The compiler's output is a program in the graph language, which is composed of
 graph langauge is composed of Node, NodeRef, InputNode, OpNode.
 This "little language" represents programs in TVM's graph format.
 
-To connect to the graph runtime, we use a printer that converts our graph format
+To connect to the graph executor, we use a printer that converts our graph format
 into TVM's JSON format. The resulting string can be loaded by
-contrib.graph_runtime or any other TVM runtime compatible systems.
+contrib.graph_executor or any other TVM runtime compatible systems.
 """
 from tvm.runtime.ndarray import empty
 from tvm.relay import _build_module
@@ -39,11 +39,11 @@ from tvm.target import Target
 from tvm.tir import expr as _expr
 
 
-class GraphRuntimeCodegen(object):
+class GraphExecutorCodegen(object):
     """The compiler from Relay to the TVM runtime system."""
 
     def __init__(self, mod, target):
-        self._mod = _build_module._GraphRuntimeCodegen()
+        self._mod = _build_module._GraphExecutorCodegen()
         self._init = self._mod["init"]
         self._codegen = self._mod["codegen"]
         self._get_graph_json = self._mod["get_graph_json"]

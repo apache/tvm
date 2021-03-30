@@ -83,12 +83,12 @@ void DeploySingleOp() {
   Verify(mod_syslib, "addonesys");
 }
 
-void DeployGraphRuntime() {
-  LOG(INFO) << "Running graph runtime...";
+void DeployGraphExecutor() {
+  LOG(INFO) << "Running graph executor...";
   // load in the library
   DLDevice dev{kDLCPU, 0};
   tvm::runtime::Module mod_factory = tvm::runtime::Module::LoadFromFile("lib/test_relay_add.so");
-  // create the graph runtime module
+  // create the graph executor module
   tvm::runtime::Module gmod = mod_factory.GetFunction("default")(dev);
   tvm::runtime::PackedFunc set_input = gmod.GetFunction("set_input");
   tvm::runtime::PackedFunc get_output = gmod.GetFunction("get_output");
@@ -119,6 +119,6 @@ void DeployGraphRuntime() {
 
 int main(void) {
   DeploySingleOp();
-  DeployGraphRuntime();
+  DeployGraphExecutor();
   return 0;
 }

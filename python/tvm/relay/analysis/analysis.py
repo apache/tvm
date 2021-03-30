@@ -405,7 +405,7 @@ def search_fc_transpose(expr):
 def get_calibration_data(mod, data):
     """Get the calibration data of a given relay graph
 
-    This pass uses the graph runtime to get the calibration data of a module, which
+    This pass uses the graph executor to get the calibration data of a module, which
     includes the input and output values of each function. The returned data uses
     the GlobalVar of each function as a key. Users can further access the inputs and
     outputs by using `inputs` or  `outputs` as the key.

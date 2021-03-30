@@ -138,8 +138,8 @@ def test_reset():
 
 
 @tvm.testing.requires_micro
-def test_graph_runtime():
-    """Test use of the graph runtime with microTVM."""
+def test_graph_executor():
+    """Test use of the graph executor with microTVM."""
     import tvm.micro
 
     workspace = tvm.micro.Workspace(debug=True)
@@ -156,7 +156,7 @@ def test_graph_runtime():
         factory = tvm.relay.build(relay_mod, target=TARGET)
 
     with _make_session(workspace, factory.get_lib()) as sess:
-        graph_mod = tvm.micro.create_local_graph_runtime(
+        graph_mod = tvm.micro.create_local_graph_executor(
             factory.get_json(), sess.get_system_lib(), sess.device
         )
         A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)

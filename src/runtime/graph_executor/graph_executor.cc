@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file graph_runtime.cc
+ * \file graph_executor.cc
  */
-#include "graph_runtime.h"
+#include "graph_executor.h"
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
@@ -53,7 +53,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 /*!
  * \brief Run all the operations one by one.
  */
-void GraphRuntime::Run() {
+void GraphExecutor::Run() {
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
     if (op_execs_[i]) op_execs_[i]();
@@ -68,9 +68,9 @@ void GraphRuntime::Run() {
  * executed on.
  * \param lookup_linked_param_func Linked parameter lookup function. Default is nullptr.
  */
-void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<Device>& devs,
-                        const PackedFunc lookup_linked_param_func) {
+void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module module,
+                         const std::vector<Device>& devs,
+                         const PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
@@ -94,7 +94,7 @@ void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module modu
  * \param name The name of the input.
  * \return The index of input.
  */
-int GraphRuntime::GetInputIndex(const std::string& name) {
+int GraphExecutor::GetInputIndex(const std::string& name) {
   auto it = input_map_.find(name);
   if (it != input_map_.end()) {
     return it->second;
@@ -106,7 +106,7 @@ int GraphRuntime::GetInputIndex(const std::string& name) {
  * \param index The input index.
  * \param data_in The input data.
  */
-void GraphRuntime::SetInput(int index, DLTensor* data_in) {
+void GraphExecutor::SetInput(int index, DLTensor* data_in) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
@@ -116,7 +116,7 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
  * \param index The input index.
  * \param data_ref The input data that is referred.
  */
-void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
+void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   const DLTensor* old_t = data_entry_[eid].operator->();
@@ -141,20 +141,20 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
  *
  * \return The number of outputs from graph.
  */
-int GraphRuntime::NumOutputs() const { return outputs_.size(); }
+int GraphExecutor::NumOutputs() const { return outputs_.size(); }
 /*!
  * \brief Get the number of inputs
  *
  * \return The number of inputs to the graph.
  */
-int GraphRuntime::NumInputs() const { return input_nodes_.size(); }
+int GraphExecutor::NumInputs() const { return input_nodes_.size(); }
 /*!
  * \brief Return NDArray for given input index.
  * \param index The input index.
  *
  * \return NDArray corresponding to given input node index.
  */
-NDArray GraphRuntime::GetInput(int index) const {
+NDArray GraphExecutor::GetInput(int index) const {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   return data_entry_[eid];
@@ -165,7 +165,7 @@ NDArray GraphRuntime::GetInput(int index) const {
  *
  * \return NDArray corresponding to given output node index.
  */
-NDArray GraphRuntime::GetOutput(int index) const {
+NDArray GraphExecutor::GetOutput(int index) const {
   ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
   return data_entry_[eid];
@@ -175,7 +175,7 @@ NDArray GraphRuntime::GetOutput(int index) const {
  * \param index The output index.
  * \param data_out the output data.
  */
-void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
+void GraphExecutor::CopyOutputTo(int index, DLTensor* data_out) {
   ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
 
@@ -193,12 +193,12 @@ void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
  * \brief Load parameters from parameter blob.
  * \param param_blob A binary blob of parameter.
  */
-void GraphRuntime::LoadParams(const std::string& param_blob) {
+void GraphExecutor::LoadParams(const std::string& param_blob) {
   dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
   this->LoadParams(&strm);
 }
 
-void GraphRuntime::LoadParams(dmlc::Stream* strm) {
+void GraphExecutor::LoadParams(dmlc::Stream* strm) {
   Map<String, NDArray> params = ::tvm::runtime::LoadParams(strm);
   for (auto& p : params) {
     int in_idx = GetInputIndex(p.first);
@@ -208,7 +208,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   }
 }
 
-void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
+void GraphExecutor::ShareParams(const GraphExecutor& other, dmlc::Stream* strm) {
   uint64_t header, reserved;
   ICHECK(strm->Read(&header)) << "Invalid parameters file format";
   ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
@@ -233,13 +233,13 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
   this->SetupOpExecs();
 }
 
-void GraphRuntime::LinkedNDArrayDeleter(Object* container) {
+void GraphExecutor::LinkedNDArrayDeleter(Object* container) {
   // container is the NDArray::Container which needs to get deleted.
   // The data member points to global const memory, so it does not need deleting.
   delete static_cast<NDArray::Container*>(container);
 }
 
-void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
+void GraphExecutor::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   Module mod = args[0];
   int64_t storage_id = args[1];
   DLTensor* template_tensor = args[2];
@@ -266,11 +266,11 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
 
   std::unique_ptr<NDArray::Container> container{new NDArray::Container(
       static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, dev)};
-  container->SetDeleter(GraphRuntime::LinkedNDArrayDeleter);
+  container->SetDeleter(GraphExecutor::LinkedNDArrayDeleter);
   *rv = NDArray(GetObjectPtr<Object>(container.release()));
 }
 
-void GraphRuntime::SetupStorage() {
+void GraphExecutor::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<DLDataType> vtype;
   for (const std::string& s_type : attrs_.dltype) {
@@ -352,7 +352,7 @@ void GraphRuntime::SetupStorage() {
   }
 }
 
-void GraphRuntime::SetupOpExecs() {
+void GraphExecutor::SetupOpExecs() {
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
   std::unordered_set<uint32_t> input_node_eids;
@@ -389,9 +389,10 @@ void GraphRuntime::SetupOpExecs() {
   }
 }
 
-std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRuntime::CreateTVMOp(
-    const TVMOpParam& param, const std::vector<DLTensor>& args, size_t num_inputs) {
-  std::shared_ptr<GraphRuntime::OpArgs> arg_ptr = std::make_shared<GraphRuntime::OpArgs>();
+std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
+GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args,
+                           size_t num_inputs) {
+  std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
   if (param.flatten_data) {
@@ -438,8 +439,8 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   return {fexec, arg_ptr};
 }
 
-PackedFunc GraphRuntime::GetFunction(const std::string& name,
-                                     const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc GraphExecutor::GetFunction(const std::string& name,
+                                      const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -494,20 +495,20 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "share_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       const auto& module = args[0].operator Module();
-      ICHECK_EQ(module.operator->()->type_key(), std::string("GraphRuntime"));
+      ICHECK_EQ(module.operator->()->type_key(), std::string("GraphExecutor"));
       const auto& param_blob = args[1].operator std::string();
       dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
-      this->ShareParams(dynamic_cast<const GraphRuntime&>(*module.operator->()), &strm);
+      this->ShareParams(dynamic_cast<const GraphExecutor&>(*module.operator->()), &strm);
     });
   } else {
     return PackedFunc();
   }
 }
 
-Module GraphRuntimeCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                          const std::vector<Device>& devs,
-                          const PackedFunc lookup_linked_param_func) {
-  auto exec = make_object<GraphRuntime>();
+Module GraphExecutorCreate(const std::string& sym_json, const tvm::runtime::Module& m,
+                           const std::vector<Device>& devs,
+                           const PackedFunc lookup_linked_param_func) {
+  auto exec = make_object<GraphExecutor>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
@@ -531,8 +532,8 @@ std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg) {
 // execution support yet. For heterogenenous execution, at least 5 arguments will
 // be passed in. The third one is the number of devices.
 // Eventually, we will only probably pass Device for all the languages.
-TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+TVM_REGISTER_GLOBAL("tvm.graph_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_executor.create is "
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;
@@ -542,7 +543,7 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRet
     dev_start_arg++;
   }
   const auto& devices = GetAllDevice(args, dev_start_arg);
-  *rv = GraphRuntimeCreate(args[0], args[1], devices, lookup_linked_param_func);
+  *rv = GraphExecutorCreate(args[0], args[1], devices, lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

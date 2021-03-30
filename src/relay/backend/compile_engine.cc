@@ -262,7 +262,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       ICHECK(tuple_type) << "Expect output to be a tuple type";
       ICHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
-    // Set the name to `__copy`. It will be detected in graph runtime to perform
+    // Set the name to `__copy`. It will be detected in graph executor to perform
     // data copy across devices.
     if (op == device_copy_op_) {
       readable_name_stream_.str(std::string());

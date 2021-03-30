@@ -52,7 +52,7 @@ We recommend two different ways to build and install ACL:
       mv ./linux-<architecture-to-build-for>-neon/* .
 
 
-In both cases you will need to set USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME to the path where the ACL package
+In both cases you will need to set USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR to the path where the ACL package
 is located. Cmake will look in /path-to-acl/ along with /path-to-acl/lib and /path-to-acl/build for the
 required binaries. See the section below for more information on how to use these configuration options.
 
@@ -64,15 +64,15 @@ because ACL cannot be used on an x86 machine. However, we still want to be able 
 runtime module on an x86 machine.
 
 * USE_ARM_COMPUTE_LIB=ON/OFF - Enabling this flag will add support for compiling an ACL runtime module.
-* USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON/OFF/path-to-acl - Enabling this flag will allow the graph runtime to
+* USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR=ON/OFF/path-to-acl - Enabling this flag will allow the graph executor to
   compute the ACL offloaded functions.
 
 These flags can be used in different scenarios depending on your setup. For example, if you want
 to compile an ACL module on an x86 machine and then run the module on a remote Arm device via RPC, you will
-need to use USE_ARM_COMPUTE_LIB=ON on the x86 machine and USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON on the remote
+need to use USE_ARM_COMPUTE_LIB=ON on the x86 machine and USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR=ON on the remote
 AArch64 device.
 
-By default both options are set to OFF. Using USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME=ON will mean that ACL
+By default both options are set to OFF. Using USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR=ON will mean that ACL
 binaries are searched for by cmake in the default locations
 (see https://cmake.org/cmake/help/v3.4/command/find_library.html). In addition to this,
 /path-to-tvm-project/acl/ will also be searched. It is likely that you will need to set your own path to
@@ -83,7 +83,7 @@ These flags should be set in your config.cmake file. For example:
 .. code:: cmake
 
     set(USE_ARM_COMPUTE_LIB ON)
-    set(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME /path/to/acl)
+    set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR /path/to/acl)
 
 
 Usage
@@ -150,7 +150,7 @@ https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html
 
     dev = tvm.cpu(0)
     loaded_lib = tvm.runtime.load_module('lib_acl.so')
-    gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](dev))
+    gen_module = tvm.contrib.graph_executor.GraphModule(loaded_lib['default'](dev))
     d_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     map_inputs = {'data': d_data}
     gen_module.set_input(**map_inputs)

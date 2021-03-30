@@ -19,7 +19,7 @@ import os
 import tvm
 from tvm import te
 import json
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 
 def dump_graph_lib(target_dir):

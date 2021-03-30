@@ -63,11 +63,11 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", de
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result():
+    def check_graph_executor_result():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             json, lib, _ = relay.build(mod, target=target)
         lib = update_lib(lib)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, device)
+        rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
@@ -78,7 +78,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", de
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     check_vm_result()
-    check_graph_runtime_result()
+    check_graph_executor_result()
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
@@ -336,7 +336,7 @@ def test_extern_dnnl_const():
 
 def test_load_params_with_constants_in_ext_codegen():
     # After binding params and partitioning graph_module.get_params()
-    # might contain parameters that are not an graph runtime input but
+    # might contain parameters that are not an graph executor input but
     # for example constants in external function.
     y_in = np.ones((1,)).astype("float32")
     params = {"y": y_in}
@@ -353,7 +353,7 @@ def test_load_params_with_constants_in_ext_codegen():
 
     graph_module = relay.build(mod, target="llvm", params=params)
     lib = update_lib(graph_module.get_lib())
-    rt_mod = tvm.contrib.graph_runtime.create(graph_module.get_json(), lib, tvm.cpu(0))
+    rt_mod = tvm.contrib.graph_executor.create(graph_module.get_json(), lib, tvm.cpu(0))
     rt_mod.load_params(runtime.save_param_dict(graph_module.get_params()))
 
 

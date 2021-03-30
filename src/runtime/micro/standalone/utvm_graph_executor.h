@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_EXECUTOR_H_
+#define TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_EXECUTOR_H_
 
 #include <dlpack/dlpack.h>
 
@@ -116,12 +116,12 @@ class NDArray {
   DLDevice device_;
 };
 
-// Minimal GraphRuntime implementation
-class MicroGraphRuntime {
+// Minimal GraphExecutor implementation
+class MicroGraphExecutor {
  public:
-  // Construct a GraphRuntime with the given graph and DSOModule.
-  MicroGraphRuntime(const std::string& graph_json, DSOModule* module);
-  ~MicroGraphRuntime();
+  // Construct a GraphExecutor with the given graph and DSOModule.
+  MicroGraphExecutor(const std::string& graph_json, DSOModule* module);
+  ~MicroGraphExecutor();
   // Run the graph
   void Run();
   // Set the input at `index` to a copy of the tensor `data_in`
@@ -164,4 +164,4 @@ class MicroGraphRuntime {
 }  // namespace micro
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_MICRO_STANDALONE_UTVM_GRAPH_EXECUTOR_H_

@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/runtime/graph_runtime_factory.h
- * \brief Graph runtime factory creating graph runtime.
+ * \file tvm/runtime/graph_executor/graph_executor_factory.h
+ * \brief Graph executor factory creating graph executor.
  */
 
-#ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
-#define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
+#ifndef TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
+#define TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
@@ -37,22 +37,22 @@
 #include <unordered_map>
 #include <vector>
 
-#include "./graph_runtime.h"
+#include "./graph_executor.h"
 
 namespace tvm {
 namespace runtime {
 
-class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
+class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
  public:
   /*!
-   * \brief Construct the GraphRuntimeFactory.
+   * \brief Construct the GraphExecutorFactory.
    * \param graph_json The execution graph.
    * \param params The params of graph.
    * \param module_name The module name of graph.
    */
-  GraphRuntimeFactory(const std::string& graph_json,
-                      const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
-                      const std::string& module_name = "default");
+  GraphExecutorFactory(const std::string& graph_json,
+                       const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                       const std::string& module_name = "default");
 
   /*!
    * \brief Get member function to front-end
@@ -65,7 +65,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const override { return "GraphRuntimeFactory"; }
+  const char* type_key() const override { return "GraphExecutorFactory"; }
 
   /*!
    * \brief Save the module to binary stream.
@@ -74,35 +74,35 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   void SaveToBinary(dmlc::Stream* stream) override;
 
   /*!
-   * \brief Create a specific runtime module
+   * \brief Create a specific executor module
    * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
-   * \return created runtime module
+   * \return created executor module
    */
-  Module RuntimeCreate(const std::vector<Device>& devs);
+  Module ExecutorCreate(const std::vector<Device>& devs);
 
   /*!
-   * \brief Create a specific debug runtime module
+   * \brief Create a specific debug executor module
    * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
-   * \return created debug runtime module
+   * \return created debug executor module
    */
-  Module DebugRuntimeCreate(const std::vector<Device>& devs);
+  Module DebugExecutorCreate(const std::vector<Device>& devs);
 
   /*!
-   * \brief Create a specific cuda graph runtime module
+   * \brief Create a specific cuda graph executor module
    * \param devs The device of the host and devices where graph nodes will be
    *  executed on.
-   * \return created cuda graph runtime module
+   * \return created cuda graph executor module
    */
-  Module CudaGraphRuntimeCreate(const std::vector<Device>& devs);
+  Module CudaGraphExecutorCreate(const std::vector<Device>& devs);
 
   /*!
    * \brief Set params.
-   * \param graph_runtime The graph runtime we want to set the params into.
+   * \param graph_executor The graph executor we want to set the params into.
    * \param params The graph params value we want to set.
    */
-  void SetParams(GraphRuntime* graph_runtime,
+  void SetParams(GraphExecutor* graph_executor,
                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
     std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
     // upload big arrays first to avoid memory issue in rpc mode
@@ -117,9 +117,9 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
                 return lhs_size > rhs_size;
               });
     for (const auto& key : keys) {
-      int in_idx = graph_runtime->GetInputIndex(key);
+      int in_idx = graph_executor->GetInputIndex(key);
       if (in_idx >= 0) {
-        graph_runtime->SetInput(in_idx, const_cast<DLTensor*>(value[key].operator->()));
+        graph_executor->SetInput(in_idx, const_cast<DLTensor*>(value[key].operator->()));
       }
     }
   }
@@ -136,4 +136,4 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
+#endif  // TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_

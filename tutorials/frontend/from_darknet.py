@@ -117,9 +117,9 @@ data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 # Execute on TVM Runtime
 # ----------------------
 # The process is no different from other examples.
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
-m = graph_runtime.GraphModule(lib["default"](dev))
+m = graph_executor.GraphModule(lib["default"](dev))
 
 # set inputs
 m.set_input("data", tvm.nd.array(data.astype(dtype)))

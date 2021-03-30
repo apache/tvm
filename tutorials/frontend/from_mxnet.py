@@ -104,11 +104,11 @@ with tvm.transform.PassContext(opt_level=3):
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now, we would like to reproduce the same forward computation using TVM.
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 dev = tvm.gpu(0)
 dtype = "float32"
-m = graph_runtime.GraphModule(lib["default"](dev))
+m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
 m.set_input("data", tvm.nd.array(x.astype(dtype)))
 # execute
