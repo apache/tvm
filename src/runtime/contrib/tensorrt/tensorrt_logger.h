@@ -25,7 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_LOGGER_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_LOGGER_H_
 
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include "NvInfer.h"
 #include "tensorrt_utils.h"

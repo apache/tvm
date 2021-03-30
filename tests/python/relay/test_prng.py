@@ -22,18 +22,17 @@ from tvm.relay.testing import run_infer_type
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_repeatability(target, ctx):
-    target, ctx = "llvm", tvm.cpu(0)
+def test_threefry_repeatability(target, dev):
     key1 = tvm.relay.random.threefry_key(1)
     rand1 = tvm.relay.random.threefry_generate(key1, (12,))
     out_key1, out1 = tvm.relay.create_executor(
-        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand1)), target=target, ctx=ctx
+        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand1)), target=target, device=dev
     ).evaluate()()
 
     key2 = tvm.relay.random.threefry_key(1)
     rand2 = tvm.relay.random.threefry_generate(key2, (12,))
     out_key2, out2 = tvm.relay.create_executor(
-        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand2)), target=target, ctx=ctx
+        "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand2)), target=target, device=dev
     ).evaluate()()
 
     assert (
@@ -46,7 +45,7 @@ def test_threefry_repeatability(target, ctx):
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_split(target, ctx):
+def test_threefry_split(target, dev):
     key = tvm.relay.random.threefry_key(1)
     left, right = tvm.relay.TupleWrapper(tvm.relay.random.threefry_split(key), 2)
     _, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(left, (16,)), 2)
@@ -55,7 +54,7 @@ def test_threefry_split(target, ctx):
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
         target=target,
-        ctx=ctx,
+        device=dev,
     ).evaluate()()
 
     assert (
@@ -64,7 +63,7 @@ def test_threefry_split(target, ctx):
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_sequential_generate(target, ctx):
+def test_threefry_sequential_generate(target, dev):
     key = tvm.relay.random.threefry_key(1)
     key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (4,)), 2)
     _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (4,)), 2)
@@ -72,7 +71,7 @@ def test_threefry_sequential_generate(target, ctx):
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
         target=target,
-        ctx=ctx,
+        device=dev,
     ).evaluate()()
 
     assert (
@@ -132,11 +131,11 @@ def test_threefry_generate_incorrect_out_size():
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], rand1)),
         target=tvm.target.Target("llvm"),
-        ctx=tvm.context("cpu"),
+        device=tvm.device("cpu"),
     ).evaluate()()
 
 
 if __name__ == "__main__":
-    test_threefry_repeatability(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_split(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.context("cpu"))
+    test_threefry_repeatability(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.device("cpu"))

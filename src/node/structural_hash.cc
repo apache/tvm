@@ -328,7 +328,7 @@ struct NDArrayContainerTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::NDArray::Container* key, SHashReducer hash_reduce) {
-    ICHECK_EQ(key->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    ICHECK_EQ(key->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
     ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
     hash_reduce(runtime::DataType(key->dl_tensor.dtype));
     hash_reduce(key->dl_tensor.ndim);
@@ -345,8 +345,8 @@ struct NDArrayContainerTrait {
 
     auto ldt = lhs->dl_tensor.dtype;
     auto rdt = rhs->dl_tensor.dtype;
-    ICHECK_EQ(lhs->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
-    ICHECK_EQ(rhs->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+    ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
     ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
     ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
 

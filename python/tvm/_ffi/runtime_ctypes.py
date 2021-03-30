@@ -33,7 +33,7 @@ class ArgTypeCode(object):
     HANDLE = 3
     NULL = 4
     TVM_TYPE = 5
-    TVM_CONTEXT = 6
+    DLDEVICE = 6
     DLTENSOR_HANDLE = 7
     OBJECT_HANDLE = 8
     MODULE_HANDLE = 9
@@ -149,8 +149,8 @@ class DataType(ctypes.Structure):
 RPC_SESS_MASK = 128
 
 
-class TVMContext(ctypes.Structure):
-    """TVM context strucure."""
+class Device(ctypes.Structure):
+    """TVM device strucure."""
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -192,7 +192,7 @@ class TVMContext(ctypes.Structure):
     }
 
     def __init__(self, device_type, device_id):
-        super(TVMContext, self).__init__()
+        super(Device, self).__init__()
         self.device_type = int(device_type)
         self.device_id = device_id
 
@@ -268,7 +268,7 @@ class TVMContext(ctypes.Structure):
 
     def __eq__(self, other):
         return (
-            isinstance(other, TVMContext)
+            isinstance(other, Device)
             and self.device_id == other.device_id
             and self.device_type == other.device_type
         )
@@ -283,8 +283,8 @@ class TVMContext(ctypes.Structure):
         if self.device_type >= RPC_SESS_MASK:
             tbl_id = self.device_type / RPC_SESS_MASK - 1
             dev_type = self.device_type % RPC_SESS_MASK
-            return "remote[%d]:%s(%d)" % (tbl_id, TVMContext.MASK2STR[dev_type], self.device_id)
-        return "%s(%d)" % (TVMContext.MASK2STR[self.device_type], self.device_id)
+            return "remote[%d]:%s(%d)" % (tbl_id, Device.MASK2STR[dev_type], self.device_id)
+        return "%s(%d)" % (Device.MASK2STR[self.device_type], self.device_id)
 
 
 class TVMArray(ctypes.Structure):
@@ -292,7 +292,7 @@ class TVMArray(ctypes.Structure):
 
     _fields_ = [
         ("data", ctypes.c_void_p),
-        ("ctx", TVMContext),
+        ("device", Device),
         ("ndim", ctypes.c_int),
         ("dtype", DataType),
         ("shape", ctypes.POINTER(tvm_shape_index_t)),

@@ -49,7 +49,7 @@ import numpy as np
 import tvm
 from tvm import relay, auto_scheduler
 import tvm.relay.testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.utils import tempdir
 
 #################################################################
@@ -319,15 +319,15 @@ def tune_and_evaluate():
     remote.upload(tmp.relpath(filename))
     rlib = remote.load_module(filename)
 
-    # Create graph runtime
-    ctx = remote.cpu()
-    module = graph_runtime.GraphModule(rlib["default"](ctx))
+    # Create graph executor
+    dev = remote.cpu()
+    module = graph_executor.GraphModule(rlib["default"](dev))
     data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
     module.set_input("data", data_tvm)
 
     # Evaluate
     print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+    ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
     print(
         "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))

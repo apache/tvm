@@ -16,9 +16,11 @@
 # under the License.
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
+from typing import List, Any
+
 import tvm.tir
 from .registry import register
-from .utils import get_param_list, from_synr_span
+from .utils import get_param_list, tvm_span_from_synr
 
 
 class Intrin:
@@ -29,8 +31,8 @@ class Intrin:
     def signature(self):
         return "tir." + self.intrin.__name__, get_param_list(self.intrin)
 
-    def handle(self, arg_list, span):
-        return self.intrin(*arg_list, span=from_synr_span(span))
+    def handle(self, arg_list: List[Any], span: tvm.ir.Span):
+        return self.intrin(*arg_list, span=tvm_span_from_synr(span))
 
 
 @register
@@ -99,6 +101,16 @@ def float64(imm, span):
 
 
 @register
+def min_value(dtype, span):
+    return tvm.tir.min_value(dtype, span)
+
+
+@register
+def max_value(dtype, span):
+    return tvm.tir.max_value(dtype, span)
+
+
+@register
 def floordiv(x, y, span):
     return tvm.tir.floordiv(x, y, span)
 
@@ -145,7 +157,7 @@ def get_axis(begin, end, iter_type, span):
     block_var_dom = tvm.ir.Range.from_min_extent(begin, extent)
 
     iter_type_dict = {"data_par": 0, "reduce": 2, "scan": 3, "opaque": 4}
-    return tvm.tir.IterVar(block_var_dom, "bv", iter_type_dict[iter_type], span)
+    return tvm.tir.IterVar(block_var_dom, "bv", iter_type_dict[iter_type], span=span)
 
 
 @register

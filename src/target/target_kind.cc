@@ -103,7 +103,7 @@ static int ExtractIntWithPrefix(const std::string& str, const std::string& prefi
  * \param val The detected value
  * \return A boolean indicating if detection succeeds
  */
-static bool DetectDeviceFlag(TVMContext device, runtime::DeviceAttrKind flag, TVMRetValue* val) {
+static bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, TVMRetValue* val) {
   using runtime::DeviceAPI;
   DeviceAPI* api = DeviceAPI::Get(device, true);
   // Check if compiled with the corresponding device api

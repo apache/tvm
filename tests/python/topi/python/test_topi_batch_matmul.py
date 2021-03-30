@@ -61,10 +61,10 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
     # get the test data
     a_np, b_np, c_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _batch_matmul_implement)
+    def check_device(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _batch_matmul_implement)
             out = fcompute(x, y)
             if not dynamic:
                 s = fschedule([out])
@@ -76,19 +76,19 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
             if debug:
                 print(tvm.lower(s, [x, y, out], simple_mode=True))
 
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(out_shape), dtype=dtype), ctx)
-        f = tvm.build(s, [x, y, out], device, name="dense")
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(out_shape), dtype=dtype), dev)
+        f = tvm.build(s, [x, y, out], target, name="dense")
         f(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        if dynamic and (device == "cuda" or device == "nvptx"):
-            print("Dynamic batch matmul test is skippped on %s" % device)
+    for target, dev in tvm.testing.enabled_targets():
+        if dynamic and (target == "cuda" or target == "nvptx"):
+            print("Dynamic batch matmul test is skippped on %s" % target)
             continue
 
-        check_device(device, ctx)
+        check_device(target, dev)
 
 
 @tvm.testing.uses_gpu

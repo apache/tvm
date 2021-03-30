@@ -376,12 +376,12 @@ runtime::Module ACLCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib").set_body_typed(ACLCompiler);
 
 /*!
- * \brief Check whether ACL graph runtime is used.
+ * \brief Check whether ACL graph executor is used.
  *
- * \return True if ACL graph runtime is enabled, False if not.
+ * \return True if ACL graph executor is enabled, False if not.
  */
 inline constexpr bool IsACLRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#if TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
   return true;
 #else
   return false;

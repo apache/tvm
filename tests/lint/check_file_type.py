@@ -125,9 +125,16 @@ ALLOW_SPECIFIC_FILE = {
     "docs/_static/img/tvm-logo-square.png",
     # pytest config
     "pytest.ini",
-    # Zephyr tests
-    "tests/micro/qemu/zephyr-runtime/prj.conf",
-    "tests/micro/qemu/zephyr-runtime/qemu-hack/qemu-system-i386",
+    # microTVM tests
+    "tests/micro/zephyr/testdata/digit-2.jpg",
+    "tests/micro/zephyr/testdata/digit-9.jpg",
+    "tests/micro/zephyr/testdata/mnist-8.onnx",
+    # microTVM Zephyr runtime
+    "apps/microtvm/zephyr/demo_runtime/prj.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/nrf5340dk_nrf5340_cpuapp.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/nucleo_f746zg.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/qemu_x86.conf",
+    "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-i386",
     # microTVM Virtual Machines
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",

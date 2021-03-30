@@ -131,9 +131,19 @@ def tokenize_target(target):
         a list of parsed tokens extracted from the target string
     """
 
+    # Regex to tokenize the "--target" value. It is split into five parts
+    # to match with:
+    #  1. target and option names e.g. llvm, -mattr=, -mcpu=
+    #  2. option values, all together, without quotes e.g. -mattr=+foo,+opt
+    #  3. option values, when single quotes are used e.g. -mattr='+foo, +opt'
+    #  4. option values, when double quotes are used e.g. -mattr="+foo ,+opt"
+    #  5. commas that separate different targets e.g. "my-target, llvm"
     target_pattern = (
         r"(\-{0,2}[\w\-]+\=?"
-        r"(?:[\w\+\-]+(?:,[\w\+\-])*|[\'][\w\+\-,\s]+[\']|[\"][\w\+\-,\s]+[\"])*|,)"
+        r"(?:[\w\+\-\.]+(?:,[\w\+\-\.])*"
+        r"|[\'][\w\+\-,\s\.]+[\']"
+        r"|[\"][\w\+\-,\s\.]+[\"])*"
+        r"|,)"
     )
 
     return re.findall(target_pattern, target)
@@ -223,6 +233,11 @@ def parse_target(target):
                 else:
                     opt = opt[1:] if opt.startswith("-") else opt
                     opt_name, opt_value = opt.split("=", maxsplit=1)
+
+                    # remove quotes from the value: quotes are only parsed if they match,
+                    # so it is safe to assume that if the string starts with quote, it ends
+                    # with quote.
+                    opt_value = opt_value[1:-1] if opt_value[0] in ('"', "'") else opt_value
             except ValueError:
                 raise ValueError(f"Error when parsing '{opt}'")
 
@@ -265,7 +280,7 @@ def target_from_cli(target):
     """
     extra_targets = []
 
-    if os.path.exists(target):
+    if os.path.isfile(target):
         with open(target) as target_file:
             logger.debug("target input is a path: %s", target)
             target = "".join(target_file.readlines())

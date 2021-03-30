@@ -26,15 +26,15 @@ def with_tvm(lam, *args):
     """Take numpy arrays as args, convert them to TVM tensors and call `lam`.
     Result of lambda is converted back to numpy array and returned.
     """
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     pls = []  # placeholders
     vals_nd = []  # initial values
     for i, arg in enumerate(args):
         pls.append(te.placeholder(arg.shape, name="pl" + str(i)))
-        vals_nd.append(tvm.nd.array(arg, ctx))
+        vals_nd.append(tvm.nd.array(arg, dev))
 
     out = lam(*pls)
-    out_nd = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=out.dtype), ctx)
+    out_nd = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=out.dtype), dev)
     s = te.create_schedule([out.op])
     m = tvm.build(s, pls + [out], "llvm")
     m(*(vals_nd + [out_nd]))

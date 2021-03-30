@@ -24,7 +24,7 @@
 
 #include "llvm_common.h"
 
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
 #include <atomic>

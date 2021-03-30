@@ -386,6 +386,15 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
   return Substitute(std::move(input), vmap);
 }
 
+/*!
+ * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
+ * If fvisit returns false, it won't visit the children of the node.
+ * \param stmt_or_expr The ir to be visited.
+ * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
+ * children of the node
+ */
+TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
+                           const std::function<bool(const ObjectRef&)>& fvisit);
 }  // namespace tir
 }  // namespace tvm
 

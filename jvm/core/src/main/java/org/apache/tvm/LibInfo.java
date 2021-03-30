@@ -71,6 +71,6 @@ class LibInfo {
 
   native int tvmArrayCopyToJArray(long from, byte[] to);
 
-  // TVMContext
+  // Device
   native int tvmSynchronize(int deviceType, int deviceId);
 }

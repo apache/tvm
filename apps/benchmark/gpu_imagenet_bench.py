@@ -24,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-import tvm.contrib.graph_runtime as runtime
+import tvm.contrib.graph_executor as runtime
 from tvm import relay
 
 from util import get_network
@@ -37,13 +37,13 @@ def benchmark(network, target):
         lib = relay.build(net, target=target, params=params)
 
     # create runtime
-    ctx = tvm.context(str(target), 0)
-    module = runtime.GraphModule(lib["default"](ctx))
+    dev = tvm.device(str(target), 0)
+    module = runtime.GraphModule(lib["default"](dev))
     data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
     module.set_input("data", data_tvm)
 
     # evaluate
-    ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=args.repeat)
+    ftimer = module.module.time_evaluator("run", dev, number=1, repeat=args.repeat)
     prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
     print(
         "%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))

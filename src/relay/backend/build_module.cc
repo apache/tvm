@@ -19,7 +19,7 @@
 
 /*!
  * \file relay/backend/build_module.cc
- * \brief Code generation for TVM's graph runtime.
+ * \brief Code generation for TVM's graph executor.
  */
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/expr.h>
@@ -60,7 +60,7 @@ struct BuildOutput {
 struct GraphCodegen {
  public:
   GraphCodegen() {
-    auto pf = GetPackedFunc("relay.build_module._GraphRuntimeCodegen");
+    auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
     mod = (*pf)();
   }
   ~GraphCodegen() {}
@@ -228,7 +228,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   const char* type_key() const final { return "RelayBuildModule"; }
 
   /*!
-   * \brief Build relay IRModule for graph runtime
+   * \brief Build relay IRModule for graph executor
    *
    * \param mod Relay IRModule
    * \param target Target device

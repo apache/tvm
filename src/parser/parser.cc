@@ -28,9 +28,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <fstream>
 
@@ -172,8 +172,8 @@ class ScopeStack {
   void PopStack() { this->scope_stack.pop_back(); }
 };
 
-struct DuplicateKeyError : public dmlc::Error {
-  explicit DuplicateKeyError(const std::string& msg) : dmlc::Error(msg) {}
+struct DuplicateKeyError : public Error {
+  explicit DuplicateKeyError(const std::string& msg) : Error(msg) {}
 };
 
 /*! \brief A table of interning strings as global function and type names. */
@@ -523,18 +523,18 @@ class Parser {
   /*! \brief Convert a numeric token to an NDArray for embedding into the Relay program. */
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::kInteger) {
-      DLContext ctx = {DLDeviceType::kDLCPU, 0};
+      DLDevice dev = {DLDeviceType::kDLCPU, 0};
       auto dtype = String2DLDataType("int32");
-      auto data = NDArray::Empty({}, dtype, ctx);
+      auto data = NDArray::Empty({}, dtype, dev);
       auto array = reinterpret_cast<int32_t*>(data->data);
       // revisit this, literal node issue.
       int64_t value = Downcast<tvm::Integer>(token->data);
       array[0] = (int32_t)value;
       return data;
     } else if (token->token_type == TokenType::kFloat) {
-      DLContext ctx = {DLDeviceType::kDLCPU, 0};
+      DLDevice dev = {DLDeviceType::kDLCPU, 0};
       auto float_imm = Downcast<tvm::FloatImm>(token->data);
-      auto data = NDArray::Empty({}, float_imm->dtype, ctx);
+      auto data = NDArray::Empty({}, float_imm->dtype, dev);
       auto array = reinterpret_cast<float*>(data->data);
       // revisit this, literal node issue.
       // TODO(@jroesch): bounds checking
@@ -549,9 +549,9 @@ class Parser {
 
   /*! \brief Convert a boolean value to an NDArray for embedding into the Relay program. */
   NDArray BooleanToNDarray(bool value) {
-    DLContext ctx = {DLDeviceType::kDLCPU, 0};
+    DLDevice dev = {DLDeviceType::kDLCPU, 0};
     auto dtype = String2DLDataType("bool");
-    auto data = NDArray::Empty({}, dtype, ctx);
+    auto data = NDArray::Empty({}, dtype, dev);
     auto array = reinterpret_cast<bool*>(data->data);
     array[0] = value;
     return data;
@@ -1492,7 +1492,7 @@ class Parser {
     DLOG(INFO) << "op_name=" << op_name << " span=" << span;
     try {
       return Op::Get(op_name);
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
       // we can relax this, but probably need to relax checks or return non-null here.
       this->diag_ctx.EmitFatal(Diagnostic::Error(span)
                                << "operator `" << op_name

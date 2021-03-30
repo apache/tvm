@@ -33,8 +33,8 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/vm.h>
-#include <tvm/support/logging.h>
 #include <tvm/te/operation.h>
 
 #include <iostream>
@@ -1176,7 +1176,7 @@ void VMCompiler::Codegen() {
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {
-  TVMContext default_device;
+  Device default_device;
   ExprDeviceMap expr_device_map;
   if (targets_.size() > 1) {
     int fallback_dev = GetFallbackDevice();

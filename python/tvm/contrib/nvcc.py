@@ -349,6 +349,18 @@ def have_tensorcore(compute_version=None, target=None):
     return False
 
 
+def have_cudagraph():
+    """Either CUDA Graph support is provided"""
+    try:
+        cuda_path = find_cuda_path()
+        cuda_ver = get_cuda_version(cuda_path)
+        if cuda_ver < 10.0:
+            return False
+        return True
+    except RuntimeError:
+        return False
+
+
 def have_bf16(compute_version):
     """Either bf16 support is provided in the compute capability or not
 

@@ -487,24 +487,24 @@ def test_double_splitting_with_indivisible_factors():
     assert not any(collect_visit(top_produce, lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
     # check functional correctness of generated code
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     a = tvm.nd.array(
         numpy.ones(
             m,
         ).astype(dtype),
-        ctx,
+        dev,
     )
     c = tvm.nd.array(
         numpy.zeros(
             m,
         ).astype(dtype),
-        ctx,
+        dev,
     )
     d = tvm.nd.array(
         numpy.zeros(
             m,
         ).astype(dtype),
-        ctx,
+        dev,
     )
     func(a, c, d)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy(), rtol=1e-5)

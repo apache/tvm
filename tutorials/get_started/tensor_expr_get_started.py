@@ -148,17 +148,17 @@ fadd = tvm.build(s, [A, B, C], target=tgt, name="myadd")
 # We provide a minimal array API in python to aid quick testing and prototyping.
 # The array API is based on the `DLPack <https://github.com/dmlc/dlpack>`_ standard.
 #
-# - We first create a GPU context.
+# - We first create a GPU device.
 # - Then tvm.nd.array copies the data to the GPU.
 # - fadd runs the actual computation.
 # - asnumpy() copies the GPU array back to the CPU and we can use this to verify correctness
 #
-ctx = tvm.context(tgt.kind.name, 0)
+dev = tvm.device(tgt.kind.name, 0)
 
 n = 1024
-a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
 fadd(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -293,11 +293,11 @@ if tgt.kind.name.startswith("opencl"):
     fadd_cl = tvm.build(s, [A, B, C], tgt, name="myadd")
     print("------opencl code------")
     print(fadd_cl.imported_modules[0].get_source())
-    ctx = tvm.cl(0)
+    dev = tvm.cl(0)
     n = 1024
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
     fadd_cl(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 

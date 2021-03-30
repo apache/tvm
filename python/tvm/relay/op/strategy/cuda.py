@@ -18,11 +18,12 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust
-from .generic import *
+from tvm.te import SpecializedCondition
+
 from .. import op as _op
+from .generic import *
 
 
 @schedule_injective.register(["cuda", "gpu"])
@@ -1017,9 +1018,21 @@ def cumsum_strategy_cuda(attrs, inputs, out_type, target):
     """cumsum cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumsum(topi.cuda.cumsum),
+        wrap_compute_scanop(topi.cuda.cumsum),
         wrap_topi_schedule(topi.cuda.schedule_scan),
         name="cumsum.cuda",
+    )
+    return strategy
+
+
+@cumprod_strategy.register(["cuda", "gpu"])
+def cumprod_strategy_cuda(attrs, inputs, out_type, target):
+    """cumprod cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.cuda.cumprod),
+        wrap_topi_schedule(topi.cuda.schedule_scan),
+        name="cumprod.cuda",
     )
     return strategy
 

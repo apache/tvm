@@ -49,7 +49,7 @@ def call_all_topi_funcs(mod, params, target):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_runtime_codegen
+    from tvm.relay.backend import graph_executor_codegen
 
     # Turn off AutoTVM config not found warnings
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
@@ -65,11 +65,11 @@ def call_all_topi_funcs(mod, params, target):
     ):
         try:
             opt_mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(opt_mod["main"])
         except tvm.TVMError:
             print(
-                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Get errors with GraphExecutorCodegen for task extraction. "
                 "Fallback to VMCompiler."
             )
             compiler = relay.vm.VMCompiler()
@@ -116,12 +116,17 @@ def extract_tasks(
     env = TracingEnvironment(
         TracingMode.EXTRACT_TASK if include_simple_tasks else TracingMode.EXTRACT_COMPLEX_TASK_ONLY
     )
+
+    dispatch_ctx = DispatchContext.current
+    old_verbose = dispatch_ctx.verbose
+    dispatch_ctx.verbose = 0
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
         build_thread.start()
         build_thread.join()
+    dispatch_ctx.verbose = old_verbose
 
     # create search tasks
     tasks = []
@@ -249,7 +254,7 @@ def traverse_to_get_io_tensors(outs):
 
 
 @tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
-def auto_schedule_topi(outs):
+def auto_schedule_topi(func_name, outs):
     """Use auto-scheduler to schedule any topi compute function.
 
     Note: This is used internally for relay integration. Do
@@ -257,6 +262,9 @@ def auto_schedule_topi(outs):
 
     Parameters
     ----------
+    func_name: str
+        The name of the function being scheduled.
+
     outs: List[Tensor]
         The output tensors of topi compute functions
 
@@ -282,7 +290,7 @@ def auto_schedule_topi(outs):
     target = tvm.target.Target.current()
 
     dispatch_ctx = DispatchContext.current
-    state = dispatch_ctx.query(target, key, has_complex_op, dag)
+    state = dispatch_ctx.query(target, key, has_complex_op, dag, func_name)
     schedule = None
 
     env = TracingEnvironment.current

@@ -103,10 +103,11 @@ def get_numpy(tensor_proto):
 def get_type(elem_type):
     """Converts onnx integer datatype to numpy datatype"""
     try:
-        from onnx import TensorProto
+        from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
-    return TensorProto.DataType.Name(elem_type).lower()
+
+    return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
 def get_info(info_proto):
@@ -157,7 +158,7 @@ def revert_caffe2_pad(pads):
     return pads
 
 
-def get_pad_pair(input1d, kernel1d, stride1d):
+def get_pad_pair(input1d, kernel1d, stride1d, mode):
     """infer pad size"""
     if input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
@@ -165,6 +166,8 @@ def get_pad_pair(input1d, kernel1d, stride1d):
         pad = max(kernel1d - (input1d % stride1d), 0)
     pad_before = pad // 2
     pad_after = pad - pad_before
+    if "LOWER" in mode:
+        return [pad_after, pad_before]
     return [pad_before, pad_after]
 
 
@@ -280,9 +283,9 @@ class Pool(OnnxOpConverter):
                     pad_tuple = []
                     for axis in range(len(input_shape) - 2):
                         axis_shape = input_shape[2 + axis]
-                        stride = attr["strides"][axis]
+                        stride = attr.get("strides", [1] * ndim)[axis]
                         kernel = attr["kernel_shape"][axis]
-                        pad = get_pad_pair(axis_shape, kernel, stride)
+                        pad = get_pad_pair(axis_shape, kernel, stride, attr["auto_pad"])
                         pad_tuple.append(pad)
                     pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
                     attr["pads"] = pad_tuple
@@ -394,7 +397,7 @@ def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", d
     # pad N and C with zeros
     pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
 
-    return _op.nn.pad(data, pad, _op.const(0.0), pad_type)
+    return _op.nn.pad(data, fold_constant(pad), _op.const(0.0), pad_type)
 
 
 class Conv(OnnxOpConverter):
@@ -444,9 +447,15 @@ class ConvTranspose(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
-        channels = infer_channels(inputs[1], True)
+        out_type = infer_type(inputs[1])
+        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+        channels = out_shapes[0][1]
         attr["channels"] = channels
-        groups = attr.pop("group")
+        groups = attr.get("group", 1)
+
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = out_shapes[0][2:]
+
         attr["groups"] = groups
         # infer pads for auto_pad
         data = inputs[0]
@@ -528,13 +537,11 @@ class Gemm(OnnxOpConverter):
         if not transB:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
         inputs[0] = _op.nn.batch_flatten(inputs[0])
-
         if alpha != 1.0:
             inputs[0] *= _expr.const(alpha)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
-
         if len(inputs) == 3:
-            return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
+            out = out + _expr.const(beta) * inputs[2]
         return out
 
 
@@ -618,7 +625,7 @@ class Mod(OnnxOpConverter):
         # Note: attr['fmod'] determines whether the operator should behave like np.fmod or np.mod.
         # attr['fmod'] == 0 will behave as np.mod and attr['fmod'] == 1 will force fmod treatment.
         # The relay equivalent of np.fmod is relay.mod and np.mod is relay.floor_mod
-        if attr["fmod"] == 0:
+        if attr.get("fmod", 0) == 0:
             op_name = "floor_mod"
         else:
             op_name = "mod"
@@ -802,7 +809,6 @@ class Pad(OnnxOpConverter):
 
         pad_width_expr = fold_constant(_op.transpose(_op.reshape(pads, (2, -1))))
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-
         if not pad_mode in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
@@ -849,12 +855,18 @@ class Flatten(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
+        ishape = _op.shape_of(inputs[0])
+        ndim = infer_shape(ishape)[0]
+        if axis < 0:
+            axis = axis + ndim
+
         if axis == 1:
             out = _op.nn.batch_flatten(inputs[0])
         else:
-            newshape = [0] * (axis + 1)
-            newshape[axis] = -1
-            out = _op.reshape(inputs[0], list(newshape))
+            pre_shape = _op.prod(_op.strided_slice(ishape, [0], [axis], [1]), keepdims=True)
+            post_shape = _op.prod(_op.strided_slice(ishape, [axis], [ndim], [1]), keepdims=True)
+            newshape = _op.concatenate([pre_shape, post_shape], axis=0)
+            out = _op.reshape(inputs[0], newshape)
         return out
 
 
@@ -1036,7 +1048,7 @@ class Upsample(OnnxOpConverter):
 
         # in 3d case, we use the purely static op
         if dims == 5:
-            if isinstance(scales, _expr.Call):
+            if isinstance(scales, _expr.Expr):
                 scale_h = _op.take(scales, _op.const(3))
                 scale_w = _op.take(scales, _op.const(4))
                 scale_d = _op.take(scales, _op.const(1))
@@ -1052,7 +1064,7 @@ class Upsample(OnnxOpConverter):
             )
         # in 2d case, use dynamic op
         else:
-            if isinstance(scales, _expr.Call):
+            if isinstance(scales, _expr.Expr):
                 scale_h = _op.take(scales, _op.const(3))
                 scale_w = _op.take(scales, _op.const(4))
             else:
@@ -1247,7 +1259,13 @@ class Gather(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 0)
-        return AttrCvt("take", extras={"axis": axis})(inputs, {})
+        data = inputs[0]
+        indices = inputs[1]
+        ind_dtype = infer_type(indices).checked_type.dtype
+        # Normalize the indices to a positive range
+        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
+        return _op.take(data, indices, axis)
 
 
 class GatherElements(OnnxOpConverter):
@@ -1258,6 +1276,10 @@ class GatherElements(OnnxOpConverter):
         data = inputs[0]
         indices = inputs[1]
         axis = attr.get("axis", 0)
+        ind_dtype = infer_type(indices).checked_type.dtype
+        # Normalize the indices to a positive range
+        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
         return _op.gather(data, axis, indices)
 
 
@@ -1318,8 +1340,8 @@ class Maximum(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+        if len(inputs) == 1:
+            return inputs[0]
         _max = inputs[0]
         for i in range(1, len(inputs)):
             _max = AttrCvt("maximum")([_max, inputs[i]], {})
@@ -1331,8 +1353,8 @@ class Minimum(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+        if len(inputs) == 1:
+            return inputs[0]
         _min = inputs[0]
         for i in range(1, len(inputs)):
             _min = AttrCvt("minimum")([_min, inputs[i]], {})
@@ -1344,8 +1366,8 @@ class Mean(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+        if len(inputs) == 1:
+            return inputs[0]
         # avoid overflow
         concat = _op.concatenate([_op.expand_dims(x, axis=0) for x in inputs], axis=0)
         return _op.mean(concat, axis=0, keepdims=False)
@@ -1485,6 +1507,8 @@ class ArgMax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "select_last_index" in attr:
+            raise NotImplementedError("select_last_index not supported in ArgMax")
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
@@ -1496,6 +1520,8 @@ class ArgMin(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "select_last_index" in attr:
+            raise NotImplementedError("select_last_index not supported in ArgMin")
         axis = attr.get("axis", 0)
         keepdims = attr.get("keepdims", True)
         attr = {"axis": axis, "keepdims": keepdims}
@@ -1510,7 +1536,35 @@ class Softmax(OnnxOpConverter):
         # set default value when axis is not set in the model
         if "axis" not in attr:
             attr["axis"] = 1
-        return AttrCvt("softmax", transforms={"axis": ("axis", 1)})(inputs, attr, params)
+        axis = attr["axis"]
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = list(range(axis, ndim))
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        return e / _op.sum(e, axes, keepdims=True)
+
+
+class LogSoftmax(OnnxOpConverter):
+    """Operator converter for Softmax."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # set default value when axis is not set in the model
+        if "axis" not in attr:
+            attr["axis"] = 1
+        axis = attr["axis"]
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        axes = list(range(axis, ndim))
+        x = inputs[0]
+        m = _op.max(x, axes, keepdims=True)
+        e = _op.exp(x - m)
+        s = _op.sum(e, axes, keepdims=True)
+        return x - m - _op.log(s)
 
 
 class OneHot(OnnxOpConverter):
@@ -1520,14 +1574,24 @@ class OneHot(OnnxOpConverter):
     def _impl_v9(cls, inputs, attr, params):
         # Extract relay one_hot inputs.
         indices, depth, values = inputs
+        ndim = len(infer_shape(indices))
         # Split onnx on off values into two separate expressions.
         off_value, on_value = _op.take(values, _op.const(0)), _op.take(values, _op.const(1))
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
+        ind_dtype = infer_type(indices).checked_type.dtype
+        # Normalize the indices to a positive range
+        indices = _op.where(
+            indices < _op.const(0, ind_dtype), indices + _op.cast(depth, ind_dtype), indices
+        )
         # set default value when axis is not set in the model
         if "axis" not in attr:
             attr["axis"] = -1
-        return _op.one_hot(indices, on_value, off_value, depth, int(attr["axis"]), dtype=dtype)
+        axis = attr["axis"]
+        if axis < 0:
+            axis += ndim + 1
+
+        return _op.one_hot(indices, on_value, off_value, depth, axis, dtype=dtype)
 
 
 class ConstantOfShape(OnnxOpConverter):
@@ -1552,7 +1616,7 @@ class Constant(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
-            raise "No Value in Constant"
+            raise tvm.errors.OpAttributeRequired("no value in Constant")
         np_value = get_numpy(attr.pop("value"))
         dtype = np_value.dtype.name
         value = _expr.const(np_value, dtype)
@@ -2042,7 +2106,7 @@ class TopK(OnnxOpConverter):
         largest = attr.get("largest", 1)
 
         if largest == 0:
-            raise ValueError("TVM only supports finding TopK largest elements")
+            raise NotImplementedError("TVM only supports finding TopK largest elements")
 
         return _op.topk(inputs[0], inputs[1], axis=axis, dtype="int64")
 
@@ -2087,7 +2151,7 @@ class RoiAlign(OnnxOpConverter):
         batch_indices = inputs[2]
         mode = attr.get("mode", b"avg")
         if mode not in (b"avg", b"max"):
-            raise ValueError("RoiAlign in Relay only uses avg and max modes")
+            raise NotImplementedError("RoiAlign in Relay only uses avg and max modes")
         output_height = attr.get("output_height", 1)
         output_width = attr.get("output_width", 1)
 
@@ -2128,7 +2192,8 @@ class Clip(OnnxOpConverter):
         result = inputs[0]
         for i, op in enumerate([_op.tensor.maximum, _op.tensor.minimum]):
             if i < len(inputs) - 1:
-                result = op(result, inputs[i + 1])
+                if inputs[i + 1] is not None:
+                    result = op(result, inputs[i + 1])
         return result
 
 
@@ -2393,9 +2458,10 @@ class NonMaxSuppression(OnnxOpConverter):
         dtype = infer_type(boxes).checked_type.dtype
 
         if "center_point_box" in attr:
-            assert (
-                attr["center_point_box"] == 0
-            ), "Only support center_point_box = 0 in onnx importer right now"
+            if attr["center_point_box"] != 0:
+                raise NotImplementedError(
+                    "Only support center_point_box = 0 in ONNX NonMaxSuprresion"
+                )
 
         if iou_threshold is None:
             iou_threshold = _expr.const(0.0, dtype="float32")
@@ -2453,7 +2519,7 @@ class NonMaxSuppression(OnnxOpConverter):
             nms_size_out,
         ):
             # Loop over classes, end when i == C
-            return _op.min(_op.less(i, C))
+            return _op.take(_op.less(i, C), _expr.const(0))
 
         def _first_body(
             i,
@@ -2561,7 +2627,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         def _inner_cond(i, j, C, onnx_out, nms_size, out):
             # inner loop over number of classes
-            return _op.min(_op.less(j, C))
+            return _op.take(_op.less(j, C), _expr.const(0))
 
         def _inner_body(i, j, C, onnx_out, nms_size, out):
             # slice to get current batch and class for valid box indicator
@@ -2591,7 +2657,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         def _outer_cond(i, B, C, onnx_out, nms_size_out, out):
             # Outer loop is over batch size
-            return _op.min(_op.less(i, B))
+            return _op.take(_op.less(i, B), _expr.const(0))
 
         def _outer_body(i, B, C, onnx_out, nms_size_out, out):
             # Outer loop just calls inner loop
@@ -2629,10 +2695,10 @@ class NonMaxSuppression(OnnxOpConverter):
 
         # Call the second loop, rework outputs into correct form
         init_count = _op.const(np.array([0]).astype("int64"), dtype="int64")
-        init_out = _op.const(np.array([]).reshape([0, 3]).astype("int64"), dtype="int64")
+        init_out = _op.const(np.array([1, 1, 1]).reshape([1, 3]).astype("int64"), dtype="int64")
         loop_vals = outer_loop(init_count, B, C, onnx_output, nms_size_output, init_out)
-
-        return _expr.TupleGetItem(loop_vals, 5)
+        loop_out = _expr.TupleGetItem(loop_vals, 5)
+        return _op.strided_slice(loop_out, [1, 0], shape_of(loop_out), [1, 1])
 
 
 # compatible operators that do NOT require any conversion.
@@ -2718,7 +2784,7 @@ def _get_convert_map(opset):
         "Softplus": Softplus.get_converter(opset),
         # softmax default axis is different in onnx
         "Softmax": Softmax.get_converter(opset),
-        "LogSoftmax": AttrCvt("log_softmax", {"axis": ("axis", 1)}),
+        "LogSoftmax": LogSoftmax.get_converter(opset),
         "OneHot": OneHot.get_converter(opset),
         # 'Hardmax'
         "Softsign": Softsign.get_converter(opset),
@@ -2914,7 +2980,7 @@ class GraphProto:
             else:
                 self._num_input += 1
                 if i_name in self._shape:
-                    i_shape = self._shape[i_name]
+                    i_shape = self._shape.pop(i_name)
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (
@@ -2929,6 +2995,11 @@ class GraphProto:
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
+        assert (
+            len(self._shape) == 0
+        ), "User specified the shape for inputs that weren't found in the graph: " + str(
+            self._shape
+        )
         # get list of unsupported ops
         convert_map = _get_convert_map(opset)
         unsupported_ops = set()
@@ -2953,6 +3024,8 @@ class GraphProto:
             for i in node.input:
                 if i != "":
                     inputs[i] = self._nodes[self._renames.get(i, i)]
+                else:
+                    inputs[i] = None
             i_name = self._parse_value_proto(node)
             node_output = self._fix_outputs(op_name, node.output)
             attr["tvm_custom"] = {}

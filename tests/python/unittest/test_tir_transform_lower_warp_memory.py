@@ -114,7 +114,7 @@ def test_lower_warp_memory_cuda_end_to_end():
             xo, xi = s[AA].split(s[AA].op.axis[0], 32)
             s[AA].bind(xi, tx)
 
-            ctx = tvm.gpu(0)
+            dev = tvm.gpu(0)
             func = tvm.build(s, [A, B], "cuda")
             A_np = np.array(list(range(m)), dtype=dtype)
             B_np = np.array(
@@ -128,8 +128,8 @@ def test_lower_warp_memory_cuda_end_to_end():
                 + [96],
                 dtype=dtype,
             )
-            A_nd = tvm.nd.array(A_np, ctx)
-            B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), ctx)
+            A_nd = tvm.nd.array(A_np, dev)
+            B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), dev)
             func(A_nd, B_nd)
             tvm.testing.assert_allclose(B_nd.asnumpy(), B_np, rtol=1e-3)
 
@@ -181,12 +181,12 @@ def test_lower_warp_memory_cuda_half_a_warp():
             _, x = AA.op.axis
             s[AA].bind(x, tx)
 
-            ctx = tvm.gpu(0)
+            dev = tvm.gpu(0)
             func = tvm.build(s, [A, B], "cuda")
             A_np = np.array([list(range(i, m + i)) for i in range(n)], dtype=dtype)
             B_np = np.array([list(range(1 + i, m + i)) + [i] for i in range(n)], dtype=dtype)
-            A_nd = tvm.nd.array(A_np, ctx)
-            B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), ctx)
+            A_nd = tvm.nd.array(A_np, dev)
+            B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), dev)
             func(A_nd, B_nd)
             tvm.testing.assert_allclose(B_nd.asnumpy(), B_np, rtol=1e-3)
 
@@ -228,13 +228,13 @@ def test_lower_warp_memory_cuda_2_buffers():
             s[BB].bind(xo, bx)
             s[BB].bind(xi, tx)
 
-            ctx = tvm.gpu(0)
+            dev = tvm.gpu(0)
             func = tvm.build(s, [A, B, C], "cuda")
             AB_np = np.array(list(range(m)), dtype=dtype)
             C_np = np.array(list(range(1, m)) + [0], dtype=dtype) * 2
-            A_nd = tvm.nd.array(AB_np, ctx)
-            B_nd = tvm.nd.array(AB_np, ctx)
-            C_nd = tvm.nd.array(np.zeros(C_np.shape, dtype=C_np.dtype), ctx)
+            A_nd = tvm.nd.array(AB_np, dev)
+            B_nd = tvm.nd.array(AB_np, dev)
+            C_nd = tvm.nd.array(np.zeros(C_np.shape, dtype=C_np.dtype), dev)
             func(A_nd, B_nd, C_nd)
             tvm.testing.assert_allclose(C_nd.asnumpy(), C_np, rtol=1e-3)
 
@@ -260,12 +260,12 @@ def test_lower_warp_memory_roundup():
             s[AA].bind(yi, tx)
             s[AA].compute_at(s[B], xo)
 
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             func = tvm.build(s, [A, B], device)
             A_np = np.random.uniform(size=(m,)).astype(A.dtype)
             B_np = np.zeros(shape=(m,)).astype(B.dtype)
-            A_nd = tvm.nd.array(A_np, ctx)
-            B_nd = tvm.nd.array(B_np, ctx)
+            A_nd = tvm.nd.array(A_np, dev)
+            B_nd = tvm.nd.array(B_np, dev)
             func(A_nd, B_nd)
             B_np = A_np + 1
             tvm.testing.assert_allclose(B_nd.asnumpy(), B_np)

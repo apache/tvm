@@ -57,6 +57,22 @@ struct ExprDeepEqual {
 };
 
 /*!
+ * \brief Visit the PrimFuncs in the IRModule
+ * \tparam FLambda The type of the PrimFunc visitor
+ * \param mod The IRModule to be visited
+ * \param fvisit The visitor to the PrimFuncs in the IRModule
+ */
+template <class FLambda>
+inline void VisitPrimFuncs(const IRModule& mod, FLambda fvisit) {
+  for (const auto& kv : mod->functions) {
+    const BaseFunc& base_func = kv.second;
+    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
+      fvisit(prim_func);
+    }
+  }
+}
+
+/*!
  * \brief Find undefined vars in the statement.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.
@@ -140,6 +156,27 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  *
  */
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
+
+/*!
+ * \brief Auto detect the block read/write region according to body stmt
+ *        It will detect the read/write region as an array in order of appearance in AST
+ * \param block The block to be detected
+ * \param buffer_var_map The outside buffers which may be accessed the block.
+ *                       It is a map from buffer var to the buffer.
+ * \return Array of access regions.
+ *         There are three arrays of BufferRegion:
+ *           - first: read regions
+ *           - second: write regions
+ *           - third: opaque regions
+ */
+Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
+                                                const Map<Var, Buffer>& buffer_var_map);
+
+/*!
+ * \brief Calculate the expresion complexity based on number of symbols it contains.
+ * \param expr The expr to be calculated.
+ */
+TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.

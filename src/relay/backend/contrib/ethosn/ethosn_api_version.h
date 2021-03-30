@@ -29,12 +29,16 @@
  * along with associated compatibility measures when no
  * longer necessary.
  */
+#if ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH == 2
+#define _ETHOSN_API_VERSION_ 2102
+#else
 #ifndef ETHOSN_API_VERSION
 #define _ETHOSN_API_VERSION_ 2008
 #elif ~(~ETHOSN_API_VERSION + 0) == 0 && ~(~ETHOSN_API_VERSION + 1) == 1
 #define _ETHOSN_API_VERSION_ 2008
 #else
 #define _ETHOSN_API_VERSION_ ETHOSN_API_VERSION
+#endif
 #endif
 
 #endif  // TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_VERSION_H_

@@ -95,7 +95,7 @@ mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
 # -------------------------
 # compile the model
 target = tvm.target.Target("llvm", host="llvm")
-ctx = tvm.cpu(0)
+dev = tvm.cpu(0)
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {"data": data.shape}
 print("Compiling the model...")
@@ -116,9 +116,9 @@ data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 # Execute on TVM Runtime
 # ----------------------
 # The process is no different from other examples.
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_executor.GraphModule(lib["default"](dev))
 
 # set inputs
 m.set_input("data", tvm.nd.array(data.astype(dtype)))

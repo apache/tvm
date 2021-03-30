@@ -19,8 +19,8 @@
 
 /*!
  * \file src/relay/qnn/op/quantize.cc
- * \brief QNN dequantize operator. Dequantize operator converts from quantized
- * domain to unquantized domain.
+ * \brief QNN quantize operator. Quantize operator converts from unquantized
+ * domain to quantized domain.
  */
 
 #include <tvm/relay/analysis.h>
@@ -51,7 +51,7 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   int axis = quantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
+  axis = (axis < 0) ? data->shape.size() + axis : axis;
   ICHECK_LT(axis, static_cast<int>(data->shape.size()))
       << "axis " << quantize_attrs->axis << " is out of range";
   ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
@@ -93,9 +93,14 @@ Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
   Array<IndexExpr> input_shape = in_tensor_type->shape;
 
   const auto out_dtype = attrs->out_dtype;
-  const auto axis = attrs->axis;
+  auto axis = attrs->axis;
 
   size_t n_dim = input_shape.size();
+
+  // Wrap axis from negative to positive if needed.
+  if (axis < 0) {
+    axis = static_cast<int>(n_dim) + axis;
+  }
 
   auto expanded_output_scale = output_scale;
   if (!IsConstScalar(output_scale) && !IsScalarType(types[1])) {

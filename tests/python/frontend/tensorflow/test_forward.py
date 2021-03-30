@@ -110,7 +110,7 @@ def run_tvm_graph(
     target="llvm",
     out_names=None,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     layout=None,
     disabled_pass=None,
@@ -132,9 +132,9 @@ def run_tvm_graph(
     mod, params = relay.frontend.from_tensorflow(
         graph_def, layout=layout, shape=shape_dict, outputs=out_names
     )
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -164,12 +164,13 @@ def run_tvm_graph(
         return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
+            target = tvm.target.Target(target, target_host)
             graph, lib, params = relay.build(
-                mod, tvm.target.Target(target, target_host), params=params
+                mod, target=target, params=params
             )
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_executor.create(graph, lib, dev)
         # set inputs
         for e, i in zip(input_node, input_data):
             if e != "":
@@ -209,9 +210,10 @@ def compare_tf_with_tvm(
     init_global_variables=False,
     no_gpu=False,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
+    targets=None,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -235,12 +237,17 @@ def compare_tf_with_tvm(
 
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
-        for device in ["llvm", "cuda"]:
-            ctx = tvm.context(device, 0)
+        devices = targets if targets else ["llvm", "cuda"]
+
+        for device in devices:
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
             if no_gpu and device == "cuda":
+                continue
+            if "cublas" in device and not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+                print("Skip because cublas is not enabled: %s" % device)
                 continue
 
             tvm_output = run_tvm_graph(
@@ -1685,7 +1692,7 @@ def test_forward_variable():
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-def test_read_variable_op(target, ctx):
+def test_read_variable_op(target, dev):
     """ Read Variable op test """
 
     tf.reset_default_graph()
@@ -1783,6 +1790,23 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
         compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
 
 
+def _test_batch_matmul_dynamic(
+    A_shape, B_shape, A_np_shape, B_np_shape, dtype, adjoint_a=False, adjoint_b=False
+):
+    with tf.Graph().as_default():
+        A = tf.placeholder(shape=A_shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+        result = tf.matmul(A, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
+
+        A_np = np.random.uniform(high=5.0, size=A_np_shape).astype(dtype)
+        B_np = np.random.uniform(high=5.0, size=B_np_shape).astype(dtype)
+        # for now, in TOPI, only cublas's implementation support dynamic shape
+        # TODO add more backends support in TOPI
+        compare_tf_with_tvm(
+            [A_np, B_np], [A.name, B.name], result.name, mode="vm", targets=["cuda -libs=cublas"]
+        )
+
+
 def test_forward_batch_matmul():
     """ TF op BatchMatMul, BatchMatMulV2 test"""
     _test_batch_matmul((3, 5, 4), (3, 4, 5), "int32")
@@ -1793,6 +1817,33 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
+
+
+@tvm.testing.requires_cuda
+def test_forward_batch_matmul_dynamic():
+    _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "float32", True, True
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 5, 4), (3, 5, 4), (3, 5, 4), "int32", True, False
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 5, 4), (3, 5, 4), (3, 5, 4), "float32", False, True
+    )
+    _test_batch_matmul_dynamic(
+        (None, 4, 5, 6), (None, 4, 6, 5), (3, 4, 5, 6), (3, 4, 6, 5), "float32"
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, 5, 6), (None, None, 6, 5), (3, 4, 5, 6), (3, 4, 6, 5), "float32"
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, None, 5, 6),
+        (None, None, None, 6, 5),
+        (2, 3, 4, 5, 6),
+        (2, 3, 4, 6, 5),
+        "float32",
+    )
 
 
 #######################################################################
@@ -2352,6 +2403,54 @@ def test_forward_sparse_to_dense_v2():
     _test_sparse_to_dense_v2([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], "float32", 1.3)
     _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32")
     _test_sparse_to_dense_v2([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], "float32", 1.9)
+
+
+#######################################################################
+# tensorflow.sparse.add
+# ----------------------------------
+
+
+def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
+    """ One iteration of tf.sparse.add """
+
+    # TODO(ANSHUMAN87): support cuda
+    # TODO(ANSHUMAN87): support both sparse input case
+
+    with tf.Graph().as_default():
+        A_sp = tf.sparse.SparseTensor(
+            indices=indices, values=np.array(values).astype(dtype), dense_shape=A_shape
+        )
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+
+        # TODO(ANSHUMAN87): support user input threashold values
+        if flip:
+            result = tf.sparse.add(B, A_sp, threshold=0)
+        else:
+            result = tf.sparse.add(A_sp, B, threshold=0)
+
+        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+
+        compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+
+
+def test_sparse_add():
+    """ sparse.add op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    for dtype_inp in ["float32", "float64", "int32"]:
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [3, 4], dtype_inp, True)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp)
+        _test_sparse_add([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], dtype_inp, True)
 
 
 #######################################################################
@@ -3621,7 +3720,7 @@ def test_forward_resnetv2():
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, "input_tensor:0", out_node + ":0")
                 for device in ["llvm", "cuda"]:
-                    ctx = tvm.context(device, 0)
+                    dev = tvm.device(device, 0)
                     if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
@@ -3658,7 +3757,7 @@ def _test_ssd_impl():
             )
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -3760,10 +3859,10 @@ def test_forward_ptb():
         target = "llvm"
         with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod, target, params=params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        ctx = tvm.cpu(0)
-        return params, graph_runtime.create(graph, lib, ctx)
+        dev = tvm.cpu(0)
+        return params, graph_executor.create(graph, lib, dev)
 
     def _do_tvm_sample(model, data, in_states, params, num_samples):
         """Sampled from the model"""
@@ -3977,7 +4076,7 @@ def test_forward_floor():
 def test_forward_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.relu(in1)
@@ -3987,7 +4086,7 @@ def test_forward_relu():
 def test_forward_leaky_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.leaky_relu(in1, alpha=0.4)
@@ -5175,7 +5274,7 @@ def test_forward_dynamic_input_shape():
             tf_output = run_tf_graph(sess, np_data, "data:0", ["{}:0".format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue

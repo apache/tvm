@@ -84,19 +84,19 @@ def verify_upsampling(
     else:
         b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -228,19 +228,19 @@ def verify_upsampling3d(
     else:
         b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

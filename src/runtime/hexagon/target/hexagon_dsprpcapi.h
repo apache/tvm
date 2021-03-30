@@ -22,7 +22,7 @@
 
 #ifdef __ANDROID__
 #include <stdint.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include "remote.h"
 #include "remote64.h"

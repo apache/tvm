@@ -23,30 +23,35 @@ import tvm
 from tvm import te
 import tvm.relay.testing
 import tvm.relay.transform
+
 from tvm import relay
 from tvm import runtime
+from tvm.relay import transform
 from tvm.contrib import utils
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu()):
+def update_lib(lib):
+    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    source_dir = os.path.join(test_dir, "..", "..", "..")
+    contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
+
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
+    tmp_path = utils.tempdir()
+    lib_name = "lib.so"
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.runtime.load_module(lib_path)
+
+    return lib
+
+
+def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
-
-    def update_lib(lib):
-        test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-        source_dir = os.path.join(test_dir, "..", "..", "..")
-        contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
-
-        kwargs = {}
-        kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = utils.tempdir()
-        lib_name = "lib.so"
-        lib_path = tmp_path.relpath(lib_name)
-        lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.runtime.load_module(lib_path)
-
-        return lib
 
     def check_vm_result():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
@@ -54,26 +59,26 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ct
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, ctx)
+        vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result():
+    def check_graph_executor_result():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             json, lib, _ = relay.build(mod, target=target)
         lib = update_lib(lib)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
 
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     check_vm_result()
-    check_graph_runtime_result()
+    check_graph_executor_result()
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
@@ -285,7 +290,7 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
     check_result(
         mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
@@ -324,9 +329,32 @@ def test_extern_dnnl_const():
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data)
     check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+
+
+def test_load_params_with_constants_in_ext_codegen():
+    # After binding params and partitioning graph_module.get_params()
+    # might contain parameters that are not an graph executor input but
+    # for example constants in external function.
+    y_in = np.ones((1,)).astype("float32")
+    params = {"y": y_in}
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1,))
+    xcb = compiler_begin(x, "ccompiler")
+    ycb = compiler_begin(y, "ccompiler")
+    z = relay.add(xcb, ycb)
+    zce = compiler_end(z, "ccompiler")
+    mod["main"] = relay.Function([x, y], zce)
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = transform.PartitionGraph()(mod)
+
+    graph_module = relay.build(mod, target="llvm", params=params)
+    lib = update_lib(graph_module.get_lib())
+    rt_mod = tvm.contrib.graph_executor.create(graph_module.get_json(), lib, tvm.cpu(0))
+    rt_mod.load_params(runtime.save_param_dict(graph_module.get_params()))
 
 
 if __name__ == "__main__":
@@ -337,3 +365,4 @@ if __name__ == "__main__":
     test_extern_gcc_consts()
     test_extern_dnnl()
     test_extern_dnnl_const()
+    test_load_params_with_constants_in_ext_codegen()

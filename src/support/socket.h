@@ -49,7 +49,7 @@ using ssize_t = int;
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <cstring>
 #include <string>
