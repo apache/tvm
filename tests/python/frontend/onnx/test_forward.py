@@ -4269,6 +4269,40 @@ def test_wrong_input():
         relay.frontend.from_onnx(model, shape=wrong_shape_dict)
 
 
+def test_aten():
+    torch.set_grad_enabled(False)
+
+    def _convert_to_onnx(model, inputs):
+        file_name = "{}.onnx".format("aten_model")
+        torch.onnx.export(
+            model,
+            inputs,
+            file_name,
+            export_params=True,
+            verbose=False,
+            opset_version=10,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN,
+        )
+        onnx_model = onnx.load(file_name)
+        assert 's: "embedding_bag"' in str(onnx_model)
+        return onnx_model
+
+    def verify_embedding_bag(num_embedding, embedding_dim, data_shape, num_bags=None):
+        dummy_data = torch.randint(0, num_embedding - 1, data_shape)
+        tvm_inputs = [dummy_data.numpy()]
+        model = torch.nn.EmbeddingBag(num_embedding, embedding_dim)
+        onnx_model = _convert_to_onnx(model, dummy_data)
+        torch_out = model(dummy_data)
+        for target, ctx in tvm.testing.enabled_targets():
+            tvm_out = get_tvm_output_with_vm(
+                onnx_model, tvm_inputs, target, ctx, freeze_params=True, convert_to_static=True
+            )
+            tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
+
+    verify_embedding_bag(10, 3, [2, 10])
+    verify_embedding_bag(32, 2, [3, 3])
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4348,3 +4382,4 @@ if __name__ == "__main__":
     test_softplus()
     test_cumsum()
     test_wrong_input()
+    test_aten()
