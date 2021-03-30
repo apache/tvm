@@ -165,9 +165,7 @@ def run_tvm_graph(
     else:
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             target = tvm.target.Target(target, target_host)
-            graph, lib, params = relay.build(
-                mod, target=target, params=params
-            )
+            graph, lib, params = relay.build(mod, target=target, params=params)
         from tvm.contrib import graph_executor
 
         m = graph_executor.create(graph, lib, dev)
