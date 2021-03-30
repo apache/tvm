@@ -37,6 +37,8 @@
 #include <utility>
 #include <vector>
 
+#include "../file_utils.h"
+#include "../library_module.h"
 #include "serialize_utils.h"
 
 namespace tvm {
@@ -73,6 +75,12 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       std::string func_name = args[0];
       int index = args[1];
       *rv = this->GetFunctionParameterName(func_name, index);
+    });
+  } else if (name == "vm_load_executable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      auto vm = make_object<VirtualMachine>();
+      vm->LoadExecutable(this);
+      *rv = Module(vm);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -475,9 +483,37 @@ void LoadHeader(dmlc::Stream* strm) {
   STREAM_CHECK(version == TVM_VERSION, "version");
 }
 
+runtime::Module Executable::GetLib() const {
+  ICHECK_LE(this->imports_.size(), 1)
+      << "The kernel library must be imported as the only module in an Executable";
+
+  if (this->imports().size() == 0) {
+    return Module(nullptr);
+  } else {
+    return this->imports_[0];
+  }
+}
+
+void Executable::SetLib(const runtime::Module& lib) {
+  ICHECK(lib.defined()) << "the provided library can not be null";
+
+  ICHECK_EQ(this->imports_.size(), 0)
+      << "A VMExecutable should never have more than one import inside an the executable, \n"
+      << "the first import should *always* be the library containing"
+      << "the platform specific kernel code";
+
+  this->Import(lib);
+}
+
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
   auto exec = make_object<Executable>();
-  exec->lib = lib;
+
+  // Support null-initialization of lib, to enable initialization during
+  // deserialization before we have we have deserialized the imports.
+  if (lib.defined()) {
+    exec->SetLib(lib);
+  }
+
   exec->code_ = code;
   dmlc::MemoryStringStream strm(&exec->code_);
 
@@ -764,6 +800,44 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
     this->functions[it->second] = vm_func;
   }
 }
+
+void Executable::SaveToBinary(dmlc::Stream* stream) {
+  auto code_bytes = this->Save();
+  std::string code(code_bytes.data, code_bytes.size);
+  stream->Write(code);
+
+  ICHECK(this->imports()[0].defined()) << "the library must be imported before serialization";
+}
+
+Module ExecutableLoadBinary(void* strm) {
+  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  std::string code;
+  stream->Read(&code);
+  auto exec = Executable::Load(code, Module());
+  return exec;
+}
+
+void Executable::SaveToFile(const std::string& path, const std::string& format) {
+  std::string data;
+  dmlc::MemoryStringStream writer(&data);
+  dmlc::SeekStream* strm = &writer;
+  SaveToBinary(strm);
+  SaveBinaryToFile(path, data);
+}
+
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VMExecutable").set_body_typed(ExecutableLoadBinary);
+
+// Load module from module.
+Module ExecutableLoadFile(const std::string& file_name, const std::string& format) {
+  std::string data;
+  LoadBinaryFromFile(file_name, &data);
+  dmlc::MemoryStringStream reader(&data);
+  dmlc::Stream* strm = &reader;
+  auto exec = ExecutableLoadBinary(reinterpret_cast<void*>(strm));
+  return exec;
+}
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_VMExecutable").set_body_typed(ExecutableLoadFile);
 
 TVM_REGISTER_GLOBAL("runtime.GetNumOfGlobals").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];

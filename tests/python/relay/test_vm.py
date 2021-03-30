@@ -19,11 +19,14 @@ import pytest
 
 import tvm
 from tvm import runtime
-from tvm import relay
+from tvm import relay, IRModule
+from tvm.relay.backend import vm
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.relay.loops import while_loop
 from tvm.relay import testing
+from tvm.contrib import utils
+from tvm import rpc
 import tvm.testing
 
 
@@ -797,6 +800,47 @@ def test_constant_shape_with_external_codegen():
     comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, target="llvm")
     assert "shape_func" in opt_mod.astext(False)
+
+
+def test_vm_rpc():
+    """
+    This test checks to make sure you can export a VMExecutable,
+    upload it to a remote machine using RPC and then execute it
+    on the other machine.
+    """
+    target = "llvm"
+    target_host = "llvm"
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10, 1))
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target, target_host=target_host)
+
+    # Export to Disk
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    vm_exec.mod.export_library(path)
+
+    # Use LocalRPC for testing.
+    remote = rpc.LocalSession()
+
+    # Upload the serialized Executable.
+    remote.upload(path)
+    # Get a handle to remote Executable.
+    rexec = remote.load_module("vm_library.so")
+
+    ctx = remote.cpu()
+    # Build a VM out of the executable and context.
+    vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+    np_input = np.random.uniform(size=(10, 1)).astype("float32")
+    input_tensor = tvm.nd.array(np_input, ctx)
+    # Invoke its "main" function.
+    out = vm_factory.invoke("main", [input_tensor])
+    # Check the result.
+    np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
 
 
 if __name__ == "__main__":
