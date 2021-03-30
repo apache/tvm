@@ -18,7 +18,7 @@
 import numpy as np
 from tvm import relay
 from tvm.relay import testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm
 from tvm import te
 import ctypes
@@ -39,7 +39,7 @@ def test_synthetic():
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, "llvm", params=params)
         dev = tvm.cpu()
-        module = graph_runtime.GraphModule(lib["default"](dev))
+        module = graph_executor.GraphModule(lib["default"](dev))
         module.set_input("data", data)
         module.run()
         out = module.get_output(0).asnumpy()
@@ -58,7 +58,7 @@ def test_synthetic():
     loaded_lib = tvm.runtime.load_module(path_lib)
     data = np.random.uniform(-1, 1, size=input_shape).astype("float32")
     dev = tvm.gpu()
-    module = graph_runtime.GraphModule(loaded_lib["default"](dev))
+    module = graph_executor.GraphModule(loaded_lib["default"](dev))
     module.set_input("data", data)
     module.run()
     out = module.get_output(0).asnumpy()
