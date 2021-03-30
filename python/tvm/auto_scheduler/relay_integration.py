@@ -142,6 +142,12 @@ def extract_tasks(
                 # When auto scheduler is used in end to end network, try to apply layout rewrite
                 # to improve the overall performance
                 layout_rewrite_option=LayoutRewriteOption.get_target_default(target, True),
+                task_inputs=(
+                    env.wkl_key_to_input_names[wkl_key]
+                    if wkl_key in env.wkl_key_to_input_names
+                    else None
+                ),
+                task_inputs_save_to_file=True,
             )
         )
         weights.append(weight)
@@ -166,6 +172,7 @@ class TracingEnvironment:
         self.tracing_mode = tracing_mode
         self.relay_disable_build_cache = "false"
         self.wkl_key_to_weight = {}
+        self.wkl_key_to_input_names = {}
 
     def __enter__(self):
         TracingEnvironment.current = self
@@ -175,16 +182,29 @@ class TracingEnvironment:
         TracingEnvironment.current = None
 
     def add_workload_key(self, workload_key):
-        """Add the workload key of a search task
+        """Add the workload key of a search task.
 
         Parameters
         ----------
         workload_key: str
-            The workload key of a task
+            The workload key of a task.
         """
         if workload_key not in self.wkl_key_to_weight:
             self.wkl_key_to_weight[workload_key] = 0
         self.wkl_key_to_weight[workload_key] += 1
+
+    def add_workload_input_names(self, workload_key, input_names):
+        """Add special task inputs to this workload.
+
+        Parameters
+        ----------
+        workload_key : str
+            The workload key of a task.
+
+        input_names : List[str]
+            A list of input names.
+        """
+        self.wkl_key_to_input_names[workload_key] = input_names
 
 
 @tvm._ffi.register_func("auto_scheduler.enter_layout_rewrite")
@@ -277,6 +297,9 @@ def auto_schedule_topi(func_name, outs):
         None in the tracing mode so that the fallback topi schedule will be used.
     """
     # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler.measure import (
+        prepare_input_map,
+    )  # lazily import to avoid recursive dependency
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
@@ -308,6 +331,9 @@ def auto_schedule_topi(func_name, outs):
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(key)
+            input_map = prepare_input_map(io_tensors)
+            if input_map:
+                env.add_workload_input_names(key, list(input_map.values()))
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
         if (
