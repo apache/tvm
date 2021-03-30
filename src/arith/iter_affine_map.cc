@@ -1262,7 +1262,7 @@ class SubspaceDivider {
     }
     const Array<IterSplitExpr>& splits = collector_.mark2splits_.at(expr->source);
     if (const auto* iter_ptr = expr->source->source.as<VarNode>()) {
-      // source is input_iter,
+      // source is input_iter
       bool inner = sub_iters_.count(GetRef<Var>(iter_ptr));
       for (const IterSplitExpr& split : splits) {
         if (inner) {
