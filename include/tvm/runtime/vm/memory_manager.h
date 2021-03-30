@@ -47,11 +47,7 @@ struct Buffer {
   Device device;
 };
 
-enum AllocatorType {
-  kNaive = 1,
-  kPooled,
-  kCustomized
-};
+enum AllocatorType { kNaive = 1, kPooled, kCustomized };
 
 class Allocator {
  public:
