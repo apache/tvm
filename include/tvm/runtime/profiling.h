@@ -153,8 +153,8 @@ namespace profiling {
 
 /*! Information about a single function or operator call. */
 struct CallFrame {
-  /*! Context in which the call was made */
-  TVMContext ctx;
+  /*! Device on which the call was made */
+  Device dev;
   /*! Name of the function or op */
   String name;
   /*! Runtime of the function or op */
@@ -169,7 +169,7 @@ struct CallFrame {
  * Example usage:
  * \code{.cpp}
  * Profiler prof;
- * TVMContext cpu, gpu;
+ * Device cpu, gpu;
  * prof.Start({cpu, gpu});
  * prof.StartCall("my_gpu_kernel", gpu);
  * my_gpu_kernel();
@@ -184,12 +184,12 @@ struct CallFrame {
 class Profiler {
  public:
   /*! \brief Start the profiler.
-   * \param ctxs The list of contexts the profiler will be running on. Should
-   *             include all contexts used by profiled operators.
+   * \param devs The list of devices the profiler will be running on. Should
+   *             include all devices used by profiled operators.
    *
    * This function should only be called once per object.
    */
-  void Start(const std::vector<TVMContext>& ctxs);
+  void Start(const std::vector<Device>& devs);
   /*! \brief Stop the profiler.
    *
    * This function should only be called once per object after start has been called.
@@ -197,7 +197,7 @@ class Profiler {
   void Stop();
   /*! \brief Start a function call.
    * \param name The name of the function being called.
-   * \param ctx The context on which the function is running.
+   * \param dev The device on which the function is running.
    * \param extra_metrics Optional additional profiling information to add to
    * the frame (input sizes, allocations).
    *
@@ -205,7 +205,7 @@ class Profiler {
    * `StopCall`. Function calls are stopped in LIFO order, so calls to
    * `StartCall` and `StopCall` must be nested properly.
    */
-  void StartCall(String name, TVMContext ctx,
+  void StartCall(String name, Device dev,
                  std::unordered_map<std::string, ObjectRef> extra_metrics = {});
   /*! \brief Stop the last `StartCall`.
    * \param extra_metrics Optional additional profiling information to add to
@@ -224,7 +224,7 @@ class Profiler {
   String Report(bool aggregate = true, bool sort = true);
 
  private:
-  std::vector<std::pair<TVMContext, Timer>> global_timers_;
+  std::vector<std::pair<Device, Timer>> global_timers_;
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
 };

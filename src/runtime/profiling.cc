@@ -100,16 +100,16 @@ TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 
 namespace profiling {
 
-void Profiler::Start(const std::vector<TVMContext>& ctxs) {
+void Profiler::Start(const std::vector<Device>& devs) {
   CHECK(global_timers_.empty()) << "You can only call Start once per Profiler.";
-  for (auto ctx : ctxs) {
-    global_timers_.emplace_back(ctx, Timer::Start(ctx));
+  for (auto dev : devs) {
+    global_timers_.emplace_back(dev, Timer::Start(dev));
   }
 }
 
-void Profiler::StartCall(String name, TVMContext ctx,
+void Profiler::StartCall(String name, Device dev,
                          std::unordered_map<std::string, ObjectRef> extra_metrics) {
-  in_flight_.push(CallFrame{ctx, name, Timer::Start(ctx), extra_metrics});
+  in_flight_.push(CallFrame{dev, name, Timer::Start(dev), extra_metrics});
 }
 
 void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics) {
@@ -150,7 +150,7 @@ String ShapeString(const std::vector<NDArray>& shapes) {
 
 std::string FormatTable(const std::vector<std::unordered_map<std::string, ObjectRef>>& rows,
                         std::unordered_set<std::string> hidden_cols = {"Argument Shapes",
-                                                                       "Context"}) {
+                                                                       "Device"}) {
   std::unordered_set<std::string> unique_headers;
 
   for (auto row : rows) {
@@ -235,7 +235,7 @@ std::string FormatTable(const std::vector<std::unordered_map<std::string, Object
 }
 
 String Profiler::Report(bool aggregate, bool sort) {
-  std::vector<std::pair<TVMContext, double>> global_times;
+  std::vector<std::pair<Device, double>> global_times;
   for (auto p : global_timers_) {
     global_times.emplace_back(p.first, p.second->SyncAndGetElapsedNanos() / 1e3);
   }
@@ -289,8 +289,8 @@ String Profiler::Report(bool aggregate, bool sort) {
     row["Duration (us)"] = ObjectRef(make_object<DurationNode>(time_sum));
     row["Count"] = ObjectRef(make_object<CountNode>(count));
     row["Name"] = calls_[p.second[0]].name;
-    TVMContext ctx = calls_[p.second[0]].ctx;
-    row["Context"] = String(DeviceName(ctx.device_type) + std::to_string(ctx.device_id));
+    Device dev = calls_[p.second[0]].dev;
+    row["Device"] = String(DeviceName(dev.device_type) + std::to_string(dev.device_id));
 
     // assume all rows in the aggregate have the same metrics
     for (auto metric : calls_[p.second[0]].extra_metrics) {

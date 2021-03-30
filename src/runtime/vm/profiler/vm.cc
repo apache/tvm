@@ -49,23 +49,23 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { prof_ = profiling::Profiler(); });
   } else if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      std::vector<TVMContext> ctxs;
-      for (auto ctx : ctxs_) {
-        if (ctx.device_type > 0) {
-          ctxs.push_back(ctx);
+      std::vector<Device> devices;
+      for (auto dev : devices_) {
+        if (dev.device_type > 0) {
+          devices.push_back(dev);
         }
       }
       auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
-      prof_.Start(ctxs);
+      prof_.Start(devices);
       invoke.CallPacked(args, rv);
       prof_.Stop();
     });
   } else if (name == "profile") {
     return TypedPackedFunc<String(String)>([sptr_to_self, this](String arg_name) {
-      std::vector<TVMContext> ctxs;
-      for (auto ctx : ctxs_) {
-        if (ctx.device_type > 0) {
-          ctxs.push_back(ctx);
+      std::vector<Device> devices;
+      for (auto dev : devices_) {
+        if (dev.device_type > 0) {
+          devices.push_back(dev);
         }
       }
 
@@ -76,7 +76,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
       }
 
       prof_ = profiling::Profiler();  // reset profiler
-      prof_.Start(ctxs);
+      prof_.Start(devices);
       invoke(arg_name);
       prof_.Stop();
       return prof_.Report();
@@ -122,7 +122,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
     }
   }
 
-  prof_.StartCall(packed_index_map_[packed_index], ctx,
+  prof_.StartCall(packed_index_map_[packed_index], dev,
                   {{"Argument Shapes", profiling::ShapeString(shapes)}});
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
   prof_.StopCall();

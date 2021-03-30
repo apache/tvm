@@ -243,11 +243,11 @@ class GraphExecutorDebug : public GraphExecutor {
   String Profile() {
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {
-      GraphRuntime::Run();
+      GraphExecutor::Run();
     }
 
     profiling::Profiler prof;
-    prof.Start(ctxs_);
+    prof.Start(devices_);
     for (size_t i = 0; i < op_execs_.size(); ++i) {
       if (op_execs_[i]) {
         // get argument shapes
@@ -262,8 +262,8 @@ class GraphExecutorDebug : public GraphExecutor {
         }
 
         uint32_t eid = entry_id(i, 0);
-        const TVMContext& ctx = data_entry_[eid]->ctx;
-        prof.StartCall(nodes_[i].param.func_name, ctx,
+        const Device& device = data_entry_[eid]->device;
+        prof.StartCall(nodes_[i].param.func_name, device,
                        {{"Argument Shapes", profiling::ShapeString(shapes)}});
         op_execs_[i]();
         prof.StopCall();
