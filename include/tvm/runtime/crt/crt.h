@@ -33,7 +33,7 @@ extern "C" {
 #endif
 
 /*!
- * \brief Initialize various data structures used by the rutnime.
+ * \brief Initialize various data structures used by the runtime.
  * Prior to calling this, any initialization needed to support TVMPlatformMemory* functions shoudl
  * be completed.
  * \return An error code describing the outcome of intialization. Generally, initialization
