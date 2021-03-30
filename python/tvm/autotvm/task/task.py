@@ -27,7 +27,6 @@ from tvm import runtime
 from tvm.ir import container
 from tvm.target import Target
 from tvm.te import placeholder, tensor
-from tvm.target import Target
 from tvm.tir import expr
 
 
