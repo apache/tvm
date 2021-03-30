@@ -26,8 +26,8 @@ import tempfile
 import numpy as np
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_runtime as runtime
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib import graph_executor as runtime
+from tvm.contrib.debugger import debug_executor
 from tvm.relay import load_param_dict
 
 from . import common
@@ -77,7 +77,7 @@ def add_run_parser(subparsers):
         "--profile",
         action="store_true",
         help="generate profiling data from the runtime execution. "
-        "Using --profile requires the Graph Runtime Debug enabled on TVM. "
+        "Using --profile requires the Graph Executor Debug enabled on TVM. "
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated.",
     )
@@ -296,7 +296,7 @@ def run_module(
     repeat=1,
     profile=False,
 ):
-    """Run a compiled graph runtime module locally or remotely with
+    """Run a compiled graph executor module locally or remotely with
     optional input values.
 
     If input tensors are not specified explicitly, they can be filled
@@ -370,7 +370,7 @@ def run_module(
 
         if profile:
             logger.debug("creating runtime with profiling enabled")
-            module = debug_runtime.create(graph, lib, dev, dump_root="./prof")
+            module = debug_executor.create(graph, lib, dev, dump_root="./prof")
         else:
             logger.debug("creating runtime with profiling disabled")
             module = runtime.create(graph, lib, dev)

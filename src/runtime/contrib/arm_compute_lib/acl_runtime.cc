@@ -28,7 +28,7 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
-#ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#ifdef TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/NEON/functions/NEArithmeticAddition.h>
 #include <arm_compute/runtime/NEON/functions/NEConvolutionLayer.h>
@@ -82,7 +82,7 @@ class ACLRuntime : public JSONRuntimeBase {
     BuildEngine();
   }
 
-#ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#ifdef TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
   /*!
    * \brief Unpack inputs and outputs and run inference on a given layer.
    *
@@ -518,12 +518,12 @@ class ACLRuntime : public JSONRuntimeBase {
 #else
   void Run() override {
     LOG(FATAL) << "Cannot call run on Arm Compute Library module without runtime enabled. "
-               << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME.";
+               << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR.";
   }
 
   void BuildEngine() {
     LOG(WARNING) << "Arm Compute Library engine is not initialized. "
-                 << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME.";
+                 << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR.";
   }
 #endif
 };

@@ -35,8 +35,8 @@ import java.util.Scanner;
 
 import static org.junit.Assert.assertArrayEquals;
 
-public class GraphRuntimeTest {
-  private final Logger logger = LoggerFactory.getLogger(GraphRuntime.class);
+public class GraphExecutorTest {
+  private final Logger logger = LoggerFactory.getLogger(GraphExecutor.class);
   private static String loadingDir;
 
   @BeforeClass
@@ -52,7 +52,7 @@ public class GraphRuntimeTest {
         .useDelimiter("\\Z").next();
 
     Device dev = Device.cpu();
-    GraphModule graph = GraphRuntime.create(graphJson, libmod, dev);
+    GraphModule graph = GraphExecutor.create(graphJson, libmod, dev);
 
     long[] shape = new long[]{4};
     NDArray arr = NDArray.empty(shape, dev);
@@ -92,7 +92,7 @@ public class GraphRuntimeTest {
       remote.upload(new File(libPath));
       Module mlib = remote.loadModule("graph_addone_lib.so");
 
-      GraphModule graph = GraphRuntime.create(graphJson, mlib, dev);
+      GraphModule graph = GraphExecutor.create(graphJson, mlib, dev);
 
       long[] shape = new long[]{4};
       NDArray arr = NDArray.empty(shape, dev);

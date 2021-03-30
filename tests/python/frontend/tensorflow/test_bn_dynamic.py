@@ -66,9 +66,9 @@ def verify_fused_batch_norm(shape):
         mod, params = relay.frontend.from_tensorflow(constant_graph, outputs=["output"])
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, target=device, params=params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.create(graph, lib, dev)
+        m = graph_executor.create(graph, lib, dev)
         m.set_input(**params)
         m.set_input("input", data)
         m.run()

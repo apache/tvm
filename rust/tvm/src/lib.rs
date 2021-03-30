@@ -24,7 +24,7 @@
 //! One particular use case is that given optimized deep learning model artifacts,
 //! (compiled with TVM) which include a shared library
 //! `lib.so`, `graph.json` and a byte-array `param.params`, one can load them
-//! in Rust idiomatically to create a TVM Graph Runtime and
+//! in Rust idiomatically to create a TVM Graph Executor and
 //! run the model for some inputs and get the
 //! desired predictions *all in Rust*.
 //!

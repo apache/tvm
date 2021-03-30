@@ -49,7 +49,7 @@ import numpy as np
 import tvm
 from tvm import relay, auto_scheduler
 import tvm.relay.testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import os
 
 #################################################################
@@ -242,7 +242,7 @@ def tune_and_evaluate():
         ):
             lib = relay.build(mod, target=target, target_host=target_host, params=params)
 
-    # Create graph runtime
+    # Create graph executor
     print("=============== Request Remote ===============")
     from tvm.auto_scheduler.utils import request_remote
 
@@ -256,7 +256,7 @@ def tune_and_evaluate():
     lib.export_library(path_lib, ndk.create_shared)
     remote.upload(path_lib)
     loaded_lib = remote.load_module(filename)
-    module = graph_runtime.GraphModule(loaded_lib["default"](dev))
+    module = graph_executor.GraphModule(loaded_lib["default"](dev))
     data = (np.random.uniform(size=input_shape)).astype(dtype)
     data_tvm = tvm.nd.array(data)
     module.set_input("data", data_tvm)

@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.contrib.graph_runtime
+tvm.contrib.graph_executor
 -------------------------
-.. automodule:: tvm.contrib.graph_runtime
+.. automodule:: tvm.contrib.graph_executor
     :members:

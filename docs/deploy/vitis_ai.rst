@@ -449,7 +449,7 @@ TVM.
    import tvm
    import tvm.relay as relay
    from tvm.contrib.target import vitis_ai
-   from tvm.contrib import utils, graph_runtime
+   from tvm.contrib import utils, graph_executor
    from tvm.relay.build_module import bind_params_by_name
    from tvm.relay.op.contrib.vitis_ai import annotation
 
@@ -490,7 +490,7 @@ will take a substantial amount of time.
 
 .. code:: python
 
-   module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+   module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
 
    # First N (default = 128) inputs are used for quantization calibration and will
    # be executed on the CPU
@@ -520,7 +520,7 @@ Load the module from compiled files and run inference
    # load the module into memory
    loaded_lib = tvm.runtime.load_module(lib_path)
 
-   module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+   module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
    module.set_input(name, data)
    module.run()
 
@@ -551,7 +551,7 @@ TVM.
    import tvm
    import tvm.relay as relay
    from tvm.contrib.target import vitis_ai
-   from tvm.contrib import utils, graph_runtime
+   from tvm.contrib import utils, graph_executor
    from tvm.relay.build_module import bind_params_by_name
    from tvm.relay.op.contrib.vitis_ai import annotation
 
@@ -631,7 +631,7 @@ quantization on the host machine. This makes use of TVM inference calls
 
 .. code:: python
 
-   module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+   module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
 
    # First N (default = 128) inputs are used for quantization calibration and will
    # be executed on the CPU
@@ -694,7 +694,7 @@ as root (execute ``su`` in terminal to log into root).
 
    import pyxir
    import tvm
-   from tvm.contrib import graph_runtime
+   from tvm.contrib import graph_executor
 
    dev = tvm.cpu()
    
@@ -704,6 +704,6 @@ as root (execute ``su`` in terminal to log into root).
    # load the module into memory
    lib = tvm.runtime.load_module("tvm_dpu_arm.so")
 
-   module = graph_runtime.GraphModule(lib["default"](dev))
+   module = graph_executor.GraphModule(lib["default"](dev))
    module.set_input(input_name, input_data)
    module.run()

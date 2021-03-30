@@ -24,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-import tvm.contrib.graph_runtime as runtime
+import tvm.contrib.graph_executor as runtime
 from tvm import relay
 
 from util import get_network

@@ -168,9 +168,9 @@ def run_tflite_model(tflite_model_buf, input_data):
 ###############################################################################
 # Lets run TVM compiled pre-quantized model inference and get the TVM prediction.
 def run_tvm(lib):
-    from tvm.contrib import graph_runtime
+    from tvm.contrib import graph_executor
 
-    rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
+    rt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
     rt_mod.set_input("input", data)
     rt_mod.run()
     tvm_res = rt_mod.get_output(0).asnumpy()

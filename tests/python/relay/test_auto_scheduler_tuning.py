@@ -20,7 +20,7 @@ import tempfile
 import numpy as np
 
 from tvm import auto_scheduler, relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm.testing
 
 from test_auto_scheduler_task_extraction import get_network
@@ -70,7 +70,7 @@ def tune_network(network, target):
         # Check the correctness
         def get_output(data, lib):
             dev = tvm.gpu()
-            module = graph_runtime.GraphModule(lib["default"](dev))
+            module = graph_executor.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()
             return module.get_output(0).asnumpy()

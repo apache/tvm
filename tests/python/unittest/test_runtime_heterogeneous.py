@@ -21,7 +21,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime, utils
+from tvm.contrib import graph_executor, utils
 from tvm import topi
 
 
@@ -172,7 +172,7 @@ def test_simplex_data_transferring():
         target_flist = {target_device: lower_add, target_host: lower_sub}
         mhost = tvm.build(target_flist, target_host=target_host)
         dev = [host_dev, device_dev]
-        mod = graph_runtime.create(graph, mhost, dev)
+        mod = graph_executor.create(graph, mhost, dev)
         params = {}
         params["A"] = tensor_a = np.random.uniform(size=shape).astype(tensor_a.dtype)
         params["B"] = tensor_b = np.random.uniform(size=shape).astype(tensor_b.dtype)
@@ -408,7 +408,7 @@ def test_duplex_data_transferring():
         params["D"] = tensor_d = np.random.uniform(size=shape).astype(tensor_d.dtype)
 
         def check_verify():
-            mod = graph_runtime.create(graph, mhost, dev)
+            mod = graph_executor.create(graph, mhost, dev)
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
@@ -422,7 +422,7 @@ def test_duplex_data_transferring():
                 out_file.write(graph)
             loaded_lib = tvm.runtime.load_module(path_lib)
             loaded_graph = open(temp.relpath("deploy.json")).read()
-            mod = graph_runtime.create(loaded_graph, loaded_lib, dev)
+            mod = graph_executor.create(loaded_graph, loaded_lib, dev)
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))

@@ -28,7 +28,7 @@ from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import utils
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 
 
 @tvm.testing.requires_llvm
@@ -75,7 +75,7 @@ def test_graph_simple():
         mlib_proxy = tvm.support.FrontendTestModule()
         mlib_proxy["myadd"] = myadd
         try:
-            mod = debug_runtime.create(graph, mlib_proxy, tvm.cpu(0))
+            mod = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
         except ValueError:
             return
 
@@ -171,7 +171,7 @@ def test_graph_simple():
         remote.upload(path_dso)
         mlib = remote.load_module("dev_lib.so")
         try:
-            mod = debug_runtime.create(graph, mlib, remote.cpu(0))
+            mod = debug_executor.create(graph, mlib, remote.cpu(0))
         except ValueError:
             print("Skip because debug runtime not enabled")
             return

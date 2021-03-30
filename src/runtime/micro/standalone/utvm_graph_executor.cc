@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "utvm_graph_runtime.h"
+#include "utvm_graph_executor.h"
 
 #include <dlfcn.h>
 
@@ -226,7 +226,7 @@ void* DSOModule::GetSymbol(const char* name) const {
   return f;
 }
 
-MicroGraphRuntime::MicroGraphRuntime(const std::string& graph_json, DSOModule* module) {
+MicroGraphExecutor::MicroGraphExecutor(const std::string& graph_json, DSOModule* module) {
   assert(module);
   module_ = module;
   picojson::value v;
@@ -240,28 +240,28 @@ MicroGraphRuntime::MicroGraphRuntime(const std::string& graph_json, DSOModule* m
   SetupOpExecs();
 }
 
-MicroGraphRuntime::~MicroGraphRuntime() {}
+MicroGraphExecutor::~MicroGraphExecutor() {}
 
-void MicroGraphRuntime::Run() {
+void MicroGraphExecutor::Run() {
   for (size_t i = 0; i < op_execs_.size(); ++i) {
     if (op_execs_[i]) op_execs_[i]();
   }
 }
 
-void MicroGraphRuntime::SetInput(int index, DLTensor* data_in) {
+void MicroGraphExecutor::SetInput(int index, DLTensor* data_in) {
   assert(static_cast<size_t>(index) < input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
 }
 
-void MicroGraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
+void MicroGraphExecutor::CopyOutputTo(int index, DLTensor* data_out) {
   assert(static_cast<size_t>(index) < outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
   const NDArray& data = data_entry_[eid];
   data.CopyTo(data_out);
 }
 
-void MicroGraphRuntime::SetupStorage() {
+void MicroGraphExecutor::SetupStorage() {
   // Grab saved optimization plan from graph.
   DynArray<DLDataType> vtype(attrs_.dltype.size());
   for (size_t i = 0; i < attrs_.dltype.size(); ++i) {
@@ -373,7 +373,7 @@ std::function<void()> CreateTVMOp(const DSOModule& module, const TVMOpParam& par
   return fexec;
 }
 
-void MicroGraphRuntime::SetupOpExecs() {
+void MicroGraphExecutor::SetupOpExecs() {
   op_execs_.resize(nodes_.size());
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < nodes_.size(); ++nid) {

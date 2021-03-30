@@ -25,7 +25,7 @@ import numpy as np
 import tvm
 import pytest
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
 
 download_testdata.__test__ = False
@@ -81,7 +81,7 @@ def _get_tvm_output(net, data, build_dtype="float32", states=None):
 
     # Execute on TVM
     dev = tvm.cpu(0)
-    m = graph_runtime.GraphModule(lib["default"](dev))
+    m = graph_executor.GraphModule(lib["default"](dev))
     # set inputs
     m.set_input("data", tvm.nd.array(data.astype(dtype)))
     if states:

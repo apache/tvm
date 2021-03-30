@@ -34,7 +34,7 @@ from tvm.relay import transform
 from tvm.relay.op.contrib.vitis_ai import annotation
 from tvm.relay.build_module import bind_params_by_name
 from tvm.contrib.target import vitis_ai
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib import utils
 
 
@@ -154,7 +154,7 @@ def verify_result(
 
     lib = build_module(mod, target, params=params, dpu_target=dpu_target, tvm_ops=tvm_ops)
     lib = update_lib(lib)
-    rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+    rt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)

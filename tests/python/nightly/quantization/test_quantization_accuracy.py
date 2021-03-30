@@ -98,7 +98,7 @@ def eval_acc(
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(model, target)
     # create runtime module
-    m = tvm.contrib.graph_runtime.create(graph, lib, device)
+    m = tvm.contrib.graph_executor.create(graph, lib, device)
     m.set_input(**params)
 
     # setup evaluaiton metric

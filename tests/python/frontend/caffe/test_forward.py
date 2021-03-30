@@ -36,7 +36,7 @@ from caffe.proto import caffe_pb2 as pb
 
 import tvm
 from tvm import relay
-from tvm.contrib import utils, graph_runtime
+from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
 
 CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_test")
@@ -205,7 +205,7 @@ def _run_tvm(data, proto_file, blob_file):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, target_host=target_host, params=params)
     dtype = "float32"
-    m = graph_runtime.GraphModule(lib["default"](dev))
+    m = graph_executor.GraphModule(lib["default"](dev))
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
             m.set_input("data" + str(idx), tvm.nd.array(d.astype(dtype)))

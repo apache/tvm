@@ -34,7 +34,7 @@ import tvm
 from tvm import te
 import tvm.relay as relay
 from tvm import rpc
-from tvm.contrib import utils, ndk, graph_runtime as runtime
+from tvm.contrib import utils, ndk, graph_executor as runtime
 from tvm.contrib.download import download_testdata
 
 
@@ -71,7 +71,7 @@ from tvm.contrib.download import download_testdata
 #         -DUSE_RPC=ON \
 #         -DUSE_SORT=ON \
 #         -DUSE_VULKAN=ON \
-#         -DUSE_GRAPH_RUNTIME=ON \
+#         -DUSE_GRAPH_EXECUTOR=ON \
 #         ..
 #   make -j10
 #
