@@ -255,7 +255,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         context_(context),
         target_host_(target_host),
         expr_device_map_(std::move(expr_device_map)) {
-    RefreshHost(&targets, &target_host);
+    CheckAndUpdateHostConsistency(&targets, &target_host);
     for (const auto& it : targets) {
       targets_[it.first->value] = it.second;
     }
@@ -902,7 +902,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
-  RefreshHost(&targets_, &target_host_);
+  CheckAndUpdateHostConsistency(&targets_, &target_host_);
 
   // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModule(mod, targets_, target_host_);
@@ -1008,7 +1008,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
                                     const Target& target_host_arg) {
   TargetsMap targets = targets_arg;
   Target target_host = target_host_arg;
-  RefreshHost(&targets, &target_host);
+  CheckAndUpdateHostConsistency(&targets, &target_host);
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
     ICHECK(base_func->IsInstance<FunctionNode>())

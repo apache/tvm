@@ -252,14 +252,14 @@ def test_target_host_merge_3():
         tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
 
 
-def test_target_set_host():
+def test_target_with_host():
     tgt = tvm.target.Target("cuda")
     llvm = tvm.target.Target("llvm")
-    tgt.set_host(llvm)
+    tgt = tgt.with_host(llvm)
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
     cuda_host = tvm.target.Target("nvidia/jetson-nano")
-    tgt.set_host(cuda_host)
+    tgt = tgt.with_host(cuda_host)
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
     assert tgt.host.attrs["shared_memory_per_block"] == 49152

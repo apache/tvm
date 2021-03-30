@@ -51,33 +51,38 @@ class TargetInternal {
   static ObjectPtr<Object> FromRawString(const String& target_str);
   static ObjectPtr<Object> FromConfig(std::unordered_map<String, ObjectRef> config);
   static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
-  static void SetHost(Target target, Target host) {
-    static_cast<TargetNode*>(target.data_.get())->SetHost(host);
+  static Target WithHost(const Target& target, const Target& target_host) {
+    ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
+    n->host = target_host;
+    return (Target)n;
   }
 };
 
 /**********  Helper functions  **********/
-
-void RefreshHost(Target* target, Target* target_host) {
-  *target = Target(*target, *target_host);
-  *target_host = (*target)->GetHost().value_or(Target());
+Target Target::WithHost(const Target& target, const Target& host) {
+  return TargetInternal::WithHost(target, host);
 }
 
-void RefreshHost(Map<Integer, Target>* targets, Target* target_host) {
+void CheckAndUpdateHostConsistency(Target* target, Target* host) {
+  *target = Target(*target, *host);
+  *host = (*target)->GetHost().value_or(Target());
+}
+
+void CheckAndUpdateHostConsistency(Map<Integer, Target>* targets, Target* host) {
   Map<Integer, Target> new_targets;
   for (auto& it : *targets) {
     auto target = it.second;
-    RefreshHost(&target, target_host);
+    CheckAndUpdateHostConsistency(&target, host);
     new_targets.Set(it.first, target);
   }
   *targets = new_targets;
 }
 
-void RefreshHost(Map<Target, IRModule>* targets, Target* target_host) {
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
   Map<Target, IRModule> new_targets;
   for (auto& it : *targets) {
     auto target = it.first;
-    RefreshHost(&target, target_host);
+    CheckAndUpdateHostConsistency(&target, host);
     new_targets.Set(target, it.second);
   }
   *targets = new_targets;
@@ -449,8 +454,6 @@ Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
 }
 
-void TargetNode::SetHost(Target host) { this->host = host; }
-
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
@@ -685,7 +688,7 @@ TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::En
 TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
 TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
-TVM_REGISTER_GLOBAL("target.SetHost").set_body_typed(TargetInternal::SetHost);
+TVM_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetNode>([](const ObjectRef& obj, ReprPrinter* p) {

@@ -28,7 +28,7 @@ from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
-from tvm.target.target import refresh_host
+from tvm.target import Target
 
 from ...target import Target
 from .utils import (
@@ -440,7 +440,9 @@ class BaseGraphTuner(object):
             This might bring performance loss comparing to benchmarking layout transformation.
         """
         self._logger.info("Start to benchmark layout transformation...")
-        self._target, target_host = refresh_host(self._target, target_host)
+        self._target, target_host = Target.check_and_update_host_consistency(
+            self._target, target_host
+        )
 
         if layout_records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")

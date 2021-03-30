@@ -28,7 +28,7 @@ from tvm.autotvm.tuner import GATuner
 from tvm.autotvm.tuner import GridSearchTuner
 from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
-from tvm.target.target import refresh_host
+from tvm.target import Target
 
 from . import common, composite_target, frontends
 from .common import TVMCException
@@ -244,7 +244,7 @@ def drive_tune(args):
 
     target, extra_targets = common.target_from_cli(args.target)
     target_host = args.target_host
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = Target.check_and_update_host_consistency(target, target_host)
     mod, params = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
 
     for codegen_from_cli in extra_targets:
@@ -363,7 +363,7 @@ def autotvm_get_tuning_tasks(mod, params, target, target_host=None, alter_layout
     tasks : list of autotvm.Tasks
         list of tasks to be tuned
     """
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = Target.check_and_update_host_consistency(target, target_host)
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
@@ -412,7 +412,7 @@ def autoscheduler_get_tuning_tasks(
     weights : List[int]
         the weight (i.e. the number of appearance) of extracted tasks
     """
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = Target.check_and_update_host_consistency(target, target_host)
 
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)

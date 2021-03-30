@@ -44,7 +44,8 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
-from tvm.target.target import refresh_host
+from tvm.target import Target
+
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -222,7 +223,9 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
-    task.target, task.target_host = refresh_host(task.target, task.target_host)
+    task.target, task.target_host = Target.check_and_update_host_consistency(
+        task.target, task.target_host
+    )
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=task.target,
@@ -603,7 +606,9 @@ def _timed_func(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
-    task.target, task.target_host = refresh_host(task.target, task.target_host)
+    task.target, task.target_host = Target.check_and_update_host_consistency(
+        task.target, task.target_host
+    )
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None

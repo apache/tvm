@@ -29,10 +29,11 @@ import tvm
 from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
-from tvm.target.target import refresh_host
+
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import Reduce
 from tvm.tir import expr as _expr
+from tvm.target import Target
 
 from . import _ffi_api
 from .compute_dag import ComputeDAG, LayoutRewriteOption
@@ -109,7 +110,7 @@ def extract_tasks(
     """
     # pylint: disable=import-outside-toplevel
 
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = Target.check_and_update_host_consistency(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(

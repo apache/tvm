@@ -27,7 +27,7 @@ from tvm import runtime
 from tvm.ir import container
 from tvm.target import Target
 from tvm.te import placeholder, tensor
-from tvm.target.target import refresh_host
+from tvm.target import Target
 from tvm.tir import expr
 
 
@@ -176,7 +176,9 @@ class Task(object):
         # and restore the function by name when unpickling it.
         import cloudpickle  # pylint: disable=import-outside-toplevel
 
-        self.target, self.target_host = refresh_host(self.target, self.target_host)
+        self.target, self.target_host = Target.check_and_update_host_consistency(
+            self.target, self.target_host
+        )
         return {
             "name": self.name,
             "args": self.args,
@@ -197,7 +199,9 @@ class Task(object):
         self.config_space = state["config_space"]
         self.func = cloudpickle.loads(state["func"])
         self.flop = state["flop"]
-        self.target, self.target_host = refresh_host(state["target"], state["target_host"])
+        self.target, self.target_host = Target.check_and_update_host_consistency(
+            state["target"], state["target_host"]
+        )
 
     def __repr__(self):
         return "Task(func_name=%s, args=%s, kwargs=%s, workload=%s)" % (
@@ -449,7 +453,7 @@ def create(task_name, args, target, target_host=None):
     if isinstance(target, str):
         target = Target(target)
 
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = Target.check_and_update_host_consistency(target, target_host)
 
     # init config space
     ret.config_space = ConfigSpace()

@@ -238,7 +238,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
-    RefreshHost(&targets_, &target_host_);
+    CheckAndUpdateHostConsistency(&targets_, &target_host_);
     BuildRelay(mod, params_);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
@@ -469,7 +469,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
 
     // Update all the targets in the targets_ TargetsMap
-    RefreshHost(&targets_, &target_host);
+    CheckAndUpdateHostConsistency(&targets_, &target_host);
 
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);

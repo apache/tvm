@@ -1399,7 +1399,7 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
       Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
       Target target = cur_inp->task->target;
       Target target_host = cur_inp->task->target_host;
-      RefreshHost(&target, &target_host);
+      CheckAndUpdateHostConsistency(&target, &target_host);
       task = SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
                         cur_inp->task->hardware_params, cur_inp->task->layout_rewrite_option,
                         cur_inp->task->task_input_names);
@@ -1469,8 +1469,9 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
         // The measure input is incomplete, rebuild task for incomplete measure pairs read from file
         try {
           Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
-          Target target = inputs[i]->task->target, target_host = inputs[i]->task->target_host;
-          RefreshHost(&target, &target_host);
+          Target target = inputs[i]->task->target;
+          Target target_host = inputs[i]->task->target_host;
+          CheckAndUpdateHostConsistency(&target, &target_host);
           task =
               SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
                          inputs[i]->task->hardware_params, inputs[i]->task->layout_rewrite_option,

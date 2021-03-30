@@ -113,9 +113,8 @@ class Target(Object):
     def export(self):
         return _ffi_api.TargetExport(self)
 
-    def set_host(self, host=None):
-        if host is not None:
-            _ffi_api.SetHost(self, Target(host))
+    def with_host(self, host=None):
+        return _ffi_api.WithHost(self, Target(host))
 
     @staticmethod
     def current(allow_none=True):
@@ -167,6 +166,37 @@ class Target(Object):
     def list_kinds():
         """Returns the list of available target names."""
         return list(_ffi_api.ListTargetKinds())
+
+    @staticmethod
+    def check_and_update_host_consistency(target, host=None, target_is_dict_key=True):
+        """A helper function that merges a legacy "target, target_host" pair, then returns
+        the merged target and its host field. The function is for legacy target and target
+        host pair only, and should not be used in the new target system.
+
+        Parameters
+        ----------
+        target : Union[str, Dict[str, Any], Target]
+            The target or heterogeneous target
+        host : Union[str, Dict[str, Any], Target, None]
+            The target host
+        target_is_dict_key : Bool
+            When the type of target is dict, whether Target is the key (Otherwise the value)
+        """
+        if isinstance(target, dict) and "kind" not in target:
+            new_target = {}
+            for tgt, mod in target.items():
+                if not target_is_dict_key:
+                    tgt, mod = mod, tgt
+                if isinstance(tgt, (dict, str, Target)):
+                    tgt, host = Target.check_and_update_host_consistency(tgt, host)
+                if not target_is_dict_key:
+                    tgt, mod = mod, tgt
+                new_target[tgt] = mod
+            target = new_target
+        else:
+            target = Target(target, host)
+            host = target.host
+        return target, host
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
@@ -498,33 +528,3 @@ def _load_config_dict(config_dict_str):
         if not isinstance(key, str):
             return None
     return config
-
-
-def refresh_host(target, host=None, target_is_dict_key=True):
-    """A helper function that merges a legacy "target, target_host" pair, then returns
-    the merged target and its host field.
-
-    Parameters
-    ----------
-    target : Union[str, Dict[str, Any], Target]
-        The target or heterogeneous target
-    host : Union[str, Dict[str, Any], Target, None]
-        The target host
-    target_is_dict_key : Bool
-        When the type of target is dict, whether Target is the key (Otherwise the value)
-    """
-    if isinstance(target, dict) and "kind" not in target:
-        new_target = {}
-        for tgt, mod in target.items():
-            if not target_is_dict_key:
-                tgt, mod = mod, tgt
-            if isinstance(tgt, (dict, str, Target)):
-                tgt, host = refresh_host(tgt, host)
-            if not target_is_dict_key:
-                tgt, mod = mod, tgt
-            new_target[tgt] = mod
-        target = new_target
-    else:
-        target = Target(target, host)
-        host = target.host
-    return target, host

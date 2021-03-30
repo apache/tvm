@@ -30,7 +30,6 @@ from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
-from tvm.target.target import refresh_host
 
 
 def get_binds(args, compact=False, binds=None):
@@ -232,7 +231,7 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    target, target_host = refresh_host(target, target_host)
+    target, target_host = Target.check_and_update_host_consistency(target, target_host)
     device_type = ndarray.context(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
@@ -399,7 +398,9 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
-    target_input_mod, target_host = refresh_host(target_input_mod, target_host)
+    target_input_mod, target_host = Target.check_and_update_host_consistency(
+        target_input_mod, target_host
+    )
 
     if not target_host:
         for tar, mod in target_input_mod.items():
@@ -411,7 +412,9 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    target_input_mod, target_host = refresh_host(target_input_mod, target_host)
+    target_input_mod, target_host = Target.check_and_update_host_consistency(
+        target_input_mod, target_host
+    )
 
     mod_host_all = tvm.IRModule({})
 

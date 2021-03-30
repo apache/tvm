@@ -189,7 +189,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
                                                 const Target& target_host_arg,
                                                 const transform::PassContext& pass_ctx) {
   Target target = target_arg, target_host = target_host_arg;
-  RefreshHost(&target, &target_host);
+  CheckAndUpdateHostConsistency(&target, &target_host);
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
 
@@ -263,7 +263,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   Target target_host = target_host_arg;
 
   // Fetch previous defined target host in targets
-  RefreshHost(&inputs, &target_host);
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
@@ -279,7 +279,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   }
 
   // Update target host for all targets
-  RefreshHost(&inputs, &target_host);
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
@@ -319,7 +319,7 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
   Target target_host = target_host_arg;
   for (const auto& it : inputs_arg) {
     Target target = Target(it.first);
-    RefreshHost(&target, &target_host);
+    CheckAndUpdateHostConsistency(&target, &target_host);
     Optional<String> device = target->GetAttr<String>("device");
     if (device.defined() && device.value() == "vta") {
       target = Target("ext_dev");
@@ -333,7 +333,7 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
 runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
   auto target = target_arg, target_host = target_host_arg;
-  RefreshHost(&target, &target_host);
+  CheckAndUpdateHostConsistency(&target, &target_host);
   Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host);
 }

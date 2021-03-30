@@ -28,7 +28,7 @@ import tvm.runtime.vm as vm_rt
 from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm.relay.backend.interpreter import Executor
-from tvm.target.target import refresh_host
+from tvm.target import Target
 from . import _vm
 
 
@@ -63,7 +63,9 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
-    target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
+    target, target_host = Target.check_and_update_host_consistency(
+        target, target_host, target_is_dict_key=False
+    )
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
@@ -132,7 +134,9 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
-        target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
+        target, target_host = Target.check_and_update_host_consistency(
+            target, target_host, target_is_dict_key=False
+        )
 
         tophub_context = self._tophub_context(target)
         with tophub_context:
@@ -171,7 +175,9 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
-        target, target_host = refresh_host(target, target_host, target_is_dict_key=False)
+        target, target_host = Target.check_and_update_host_consistency(
+            target, target_host, target_is_dict_key=False
+        )
 
         if params:
             self.set_params(params)
