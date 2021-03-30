@@ -108,7 +108,7 @@ def convert_model_dense_to_sparse(mod, params, random_params=False, bs_r=1, bs_c
         The column of BSR matrix block.
     sparsity : float
         The sparsity of the random sparse parameters.
-    
+
     Returns
     -------
     tvm.Module
