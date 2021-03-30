@@ -49,7 +49,7 @@ BUILD = True
 # If set, enable a debug session while the test is running.
 # Before running the test, in a separate shell, you should run:
 #   python -m tvm.exec.microtvm_debug_shell
-DEBUG = True
+DEBUG = False
 
 _LOG = logging.getLogger(__name__)
 
@@ -390,35 +390,6 @@ def test_byoc_utvm(platform, west_cmd):
         zephyr_board=zephyr_board,
         west_cmd=west_cmd,
     )
-
-def test_error_reporting(platform, west_cmd):
-    # Construct Relay program.
-    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
-    xx = relay.multiply(x, x)
-    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
-    func = relay.Function([x], z)
-
-    target = tvm.target.target.micro(model)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        graph, mod, params = tvm.relay.build(func, target=target)
-
-    noinit_flag = ""
-    extra_opts = {"bin_opts": {"cflags": ["-DTEST_ERROR_MODULE"], "ldflags": noinit_flag}
-    # ,
-                #   "generated_lib_opts": {"cflags": noinit_flag, "ldflags": noinit_flag}
-                  }
-
-    with _make_session(model, target, zephyr_board, west_cmd, mod, extra_opts) as session:
-        graph_mod = tvm.micro.create_local_graph_runtime(
-            graph, session.get_system_lib(), session.context
-        )
-        return
-        # graph_mod.set_input(**params)
-        # x_in = np.random.randint(10, size=shape[0], dtype=dtype)
-        # graph_mod.run(x=x_in)
-        # result = graph_mod.get_output(0).asnumpy()
-        # tvm.testing.assert_allclose(graph_mod.get_input(0).asnumpy(), x_in)
-        # tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
