@@ -161,7 +161,7 @@ class Target : public ObjectRef {
    * \param host The given Target typed object target host
    * \return The new Target object with the given target and host field of given host.
    */
-  static Target WithHost(const Target&, const Target&);
+  static Target WithHost(const Target& target, const Target& host);
 
  private:
   // enable with syntax.
@@ -186,7 +186,7 @@ class Target : public ObjectRef {
  * \param target The pointer to a Target typed object with host field to be updated
  * \param host The pointer to a Target typed object for target host to be updated
  */
-void CheckAndUpdateHostConsistency(Target*, Target*);
+void CheckAndUpdateHostConsistency(Target* target, Target* host);
 /*!
  * \brief Check and update host field of the given legacy heterogeneous targets and
  *  target host.Note that this function is for legacy target api compatibility issue only,
@@ -194,7 +194,7 @@ void CheckAndUpdateHostConsistency(Target*, Target*);
  * \param target The pointer to a Map objects with values being Target objects
  * \param host The Target typed object for target host to be updated
  */
-void CheckAndUpdateHostConsistency(Map<Integer, Target>*, Target*);
+void CheckAndUpdateHostConsistency(Map<Integer, Target>* target, Target* host);
 /*!
  * \brief Check and update host field of the given legacy heterogeneous targets and
  *  target host.Note that this function is for legacy target api compatibility issue only,
@@ -202,6 +202,6 @@ void CheckAndUpdateHostConsistency(Map<Integer, Target>*, Target*);
  * \param target The pointer to a Map objects with keys being Target objects
  * \param host The Target typed object for target host to be updated
  */
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>*, Target*);
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* target, Target* host);
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_
