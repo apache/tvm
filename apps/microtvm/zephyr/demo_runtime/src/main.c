@@ -214,15 +214,11 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 }
 
 // Ring buffer used to store data read from the UART on rx interrupt.
-#if BOARD == qemu_x86
 #define RING_BUF_SIZE_BYTES 4 * 1024
-#else
-#define RING_BUF_SIZE_BYTES 1 * 1024
-#endif
 RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // Small buffer used to read data from the UART into the ring buffer.
-static uint8_t uart_data[32];
+static uint8_t uart_data[8];
 
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
