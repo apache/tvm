@@ -1151,7 +1151,7 @@ class SubspaceDivider {
       } else if (const auto* op = expr.as<IterSumExprNode>()) {
         return IterSplitExpr(IterMark(GetRef<IterSumExpr>(op), extent));
       } else {
-        LOG(FATAL);
+        LOG(FATAL) << "Unknown IterMapExpr type";
         return NullValue<IterSplitExpr>();
       }
     }
