@@ -80,7 +80,7 @@ def build(mod, target, target_host=None):
         The runtime module.
     """
     target_host = None if target_host == "" else target_host
-    target, target_host = Target.check_and_update_host_consistency(target, target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
     return tvm.driver.build(mod, target=target)
 
 

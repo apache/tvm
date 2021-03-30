@@ -110,7 +110,7 @@ def extract_tasks(
     """
     # pylint: disable=import-outside-toplevel
 
-    target, target_host = Target.check_and_update_host_consistency(target, target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(

@@ -168,7 +168,7 @@ class Target(Object):
         return list(_ffi_api.ListTargetKinds())
 
     @staticmethod
-    def check_and_update_host_consistency(target, host=None, target_is_dict_key=True):
+    def check_and_update_host_consist(target, host=None, target_is_dict_key=True):
         """A helper function that merges a legacy "target, target_host" pair, then returns
         the merged target and its host field. The function is for legacy target and target
         host pair only, and should not be used in the new target system.
@@ -188,7 +188,7 @@ class Target(Object):
                 if not target_is_dict_key:
                     tgt, mod = mod, tgt
                 if isinstance(tgt, (dict, str, Target)):
-                    tgt, host = Target.check_and_update_host_consistency(tgt, host)
+                    tgt, host = Target.check_and_update_host_consist(tgt, host)
                 if not target_is_dict_key:
                     tgt, mod = mod, tgt
                 new_target[tgt] = mod

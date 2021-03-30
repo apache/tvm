@@ -63,7 +63,7 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
-    target, target_host = Target.check_and_update_host_consistency(
+    target, target_host = Target.check_and_update_host_consist(
         target, target_host, target_is_dict_key=False
     )
     compiler = VMCompiler()
@@ -134,7 +134,7 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
-        target, target_host = Target.check_and_update_host_consistency(
+        target, target_host = Target.check_and_update_host_consist(
             target, target_host, target_is_dict_key=False
         )
 
@@ -175,7 +175,7 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
-        target, target_host = Target.check_and_update_host_consistency(
+        target, target_host = Target.check_and_update_host_consist(
             target, target_host, target_is_dict_key=False
         )
 

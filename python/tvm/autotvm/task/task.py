@@ -175,7 +175,7 @@ class Task(object):
         # and restore the function by name when unpickling it.
         import cloudpickle  # pylint: disable=import-outside-toplevel
 
-        self.target, self.target_host = Target.check_and_update_host_consistency(
+        self.target, self.target_host = Target.check_and_update_host_consist(
             self.target, self.target_host
         )
         return {
@@ -198,7 +198,7 @@ class Task(object):
         self.config_space = state["config_space"]
         self.func = cloudpickle.loads(state["func"])
         self.flop = state["flop"]
-        self.target, self.target_host = Target.check_and_update_host_consistency(
+        self.target, self.target_host = Target.check_and_update_host_consist(
             state["target"], state["target_host"]
         )
 
@@ -452,7 +452,7 @@ def create(task_name, args, target, target_host=None):
     if isinstance(target, str):
         target = Target(target)
 
-    target, target_host = Target.check_and_update_host_consistency(target, target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     # init config space
     ret.config_space = ConfigSpace()

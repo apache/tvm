@@ -193,7 +193,7 @@ def compile_model(
 
     tvm_target, extra_targets = common.target_from_cli(target)
     target_host = tvm_target if not target_host else target_host
-    tvm_target, target_host = Target.check_and_update_host_consistency(tvm_target, target_host)
+    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])

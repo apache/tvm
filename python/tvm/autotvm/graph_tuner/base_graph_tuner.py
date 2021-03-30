@@ -440,9 +440,7 @@ class BaseGraphTuner(object):
             This might bring performance loss comparing to benchmarking layout transformation.
         """
         self._logger.info("Start to benchmark layout transformation...")
-        self._target, target_host = Target.check_and_update_host_consistency(
-            self._target, target_host
-        )
+        self._target, target_host = Target.check_and_update_host_consist(self._target, target_host)
 
         if layout_records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")
