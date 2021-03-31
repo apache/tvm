@@ -36,9 +36,8 @@ import numpy as np
 
 # Global declarations of environment.
 
-tgt_host = "llvm"
-# Change it to respective GPU if gpu is enabled Ex: cuda, opencl, rocm
-tgt = "cuda"
+# Change target to respective GPU if gpu is enabled Ex: cuda, opencl, rocm
+tgt = tvm.target.Target(target="cuda", host="llvm")
 
 ######################################################################
 # Vector Add Example
@@ -117,7 +116,7 @@ bx, tx = s[C].split(C.op.axis[0], factor=64)
 # compute grid. These are GPU specific constructs that allow us
 # to generate code that runs on GPU.
 #
-if tgt == "cuda" or tgt == "rocm" or tgt.startswith("opencl"):
+if tgt.kind.name == "cuda" or tgt.kind.name == "rocm" or tgt.kind.name.startswith("opencl"):
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
@@ -138,7 +137,7 @@ if tgt == "cuda" or tgt == "rocm" or tgt.startswith("opencl"):
 # function.  fadd is the generated host wrapper function, it contains
 # a reference to the generated device function internally.
 #
-fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+fadd = tvm.build(s, [A, B, C], target=tgt, name="myadd")
 
 ######################################################################
 # Run the Function
@@ -154,7 +153,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # - fadd runs the actual computation.
 # - asnumpy() copies the GPU array back to the CPU and we can use this to verify correctness
 #
-dev = tvm.device(tgt, 0)
+dev = tvm.device(tgt.kind.name, 0)
 
 n = 1024
 a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -172,7 +171,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 #
 # The following code fetches the device module and prints the content code.
 #
-if tgt == "cuda" or tgt == "rocm" or tgt.startswith("opencl"):
+if tgt.kind.name == "cuda" or tgt.kind.name == "rocm" or tgt.kind.name.startswith("opencl"):
     dev_module = fadd.imported_modules[0]
     print("-----GPU code-----")
     print(dev_module.get_source())
@@ -214,11 +213,11 @@ from tvm.contrib import utils
 
 temp = utils.tempdir()
 fadd.save(temp.relpath("myadd.o"))
-if tgt == "cuda":
+if tgt.kind.name == "cuda":
     fadd.imported_modules[0].save(temp.relpath("myadd.ptx"))
-if tgt == "rocm":
+if tgt.kind.name == "rocm":
     fadd.imported_modules[0].save(temp.relpath("myadd.hsaco"))
-if tgt.startswith("opencl"):
+if tgt.kind.name.startswith("opencl"):
     fadd.imported_modules[0].save(temp.relpath("myadd.cl"))
 cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
 print(temp.listdir())
@@ -240,15 +239,15 @@ print(temp.listdir())
 # re-links them together. We can verify that the newly loaded function works.
 #
 fadd1 = tvm.runtime.load_module(temp.relpath("myadd.so"))
-if tgt == "cuda":
+if tgt.kind.name == "cuda":
     fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.ptx"))
     fadd1.import_module(fadd1_dev)
 
-if tgt == "rocm":
+if tgt.kind.name == "rocm":
     fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.hsaco"))
     fadd1.import_module(fadd1_dev)
 
-if tgt.startswith("opencl"):
+if tgt.kind.name.startswith("opencl"):
     fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.cl"))
     fadd1.import_module(fadd1_dev)
 
@@ -290,7 +289,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # The following code blocks generate OpenCL code, creates array on an OpenCL
 # device, and verifies the correctness of the code.
 #
-if tgt.startswith("opencl"):
+if tgt.kind.name.startswith("opencl"):
     fadd_cl = tvm.build(s, [A, B, C], tgt, name="myadd")
     print("------opencl code------")
     print(fadd_cl.imported_modules[0].get_source())

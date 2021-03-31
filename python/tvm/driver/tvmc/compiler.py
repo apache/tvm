@@ -27,6 +27,7 @@ from tvm import autotvm, auto_scheduler
 from tvm import relay, runtime
 from tvm.contrib import cc
 from tvm.contrib import utils
+from tvm.target import Target
 
 from . import common, composite_target, frontends
 from .main import register_parser
@@ -192,6 +193,7 @@ def compile_model(
 
     tvm_target, extra_targets = common.target_from_cli(target)
     target_host = tvm_target if not target_host else target_host
+    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
@@ -214,20 +216,16 @@ def compile_model(
                 config["relay.backend.use_auto_scheduler"] = True
                 with tvm.transform.PassContext(opt_level=3, config=config):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(
-                        mod, target=target, params=params, target_host=target_host
-                    )
+                    graph_module = relay.build(mod, target=target, params=params)
         else:
             with autotvm.apply_history_best(tuning_records):
                 with tvm.transform.PassContext(opt_level=3, config=config):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(
-                        mod, tvm_target, params=params, target_host=target_host
-                    )
+                    graph_module = relay.build(mod, tvm_target, params=params)
     else:
         with tvm.transform.PassContext(opt_level=3, config=config):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
+            graph_module = relay.build(mod, tvm_target, params=params)
 
     # Generate output dump files with sources
     dump_code = dump_code or []

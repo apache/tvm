@@ -235,8 +235,10 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target_host Host target device
    */
   void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+    // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
+    CheckAndUpdateHostConsistency(&targets_, &target_host_);
     BuildRelay(mod, params_);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
@@ -460,6 +462,15 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   void BuildRelay(IRModule relay_module,
                   const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+    Target target_host = GetTargetHost();
+    // If no target_host has been set, we choose a default one, which is
+    // llvm if "codegen.LLVMModuleCreate" is accessible.
+    const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
+    if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
+
+    // Update all the targets in the targets_ TargetsMap
+    CheckAndUpdateHostConsistency(&targets_, &target_host);
+
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
     // Get the updated function.
@@ -474,12 +485,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.params = graph_codegen_->GetParams();
 
     auto lowered_funcs = graph_codegen_->GetIRModule();
-
-    Target target_host = GetTargetHost();
-    // If no target_host has been set, we choose a default one, which is
-    // llvm if "codegen.LLVMModuleCreate" is accessible.
-    const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
-    if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
 
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {

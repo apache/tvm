@@ -94,14 +94,13 @@ mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
 # Import the graph to Relay
 # -------------------------
 # compile the model
-target = "llvm"
-target_host = "llvm"
+target = tvm.target.Target("llvm", host="llvm")
 dev = tvm.cpu(0)
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {"data": data.shape}
 print("Compiling the model...")
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    lib = relay.build(mod, target=target, params=params)
 
 [neth, netw] = shape["data"][2:]  # Current image shape is 608x608
 ######################################################################

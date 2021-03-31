@@ -45,7 +45,9 @@ def test_reduce_prims():
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
-            freduce = tvm.build(s, args=[A, B], target=device, target_host=host, name="myreduce")
+            freduce = tvm.build(
+                s, args=[A, B], target=tvm.target.Target(device, host), name="myreduce"
+            )
             # launch the kernel.
             n = 1028
             m = 129

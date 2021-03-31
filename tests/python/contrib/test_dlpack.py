@@ -49,7 +49,9 @@ def test():
         k = te.reduce_axis((0, n), name="k")
         ZZ = te.compute((n, n), lambda i, j: te.sum(XX[i, k] * YY[k, j], axis=k))
         s = te.create_schedule(ZZ.op)
-        f = tvm.build(s, [XX, YY, ZZ], target_host="llvm", name="f")
+        # No need to speficy target_host if it's llvm
+        # Otherwise you will need to specify the target and target_host
+        f = tvm.build(s, [XX, YY, ZZ], name="f")
 
         f_pytorch = to_pytorch_func(f)
         zz2 = torch.empty(137, 137)
