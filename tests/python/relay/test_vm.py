@@ -808,8 +808,7 @@ def test_vm_rpc():
     upload it to a remote machine using RPC and then execute it
     on the other machine.
     """
-    target = "llvm"
-    target_host = "llvm"
+    target = tvm.target.Target("llvm --host=llvm")
 
     # Build a IRModule.
     x = relay.var("x", shape=(10, 1))
@@ -817,7 +816,7 @@ def test_vm_rpc():
     mod = IRModule.from_expr(f)
 
     # Compile to VMExecutable.
-    vm_exec = vm.compile(mod, target=target, target_host=target_host)
+    vm_exec = vm.compile(mod, target=target)
 
     # Export to Disk
     temp = utils.tempdir()
