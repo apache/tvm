@@ -46,7 +46,7 @@ class Target(Object):
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
 
-    def __init__(self, tag_or_str_or_dict, host_tag_or_str_or_dict=None):
+    def __init__(self, target, host=None):
         """Construct a TVM target object from
         1) Raw target string
         2) Target config dict
@@ -54,7 +54,7 @@ class Target(Object):
 
         Parameters
         ----------
-        tag_or_str_or_dict : Union[str, Dict[str, Any]]
+        target : Union[str, Dict[str, Any]]
             Can be one of a literal target string, a json string describing
             a configuration, or a dictionary of configuration options.
             When using a dictionary or json string to configure target, the
@@ -87,21 +87,21 @@ class Target(Object):
                 An llvm setting that is one of 'hard' or 'soft' indicating whether to use
                 hardware or software floating-point operations.
             host : Union[str, Dict[str, Any]] (optional)
-                Description for target host. Can be recursive. Similar to tag_or_str_or_dict.
-        host_tag_or_str_or_dict : Optional[Union[str, Dict[str, Any]]]
-            Similar to tag_or_str_or_dict but for target host. Can be one of a literal
-            target host string, a json string describing a configuration, or a dictionary of
-            configuration options. When using a dictionary or json string to configure target,
-            the possible values are same as tag_or_str_or_dict.
+                Description for target host. Can be recursive. Similar to target.
+        host : Optional[Union[str, Dict[str, Any]]]
+            Similar to target but for target host. Can be one of a literal target host string,
+            a json string describing a configuration, or a dictionary of configuration options.
+            When using a dictionary or json string to configure target, the possible values are
+            same as target.
         """
-        if not isinstance(tag_or_str_or_dict, (dict, str, Target)):
+        if target is None or not isinstance(target, (dict, str, Target)):
             raise ValueError("target has to be a string or dictionary.")
-        if host_tag_or_str_or_dict is not None:
-            self.__init_handle_by_constructor__(
-                _ffi_api.Target, Target(tag_or_str_or_dict), Target(host_tag_or_str_or_dict)
-            )
+        if host is not None:
+            if not isinstance(host, (dict, str, Target)):
+                raise ValueError("target host has to be a string or dictionary.")
+            self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:
-            self.__init_handle_by_constructor__(_ffi_api.Target, tag_or_str_or_dict)
+            self.__init_handle_by_constructor__(_ffi_api.Target, target)
 
     def __enter__(self):
         _ffi_api.TargetEnterScope(self)
@@ -112,6 +112,9 @@ class Target(Object):
 
     def export(self):
         return _ffi_api.TargetExport(self)
+
+    def with_host(self, host=None):
+        return _ffi_api.WithHost(self, Target(host))
 
     @staticmethod
     def current(allow_none=True):
@@ -163,6 +166,37 @@ class Target(Object):
     def list_kinds():
         """Returns the list of available target names."""
         return list(_ffi_api.ListTargetKinds())
+
+    @staticmethod
+    def check_and_update_host_consist(target, host=None, target_is_dict_key=True):
+        """A helper function that merges a legacy "target, target_host" pair, then returns
+        the merged target and its host field. The function is for legacy target and target
+        host pair only, and should not be used in the new target system.
+
+        Parameters
+        ----------
+        target : Union[str, Dict[str, Any], Target]
+            The target or heterogeneous target
+        host : Union[str, Dict[str, Any], Target, None]
+            The target host
+        target_is_dict_key : Bool
+            When the type of target is dict, whether Target is the key (Otherwise the value)
+        """
+        if isinstance(target, dict) and "kind" not in target:
+            new_target = {}
+            for tgt, mod in target.items():
+                if not target_is_dict_key:
+                    tgt, mod = mod, tgt
+                if isinstance(tgt, (dict, str, Target)):
+                    tgt, host = Target.check_and_update_host_consist(tgt, host)
+                if not target_is_dict_key:
+                    tgt, mod = mod, tgt
+                new_target[tgt] = mod
+            target = new_target
+        else:
+            target = Target(target, host)
+            host = target.host
+        return target, host
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.

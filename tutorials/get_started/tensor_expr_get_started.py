@@ -55,17 +55,13 @@ import tvm.testing
 from tvm import te
 import numpy as np
 
-# Global declarations of environment.
-
-tgt_host = "llvm"
-
 # You will get better performance if you can identify the CPU you are targeting
 # and specify it. If you're using llvm, you can get this information from the
 # command ``llc --version`` to get the CPU type, and you can check
 # ``/proc/cpuinfo`` for additional extensions that your processor might
 # support.  For example, ``tgt = "llvm -mcpu=`skylake`
 
-tgt = "llvm"
+tgt = tvm.target.Target(target="llvm", host="llvm")
 
 ################################################################################
 # Describing the Vector Computation
@@ -136,7 +132,7 @@ s = te.create_schedule(C.op)
 # function takes the schedule, the desired signature of the function (including
 # the inputs and outputs) as well as target language we want to compile to.
 
-fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+fadd = tvm.build(s, [A, B, C], tgt, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
@@ -148,7 +144,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # correct, we can compare the result of the output of the c tensor to the same
 # computation performed by numpy.
 
-dev = tvm.device(tgt, 0)
+dev = tvm.device(tgt.kind.name, 0)
 
 n = 1024
 a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -176,7 +172,7 @@ print("Numpy running time: %f" % (np_running_time / np_repeat))
 
 
 def evaluate_addition(func, target, optimization, log):
-    dev = tvm.device(target, 0)
+    dev = tvm.device(target.kind.name, 0)
     n = 32768
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
@@ -221,7 +217,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # It's now possible for TVM to run these blocks on independent threads. Let's
 # compile and run this new schedule with the parallel operation applied:
 
-fadd_parallel = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd_parallel")
+fadd_parallel = tvm.build(s, [A, B, C], tgt, name="myadd_parallel")
 fadd_parallel(a, b, c)
 
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
@@ -258,7 +254,7 @@ outer, inner = s[C].split(C.op.axis[0], factor=factor)
 s[C].parallel(outer)
 s[C].vectorize(inner)
 
-fadd_vector = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd_parallel")
+fadd_vector = tvm.build(s, [A, B, C], tgt, name="myadd_parallel")
 
 evaluate_addition(fadd_vector, tgt, "vector", log=log)
 
@@ -311,10 +307,9 @@ for result in log:
 
 run_cuda = False
 if run_cuda:
-
     # Change this target to the correct backend for you gpu. For example: cuda (NVIDIA GPUs),
     # rocm (Radeon GPUS), OpenCL (opencl).
-    tgt_gpu = "cuda"
+    tgt_gpu = tvm.target.Target(target="cuda", host="llvm")
 
     # Recreate the schedule
     n = te.var("n")
@@ -326,6 +321,9 @@ if run_cuda:
     s = te.create_schedule(C.op)
 
     bx, tx = s[C].split(C.op.axis[0], factor=64)
+    
+    xXXXXXXXx
+
 
     ################################################################################
     # Finally we must bind the iteration axis bx and tx to threads in the GPU
@@ -335,7 +333,24 @@ if run_cuda:
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
-    fadd = tvm.build(s, [A, B, C], tgt_gpu, target_host=tgt_host, name="myadd")
+    ######################################################################
+    # Compilation
+    # -----------
+    # After we have finished specifying the schedule, we can compile it
+    # into a TVM function. By default TVM compiles into a type-erased
+    # function that can be directly called from the python side.
+    #
+    # In the following line, we use tvm.build to create a function.
+    # The build function takes the schedule, the desired signature of the
+    # function (including the inputs and outputs) as well as target language
+    # we want to compile to.
+    #
+    # The result of compilation fadd is a GPU device function (if GPU is
+    # involved) as well as a host wrapper that calls into the GPU
+    # function.  fadd is the generated host wrapper function, it contains
+    # a reference to the generated device function internally.
+
+    fadd = tvm.build(s, [A, B, C], target=tgt_gpu, name="myadd")
 
     ################################################################################
     # The compiled TVM function is exposes a concise C API that can be invoked from
@@ -351,8 +366,8 @@ if run_cuda:
     #
     # Note that copying the data to and from the memory on the GPU is a required step.
 
-    dev = tvm.device(tgt_gpu, 0)
-
+    dev = tvm.device(tgt_gpu.kind.name, 0)
+  
     n = 1024
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
@@ -369,7 +384,7 @@ if run_cuda:
     #
     # The following code fetches the device module and prints the content code.
 
-    if tgt_gpu == "cuda" or tgt_gpu == "rocm" or tgt_gpu.startswith("opencl"):
+    if tgt_gpu.kind.name == "cuda" or tgt_gpu.kind.name == "rocm" or tgt_gpu.kind.name.startswith("opencl"):
         dev_module = fadd.imported_modules[0]
         print("-----GPU code-----")
         print(dev_module.get_source())
@@ -393,11 +408,11 @@ from tvm.contrib import utils
 
 temp = utils.tempdir()
 fadd.save(temp.relpath("myadd.o"))
-if tgt == "cuda":
+if tgt.kind.name == "cuda":
     fadd.imported_modules[0].save(temp.relpath("myadd.ptx"))
-if tgt == "rocm":
+if tgt.kind.name == "rocm":
     fadd.imported_modules[0].save(temp.relpath("myadd.hsaco"))
-if tgt.startswith("opencl"):
+if tgt.kind.name.startswith("opencl"):
     fadd.imported_modules[0].save(temp.relpath("myadd.cl"))
 cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
 print(temp.listdir())
@@ -418,15 +433,15 @@ print(temp.listdir())
 # together. We can verify that the newly loaded function works.
 
 fadd1 = tvm.runtime.load_module(temp.relpath("myadd.so"))
-if tgt == "cuda":
+if tgt.kind.name == "cuda":
     fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.ptx"))
     fadd1.import_module(fadd1_dev)
 
-if tgt == "rocm":
+if tgt.kind.name == "rocm":
     fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.hsaco"))
     fadd1.import_module(fadd1_dev)
 
-if tgt.startswith("opencl"):
+if tgt.kind.name.startswith("opencl"):
     fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.cl"))
     fadd1.import_module(fadd1_dev)
 
@@ -466,7 +481,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # The following code blocks generate OpenCL code, creates array on an OpenCL
 # device, and verifies the correctness of the code.
 
-if tgt.startswith("opencl"):
+if tgt.kind.name.startswith("opencl"):
     fadd_cl = tvm.build(s, [A, B, C], tgt, name="myadd")
     print("------opencl code------")
     print(fadd_cl.imported_modules[0].get_source())
@@ -551,8 +566,9 @@ dtype = "float32"
 # Recall that you're using llvm, you can get this information from the command
 # ``llc --version`` to get the CPU type, and you can check ``/proc/cpuinfo``
 # for additional extensions that your processor might support.
-target = "llvm"
-dev = tvm.device(target, 0)
+
+target = tvm.target.Target(target="llvm", host="llvm") 
+dev = tvm.device(target.kind.name, 0)
 
 # Random generated tensor for testing
 a = tvm.nd.array(numpy.random.rand(M, K).astype(dtype), dev)
@@ -609,7 +625,6 @@ def evaluate_operation(s, vars, target, name, optimization, log):
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
     log.append((optimization, mean_time))
-
 
 log = []
 

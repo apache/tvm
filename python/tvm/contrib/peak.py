@@ -20,6 +20,7 @@
 import logging
 import tvm
 from tvm import te
+from tvm.target import Target
 from . import utils
 from .. import rpc
 
@@ -86,6 +87,8 @@ def measure_bandwidth_sum(
     GBPS: float
          gigabyte per second
     """
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+
     n, m = total_item, item_per_thread
     n //= lanes
 
@@ -107,7 +110,7 @@ def measure_bandwidth_sum(
     s[y].unroll(k)
 
     try:
-        func = tvm.build(s, [x, y], target, target_host=target_host)
+        func = tvm.build(s, [x, y], target)
 
         x = tvm.nd.empty((n,), dtype=dtype, device=dev)
         y = tvm.nd.empty((n // m,), dtype=dtype, device=dev)
@@ -151,6 +154,7 @@ def measure_bandwidth_all_types(
     result: list
         a list of (type_name, GBPS) pairs
     """
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
     max_threads = target.max_num_threads
 
     result = []
@@ -221,6 +225,7 @@ def measure_compute_mad(
     GOPS: float
          giga operation per second
     """
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     n = total_item
 
@@ -272,7 +277,7 @@ def measure_compute_mad(
     s = te.create_schedule(y.op)
 
     try:
-        func = tvm.build(s, [y], target, target_host=target_host)
+        func = tvm.build(s, [y], target)
         func = _convert_to_remote(func, remote)
         time_f = func.time_evaluator(func.entry_name, dev, number=n_times)
         y = tvm.nd.empty((n,), dtype=dtype, device=dev)
@@ -313,6 +318,8 @@ def measure_compute_all_types(
     result: list
         a list of (type_name, GFLOPS/GIOPS) pairs
     """
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+
     result = []
     for base_type in ["float", "int"]:
         for bits in [16, 32, 64]:
@@ -357,7 +364,7 @@ def measure_peak_all(target, target_host, host, port):
     port: int
     """
 
-    target = tvm.target.Target(target)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
     remote = rpc.connect(host, port)
     n_times = 20
 

@@ -32,6 +32,7 @@ import pytest
 import tvm
 import tvm.relay
 import tvm.testing
+from tvm.target import Target
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -44,7 +45,7 @@ TARGET = tvm.target.target.micro("host")
 
 def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, TARGET, target_host=TARGET, name=op_name)
+        mod = tvm.build(sched, arg_bufs, Target(TARGET, TARGET), name=op_name)
 
     return _make_session(workspace, mod)
 
@@ -138,8 +139,8 @@ def test_reset():
 
 
 @tvm.testing.requires_micro
-def test_graph_runtime():
-    """Test use of the graph runtime with microTVM."""
+def test_graph_executor():
+    """Test use of the graph executor with microTVM."""
     import tvm.micro
 
     workspace = tvm.micro.Workspace(debug=True)
@@ -156,7 +157,7 @@ def test_graph_runtime():
         factory = tvm.relay.build(relay_mod, target=TARGET)
 
     with _make_session(workspace, factory.get_lib()) as sess:
-        graph_mod = tvm.micro.create_local_graph_runtime(
+        graph_mod = tvm.micro.create_local_graph_executor(
             factory.get_json(), sess.get_system_lib(), sess.device
         )
         A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)

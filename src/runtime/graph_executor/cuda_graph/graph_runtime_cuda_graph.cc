@@ -18,28 +18,28 @@
  */
 
 /*!
- * \file graph_runtime_cuda_graph.cc
+ * \file graph_executor_cuda_graph.cc
  */
 
 #include <tvm/runtime/registry.h>
 
 #include "../../cuda/cuda_common.h"
-#include "../graph_runtime.h"
+#include "../graph_executor.h"
 
 namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Graph runtime with CUDA Graph Support.
+ * \brief Graph executor with CUDA Graph Support.
  *
- *  This is the extension of GraphRuntime class used for CUDA graph launch
+ *  This is the extension of GraphExecutor class used for CUDA graph launch
  *  instead of CUDA kernel launch. CUDA graph launch requires CUDA 10.0 or
  *  above, currently there are two ways of constructing CUDA graphs:
  *  (1) Using CUDA stream capture API to capture a series of operations on
  *  CUDA stream, and automatically generates a graph (2) Building a graph
  *  using CUDA graph API manually. This implementation uses stream capture.
  */
-class GraphRuntimeCudaGraph : public GraphRuntime {
+class GraphExecutorCudaGraph : public GraphExecutor {
  public:
   /*!
    * \brief Begin CUDA graph capture on stream, the stream enters capture mode.
@@ -93,8 +93,8 @@ class GraphRuntimeCudaGraph : public GraphRuntime {
   cudaGraphExec_t cuda_graph_exec_;
 };
 
-PackedFunc GraphRuntimeCudaGraph::GetFunction(const std::string& name,
-                                              const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc GraphExecutorCudaGraph::GetFunction(const std::string& name,
+                                               const ObjectPtr<Object>& sptr_to_self) {
   if (name == "run_cuda_graph") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->RunCudaGraph(); });
@@ -104,23 +104,24 @@ PackedFunc GraphRuntimeCudaGraph::GetFunction(const std::string& name,
   } else if (name == "end_capture") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->EndCapture(); });
   } else {
-    return GraphRuntime::GetFunction(name, sptr_to_self);
+    return GraphExecutor::GetFunction(name, sptr_to_self);
   }
 }
 
-Module GraphRuntimeCudaGraphCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                                   const std::vector<Device>& devs,
-                                   PackedFunc lookup_linked_param_func) {
-  auto exec = make_object<GraphRuntimeCudaGraph>();
+Module GraphExecutorCudaGraphCreate(const std::string& sym_json, const tvm::runtime::Module& m,
+                                    const std::vector<Device>& devs,
+                                    PackedFunc lookup_linked_param_func) {
+  auto exec = make_object<GraphExecutorCudaGraph>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_cuda_graph.create")
+TVM_REGISTER_GLOBAL("tvm.graph_executor_cuda_graph.create")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
-                                     "at least 4, but it has "
-                                  << args.num_args;
+      ICHECK_GE(args.num_args, 4)
+          << "The expected number of arguments for graph_executor.create is "
+             "at least 4, but it has "
+          << args.num_args;
       PackedFunc lookup_linked_param_func;
       int dev_start_arg = 2;
       if (args[2].type_code() == kTVMPackedFuncHandle) {
@@ -128,8 +129,8 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_cuda_graph.create")
         dev_start_arg++;
       }
 
-      *rv = GraphRuntimeCudaGraphCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                        lookup_linked_param_func);
+      *rv = GraphExecutorCudaGraphCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
+                                         lookup_linked_param_func);
     });
 }  // namespace runtime
 }  // namespace tvm

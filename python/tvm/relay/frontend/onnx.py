@@ -1617,7 +1617,14 @@ class Constant(OnnxOpConverter):
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
             raise tvm.errors.OpAttributeRequired("no value in Constant")
-        np_value = get_numpy(attr.pop("value"))
+        value = attr.pop("value")
+        # Constants may rarely have string types. These are likely exported
+        # from other frameworks and not actually used in TVM. We'll just use
+        # a zero valued constant for compatibility.
+        if isinstance(value, bytes):
+            np_value = np.asarray([0]).astype("int64")
+        else:
+            np_value = get_numpy(value)
         dtype = np_value.dtype.name
         value = _expr.const(np_value, dtype)
         return value
@@ -2701,6 +2708,69 @@ class NonMaxSuppression(OnnxOpConverter):
         return _op.strided_slice(loop_out, [1, 0], shape_of(loop_out), [1, 1])
 
 
+class ATen(OnnxOpConverter):
+    """Operator converter for Pytorch ATen ops."""
+
+    @classmethod
+    def _op_dispatch(cls, operator, inputs, attr, params):
+        op_map = {
+            "size": cls._size,
+            "arange": cls._arange,
+            "reshape": cls._reshape,
+            "embedding_bag": cls._embedding_bag,
+        }
+        assert operator in op_map, "Operator %s is not supported." % operator
+        return op_map[operator](inputs, attr, params)
+
+    @classmethod
+    def _size(cls, inputs, attr, params):
+        return _op.take(
+            _op.shape_of(inputs[0], dtype="int64"),
+            _expr.const(-1, dtype="int64"),
+            axis=0,
+            mode="wrap",
+        )
+
+    @classmethod
+    def _arange(cls, inputs, attr, params):
+        return _op.arange(inputs[0], inputs[1], inputs[2], dtype="int64")
+
+    @classmethod
+    def _reshape(cls, inputs, attr, params):
+        return _op.reshape(inputs[0], inputs[1])
+
+    @classmethod
+    def _embedding_bag(cls, inputs, attr, params):
+        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
+
+        mode = attr.get("mode", 1)
+        reduction_fn = mode_map[mode]
+        weights, indices, offsets = inputs[0], inputs[1], inputs[2]
+        offsets_shape = _op.shape_of(offsets, dtype="int64")
+        indices_shape = _op.stack(
+            [
+                _op.take(offsets_shape, _expr.const(0, dtype="int64")),
+                _expr.const(-1, dtype="int64"),
+            ],
+            axis=0,
+        )
+        indices = _op.reshape(indices, indices_shape)
+        embedding = _op.take(weights, indices.astype("int64"), axis=0)
+        rembedding = reduction_fn(embedding, axis=1)
+        # EmbeddingBag has 4 outputs for some reason despite only one ever being used.
+        # Fill the rest with 0s.
+        unused_output = _expr.const(0, dtype="float32")
+        return _expr.TupleWrapper(
+            _expr.Tuple((rembedding, unused_output, unused_output, unused_output)), 4
+        )
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        operator = attr.get("operator", None).decode("utf-8")
+        assert operator, "ATen Operator not found"
+        return cls._op_dispatch(operator, inputs, attr, params)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2864,6 +2934,8 @@ def _get_convert_map(opset):
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
+        # Torch ATen Dispatcher.
+        "ATen": ATen.get_converter(opset),
     }
 
 
@@ -3200,7 +3272,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
-            except onnx.onnx_cpp2py_export.checker.ValidationError as e:  # pylint: disable=c-extension-no-member
+            except Exception as e:  # pylint: disable=c-extension-no-member, broad-except
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:

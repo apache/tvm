@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file graph_runtime_debug.cc
+ * \file graph_executor_debug.cc
  */
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
@@ -29,18 +29,18 @@
 #include <chrono>
 #include <sstream>
 
-#include "../graph_runtime.h"
+#include "../graph_executor.h"
 
 namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Graph runtime with debug .
+ * \brief Graph executor with debug .
  *
- *  This is the extension of GraphRuntime class used for debugging
+ *  This is the extension of GraphExecutor class used for debugging
  *  TVM runtime PackedFunc API.
  */
-class GraphRuntimeDebug : public GraphRuntime {
+class GraphExecutorDebug : public GraphExecutor {
  public:
   /*!
    * \brief Run each operation in the graph and get the time per op for all ops.
@@ -58,7 +58,7 @@ class GraphRuntimeDebug : public GraphRuntime {
    */
   std::string RunIndividual(int number, int repeat, int min_repeat_ms) {
     // warmup run
-    GraphRuntime::Run();
+    GraphExecutor::Run();
     std::string tkey = module_->type_key();
     std::vector<double> time_sec_per_op(op_execs_.size(), 0);
     if (tkey == "rpc") {
@@ -128,8 +128,8 @@ class GraphRuntimeDebug : public GraphRuntime {
           << "Don't know how to run op type " << nodes_[index].op_type
           << " remotely over RPC right now";
 
-      // NOTE: GraphRuntimeDebug expects graph nodes to have an "op" attribute of "tvm_op" or "null"
-      // and "null" is a placeholder node for a parameter or input.
+      // NOTE: GraphExecutorDebug expects graph nodes to have an "op" attribute of "tvm_op" or
+      // "null" and "null" is a placeholder node for a parameter or input.
       return 0;
     }
 
@@ -235,8 +235,8 @@ class GraphRuntimeDebug : public GraphRuntime {
  * \param name The function which needs to be invoked.
  * \param sptr_to_self Packed function pointer.
  */
-PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
-                                          const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
+                                           const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
   if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -261,26 +261,26 @@ PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else {
-    return GraphRuntime::GetFunction(name, sptr_to_self);
+    return GraphExecutor::GetFunction(name, sptr_to_self);
   }
 }
 
 /*!
- * \brief GraphRuntimeDebugCreate Get the function based on input.
+ * \brief GraphExecutorDebugCreate Get the function based on input.
  * \param sym_json The graph symbol in json format.
  * \param m Compiled module which will be loaded.
  * \param devs All devices.
  */
-Module GraphRuntimeDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                               const std::vector<Device>& devs,
-                               PackedFunc lookup_linked_param_func) {
-  auto exec = make_object<GraphRuntimeDebug>();
+Module GraphExecutorDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
+                                const std::vector<Device>& devs,
+                                PackedFunc lookup_linked_param_func) {
+  auto exec = make_object<GraphExecutorDebug>();
   exec->Init(sym_json, m, devs, lookup_linked_param_func);
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+TVM_REGISTER_GLOBAL("tvm.graph_executor_debug.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_executor.create is "
                                  "at least 4, but it has "
                               << args.num_args;
   PackedFunc lookup_linked_param_func;
@@ -290,8 +290,8 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, 
     dev_start_arg++;
   }
 
-  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                lookup_linked_param_func);
+  *rv = GraphExecutorDebugCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
+                                 lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

@@ -18,12 +18,12 @@
  */
 
 /*!
- * \brief Tiny graph runtime that can run graph
+ * \brief Tiny graph executor that can run graph
  *        containing only tvm PackedFunc.
- * \file graph_runtime.h
+ * \file graph_executor.h
  */
-#ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
+#define TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
 
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
@@ -56,12 +56,12 @@ struct TVMOpParam {
 };
 
 /*!
- * \brief Tiny graph runtime.
+ * \brief Tiny graph executor.
  *
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
  */
-class TVM_DLL GraphRuntime : public ModuleNode {
+class TVM_DLL GraphExecutor : public ModuleNode {
   struct OpArgs {
     std::vector<DLTensor> args;
     std::vector<TVMValue> arg_values;
@@ -81,7 +81,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final { return "GraphRuntime"; }
+  const char* type_key() const final { return "GraphExecutor"; }
   void Run();
 
   /*!
@@ -162,12 +162,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   void LoadParams(const std::string& param_blob);
 
   /*!
-   * \brief Share parameters from pre-existing GraphRuntime instance.
-   * \param other A GraphRuntime instance, previously with |LoadParams| called with the
+   * \brief Share parameters from pre-existing GraphExecutor instance.
+   * \param other A GraphExecutor instance, previously with |LoadParams| called with the
    * identical input |param_blob|.
    * \param strm The input stream.
    */
-  void ShareParams(const GraphRuntime& other, dmlc::Stream* strm);
+  void ShareParams(const GraphExecutor& other, dmlc::Stream* strm);
 
   /*!
    * \brief Get total number of nodes.
@@ -430,4 +430,4 @@ std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_

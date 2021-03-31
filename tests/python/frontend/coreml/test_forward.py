@@ -21,7 +21,7 @@ from coremltools.models import datatypes
 
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm import topi
 import tvm.topi.testing
 from tvm import relay
@@ -37,7 +37,7 @@ def get_tvm_output(
 ):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(func, target, params=params)
-    m = graph_runtime.GraphModule(lib["default"](device))
+    m = graph_executor.GraphModule(lib["default"](device))
     # set inputs
     m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
     m.run()
@@ -88,9 +88,9 @@ def run_tvm_graph(
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target, params=params)
 
-    from tvm.contrib import graph_runtime
+    from tvm.contrib import graph_executor
 
-    m = graph_runtime.GraphModule(lib["default"](device))
+    m = graph_executor.GraphModule(lib["default"](device))
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_name):

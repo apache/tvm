@@ -34,8 +34,8 @@
 
 #include "crt_config.h"
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-#include <tvm/runtime/crt/graph_runtime_module.h>
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+#include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
 using namespace std::chrono;
@@ -131,9 +131,9 @@ int main(int argc, char** argv) {
 
   utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-  CHECK_EQ(TVMGraphRuntimeModule_Register(), kTvmErrorNoError,
-           "failed to register GraphRuntime TVMModule");
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+  CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
+           "failed to register GraphExecutor TVMModule");
 #endif
 
   if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,

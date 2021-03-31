@@ -53,7 +53,7 @@ def test_conv2d():
 
     def verify():
         dev = tvm.rocm(0)
-        f = tvm.build(s, [X, W, Y], "rocm", target_host="llvm", name="conv2d")
+        f = tvm.build(s, [X, W, Y], "rocm --host=llvm", name="conv2d")
         x = tvm.nd.array(np.random.uniform(-1, 1, xshape).astype(np.float32), dev)
         w = tvm.nd.array(np.random.uniform(-1, 1, wshape).astype(np.float32), dev)
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), dev)
@@ -63,7 +63,7 @@ def test_conv2d():
             X, W, (stride_h, stride_w), (pad_h, pad_w), (dilation_h, dilation_w)
         )
         s_ref = te.create_schedule(Y_ref.op)
-        f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm", target_host="llvm")
+        f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm --host=llvm")
         y_ref = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), dev)
         f_ref(x, w, y_ref)
         print("Max abs diff:", np.max(np.abs(y.asnumpy() - y_ref.asnumpy())))

@@ -44,6 +44,8 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
+from tvm.target import Target
+
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -221,10 +223,12 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
+    task.target, task.target_host = Target.check_and_update_host_consist(
+        task.target, task.target_host
+    )
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=task.target,
-        target_host=task.target_host,
         hardware_params=task.hardware_params,
         layout_rewrite_option=task.layout_rewrite_option,
         task_inputs=list(task.task_input_names),
@@ -602,6 +606,9 @@ def _timed_func(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
+    task.target, task.target_host = Target.check_and_update_host_consist(
+        task.target, task.target_host
+    )
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None
@@ -622,9 +629,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
         try:
             with transform.PassContext():
-                func = build_module.build(
-                    sch, args, target=task.target, target_host=task.target_host
-                )
+                func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
         # pylint: disable=broad-except
         except Exception:
@@ -775,7 +780,7 @@ def register_task_input_check_func(func_name, f=None, override=False):
     return register
 
 
-def _prepare_input_map(args):
+def prepare_input_map(args):
     """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
     to a specific buffer name in the global buffer map.
 
@@ -861,7 +866,7 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
 
-            tensor_input_map = _prepare_input_map(build_res.args) if task_input_names else {}
+            tensor_input_map = prepare_input_map(build_res.args) if task_input_names else {}
             args = []
             task_inputs_count = 0
             for arg in build_res.args:
@@ -1076,7 +1081,7 @@ def _timed_rpc_run(
                 random_fill
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
-            tensor_input_map = _prepare_input_map(build_res.args) if task_input_names else {}
+            tensor_input_map = prepare_input_map(build_res.args) if task_input_names else {}
             args = []
             task_inputs_count = 0
             for arg in build_res.args:

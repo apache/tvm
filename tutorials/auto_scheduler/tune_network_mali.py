@@ -49,7 +49,7 @@ import numpy as np
 import tvm
 from tvm import relay, auto_scheduler
 import tvm.relay.testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import os
 
 #################################################################
@@ -139,8 +139,7 @@ layout = "NHWC"
 use_ndk = True
 # Path to cross compiler
 os.environ["TVM_NDK_CC"] = "/usr/bin/aarch64-linux-gnu-g++"
-target_host = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
-target = tvm.target.Target("opencl -device=mali")
+target = tvm.target.Target("opencl -device=mali", host="llvm -mtriple=aarch64-linux-gnu")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
@@ -170,7 +169,7 @@ device_key = "rk3399"
 # Extract tasks from the network
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
-tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host)
+tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
@@ -198,7 +197,9 @@ for idx, task in enumerate(tasks):
 #
 #   .. code-block:: python
 #
-#     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host, hardware_params)
+#    tasks, task_weights = auto_scheduler.extract_tasks(
+#        mod["main"], params, target, hardware_params = hardware_params
+#    )
 #
 
 #################################################################
@@ -240,9 +241,9 @@ def tune_and_evaluate():
         with tvm.transform.PassContext(
             opt_level=3, config={"relay.backend.use_auto_scheduler": True}
         ):
-            lib = relay.build(mod, target=target, target_host=target_host, params=params)
+            lib = relay.build(mod, target, params=params)
 
-    # Create graph runtime
+    # Create graph executor
     print("=============== Request Remote ===============")
     from tvm.auto_scheduler.utils import request_remote
 
@@ -256,7 +257,7 @@ def tune_and_evaluate():
     lib.export_library(path_lib, ndk.create_shared)
     remote.upload(path_lib)
     loaded_lib = remote.load_module(filename)
-    module = graph_runtime.GraphModule(loaded_lib["default"](dev))
+    module = graph_executor.GraphModule(loaded_lib["default"](dev))
     data = (np.random.uniform(size=input_shape)).astype(dtype)
     data_tvm = tvm.nd.array(data)
     module.set_input("data", data_tvm)

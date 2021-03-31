@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Graph runtime factory."""
+"""Graph executor factory."""
 import warnings
 from ..._ffi.base import string_types
 from ..._ffi.registry import get_global_func
 from ...runtime import ndarray
 
 
-class GraphRuntimeFactoryModule:
-    """Graph runtime factory module.
-    This is a module of graph runtime factory
+class GraphExecutorFactoryModule:
+    """Graph executor factory module.
+    This is a module of graph executor factory
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ class GraphRuntimeFactoryModule:
 
     def __init__(self, ir_mod, target, graph_json_str, libmod, libmod_name, params):
         assert isinstance(graph_json_str, string_types)
-        fcreate = get_global_func("tvm.graph_runtime_factory.create")
+        fcreate = get_global_func("tvm.graph_executor_factory.create")
         args = []
         for k, v in params.items():
             args.append(k)
@@ -77,9 +77,9 @@ class GraphRuntimeFactoryModule:
 
     def __iter__(self):
         warnings.warn(
-            "legacy graph runtime behavior of producing json / lib / params will be "
+            "legacy graph executor behavior of producing json / lib / params will be "
             "removed in the next release."
-            " Please see documents of tvm.contrib.graph_runtime.GraphModule for the "
+            " Please see documents of tvm.contrib.graph_executor.GraphModule for the "
             " new recommended usage.",
             DeprecationWarning,
             2,

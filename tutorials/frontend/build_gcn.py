@@ -175,7 +175,7 @@ print("Test accuracy of DGL results: {:.2%}".format(acc))
 #                                        = ((H * W)^t * A^t)^t
 #                                        = ((W^t * H^t) * A^t)^t
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm
 from tvm import te
 
@@ -335,9 +335,9 @@ mod["main"] = func
 with tvm.transform.PassContext(opt_level=0):  # Currently only support opt_level=0
     lib = relay.build(mod, target, params=params)
 
-# Generate graph runtime
+# Generate graph executor
 dev = tvm.device(target, 0)
-m = graph_runtime.GraphModule(lib["default"](dev))
+m = graph_executor.GraphModule(lib["default"](dev))
 
 ######################################################################
 # Run the TVM model, test for accuracy and verify with DGL

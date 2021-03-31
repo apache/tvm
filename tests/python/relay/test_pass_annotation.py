@@ -20,7 +20,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
 import tvm.testing
@@ -31,7 +31,7 @@ def _trace(module, metadata, _):
         pass  # import pdb; pdb.set_trace()
 
 
-def check_graph_runtime(
+def check_graph_executor(
     target, ref_res, device, func, params, config, opt_level, expected_index=None
 ):
     with tvm.transform.PassContext(opt_level=opt_level, config=config):
@@ -41,7 +41,7 @@ def check_graph_runtime(
         if "device_index" in graph_json["attrs"]:
             device_index = graph_json["attrs"]["device_index"][1]
             assert device_index == expected_index
-        mod = graph_runtime.create(graph, lib, contexts)
+        mod = graph_executor.create(graph, lib, contexts)
         mod.set_input(**new_params)
         mod.run()
         res = mod.get_output(0).asnumpy()
@@ -429,7 +429,7 @@ def run_fusible_network(dev, tgt):
         check_annotated_graph(annotated_func, expected_func)
         opt_level = 1
         config = {"relay.fallback_device_type": fallback_device.device_type}
-        check_graph_runtime(
+        check_graph_executor(
             target, ref_res, device, annotated_func, params, config, opt_level, expected_index
         )
         opt_level = 2
@@ -465,7 +465,7 @@ def run_fusible_network(dev, tgt):
         check_annotated_graph(annotated_func, expected_func)
         opt_level = 1
         config = {"relay.fallback_device_type": fallback_device.device_type}
-        check_graph_runtime(target, ref_res, device, annotated_func, params, config, opt_level)
+        check_graph_executor(target, ref_res, device, annotated_func, params, config, opt_level)
         opt_level = 2
         check_vm_runtime(target, ref_res, device, annotated_func, params, config, opt_level)
 
@@ -506,7 +506,7 @@ def run_fusible_network(dev, tgt):
         opt_level = 1
         config = {"relay.fallback_device_type": fallback_device.device_type}
         check_annotated_graph(annotated_func, expected_func)
-        check_graph_runtime(
+        check_graph_executor(
             target, ref_res, device, annotated_func, params, config, opt_level, expected_index
         )
         opt_level = 2
@@ -520,7 +520,7 @@ def run_fusible_network(dev, tgt):
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
         opt_level = 2
-        check_graph_runtime(target, ref_res, device, annotated_func, params, {}, opt_level)
+        check_graph_executor(target, ref_res, device, annotated_func, params, {}, opt_level)
         check_vm_runtime(target, ref_res, device, annotated_func, params, {}, opt_level)
 
     test_fuse_log_add(dev, tgt)
@@ -582,7 +582,7 @@ def run_unpropagatable_graph(dev, tgt):
     opt_level = 0
     config = {"relay.fallback_device_type": fallback_device.device_type}
 
-    check_graph_runtime(
+    check_graph_executor(
         target, ref_res, dev, annotated_func, params, config, opt_level, expected_index
     )
 

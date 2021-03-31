@@ -25,7 +25,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
-#include <tvm/runtime/crt/internal/graph_runtime/load_json.h>
+#include <tvm/runtime/crt/internal/graph_executor/load_json.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
 

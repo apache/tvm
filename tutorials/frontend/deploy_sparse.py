@@ -82,7 +82,7 @@ import itertools
 import numpy as np
 import tensorflow as tf
 from tvm import relay, runtime
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay import data_dep_optimization as ddo
 from tensorflow.python.framework.convert_to_constants import (
     convert_variables_to_constants_v2,
@@ -214,7 +214,7 @@ def run_relay_graph(mod, params, shape_dict, target, dev):
     input_shape = shape_dict["input_1"]
     dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype("int32")
 
-    m = graph_runtime.GraphModule(lib["default"](dev))
+    m = graph_executor.GraphModule(lib["default"](dev))
     m.set_input(0, dummy_data)
     m.run()
     tvm_output = m.get_output(0)

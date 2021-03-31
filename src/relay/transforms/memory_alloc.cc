@@ -414,6 +414,7 @@ class DialectRewriter : public ExprMutator {
 namespace transform {
 
 Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
+  CheckAndUpdateHostConsistency(&targets, &target_host);
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
         DLOG(INFO) << "tvm::relay::transform::ManifestAlloc";
@@ -457,6 +458,7 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
 
 TVM_REGISTER_GLOBAL("relay.transform.ManifestAlloc")
     .set_body_typed([](Target target_host, Map<tvm::Integer, tvm::Target> targets) {
+      CheckAndUpdateHostConsistency(&targets, &target_host);
       return ManifestAlloc(target_host, targets);
     });
 

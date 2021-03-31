@@ -405,7 +405,7 @@ def test_conv2d_winograd():
                 dev = tvm.device(target, 0)
                 params = {"w": tvm.nd.array(kernel)}
                 graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-                module = tvm.contrib.graph_runtime.create(graph, lib, dev)
+                module = tvm.contrib.graph_executor.create(graph, lib, dev)
                 module.set_input("x", tvm.nd.array(data))
                 module.set_input(**params)
                 module.run()
@@ -668,7 +668,7 @@ def test_conv3d_winograd():
                 dev = tvm.device(target, 0)
                 params = {"w": tvm.nd.array(kernel)}
                 graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-                module = tvm.contrib.graph_runtime.create(graph, lib, dev)
+                module = tvm.contrib.graph_executor.create(graph, lib, dev)
                 module.set_input("x", tvm.nd.array(data))
                 module.set_input(**params)
                 module.run()

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Construct the necessary state for the TVM graph runtime
+Construct the necessary state for the TVM graph executor
 from a Relay expression.
 """
 import warnings
@@ -25,15 +25,16 @@ from tvm.ir import IRModule
 
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
+from tvm.target import Target
 from .. import nd as _nd, autotvm, register_func
 from ..target import Target
-from ..contrib import graph_runtime as _graph_rt
+from ..contrib import graph_executor as _graph_rt
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
-from .backend import graph_runtime_factory as _graph_runtime_factory
+from .backend import graph_executor_factory as _graph_executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -70,7 +71,7 @@ def _convert_param_map(params):
 
 
 class BuildModule(object):
-    """Build an IR module to run on TVM graph runtime. This class is used
+    """Build an IR module to run on TVM graph executor. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
     """
 
@@ -110,10 +111,13 @@ class BuildModule(object):
 
         Returns
         -------
-        factory_module : tvm.relay.backend.graph_runtime_factory.GraphRuntimeFactoryModule
-            The runtime factory for the TVM graph runtime.
+        factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
+            The runtime factory for the TVM graph executor.
         """
         target = _update_target(target)
+        target, target_host = Target.check_and_update_host_consist(
+            target, target_host, target_is_dict_key=False
+        )
 
         # Setup the params.
         if params:
@@ -205,13 +209,14 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    return build(mod, target, target_host, params, mod_name).module
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    return build(mod, target, params=params, mod_name=mod_name).module
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
-    """Helper function that builds a Relay function to run on TVM graph runtime.
+    """Helper function that builds a Relay function to run on TVM graph executor.
 
     Parameters
     ----------
@@ -241,7 +246,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     Returns
     -------
     graph_json : str
-        The json string that can be accepted by graph runtime.
+        The json string that can be accepted by graph executor.
 
     mod : tvm.Module
         The module containing necessary libraries.
@@ -263,13 +268,15 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-
     target = _update_target(target)
-
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+
+    target, target_host = Target.check_and_update_host_consist(
+        target, target_host, target_is_dict_key=False
+    )
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -280,11 +287,11 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
-        runtime_mod = _graph_runtime_factory.GraphRuntimeFactoryModule(
+        graph_json, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
+        executor_factory = _graph_executor_factory.GraphExecutorFactoryModule(
             ir_mod, target, graph_json, runtime_mod, mod_name, params
         )
-        return runtime_mod
+        return executor_factory
 
 
 def optimize(mod, target=None, params=None):
@@ -392,7 +399,9 @@ class GraphExecutor(_interpreter.Executor):
         self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
-            raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
+            raise ValueError(
+                "Graph Executor only supports static graphs, got output type", ret_type
+            )
         mod = build(self.mod, target=self.target)
         gmodule = _graph_rt.GraphModule(mod["default"](self.device))
 
@@ -444,7 +453,7 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     ----------
     kind : str
         The type of executor. Avaliable options are `debug` for the
-        interpreter, `graph` for the graph runtime, and `vm` for the virtual
+        interpreter, `graph` for the graph executor, and `vm` for the virtual
         machine.
 
     mod : :py:class:`~tvm.IRModule`

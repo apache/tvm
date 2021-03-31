@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 roundings = ["UPWARD", "TONEAREST"]
 
@@ -28,7 +28,7 @@ def verify(mod, goldens):
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, "llvm", params=None)
         golden_data, golden_output = goldens
-        rt_mod = graph_runtime.create(graph, lib, device=tvm.cpu(0))
+        rt_mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
         rt_mod.set_input("quantized_data", golden_data)
         rt_mod.set_input(**params)
         rt_mod.run()

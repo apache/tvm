@@ -34,7 +34,7 @@
 #include "src/runtime/c_runtime_api.cc"
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/file_utils.cc"
-#include "src/runtime/graph/graph_runtime.cc"
+#include "src/runtime/graph_executor/graph_executor.cc"
 #include "src/runtime/library_module.cc"
 #include "src/runtime/logging.cc"
 #include "src/runtime/module.cc"
