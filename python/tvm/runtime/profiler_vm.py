@@ -20,6 +20,7 @@ The Relay Virtual Machine profiler.
 
 Provides extra APIs for profiling vm execution.
 """
+import warnings
 from tvm.runtime import _ffi_api
 from . import vm
 
@@ -38,26 +39,16 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
         self._profile = self.module["profile"]
-        self._get_stat = self.module["get_stat"]
         self._set_input = self.module["set_input"]
-        self._reset = self.module["reset"]
         self._setup_device(device, memory_cfg)
 
-    def get_stat(self, sort_by_time=True):
+    def get_stat(self, sort_by_time=True):  # pylint: disable=unused-argument
         """Get the statistics of executed ops.
 
-        Parameters
-        ----------
-        sort_by_time: Optional[Boolean]
-           Set to indicate the returned results are sorted by execution time in
-           the descending order. It is printed in the random order if this
-           field is not set.
-
-        Returns
-        -------
-            The execution statistics in string.
+        REMOVED, use profile method instead.
         """
-        return self._get_stat(sort_by_time)
+        warnings.warn("get_stat has been removed, use profile instead")
+        return ""
 
     def profile(self, *args, func_name="main", **kwargs):
         """Profile a function call.
@@ -81,6 +72,3 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self._profile(func_name)
-
-    def reset(self):
-        self._reset()

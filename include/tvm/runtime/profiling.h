@@ -222,6 +222,10 @@ class Profiler {
    *  \returns The report as a string.
    */
   String Report(bool aggregate = true, bool sort = true);
+  /*! \brief Check if the profiler is currently running.
+   * \returns Whether or not the profiler is running.
+   */
+  bool IsRunning() const { return !global_timers_.empty(); }
 
  private:
   std::vector<std::pair<Device, Timer>> global_timers_;
