@@ -33,9 +33,5 @@ ndarray = "0.12"
 enumn = "^0.1"
 
 [build-dependencies]
-<<<<<<< HEAD
 bindgen = { version="0.51", default-features=false }
-=======
-bindgen = { version="0.57", default-features = false, features = ["runtime"] }
->>>>>>> 8f8333f94... Tweak CI
 anyhow = "^1.0"
