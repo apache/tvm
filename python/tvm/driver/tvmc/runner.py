@@ -460,10 +460,10 @@ def format_times(times):
     max_ts = np.max(times) * 1000
     min_ts = np.min(times) * 1000
 
-    header = "Execution time summary:\n{0:^10} {1:^10} {2:^15} {3:^10}".format(
+    header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
         "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
     )
-    stats = "{0:^10.5f} {1:^10.5f} {2:^10.5f} {3:^10.5f}".format(mean_ts, max_ts, min_ts, std_ts)
+    stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(mean_ts, max_ts, min_ts, std_ts)
 
     print("%s\n%s\n" % (header, stats))
     return "%s\n%s\n" % (header, stats)
