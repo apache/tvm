@@ -112,7 +112,10 @@ class PopenWorker:
             except IOError:
                 pass
             # kill all child processes recurisvely
-            kill_child_processes(self._proc.pid)
+            try:
+                kill_child_processes(self._proc.pid)
+            except TypeError:
+                pass
             try:
                 self._proc.kill()
             except OSError:
@@ -148,6 +151,11 @@ class PopenWorker:
         os.close(worker_write)
         self._reader = os.fdopen(main_read, "rb")
         self._writer = os.fdopen(main_write, "wb")
+
+    def join(self):
+        """Join the current process worker before it terminates"""
+        if self._proc:
+            self._proc.wait()
 
     def send(self, fn, args=(), kwargs=None, timeout=None):
         """Send a new function task fn(*args, **kwargs) to the subprocess.
