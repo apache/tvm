@@ -53,7 +53,9 @@ def test_basic():
             m = tvm.build(s, [C, A, B], target=target, name="offload_add")
             hexm = m.imported_modules[0]
         else:
-            hexm = tvm.build(s, [C, A, B], target=target, target_host=target, name="native_add")
+            hexm = tvm.build(
+                s, [C, A, B], target=tvm.target.Target(target, target), name="native_add"
+            )
 
         asm = hexm.get_source("s")
         vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
@@ -71,7 +73,7 @@ def test_llvm_target_features():
     A = tvm.te.placeholder((128,), dtype="uint8", name="A")
     C = tvm.te.compute((128,), lambda i: A[i] + 1, name="C")
     s = tvm.te.create_schedule(C.op)
-    m = tvm.build(s, [C, A], target=target, target_host=target, name="add_one")
+    m = tvm.build(s, [C, A], target=tvm.target.Target(target, target), name="add_one")
     llvm_ir = m.get_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
