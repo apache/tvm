@@ -440,7 +440,7 @@ def format_times(times):
     This has the effect of producing a small table that looks like:
 
         Execution time summary:
-        mean (s)   max (s)    min (s)    std (s)
+        mean (ms)   max (ms)    min (ms)    std (ms)
         0.14310    0.16161    0.12933    0.01004
 
     Parameters
@@ -455,13 +455,15 @@ def format_times(times):
     """
 
     # timestamps
-    mean_ts = np.mean(times)
-    std_ts = np.std(times)
-    max_ts = np.max(times)
-    min_ts = np.min(times)
+    mean_ts = np.mean(times) * 1000
+    std_ts = np.std(times) * 1000
+    max_ts = np.max(times) * 1000
+    min_ts = np.min(times) * 1000
 
-    header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-        "mean (s)", "max (s)", "min (s)", "std (s)"
+    header = "Execution time summary:\n{0:^10} {1:^10} {2:^15} {3:^10}".format(
+        "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
     )
     stats = "{0:^10.5f} {1:^10.5f} {2:^10.5f} {3:^10.5f}".format(mean_ts, max_ts, min_ts, std_ts)
+
+    print("%s\n%s\n" % (header, stats))
     return "%s\n%s\n" % (header, stats)
