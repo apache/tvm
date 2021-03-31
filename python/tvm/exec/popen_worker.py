@@ -22,6 +22,7 @@ import struct
 import threading
 import traceback
 import pickle
+import logging
 import cloudpickle
 
 from tvm.contrib.popen_pool import StatusKind
@@ -48,6 +49,8 @@ def main():
     else:
         reader = os.fdopen(int(sys.argv[1]), "rb")
         writer = os.fdopen(int(sys.argv[2]), "wb")
+
+    logging.basicConfig(level=logging.INFO)
 
     lock = threading.Lock()
 
