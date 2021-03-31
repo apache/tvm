@@ -15,13 +15,13 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-# microTVM Zephyr Reference Virtual Machines
+# microTVM Zephyr Reference Virtual Machine
 
-This directory contains setup files for the virtual machine used for testing microTVM platforms
+This directory contains setup files for Zephyr virtual machine used for testing microTVM platforms
 that are supported by [Zephyr Project](https://zephyrproject.org/).
 
 ## VM Information for Developers
-This virtual machine is published under [tlcpack/microtvm-zephyr](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr).
+Zephyr VM is published under [tlcpack/microtvm-zephyr](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr).
 Here is a list of different release versions and their tools.
 
 ### [v0.0.4](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr/versions/0.0.4)
