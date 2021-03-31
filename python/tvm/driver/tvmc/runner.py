@@ -107,6 +107,8 @@ def drive_run(args):
 
     rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
 
+    inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode="random")
+
     outputs, times = run_module(
         args.FILE,
         rpc_hostname,
@@ -292,7 +294,6 @@ def run_module(
     rpc_key=None,
     device=None,
     inputs_file=None,
-    fill_mode="random",
     repeat=1,
     profile=False,
 ):
@@ -379,7 +380,7 @@ def run_module(
         module.load_params(params)
 
         shape_dict, dtype_dict = get_input_info(graph, params)
-        inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode)
+        # inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode)
 
         logger.debug("setting inputs to the module")
         module.set_input(**inputs_dict)
