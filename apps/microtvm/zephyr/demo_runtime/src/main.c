@@ -127,18 +127,18 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorNoError;
 }
 
-// Memory pool for use by TVMPlatformMemoryAllocate.
-K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 216, 4);
+// Heap for use by TVMPlatformMemoryAllocate.
+K_HEAP_DEFINE(tvm_heap, 216 * 1024);
 
 // Called by TVM to allocate memory.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
+  *out_ptr = k_heap_aligned_alloc(&tvm_heap, sizeof(int), num_bytes, K_NO_WAIT);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
 // Called by TVM to deallocate memory.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  k_free(ptr);
+  k_heap_free(&tvm_heap, ptr);
   return kTvmErrorNoError;
 }
 
