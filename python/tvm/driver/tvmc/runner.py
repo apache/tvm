@@ -107,14 +107,18 @@ def drive_run(args):
 
     rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
 
-    inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode="random")
+    # inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode="random")
+    try:
+        inputs = np.load(inputs_file) if inputs_file else {}  # this is now a numpy array
+    except IOError as ex:
+        raise TVMCException("Error loading inputs file: %s" % ex)
 
     outputs, times = run_module(
         args.FILE,
         rpc_hostname,
         rpc_port,
         args.rpc_key,
-        inputs_file=args.inputs,
+        inputs=inputs,
         device=args.device,
         fill_mode=args.fill_mode,
         repeat=args.repeat,
@@ -248,11 +252,6 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
         Complete inputs dictionary - {input_name: np.array}.
     """
     logger.debug("creating inputs dict")
-
-    try:
-        inputs = np.load(inputs_file) if inputs_file else {}
-    except IOError as ex:
-        raise TVMCException("Error loading inputs file: %s" % ex)
 
     # First check all the keys in inputs exist in the graph
     for input_name in inputs:
