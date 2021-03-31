@@ -322,7 +322,7 @@ String Profiler::Report(bool aggregate, bool sort) {
   }
 
   // sort rows by duration
-  if(sort) {
+  if (sort) {
     std::sort(rows.begin(), rows.end(),
               [&](const std::unordered_map<std::string, ObjectRef>& a,
                   const std::unordered_map<std::string, ObjectRef>& b) {
