@@ -35,8 +35,6 @@ echo "WARNING: running 'poetry lock', which could take several minutes (dependin
 echo "on your network connection and the state of PyPI) as dependencies are"
 echo "downloaded and cached for future use."
 echo "------------------------------[ TVM Message ]------------------------------"
-# Note: otherwise poetry lock fails: https://github.com/python-poetry/poetry/issues/3628
-# rm -rf $HOME/.cache/pypoetry
 poetry lock -vvv
 poetry install
 poetry run pip3 install -r ~/zephyr/zephyr/scripts/requirements.txt
