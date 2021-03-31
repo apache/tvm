@@ -53,6 +53,7 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_l
 
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
+  // There is no use of target_host so no updates here in the function.
   const auto device_type = target->kind->device_type;
   if (device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
@@ -138,6 +139,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
                        LayoutRewriteOption layout_rewrite_option, Array<String> task_input_names) {
+  CheckAndUpdateHostConsistency(&target, &target_host);
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -167,6 +169,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
                        int layout_rewrite_option, Array<String> task_input_names) {
+      CheckAndUpdateHostConsistency(&target, &target_host);
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
                         LayoutRewriteOption(layout_rewrite_option), task_input_names);
     });

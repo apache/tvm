@@ -231,8 +231,7 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    target = Target(target)
-    target_host = Target(target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
     device_type = ndarray.device(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
@@ -399,8 +398,12 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
+
     if not target_host:
-        for tar, _ in target_input_mod.items():
+        for tar, mod in target_input_mod.items():
             tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
@@ -408,6 +411,10 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
                 break
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
+
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
 
     mod_host_all = tvm.IRModule({})
 

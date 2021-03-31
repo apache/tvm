@@ -25,6 +25,7 @@ python3 -m tvm.exec.measure_peak --target opencl --target-host "llvm -mtriple=aa
 import argparse
 import logging
 
+from tvm.target import Target
 from ..contrib.peak import measure_peak_all
 
 
@@ -43,6 +44,9 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
+    args.target, args.target_host = Target.check_and_update_host_consist(
+        args.target, args.target_host
+    )
     measure_peak_all(args.target, args.target_host, args.rpc_host, args.rpc_port)
 
 

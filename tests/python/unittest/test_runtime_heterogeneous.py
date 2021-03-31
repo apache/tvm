@@ -170,7 +170,8 @@ def test_simplex_data_transferring():
         )
 
         target_flist = {target_device: lower_add, target_host: lower_sub}
-        mhost = tvm.build(target_flist, target_host=target_host)
+        target = tvm.target.Target(target, target_host)
+        mhost = tvm.build(target_flist, target=target)
         dev = [host_dev, device_dev]
         mod = graph_executor.create(graph, mhost, dev)
         params = {}
@@ -399,7 +400,8 @@ def test_duplex_data_transferring():
 
         lower_add0.update(lower_add1)
         target_flist = {target_device: lower_add0, target_host: lower_sub}
-        mhost = tvm.build(target_flist, target_host=target_host)
+        target = tvm.target.Target(target, target_host)
+        mhost = tvm.build(target_flist, target=target)
         dev = [host_dev, device_dev]
         params = {}
         params["A"] = tensor_a = np.random.uniform(size=shape).astype(tensor_a.dtype)

@@ -25,6 +25,7 @@ from tvm.ir import IRModule
 
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
+from tvm.target import Target
 from .. import nd as _nd, autotvm, register_func
 from ..target import Target
 from ..contrib import graph_executor as _graph_rt
@@ -114,6 +115,9 @@ class BuildModule(object):
             The runtime factory for the TVM graph executor.
         """
         target = _update_target(target)
+        target, target_host = Target.check_and_update_host_consist(
+            target, target_host, target_is_dict_key=False
+        )
 
         # Setup the params.
         if params:
@@ -205,7 +209,8 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    return build(mod, target, target_host, params, mod_name).module
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    return build(mod, target, params=params, mod_name=mod_name).module
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
@@ -263,13 +268,15 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-
     target = _update_target(target)
-
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+
+    target, target_host = Target.check_and_update_host_consist(
+        target, target_host, target_is_dict_key=False
+    )
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -280,7 +287,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(ir_mod, target, target_host, params)
+        graph_json, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
         executor_factory = _graph_executor_factory.GraphExecutorFactoryModule(
             ir_mod, target, graph_json, runtime_mod, mod_name, params
         )

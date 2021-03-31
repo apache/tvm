@@ -40,6 +40,7 @@ from tvm import nd, rpc as _rpc
 from tvm.error import TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
+from tvm.target import Target
 
 from ..utils import get_const_tuple
 from ..env import AutotvmGlobalScope
@@ -418,6 +419,8 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
+    target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
+
     with target:
         s, args = task.instantiate(config)
 

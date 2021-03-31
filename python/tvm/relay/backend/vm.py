@@ -28,6 +28,7 @@ import tvm.runtime.vm as vm_rt
 from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm.relay.backend.interpreter import Executor
+from tvm.target import Target
 from . import _vm
 
 
@@ -62,10 +63,13 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
+    target, target_host = Target.check_and_update_host_consist(
+        target, target_host, target_is_dict_key=False
+    )
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    compiler.lower(mod, target, target_host)
+    compiler.lower(mod, target)
     compiler.codegen()
     return compiler.get_exec()
 
@@ -130,6 +134,10 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
+        target, target_host = Target.check_and_update_host_consist(
+            target, target_host, target_is_dict_key=False
+        )
+
         tophub_context = self._tophub_context(target)
         with tophub_context:
             self._lower(mod, target, target_host)
@@ -167,6 +175,10 @@ class VMCompiler(object):
         """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
+        target, target_host = Target.check_and_update_host_consist(
+            target, target_host, target_is_dict_key=False
+        )
+
         if params:
             self.set_params(params)
         return self._optimize(mod, target, target_host), self.get_params()
@@ -206,6 +218,9 @@ class VMCompiler(object):
         """Update target host."""
         target_host = None if target_host == "" else target_host
         if not target_host:
+            for _, tgt in target.items():
+                if tgt.host is not None:
+                    return tgt.host
             for device_type, tgt in target.items():
                 if device_type.value == tvm.nd.cpu(0).device_type:
                     target_host = tgt

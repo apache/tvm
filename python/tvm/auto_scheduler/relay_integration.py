@@ -29,9 +29,11 @@ import tvm
 from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
+
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import Reduce
 from tvm.tir import expr as _expr
+from tvm.target import Target
 
 from . import _ffi_api
 from .compute_dag import ComputeDAG, LayoutRewriteOption
@@ -108,10 +110,7 @@ def extract_tasks(
     """
     # pylint: disable=import-outside-toplevel
 
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-    if isinstance(target_host, str):
-        target_host = tvm.target.Target(target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(
@@ -137,7 +136,6 @@ def extract_tasks(
             SearchTask(
                 workload_key=wkl_key,
                 target=target,
-                target_host=target_host,
                 hardware_params=hardware_params,
                 # When auto scheduler is used in end to end network, try to apply layout rewrite
                 # to improve the overall performance
