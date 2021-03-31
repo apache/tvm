@@ -933,7 +933,6 @@ def test_call_attrs():
     mod = tvm.IRModule()
     mod["main"] = func
     mod = tvm.relay.transform.InferType()(mod)
-
     # assert equal
     program = """
     def @main(%p0: Tensor[(2, 4), float32], %p1: Tensor[(2, 4), float32]) {
@@ -943,6 +942,39 @@ def test_call_attrs():
         add(%1, 1f)
     };
     %2(%p0, %p1, name="func_call_attrs", attrs_type_key="attrs.TestAttrs")
+    }
+    """
+    parsed = parse_module(program)
+    assert_graph_equal(parsed, mod)
+
+
+def test_dict_attrs():
+    def get_func(shape, dtype):
+        x = relay.var("data", shape=shape, dtype=dtype)
+        b = relay.nn.relu(x)
+        return relay.Function([x], b)
+
+    # build relay graph
+    shape = (2, 4)
+    dtype = "float32"
+    sub_func = get_func(shape, dtype)
+    p0 = relay.var("p0", shape=shape, dtype=dtype)
+    attr = tvm.ir.make_node("DictAttrs", name="func_call")
+    call = relay.Call(sub_func, [p0], attrs=attr)
+    func = relay.Function([p0], call)
+
+    # build relay module
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mod = tvm.relay.transform.InferType()(mod)
+
+    # assert equal
+    program = """
+    def @main(%p0: Tensor[(2, 4), float32]) {
+    %0 = fn (%data: Tensor[(2, 4), float32]) {
+        nn.relu(%data)
+    };
+    %0(%p0, name="func_call", attrs_type_key="DictAttrs")
     }
     """
     parsed = parse_module(program)

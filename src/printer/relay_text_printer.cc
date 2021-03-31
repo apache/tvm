@@ -826,7 +826,11 @@ std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr
     return docs;
   } else {
     AttrPrinter printer(&docs, this);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+    if (attrs->GetTypeKey() == DictAttrsNode::_type_key) {
+      docs = PrintFuncAttrs(attrs);
+    } else {
+      const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+    }
     if (!op_node) {
       // print call attr type key to restore expr for relay parser
       std::string s = std::string(attrs->GetTypeKey());
