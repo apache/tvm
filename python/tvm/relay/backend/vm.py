@@ -218,6 +218,9 @@ class VMCompiler(object):
         """Update target host."""
         target_host = None if target_host == "" else target_host
         if not target_host:
+            for _, tgt in target.items():
+                if tgt.host is not None:
+                    return tgt.host
             for device_type, tgt in target.items():
                 if device_type.value == tvm.nd.cpu(0).device_type:
                     target_host = tgt
