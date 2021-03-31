@@ -36,15 +36,13 @@ __name__ == "__main__":` block.
 """
 
 import os
-import itertools
 
 import numpy as np
 import tvm
 from tvm import te, auto_scheduler, runtime, topi
 from tvm.auto_scheduler import _ffi_api
 from tvm.topi.utils import get_const_tuple
-
-import scipy.sparse as sp
+from tvm.topi.sparse.utils import random_bsr_matrix
 
 ######################################################################
 # Define the computation
@@ -52,29 +50,6 @@ import scipy.sparse as sp
 # To begin with, let us define the computation of a sparse matmul with several relu and bias add.
 # The function should return the list of input/output tensors.
 # From these tensors, the auto-scheduler can get the whole computational graph.
-
-# We use this function to generate a random bsr matrix
-def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
-    import itertools
-
-    Y = np.zeros((M, N), dtype=dtype)
-    assert M % BS_R == 0
-    assert N % BS_C == 0
-    nnz = int(density * M * N)
-    num_blocks = int(nnz / (BS_R * BS_C)) + 1
-    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
-    assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
-    chosen_blocks = candidate_blocks[
-        np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
-    ]
-    for i in range(len(chosen_blocks)):
-        r, c = chosen_blocks[i]
-        Y[r : r + BS_R, c : c + BS_C] = np.random.randn(BS_R, BS_C)
-    s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
-    assert s.data.shape == (num_blocks, BS_R, BS_C)
-    assert s.indices.shape == (num_blocks,)
-    assert s.indptr.shape == (M // BS_R + 1,)
-    return s
 
 
 @auto_scheduler.register_workload
@@ -104,7 +79,9 @@ def sparse_dense(M, N, K, w_data_shape, w_indices_shape, w_indptr_shape, dtype):
 # See the `tvm.auto_scheduler.measure.py` for more details.
 
 # Define the basic shapes of this sparse computation
-M = K = N = 512
+M = 128
+K = 256
+N = 512
 BS_R = 16
 BS_C = 1
 density = 0.6
@@ -131,7 +108,7 @@ Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 target = tvm.target.Target("llvm")
 
 # Register the sparse data to task inputs
-prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
+prefix = "sparse_dense_bsr_%d_%d_%d_%d_%.2f_" % (N, K, BS_R, BS_C, density)
 task = tvm.auto_scheduler.SearchTask(
     func=sparse_dense,
     args=(M, N, K, W_sp_np.data.shape, W_sp_np.indices.shape, W_sp_np.indptr.shape, "float32"),

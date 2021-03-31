@@ -23,6 +23,7 @@ Implements a Python interface to executing the compiled VM object.
 import numpy as np
 
 import tvm
+from tvm.runtime import Module
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
@@ -299,12 +300,44 @@ class VirtualMachine(object):
     POOLED_ALLOCATOR = 2
 
     def __init__(self, exe, device, memory_cfg=None):
-        if not isinstance(exe, Executable):
+        """
+        Construct a VirtualMachine wrapper class which provides a simple
+        interface over the raw C++ Module based API.
+
+        Parameters
+        ----------
+        exe: Union[Executable, Module]
+            The executable either with the wrapper Python type or the raw runtime.Module.
+
+            In most cases this will be the Python wrapper class tvm.runtime.vm.Executable but
+            if you instead get the underlying runtime.Module subclass (i.e `exe.mod`) you
+            can directly pass it to this method.
+
+            This case can occur when doing things such as RPC where TVM's module APIs
+            return the raw modules, not the wrapped modules. This constructor will
+            handle this internally.
+
+        device: Union[Device, List[Device]]
+            The device, or devices on which to execute the VM code.
+
+        memory_cfg: Optional[str]
+            The allocator behavior to use for the VM.
+
+        Returns
+        -------
+        vm: VirtualMachine
+            A VM wrapper object.
+        """
+        if not isinstance(exe, Executable) and not isinstance(exe, Module):
             raise TypeError(
                 "exe is expected to be the type of Executable, "
                 + "but received {}".format(type(exe))
             )
-        self.module = _ffi_api._VirtualMachine(exe.module)
+
+        if not isinstance(exe, Executable):
+            exe = Executable(exe)
+
+        self.module = exe.mod["vm_load_executable"]()
         self._exec = exe
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]

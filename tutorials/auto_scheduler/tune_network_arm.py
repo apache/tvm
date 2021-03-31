@@ -17,7 +17,9 @@
 """
 Auto-scheduling a Neural Network for ARM CPU
 =============================================
-**Author**: `Thierry Moreau <https://github.com/tmoreau89, Lianmin Zheng <https://github.com/merrymercy>>`_
+**Author**: `Thierry Moreau <https://github.com/tmoreau89>_`, \
+            `Lianmin Zheng <https://github.com/merrymercy>_`, \
+            `Chengfan Jia <https://github.com/jcf94/>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
@@ -45,9 +47,11 @@ __name__ == "__main__":` block.
 """
 
 import numpy as np
+import os
 
 import tvm
 from tvm import relay, auto_scheduler
+from tvm.relay import data_dep_optimization as ddo
 import tvm.relay.testing
 from tvm.contrib import graph_executor
 from tvm.contrib.utils import tempdir
@@ -67,7 +71,7 @@ from tvm.contrib.utils import tempdir
 # You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
 
 
-def get_network(name, batch_size, layout="NHWC", dtype="float32"):
+def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=False):
     """Get the symbol definition and random weight of a network"""
 
     # auto-scheduler prefers NHWC layout
@@ -127,6 +131,17 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
             net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
         )
         mod = tvm.IRModule.from_expr(net)
+    elif name == "mlp":
+        mod, params = relay.testing.mlp.get_workload(
+            batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
+        )
+    else:
+        raise ValueError("Network not found.")
+
+    if use_sparse:
+        from tvm.topi.sparse.utils import convert_model_dense_to_sparse
+
+        mod, params = convert_model_dense_to_sparse(mod, params, random_params=True)
 
     return mod, params, input_shape, output_shape
 
@@ -217,8 +232,10 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #                               because we're sharing x86 op strategy.
 target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 
-# Also replace this with the device key in your tracker
+# Also replace this with the device key, rpc host and rpc port in your tracker
 device_key = "rasp4b-64"
+rpc_host = "0.0.0.0"
+rpc_port = 9191
 
 # Set this to True if you use ndk tools for cross compiling
 # And also set the environment variable below to point to the cross compiler
@@ -227,6 +244,7 @@ use_ndk = False
 
 #### TUNING OPTION ####
 network = "mobilenet"
+use_sparse = False
 batch_size = 1
 layout = "NHWC"
 dtype = "float32"
@@ -244,8 +262,11 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 # The task scheduler will just optimize this objective.
 
 # Extract tasks from the network
+print("Get model...")
+mod, params, input_shape, output_shape = get_network(
+    network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
+)
 print("Extract tasks...")
-mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
@@ -280,10 +301,11 @@ def tune_and_evaluate():
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
+        builder=auto_scheduler.LocalBuilder(build_func="ndk" if use_ndk else "default"),
         runner=auto_scheduler.RPCRunner(
             device_key,
-            host="0.0.0.0",
-            port=9191,
+            host=rpc_host,
+            port=rpc_port,
             timeout=30,
             repeat=1,
             min_repeat_ms=200,
@@ -315,7 +337,7 @@ def tune_and_evaluate():
 
     # Upload module to device
     print("Upload...")
-    remote = auto_scheduler.utils.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
+    remote = auto_scheduler.utils.request_remote(device_key, rpc_host, rpc_port, timeout=10000)
     remote.upload(tmp.relpath(filename))
     rlib = remote.load_module(filename)
 

@@ -269,10 +269,14 @@ class Module(object):
         return self._collect_from_import_tree(is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
-        """Export the module and its imported device code one library.
+        """
+        Export the module and all imported modules into a single device library.
 
-        This function only works on host llvm modules.
-        It will pack all the imported modules
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses will work with this API but they must support implement
+        the save and load mechanisms of modules completely including saving
+        from streams and files. This will pack your non-shared library module
+        into a single shared library which can later be loaded by TVM.
 
         Parameters
         ----------
@@ -280,13 +284,20 @@ class Module(object):
             The name of the shared library.
 
         fcompile : function(target, file_list, kwargs), optional
-            Compilation function to use create dynamic library.
+            The compilation function to use create the final library object during
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
+            into a final dynamic library.
+
+            This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
 
         workspace_dir : str, optional
-            the path to a directory used to create intermediary
-            artifacts for the process exporting of the library.
+            The path of the directory used to create the intermediate
+            artifacts when exporting the module.
             If this is not provided a temporary dir will be created.
 
         kwargs : dict, optional
