@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm import rpc
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.op.contrib import arm_compute_lib
 from tvm.contrib import utils
 from tvm.autotvm.measure import request_remote
@@ -214,7 +214,7 @@ def build_and_run(
         raise Exception(err_msg)
 
     lib = update_lib(lib, device.device, device.cross_compile)
-    gen_module = graph_runtime.GraphModule(lib["default"](device.device.cpu(0)))
+    gen_module = graph_executor.GraphModule(lib["default"](device.device.cpu(0)))
     gen_module.set_input(**inputs)
     out = []
     for _ in range(no_runs):

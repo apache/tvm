@@ -20,15 +20,15 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
-from tvm.ir import IRModule
-from tvm.relay import transform, build_module
-from tvm.runtime.ndarray import cpu
+from ...ir import IRModule
+from ...relay import transform, build_module
+from ...runtime.ndarray import cpu
 
 from . import _ffi_api
 from .feature import Feature
 
 
-def context_analysis(mod, default_context):
+def context_analysis(mod, default_device):
     """Analyze the device context information of each IR node in a Relay
     program.
 
@@ -37,10 +37,10 @@ def context_analysis(mod, default_context):
     mod : tvm.IRModule
         The input module.
 
-    default_context : tvm.runtime.TVMContext
+    default_device : tvm.runtime.Device
         The default context allocated to an IR node.
     """
-    return _ffi_api.ContextAnalysis(mod, default_context)
+    return _ffi_api.ContextAnalysis(mod, default_device)
 
 
 def post_order_visit(expr, fvisit):
@@ -405,7 +405,7 @@ def search_fc_transpose(expr):
 def get_calibration_data(mod, data):
     """Get the calibration data of a given relay graph
 
-    This pass uses the graph runtime to get the calibration data of a module, which
+    This pass uses the graph executor to get the calibration data of a module, which
     includes the input and output values of each function. The returned data uses
     the GlobalVar of each function as a key. Users can further access the inputs and
     outputs by using `inputs` or  `outputs` as the key.
@@ -433,7 +433,7 @@ def get_calibration_data(mod, data):
     mod = _ffi_api.get_calibrate_module(mod)
     mod = transform.Inline()(mod)
 
-    ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
+    ref_ex = build_module.create_executor("graph", mod=mod, device=cpu(0))
     ref_res = ref_ex.evaluate()(**data)
 
     calib_data = {}

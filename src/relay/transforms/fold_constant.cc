@@ -82,10 +82,6 @@ class ConstantFolder : public MixedModeMutator {
         device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
-        invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
-        shape_func_op_(Op::Get("vm.shape_func")),
-        alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
-        alloc_storage_op_(Op::Get("memory.alloc_storage")),
         cast_op_(Op::Get("cast")),
         ndarray_size_op_(Op::Get("ndarray_size")) {}
 
@@ -152,8 +148,6 @@ class ConstantFolder : public MixedModeMutator {
     }
     static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
 
-    std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
-
     auto origin_args = call->args;
     call = post.as<CallNode>();
     // We don't constant fold function with zero arguments.
@@ -162,9 +156,6 @@ class ConstantFolder : public MixedModeMutator {
     if (call->args.size() == 0) return post;
     const OpNode* op = call->op.as<OpNode>();
     if (op == nullptr) return post;
-    if (skip_list.count(op->name)) {
-      return post;
-    }
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return post;
     // Try to evaluate shape_of op
@@ -217,10 +208,6 @@ class ConstantFolder : public MixedModeMutator {
   const Op& device_copy_op_;
   const Op& shape_of_op_;
   const Op& vm_shape_of_op_;
-  const Op& invoke_tvm_op_;
-  const Op& shape_func_op_;
-  const Op& alloc_tensor_op_;
-  const Op& alloc_storage_op_;
   const Op& cast_op_;
   const Op& ndarray_size_op_;
 
@@ -261,16 +248,16 @@ class ConstantFolder : public MixedModeMutator {
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 
     using tvm::transform::PassContext;
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     Target target = Target("llvm");
     // use a fresh build context
     // in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
     With<PassContext> fresh_build_ctx(PassContext::Create());
 
-    FInterpreter executor = CreateInterpreter(mod, ctx, target);
+    FInterpreter executor = CreateInterpreter(mod, dev, target);
     return ObjectToExpr(executor(expr));
   }
 
@@ -289,17 +276,17 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant shape
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
     if (ishape.size() == 0) {
-      value = runtime::NDArray::Empty({}, cdtype, ctx);
+      value = runtime::NDArray::Empty({}, cdtype, dev);
     } else {
       ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
-      value = runtime::NDArray::Empty(cshape, cdtype, ctx);
+      value = runtime::NDArray::Empty(cshape, cdtype, dev);
       int32_t* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
@@ -314,7 +301,7 @@ class ConstantFolder : public MixedModeMutator {
     Constant shape = Downcast<Constant>(ObjectToExpr(value));
 
     if (shape->data.Shape().size() == 0 && GetScalarFromConstant<int32_t>(shape) == 0) {
-      auto ndarray = runtime::NDArray::Empty({}, cdtype, ctx);
+      auto ndarray = runtime::NDArray::Empty({}, cdtype, dev);
       shape = Constant(ndarray);
     }
 
@@ -336,12 +323,12 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant size
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    value = runtime::NDArray::Empty({}, cdtype, ctx);
+    value = runtime::NDArray::Empty({}, cdtype, dev);
     int32_t* data = static_cast<int32_t*>(value->data);
     if (ishape.size() == 0) {
       *data = 0;
@@ -386,6 +373,8 @@ class ConstantFolder : public MixedModeMutator {
 Expr FoldConstant(const Expr& expr, const IRModule& mod) {
   return ConstantFolder(mod).Mutate(expr);
 }
+
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstant);
 
 namespace transform {
 

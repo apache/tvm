@@ -24,11 +24,11 @@ import tarfile
 import tempfile
 
 import numpy as np
-import tvm
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_runtime as runtime
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib import graph_executor as runtime
+from tvm.contrib.debugger import debug_executor
+from tvm.relay import load_param_dict
 
 from . import common
 from .common import TVMCException
@@ -77,7 +77,7 @@ def add_run_parser(subparsers):
         "--profile",
         action="store_true",
         help="generate profiling data from the runtime execution. "
-        "Using --profile requires the Graph Runtime Debug enabled on TVM. "
+        "Using --profile requires the Graph Executor Debug enabled on TVM. "
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated.",
     )
@@ -163,9 +163,8 @@ def get_input_info(graph_str, params):
 
     shape_dict = {}
     dtype_dict = {}
-    # Use a special function to load the binary params back into a dict
-    load_arr = tvm.get_global_func("tvm.relay._load_param_dict")(params)
-    param_names = [v.name for v in load_arr]
+    params_dict = load_param_dict(params)
+    param_names = [k for (k, v) in params_dict.items()]
     graph = json.loads(graph_str)
     for node_id in graph["arg_nodes"]:
         node = graph["nodes"][node_id]
@@ -297,7 +296,7 @@ def run_module(
     repeat=1,
     profile=False,
 ):
-    """Run a compiled graph runtime module locally or remotely with
+    """Run a compiled graph executor module locally or remotely with
     optional input values.
 
     If input tensors are not specified explicitly, they can be filled
@@ -362,19 +361,19 @@ def run_module(
         # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
         logger.debug("device is %s", device)
         if device == "gpu":
-            ctx = session.gpu()
+            dev = session.gpu()
         elif device == "cl":
-            ctx = session.cl()
+            dev = session.cl()
         else:
             assert device == "cpu"
-            ctx = session.cpu()
+            dev = session.cpu()
 
         if profile:
             logger.debug("creating runtime with profiling enabled")
-            module = debug_runtime.create(graph, lib, ctx, dump_root="./prof")
+            module = debug_executor.create(graph, lib, dev, dump_root="./prof")
         else:
             logger.debug("creating runtime with profiling disabled")
-            module = runtime.create(graph, lib, ctx)
+            module = runtime.create(graph, lib, dev)
 
         logger.debug("load params into the runtime module")
         module.load_params(params)
@@ -391,7 +390,7 @@ def run_module(
             module.run()
 
         # create the module time evaluator (returns a function)
-        timer = module.module.time_evaluator("run", ctx, 1, repeat=repeat)
+        timer = module.module.time_evaluator("run", dev, 1, repeat=repeat)
         # call the evaluator function to invoke the module and save execution times
         prof_result = timer()
         # collect a list of execution times from the profiling results

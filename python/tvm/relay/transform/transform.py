@@ -240,6 +240,23 @@ def LazyGradientInit():
     return _ffi_api.LazyGradientInit()
 
 
+def FoldConstantExpr(expr, mod):
+    """Fold the constant expressions in a Relay program.
+    Parameters
+    ----------
+    expr: Expr
+        The expression to fold
+    mod: IRModule
+        The module the expr lives in (for global calls)
+
+    Returns
+    -------
+    new_expr: Expr
+        The expr after Constant Folding
+    """
+    return _ffi_api.FoldConstantExpr(expr, mod)
+
+
 def FoldConstant():
     """Fold the constant expressions in a Relay program.
 
@@ -783,10 +800,34 @@ def gradient(expr, mod=None, mode="higher_order"):
       The transformed expression.
     """
     if mode == "first_order":
-        return _ffi_api.first_order_gradient(expr, mod)
+        warnings.warn(
+            "using transform.gradient for first-order AD is deprecated, please use the"
+            "FirstOrderGradient module pass",
+            DeprecationWarning,
+        )
+        if mod is not None:
+            raise RuntimeError(
+                "to run first-order AD on a module, please use the FirstOrderGradient module pass."
+            )
+        return FirstOrderGradient()(tvm.IRModule.from_expr(expr))["main"]
     if mode == "higher_order":
         return _ffi_api.gradient(expr, mod)
     raise Exception("unknown mode")
+
+
+def FirstOrderGradient():
+    """
+    Transforms all global functions in the module to return the original result, paired with the
+    gradients of the inputs. This pass transforms each global function independently and does not
+    support interprocedural AD. Additionally, this pass does not support any control-flow or
+    references, and should only be used on pure data-flow graphs.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered FirstOrderGradient pass.
+    """
+    return _ffi_api.FirstOrderGradient()
 
 
 def Defunctionalization(func, mod):
@@ -968,7 +1009,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     """
 
     if opt_level is None:
-        raise ValueError("Please provide opt_level for the funtion pass.")
+        raise ValueError("Please provide opt_level for the function pass.")
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):
@@ -1080,6 +1121,19 @@ def SimplifyExpr():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.SimplifyExpr()
+
+
+def FoldExplicitPadding():
+    """
+    FoldExplicitPadding finds explict padding before an op that can support
+    implicit padding and fuses them.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered ImplicitPadding pass.
+    """
+    return _ffi_api.FoldExplicitPadding()
 
 
 def AnnotateSpans():

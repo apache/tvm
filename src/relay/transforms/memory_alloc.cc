@@ -31,7 +31,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/transform.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
 #include <cstdint>
@@ -41,6 +41,8 @@
 #include <vector>
 
 #include "../backend/compile_engine.h"
+#include "../op/memory/memory.h"
+#include "../op/vm/vm.h"
 #include "let_list.h"
 #include "pattern_utils.h"
 
@@ -49,12 +51,8 @@ using namespace tvm::runtime;
 namespace tvm {
 namespace relay {
 
-extern Expr ToTupleType(const Type& ty, const std::vector<Expr>& exprs);
-extern std::vector<Expr> FromTupleType(const Type& type, const Expr& expr);
-extern std::vector<TensorType> FlattenTupleType(const Type& type);
-
 using AnalysisResultMap =
-    std::unordered_map<Expr, TVMContext, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
+    std::unordered_map<Expr, Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 
 inline Constant MakeConstant(const std::vector<int64_t>& value) {
   return MakeConstantTensor(DataType::Int(64), {static_cast<int64_t>(value.size())}, value);
@@ -62,10 +60,8 @@ inline Constant MakeConstant(const std::vector<int64_t>& value) {
 
 inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dtype,
                         Array<IndexExpr> assert_shape) {
-  auto f = runtime::Registry::Get("relay.op.memory._make.alloc_tensor");
-  CHECK(f != nullptr) << "unable to find alloc_tensor op";
   auto offset = MakeConstantScalar(DataType::Int(64), 0);
-  return (*f)(storage, offset, shape, dtype, assert_shape);
+  return AllocTensor(storage, offset, shape, dtype, assert_shape);
 }
 
 // A pass to check if the fused op contains only reshape ops.
@@ -106,21 +102,10 @@ bool IsReshapeOnly(const Expr& expr) {
 class DialectRewriter : public ExprMutator {
  public:
   DialectRewriter(const Target& target_host, const AnalysisResultMap& context_analysis_map)
-      : target_host_(target_host),
-        context_analysis_map_(context_analysis_map),
-        device_copy_(runtime::Registry::Get("relay.op._make.device_copy")),
-        invoke_tvm_(runtime::Registry::Get("relay.op.vm.invoke_tvm_op")),
-        alloc_storage_(runtime::Registry::Get("relay.op.memory._make.alloc_storage")),
-        shape_func_(runtime::Registry::Get("relay.op.vm.shape_func")),
-        shape_of_(runtime::Registry::Get("relay.op.vm.shape_of")),
-        reshape_tensor_(runtime::Registry::Get("relay.op.vm.reshape_tensor")),
-        prod_(runtime::Registry::Get("relay.op._make.prod")),
-        divide_(runtime::Registry::Get("relay.op._make.divide")),
-        add_(runtime::Registry::Get("relay.op._make.add")),
-        multiply_(runtime::Registry::Get("relay.op._make.multiply")) {}
+      : target_host_(target_host), context_analysis_map_(context_analysis_map) {}
 
-  // Get the context of an expression.
-  TVMContext GetContext(const Expr& expr) const {
+  // Get the device of an expression.
+  Device GetDevice(const Expr& expr) const {
     auto it = context_analysis_map_.find(expr);
     CHECK(it != context_analysis_map_.end()) << "Cannot find expr in the context analysis map:\n"
                                              << AsText(expr, false);
@@ -204,12 +189,12 @@ class DialectRewriter : public ExprMutator {
         // Handle the static case
         Array<Expr> outs;
         for (size_t i = 0; i < out_types.size(); ++i) {
-          TVMContext ctx = GetContext(GetRef<Call>(cn));
-          auto out = MakeStaticAllocation(&scope, out_types[i], ctx, std::to_string(i));
+          Device dev = GetDevice(GetRef<Call>(cn));
+          auto out = MakeStaticAllocation(&scope, out_types[i], dev, std::to_string(i));
           outs.push_back(out);
         }
         Tuple output(outs);
-        Expr invoke = (*invoke_tvm_)(cn->op, ins, output);
+        Expr invoke = InvokeTVMOp(cn->op, ins, output);
         scope.Push(invoke);
         return ToTupleType(ret_type,
                            std::vector<Expr>(output->fields.begin(), output->fields.end()));
@@ -221,8 +206,8 @@ class DialectRewriter : public ExprMutator {
 
  private:
   // Insert a device copy node.
-  Expr DeviceCopy(const Expr& inp, int src_ctx, int dst_ctx) {
-    return ExprMutator::Mutate((*device_copy_)(inp, src_ctx, dst_ctx));
+  Expr DeviceCopy(const Expr& inp, int src_dev, int dst_dev) {
+    return ExprMutator::Mutate(relay::DeviceCopy(inp, src_dev, dst_dev));
   }
 
   // Check if a call invokes a primitive function.
@@ -257,11 +242,11 @@ class DialectRewriter : public ExprMutator {
 
   Expr ComputeStorageInRelay(const Expr& shape, const TensorType& type) const {
     auto dtype = DataType(type->dtype);
-    Expr els = (*prod_)(shape, Array<Expr>(nullptr), false, false);
+    Expr els = Prod(shape, Array<Integer>(nullptr), false, false);
     Expr num = MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
-    Expr add = (*add_)(num, MakeConstantScalar(DataType::Int(64), 7));
+    Expr add = Add(num, MakeConstantScalar(DataType::Int(64), 7));
     Expr div = MakeConstantScalar(DataType::Int(64), 8);
-    Expr ret = (*multiply_)(els, (*divide_)(add, div));
+    Expr ret = Multiply(els, Divide(add, div));
     return std::move(ret);
   }
 
@@ -277,8 +262,7 @@ class DialectRewriter : public ExprMutator {
   }
 
   // Allocate a tensor with a statically known shape.
-  Var MakeStaticAllocation(LetList* scope, const TensorType& type, TVMContext ctx,
-                           String name_hint) {
+  Var MakeStaticAllocation(LetList* scope, const TensorType& type, Device dev, String name_hint) {
     std::vector<int64_t> int_shape;
     for (auto it : type->shape) {
       const auto* imm = it.as<IntImmNode>();
@@ -290,7 +274,7 @@ class DialectRewriter : public ExprMutator {
     Expr alignment = ComputeAlignment(type->dtype);
     // Run type inference later to get the correct type.
     Var var("storage_" + name_hint, Type(nullptr));
-    Expr value = (*alloc_storage_)(size, alignment, ctx, type->dtype);
+    Expr value = AllocStorage(size, alignment, dev, type->dtype);
     auto sto = scope->Push(var, value);
 
     // TODO(@jroesch): There is a bug with typing based on the constant shape.
@@ -310,7 +294,7 @@ class DialectRewriter : public ExprMutator {
 
     Array<Integer> is_inputs;
     int input_pos = 0;
-    TVMContext cpu_ctx = default_context_;
+    Device cpu_dev = default_device_;
     CHECK_EQ(new_args.size(), input_states.size());
     for (size_t i = 0; i < new_args.size(); ++i) {
       Expr arg = new_args[i];
@@ -325,7 +309,7 @@ class DialectRewriter : public ExprMutator {
       if (state == 2) {
         std::vector<Expr> exprs = FromTupleType(ty, arg);
         for (size_t j = 0; j < exprs.size(); ++j) {
-          Expr sh_of = ExprMutator::Mutate((*shape_of_)(exprs[j]));
+          Expr sh_of = ExprMutator::Mutate(ShapeOf(exprs[j]));
           Var in_shape_var("in_shape_" + std::to_string(input_pos + j), Type(nullptr));
           shape_func_ins.push_back(scope->Push(in_shape_var, sh_of));
           input_pos++;
@@ -333,9 +317,9 @@ class DialectRewriter : public ExprMutator {
         is_inputs.push_back(0);
       } else if (state == 1) {
         auto new_arg = ExprMutator::Mutate(arg);
-        auto ctx = GetContext(arg);
-        if (ctx.device_type != cpu_ctx.device_type) {
-          new_arg = DeviceCopy(new_arg, ctx.device_type, cpu_ctx.device_type);
+        auto dev = GetDevice(arg);
+        if (dev.device_type != cpu_dev.device_type) {
+          new_arg = DeviceCopy(new_arg, dev.device_type, cpu_dev.device_type);
         }
         Var in_shape_var("in_shape_" + std::to_string(input_pos), Type(nullptr));
         shape_func_ins.push_back(scope->Push(in_shape_var, new_arg));
@@ -353,12 +337,12 @@ class DialectRewriter : public ExprMutator {
       auto tt = TensorType(out->shape, out->dtype);
       // Put shape func on CPU. This also ensures that everything between
       // shape_of and shape_func are on CPU.
-      auto alloc = MakeStaticAllocation(scope, tt, cpu_ctx, std::to_string(i));
+      auto alloc = MakeStaticAllocation(scope, tt, cpu_dev, std::to_string(i));
       Var shape_func_out_var("shape_func_out_" + std::to_string(i), Type(nullptr));
       alloc = scope->Push(shape_func_out_var, alloc);
       out_shapes.push_back(alloc);
     }
-    auto shape_call = (*shape_func_)(func, Tuple(shape_func_ins), Tuple(out_shapes), is_inputs);
+    auto shape_call = ShapeFunc(func, Tuple(shape_func_ins), Tuple(out_shapes), is_inputs);
     Var shape_func_var("shape_func", Type(nullptr));
     scope->Push(shape_func_var, shape_call);
     return out_shapes;
@@ -370,7 +354,7 @@ class DialectRewriter : public ExprMutator {
                      const Type& ret_type) {
     auto out_shapes = EmitShapeFunc(scope, func, new_args);
     std::vector<Var> storages;
-    auto func_ctx = GetContext(func);
+    auto func_dev = GetDevice(func);
     CHECK_EQ(out_shapes.size(), out_types.size());
     for (size_t i = 0; i < out_shapes.size(); ++i) {
       auto out_shape = out_shapes[i];
@@ -378,7 +362,7 @@ class DialectRewriter : public ExprMutator {
       auto size = ComputeStorageInRelay(out_shape, out_type);
       auto alignment = ComputeAlignment(out_type->dtype);
       Var sto_var("storage_" + std::to_string(i), Type(nullptr));
-      auto val = (*alloc_storage_)(size, alignment, func_ctx, out_type->dtype);
+      auto val = AllocStorage(size, alignment, func_dev, out_type->dtype);
       storages.push_back(scope->Push(sto_var, val));
     }
 
@@ -393,7 +377,7 @@ class DialectRewriter : public ExprMutator {
     }
 
     Tuple tuple_outs(outs);
-    auto invoke = (*invoke_tvm_)(func, ins, tuple_outs);
+    auto invoke = InvokeTVMOp(func, ins, tuple_outs);
     scope->Push(invoke);
     return ToTupleType(ret_type,
                        std::vector<Expr>(tuple_outs->fields.begin(), tuple_outs->fields.end()));
@@ -415,7 +399,7 @@ class DialectRewriter : public ExprMutator {
       }
       shape_expr = MakeConstant(shape);
     }
-    return (*reshape_tensor_)(new_args[0], shape_expr, ret_ty->shape);
+    return ReshapeTensor(new_args[0], shape_expr, ret_ty->shape);
   }
 
  private:
@@ -423,25 +407,14 @@ class DialectRewriter : public ExprMutator {
   AnalysisResultMap context_analysis_map_;
   std::vector<LetList> scopes_;
 
-  // Cache the following ops
-  const PackedFunc* device_copy_;
-  const PackedFunc* invoke_tvm_;
-  const PackedFunc* alloc_storage_;
-  const PackedFunc* shape_func_;
-  const PackedFunc* shape_of_;
-  const PackedFunc* reshape_tensor_;
-  const PackedFunc* prod_;
-  const PackedFunc* divide_;
-  const PackedFunc* add_;
-  const PackedFunc* multiply_;
-
   runtime::DataType compute_dtype_ = runtime::DataType::Int(64);
-  TVMContext default_context_{kDLCPU, 0};
+  Device default_device_{kDLCPU, 0};
 };
 
 namespace transform {
 
 Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
+  CheckAndUpdateHostConsistency(&targets, &target_host);
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
         DLOG(INFO) << "tvm::relay::transform::ManifestAlloc";
@@ -450,21 +423,21 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
         mod->ImportFromStd("core.rly");
         mod = relay::transform::InferType()(mod);
 
-        TVMContext fallback_ctx;
+        Device fallback_dev;
         if (targets.size() > 1) {
           auto pass_ctx = PassContext::Current();
-          Optional<Integer> opt_fallback_dev =
+          Optional<Integer> opt_fallback_dev_type =
               pass_ctx->GetConfig("relay.fallback_device_type", Integer(static_cast<int>(kDLCPU)));
-          auto fallback_dev = opt_fallback_dev.value();
-          CHECK_GT(fallback_dev->value, 0U);
-          fallback_ctx.device_type = static_cast<DLDeviceType>(fallback_dev->value);
-          fallback_ctx.device_id = 0;
+          auto fallback_dev_type = opt_fallback_dev_type.value();
+          CHECK_GT(fallback_dev_type->value, 0U);
+          fallback_dev.device_type = static_cast<DLDeviceType>(fallback_dev_type->value);
+          fallback_dev.device_id = 0;
         } else {
           const auto& it = targets.begin();
-          fallback_ctx.device_type = static_cast<DLDeviceType>((*it).first->value);
-          fallback_ctx.device_id = 0;
+          fallback_dev.device_type = static_cast<DLDeviceType>((*it).first->value);
+          fallback_dev.device_id = 0;
         }
-        auto ca = ContextAnalysis(mod, fallback_ctx);
+        auto ca = ContextAnalysis(mod, fallback_dev);
 
         auto glob_funcs = mod->functions;
         for (const auto& it : glob_funcs) {
@@ -485,6 +458,7 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
 
 TVM_REGISTER_GLOBAL("relay.transform.ManifestAlloc")
     .set_body_typed([](Target target_host, Map<tvm::Integer, tvm::Target> targets) {
+      CheckAndUpdateHostConsistency(&targets, &target_host);
       return ManifestAlloc(target_host, targets);
     });
 

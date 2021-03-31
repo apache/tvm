@@ -65,25 +65,25 @@ def verify_correlation_nchw(
 
     a_np, b_np, c_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _correlation_implement)
-        with tvm.target.Target(device):
+    def check_device(target, dev):
+        print("Running on target: %s" % target)
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _correlation_implement)
+        with tvm.target.Target(target):
             C = fcompute(
                 A, B, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply
             )
             s = fschedule([C])
 
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(b_np, ctx)
-            c = tvm.nd.empty(c_np.shape, dtype=dtype, ctx=ctx)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(b_np, dev)
+            c = tvm.nd.empty(c_np.shape, dtype=dtype, device=dev)
 
-            func = tvm.build(s, [A, B, C], device)
+            func = tvm.build(s, [A, B, C], target)
             func(a, b, c)
             tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 @tvm.testing.uses_gpu

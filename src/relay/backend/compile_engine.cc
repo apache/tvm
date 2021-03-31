@@ -157,7 +157,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
             runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
         ICHECK(fauto_schedule != nullptr)
             << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
-        ObjectRef obj = (*fauto_schedule)(tensor_outs);
+        ObjectRef obj = (*fauto_schedule)(String(cache_node->func_name), tensor_outs);
         if (obj.defined()) {
           schedule = Downcast<te::Schedule>(obj);
         }
@@ -262,7 +262,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       ICHECK(tuple_type) << "Expect output to be a tuple type";
       ICHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
-    // Set the name to `__copy`. It will be detected in graph runtime to perform
+    // Set the name to `__copy`. It will be detected in graph executor to perform
     // data copy across devices.
     if (op == device_copy_op_) {
       readable_name_stream_.str(std::string());
@@ -692,6 +692,17 @@ class CompileEngineImpl : public CompileEngineNode {
     return items;
   }
 
+  // List all items in the shape_func_cache.
+  Array<ObjectRef> ListShapeFuncItems() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    Array<ObjectRef> items;
+    for (auto& kv : shape_func_cache_) {
+      items.push_back(kv.first);
+      items.push_back(kv.second);
+    }
+    return items;
+  }
+
   /*!
    * \brief Get the cache key of the function that is being lowered currently
    * \return the cache key
@@ -881,6 +892,13 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems").set_body_typed([](C
   ICHECK(ptr != nullptr);
   return ptr->ListItems();
 });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListShapeFuncItems")
+    .set_body_typed([](CompileEngine self) {
+      CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+      ICHECK(ptr != nullptr);
+      return ptr->ListShapeFuncItems();
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGetCurrentCCacheKey")
     .set_body_typed([](CompileEngine self) {

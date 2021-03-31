@@ -28,7 +28,7 @@ from tvm import te
 
 from matplotlib import pyplot as plt
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
 from gluoncv import model_zoo, data, utils
 
@@ -94,12 +94,16 @@ def build(target):
 
 ######################################################################
 # Create TVM runtime and do inference
+# .. note::
+#
+#   Use target = "cuda -libs" to enable thrust based sort, if you
+#   enabled thrust during cmake by -DUSE_THRUST=ON.
 
 
-def run(lib, ctx):
+def run(lib, dev):
     # Build TVM runtime
-    m = graph_runtime.GraphModule(lib["default"](ctx))
-    tvm_input = tvm.nd.array(x.asnumpy(), ctx=ctx)
+    m = graph_executor.GraphModule(lib["default"](dev))
+    tvm_input = tvm.nd.array(x.asnumpy(), device=dev)
     m.set_input("data", tvm_input)
     # execute
     m.run()
@@ -109,10 +113,10 @@ def run(lib, ctx):
 
 
 for target in ["llvm", "cuda"]:
-    ctx = tvm.context(target, 0)
-    if ctx.exist:
+    dev = tvm.device(target, 0)
+    if dev.exist:
         lib = build(target)
-        class_IDs, scores, bounding_boxs = run(lib, ctx)
+        class_IDs, scores, bounding_boxs = run(lib, dev)
 
 ######################################################################
 # Display result

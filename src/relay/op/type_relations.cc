@@ -85,7 +85,7 @@ TensorType ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataTyp
     } else if (EqualCheck(s1, s2)) {
       oshape.push_back(s1);
     } else {
-      throw Error(ErrorBuilder() << "Incompatible broadcast type " << t1 << " and " << t2);
+      throw CompileError(ErrorBuilder() << "Incompatible broadcast type " << t1 << " and " << t2);
     }
   }
 

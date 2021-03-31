@@ -25,8 +25,8 @@
 
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <chrono>
@@ -172,7 +172,7 @@ class MicroTransportChannel : public RPCChannel {
     // confusion.
     unsigned int seed = random_seed.load();
     if (seed == 0) {
-      seed = (unsigned int)time(NULL);
+      seed = (unsigned int)time(nullptr);
     }
     uint8_t initial_nonce = 0;
     for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {

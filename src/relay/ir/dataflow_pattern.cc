@@ -357,6 +357,7 @@ DFPattern DFPattern::HasShape(const Array<PrimExpr> shape) {
 }
 DFPattern IsVar(const String& name) { return VarPattern(name); }
 DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }
+DFPattern IsWildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
 DFPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
 DFPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
 DFPattern IsTuple(const Array<DFPattern>& fields) { return TuplePattern(fields); }

@@ -69,7 +69,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 ######################################################################
 # split
 # -----
-# :code:`split` can split a specified axis into two axises by
+# :code:`split` can split a specified axis into two axes by
 # :code:`factor`.
 A = te.placeholder((m,), name="A")
 B = te.compute((m,), lambda i: A[i] * 2, name="B")
@@ -92,7 +92,7 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 # tile
 # ----
 # :code:`tile` help you execute the computation tile by tile over two
-# axises.
+# axes.
 A = te.placeholder((m, n), name="A")
 B = te.compute((m, n), lambda i, j: A[i, j], name="B")
 
@@ -103,12 +103,12 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 ######################################################################
 # fuse
 # ----
-# :code:`fuse` can fuse two consecutive axises of one computation.
+# :code:`fuse` can fuse two consecutive axes of one computation.
 A = te.placeholder((m, n), name="A")
 B = te.compute((m, n), lambda i, j: A[i, j], name="B")
 
 s = te.create_schedule(B.op)
-# tile to four axises first: (i.outer, j.outer, i.inner, j.inner)
+# tile to four axes first: (i.outer, j.outer, i.inner, j.inner)
 xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
 # then fuse (i.inner, j.inner) into one axis: (i.inner.j.inner.fused)
 fused = s[B].fuse(xi, yi)
@@ -117,14 +117,14 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 ######################################################################
 # reorder
 # -------
-# :code:`reorder` can reorder the axises in the specified order.
+# :code:`reorder` can reorder the axes in the specified order.
 A = te.placeholder((m, n), name="A")
 B = te.compute((m, n), lambda i, j: A[i, j], name="B")
 
 s = te.create_schedule(B.op)
-# tile to four axises first: (i.outer, j.outer, i.inner, j.inner)
+# tile to four axes first: (i.outer, j.outer, i.inner, j.inner)
 xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], x_factor=10, y_factor=5)
-# then reorder the axises: (i.inner, j.outer, i.outer, j.inner)
+# then reorder the axes: (i.inner, j.outer, i.outer, j.inner)
 s[B].reorder(xi, yo, xo, yi)
 print(tvm.lower(s, [A, B], simple_mode=True))
 

@@ -36,6 +36,7 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+import logging
 
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
@@ -43,6 +44,8 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
+from tvm.target import Target
+
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -50,6 +53,7 @@ from .utils import (
     call_func_with_timeout,
     check_remote,
     get_const_tuple,
+    get_func_name,
     make_traceback_info,
     request_remote,
 )
@@ -58,6 +62,8 @@ from .workload_registry import (
     deserialize_workload_registry_entry,
 )
 
+# pylint: disable=invalid-name
+logger = logging.getLogger("auto_scheduler")
 
 # The time cost for measurements with errors
 # We use 1e10 instead of sys.float_info.max for better readability in log
@@ -217,12 +223,15 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
+    task.target, task.target_host = Target.check_and_update_host_consist(
+        task.target, task.target_host
+    )
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=task.target,
-        target_host=task.target_host,
         hardware_params=task.hardware_params,
         layout_rewrite_option=task.layout_rewrite_option,
+        task_inputs=list(task.task_input_names),
     )
 
     if rebuild_state:
@@ -539,9 +548,9 @@ class LocalRPCMeasureContext:
         from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
 
-        ctx = tvm.context("cuda", 0)
-        if ctx.exist:
-            cuda_arch = "sm_" + "".join(ctx.compute_version.split("."))
+        dev = tvm.device("cuda", 0)
+        if dev.exist:
+            cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
         host = "0.0.0.0"
         self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
@@ -597,6 +606,9 @@ def _timed_func(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
+    task.target, task.target_host = Target.check_and_update_host_consist(
+        task.target, task.target_host
+    )
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None
@@ -617,9 +629,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
         try:
             with transform.PassContext():
-                func = build_module.build(
-                    sch, args, target=task.target, target_host=task.target_host
-                )
+                func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
         # pylint: disable=broad-except
         except Exception:
@@ -719,6 +729,97 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     return results
 
 
+TASK_INPUT_CHECK_FUNC_REGISTRY = {}
+
+
+def register_task_input_check_func(func_name, f=None, override=False):
+    """Register a function that checks the input buffer map.
+
+    The input function should take a list of Tensor wich indicate the Input/output Tensor of a TVM
+    subgraph and return a Map from the input Tensor to its buffer name.
+
+    Parameters
+    ----------
+    func_name : Union[Function, str]
+        The check function that returns the compute declaration Tensors or its function name.
+    f : Optional[Function]
+        The check function to be registered.
+    override : boolean = False
+        Whether to override existing entry.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      @auto_scheduler.register_task_input_check_func
+      def check_task_input_by_placeholder_name(args : List[Tensor]):
+          tensor_input_map = {}
+          for arg in args:
+              if isinstance(arg.op, tvm.te.PlaceholderOp):
+                  if arg.op.name != "placeholder":
+                      tensor_input_map[arg] = arg.op.name
+          return tensor_input_map
+    """
+    global TASK_INPUT_CHECK_FUNC_REGISTRY
+
+    if callable(func_name):
+        f = func_name
+        func_name = get_func_name(f)
+    if not isinstance(func_name, str):
+        raise ValueError("expect string function name")
+
+    def register(myf):
+        """internal register function"""
+        if func_name in TASK_INPUT_CHECK_FUNC_REGISTRY and not override:
+            raise RuntimeError("%s has been registered already" % func_name)
+        TASK_INPUT_CHECK_FUNC_REGISTRY[func_name] = myf
+        return myf
+
+    if f:
+        return register(f)
+    return register
+
+
+def prepare_input_map(args):
+    """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
+    to a specific buffer name in the global buffer map.
+
+    Parameters
+    ----------
+    args : List[Tensor]
+        Input/output Tensor of a TVM subgraph.
+
+    Returns
+    -------
+    Dict[Tensor, str] :
+        Map from the input Tensor to its buffer name.
+
+    Notes
+    -----
+    The buffer name is specially designed, and these buffer should be provided in
+    `SearchTask(..., task_inputs={...})`.
+    """
+    # pylint: disable=import-outside-toplevel
+
+    global TASK_INPUT_CHECK_FUNC_REGISTRY
+
+    # A dict that maps the input tensor arg to a buffer name
+    tensor_input_map = {}
+
+    # Case 0: Check placeholder name
+    for arg in args:
+        if isinstance(arg.op, tvm.te.PlaceholderOp):
+            if arg.op.name != "placeholder":
+                tensor_input_map[arg] = arg.op.name
+
+    # Case 1: Check specific tensor inputs
+    for func_name in TASK_INPUT_CHECK_FUNC_REGISTRY:
+        func = TASK_INPUT_CHECK_FUNC_REGISTRY[func_name]
+        tensor_input_map.update(func(args))
+
+    return tensor_input_map
+
+
 def _timed_eval_func(
     inp_serialized,
     build_res,
@@ -729,13 +830,17 @@ def _timed_eval_func(
     enable_cpu_cache_flush,
     verbose,
 ):
+    # pylint: disable=import-outside-toplevel
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
+
     inp = MeasureInput.deserialize(inp_serialized)
+    task_input_names = inp.task.task_input_names
     tic = time.time()
     error_no = 0
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        ctx = ndarray.context(str(inp.task.target), 0)
+        dev = ndarray.device(str(inp.task.target), 0)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -744,7 +849,7 @@ def _timed_eval_func(
         f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
             func.entry_name,
-            ctx,
+            dev,
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
@@ -758,12 +863,36 @@ def _timed_eval_func(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
-            for arg in args:
-                random_fill(arg)
-            ctx.sync()
+
+            tensor_input_map = prepare_input_map(build_res.args) if task_input_names else {}
+            args = []
+            task_inputs_count = 0
+            for arg in build_res.args:
+                if arg in tensor_input_map:
+                    tensor_name = tensor_input_map[arg]
+                    if tensor_name in task_input_names:
+                        args.append(
+                            ndarray.array(
+                                get_task_input_buffer(inp.task.workload_key, tensor_name), dev
+                            )
+                        )
+                        task_inputs_count += 1
+                    else:
+                        raise ValueError(
+                            "%s not found in task_inputs, " % (tensor_name)
+                            + "should provide with `SearchTask(..., task_inputs={...})`"
+                        )
+                else:
+                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
+                    random_fill(empty_array)
+                    args.append(empty_array)
+            if task_inputs_count != len(task_input_names):
+                logger.warning(
+                    "task_inputs not fully matched, check if there's any unexpected error"
+                )
+            dev.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
         except Exception:
@@ -911,7 +1040,11 @@ def _timed_rpc_run(
     enable_cpu_cache_flush,
     verbose,
 ):
+    # pylint: disable=import-outside-toplevel
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
+
     inp = MeasureInput.deserialize(inp_serialized)
+    task_input_names = inp.task.task_input_names
     tic = time.time()
     error_no = 0
     error_msg = None
@@ -920,7 +1053,7 @@ def _timed_rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        ctx = remote.context(str(inp.task.target), 0)
+        dev = remote.device(str(inp.task.target), 0)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -929,7 +1062,7 @@ def _timed_rpc_run(
         f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
             func.entry_name,
-            ctx,
+            dev,
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
@@ -943,18 +1076,40 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
-            for arg in args:
-                random_fill(arg)
-            ctx.sync()
+            random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            assert (
+                random_fill
+            ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
+            tensor_input_map = prepare_input_map(build_res.args) if task_input_names else {}
+            args = []
+            task_inputs_count = 0
+            for arg in build_res.args:
+                if arg in tensor_input_map:
+                    tensor_name = tensor_input_map[arg]
+                    if tensor_name in task_input_names:
+                        args.append(
+                            ndarray.array(
+                                get_task_input_buffer(inp.task.workload_key, tensor_name), dev
+                            )
+                        )
+                        task_inputs_count += 1
+                    else:
+                        raise ValueError(
+                            "%s not found in task_inputs, " % (tensor_name)
+                            + "should provide with `SearchTask(..., task_inputs={...})`"
+                        )
+                else:
+                    empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, dev)
+                    random_fill(empty_array)
+                    args.append(empty_array)
+            if task_inputs_count != len(task_input_names):
+                logger.warning(
+                    "task_inputs not fully matched, check if there's any unexpected error"
+                )
+            dev.sync()
             costs = time_f(*args).results
+
             # clean up remote files
             remote.remove(build_res.filename)
             remote.remove(os.path.splitext(build_res.filename)[0] + ".so")

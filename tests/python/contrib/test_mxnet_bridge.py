@@ -47,10 +47,10 @@ def mxnet_check():
     # get a mxnet version
     mxf = to_mxnet_func(f, const_loc=[0, 1])
 
-    ctx = mx.gpu(0)
-    xx = mx.nd.uniform(shape=shape, ctx=ctx)
-    yy = mx.nd.uniform(shape=shape, ctx=ctx)
-    zz = mx.nd.empty(shape=shape, ctx=ctx)
+    dev = mx.gpu(0)
+    xx = mx.nd.uniform(shape=shape, device=dev)
+    yy = mx.nd.uniform(shape=shape, device=dev)
+    zz = mx.nd.empty(shape=shape, device=dev)
 
     # invoke myf: this runs in mxnet engine
     mxf(xx, yy, zz, 10.0)

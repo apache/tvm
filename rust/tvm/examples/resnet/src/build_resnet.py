@@ -27,9 +27,9 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay import testing
-from tvm.contrib import graph_runtime, cc
+from tvm.contrib import graph_executor, cc
 from PIL import Image
 from tvm.contrib.download import download_testdata
 from mxnet.gluon.model_zoo.vision import get_model
@@ -49,7 +49,7 @@ aa(
     default=3,
     help="level of optimization. 0 is unoptimized and 3 is the highest level",
 )
-aa("--target", type=str, default="llvm", help="target context for compilation")
+aa("--target", type=str, default="llvm", help="target for compilation")
 aa("--image-shape", type=str, default="3,224,224", help="input image dimensions")
 aa("--image-name", type=str, default="cat.png", help="name of input image to download")
 args = parser.parse_args()
@@ -88,7 +88,7 @@ def build(target_dir):
         fo.write(graph)
 
     with open(osp.join(target_dir, "deploy_param.params"), "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+        fo.write(runtime.save_param_dict(params))
 
 
 def download_img_labels():
@@ -140,8 +140,8 @@ def test_build(build_dir):
     lib = tvm.runtime.load_module(osp.join(build_dir, "deploy_lib.so"))
     params = bytearray(open(osp.join(build_dir, "deploy_param.params"), "rb").read())
     input_data = get_cat_image()
-    ctx = tvm.cpu()
-    module = graph_runtime.create(graph, lib, ctx)
+    dev = tvm.cpu()
+    module = graph_executor.create(graph, lib, dev)
     module.load_params(params)
     module.run(data=input_data)
     out = module.get_output(0).asnumpy()
@@ -151,7 +151,7 @@ def test_build(build_dir):
 
 
 if __name__ == "__main__":
-    logger.info("Compiling the model to graph runtime.")
+    logger.info("Compiling the model to graph executor.")
     build(build_dir)
     logger.info("Testing the model's predication on test data.")
     test_build(build_dir)

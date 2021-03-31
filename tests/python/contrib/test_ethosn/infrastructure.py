@@ -20,7 +20,7 @@
 from __future__ import absolute_import, print_function
 import tvm
 from tvm import relay
-from tvm.contrib import utils, graph_runtime, download
+from tvm.contrib import utils, graph_executor, download
 from hashlib import md5
 from itertools import zip_longest, combinations
 import numpy as np
@@ -151,7 +151,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     """
     relay.backend.compile_engine.get().clear()
     with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": 0}}
+        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
     ):
         with tvm.target.Target("llvm"):
             if npu:
@@ -211,7 +211,7 @@ def run(lib, inputs, outputs, npu=True):
     lib_path = temp.relpath(lib_name)
     lib.export_library(lib_path)
     lib = tvm.runtime.load_module(lib_path)
-    module = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+    module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
     module.set_input(**inputs)
     module.run()
     out = [module.get_output(i) for i in range(outputs)]
@@ -221,7 +221,7 @@ def run(lib, inputs, outputs, npu=True):
 
 
 def build_and_run(
-    mod, inputs, outputs, params, ctx=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
+    mod, inputs, outputs, params, device=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
 ):
     lib = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(lib, inputs, outputs, npu)
@@ -321,3 +321,10 @@ def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, ke
 
 def get_ethosn_api_version():
     return tvm.get_global_func("relay.ethos-n.api.version")()
+
+
+def get_ethosn_variant():
+    ethosn_variant_config = os.getenv("ETHOSN_VARIANT_CONFIG")
+    if ethosn_variant_config is not None:
+        return 3
+    return 0

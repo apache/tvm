@@ -38,7 +38,7 @@ use std::{
 };
 
 pub use crate::{
-    context::{Context, DeviceType},
+    device::{Device, DeviceType},
     errors::*,
     function::Function,
     module::Module,
@@ -92,14 +92,13 @@ pub(crate) fn set_last_error<E: std::error::Error>(err: &E) {
 }
 
 pub mod array;
-pub mod context;
+pub mod device;
 pub mod errors;
 pub mod function;
 pub mod map;
 pub mod module;
 pub mod ndarray;
 mod to_function;
-pub mod value;
 
 /// Outputs the current TVM version.
 pub fn version() -> &'static str {
@@ -112,6 +111,8 @@ pub fn version() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ByteArray, DataType, Device};
+    use std::{convert::TryInto, str::FromStr};
 
     #[test]
     fn print_version() {
@@ -126,5 +127,30 @@ mod tests {
             get_last_error().trim(),
             errors::NDArrayError::EmptyArray.to_string()
         );
+    }
+
+    #[test]
+    fn bytearray() {
+        let w = vec![1u8, 2, 3, 4, 5];
+        let v = ByteArray::from(w.as_slice());
+        let tvm: ByteArray = RetValue::from(v).try_into().unwrap();
+        assert_eq!(
+            tvm.data(),
+            w.iter().copied().collect::<Vec<u8>>().as_slice()
+        );
+    }
+
+    #[test]
+    fn ty() {
+        let t = DataType::from_str("int32").unwrap();
+        let tvm: DataType = RetValue::from(t).try_into().unwrap();
+        assert_eq!(tvm, t);
+    }
+
+    #[test]
+    fn device() {
+        let c = Device::from_str("gpu").unwrap();
+        let tvm: Device = RetValue::from(c).try_into().unwrap();
+        assert_eq!(tvm, c);
     }
 }

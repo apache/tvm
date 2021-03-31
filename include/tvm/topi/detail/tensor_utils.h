@@ -26,6 +26,7 @@
 
 #include <tvm/te/operation.h>
 
+#include <vector>
 namespace tvm {
 namespace topi {
 namespace detail {
@@ -64,29 +65,36 @@ inline bool is_empty_shape(const Array<PrimExpr>& x) {
  */
 inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>& indices,
                                      const PrimExpr max_y, const PrimExpr max_x) {
+  auto batch_id = indices[0];
+  auto channel_id = indices[1];
   auto in_y = indices[2];
-  auto yf = tvm::floor(in_y);
-  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
-
-  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
-  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
-  auto y_lerp = in_y - yf;
-
   auto in_x = indices[3];
-  auto xf = tvm::floor(in_x);
-  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
 
-  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
-  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
-  auto x_lerp = in_x - xf;
+  auto y_low = tvm::cast(DataType::Int(32), tvm::floor(in_y));
+  auto y_high = y_low + 1;
 
-  auto A = input(indices[0], indices[1], y0, x0);
-  auto B = input(indices[0], indices[1], y0, x1);
-  auto C = input(indices[0], indices[1], y1, x0);
-  auto D = input(indices[0], indices[1], y1, x1);
+  auto x_low = tvm::cast(DataType::Int(32), tvm::floor(in_x));
+  auto x_high = x_low + 1;
 
-  return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
-         D * x_lerp * y_lerp;
+  auto wy_h = in_y - y_low;
+  auto wx_h = in_x - x_low;
+  auto wy_l = 1 - wy_h;
+  auto wx_l = 1 - wx_h;
+
+  PrimExpr val = 0;
+  std::vector<std::vector<PrimExpr>> wx_xp{{wx_l, x_low}, {wx_h, x_high}};
+  std::vector<std::vector<PrimExpr>> wy_yp{{wy_l, y_low}, {wy_h, y_high}};
+  for (auto wx_xp_ele : wx_xp) {
+    for (auto wy_yp_ele : wy_yp) {
+      auto wx = wx_xp_ele[0];
+      auto xp = wx_xp_ele[1];
+      auto wy = wy_yp_ele[0];
+      auto yp = wy_yp_ele[1];
+      val += tvm::if_then_else(0 <= yp && yp <= max_y && 0 <= xp && xp <= max_x,
+                               wx * wy * input(batch_id, channel_id, yp, xp), 0);
+    }
+  }
+  return val;
 }
 
 /*!
@@ -101,29 +109,36 @@ inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>&
  */
 inline PrimExpr bilinear_sample_nhwc(const Tensor& input, const Array<PrimExpr>& indices,
                                      const PrimExpr max_y, const PrimExpr max_x) {
+  auto batch_id = indices[0];
+  auto channel_id = indices[3];
   auto in_y = indices[1];
-  auto yf = tvm::floor(in_y);
-  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
-
-  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
-  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
-  auto y_lerp = in_y - yf;
-
   auto in_x = indices[2];
-  auto xf = tvm::floor(in_x);
-  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
 
-  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
-  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
-  auto x_lerp = in_x - xf;
+  auto y_low = tvm::cast(DataType::Int(32), tvm::floor(in_y));
+  auto y_high = y_low + 1;
 
-  auto A = input(indices[0], y0, x0, indices[3]);
-  auto B = input(indices[0], y0, x1, indices[3]);
-  auto C = input(indices[0], y1, x0, indices[3]);
-  auto D = input(indices[0], y1, x1, indices[3]);
+  auto x_low = tvm::cast(DataType::Int(32), tvm::floor(in_x));
+  auto x_high = x_low + 1;
 
-  return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
-         D * x_lerp * y_lerp;
+  auto wy_h = in_y - y_low;
+  auto wx_h = in_x - x_low;
+  auto wy_l = 1 - wy_h;
+  auto wx_l = 1 - wx_h;
+
+  PrimExpr val = 0;
+  std::vector<std::vector<PrimExpr>> wx_xp{{wx_l, x_low}, {wx_h, x_high}};
+  std::vector<std::vector<PrimExpr>> wy_yp{{wy_l, y_low}, {wy_h, y_high}};
+  for (auto wx_xp_ele : wx_xp) {
+    for (auto wy_yp_ele : wy_yp) {
+      auto wx = wx_xp_ele[0];
+      auto xp = wx_xp_ele[1];
+      auto wy = wy_yp_ele[0];
+      auto yp = wy_yp_ele[1];
+      val += tvm::if_then_else(0 <= yp && yp <= max_y && 0 <= xp && xp <= max_x,
+                               wx * wy * input(batch_id, yp, xp, channel_id), 0);
+    }
+  }
+  return val;
 }
 
 }  // namespace detail

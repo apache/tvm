@@ -168,7 +168,7 @@ class HoistCandidateSelector final : public StmtExprVisitor {
     // To stop hoisting if any of the block variables are used.
     //
     // In case we want to use hoisting in between certain passes
-    // which have interdependencies of the postioning of if nodes with scope var
+    // which have interdependencies of the positioning of if nodes with scope var
     // it is better to disable this section
     if (support_block_scope_hosting_) {
       if (IsRecordingOn()) {

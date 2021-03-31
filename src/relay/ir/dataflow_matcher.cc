@@ -162,8 +162,12 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       if (Op::HasAttrMap(attr_name)) {
         auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
         if (op_map.count(op)) {
-          matches = MatchRetValue(attr_value, op_map[op]);
+          matches &= MatchRetValue(attr_value, op_map[op]);
+        } else {
+          matches = false;
         }
+      } else {
+        matches = false;
       }
     }
   } else if (auto* op = expr.as<CallNode>()) {
@@ -196,6 +200,8 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
         break;
       }
     }
+  } else {
+    matches = false;
   }
   return matches;
 }
@@ -728,7 +734,7 @@ class PatternGrouper {
           // Exit due to overlapping partitions
           return;
         } else if (kv.second != body) {
-          // if the node isn't the ouput of the group
+          // if the node isn't the output of the group
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
             // and the node is used by nodes outside of the group

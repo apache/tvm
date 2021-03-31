@@ -48,6 +48,8 @@ void IRBuilder::InitHeader() {
   header_.push_back(0U);
   // shader
   ib_.Begin(spv::OpCapability).Add(spv::CapabilityShader).Commit(&header_);
+  // Declare int64 capability by default
+  ib_.Begin(spv::OpCapability).Add(spv::CapabilityInt64).Commit(&header_);
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
@@ -222,7 +224,14 @@ Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
     DataType t = value_types[i].type;
     uint32_t nbits = t.bits() * t.lanes();
     ICHECK_EQ(nbits % 8, 0);
-    offset += nbits / 8;
+    uint32_t bytes = (nbits / 8);
+    if (t.bits() == 32) {
+      // In our Vulkan runtime, each push constant always occupies 64 bit.
+      offset += bytes * 2;
+    } else {
+      ICHECK_EQ(t.bits(), 64);
+      offset += bytes;
+    }
   }
   // Decorate push constants as UBO
   this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);

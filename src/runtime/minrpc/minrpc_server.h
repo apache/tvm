@@ -46,7 +46,7 @@
 #endif
 
 #if TVM_MINRPC_ENABLE_LOGGING
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #endif
 
 namespace tvm {
@@ -169,28 +169,39 @@ class MinRPCServer {
   }
 
   void HandleCopyFromRemote() {
-    uint64_t handle, offset, num_bytes;
-    TVMContext ctx;
-    DLDataType type_hint;
+    DLTensor* arr = this->ArenaAlloc<DLTensor>(1);
+    uint64_t data_handle;
+    this->Read(&data_handle);
+    arr->data = reinterpret_cast<void*>(data_handle);
+    this->Read(&(arr->device));
+    this->Read(&(arr->ndim));
+    this->Read(&(arr->dtype));
+    arr->shape = this->ArenaAlloc<int64_t>(arr->ndim);
+    this->ReadArray(arr->shape, arr->ndim);
+    arr->strides = nullptr;
+    this->Read(&(arr->byte_offset));
 
-    this->Read(&handle);
-    this->Read(&offset);
+    uint64_t num_bytes;
     this->Read(&num_bytes);
-    this->Read(&ctx);
-    this->Read(&type_hint);
 
     uint8_t* data_ptr;
     int call_ecode = 0;
-    if (ctx.device_type == kDLCPU) {
-      data_ptr = reinterpret_cast<uint8_t*>(handle) + offset;
+    if (arr->device.device_type == kDLCPU) {
+      data_ptr = reinterpret_cast<uint8_t*>(data_handle) + arr->byte_offset;
     } else {
       data_ptr = this->ArenaAlloc<uint8_t>(num_bytes);
-      call_ecode =
-          TVMDeviceCopyDataFromTo(reinterpret_cast<void*>(handle), offset, data_ptr, 0, num_bytes,
-                                  ctx, DLContext{kDLCPU, 0}, type_hint, nullptr);
+      DLTensor temp;
+      temp.data = reinterpret_cast<void*>(data_ptr);
+      temp.device = arr->device;
+      temp.ndim = arr->ndim;
+      temp.dtype = arr->dtype;
+      temp.shape = arr->shape;
+      temp.strides = nullptr;
+      temp.byte_offset = 0;
+      call_ecode = TVMDeviceCopyDataFromTo(arr, &temp, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
       }
     }
 
@@ -209,30 +220,39 @@ class MinRPCServer {
   }
 
   void HandleCopyToRemote() {
-    uint64_t handle, offset, num_bytes;
-    TVMContext ctx;
-    DLDataType type_hint;
-
-    this->Read(&handle);
-    this->Read(&offset);
+    DLTensor* arr = this->ArenaAlloc<DLTensor>(1);
+    uint64_t data_handle;
+    this->Read(&data_handle);
+    arr->data = reinterpret_cast<void*>(data_handle);
+    this->Read(&(arr->device));
+    this->Read(&(arr->ndim));
+    this->Read(&(arr->dtype));
+    arr->shape = this->ArenaAlloc<int64_t>(arr->ndim);
+    this->ReadArray(arr->shape, arr->ndim);
+    arr->strides = nullptr;
+    this->Read(&(arr->byte_offset));
+    uint64_t num_bytes;
     this->Read(&num_bytes);
-    this->Read(&ctx);
-    this->Read(&type_hint);
-    int call_ecode = 0;
 
-    if (ctx.device_type == kDLCPU) {
-      uint8_t* dptr = reinterpret_cast<uint8_t*>(handle) + offset;
+    int call_ecode = 0;
+    if (arr->device.device_type == kDLCPU) {
+      uint8_t* dptr = reinterpret_cast<uint8_t*>(data_handle) + arr->byte_offset;
       this->ReadArray(dptr, num_bytes);
     } else {
       uint8_t* temp_data = this->ArenaAlloc<uint8_t>(num_bytes);
       this->ReadArray(temp_data, num_bytes);
-
-      call_ecode =
-          TVMDeviceCopyDataFromTo(temp_data, 0, reinterpret_cast<void*>(handle), offset, num_bytes,
-                                  DLContext{kDLCPU, 0}, ctx, type_hint, nullptr);
+      DLTensor temp;
+      temp.data = temp_data;
+      temp.device = DLDevice{kDLCPU, 0};
+      temp.ndim = arr->ndim;
+      temp.dtype = arr->dtype;
+      temp.shape = arr->shape;
+      temp.strides = nullptr;
+      temp.byte_offset = 0;
+      call_ecode = TVMDeviceCopyDataFromTo(&temp, arr, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
       }
     }
 
@@ -267,6 +287,10 @@ class MinRPCServer {
       }
       case RPCCode::kDevAllocData: {
         this->SyscallDevAllocData(values, tcodes, num_args);
+        break;
+      }
+      case RPCCode::kDevAllocDataWithScope: {
+        this->SyscallDevAllocDataWithScope(values, tcodes, num_args);
         break;
       }
       case RPCCode::kDevFreeData: {
@@ -342,34 +366,20 @@ class MinRPCServer {
   }
 
   void SyscallCopyAmongRemote(TVMValue* values, int* tcodes, int num_args) {
-    MINRPC_CHECK(num_args == 9);
-    // from, from_offset
-    MINRPC_CHECK(tcodes[0] == kTVMOpaqueHandle);
-    MINRPC_CHECK(tcodes[1] == kDLInt);
-    // to, to_offset
+    MINRPC_CHECK(num_args == 3);
+    // from dltensor
+    MINRPC_CHECK(tcodes[0] == kTVMDLTensorHandle);
+    // to dltensor
+    MINRPC_CHECK(tcodes[1] == kTVMDLTensorHandle);
+    // stream
     MINRPC_CHECK(tcodes[2] == kTVMOpaqueHandle);
-    MINRPC_CHECK(tcodes[3] == kDLInt);
-    // size
-    MINRPC_CHECK(tcodes[4] == kDLInt);
-    // ctx_from, ctx_to
-    MINRPC_CHECK(tcodes[5] == kTVMContext);
-    MINRPC_CHECK(tcodes[6] == kTVMContext);
-    // type_hint, stream
-    MINRPC_CHECK(tcodes[7] == kTVMDataType);
-    MINRPC_CHECK(tcodes[8] == kTVMOpaqueHandle);
 
     void* from = values[0].v_handle;
-    int64_t from_offset = values[1].v_int64;
-    void* to = values[2].v_handle;
-    int64_t to_offset = values[3].v_int64;
-    int64_t size = values[4].v_int64;
-    TVMContext ctx_from = values[5].v_ctx;
-    TVMContext ctx_to = values[6].v_ctx;
-    DLDataType type_hint = values[7].v_type;
-    TVMStreamHandle stream = values[8].v_handle;
+    void* to = values[1].v_handle;
+    TVMStreamHandle stream = values[2].v_handle;
 
-    int call_ecode = TVMDeviceCopyDataFromTo(from, from_offset, to, to_offset, size, ctx_from,
-                                             ctx_to, type_hint, stream);
+    int call_ecode = TVMDeviceCopyDataFromTo(reinterpret_cast<DLTensor*>(from),
+                                             reinterpret_cast<DLTensor*>(to), stream);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
@@ -380,19 +390,36 @@ class MinRPCServer {
 
   void SyscallDevAllocData(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 4);
-    MINRPC_CHECK(tcodes[0] == kTVMContext);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kDLInt);
     MINRPC_CHECK(tcodes[2] == kDLInt);
     MINRPC_CHECK(tcodes[3] == kTVMDataType);
 
-    TVMContext ctx = values[0].v_ctx;
+    DLDevice dev = values[0].v_device;
     int64_t nbytes = values[1].v_int64;
     int64_t alignment = values[2].v_int64;
     DLDataType type_hint = values[3].v_type;
 
     void* handle;
-    int call_ecode = TVMDeviceAllocDataSpace(ctx, nbytes, alignment, type_hint, &handle);
+    int call_ecode = TVMDeviceAllocDataSpace(dev, nbytes, alignment, type_hint, &handle);
 
+    if (call_ecode == 0) {
+      this->ReturnHandle(handle);
+    } else {
+      this->ReturnLastTVMError();
+    }
+  }
+
+  void SyscallDevAllocDataWithScope(TVMValue* values, int* tcodes, int num_args) {
+    MINRPC_CHECK(num_args == 2);
+    MINRPC_CHECK(tcodes[0] == kTVMDLTensorHandle);
+    MINRPC_CHECK(tcodes[1] == kTVMNullptr || tcodes[1] == kTVMStr);
+
+    DLTensor* arr = reinterpret_cast<DLTensor*>(values[0].v_handle);
+    const char* mem_scope = (tcodes[1] == kTVMNullptr ? nullptr : values[1].v_str);
+    void* handle;
+    int call_ecode = TVMDeviceAllocDataSpaceWithScope(arr->device, arr->ndim, arr->shape,
+                                                      arr->dtype, mem_scope, &handle);
     if (call_ecode == 0) {
       this->ReturnHandle(handle);
     } else {
@@ -402,13 +429,13 @@ class MinRPCServer {
 
   void SyscallDevFreeData(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 2);
-    MINRPC_CHECK(tcodes[0] == kTVMContext);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
 
-    TVMContext ctx = values[0].v_ctx;
+    DLDevice dev = values[0].v_device;
     void* handle = values[1].v_handle;
 
-    int call_ecode = TVMDeviceFreeDataSpace(ctx, handle);
+    int call_ecode = TVMDeviceFreeDataSpace(dev, handle);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
@@ -419,13 +446,13 @@ class MinRPCServer {
 
   void SyscallDevStreamSync(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 2);
-    MINRPC_CHECK(tcodes[0] == kTVMContext);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
     MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
 
-    TVMContext ctx = values[0].v_ctx;
+    DLDevice dev = values[0].v_device;
     void* handle = values[1].v_handle;
 
-    int call_ecode = TVMSynchronize(ctx.device_type, ctx.device_id, handle);
+    int call_ecode = TVMSynchronize(dev.device_type, dev.device_id, handle);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
@@ -484,7 +511,7 @@ class MinRPCServer {
       size_t npages = ((min_size + kPageSize - 1) / kPageSize);
       void* data;
 
-      if (TVMDeviceAllocDataSpace(DLContext{kDLCPU, 0}, npages * kPageSize, kPageAlign,
+      if (TVMDeviceAllocDataSpace(DLDevice{kDLCPU, 0}, npages * kPageSize, kPageAlign,
                                   DLDataType{kDLInt, 1, 1}, &data) != 0) {
         io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
       }
@@ -496,7 +523,7 @@ class MinRPCServer {
     }
 
     void deallocate(ArenaPageHeader* page) {
-      if (TVMDeviceFreeDataSpace(DLContext{kDLCPU, 0}, page) != 0) {
+      if (TVMDeviceFreeDataSpace(DLDevice{kDLCPU, 0}, page) != 0) {
         io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
       }
     }

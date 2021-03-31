@@ -89,6 +89,12 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     cmd += ["-o", file_target]
     cmd += [temp_code]
 
+    cxx_compiler_path = tvm.support.libinfo().get("TVM_CXX_COMPILER_PATH")
+    if cxx_compiler_path != "":
+        # This tells nvcc where to find the c++ compiler just in case it is not in the path.
+        # On Windows it is not in the path by default.
+        cmd += ["-ccbin", cxx_compiler_path]
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
@@ -210,6 +216,47 @@ def callback_libdevice_path(arch):
         return ""
 
 
+def get_target_compute_version(target=None):
+    """Utility function to get compute capability of compilation target.
+
+    Looks for the arch in three different places, first in the target attributes, then the global
+    scope, and finally the GPU device (if it exists).
+
+    Parameters
+    ----------
+    target : tvm.target.Target, optional
+        The compilation target
+
+    Returns
+    -------
+    compute_version : str
+        compute capability of a GPU (e.g. "8.0")
+    """
+    # 1. Target
+    if target:
+        if "arch" in target.attrs:
+            compute_version = target.attrs["arch"]
+            major, minor = compute_version.split("_")[1]
+            return major + "." + minor
+
+    # 2. Global scope
+    from tvm.autotvm.env import AutotvmGlobalScope  # pylint: disable=import-outside-toplevel
+
+    if AutotvmGlobalScope.current.cuda_target_arch:
+        major, minor = AutotvmGlobalScope.current.cuda_target_arch.split("_")[1]
+        return major + "." + minor
+
+    # 3. GPU
+    if tvm.gpu(0).exist:
+        return tvm.gpu(0).compute_version
+
+    warnings.warn(
+        "No CUDA architecture was specified or GPU detected."
+        "Try specifying it by adding '-arch=sm_xx' to your target."
+    )
+    return None
+
+
 def parse_compute_version(compute_version):
     """Parse compute capability string to divide major and minor version
 
@@ -296,8 +343,34 @@ def have_tensorcore(compute_version=None, target=None):
             major, minor = compute_version.split("_")[1]
             compute_version = major + "." + minor
     major, _ = parse_compute_version(compute_version)
+    if major >= 7:
+        return True
 
-    if major == 7:
+    return False
+
+
+def have_cudagraph():
+    """Either CUDA Graph support is provided"""
+    try:
+        cuda_path = find_cuda_path()
+        cuda_ver = get_cuda_version(cuda_path)
+        if cuda_ver < 10.0:
+            return False
+        return True
+    except RuntimeError:
+        return False
+
+
+def have_bf16(compute_version):
+    """Either bf16 support is provided in the compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str
+        compute capability of a GPU (e.g. "8.0")
+    """
+    major, _ = parse_compute_version(compute_version)
+    if major >= 8:
         return True
 
     return False

@@ -386,6 +386,18 @@ class CompileEngine(Object):
         assert len(res) % 2 == 0
         return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
 
+    def shape_func_items(self):
+        """List items in the shape_func_cache.
+
+        Returns
+        -------
+        item_list : List[Tuple[CCacheKey, CCacheValue]]
+            The list of shape_func_items.
+        """
+        res = _backend._CompileEngineListShapeFuncItems(self)
+        assert len(res) % 2 == 0
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
     def get_current_ccache_key(self):
         return _backend._CompileEngineGetCurrentCCacheKey(self)
 
@@ -405,7 +417,28 @@ class CompileEngine(Object):
             res += "target={}\n".format(k.target)
             res += "use_count={}\n".format(v.use_count)
             res += "func_name={}\n".format(v.cached_func.func_name)
+            res += "----relay function----\n"
             res += k.source_func.astext() + "\n"
+            res += "----tir function----- \n"
+            res += "inputs={}\n".format(v.cached_func.inputs)
+            res += "outputs={}\n".format(v.cached_func.outputs)
+            res += "function: \n"
+            res += v.cached_func.funcs.astext() + "\n"
+        res += "===================================\n"
+        shape_func_items = self.shape_func_items()
+        res += "%d shape_func_items cached\n" % len(shape_func_items)
+        for k, v in shape_func_items:
+            res += "------------------------------------\n"
+            res += "target={}\n".format(k.target)
+            res += "use_count={}\n".format(v.use_count)
+            res += "func_name={}\n".format(v.cached_func.func_name)
+            res += "----relay function----\n"
+            res += k.source_func.astext() + "\n"
+            res += "----tir function----- \n"
+            res += "inputs={}\n".format(v.cached_func.inputs)
+            res += "outputs={}\n".format(v.cached_func.outputs)
+            res += "function: \n"
+            res += v.cached_func.funcs.astext() + "\n"
         res += "===================================\n"
         return res
 

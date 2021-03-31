@@ -32,7 +32,7 @@
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
 #include "NvInfer.h"
 #endif
 
@@ -156,6 +156,9 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
         // with slice_mode = "size", attrs->end_value mean the size of the slice
         int end_value = attrs->end.value()[i].as<IntImmNode>()->value;
         size_value = (end_value == -1) ? ishape[i] - begin_value : end_value;
+      } else {
+        LOG(FATAL) << "Unexpected slice_mode " << attrs->slice_mode << ", expected end or size";
+        throw;
       }
       ICHECK_GT(size_value, 0);
       size.push_back(std::to_string(size_value));
@@ -214,15 +217,15 @@ runtime::Module TensorRTCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.tensorrt").set_body_typed(TensorRTCompiler);
 
 /*!
- * \brief Check whether TensorRT graph runtime is enabled.
+ * \brief Check whether TensorRT graph executor is enabled.
  * \return True if enabled, False if not.
  */
 inline constexpr bool IsTensorRTRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
   return true;
 #else
   return false;
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
 /*!
@@ -231,11 +234,11 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * runtime is not enabled.
  */
 Array<Integer> GetTensorRTVersion() {
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
   return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
 #else
   return {};
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
 TVM_REGISTER_GLOBAL("relay.op.is_tensorrt_runtime_enabled")

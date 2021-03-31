@@ -177,7 +177,7 @@ class Partitioner : public MixedModeMutator {
       AnnotatedRegion region = GetRegion(GetRef<Call>(call));
 
       // TODO(@manupa-arm) : need to use the parent function (to which region
-      // belongs to) name/key for the funtions that are created
+      // belongs to) name/key for the functions that are created
       BaseFunc f = GetFunc(GetRef<Call>(call));
 
       // Traverse subgraph inputs.
@@ -428,7 +428,7 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
  *  could be a tuple output. Such tuple outputs needs to be flattened
  *  otherwise the function would create tuples of tuples. Moreover, tuple
  *  of tuples are valid relay, however they are not currently supported by
- *  graph runtime or relay VM.
+ *  graph executor or relay VM.
  */
 
 // New annotations would be required to be added for each flattened output

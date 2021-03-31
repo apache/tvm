@@ -22,7 +22,7 @@
  */
 #import <Foundation/Foundation.h>
 // Customize logging mechanism, redirect to NSLOG
-#define DMLC_LOG_CUSTOMIZE 1
+#define TVM_LOG_CUSTOMIZE 1
 #define TVM_METAL_RUNTIME 1
 
 #include <tvm/runtime/packed_func.h>

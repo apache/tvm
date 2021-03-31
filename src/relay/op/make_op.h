@@ -75,6 +75,8 @@ Expr MakeSqueeze(Expr data, Array<Integer> axis);
 
 Expr MakeStack(Expr data, int axis);
 
+Expr MakeTranspose(Expr data, Array<Integer> axes);
+
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides,
                       String slice_mode);
 
@@ -99,6 +101,12 @@ Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
                 String coordinate_transformation_mode, DataType out_dtype);
 
 Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
+
+Expr MakeArange(Expr start, Expr stop, Expr step, DataType dtype);
+
+Expr MakeShapeOf(Expr data, DataType dtype);
+
+Expr MakeTake(Expr data, Expr indices, Integer axis, String mode);
 
 }  // namespace relay
 }  // namespace tvm

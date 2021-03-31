@@ -29,8 +29,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/vm.h>
-#include <tvm/support/logging.h>
 #include <tvm/tir/function.h>
 
 #include <iostream>
@@ -62,7 +62,7 @@ using GlobalMap = NodeMap<GlobalVar, Index>;
 using ConstMap = NodeMap<Constant, Index>;
 using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
-using ExprDeviceMap = std::unordered_map<Expr, TVMContext, ObjectPtrHash, ObjectPtrEqual>;
+using ExprDeviceMap = std::unordered_map<Expr, Device, ObjectPtrHash, ObjectPtrEqual>;
 
 struct VMCompilerContext {
   // The module context for the compilation
@@ -125,8 +125,7 @@ class VMCompiler : public runtime::ModuleNode {
    *
    * \return The optimized IRModule.
    */
-  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets,
-                          const Target& target_host);
+  IRModule OptimizeModule(IRModule mod, const TargetsMap& targets, const Target& target_host);
 
   /*!
    * \brief Populate the global function names in a map where the value is used

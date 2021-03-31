@@ -32,7 +32,7 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
-#ifdef TVM_GRAPH_RUNTIME_TENSORRT
+#ifdef TVM_GRAPH_EXECUTOR_TENSORRT
 #include "NvInfer.h"
 #include "tensorrt_builder.h"
 #endif
@@ -108,7 +108,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
   }
 
-#ifdef TVM_GRAPH_RUNTIME_TENSORRT
+#ifdef TVM_GRAPH_EXECUTOR_TENSORRT
+  /*! \brief Destroy engines and contexts. */
+  ~TensorRTRuntime() {
+    for (auto& it : trt_engine_cache_) {
+      it.second.context->destroy();
+      it.second.engine->destroy();
+    }
+  }
+
   /*! \brief Run inference using built engine. */
   void Run() override {
     BuildEngine();
@@ -127,7 +135,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
           ICHECK_NE(binding_index, -1);
-          if (data_entry_[eid]->ctx.device_type == kDLGPU) {
+          if (data_entry_[eid]->device.device_type == kDLGPU) {
             bindings[binding_index] = data_entry_[eid]->data;
           } else {
             device_buffers[binding_index].CopyFrom(data_entry_[eid]);
@@ -142,7 +150,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
-      if (data_entry_[eid]->ctx.device_type == kDLGPU) {
+      if (data_entry_[eid]->device.device_type == kDLGPU) {
         bindings[binding_index] = data_entry_[eid]->data;
       } else {
         bindings[binding_index] = device_buffers[binding_index]->data;
@@ -165,7 +173,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
-      if (data_entry_[eid]->ctx.device_type != kDLGPU) {
+      if (data_entry_[eid]->device.device_type != kDLGPU) {
         device_buffers[binding_index].CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
       }
     }

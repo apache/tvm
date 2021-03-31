@@ -437,6 +437,8 @@ def test_no_match_op_attr():
     x = relay.var("x")
     y = relay.var("y")
     assert not op_pat.match(x - y)
+    z = relay.var("z")
+    assert not op_pat.match(relay.Let(z, x + y, z))
 
 
 def test_match_func_attr():

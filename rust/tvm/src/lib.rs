@@ -24,7 +24,7 @@
 //! One particular use case is that given optimized deep learning model artifacts,
 //! (compiled with TVM) which include a shared library
 //! `lib.so`, `graph.json` and a byte-array `param.params`, one can load them
-//! in Rust idiomatically to create a TVM Graph Runtime and
+//! in Rust idiomatically to create a TVM Graph Executor and
 //! run the model for some inputs and get the
 //! desired predictions *all in Rust*.
 //!
@@ -32,14 +32,16 @@
 
 pub use crate::{errors::*, function::Function, module::Module, ndarray::NDArray};
 
-pub use tvm_rt::{Context, DataType, DeviceType};
+pub use tvm_rt::{DataType, Device, DeviceType};
 
-pub use tvm_rt::context;
+pub use tvm_rt::device;
 pub use tvm_rt::errors;
 pub use tvm_rt::function;
 pub use tvm_rt::module;
 pub use tvm_rt::ndarray;
-pub use tvm_rt::value;
+
+#[cfg(feature = "python")]
+pub mod compiler;
 pub mod ir;
 #[cfg(feature = "python")]
 pub mod python;

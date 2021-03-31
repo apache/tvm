@@ -21,6 +21,7 @@ import os
 import re
 import struct
 import sys
+import tempfile
 
 import numpy as np
 import pytest
@@ -123,7 +124,7 @@ def _verify_linked_param(dtype, lib, mod, graph, name):
     """Directly read memory from the linked library to verify the linked parameter is correct."""
     sid = _lookup_sid(graph, name)
     # NOTE: query_imports=True because when loading a module from disk (i.e. for C backend),
-    # a GraphRuntimeFactory module is created instead of the module itself.
+    # a GraphExecutorFactory module is created instead of the module itself.
     param_ptr = mod.get_function("_lookup_linked_param", True)(sid)
     gen_param = lib.params[name]
     arr_data = (_get_ctypes_dtype(dtype) * np.prod(gen_param.shape)).from_address(param_ptr.value)
@@ -153,7 +154,7 @@ def _make_mod_and_params(dtype):
         f"def @main(%rand_input : Tensor[{INPUT_SHAPE}, {dtype}], { ', '.join(param_decls.values()) } )  {{",
         # This program ensures that GraphPlanMemory alternates between the same two storage IDs for a
         # while. In doing this, it ensures that param %{dtype}_b will be placed into the graph at an
-        # index unequal to its storage_id. This ensures that GraphRuntimeCodegen encodes the storage_id
+        # index unequal to its storage_id. This ensures that GraphExecutorCodegen encodes the storage_id
         # and not the parameter index into the graph.
         (
             f'    %0 = nn.conv2d(%rand_input, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
@@ -182,35 +183,42 @@ def _make_mod_and_params(dtype):
 @tvm.testing.requires_llvm
 def test_llvm_link_params():
     for dtype in LINKABLE_DTYPES:
-        mod, param_init = _make_mod_and_params(dtype)
+        ir_mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        main_func = mod["main"]
+        main_func = ir_mod["main"]
         target = "llvm --runtime=c --system-lib --link-params"
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(mod, target, params=param_init)
-            assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
+            lib = tvm.relay.build(ir_mod, target, params=param_init)
 
-            print("graph", lib.graph_json)
+            # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
+            # against one another.
+            temp_dir = tempfile.mkdtemp()
+            export_file = os.path.join(temp_dir, "lib.so")
+            lib.lib.export_library(export_file)
+            mod = tvm.runtime.load_module(export_file)
+            assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
+            assert mod.get_function("TVMSystemLibEntryPoint") != None
+
             graph = json.loads(lib.graph_json)
             for p in lib.params:
-                _verify_linked_param(dtype, lib, lib.lib, graph, p) or found_one
+                _verify_linked_param(dtype, lib, mod, graph, p) or found_one
 
             # Wrap in function to explicitly deallocate the runtime.
-            def _run_linked(lib):
-                graph_json, mod, _ = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+            def _run_linked(lib, mod):
+                graph_json, _, _ = lib
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
                 return graph_rt.get_output(0)
 
-            linked_output = _run_linked(lib)
+            linked_output = _run_linked(lib, mod)
 
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
+            lib = tvm.relay.build(ir_mod, "llvm --system-lib", params=param_init)
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -266,8 +274,8 @@ def test_c_link_params():
             lib = tvm.relay.build(mod, target, params=param_init)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            src = lib.lib.imported_modules[0].get_source()
-            lib.lib.save("test.c", "cc")
+            src = lib.lib.get_source()
+            lib.lib.save("test.c", "c")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
             param = lib.params["p0"].asnumpy().reshape(np.prod(KERNEL_SHAPE))
@@ -308,7 +316,7 @@ def test_c_link_params():
 
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib_mod):
-                graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
                 graph_rt.run()
 
@@ -326,7 +334,7 @@ def test_c_link_params():
             lib_mod = tvm.runtime.load_module(lib_path)
 
             def _run_unlinked(lib_mod):
-                graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input, **params)
                 graph_rt.run()
                 return graph_rt.get_output(0)
@@ -354,22 +362,19 @@ def test_crt_link_params():
 
             workspace = tvm.micro.Workspace()
             compiler = tvm.micro.DefaultCompiler(target=target)
-            opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
-            opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_RUNTIME_MODULE")
+            opts = tvm.micro.default_options(
+                os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+            )
+            opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE")
 
             micro_binary = tvm.micro.build_static_runtime(
-                # the x86 compiler *expects* you to give the exact same dictionary for both
-                # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
-                # the binary compiler is expecting those mutations to be in bin_opts.
-                # TODO(weberlo) fix this very bizarre behavior
                 workspace,
                 compiler,
                 lib,
-                lib_opts=opts["bin_opts"],
-                bin_opts=opts["bin_opts"],
+                compiler_options=opts,
                 extra_libs=[
-                    os.path.join(tvm.micro.CRT_ROOT_DIR, m)
-                    for m in ("memory", "graph_runtime_module", "graph_runtime")
+                    tvm.micro.get_standalone_crt_lib(m)
+                    for m in ("memory", "graph_executor_module", "graph_executor")
                 ],
             )
 
@@ -378,8 +383,8 @@ def test_crt_link_params():
             }
             flasher = compiler.flasher(**flasher_kw)
             with tvm.micro.Session(binary=micro_binary, flasher=flasher) as sess:
-                graph_rt = tvm.micro.session.create_local_graph_runtime(
-                    graph_json, sess.get_system_lib(), sess.context
+                graph_rt = tvm.micro.session.create_local_graph_executor(
+                    graph_json, sess.get_system_lib(), sess.device
                 )
 
                 # NOTE: not setting params here.
@@ -392,7 +397,7 @@ def test_crt_link_params():
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
                 return graph_rt.get_output(0).asnumpy()

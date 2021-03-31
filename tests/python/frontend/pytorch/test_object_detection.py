@@ -117,8 +117,8 @@ def test_detection_models():
         with tvm.transform.PassContext(opt_level=3):
             vm_exec = relay.vm.compile(mod, target=target, params=params)
 
-        ctx = tvm.context(target, 0)
-        vm = VirtualMachine(vm_exec, ctx)
+        dev = tvm.device(target, 0)
+        vm = VirtualMachine(vm_exec, dev)
         vm.set_input("main", **{input_name: data_np})
         return vm.run()
 

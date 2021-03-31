@@ -17,6 +17,8 @@
 import collections
 import ctypes
 import json
+import sys
+
 import tvm
 import tvm.testing
 from tvm import te
@@ -26,6 +28,7 @@ import numpy as np
 import ctypes
 import math
 import re
+import pytest
 
 
 @tvm.testing.requires_llvm
@@ -101,9 +104,9 @@ def test_llvm_large_uintimm():
 
     def check_llvm():
         f = tvm.build(s, [A], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.empty((), dtype=A.dtype, ctx=ctx)
+        a = tvm.nd.empty((), dtype=A.dtype, device=dev)
         f(a)
         assert a.asnumpy() == value + 3
 
@@ -129,10 +132,10 @@ def test_llvm_persist_parallel():
     def check_llvm():
         # BUILD and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), np.sqrt(a.asnumpy() + 1) * 2 + 2, rtol=1e-5)
 
@@ -151,11 +154,11 @@ def test_llvm_flip_pipeline():
         s[C].vectorize(xi)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=(n + base)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n + base)).astype(A.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy()[::-1][:n])
 
@@ -181,10 +184,10 @@ def test_llvm_vadd_pipeline():
         s[B].vectorize(xi)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.empty((n,), A.dtype).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.nd.empty((n,), C.dtype, ctx)
+        c = tvm.nd.empty((n,), C.dtype, dev)
         f(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
@@ -204,11 +207,11 @@ def test_llvm_madd_pipeline():
         s[C].vectorize(xi)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=(n + base, stride)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.zeros((n, stride), dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n + base, stride)).astype(A.dtype), dev)
+        c = tvm.nd.array(np.zeros((n, stride), dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy()[base:] + 1)
 
@@ -231,11 +234,11 @@ def test_llvm_temp_space():
     def check_llvm():
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1 + 1)
 
@@ -262,12 +265,12 @@ def test_multiple_func():
         fadd2 = m["fadd2"]
         fadd1 = m["fadd1"]
 
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd1(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
         fadd2(a, b, c)
@@ -284,10 +287,10 @@ def test_llvm_condition():
         s = te.create_schedule(C.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        c = tvm.nd.empty((n,), A.dtype, ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        c = tvm.nd.empty((n,), A.dtype, dev)
         f(a, c)
         c_np = a.asnumpy()
         c_np[:offset] = 0
@@ -304,10 +307,10 @@ def test_llvm_bool():
         s = te.create_schedule(C.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), ctx)
-        c = tvm.nd.empty((n,), C.dtype, ctx)
+        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+        c = tvm.nd.empty((n,), C.dtype, dev)
         f(a, c)
         c_np = a.asnumpy() == 1
         tvm.testing.assert_allclose(c.asnumpy(), c_np)
@@ -326,11 +329,11 @@ def test_rank_zero():
         s = te.create_schedule(D.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, scale, D], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), ctx)
-        sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), ctx)
-        d = tvm.nd.empty((), D.dtype, ctx)
+        a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+        sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
+        d = tvm.nd.empty((), D.dtype, dev)
         f(a, sc, d)
         d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
         tvm.testing.assert_allclose(d.asnumpy(), d_np)
@@ -350,11 +353,11 @@ def test_rank_zero_bound_checkers():
             s = te.create_schedule(D.op)
             # build and invoke the kernel.
             f = tvm.build(s, [A, scale, D], "llvm")
-            ctx = tvm.cpu(0)
+            dev = tvm.cpu(0)
             # launch the kernel.
-            a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), ctx)
-            sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), ctx)
-            d = tvm.nd.empty((), D.dtype, ctx)
+            a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
+            sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
+            d = tvm.nd.empty((), D.dtype, dev)
             f(a, sc, d)
             d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
             tvm.testing.assert_allclose(d.asnumpy(), d_np)
@@ -807,8 +810,8 @@ def test_llvm_gpu_lower_atomic():
         s = tvm.te.create_schedule(C.op)
         f = tvm.build(s, [A], target="nvptx")
 
-        ctx = tvm.gpu()
-        a = tvm.nd.array(np.zeros((size,)).astype(A.dtype), ctx)
+        dev = tvm.gpu()
+        a = tvm.nd.array(np.zeros((size,)).astype(A.dtype), dev)
         f(a)
         ref = np.zeros((size,)).astype(A.dtype)
         ref[0] = size
@@ -816,27 +819,4 @@ def test_llvm_gpu_lower_atomic():
 
 
 if __name__ == "__main__":
-    test_multiple_func()
-    test_llvm_large_uintimm()
-    test_llvm_import()
-    test_alignment()
-    test_rank_zero()
-    test_rank_zero_bound_checkers()
-    test_llvm_bool()
-    test_llvm_persist_parallel()
-    test_llvm_condition()
-    test_llvm_vadd_pipeline()
-    test_llvm_add_pipeline()
-    test_llvm_intrin()
-    test_llvm_overloaded_intrin()
-    test_llvm_flip_pipeline()
-    test_llvm_madd_pipeline()
-    test_llvm_temp_space()
-    test_llvm_lookup_intrin()
-    test_llvm_div()
-    test_llvm_fp_math()
-    test_dwarf_debug_information()
-    test_llvm_shuffle()
-    test_llvm_bf16()
-    test_llvm_crt_static_lib()
-    test_llvm_gpu_lower_atomic()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

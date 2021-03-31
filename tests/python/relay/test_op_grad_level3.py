@@ -40,8 +40,8 @@ def test_clip():
         fwd_func = run_infer_type(fwd_func)
         bwd_func = run_infer_type(gradient(fwd_func))
 
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor(device=dev, target=target)
             op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
             np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
@@ -146,7 +146,7 @@ def test_zeros_ones_grad_const_ints():
 
 def test_zeros_ones_grad_const_expr():
     # when shape is static (i.e. not an input), there is no gradient at all
-    shape_const = relay.const(np.array([2, 3, 4]), dtype="int32")
+    shape_const = relay.const(np.array([2, 3, 4]), dtype="int32") * relay.const(1, dtype="int32")
     static_ty = relay.TensorType([2, 3, 4], dtype="float32")
     dyn_ty = relay.TensorType([relay.Any(), relay.Any(), relay.Any()], dtype="float32")
     expected_ty_static = relay.TupleType([static_ty, relay.TupleType([])])
@@ -173,8 +173,8 @@ def test_zeros_ones_grad_dynamic():
         fwd_func = relay.Function([shape_data], op(shape_data, dtype="float32"))
         bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
 
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(ctx=ctx, target=target)
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor(device=dev, target=target)
             res, (grad,) = intrp.evaluate(bwd_func)(dyn_shape)
             tvm.testing.assert_allclose(res.asnumpy(), op_ref(dyn_shape, dtype="float32"))
             tvm.testing.assert_allclose(grad.asnumpy(), np.zeros((rank,), dtype="int32"))

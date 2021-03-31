@@ -59,6 +59,7 @@ macro(find_ethosn use_ethosn)
     find_library(ETHOSN_COMPILER_LIBRARY NAMES EthosNSupport)
 
     set(ETHOSN_PACKAGE_VERSION "0.1.1")
+    set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
 
     if(${USE_ETHOSN_HW} MATCHES ${IS_TRUE_PATTERN})
       # Runtime hardware support
@@ -70,7 +71,7 @@ macro(find_ethosn use_ethosn)
       find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver
         PATHS ${__ethosn_stack}/lib)
       find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver)
-      set(ETHOSN_DEFINITIONS -DETHOSN_HW)
+      set(ETHOSN_DEFINITIONS -DETHOSN_HW -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
     endif ()
 
     if(ETHOSN_COMPILER_LIBRARY)

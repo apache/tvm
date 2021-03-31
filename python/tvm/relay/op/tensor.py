@@ -17,12 +17,12 @@
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin, unused-argument
 from tvm.runtime import ndarray as _nd
-from tvm.runtime import TVMContext as _TVMContext
+from tvm.runtime import Device as _Device
 from tvm.te.hybrid import script
 
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import Tuple, Expr
+from ..expr import Tuple, Expr, Constant
 from . import op as reg
 
 
@@ -960,6 +960,8 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.zeros(shape, dtype)
     if isinstance(shape, int):
@@ -1001,6 +1003,8 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Constant):
+        shape = list(shape.data.asnumpy())
     if isinstance(shape, Expr):
         return _dyn_make.ones(shape, dtype)
     if isinstance(shape, int):
@@ -1156,7 +1160,7 @@ def copy_shape_func(attrs, inputs, _):
 
 def device_copy(data, src_dev, dst_dev):
     """Copy data from the source device to the destination device. This
-    operator helps data transferring between difference contexts for
+    operator helps data transferring between difference devices for
     heterogeneous execution.
 
     Parameters
@@ -1164,10 +1168,10 @@ def device_copy(data, src_dev, dst_dev):
     data : tvm.relay.Expr
         The tensor to be copied.
 
-    src_dev : Union[:py:class:`TVMContext`, str]
+    src_dev : Union[:py:class:`Device`, str]
         The source device where the data is copied from.
 
-    dst_dev : Union[:py:class:`TVMContext`, str]
+    dst_dev : Union[:py:class:`Device`, str]
         The destination device where the data is copied to.
 
     Returns
@@ -1175,23 +1179,23 @@ def device_copy(data, src_dev, dst_dev):
     result : tvm.relay.Expr
         The copied result.
     """
-    if isinstance(src_dev, _TVMContext):
+    if isinstance(src_dev, _Device):
         src_dev = src_dev.device_type
     elif isinstance(src_dev, str):
-        src_dev = _nd.context(src_dev).device_type
+        src_dev = _nd.device(src_dev).device_type
     else:
         raise ValueError(
-            "src_dev is expected to be the type of TVMContext or "
+            "src_dev is expected to be the type of Device or "
             "str, but received %s" % (type(src_dev))
         )
 
-    if isinstance(dst_dev, _TVMContext):
+    if isinstance(dst_dev, _Device):
         dst_dev = dst_dev.device_type
     elif isinstance(dst_dev, str):
-        dst_dev = _nd.context(dst_dev).device_type
+        dst_dev = _nd.device(dst_dev).device_type
     else:
         raise ValueError(
-            "dst_dev is expected to be the type of TVMContext or "
+            "dst_dev is expected to be the type of Device or "
             "str, but received %s" % (type(dst_dev))
         )
     return _make.device_copy(data, src_dev, dst_dev)

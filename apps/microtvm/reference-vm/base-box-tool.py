@@ -18,6 +18,7 @@
 
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -38,6 +39,13 @@ THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
 ALL_PROVIDERS = (
     "parallels",
     "virtualbox",
+    "vmware_desktop",
+)
+
+# List of microTVM platforms for testing.
+ALL_MICROTVM_PLATFORMS = (
+    "stm32f746xx",
+    "nrf5340dk",
 )
 
 
@@ -107,6 +115,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
             subprocess.check_call(rule_args)
+            # TODO(mehrdadh): skip usb attach if it's already attached
             subprocess.check_call(["VBoxManage", "controlvm", uuid, "usbattach", dev["UUID"]])
             return
 
@@ -141,9 +150,27 @@ def attach_parallels(uuid, vid_hex=None, pid_hex=None, serial=None):
     )
 
 
+def attach_vmware(uuid, vid_hex=None, pid_hex=None, serial=None):
+    print("NOTE: vmware doesn't seem to support automatic attaching of devices :(")
+    print("The VMWare VM UUID is {uuid}")
+    print("Please attach the following usb device using the VMWare GUI:")
+    if vid_hex is not None:
+        print(f" - VID: {vid_hex}")
+    if pid_hex is not None:
+        print(f" - PID: {pid_hex}")
+    if serial is not None:
+        print(f" - Serial: {serial}")
+    if vid_hex is None and pid_hex is None and serial is None:
+        print(" - (no specifications given for USB device)")
+    print()
+    print("Press [Enter] when the USB device is attached")
+    input()
+
+
 ATTACH_USB_DEVICE = {
     "parallels": attach_parallels,
     "virtualbox": attach_virtualbox,
+    "vmware_desktop": attach_vmware,
 }
 
 
@@ -153,6 +180,7 @@ def generate_packer_config(file_path, providers):
         builders.append(
             {
                 "type": "vagrant",
+                "box_name": f"microtvm-base-{provider_name}",
                 "output_dir": f"output-packer-{provider_name}",
                 "communicator": "ssh",
                 "source_path": "generic/ubuntu1804",
@@ -175,10 +203,19 @@ def generate_packer_config(file_path, providers):
 def build_command(args):
     generate_packer_config(
         os.path.join(THIS_DIR, args.platform, "base-box", "packer.json"),
-        args.provider.split(",") or ALL_PROVIDERS,
+        args.provider or ALL_PROVIDERS,
     )
+    env = None
+    packer_args = ["packer", "build"]
+    if args.debug_packer:
+        env = copy.copy(os.environ)
+        env["PACKER_LOG"] = "1"
+        env["PACKER_LOG_PATH"] = "packer.log"
+        packer_args += ["-debug"]
+
+    packer_args += ["packer.json"]
     subprocess.check_call(
-        ["packer", "build", "packer.json"], cwd=os.path.join(THIS_DIR, args.platform, "base-box")
+        packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
 
 
@@ -278,13 +315,17 @@ def test_command(args):
     test_config_file = os.path.join(base_box_dir, "test-config.json")
     with open(test_config_file) as f:
         test_config = json.load(f)
+
+        # select microTVM test platform
+        microtvm_test_platform = test_config[args.microtvm_platform]
+
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
-            assert key in test_config and isinstance(
-                test_config[key], expected_type
+            assert key in microtvm_test_platform and isinstance(
+                microtvm_test_platform[key], expected_type
             ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
 
-        test_config["vid_hex"] = test_config["vid_hex"].lower()
-        test_config["pid_hex"] = test_config["pid_hex"].lower()
+        microtvm_test_platform["vid_hex"] = microtvm_test_platform["vid_hex"].lower()
+        microtvm_test_platform["pid_hex"] = microtvm_test_platform["pid_hex"].lower()
 
     providers = args.provider
     provider_passed = {p: False for p in providers}
@@ -301,7 +342,7 @@ def test_command(args):
                     release_test_dir, user_box_dir, base_box_dir, provider_name
                 )
             do_run_release_test(
-                release_test_dir, provider_name, test_config, args.test_device_serial
+                release_test_dir, provider_name, microtvm_test_platform, args.test_device_serial
             )
             provider_passed[provider_name] = True
 
@@ -318,16 +359,17 @@ def test_command(args):
 
 
 def release_command(args):
-    subprocess.check_call(
-        [
-            "vagrant",
-            "cloud",
-            "version",
-            "create",
-            f"tlcpack/microtvm-{args.platform}",
-            args.release_version,
-        ]
-    )
+    if not args.skip_creating_release_version:
+        subprocess.check_call(
+            [
+                "vagrant",
+                "cloud",
+                "version",
+                "create",
+                f"tlcpack/microtvm-{args.platform}",
+                args.release_version,
+            ]
+        )
     if not args.release_version:
         sys.exit(f"--release-version must be specified")
 
@@ -398,6 +440,26 @@ def parse_args():
     parser.add_argument(
         "--release-version",
         help="Version to release, in the form 'x.y.z'. Must be specified with release.",
+    )
+    parser.add_argument(
+        "--skip-creating-release-version",
+        action="store_true",
+        help="With release, skip creating the version and just upload for this provider.",
+    )
+    parser.add_argument(
+        "--debug-packer",
+        action="store_true",
+        help=(
+            "When the build command is given, run packer in debug mode, and write log to the "
+            "base-box directory"
+        ),
+    )
+
+    parser.add_argument(
+        "--microtvm-platform",
+        default="stm32f746xx",
+        choices=ALL_MICROTVM_PLATFORMS,
+        help="For use with 'test' command. MicroTVM platfrom that are used for testing.",
     )
 
     return parser.parse_args()

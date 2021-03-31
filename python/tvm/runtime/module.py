@@ -105,6 +105,9 @@ class Module(object):
             raise ValueError("Can only take string as function name")
         return self.get_function(name)
 
+    def __eq__(self, other):
+        return self.handle.value == other.handle.value
+
     def __call__(self, *args):
         if self._entry:
             return self._entry(*args)
@@ -165,7 +168,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
+    def time_evaluator(self, func_name, dev, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -173,8 +176,8 @@ class Module(object):
         func_name: str
             The name of the function in the module.
 
-        ctx: TVMContext
-            The context we should run this function on.
+        dev: Device
+            The device we should run this function on.
 
         number: int
             The number of times to run this function for taking average.
@@ -212,8 +215,8 @@ class Module(object):
             feval = _ffi_api.RPCTimeEvaluator(
                 self,
                 func_name,
-                ctx.device_type,
-                ctx.device_id,
+                dev.device_type,
+                dev.device_id,
                 number,
                 repeat,
                 min_repeat_ms,
@@ -233,15 +236,27 @@ class Module(object):
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
+    def _collect_from_import_tree(self, filter_func):
+        """Helper function to collect modules from the tree matching a filter_func, then return it.
+
+        Parameters
+        ----------
+        filter_func : Callable[[Module], bool]
+            A function which is invoked for each Module discovered in the import tree (including
+            self).
+
+        Returns
+        -------
+        list[Module] :
+            A list of matching Module.
+        """
         visited, stack, dso_modules = set(), [], []
         # append root module
         visited.add(self)
         stack.append(self)
         while stack:
             module = stack.pop()
-            if module._dso_exportable():
+            if filter_func(module):
                 dso_modules.append(module)
             for m in module.imported_modules:
                 if m not in visited:
@@ -249,14 +264,19 @@ class Module(object):
                     stack.append(m)
         return dso_modules
 
-    def _dso_exportable(self):
-        return self.type_key == "llvm" or self.type_key == "c"
+    def _collect_dso_modules(self):
+        is_dso_exportable = lambda m: (m.type_key == "llvm" or m.type_key == "c")
+        return self._collect_from_import_tree(is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
-        """Export the module and its imported device code one library.
+        """
+        Export the module and all imported modules into a single device library.
 
-        This function only works on host llvm modules.
-        It will pack all the imported modules
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses will work with this API but they must support implement
+        the save and load mechanisms of modules completely including saving
+        from streams and files. This will pack your non-shared library module
+        into a single shared library which can later be loaded by TVM.
 
         Parameters
         ----------
@@ -264,13 +284,20 @@ class Module(object):
             The name of the shared library.
 
         fcompile : function(target, file_list, kwargs), optional
-            Compilation function to use create dynamic library.
+            The compilation function to use create the final library object during
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
+            into a final dynamic library.
+
+            This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
 
         workspace_dir : str, optional
-            the path to a directory used to create intermediary
-            artifacts for the process exporting of the library.
+            The path of the directory used to create the intermediate
+            artifacts when exporting the module.
             If this is not provided a temporary dir will be created.
 
         kwargs : dict, optional
@@ -323,6 +350,9 @@ class Module(object):
                 else:
                     assert module.type_key == "c"
                     object_format = "c"
+                    if "cc" in kwargs:
+                        if kwargs["cc"] == "nvcc":
+                            object_format = "cu"
                     has_c_module = True
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
@@ -435,7 +465,7 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
+    # TODO(weberlo): we should probably use a more distinctive suffix for microTVM object files
     elif path.endswith(".obj"):
         fmt = "micro_dev"
     # Redirect to the load API

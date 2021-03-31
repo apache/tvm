@@ -26,7 +26,7 @@ To get started, TFLite package needs to be installed as prerequisite.
 .. code-block:: bash
 
     # install tflite
-    pip install tflite=2.1.0 --user
+    pip install tflite==2.1.0 --user
 
 
 or you could generate TFLite package yourself. The steps are the following:
@@ -148,7 +148,7 @@ with transform.PassContext(opt_level=3):
 # --------------
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime as runtime
+from tvm.contrib import graph_executor as runtime
 
 # Create a runtime executor module
 module = runtime.GraphModule(lib["default"](tvm.cpu()))

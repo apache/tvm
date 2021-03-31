@@ -243,6 +243,14 @@ Stmt Substitute(Stmt s, const std::unordered_map<IterVar, PrimExpr>& value_map) 
   return tir::Substitute(s, init);
 }
 
+PrimExpr Substitute(PrimExpr s, const std::unordered_map<IterVar, PrimExpr>& value_map) {
+  std::unordered_map<const VarNode*, PrimExpr> init;
+  for (const auto& kv : value_map) {
+    init[kv.first->var.get()] = kv.second;
+  }
+  return tir::Substitute(s, init);
+}
+
 IterVarType ForKindToIterVarType(tir::ForKind kind) {
   switch (kind) {
     case ForKind::kSerial:

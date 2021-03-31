@@ -24,7 +24,7 @@
 #include <AEEStdErr.h>
 #include <rpcmem.h>
 #include <stdint.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <tuple>
 

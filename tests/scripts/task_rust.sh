@@ -58,14 +58,14 @@ cd $RUST_DIR/tvm-rt
 cargo build
 cargo test --tests
 
-# Next we test the graph runtime crate.
+# Next we test the graph executor crate.
 cd $RUST_DIR/tvm-graph-rt
 
 # We first we compile a model using the Python bindings then run the tests.
 python3 tests/build_model.py
 cargo test --tests
 
-# Run some more tests involving the graph runtime API.
+# Run some more tests involving the graph executor API.
 cd tests/test_tvm_basic
 cargo run
 cd -

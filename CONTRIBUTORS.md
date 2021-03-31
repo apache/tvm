@@ -60,6 +60,7 @@ We do encourage everyone to work anything they are interested in.
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
+- [Andrew Reusch](https://github.com/areusch): @areusch - runtime, µTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
@@ -121,6 +122,7 @@ We do encourage everyone to work anything they are interested in.
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Andrew Reusch](https://github.com/areusch): @areusch
+- [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994

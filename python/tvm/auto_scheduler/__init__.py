@@ -33,7 +33,7 @@ from . import workload_registry
 # Shortcut
 from .compute_dag import ComputeDAG, LayoutRewriteOption, get_shape_from_rewritten_layout
 from .cost_model import RandomModel, XGBModel
-from .dispatcher import DispatchContext, ApplyHistoryBest
+from .dispatcher import DispatchContext, ApplyHistoryBest, ApplyHistoryBestOrSample
 from .measure import (
     MeasureInput,
     MeasureResult,
@@ -41,6 +41,7 @@ from .measure import (
     LocalRunner,
     RPCRunner,
     LocalRPCMeasureContext,
+    register_task_input_check_func,
 )
 from .measure_record import RecordToFile, RecordReader, load_best_record, load_records, save_records
 from .relay_integration import (

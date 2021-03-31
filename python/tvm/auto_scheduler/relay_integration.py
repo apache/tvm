@@ -29,9 +29,11 @@ import tvm
 from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
+
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import Reduce
 from tvm.tir import expr as _expr
+from tvm.target import Target
 
 from . import _ffi_api
 from .compute_dag import ComputeDAG, LayoutRewriteOption
@@ -47,7 +49,7 @@ def call_all_topi_funcs(mod, params, target):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_runtime_codegen
+    from tvm.relay.backend import graph_executor_codegen
 
     # Turn off AutoTVM config not found warnings
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
@@ -63,11 +65,11 @@ def call_all_topi_funcs(mod, params, target):
     ):
         try:
             opt_mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(opt_mod["main"])
         except tvm.TVMError:
             print(
-                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Get errors with GraphExecutorCodegen for task extraction. "
                 "Fallback to VMCompiler."
             )
             compiler = relay.vm.VMCompiler()
@@ -108,21 +110,23 @@ def extract_tasks(
     """
     # pylint: disable=import-outside-toplevel
 
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-    if isinstance(target_host, str):
-        target_host = tvm.target.Target(target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(
         TracingMode.EXTRACT_TASK if include_simple_tasks else TracingMode.EXTRACT_COMPLEX_TASK_ONLY
     )
+
+    dispatch_ctx = DispatchContext.current
+    old_verbose = dispatch_ctx.verbose
+    dispatch_ctx.verbose = 0
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
         build_thread.start()
         build_thread.join()
+    dispatch_ctx.verbose = old_verbose
 
     # create search tasks
     tasks = []
@@ -132,11 +136,16 @@ def extract_tasks(
             SearchTask(
                 workload_key=wkl_key,
                 target=target,
-                target_host=target_host,
                 hardware_params=hardware_params,
                 # When auto scheduler is used in end to end network, try to apply layout rewrite
                 # to improve the overall performance
                 layout_rewrite_option=LayoutRewriteOption.get_target_default(target, True),
+                task_inputs=(
+                    env.wkl_key_to_input_names[wkl_key]
+                    if wkl_key in env.wkl_key_to_input_names
+                    else None
+                ),
+                task_inputs_save_to_file=True,
             )
         )
         weights.append(weight)
@@ -161,6 +170,7 @@ class TracingEnvironment:
         self.tracing_mode = tracing_mode
         self.relay_disable_build_cache = "false"
         self.wkl_key_to_weight = {}
+        self.wkl_key_to_input_names = {}
 
     def __enter__(self):
         TracingEnvironment.current = self
@@ -170,16 +180,29 @@ class TracingEnvironment:
         TracingEnvironment.current = None
 
     def add_workload_key(self, workload_key):
-        """Add the workload key of a search task
+        """Add the workload key of a search task.
 
         Parameters
         ----------
         workload_key: str
-            The workload key of a task
+            The workload key of a task.
         """
         if workload_key not in self.wkl_key_to_weight:
             self.wkl_key_to_weight[workload_key] = 0
         self.wkl_key_to_weight[workload_key] += 1
+
+    def add_workload_input_names(self, workload_key, input_names):
+        """Add special task inputs to this workload.
+
+        Parameters
+        ----------
+        workload_key : str
+            The workload key of a task.
+
+        input_names : List[str]
+            A list of input names.
+        """
+        self.wkl_key_to_input_names[workload_key] = input_names
 
 
 @tvm._ffi.register_func("auto_scheduler.enter_layout_rewrite")
@@ -251,7 +274,7 @@ def traverse_to_get_io_tensors(outs):
 
 
 @tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
-def auto_schedule_topi(outs):
+def auto_schedule_topi(func_name, outs):
     """Use auto-scheduler to schedule any topi compute function.
 
     Note: This is used internally for relay integration. Do
@@ -259,6 +282,9 @@ def auto_schedule_topi(outs):
 
     Parameters
     ----------
+    func_name: str
+        The name of the function being scheduled.
+
     outs: List[Tensor]
         The output tensors of topi compute functions
 
@@ -269,6 +295,9 @@ def auto_schedule_topi(outs):
         None in the tracing mode so that the fallback topi schedule will be used.
     """
     # pylint: disable=import-outside-toplevel
+    from tvm.auto_scheduler.measure import (
+        prepare_input_map,
+    )  # lazily import to avoid recursive dependency
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
@@ -283,10 +312,13 @@ def auto_schedule_topi(outs):
     key = register_workload_tensors(dag.workload_key(), io_tensors)
     target = tvm.target.Target.current()
 
+    dispatch_ctx = DispatchContext.current
+    state = dispatch_ctx.query(target, key, has_complex_op, dag, func_name)
+    schedule = None
+
     env = TracingEnvironment.current
     if env is None:
         # in the final build mode
-        state = DispatchContext.current.query(target, key, has_complex_op, dag)
         if state is None:
             return None
 
@@ -297,14 +329,15 @@ def auto_schedule_topi(outs):
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(key)
+            input_map = prepare_input_map(io_tensors)
+            if input_map:
+                env.add_workload_input_names(key, list(input_map.values()))
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
         if (
             LayoutRewriteOption.get_target_default(target, True) != LayoutRewriteOption.NO_REWRITE
             and has_layout_free
         ):
-            dispatch_ctx = DispatchContext.current
-            state = dispatch_ctx.query(target, key, has_complex_op, dag)
             if state is None:
                 return None
 
@@ -316,7 +349,7 @@ def auto_schedule_topi(outs):
     else:
         raise ValueError("Invalid tracing mode: " + env.tracing_mode)
 
-    return None
+    return schedule
 
 
 def tensor_no_check_call(self, *indices):

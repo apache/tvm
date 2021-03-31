@@ -92,12 +92,12 @@ inline DataType NullValue<DataType>() {
 }
 
 /*! \brief Error thrown during attribute checking. */
-struct AttrError : public dmlc::Error {
+struct AttrError : public Error {
   /*!
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(std::string msg) : dmlc::Error("AttributeError:" + msg) {}
+  explicit AttrError(std::string msg) : Error("AttributeError:" + msg) {}
 };
 
 /*!
@@ -146,7 +146,7 @@ class BaseAttrsNode : public Object {
   virtual void VisitAttrs(AttrVisitor* v) {}
   /*!
    * \brief Initialize the attributes by sequence of arguments
-   * \param args The postional arguments in the form
+   * \param args The positional arguments in the form
    *        [key0, value0, key1, value1, ..., key_n, value_n]
    */
   template <typename... Args>

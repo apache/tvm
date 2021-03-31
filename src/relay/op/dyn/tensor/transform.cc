@@ -64,8 +64,9 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  // Doesn't support dynamic output rank
-  for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
+  const IntImmNode* rank = newshape->shape[0].as<IntImmNode>();
+  ICHECK(rank != nullptr) << "Dynamic Reshape doesn't support Dynamic Rank";
+  for (int i = 0; i < rank->value; i++) {
     oshape.push_back(Any());
   }
 

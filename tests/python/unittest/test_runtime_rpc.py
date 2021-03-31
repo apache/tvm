@@ -17,17 +17,24 @@
 import tvm
 from tvm import te
 import tvm.testing
+import logging
+import multiprocessing
 import os
 import stat
-import logging
+import sys
 import time
-import multiprocessing
 
 import pytest
 import numpy as np
 from tvm import rpc
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
+
+
+if __name__ == "__main__":
+    # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+
 
 # tkonolige: The issue as I understand it is this: multiprocessing's spawn
 # method launches a new process and then imports the relevant modules. This
@@ -60,9 +67,9 @@ def test_bigendian_rpc():
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], target, name="myadd")
 
-        ctx = remote.cpu(0)
-        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), ctx=ctx)
-        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), ctx=ctx)
+        dev = remote.cpu(0)
+        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
+        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), device=dev)
         temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
         f.save(path_dso)
@@ -136,7 +143,7 @@ def test_rpc_array():
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
     r_cpu = tvm.nd.array(x, remote.cpu(0))
-    assert str(r_cpu.context).startswith("remote")
+    assert str(r_cpu.device).startswith("remote")
     np.testing.assert_equal(r_cpu.asnumpy(), x)
     fremote = remote.get_function("rpc.test.remote_array_func")
     fremote(r_cpu)
@@ -147,11 +154,11 @@ def test_rpc_large_array():
     # testcase of large array creation
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
     a_np = np.ones((5041, 720)).astype("float32")
     b_np = np.ones((720, 192)).astype("float32")
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
     np.testing.assert_equal(a.asnumpy(), a_np)
     np.testing.assert_equal(b.asnumpy(), b_np)
 
@@ -231,14 +238,14 @@ def test_rpc_remote_module():
 
     def check_remote(remote):
         temp = utils.tempdir()
-        ctx = remote.cpu(0)
+        dev = remote.cpu(0)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
         remote.upload(path_dso)
         f1 = remote.load_module("dev_lib.so")
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
         print("%g secs/op" % cost)
@@ -271,11 +278,11 @@ def test_rpc_remote_module():
 
         # statrt the minrpc session.
         remote = tvm.rpc.PopenSession(path_minrpc)
-        ctx = remote.cpu(0)
+        dev = remote.cpu(0)
         f1 = remote.system_lib()
 
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
         cost = time_f(a, b).mean
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
@@ -297,12 +304,12 @@ def test_rpc_remote_module():
             print("Skip because opencl is not enabled")
             return
         temp = utils.tempdir()
-        ctx = remote.cl(0)
+        dev = remote.cl(0)
         s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=32)
         s[B].bind(xo, te.thread_axis("blockIdx.x"))
         s[B].bind(xi, te.thread_axis("threadIdx.x"))
-        f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
+        f = tvm.build(s, [A, B], "opencl --host=llvm", name="myadd")
         # Option 1: save modules separately and rely on remote compiler
         path_o = temp.relpath("myadd.o")
         path_cl = temp.relpath("myadd.cl")
@@ -316,8 +323,8 @@ def test_rpc_remote_module():
         fhost = remote.load_module("myadd.o")
         fdev = remote.load_module("myadd.cl")
         fhost.import_module(fdev)
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         fhost(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         # Option 2: export library as a tar ball then handled by remote compiler
@@ -325,8 +332,8 @@ def test_rpc_remote_module():
         f.export_library(path_tar)
         remote.upload(path_tar)
         fhost = remote.load_module("myadd.tar")
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         fhost(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
@@ -370,7 +377,7 @@ def test_rpc_session_constructor_args():
         assert fecho("xyz") == "xyz"
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
-        nd = tvm.nd.array([1, 2, 3], ctx=client.cpu(0))
+        nd = tvm.nd.array([1, 2, 3], device=client.cpu(0))
         assert nd.asnumpy()[1] == 2
 
     def check_error_handling():
@@ -526,20 +533,3 @@ def test_rpc_tracker_request():
     proc2.join()
     server.terminate()
     tracker.terminate()
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    test_rpc_echo()
-    test_rpc_session_constructor_args()
-    test_rpc_return_ndarray()
-    test_rpc_return_func()
-    test_bigendian_rpc()
-    test_rpc_remote_module()
-    test_rpc_file_exchange()
-    test_rpc_array()
-    test_rpc_simple()
-    test_local_func()
-    test_rpc_tracker_register()
-    test_rpc_tracker_request()
-    test_rpc_large_array()

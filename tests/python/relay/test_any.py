@@ -53,12 +53,12 @@ def check_result(
         expected = [expected]
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
-        for tgt, ctx in targets:
+        for tgt, dev in targets:
             if disable_targets and tgt in disable_targets:
                 continue
-            if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
+            if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
-            ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
+            ex = relay.create_executor(kind, mod=mod, device=dev, target=tgt)
             result = ex.evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
                 result = [r.asnumpy() for r in result]
@@ -208,6 +208,27 @@ def test_any_concat():
     ref = np.concatenate(x_np, axis=0)
     check_result(x_np, mod, ref)
 
+    def test_oshape(in_vars, axis, oshape):
+        z = relay.op.concatenate(in_vars, axis=axis)
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function(in_vars, z)
+        typed_mod = relay.transform.InferType()(mod)
+        assert typed_mod["main"].body.checked_type == relay.TensorType(oshape, dtype="float32")
+
+    x = [relay.var("x", shape=(relay.Any(), 3), dtype="float32") for _ in range(3)]
+    x.append(relay.var("x", shape=(relay.Any(), relay.Any()), dtype="float32"))
+
+    test_oshape(x, 0, (relay.Any(), 3))
+    test_oshape(x, 1, (relay.Any(), relay.Any()))
+
+    # [(1, 3), (1, ?)] -> (2, ?)
+    x = [
+        relay.var("x", shape=(1, 3), dtype="float32"),
+        relay.var("x", shape=(1, relay.Any()), dtype="float32"),
+    ]
+    test_oshape(x, 0, (2, relay.Any()))
+    test_oshape(x, 1, (1, relay.Any()))
+
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var("x", shape=x_shape, dtype="float32")
@@ -237,6 +258,28 @@ def test_any_reshape():
     verify_any_reshape(any_dims(3), (0, -2), (2, 3, 4), (2, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
     verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
+
+
+def verify_any_one_hot(indices_shape, indices_np_shape, depth, on_value, off_value, axis, dtype):
+    indices = relay.var("indices", shape=indices_shape, dtype="int32")
+    on_value_const = relay.const(on_value, dtype)
+    off_value_const = relay.const(off_value, dtype)
+    y = relay.one_hot(indices, on_value_const, off_value_const, depth, axis=axis, dtype=dtype)
+    params = [indices]
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function(params, y)
+
+    indices_npy = np.random.randint(0, depth, size=indices_np_shape).astype("int32")
+    out_npy = tvm.topi.testing.one_hot(indices_npy, on_value, off_value, depth, axis, dtype)
+    args = [indices_npy]
+    check_result(args, mod, out_npy)
+
+
+@tvm.testing.uses_gpu
+def test_any_one_hot():
+    verify_any_one_hot(any_dims(1), (3,), 3, 1, 0, -1, "int32")
+    verify_any_one_hot(any_dims(2), (2, 2), 5, 0.5, -0.5, 1, "float32")
+    verify_any_one_hot(any_dims(4), (3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 
 def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
@@ -708,7 +751,7 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
     mod["main"] = relay.Function([data], y.astuple())
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data_np)
         for ret, ref_ret in zip(result, ref_out_shape):
             assert ret.asnumpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
@@ -921,9 +964,9 @@ def test_any_get_valid_counts():
     # Check failed: err_code == CL_SUCCESS == false: OpenCL Error,
     # code=-61: CL_INVALID_BUFFER_SIZE
     targets = []
-    for tgt, ctx in tvm.testing.enabled_targets():
+    for tgt, dev in tvm.testing.enabled_targets():
         if "opencl" not in tgt:
-            targets.append((tgt, ctx))
+            targets.append((tgt, dev))
     verify_any_get_valid_counts(0, "float32", targets=targets)
 
 

@@ -519,7 +519,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   // auxiliary global variables
   std::vector<float> pop_scores;
   std::vector<double> pop_selection_probs;
-  float max_score = -1e-10;
+  float max_score = -1e-10f;
   pop_scores.reserve(population);
   pop_selection_probs.reserve(population);
   std::uniform_real_distribution<> dis(0.0, 1.0);

@@ -524,7 +524,7 @@ def coreml_op_to_relay(op, inname, outnames, etab):
             outname = outnames if isinstance(outnames, _base.string_types) else outnames[0]
             etab.set_expr(outname, outs, force_override=True)
         else:
-            # the number of ouputs from model op and tvm relay must be same
+            # the number of outputs from model op and tvm relay must be same
             assert len(outnames) == len(outs)
             for outname, out in zip(outnames, outs):
                 etab.set_expr(outname, out, force_override=True)

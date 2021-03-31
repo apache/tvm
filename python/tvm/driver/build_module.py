@@ -231,9 +231,8 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    target = Target(target)
-    target_host = Target(target_host)
-    device_type = ndarray.context(target.kind.name, 0).device_type
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    device_type = ndarray.device(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
@@ -399,15 +398,23 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
+
     if not target_host:
-        for tar, _ in target_input_mod.items():
+        for tar, mod in target_input_mod.items():
             tar = Target(tar)
-            device_type = ndarray.context(tar.kind.name, 0).device_type
+            device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
+
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
 
     mod_host_all = tvm.IRModule({})
 
@@ -428,12 +435,19 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
     if (
-        "system-lib" in target_host.attrs
-        and target_host.attrs["system-lib"].value == 1
-        and target_host.kind.name == "c"
+        target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
+        and target_host.attrs.get("system-lib", 0).value == 1
     ):
-        create_csource_metadata_module = tvm._ffi.get_global_func(
-            "runtime.CreateCSourceMetadataModule"
-        )
-        return create_csource_metadata_module([rt_mod_host], target_host)
+        if target_host.kind.name == "c":
+            create_csource_crt_metadata_module = tvm._ffi.get_global_func(
+                "runtime.CreateCSourceCrtMetadataModule"
+            )
+            return create_csource_crt_metadata_module([rt_mod_host], target_host)
+
+        if target_host.kind.name == "llvm":
+            create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
+                "runtime.CreateLLVMCrtMetadataModule"
+            )
+            return create_llvm_crt_metadata_module([rt_mod_host], target_host)
+
     return rt_mod_host
