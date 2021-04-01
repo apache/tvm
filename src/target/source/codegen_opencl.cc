@@ -120,7 +120,7 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         break;
     }
     if (!fail && lanes == 1) return;
-    if (!fail && (lanes >= 2 && lanes <= 16)) {
+    if (!fail && ((lanes >= 2 && lanes <= 4) || lanes == 8 || lanes == 16)) {
       os << lanes;
       return;
     }
@@ -154,7 +154,7 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         break;
     }
     if (!fail && lanes == 1) return;
-    if (!fail && (lanes >= 2 && lanes <= 16)) {
+    if (!fail && ((lanes >= 2 && lanes <= 4) || lanes == 8 || lanes == 16)) {
       os << lanes;
       return;
     }
