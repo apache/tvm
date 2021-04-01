@@ -578,13 +578,12 @@ class ZephyrQemuTransport(Transport):
         self.proc = None
         self.fd_transport = None
         self.pipe_dir = None
-        self.debugger = debugger
 
     def timeouts(self):
         return TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
             session_start_timeout_sec=self.startup_timeout_sec,
-            session_established_timeout_sec=5.0 if self.debugger is None else 0,
+            session_established_timeout_sec=5.0,
         )
 
     def open(self):
@@ -594,22 +593,11 @@ class ZephyrQemuTransport(Transport):
         self.read_pipe = os.path.join(self.pipe_dir, "fifo.out")
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
-        if self.debugger is not None:
-            if 'env' in self.kwargs:
-                self.kwargs["env"] = copy.copy(self.kwargs["env"])
-            else:
-                self.kwargs["env"] = copy.copy(os.environ)
-
-            self.kwargs["env"]["TVM_QEMU_DEBUG"] = "1"
-
         self.proc = subprocess.Popen(
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
         )
-
-        if self.debugger is not None:
-            self.debugger.start()
 
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
@@ -625,9 +613,6 @@ class ZephyrQemuTransport(Transport):
         self.fd_transport.open()
 
     def close(self):
-        if self.debugger is not None:
-            self.debugger.stop()
-
         if self.fd_transport is not None:
             self.fd_transport.child_transport.write_monitor_quit()
             self.proc.wait()
