@@ -465,5 +465,4 @@ def format_times(times):
     )
     stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(mean_ts, max_ts, min_ts, std_ts)
 
-    print("%s\n%s\n" % (header, stats))
     return "%s\n%s\n" % (header, stats)
