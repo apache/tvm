@@ -228,6 +228,50 @@ class GraphExecutorDebug : public GraphExecutor {
 
     data_entry_[eid].CopyTo(data_out);
   }
+
+  /*!
+   * \brief Profile execution time of the module.
+   *
+   * We run the entire module while recording overall and per-op timing
+   * information. The module may be run multiple times to ensure everything is
+   * warmed up. This function is a more correct reflection of actual runtime of
+   * the module compared to GraphRuntimeDebug::RunIndividual as it runs the
+   * entire graph in order.
+   *
+   * \returns A table of per-op runtimes and total times.
+   */
+  String Profile() {
+    // warm up. 1 iteration does not seem enough.
+    for (int i = 0; i < 3; i++) {
+      GraphExecutor::Run();
+    }
+
+    profiling::Profiler prof;
+    prof.Start(devices_);
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (op_execs_[i]) {
+        // get argument shapes
+        std::vector<NDArray> shapes;
+        for (const auto& e : nodes_[i].inputs) {
+          uint32_t eid = entry_id(e);
+          shapes.push_back(data_entry_[eid]);
+        }
+        for (uint32_t j = 0; j < nodes_[i].param.num_outputs; ++j) {
+          uint32_t eid = entry_id(i, j);
+          shapes.push_back(data_entry_[eid]);
+        }
+
+        uint32_t eid = entry_id(i, 0);
+        const Device& device = data_entry_[eid]->device;
+        prof.StartCall(nodes_[i].param.func_name, device,
+                       {{"Argument Shapes", profiling::ShapeString(shapes)}});
+        op_execs_[i]();
+        prof.StopCall();
+      }
+    }
+    prof.Stop();
+    return prof.Report();
+  }
 };
 
 /*!
@@ -260,6 +304,8 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       ICHECK_GE(min_repeat_ms, 0);
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
+  } else if (name == "profile") {
+    return TypedPackedFunc<String()>([sptr_to_self, this]() { return this->Profile(); });
   } else {
     return GraphExecutor::GetFunction(name, sptr_to_self);
   }

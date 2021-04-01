@@ -26,6 +26,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
 
@@ -59,6 +60,7 @@ void GraphExecutor::Run() {
     if (op_execs_[i]) op_execs_[i]();
   }
 }
+
 /*!
  * \brief Initialize the graph executor with graph and device.
  * \param graph_json The execution graph.
