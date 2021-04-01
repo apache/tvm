@@ -287,10 +287,10 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
 
 def run_module(
     module_file,
+    device,
     hostname=None,
     port=9090,
     rpc_key=None,
-    device,
     inputs_file=None,
     fill_mode="random",
     repeat=1,
@@ -306,16 +306,16 @@ def run_module(
     ----------
     module_file : str
         The path to the module file (a .tar file).
-    hostname : str
+    device: str,
+        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        session, local or remote).
+    hostname : str, optional
         The hostname of the target device on which to run.
     port : int, optional
         The port of the target device on which to run.
     rpc_key : str, optional
         The tracker key of the target device. If this is set, it
         will be assumed that remote points to a tracker.
-    device: str, optional
-        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
-        session, local or remote).
     inputs_file : str, optional
         Path to an .npz file containing the inputs.
     fill_mode : str, optional
