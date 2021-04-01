@@ -291,6 +291,7 @@ def run_module(
     hostname=None,
     port=9090,
     rpc_key=None,
+    device=None,
     inputs_file=None,
     fill_mode="random",
     repeat=1,
@@ -316,6 +317,9 @@ def run_module(
     rpc_key : str, optional
         The tracker key of the target device. If this is set, it
         will be assumed that remote points to a tracker.
+    device: str, optional
+        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        session, local or remote).
     inputs_file : str, optional
         Path to an .npz file containing the inputs.
     fill_mode : str, optional
