@@ -38,6 +38,9 @@
 
 namespace tvm {
 namespace relay {
+namespace transform {
+Pass LabelOps();
+}
 namespace backend {
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
@@ -368,6 +371,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // and vendor-provided libraries. So we don't handle for now.
     relay_module = transform::Inline()(relay_module);
     relay_module = transform::InferType()(relay_module);
+    relay_module = transform::LabelOps()(relay_module);
 
     ICHECK(relay_module.defined());
 
