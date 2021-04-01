@@ -165,9 +165,11 @@ def subspace_divide(bindings, input_iters, sub_iters, predicate=True, require_bi
     Returns
     -------
     results : List[List[PrimExpr]]
-        The iter map matching result. The inner list is of length 2.
-        The first expr is the basis of the quotient space.
-        The second expr is the basis of the subspace.
+        The result list has length len(bindings) + 1
+        [0, len(bindings)): The iter map matching result. The inner list is of length 2.
+                            The first expr is the basis of the quotient space.
+                            The second expr is the basis of the subspace.
+        len(bindings): the predicate of outer space and inner space
         Empty array if no match can be found.
     """
     return _ffi_api.SubspaceDivide(bindings, input_iters, sub_iters, predicate, require_bijective)

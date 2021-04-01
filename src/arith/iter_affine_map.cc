@@ -1335,7 +1335,9 @@ class SubspaceDivider {
   }
 
   size_t unresolved_count_{0};
+  // arithmetic analyzer used to call CanProve
   Analyzer* analyzer_;
+  // collector that collects the outgoing split reference of each IterMark
   const IterMarkSplitCollector collector_;
   // the set of subspace iters
   const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& sub_iters_;

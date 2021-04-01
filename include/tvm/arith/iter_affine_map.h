@@ -301,8 +301,12 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
  *
- * \return The detected a and b if a match exists,
- *         otherwise return an empty array.
+ * \return The result list has length len(bindings) + 1
+        [0, len(bindings)): The iter map matching result. The inner list is of length 2.
+                            The first expr is the basis of the quotient space.
+                            The second expr is the basis of the subspace.
+        len(bindings): the predicate of outer space and inner space
+        Empty array if no match can be found.
  */
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
