@@ -50,7 +50,7 @@ def test_generate_tensor_data__type_unknown():
 
 
 def test_format_times__contains_header():
-    sut = tvmc.runner.format_times([.6, 1.2, .12, .42])
+    sut = tvmc.runner.format_times([0.6, 1.2, 0.12, 0.42])
     assert "std (ms)" in sut
 
 
