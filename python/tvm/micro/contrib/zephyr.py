@@ -18,11 +18,9 @@
 """Defines a compiler integration that uses an externally-supplied Zephyr project."""
 
 import collections
-import copy
 import logging
 import multiprocessing
 import os
-import pathlib
 import re
 import tempfile
 import textwrap
@@ -430,28 +428,12 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             f"runner {flash_runner}"
         )
 
-    def _zephyr_transport(self, micro_binary):
-        qemu_debugger = None
-        if self._debug_rpc_session:
-            qemu_debugger = debugger.RpcDebugger(
-                self._debug_rpc_session,
-                debugger.DebuggerFactory(
-                    QemuGdbDebugger,
-                    (
-                        micro_binary.abspath(micro_binary.debug_files[0]),
-                    ),
-                    {},
-                ),
-            )
-
-        return ZephyrQemuTransport(micro_binary.base_dir, startup_timeout_sec=30.0, debugger=qemu_debugger)
-
     def flash(self, micro_binary):
         cmake_entries = read_cmake_cache(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
         )
         if "qemu" in cmake_entries["BOARD"]:
-            return self._zephyr_transport(micro_binary)
+            return ZephyrQemuTransport(micro_binary.base_dir, startup_timeout_sec=30.0)
 
         build_dir = os.path.dirname(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
@@ -550,22 +532,6 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         )
 
 
-class QemuGdbDebugger(debugger.GdbDebugger):
-
-    def __init__(self, elf_file):
-        super(QemuGdbDebugger, self).__init__()
-        self._elf_file = elf_file
-
-    def popen_kwargs(self):
-        # expect self._elf file to follow the form .../zephyr/zephyr.elf
-        cmake_cache_path = (
-            pathlib.Path(self._elf_file).parent.parent / "CMakeCache.txt")
-        cmake_cache = read_cmake_cache(cmake_cache_path)
-        return {
-            "args": [cmake_cache["CMAKE_GDB"], "-ex", "target remote localhost:1234", "-ex", f"file {self._elf_file}"],
-        }
-
-
 class QemuStartupFailureError(Exception):
     """Raised when the qemu pipe is not present within startup_timeout_sec."""
 
@@ -605,7 +571,7 @@ class QemuFdTransport(file_descriptor.FdTransport):
 class ZephyrQemuTransport(Transport):
     """The user-facing Zephyr QEMU transport class."""
 
-    def __init__(self, base_dir, startup_timeout_sec=5.0, debugger=None, **kwargs):
+    def __init__(self, base_dir, startup_timeout_sec=5.0, **kwargs):
         self.base_dir = base_dir
         self.startup_timeout_sec = startup_timeout_sec
         self.kwargs = kwargs

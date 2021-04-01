@@ -205,11 +205,12 @@ def build_command(args):
         os.path.join(THIS_DIR, args.platform, "base-box", "packer.json"),
         args.provider or ALL_PROVIDERS,
     )
-    env = copy.copy(os.environ)
+    env = None
     packer_args = ["packer", "build"]
-    env["PACKER_LOG"] = "1"
-    env["PACKER_LOG_PATH"] = "packer.log"
     if args.debug_packer:
+        env = copy.copy(os.environ)
+        env["PACKER_LOG"] = "1"
+        env["PACKER_LOG_PATH"] = "packer.log"
         packer_args += ["-debug"]
 
     packer_args += ["packer.json"]

@@ -36,7 +36,6 @@ echo "on your network connection and the state of PyPI) as dependencies are"
 echo "downloaded and cached for future use."
 echo "------------------------------[ TVM Message ]------------------------------"
 poetry lock -vvv
-poetry install -E importer-onnx  # onnx needed for tests/micro/zephyr/test_zephyr.py
 poetry run pip3 install -r ~/zephyr/zephyr/scripts/requirements.txt
 
 echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile

@@ -30,8 +30,4 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-if [ "${TVM_QEMU_DEBUG}" != "" ]; then
-    ARGS=( "${ARGS[@]}" -s -S )
-fi
-
 "${ARGS[@]}"
