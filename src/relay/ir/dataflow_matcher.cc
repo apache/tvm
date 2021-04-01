@@ -933,7 +933,7 @@ class PatternPartitioner : protected MixedModeMutator {
   Expr Partition(const DFPattern& pattern, const Expr& pre, const Map<String, ObjectRef>& attrs,
                  PackedFunc check) {
     if (pattern.as<FunctionPatternNode>()) {
-      LOG(WARNING) << "Paritioning a Function that isn't called doesn't make sense, skipping"
+      LOG(WARNING) << "Partioning a Function that isn't called doesn't make sense, skipping"
                    << pattern;
       return pre;
     }
