@@ -107,9 +107,8 @@ def drive_run(args):
 
     rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
 
-    # inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode="random")
     try:
-        inputs = np.load(inputs_file) if inputs_file else {}  # this is now a numpy array
+        inputs = np.load(args.inputs) if args.inputs else {}
     except IOError as ex:
         raise TVMCException("Error loading inputs file: %s" % ex)
 
@@ -227,7 +226,7 @@ def generate_tensor_data(shape, dtype, fill_mode):
     return tensor
 
 
-def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
+def make_inputs_dict(inputs, shape_dict, dtype_dict, fill_mode):
     """Make the inputs dictionary for a graph.
 
     Use data from 'inputs' where specified. For input tensors
@@ -236,8 +235,8 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
 
     Parameters
     ----------
-    inputs_file : str
-        Path to a .npz file containing the inputs.
+    inputs : dict
+        A dictionary that maps input names to numpy values.
     shape_dict : dict
         Shape dictionary - {input_name: tuple}.
     dtype_dict : dict
@@ -252,6 +251,9 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
         Complete inputs dictionary - {input_name: np.array}.
     """
     logger.debug("creating inputs dict")
+
+    if inputs is None:
+        inputs = {}
 
     # First check all the keys in inputs exist in the graph
     for input_name in inputs:
@@ -292,7 +294,8 @@ def run_module(
     port=9090,
     rpc_key=None,
     device=None,
-    inputs_file=None,
+    inputs=None,
+    fill_mode="random",
     repeat=1,
     profile=False,
 ):
@@ -316,8 +319,8 @@ def run_module(
     device: str, optional
         the device (e.g. "cpu" or "gpu") to be targeted by the RPC
         session, local or remote).
-    inputs_file : str, optional
-        Path to an .npz file containing the inputs.
+    inputs : dict, optional
+        A dictionary that maps input names to numpy values.
     fill_mode : str, optional
         The fill-mode to use when generating data for input tensors.
         Valid options are "zeros", "ones" and "random".
@@ -379,7 +382,7 @@ def run_module(
         module.load_params(params)
 
         shape_dict, dtype_dict = get_input_info(graph, params)
-        # inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode)
+        inputs_dict = make_inputs_dict(inputs, shape_dict, dtype_dict, fill_mode)
 
         logger.debug("setting inputs to the module")
         module.set_input(**inputs_dict)
