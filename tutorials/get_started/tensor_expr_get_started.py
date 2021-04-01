@@ -59,7 +59,7 @@ import numpy as np
 # and specify it. If you're using llvm, you can get this information from the
 # command ``llc --version`` to get the CPU type, and you can check
 # ``/proc/cpuinfo`` for additional extensions that your processor might
-# support.  For example, ``tgt = "llvm -mcpu=`skylake`
+# support. For example, ``tgt = "llvm -mcpu=`skylake`
 
 tgt = tvm.target.Target(target="llvm", host="llvm")
 
@@ -280,7 +280,7 @@ for result in log:
 #   As you may have noticed, the declarations of ``A``, ``B`` and ``C`` all
 #   take the same shape argument, ``n``. TVM will take advantage of this to
 #   pass only a single shape argument to the kernel, as you will find in the
-#   printed device code.  This is one form of specialization.
+#   printed device code. This is one form of specialization.
 #
 #   On the host side, TVM will automatically generate check code that checks
 #   the constraints in the parameters. So if you pass arrays with different
@@ -321,9 +321,8 @@ if run_cuda:
     s = te.create_schedule(C.op)
 
     bx, tx = s[C].split(C.op.axis[0], factor=64)
-    
-    xXXXXXXXx
 
+    xXXXXXXXx
 
     ################################################################################
     # Finally we must bind the iteration axis bx and tx to threads in the GPU
@@ -347,7 +346,7 @@ if run_cuda:
     #
     # The result of compilation fadd is a GPU device function (if GPU is
     # involved) as well as a host wrapper that calls into the GPU
-    # function.  fadd is the generated host wrapper function, it contains
+    # function. fadd is the generated host wrapper function, it contains
     # a reference to the generated device function internally.
 
     fadd = tvm.build(s, [A, B, C], target=tgt_gpu, name="myadd")
@@ -367,7 +366,7 @@ if run_cuda:
     # Note that copying the data to and from the memory on the GPU is a required step.
 
     dev = tvm.device(tgt_gpu.kind.name, 0)
-  
+
     n = 1024
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
@@ -384,7 +383,11 @@ if run_cuda:
     #
     # The following code fetches the device module and prints the content code.
 
-    if tgt_gpu.kind.name == "cuda" or tgt_gpu.kind.name == "rocm" or tgt_gpu.kind.name.startswith("opencl"):
+    if (
+        tgt_gpu.kind.name == "cuda"
+        or tgt_gpu.kind.name == "rocm"
+        or tgt_gpu.kind.name.startswith("opencl")
+    ):
         dev_module = fadd.imported_modules[0]
         print("-----GPU code-----")
         print(dev_module.get_source())
@@ -567,7 +570,7 @@ dtype = "float32"
 # ``llc --version`` to get the CPU type, and you can check ``/proc/cpuinfo``
 # for additional extensions that your processor might support.
 
-target = tvm.target.Target(target="llvm", host="llvm") 
+target = tvm.target.Target(target="llvm", host="llvm")
 dev = tvm.device(target.kind.name, 0)
 
 # Random generated tensor for testing
@@ -625,6 +628,7 @@ def evaluate_operation(s, vars, target, name, optimization, log):
     mean_time = evaluator(a, b, c).mean
     print("%s: %f" % (optimization, mean_time))
     log.append((optimization, mean_time))
+
 
 log = []
 
