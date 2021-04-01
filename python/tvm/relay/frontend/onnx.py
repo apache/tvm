@@ -3080,11 +3080,13 @@ class GraphProto:
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
-        assert all(
-            [name in self._input_names for name in self._shape.keys()]
-        ), "User specified the shape for inputs that weren't found in the graph: " + str(
-            self._shape
-        )
+        # Only check user inputs in the outer-most graph scope.
+        if self._old_manager == None:
+            assert all(
+                [name in self._input_names for name in self._shape.keys()]
+            ), "User specified the shape for inputs that weren't found in the graph: " + str(
+                self._shape
+            )
         # get list of unsupported ops
         convert_map = _get_convert_map(opset)
         unsupported_ops = set()
