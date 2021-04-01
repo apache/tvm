@@ -109,10 +109,10 @@ def drive_run(args):
 
     outputs, times = run_module(
         args.FILE,
-        device=args.device,
-        rpc_hostname,
-        rpc_port,
-        args.rpc_key,
+        args.device,
+        hostname=rpc_hostname,
+        port=rpc_port,
+        rpc_key=args.rpc_key,
         inputs_file=args.inputs,
         fill_mode=args.fill_mode,
         repeat=args.repeat,
