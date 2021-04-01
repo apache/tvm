@@ -505,12 +505,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
 
-    Target target_host = GetTargetHost();
-    // If no target_host has been set, we choose a default one, which is
-    // llvm if "codegen.LLVMModuleCreate" is accessible.
-    const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
-    if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
-
     // Get the updated function.
     auto func = Downcast<Function>(relay_module->Lookup("main"));
 

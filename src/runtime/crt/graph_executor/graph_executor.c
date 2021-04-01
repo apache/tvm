@@ -877,14 +877,8 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
 void TVMGraphExecutor_Run(TVMGraphExecutor* executor) {
   // setup the array and requirements.
   uint32_t idx;
-<<<<<<< HEAD:src/runtime/crt/graph_executor/graph_executor.c
   for (idx = 0; idx < executor->op_execs_count; ++idx) {
     if (executor->op_execs[idx].fexec) {
-=======
-
-  for (idx = 0; idx < runtime->op_execs_count; ++idx) {
-    if (runtime->op_execs[idx].fexec) {
->>>>>>> a01a38ec7... [AOT] Introducing AOT in TVM:src/runtime/crt/graph_runtime/graph_runtime.c
 #if TVM_CRT_DEBUG
       printf("calling: %s (%d)\n", executor->op_execs[idx].name, idx);
 #endif  // TVM_CRT_DEBUG

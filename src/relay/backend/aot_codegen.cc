@@ -28,6 +28,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 
 #include <algorithm>
 #include <list>
@@ -468,8 +469,8 @@ class AOTCodegen : public ExprVisitor {
     }
 
     // Define the attributes
-    body = tir::AttrStmt(PrimExpr(), tir::attr::device_context_type, 1, body);
-    body = tir::AttrStmt(PrimExpr(), tir::attr::device_context_id, 0, body);
+    body = tir::AttrStmt(PrimExpr(), tvm::tir::attr::device_type, 1, body);
+    body = tir::AttrStmt(PrimExpr(), tvm::tir::attr::device_id, 0, body);
 
     // Make the PrimFunc
     return tir::PrimFunc(main_signature_, body, VoidType(), Map<tir::Var, tir::Buffer>(),
