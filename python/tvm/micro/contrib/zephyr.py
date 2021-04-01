@@ -22,6 +22,7 @@ import copy
 import logging
 import multiprocessing
 import os
+import pathlib
 import re
 import tempfile
 import textwrap
@@ -445,7 +446,6 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
         return ZephyrQemuTransport(micro_binary.base_dir, startup_timeout_sec=30.0, debugger=qemu_debugger)
 
-
     def flash(self, micro_binary):
         cmake_entries = read_cmake_cache(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
@@ -557,8 +557,12 @@ class QemuGdbDebugger(debugger.GdbDebugger):
         self._elf_file = elf_file
 
     def popen_kwargs(self):
+        # expect self._elf file to follow the form .../zephyr/zephyr.elf
+        cmake_cache_path = (
+            pathlib.Path(self._elf_file).parent.parent / "CMakeCache.txt")
+        cmake_cache = read_cmake_cache(cmake_cache_path)
         return {
-            "args": ["gdb", "-ex", "target remote :1234", "-ex", f"file {self._elf_file}"],
+            "args": [cmake_cache["CMAKE_GDB"], "-ex", "target remote localhost:1234", "-ex", f"file {self._elf_file}"],
         }
 
 
@@ -625,7 +629,6 @@ class ZephyrQemuTransport(Transport):
         
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
-
         if self.debugger is not None:
             if 'env' in self.kwargs:
                 self.kwargs["env"] = copy.copy(self.kwargs["env"])

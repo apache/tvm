@@ -292,14 +292,7 @@ def micro(model="unknown", options=None):
     options : str or list of str
         Additional options
     """
-    trans_table = {
-        "host": [],
-        "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
-        "nrf5340dk": ["-mcpu=cortex-m33"],
-        "host_riscv32": [],
-        "host_riscv64": [],
-    }
-    if model not in trans_table:
+    if model not in MICRO_SUPPORTED_MODELS:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
         MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
