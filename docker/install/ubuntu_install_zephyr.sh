@@ -55,7 +55,7 @@ pip3 install west
 #EOF
 #chmod a+x /usr/local/bin/west
 
-west init --mr v2.4.0 /opt/zephyrproject
+west init --mr v2.5.0 /opt/zephyrproject
 cd /opt/zephyrproject
 west update
 
@@ -72,7 +72,7 @@ west zephyr-export
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 
-SDK_VERSION=0.11.3
+SDK_VERSION=0.12.3
 wget --no-verbose \
      https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${SDK_VERSION}/zephyr-sdk-${SDK_VERSION}-setup.run
 chmod +x zephyr-sdk-${SDK_VERSION}-setup.run
