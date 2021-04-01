@@ -30,7 +30,7 @@
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/func_registry.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
-#include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
+#include <tvm/runtime/crt/internal/graph_executor/graph_executor.h>
 #include <tvm/runtime/crt/internal/memory/memory.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
@@ -65,11 +65,11 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   dtype.code = dtype_code;
   dtype.bits = dtype_bits;
   dtype.lanes = dtype_lanes;
-  DLContext ctx;
-  ctx.device_type = (DLDeviceType)device_type;
-  ctx.device_id = device_id;
+  DLDevice dev;
+  dev.device_type = (DLDeviceType)device_type;
+  dev.device_id = device_id;
   TVMNDArray arr;
-  int status = TVMNDArray_Empty(ndim, shape, dtype, ctx, &arr);
+  int status = TVMNDArray_Empty(ndim, shape, dtype, dev, &arr);
   if (status != 0) {
     return status;
   }
@@ -83,16 +83,16 @@ int TVMArrayFree(TVMArrayHandle handle) {
   return TVMNDArray_Release(&arr);
 }
 
-int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint,
+int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDataType type_hint,
                             void** out_data) {
   if (alignment != 1) {
     nbytes = (nbytes + alignment - 1) / alignment * alignment;
   }
-  return TVMPlatformMemoryAllocate(nbytes, ctx, out_data);
+  return TVMPlatformMemoryAllocate(nbytes, dev, out_data);
 }
 
-int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
-                                     DLDataType dtype, const char* mem_scope, void** out_data) {
+int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape, DLDataType dtype,
+                                     const char* mem_scope, void** out_data) {
   size_t nbytes = 1;
   for (int i = 0; i < ndim; ++i) {
     nbytes *= shape[i];
@@ -102,10 +102,10 @@ int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* sha
   int kAllocAlignment = 128;
   size_t align = (dtype.bits / 8) * dtype.lanes;
   if (align < kAllocAlignment) align = kAllocAlignment;
-  return TVMDeviceAllocDataSpace(ctx, nbytes, align, dtype, out_data);
+  return TVMDeviceAllocDataSpace(dev, nbytes, align, dtype, out_data);
 }
 
-int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) { return TVMPlatformMemoryFree(ptr, ctx); }
+int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr) { return TVMPlatformMemoryFree(ptr, dev); }
 
 static bool IsContiguous(const DLTensor* arr) {
   if (arr->strides == NULL) return true;
@@ -209,8 +209,9 @@ int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue*
 
 static TVMFunctionHandle EncodeFunctionHandle(tvm_module_index_t module_index,
                                               tvm_function_index_t function_index) {
-  return (TVMFunctionHandle)((uintptr_t)(
-      ((module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) | (function_index | 0x8000)));
+  return (TVMFunctionHandle)(
+      (((uintptr_t)(module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) |
+       (function_index | 0x8000)));
 }
 
 static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* module_index,
@@ -237,13 +238,13 @@ static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* mo
 }
 
 int TVMByteArrayFree(TVMByteArray* arr) {
-  DLContext ctx = {kDLCPU, 0};
-  int to_return = TVMPlatformMemoryFree((void*)arr->data, ctx);
+  DLDevice dev = {kDLCPU, 0};
+  int to_return = TVMPlatformMemoryFree((void*)arr->data, dev);
   if (to_return != 0) {
     return to_return;
   }
 
-  return TVMPlatformMemoryFree((void*)arr, ctx);
+  return TVMPlatformMemoryFree((void*)arr, dev);
 }
 
 tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* args,
@@ -365,7 +366,7 @@ int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, in
 }
 
 int TVMFuncFree(TVMFunctionHandle func) {
-  // A no-op, since we don't actually allocate anything in GetFunction
+  // A no-op, since we don't actually allocate anything in GetFunction.
   return 0;
 }
 
@@ -376,18 +377,18 @@ tvm_crt_error_t TVMInitializeRuntime() {
   tvm_crt_error_t error = kTvmErrorNoError;
   void* func_registry_memory = NULL;
 
-  DLContext ctx = {kDLCPU, 0};
-  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx,
+  DLDevice dev = {kDLCPU, 0};
+  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, dev,
                                     &func_registry_memory);
   if (error != kTvmErrorNoError) {
     return error;
   }
 
   void* registry_backing_memory;
-  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx,
+  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, dev,
                                     &registry_backing_memory);
   if (error != kTvmErrorNoError) {
-    TVMPlatformMemoryFree(func_registry_memory, ctx);
+    TVMPlatformMemoryFree(func_registry_memory, dev);
     return error;
   }
 
@@ -412,8 +413,8 @@ tvm_crt_error_t TVMInitializeRuntime() {
   }
 
   if (error != kTvmErrorNoError) {
-    TVMPlatformMemoryFree(registry_backing_memory, ctx);
-    TVMPlatformMemoryFree(func_registry_memory, ctx);
+    TVMPlatformMemoryFree(registry_backing_memory, dev);
+    TVMPlatformMemoryFree(func_registry_memory, dev);
   }
 
   return error;
@@ -422,7 +423,7 @@ tvm_crt_error_t TVMInitializeRuntime() {
 typedef struct {
   uint16_t function_index;
   TVMFunctionHandle func_to_time;
-  TVMContext ctx;
+  DLDevice device;
   int number;
   int repeat;
   int min_repeat_ms;
@@ -447,8 +448,8 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
 
   TVMModuleHandle mod = (TVMModuleHandle)args[0].v_handle;
   const char* name = args[1].v_str;
-  g_time_evaluator_state.ctx.device_type = args[2].v_int64;
-  g_time_evaluator_state.ctx.device_id = args[3].v_int64;
+  g_time_evaluator_state.device.device_type = args[2].v_int64;
+  g_time_evaluator_state.device.device_id = args[3].v_int64;
   g_time_evaluator_state.number = args[4].v_int64;
   g_time_evaluator_state.repeat = args[5].v_int64;
   g_time_evaluator_state.min_repeat_ms = args[6].v_int64;
@@ -474,16 +475,16 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
   }
 
   // TODO(areusch): should *really* rethink needing to return doubles
-  DLContext result_byte_ctx = {kDLCPU, 0};
+  DLDevice result_byte_dev = {kDLCPU, 0};
   TVMByteArray* result_byte_arr = NULL;
   tvm_crt_error_t err =
-      TVMPlatformMemoryAllocate(sizeof(TVMByteArray), result_byte_ctx, (void*)&result_byte_arr);
+      TVMPlatformMemoryAllocate(sizeof(TVMByteArray), result_byte_dev, (void*)&result_byte_arr);
   if (err != kTvmErrorNoError) {
     goto release_and_return;
   }
   result_byte_arr->data = NULL;
   size_t data_size = sizeof(double) * g_time_evaluator_state.repeat;
-  err = TVMPlatformMemoryAllocate(data_size, result_byte_ctx, (void*)&result_byte_arr->data);
+  err = TVMPlatformMemoryAllocate(data_size, result_byte_dev, (void*)&result_byte_arr->data);
   if (err != kTvmErrorNoError) {
     goto release_and_return;
   }
@@ -527,9 +528,9 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
 
 release_and_return : {
   tvm_crt_error_t release_err =
-      TVMPlatformMemoryFree((void*)&result_byte_arr->data, result_byte_ctx);
+      TVMPlatformMemoryFree((void*)&result_byte_arr->data, result_byte_dev);
   if (release_err != kTvmErrorNoError) {
-    release_err = TVMPlatformMemoryFree((void*)&result_byte_arr, result_byte_ctx);
+    release_err = TVMPlatformMemoryFree((void*)&result_byte_arr, result_byte_dev);
   }
 
   if (err == kTvmErrorNoError && release_err != kTvmErrorNoError) {

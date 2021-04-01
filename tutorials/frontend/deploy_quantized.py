@@ -39,7 +39,7 @@ import os
 batch_size = 1
 model_name = "resnet18_v1"
 target = "cuda"
-ctx = tvm.context(target)
+dev = tvm.device(target)
 
 ###############################################################################
 # Prepare the Dataset
@@ -146,7 +146,7 @@ def quantize(mod, params, data_aware):
 # -------------
 # We create a Relay VM to build and execute the model.
 def run_inference(mod):
-    executor = relay.create_executor("vm", mod, ctx, target)
+    executor = relay.create_executor("vm", mod, dev, target)
     val_data, batch_fn = get_val_data()
     for i, batch in enumerate(val_data):
         data, label = batch_fn(batch)

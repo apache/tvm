@@ -59,16 +59,16 @@ def verify_fused_batch_norm(shape):
         constant_graph = graph_util.convert_variables_to_constants(sess, sess.graph_def, ["output"])
 
     for device in ["llvm"]:
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             continue
         mod, params = relay.frontend.from_tensorflow(constant_graph, outputs=["output"])
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, target=device, params=params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_executor.create(graph, lib, dev)
         m.set_input(**params)
         m.set_input("input", data)
         m.run()

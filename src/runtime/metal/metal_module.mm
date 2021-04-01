@@ -177,14 +177,14 @@ class MetalWrappedFunc {
     std::fill(scache_.begin(), scache_.end(), (id<MTLComputePipelineState>)nil);
     thread_axis_cfg_.Init(num_buffer_args + num_pack_args, thread_axis_tags);
     metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
-    int dev_id = t->context.device_id;
+    int dev_id = t->device.device_id;
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const {
     @autoreleasepool {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
-      int device_id = t->context.device_id;
+      int device_id = t->device.device_id;
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
@@ -192,7 +192,7 @@ class MetalWrappedFunc {
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
-      id<MTLCommandQueue> queue = w_->GetCommandQueue(t->context);
+      id<MTLCommandQueue> queue = w_->GetCommandQueue(t->device);
       id<MTLCommandBuffer> cb = [queue commandBuffer];
       id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
       [encoder setComputePipelineState:scache_[device_id]];

@@ -67,8 +67,8 @@ endef
 
 LIBS = \
 	src/runtime/crt/common \
-	src/runtime/crt/graph_runtime \
-	src/runtime/crt/graph_runtime_module \
+	src/runtime/crt/graph_executor \
+	src/runtime/crt/graph_executor_module \
 	src/runtime/crt/memory \
 	src/runtime/crt/utvm_rpc_common \
 	src/runtime/crt/utvm_rpc_server

@@ -182,8 +182,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     graph, lib, params, dumps = tvmc.compile(
         mod,
         params,
-        target="opencl",
-        target_host="llvm",
+        target="opencl --host=llvm",
         alter_layout="NCHW",
     )
 

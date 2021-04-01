@@ -757,10 +757,10 @@ def test_alter_layout_strided_slice():
     mod_before = transform.InferType()(mod_before)
     mod_new = transform.InferType()(mod_new)
     with relay.build_config(opt_level=3):
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug", "vm"]:
-                ex_before = relay.create_executor(kind, mod=mod_before, ctx=ctx, target=target)
-                ex_new = relay.create_executor(kind, mod=mod_new, ctx=ctx, target=target)
+                ex_before = relay.create_executor(kind, mod=mod_before, device=dev, target=target)
+                ex_new = relay.create_executor(kind, mod=mod_new, device=dev, target=target)
                 np_data = np.random.uniform(size=(1, 32, 28, 28)).astype("float32")
                 np_weight = np.random.uniform(size=(32, 32, 3, 3)).astype("float32")
                 result_before = ex_before.evaluate()(np_data, np_weight)

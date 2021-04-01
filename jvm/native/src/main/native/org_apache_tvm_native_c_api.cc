@@ -453,7 +453,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyToJArray(JNIEnv* 
   return ret;
 }
 
-// Context
+// Device
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmSynchronize(JNIEnv* env, jint deviceType,
                                                                   jint deviceId) {
   return TVMSynchronize(static_cast<int>(deviceType), static_cast<int>(deviceId), NULL);

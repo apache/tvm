@@ -71,12 +71,12 @@ We use two python scripts for this tutorial.
           fadd_dev = tvm.runtime.load_module("myadd.awsxclbin")
       fadd.import_module(fadd_dev)
 
-      ctx = tvm.context(tgt, 0)
+      dev = tvm.device(tgt, 0)
 
       n = 1024
-      a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), ctx)
-      b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), ctx)
-      c = tvm.nd.array(np.zeros(n, dtype="float32"), ctx)
+      a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), dev)
+      b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), dev)
+      c = tvm.nd.array(np.zeros(n, dtype="float32"), dev)
 
       fadd(a, b, c)
       tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())

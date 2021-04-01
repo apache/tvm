@@ -64,20 +64,20 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
  * and the caller is not obligated to call TVMPlatformMemoryFree in order to avoid a memory leak.
  *
  * \param num_bytes Number of bytes requested.
- * \param ctx Execution context that will be used with the allocated memory. Fixed to {kDLCPU, 0}.
+ * \param dev Execution device that will be used with the allocated memory. Fixed to {kDLCPU, 0}.
  * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr);
 
 /*!
  * \brief Free memory used by TVM.
  *
  * \param ptr A pointer returned from TVMPlatformMemoryAllocate which should be free'd.
- * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
+ * \param dev Execution device passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev);
 
 /*! \brief Start a device timer.
  *

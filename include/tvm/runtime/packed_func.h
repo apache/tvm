@@ -46,14 +46,6 @@
 #define TVM_RUNTIME_HEADER_ONLY 0
 #endif
 
-// Always inline macro only use in template
-// expansion cases where we know inline is important.
-#ifdef _MSC_VER
-#define TVM_ALWAYS_INLINE __forceinline
-#else
-#define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
-#endif
-
 namespace tvm {
 namespace runtime {
 
@@ -547,9 +539,9 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     return Module(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
-  operator TVMContext() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
-    return value_.v_ctx;
+  operator Device() const {
+    TVM_CHECK_TYPE_CODE(type_code_, kDLDevice);
+    return value_.v_device;
   }
   int type_code() const { return type_code_; }
   /*!
@@ -606,7 +598,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
-  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Device;
   using TVMPODValue_::operator Module;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::IsObjectRef;
@@ -666,7 +658,7 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
-  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Device;
   using TVMPODValue_::operator Module;
   // reuse conversion rule from ArgValue.
   operator std::string() const { return AsArgValue().operator std::string(); }
@@ -743,7 +735,7 @@ class TVMRetValue : public TVMPODValue_ {
   /*! \brief default constructor */
   TVMRetValue() {}
   /*!
-   * \brief move constructor from anoter return value.
+   * \brief move constructor from another return value.
    * \param other The other return value.
    */
   TVMRetValue(TVMRetValue&& other) : TVMPODValue_(other.value_, other.type_code_) {
@@ -760,7 +752,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
   using TVMPODValue_::operator DLTensor*;
-  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Device;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Module;
   using TVMPODValue_::AsObjectRef;
@@ -827,9 +819,9 @@ class TVMRetValue : public TVMPODValue_ {
     value_.v_int64 = value;
     return *this;
   }
-  TVMRetValue& operator=(TVMContext value) {
-    this->SwitchToPOD(kTVMContext);
-    value_.v_ctx = value;
+  TVMRetValue& operator=(DLDevice value) {
+    this->SwitchToPOD(kDLDevice);
+    value_.v_device = value;
     return *this;
   }
   TVMRetValue& operator=(DLDataType t) {
@@ -1119,7 +1111,7 @@ struct PackedFuncValueConverter {
  * });
  *
  * // The following code will cause compilation error.
- * // Because the same Function and ExortName
+ * // Because the same Function and ExportName
  * // TVM_DLL_EXPORT_TYPED_FUNC(AddOne_, AddOne_);
  *
  * // The following code is OK, assuming the macro
@@ -1180,8 +1172,8 @@ inline const char* ArgTypeCode2Str(int type_code) {
       return "ArrayHandle";
     case kTVMDataType:
       return "DLDataType";
-    case kTVMContext:
-      return "TVMContext";
+    case kDLDevice:
+      return "DLDevice";
     case kTVMPackedFuncHandle:
       return "FunctionHandle";
     case kTVMModuleHandle:
@@ -1295,9 +1287,9 @@ class TVMArgsSetter {
     values_[i].v_handle = value;
     type_codes_[i] = kTVMDLTensorHandle;
   }
-  TVM_ALWAYS_INLINE void operator()(size_t i, TVMContext value) const {
-    values_[i].v_ctx = value;
-    type_codes_[i] = kTVMContext;
+  TVM_ALWAYS_INLINE void operator()(size_t i, Device value) const {
+    values_[i].v_device = value;
+    type_codes_[i] = kDLDevice;
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, DLDataType value) const {
     values_[i].v_type = value;

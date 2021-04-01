@@ -93,7 +93,7 @@ def verify_deformable_conv2d_nchw(
     a_np, offset_np, w_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -103,10 +103,10 @@ def verify_deformable_conv2d_nchw(
             C = fcompute(A, Offset, W, stride, padding, dilation, deformable_groups, groups, dtype)
             s = fschedule([C])
 
-            a = tvm.nd.array(a_np, ctx)
-            offset = tvm.nd.array(offset_np, ctx)
-            w = tvm.nd.array(w_np, ctx)
-            c = tvm.nd.empty(c_np.shape, dtype=c_np.dtype, ctx=ctx)
+            a = tvm.nd.array(a_np, dev)
+            offset = tvm.nd.array(offset_np, dev)
+            w = tvm.nd.array(w_np, dev)
+            c = tvm.nd.empty(c_np.shape, dtype=c_np.dtype, device=dev)
 
             func = tvm.build(s, [A, Offset, W, C], device)
             func(a, offset, w, c)
@@ -173,7 +173,7 @@ def verify_deformable_conv2d_nhwc(
     a_np, offset_np, w_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -183,10 +183,10 @@ def verify_deformable_conv2d_nhwc(
             C = fcompute(A, Offset, W, stride, padding, dilation, deformable_groups, groups, dtype)
             s = fschedule([C])
 
-            a = tvm.nd.array(a_np, ctx)
-            offset = tvm.nd.array(offset_np, ctx)
-            w = tvm.nd.array(w_np, ctx)
-            c = tvm.nd.empty(c_np.shape, dtype=c_np.dtype, ctx=ctx)
+            a = tvm.nd.array(a_np, dev)
+            offset = tvm.nd.array(offset_np, dev)
+            w = tvm.nd.array(w_np, dev)
+            c = tvm.nd.empty(c_np.shape, dtype=c_np.dtype, device=dev)
 
             func = tvm.build(s, [A, Offset, W, C], device)
             func(a, offset, w, c)

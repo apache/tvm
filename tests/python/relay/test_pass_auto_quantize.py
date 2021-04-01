@@ -126,7 +126,7 @@ def gen_rand_tvm(tt, low, high):
         data_np = np.random.uniform(low, high, size=get_const_tuple(tt.shape)).astype(tt.dtype)
     else:
         assert False, "unknown dtype"
-    return tvm.nd.array(data_np, ctx=tvm.cpu(0))
+    return tvm.nd.array(data_np, device=tvm.cpu(0))
 
 
 def verify_partition_fails(mod, params):
@@ -155,7 +155,7 @@ def verify_partition(mod, params):
     params = [gen_rand_tvm(param.type_annotation, 0, 1) for param in partitioned_mod["main"].params]
 
     def _eval_mod(mod):
-        vm = relay.create_executor("vm", ctx=tvm.cpu(0), target="llvm", mod=mod)
+        vm = relay.create_executor("vm", device=tvm.cpu(0), target="llvm", mod=mod)
         return vm.evaluate()(*params)
 
     partitioned_mod_result = _eval_mod(partitioned_mod)
