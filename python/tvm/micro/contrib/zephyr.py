@@ -598,7 +598,6 @@ class ZephyrQemuTransport(Transport):
             cwd=self.base_dir,
             **self.kwargs,
         )
-
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
         # FIFO are always considered ready to read when no one has opened them for writing.
