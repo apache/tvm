@@ -22,12 +22,5 @@ set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
 
 source tests/scripts/setup-pytest-env.sh
 
-# Search for __pycache__ in all checked-in dirs. As of now, no Python code is
-# generated in build/.
-PYCACHE_DIRS=$(git ls-tree HEAD | grep -E '^[0-9]+ tree' | cut -d$'\t' -f 2)
-
-# Cleanup __pycache__ to avoid reusing under the VM.
-find $PYCACHE_DIRS -type d -path "__pycache__" | xargs rm -rf
-
 make cython3
 run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr
