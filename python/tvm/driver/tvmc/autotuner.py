@@ -141,7 +141,7 @@ def add_tune_parser(subparsers):
     auto_scheduler_group = parser.add_argument(
         "--enable-hardware-params",
         help="enable hardware specific controls such as cores, threads, memory etc.",
-        action="store_true",
+        action="store_false",
     )
     auto_scheduler_group.add_argument(
         "--cache-line-bytes",
