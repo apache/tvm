@@ -37,7 +37,7 @@ The Rust bindings are composed of a few crates:
 - The [tvm_rt](https://tvm.apache.org/docs/api/rust/tvm_rt/index.html) crate which exposes Rust
   bindings to the TVM runtime APIs.
 - The [tvm_sys] crate which provides raw bindings and linkage to the TVM C++ library.
-- The [tvm_graph_rt] crate which implements a version of the TVM graph runtime in Rust vs. C++.
+- The [tvm_graph_rt] crate which implements a version of the TVM graph executor in Rust vs. C++.
 
 These crates have been recently refactored and reflect a much different philosophy than
 previous bindings, as well as much increased support for more of the TVM API including

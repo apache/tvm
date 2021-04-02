@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 from tvm import topi, relay, te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm.topi.testing
 
 
@@ -59,7 +59,7 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
             lib = relay.build(tvm.IRModule.from_expr(real_q_op), target=target)
 
         # Get real qnn quantize output.
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         m.set_input("a", a_np)
 
         m.run()
@@ -126,7 +126,7 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
             lib = relay.build(tvm.IRModule.from_expr(real_dq_op), target=target)
 
         # Get real qnn quantize output.
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         m.set_input("a", a_np)
 
         m.run()

@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import run_opt_pass
+from tvm.relay.testing import run_opt_pass, run_infer_type
 
 import numpy as np
 
@@ -123,12 +124,22 @@ def test_simplify_full_elementwise():
             return elem_op(full, x)
 
         def after_left(x, elem_op, value):
+            if elem_op == relay.add and value == 0:
+                return x
+            elif elem_op == relay.multiply and (value == 1 or (value > 1 and dtype == "bool")):
+                return x
             return elem_op(relay.const(value, dtype), x)
 
         def before_right(x, elem_op, full):
             return elem_op(x, full)
 
         def after_right(x, elem_op, value):
+            if elem_op in [relay.add, relay.subtract] and value == 0:
+                return x
+            elif elem_op in [relay.multiply, relay.divide] and (
+                value == 1 or (value > 1 and dtype == "bool")
+            ):
+                return x
             return elem_op(x, relay.const(value, dtype))
 
         x = relay.var("x", shape=shape, dtype=dtype)
@@ -181,7 +192,134 @@ def test_simplify_full_elementwise():
                 validate(shape, value, dtype)
 
 
+def test_eliminate_identity():
+    def check(x, y=None, do_nothing=False):
+        expected = run_infer_type(x)
+        if do_nothing:
+            actual = run_opt_pass(x, transform.SimplifyExpr())
+            assert tvm.ir.structural_equal(actual, expected)
+        else:
+            assert y is not None
+            actual = run_opt_pass(y, transform.SimplifyExpr())
+            assert tvm.ir.structural_equal(actual, expected)
+
+    shape = [2, 3, 4]
+    dtype = "float32"
+    x = relay.var("x", shape=shape, dtype=dtype)
+    x = run_opt_pass(x, transform.InferType())
+
+    for (op, op_like, id_op, const) in [
+        (relay.zeros, relay.zeros_like, relay.add, relay.const(0, dtype)),
+        (relay.ones, relay.ones_like, relay.multiply, relay.const(1, dtype)),
+    ]:
+        check(x, id_op(op_like(x), x))
+        check(x, id_op(op(shape, dtype), x))
+        check(x, id_op(const, x))
+        check(x, id_op(op(shape[1:], dtype), x))
+        check(x, id_op(x, op_like(x)))
+        check(x, id_op(x, op(shape, dtype)))
+        check(x, id_op(x, const))
+        check(x, id_op(x, op(shape[1:], dtype)))
+        check(id_op(x, op([2] + shape, dtype)), do_nothing=True)
+        check(id_op(op([2] + shape, dtype), x), do_nothing=True)
+
+    for (op, op_like, id_op, const) in [
+        (relay.zeros, relay.zeros_like, relay.subtract, relay.const(0, dtype)),
+        (relay.ones, relay.ones_like, relay.divide, relay.const(1, dtype)),
+    ]:
+        check(x, id_op(x, op_like(x)))
+        check(x, id_op(x, const))
+        check(x, id_op(x, op(shape, dtype)))
+        check(x, id_op(x, op(shape[1:], dtype)))
+        check(id_op(x, op([2] + shape, dtype)), do_nothing=True)
+        check(id_op(const, x), id_op(op(shape, dtype), x))
+        check(id_op(const, x), id_op(op_like(x), x))
+
+
+def test_concretize_reshape_like():
+    data = relay.var("data", shape=(2, 3, 4), dtype="float32")
+    shape_like = relay.var("shape_like", shape=(6, 2, 2), dtype="float32")
+    expr = relay.reshape_like(data, shape_like)
+
+    expected = run_infer_type(relay.reshape(data, (6, 2, 2)))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_reshape_like_attrs():
+    data = relay.var("data", shape=(2, 3, 4), dtype="float32")
+    shape_like = relay.var("shape_like", shape=(6, 2, 2), dtype="float32")
+    expr = relay.reshape_like(data, shape_like, lhs_begin=2, rhs_begin=1)
+
+    expected = run_infer_type(relay.reshape(data, (2, 3, 2, 2)))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_zeros_like():
+    dtype = "int32"
+    shape_like = relay.var("shape_like", shape=(3, 4, 5), dtype=dtype)
+    expr = relay.zeros_like(shape_like)
+
+    expected = run_infer_type(relay.zeros((3, 4, 5), dtype))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_ones_like():
+    dtype = "int32"
+    shape_like = relay.var("shape_like", shape=(3, 4, 5), dtype=dtype)
+    expr = relay.ones_like(shape_like)
+
+    expected = run_infer_type(relay.ones((3, 4, 5), dtype))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_collapse_sum_like():
+    data = relay.var("data", shape=(3, 3, 3), dtype="float32")
+    shape_like = relay.var("shape_like", shape=(3,), dtype="float32")
+    expr = relay.collapse_sum_like(data, shape_like)
+
+    expected = run_infer_type(relay.collapse_sum_to(data, (3,)))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_broadcast_to_like():
+    data = relay.var("data", shape=(3,), dtype="float32")
+    shape_like = relay.var("shape_like", shape=(3, 3, 3), dtype="float32")
+    expr = relay.broadcast_to_like(data, shape_like)
+
+    expected = run_infer_type(relay.broadcast_to(data, (3, 3, 3)))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_multiple():
+    x = relay.var("x", shape=(2, 3), dtype="float32")
+    y = relay.var("y", shape=(3,), dtype="float32")
+    l = x + y
+
+    dl = relay.ones_like(l)
+    dx = relay.zeros_like(x)
+    dy = relay.zeros_like(y)
+    dx = dx + relay.collapse_sum_like(dl, dx)
+    dy = dy + relay.collapse_sum_like(dl, dy)
+    ret = relay.Tuple([dx, dy])
+
+    dl_c = relay.ones((2, 3), "float32")
+    # NOTE: these are removed by EliminateIdentity
+    # dx_c = relay.zeros((2, 3), "float32")
+    # dy_c = relay.zeros((3,), "float32")
+    dx_c = relay.collapse_sum_to(dl_c, (2, 3))
+    dy_c = relay.collapse_sum_to(dl_c, (3,))
+    ret_c = relay.Tuple([dx_c, dy_c])
+
+    expected = run_infer_type(ret_c)
+    actual = run_opt_pass(ret, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
 if __name__ == "__main__":
-    test_simplify_reshape()
-    test_simplify_transpose()
-    test_simplify_full_elementwise()
+    pytest.main([__file__])

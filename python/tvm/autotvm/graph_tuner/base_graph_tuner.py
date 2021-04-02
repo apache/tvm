@@ -28,6 +28,7 @@ from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
+from tvm.target import Target
 
 from ...target import Target
 from .utils import (
@@ -439,6 +440,8 @@ class BaseGraphTuner(object):
             This might bring performance loss comparing to benchmarking layout transformation.
         """
         self._logger.info("Start to benchmark layout transformation...")
+        self._target, target_host = Target.check_and_update_host_consist(self._target, target_host)
+
         if layout_records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")
 
@@ -525,9 +528,7 @@ class BaseGraphTuner(object):
                 continue
 
             records = []
-            task = autotvm.task.create(
-                "layout_transform", args=args, target=self._target, target_host=target_host
-            )
+            task = autotvm.task.create("layout_transform", args=args, target=self._target)
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option, callbacks=[_log_to_list(records)])
             if not isinstance(records[0][1].costs[0], float):

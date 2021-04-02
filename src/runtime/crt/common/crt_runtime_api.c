@@ -30,7 +30,7 @@
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/func_registry.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
-#include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
+#include <tvm/runtime/crt/internal/graph_executor/graph_executor.h>
 #include <tvm/runtime/crt/internal/memory/memory.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
@@ -209,8 +209,9 @@ int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue*
 
 static TVMFunctionHandle EncodeFunctionHandle(tvm_module_index_t module_index,
                                               tvm_function_index_t function_index) {
-  return (TVMFunctionHandle)((uintptr_t)(
-      ((module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) | (function_index | 0x8000)));
+  return (TVMFunctionHandle)(
+      (((uintptr_t)(module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) |
+       (function_index | 0x8000)));
 }
 
 static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* module_index,
@@ -365,7 +366,7 @@ int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, in
 }
 
 int TVMFuncFree(TVMFunctionHandle func) {
-  // A no-op, since we don't actually allocate anything in GetFunction
+  // A no-op, since we don't actually allocate anything in GetFunction.
   return 0;
 }
 

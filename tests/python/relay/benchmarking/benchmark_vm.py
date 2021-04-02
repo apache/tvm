@@ -19,7 +19,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm import relay
 from tvm.runtime import container
 from tvm.runtime import vm as vm_rt
@@ -36,25 +36,25 @@ def benchmark_execution(
     dtype="float32",
     model="unknown",
 ):
-    def get_graph_runtime_output(
+    def get_graph_executor_output(
         mod, data, params, target, dev, dtype="float32", number=2, repeat=20
     ):
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target, params=params)
 
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         # set inputs
         m.set_input("data", data)
         m.run()
         out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
 
         if measure:
-            print("Evaluate graph runtime inference cost of {} on " "{}".format(model, repr(dev)))
+            print("Evaluate graph executor inference cost of {} on " "{}".format(model, repr(dev)))
             ftimer = m.module.time_evaluator("run", dev, number=1, repeat=20)
             # Measure in millisecond.
             prof_res = np.array(ftimer().results) * 1000
             print(
-                "Mean graph runtime inference time (std dev): %.2f ms (%.2f ms)"
+                "Mean graph executor inference time (std dev): %.2f ms (%.2f ms)"
                 % (np.mean(prof_res), np.std(prof_res))
             )
 
@@ -82,7 +82,7 @@ def benchmark_execution(
     data = np.random.uniform(size=data_shape).astype(dtype)
 
     for target, dev in testing.enabled_targets():
-        tvm_out = get_graph_runtime_output(
+        tvm_out = get_graph_executor_output(
             mod, tvm.nd.array(data.astype(dtype)), params, target, dev, dtype
         )
         vm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params, target, dev, dtype)

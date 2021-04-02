@@ -21,7 +21,7 @@ import numpy as np
 import json
 from tvm import rpc
 from tvm import relay
-from tvm.contrib import utils, graph_runtime
+from tvm.contrib import utils, graph_executor
 
 
 @tvm.testing.requires_llvm
@@ -59,7 +59,7 @@ def test_graph_simple():
 
     def check_verify():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        mod = graph_runtime.create(graph, mlib, tvm.cpu(0))
+        mod = graph_executor.create(graph, mlib, tvm.cpu(0))
         a = np.random.uniform(size=(n,)).astype(A.dtype)
         mod.run(x=a)
         out = mod.get_output(0, tvm.nd.empty((n,)))
@@ -75,7 +75,7 @@ def test_graph_simple():
         mlib.export_library(path_dso)
         remote.upload(path_dso)
         mlib = remote.load_module("dev_lib.so")
-        mod = graph_runtime.create(graph, mlib, remote.cpu(0))
+        mod = graph_executor.create(graph, mlib, remote.cpu(0))
         a = np.random.uniform(size=(n,)).astype(A.dtype)
         mod.run(x=tvm.nd.array(a, dev))
         out = tvm.nd.empty((n,), device=dev)
@@ -92,10 +92,10 @@ def test_graph_simple():
         params = {"x": x_in}
         graph, lib, params = relay.build(func, target="llvm", params=params)
 
-        mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))
+        mod_shared = graph_executor.create(graph, lib, tvm.cpu(0))
         mod_shared.load_params(runtime.save_param_dict(params))
         num_mods = 10
-        mods = [graph_runtime.create(graph, lib, tvm.cpu(0)) for _ in range(num_mods)]
+        mods = [graph_executor.create(graph, lib, tvm.cpu(0)) for _ in range(num_mods)]
 
         for mod in mods:
             mod.share_params(mod_shared, runtime.save_param_dict(params))
@@ -120,7 +120,7 @@ def test_graph_simple():
 
 
 def test_load_unexpected_params():
-    # Test whether graph_runtime.load_params works if parameters
+    # Test whether graph_executor.load_params works if parameters
     # are provided that are not an expected input.
     mod = tvm.IRModule()
     params = {}
@@ -130,7 +130,7 @@ def test_load_unexpected_params():
     mod["main"] = relay.Function([x, y], z)
 
     graph_module = relay.build(mod, target="llvm", params=params)
-    rt_mod = tvm.contrib.graph_runtime.create(
+    rt_mod = tvm.contrib.graph_executor.create(
         graph_module.get_json(), graph_module.get_lib(), tvm.cpu(0)
     )
 

@@ -43,8 +43,8 @@ if(USE_MICRO)
          "src/runtime/crt Makefile -> ."
          "src/runtime/crt/include *.h -> include"
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
-         "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
-         "src/runtime/crt/graph_runtime_module *.c -> src/runtime/crt/graph_runtime_module"
+         "src/runtime/crt/graph_executor *.c -> src/runtime/crt/graph_executor"
+         "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
          "src/runtime/crt/host crt_config.h -> template/host"
          "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
@@ -97,7 +97,7 @@ if(USE_MICRO)
     set(make_quiet )
     endif(${VERBOSE})
 
-    list(APPEND crt_libraries memory graph_runtime utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
+    list(APPEND crt_libraries memory graph_executor utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
     foreach(crt_lib_name IN LISTS crt_libraries)
       list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
     endforeach()

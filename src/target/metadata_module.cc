@@ -35,7 +35,7 @@ namespace codegen {
 
 /*!
  * \brief Create a metadata module wrapper. The helper is used by different
- *        codegens, such as graph runtime codegen and the vm compiler.
+ *        codegens, such as graph executor codegen and the vm compiler.
  *
  * \param params The metadata for initialization of all modules.
  * \param target_module the internal module that is compiled by tvm.

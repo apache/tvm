@@ -24,7 +24,7 @@ import re
 import tarfile
 
 from ..contrib import utils
-from ..relay.backend import graph_runtime_factory
+from ..relay.backend import graph_executor_factory
 from ..relay import param_dict
 
 
@@ -117,7 +117,7 @@ def _build_memory_map(graph_json):
     return memory_map
 
 
-def export_model_library_format(mod: graph_runtime_factory.GraphRuntimeFactoryModule, file_name):
+def export_model_library_format(mod: graph_executor_factory.GraphExecutorFactoryModule, file_name):
     """Export the build artifact in Model Library Format.
 
     This function creates a .tar archive containing the build artifacts in a standardized
@@ -126,7 +126,7 @@ def export_model_library_format(mod: graph_runtime_factory.GraphRuntimeFactoryMo
 
     Parameters
     ----------
-    mod : tvm.relay.backend.graph_runtime_factory.GraphRuntimeFactoryModule
+    mod : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
         The return value of tvm.relay.build, which will be exported into Model Library Format.
     file_name : str
         Path to the .tar archive to generate.

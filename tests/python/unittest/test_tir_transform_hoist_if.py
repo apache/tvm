@@ -765,7 +765,7 @@ def test_hoisting_op_conv():
     for target, dev in enabled_targets():
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](dev))
+            m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
             x = np.random.uniform(size=dshape)
             data_tvm = tvm.nd.array(data)
             m.set_input("x", data_tvm)
@@ -779,7 +779,7 @@ def test_hoisting_op_conv():
             opt_level=3, config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
         ):
             lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_runtime.GraphModule(lib["default"](dev))
+            m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
             x = np.random.uniform(size=dshape)
             data_tvm = tvm.nd.array(data)
             m.set_input("x", data_tvm)

@@ -71,7 +71,7 @@ def test_add_pipeline():
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
         dev = tvm.device(device, 0)
-        mhost = tvm.driver.build(s, [A, B, D], target=device, target_host=host)
+        mhost = tvm.driver.build(s, [A, B, D], target=tvm.target.Target(device, host))
         f = mhost.entry_func
         # launch the kernel.
         n = 1027

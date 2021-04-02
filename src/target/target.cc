@@ -51,9 +51,42 @@ class TargetInternal {
   static ObjectPtr<Object> FromRawString(const String& target_str);
   static ObjectPtr<Object> FromConfig(std::unordered_map<String, ObjectRef> config);
   static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
+  static Target WithHost(const Target& target, const Target& target_host) {
+    ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
+    n->host = target_host;
+    return (Target)n;
+  }
 };
 
 /**********  Helper functions  **********/
+Target Target::WithHost(const Target& target, const Target& host) {
+  return TargetInternal::WithHost(target, host);
+}
+
+void CheckAndUpdateHostConsistency(Target* target, Target* host) {
+  *target = Target(*target, *host);
+  *host = (*target)->GetHost().value_or(Target());
+}
+
+void CheckAndUpdateHostConsistency(Map<Integer, Target>* targets, Target* host) {
+  Map<Integer, Target> new_targets;
+  for (auto& it : *targets) {
+    auto target = it.second;
+    CheckAndUpdateHostConsistency(&target, host);
+    new_targets.Set(it.first, target);
+  }
+  *targets = new_targets;
+}
+
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
+  Map<Target, IRModule> new_targets;
+  for (auto& it : *targets) {
+    auto target = it.first;
+    CheckAndUpdateHostConsistency(&target, host);
+    new_targets.Set(target, it.second);
+  }
+  *targets = new_targets;
+}
 
 static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   std::vector<String> new_keys;
@@ -374,7 +407,7 @@ Target::Target(const Map<String, ObjectRef>& config) {
 
 Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
-  CHECK(!n->host.defined())
+  CHECK(!n->host.defined() || n->host.same_as(host))
       << "ValueError: Adding a host to a target whose host field has been defined";
   // add target host into host field
   n->host = std::move(host);
@@ -407,10 +440,17 @@ Map<String, ObjectRef> TargetNode::Export() const {
       {"tag", this->tag},
       {"keys", this->keys},
   };
+  if (this->host.defined()) {
+    result.Set("host", this->GetHost().value_or(Target())->Export());
+  }
   for (const auto& kv : attrs) {
     result.Set(kv.first, kv.second);
   }
   return result;
+}
+
+Optional<Target> TargetNode::GetHost() const {
+  return GetRef<Optional<Target>>(this->host.as<TargetNode>());
 }
 
 /*! \brief Entry to hold the Target context stack. */
@@ -606,6 +646,13 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     target->keys = DeduplicateKeys(keys);
     config.erase(kKeys);
   }
+  // parse host
+  if (config.count(kHost)) {
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    config.erase(kHost);
+  } else {
+    target->host = NullOpt;
+  }
   // parse attrs
   std::unordered_map<String, ObjectRef> attrs;
   for (const auto& cfg_kv : config) {
@@ -617,13 +664,6 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
     } catch (const Error& e) {
       throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
     }
-  }
-  // parse host
-  if (config.count(kHost)) {
-    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
-    config.erase(kHost);
-  } else {
-    target->host = NullOpt;
   }
   // set default attribute values if they do not exist
   for (const auto& kv : target->kind->key2default_) {
@@ -647,6 +687,7 @@ TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::En
 TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
 TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
+TVM_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetNode>([](const ObjectRef& obj, ReprPrinter* p) {

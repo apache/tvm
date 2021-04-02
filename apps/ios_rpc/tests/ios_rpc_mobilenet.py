@@ -22,7 +22,7 @@ from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.quantize.quantize import prerequisite_optimize
-from tvm.contrib import utils, xcode, graph_runtime, coreml_runtime
+from tvm.contrib import utils, xcode, graph_executor, coreml_runtime
 from tvm.contrib.target import coreml as _coreml
 
 import os
@@ -120,7 +120,7 @@ def test_mobilenet():
         else:
             dev = remote.cpu(0)
         lib = remote.load_module("deploy.dylib")
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
 
         m.set_input("data", tvm.nd.array(image, dev))
         m.run()

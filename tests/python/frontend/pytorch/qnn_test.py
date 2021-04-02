@@ -49,7 +49,7 @@ def get_tvm_runtime(script_module, input_name, ishape):
         # also not to make CI too slow
         lib = relay.build(mod, target="llvm", params=params)
 
-    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
     return runtime
 
 

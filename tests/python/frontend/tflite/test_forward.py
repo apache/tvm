@@ -160,7 +160,7 @@ def run_tvm_graph(
     num_output=1,
     target="llvm",
     out_names=None,
-    mode="graph_runtime",
+    mode="graph_executor",
 ):
     """ Generic function to compile on relay and execute on tvm """
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
@@ -208,9 +208,9 @@ def run_tvm_graph(
             lib = relay.build(mod, target, params=params)
 
         dev = tvm.device(target, 0)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         # set inputs
         for i, e in enumerate(input_node):
             m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
@@ -264,7 +264,7 @@ def compare_tflite_with_tvm(
     out_names=None,
     quantized=False,
     input_range=None,
-    mode="graph_runtime",
+    mode="graph_executor",
     experimental_new_converter=False,
 ):
     """Generic function to generate and compare TFLite and TVM output"""

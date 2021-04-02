@@ -57,8 +57,9 @@ PLATFORMS = conftest.PLATFORMS
 
 def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     target = tvm.target.target.micro(model)
+    target = tvm.target.Target(target=target, host=target)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, target, target_host=target, name=op_name)
+        mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
 
     return _make_session(model, target, zephyr_board, west_cmd, mod)
 
@@ -194,7 +195,7 @@ def test_relay(platform, west_cmd):
         graph, mod, params = tvm.relay.build(func, target=target)
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
-        graph_mod = tvm.micro.create_local_graph_runtime(
+        graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
         graph_mod.set_input(**params)
@@ -235,7 +236,7 @@ def test_onnx(platform, west_cmd):
         graph = lowered.get_json()
 
     with _make_session(model, target, zephyr_board, west_cmd, lowered.lib) as session:
-        graph_mod = tvm.micro.create_local_graph_runtime(
+        graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
 
@@ -314,7 +315,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
         graph, mod, params = tvm.relay.build(relay_mod, target=target)
 
     with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
-        rt_mod = tvm.micro.create_local_graph_runtime(
+        rt_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
         rt_mod.set_input(**params)

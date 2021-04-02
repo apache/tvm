@@ -18,7 +18,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import keras
 import tvm.testing
 
@@ -89,7 +89,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
         mod, params = relay.frontend.from_keras(keras_model, shape_dict, layout=layout)
         with tvm.transform.PassContext(opt_level=2):
             lib = relay.build(mod, target, params=params)
-        m = graph_runtime.GraphModule(lib["default"](dev))
+        m = graph_executor.GraphModule(lib["default"](dev))
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.run()

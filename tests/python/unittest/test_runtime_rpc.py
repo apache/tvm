@@ -309,7 +309,7 @@ def test_rpc_remote_module():
         xo, xi = s[B].split(B.op.axis[0], factor=32)
         s[B].bind(xo, te.thread_axis("blockIdx.x"))
         s[B].bind(xi, te.thread_axis("threadIdx.x"))
-        f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
+        f = tvm.build(s, [A, B], "opencl --host=llvm", name="myadd")
         # Option 1: save modules separately and rely on remote compiler
         path_o = temp.relpath("myadd.o")
         path_cl = temp.relpath("myadd.cl")

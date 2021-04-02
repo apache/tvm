@@ -90,7 +90,7 @@ def run_tvm_model(mod, params, input_name, inp, target="llvm"):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
 
-    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.device(target, 0)))
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.device(target, 0)))
 
     runtime.set_input(input_name, inp)
     runtime.run()

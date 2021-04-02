@@ -22,8 +22,8 @@ import sys
 
 from ..error import register_error
 from .._ffi import get_global_func
-from ..contrib import graph_runtime
-from ..contrib.debugger import debug_runtime
+from ..contrib import graph_executor
+from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
 from .transport import IoTimeoutError
 from .transport import TransportLogger
@@ -92,7 +92,7 @@ class Session:
         self.timeout_override = timeout_override
 
         self._rpc = None
-        self._graph_runtime = None
+        self._graph_executor = None
 
     def get_system_lib(self):
         return self._rpc.get_function("runtime.SystemLib")()
@@ -192,8 +192,8 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, device):
     )
 
 
-def create_local_graph_runtime(graph_json_str, mod, device):
-    """Create a local graph runtime driving execution on the remote CPU device given.
+def create_local_graph_executor(graph_json_str, mod, device):
+    """Create a local graph executor driving execution on the remote CPU device given.
 
     Parameters
     ----------
@@ -208,17 +208,17 @@ def create_local_graph_runtime(graph_json_str, mod, device):
 
     Returns
     -------
-    tvm.contrib.GraphRuntime :
-         A local graph runtime instance that executes on the remote device.
+    tvm.contrib.GraphExecutor :
+         A local graph executor instance that executes on the remote device.
     """
     device_type_id = [device.device_type, device.device_id]
-    fcreate = get_global_func("tvm.graph_runtime.create")
-    return graph_runtime.GraphModule(
+    fcreate = get_global_func("tvm.graph_executor.create")
+    return graph_executor.GraphModule(
         fcreate(graph_json_str, mod, lookup_remote_linked_param, *device_type_id)
     )
 
 
-def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
+def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
     """Create a local debug runtime driving execution on the remote CPU device given.
 
     Parameters
@@ -237,12 +237,12 @@ def create_local_debug_runtime(graph_json_str, mod, device, dump_root=None):
 
     Returns
     -------
-    tvm.contrib.GraphRuntime :
-         A local graph runtime instance that executes on the remote device.
+    tvm.contrib.GraphExecutor :
+         A local graph executor instance that executes on the remote device.
     """
     device_type_id = [device.device_type, device.device_id]
-    fcreate = get_global_func("tvm.graph_runtime_debug.create")
-    return debug_runtime.GraphModuleDebug(
+    fcreate = get_global_func("tvm.graph_executor_debug.create")
+    return debug_executor.GraphModuleDebug(
         fcreate(graph_json_str, mod, lookup_remote_linked_param, *device_type_id),
         [device],
         graph_json_str,
