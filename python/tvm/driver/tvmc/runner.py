@@ -226,7 +226,7 @@ def generate_tensor_data(shape, dtype, fill_mode):
     return tensor
 
 
-def make_inputs_dict(inputs, shape_dict, dtype_dict, fill_mode):
+def make_inputs_dict(shape_dict, dtype_dict, inputs=None, fill_mode="random"):
     """Make the inputs dictionary for a graph.
 
     Use data from 'inputs' where specified. For input tensors
@@ -235,13 +235,13 @@ def make_inputs_dict(inputs, shape_dict, dtype_dict, fill_mode):
 
     Parameters
     ----------
-    inputs : dict
-        A dictionary that maps input names to numpy values.
     shape_dict : dict
         Shape dictionary - {input_name: tuple}.
     dtype_dict : dict
         dtype dictionary - {input_name: dtype}.
-    fill_mode : str
+    inputs : dict, optional
+        A dictionary that maps input names to numpy values.
+    fill_mode : str, optional
         The fill-mode to use when generating tensor data.
         Can be either "zeros", "ones" or "random".
 
@@ -382,7 +382,7 @@ def run_module(
         module.load_params(params)
 
         shape_dict, dtype_dict = get_input_info(graph, params)
-        inputs_dict = make_inputs_dict(inputs, shape_dict, dtype_dict, fill_mode)
+        inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
 
         logger.debug("setting inputs to the module")
         module.set_input(**inputs_dict)
