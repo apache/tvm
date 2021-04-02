@@ -199,9 +199,10 @@ class Task(object):
         self.config_space = state["config_space"]
         self.func = cloudpickle.loads(state["func"])
         self.flop = state["flop"]
-        self.target, self.target_host = Target.check_and_update_host_consist(
-            state["target"], state["target_host"]
-        )
+        if self.target:
+            self.target, self.target_host = Target.check_and_update_host_consist(
+                state["target"], state["target_host"]
+            )
 
     def __repr__(self):
         return "Task(func_name=%s, args=%s, kwargs=%s, workload=%s)" % (
