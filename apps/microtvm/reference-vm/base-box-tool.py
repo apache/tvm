@@ -377,13 +377,17 @@ def release_command(args):
         sys.exit(f"--release-version must be specified")
 
     for provider_name in args.provider:
+        vm_name = f"tlcpack/microtvm-{args.platform}"
+        if args.platform == "zephyr":
+            vm_name = f"{vm_name}-{args.zephyr_version}"
+        
         subprocess.check_call(
             [
                 "vagrant",
                 "cloud",
                 "publish",
                 "-f",
-                f"tlcpack/microtvm-{args.platform}",
+                vm_name,
                 args.release_version,
                 provider_name,
                 os.path.join(
@@ -463,6 +467,11 @@ def parse_args():
         default="stm32f746xx",
         choices=ALL_MICROTVM_PLATFORMS,
         help="For use with 'test' command. MicroTVM platfrom that are used for testing.",
+    )
+
+    parser.add_argument(
+        "--zephyr-version",
+        help="Zephyr RTOS version to release, in the form 'x.y'. Must be specified with release.",
     )
 
     return parser.parse_args()
