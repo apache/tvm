@@ -132,7 +132,7 @@ K_HEAP_DEFINE(tvm_heap, 216 * 1024);
 
 // Called by TVM to allocate memory.
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  *out_ptr = k_heap_aligned_alloc(&tvm_heap, sizeof(int), num_bytes, K_NO_WAIT);
+  *out_ptr = k_heap_alloc(&tvm_heap, num_bytes, K_NO_WAIT);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
