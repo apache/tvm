@@ -183,8 +183,7 @@ class Target(Object):
             When the type of target is dict, whether Target is the key (Otherwise the value)
         """
         if target is None:
-            if host is not None:
-                warnings.warn("Target host is not empty when target is empty.")
+            assert host is None
             return target, host
         if isinstance(target, dict) and "kind" not in target:
             new_target = {}
