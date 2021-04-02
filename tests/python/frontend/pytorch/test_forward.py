@@ -27,7 +27,7 @@ from torch.nn import Module
 from torch.nn import functional as F
 import tvm
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
 from packaging import version as package_version
@@ -206,9 +206,9 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
-            relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+            relay_model = graph_executor.create(relay_graph, relay_lib, dev)
             relay_model.set_input(**relay_params)
             for name, inp in compiled_input.items():
                 relay_model.set_input(name, inp)
@@ -809,7 +809,24 @@ def test_forward_split():
 
 
 @tvm.testing.uses_gpu
-def test_forward_avgpool():
+def test_forward_avgpool1d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+
+    class AvgPool1D2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.avg_pool1d(args[0], kernel_size=[10])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AvgPool1d(kernel_size=[10]).eval(), input_data=input_data)
+    verify_model(AvgPool1D2().float().eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool1d(kernel_size=[5], stride=2, padding=2).eval(), input_data=input_data
+    )
+
+
+@tvm.testing.uses_gpu
+def test_forward_avgpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
 
@@ -820,6 +837,9 @@ def test_forward_avgpool():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -834,6 +854,9 @@ def test_forward_avgpool3d():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool3D1().float().eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool3d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -2128,9 +2151,9 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
 
     for tgt in targets:
         print("Running on target", tgt)
-        ctx = tvm.context(tgt, 0)
+        dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
+        executor = relay.create_executor("vm", mod=mod, device=dev, target=tgt)
         evaluator = executor.evaluate()
 
         # Inference
@@ -2622,10 +2645,17 @@ def test_forward_clamp():
         def forward(self, *args):
             return torch.clamp(args[0], max=1.0)
 
+    class Clamp_MinExpr_MaxConstant(Module):
+        def forward(self, *args):
+            h, w = args[0].shape[2:]
+            amin = h / 100.0
+            return torch.clamp(args[0], min=amin, max=w)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Clamp1().float().eval(), input_data=input_data)
     verify_model(Clamp2().float().eval(), input_data=input_data)
     verify_model(Clamp3().float().eval(), input_data=input_data)
+    verify_model(Clamp_MinExpr_MaxConstant().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -3559,8 +3589,8 @@ def test_forward_pretrained_bert_base_uncased():
     # Execute on TVM
     # --------------
 
-    ctx = tvm.context(target, 0)
-    relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+    dev = tvm.device(target, 0)
+    relay_model = graph_executor.create(relay_graph, relay_lib, dev)
     relay_model.set_input(**relay_params)
     relay_model.set_input(input_1, tokens_tensor)
     relay_model.set_input(input_2, segments_tensors)
@@ -3831,7 +3861,8 @@ if __name__ == "__main__":
     test_forward_logsoftmax()
     test_forward_sigmoid()
     test_forward_dense()
-    test_forward_avgpool()
+    test_forward_avgpool1d()
+    test_forward_avgpool2d()
     test_forward_avgpool3d()
     test_forward_dropout()
     test_forward_slice()

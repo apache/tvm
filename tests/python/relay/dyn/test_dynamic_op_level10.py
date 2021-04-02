@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" 
+"""
 Support level10 operator test cases.
 
 """
@@ -44,10 +44,10 @@ def test_broadcast_to():
 
         x = np.random.uniform(size=np.prod(x_shape)).astype(dtype)
         ref_res = np.broadcast_to(np.reshape(x, x_shape), out_shape)
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate(func)(
                     x, np.array(x_shape).astype(shape_type), np.array(out_shape).astype(shape_type)
                 )
@@ -70,10 +70,10 @@ def test_broadcast_to():
 
         x = np.random.uniform(size=x_shape).astype(dtype)
         ref_res = np.broadcast_to(x, out_shape)
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate(func)(x, np.array(out_shape).astype(shape_type))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
@@ -100,10 +100,10 @@ def test_dyn_broadcast_to():
     x = np.random.uniform(size=x_shape).astype(dtype)
     dyn_shape = (1,) * rank
     ref_res = np.broadcast_to(x, dyn_shape)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
             op_res = intrp.evaluate(func)(x, np.array(dyn_shape).astype(shape_type))
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
@@ -133,10 +133,10 @@ def test_dyn_one_hot():
         func = relay.Function([indices, depth_var], out)
         indices_np = np.random.randint(0, depth, size=indices_shape).astype("int32")
         out_np = tvm.topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 out_relay = intrp.evaluate()(indices_np, np.array(depth).astype("int32"))
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
 

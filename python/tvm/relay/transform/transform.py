@@ -800,10 +800,34 @@ def gradient(expr, mod=None, mode="higher_order"):
       The transformed expression.
     """
     if mode == "first_order":
-        return _ffi_api.first_order_gradient(expr, mod)
+        warnings.warn(
+            "using transform.gradient for first-order AD is deprecated, please use the"
+            "FirstOrderGradient module pass",
+            DeprecationWarning,
+        )
+        if mod is not None:
+            raise RuntimeError(
+                "to run first-order AD on a module, please use the FirstOrderGradient module pass."
+            )
+        return FirstOrderGradient()(tvm.IRModule.from_expr(expr))["main"]
     if mode == "higher_order":
         return _ffi_api.gradient(expr, mod)
     raise Exception("unknown mode")
+
+
+def FirstOrderGradient():
+    """
+    Transforms all global functions in the module to return the original result, paired with the
+    gradients of the inputs. This pass transforms each global function independently and does not
+    support interprocedural AD. Additionally, this pass does not support any control-flow or
+    references, and should only be used on pure data-flow graphs.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered FirstOrderGradient pass.
+    """
+    return _ffi_api.FirstOrderGradient()
 
 
 def Defunctionalization(func, mod):

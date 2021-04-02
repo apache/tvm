@@ -545,10 +545,10 @@ def non_max_suppression(
         np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "llvm")
-        ctx = tvm.cpu()
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
+        dev = tvm.cpu()
+        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_valid_count = tvm.nd.array(np_valid_count, dev)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), dev)
         f(tvm_data, tvm_valid_count, tvm_out)
     """
     batch_size = data.shape[0]

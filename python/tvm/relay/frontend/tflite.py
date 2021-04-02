@@ -1872,7 +1872,7 @@ class OperatorConverter(object):
                 out_dtype="int32",
             )
         else:
-            out = _op.nn.dense(in_expr, weight_expr)
+            out = _op.nn.dense(in_expr, weight_expr, units=weight_shape[0])
 
         # if we have bias
         if len(input_tensors) == 3:
@@ -2336,11 +2336,18 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
-        assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
-        op_options = op.BuiltinOptions()
-        cast_options = CastOptions()
-        cast_options.Init(op_options.Bytes, op_options.Pos)
-        cast_dtype = cast_options.OutDataType()
+        # MLIR-based converter outputs no BuiltinOptions for Cast operator. In this
+        # case the output type can be derived from the Cast operator output tensor.
+        # When TOCO converter is used there will be "normal" BuiltinOptions.CastOptions
+        # with output type.
+        if op.BuiltinOptions() is not None:
+            assert op.BuiltinOptionsType() == BuiltinOptions.CastOptions
+            op_options = op.BuiltinOptions()
+            cast_options = CastOptions()
+            cast_options.Init(op_options.Bytes, op_options.Pos)
+            cast_dtype = cast_options.OutDataType()
+        else:
+            cast_dtype = self.get_output_tensors(op)[0].tensor.Type()
 
         out = _op.cast(in_expr, self.get_tensor_type_str(cast_dtype))
 
@@ -3093,7 +3100,7 @@ class OperatorConverter(object):
         valid_count = ret[0]
         # keep only the top 'max_detections' rows
         ret = _op.strided_slice(
-            ret[1], [0, 0, 0], [batch_size, custom_options["max_detections"], anchor_boxes]
+            ret[1], [0, 0, 0], [batch_size, custom_options["max_detections"], 6]
         )
         # the output needs some reshaping to match tflite
         ret = _op.split(ret, 6, axis=2)

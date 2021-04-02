@@ -43,7 +43,7 @@ demos run against QEMU and the following hardware:
 
 * `STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-f746zg.html>`_
 * `STM STM32F746 Discovery <https://www.st.com/en/evaluation-tools/32f746gdiscovery.html>`_
-* `nRF 5340 Preview Development Kit <https://www.nordicsemi.com/Software-and-tools/Development-Kits/nRF5340-PDK>`_
+* `nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-tools/Development-Kits/nRF5340-DK>`_
 
 
 Getting Started with microTVM

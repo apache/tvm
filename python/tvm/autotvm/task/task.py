@@ -175,6 +175,9 @@ class Task(object):
         # and restore the function by name when unpickling it.
         import cloudpickle  # pylint: disable=import-outside-toplevel
 
+        self.target, self.target_host = Target.check_and_update_host_consist(
+            self.target, self.target_host
+        )
         return {
             "name": self.name,
             "args": self.args,
@@ -182,7 +185,7 @@ class Task(object):
             "config_space": self.config_space,
             "flop": self.flop,
             "target": self.target,
-            "target_host": self.target_host,
+            "target_host": self.target.host,
             "func": cloudpickle.dumps(self.func),
         }
 
@@ -195,8 +198,9 @@ class Task(object):
         self.config_space = state["config_space"]
         self.func = cloudpickle.loads(state["func"])
         self.flop = state["flop"]
-        self.target = state["target"]
-        self.target_host = state["target_host"]
+        self.target, self.target_host = Target.check_and_update_host_consist(
+            state["target"], state["target_host"]
+        )
 
     def __repr__(self):
         return "Task(func_name=%s, args=%s, kwargs=%s, workload=%s)" % (
@@ -448,6 +452,8 @@ def create(task_name, args, target, target_host=None):
     if isinstance(target, str):
         target = Target(target)
 
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+
     # init config space
     ret.config_space = ConfigSpace()
 
@@ -459,7 +465,7 @@ def create(task_name, args, target, target_host=None):
 
     ret.flop = ret.config_space.flop or compute_flop(sch)
     ret.target = target
-    ret.target_host = target_host
+    ret.target_host = target.host
 
     return ret
 

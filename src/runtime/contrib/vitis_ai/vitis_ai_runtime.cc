@@ -25,6 +25,7 @@
 
 #include <tvm/runtime/registry.h>
 
+#include <cassert>
 #include <fstream>
 #include <streambuf>
 #include <string>

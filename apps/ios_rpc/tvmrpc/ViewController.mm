@@ -100,7 +100,7 @@
         if (flag == 2) {
           [self onShutdownReceived];
         }
-      } catch (const dmlc::Error& e) {
+      } catch (const tvm::Error& e) {
         [self close];
       }
     }
@@ -123,7 +123,7 @@
       if (flag == 2) {
         [self onShutdownReceived];
       }
-    } catch (const dmlc::Error& e) {
+    } catch (const tvm::Error& e) {
       [self close];
     }
   }

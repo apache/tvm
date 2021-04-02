@@ -28,7 +28,7 @@ from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import utils
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib.debugger import debug_executor
 
 
 @tvm.testing.requires_llvm
@@ -75,7 +75,7 @@ def test_graph_simple():
         mlib_proxy = tvm.support.FrontendTestModule()
         mlib_proxy["myadd"] = myadd
         try:
-            mod = debug_runtime.create(graph, mlib_proxy, tvm.cpu(0))
+            mod = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
         except ValueError:
             return
 
@@ -165,19 +165,19 @@ def test_graph_simple():
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
         temp = utils.tempdir()
-        ctx = remote.cpu(0)
+        dev = remote.cpu(0)
         path_dso = temp.relpath("dev_lib.so")
         mlib.export_library(path_dso)
         remote.upload(path_dso)
         mlib = remote.load_module("dev_lib.so")
         try:
-            mod = debug_runtime.create(graph, mlib, remote.cpu(0))
+            mod = debug_executor.create(graph, mlib, remote.cpu(0))
         except ValueError:
             print("Skip because debug runtime not enabled")
             return
         a = np.random.uniform(size=(n,)).astype(A.dtype)
-        mod.run(x=tvm.nd.array(a, ctx))
-        out = tvm.nd.empty((n,), ctx=ctx)
+        mod.run(x=tvm.nd.array(a, dev))
+        out = tvm.nd.empty((n,), device=dev)
         out = mod.get_output(0, out)
         np.testing.assert_equal(out.asnumpy(), a + 1)
 

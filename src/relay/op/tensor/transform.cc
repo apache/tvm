@@ -312,7 +312,7 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (first->shape[j].as<AnyNode>() || e->shape[j].as<AnyNode>() ||
           reporter->AssertEQ(first->shape[j], e->shape[j]))
         continue;
-      throw Error(
+      throw CompileError(
           "relay.stack requires all tensors have the same shape "
           "on non-stacking axes");
     }
@@ -483,7 +483,7 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
     }
     try {
       return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
-    } catch (const dmlc::Error& e) {
+    } catch (const tvm::Error& e) {
       // If the layout string is invalid for any reason, give up.
       return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
     }
@@ -1691,8 +1691,8 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attr
   const MeshgridAttrs* attrs = raw_attrs.as<MeshgridAttrs>();
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
-    throw Error(
-        ErrorBuilder() << "meshgrid requires a tuple of tensors as the first argument, found "
+    throw CompileError(ErrorBuilder()
+                       << "meshgrid requires a tuple of tensors as the first argument, found "
                        << PrettyPrint(types[0]));
   } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
     return false;
@@ -1714,14 +1714,14 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attr
     int e_ndim = static_cast<int>(e->shape.size());
     const DataType& e_dtype = e->dtype;
     if (e_dtype != dtype) {
-      throw Error("relay.meshgrid requires all tensors have the same dtype");
+      throw CompileError("relay.meshgrid requires all tensors have the same dtype");
     }
     if (e_ndim == 0) {
       grid_shape.emplace_back(1);
     } else if (e_ndim == 1) {
       grid_shape.emplace_back(e->shape[0]);
     } else {
-      throw Error("relay.meshgrid requires all tensors be either scalars or 1-D vectors.");
+      throw CompileError("relay.meshgrid requires all tensors be either scalars or 1-D vectors.");
     }
   }
 
@@ -3772,20 +3772,20 @@ RELAY_REGISTER_OP("adv_index")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
-TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+TVM_REGISTER_NODE_TYPE(ScanopAttrs);
 
-bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool ScanopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   // types: [data, output]
   ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
-        << "cumsum: expect input type to be TensorType but get " << types[0];
+        << "Scanop: expect input type to be TensorType but get " << types[0];
     return false;
   }
 
-  const auto* param = attrs.as<CumsumAttrs>();
+  const auto* param = attrs.as<ScanopAttrs>();
 
   auto dtype = param->dtype;
   if (dtype.is_void()) {
@@ -3805,8 +3805,8 @@ bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive) {
-  auto attrs = make_object<CumsumAttrs>();
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
+  auto attrs = make_object<ScanopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
   attrs->exclusive = exclusive;
@@ -3822,7 +3822,27 @@ RELAY_REGISTER_OP("cumsum")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
-    .add_type_rel("Cumsum", CumsumRel)
+    .add_type_rel("Cumsum", ScanopRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+Expr MakeCumprod(Expr data, Integer axis, DataType dtype, Bool exclusive) {
+  auto attrs = make_object<ScanopAttrs>();
+  attrs->dtype = dtype;
+  attrs->axis = axis;
+  attrs->exclusive = exclusive;
+  static const Op& op = Op::Get("cumprod");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.cumprod").set_body_typed(MakeCumprod);
+
+RELAY_REGISTER_OP("cumprod")
+    .describe(
+        R"doc(Return the cumulative product of the elements along a given axis.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Cumprod", ScanopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 TVM_REGISTER_NODE_TYPE(UniqueAttrs);

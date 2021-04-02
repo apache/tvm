@@ -108,7 +108,7 @@ typedef enum {
   kTVMOpaqueHandle = 3U,
   kTVMNullptr = 4U,
   kTVMDataType = 5U,
-  kTVMContext = 6U,
+  kDLDevice = 6U,
   kTVMDLTensorHandle = 7U,
   kTVMObjectHandle = 8U,
   kTVMModuleHandle = 9U,
@@ -129,11 +129,6 @@ typedef enum {
   kTVMExtEnd = 128U,
 } TVMArgTypeCode;
 
-/*!
- * \brief The Device information, abstract away common device types.
- */
-typedef DLContext TVMContext;
-
 /*! \brief the array handle */
 typedef DLTensor* TVMArrayHandle;
 
@@ -147,7 +142,7 @@ typedef union {
   void* v_handle;
   const char* v_str;
   DLDataType v_type;
-  TVMContext v_ctx;
+  DLDevice v_device;
 } TVMValue;
 
 /*!
@@ -382,8 +377,8 @@ TVM_DLL int TVMFuncRemoveGlobal(const char* name);
  * \param dtype_code The type code of the dtype
  * \param dtype_bits The number of bits of dtype
  * \param dtype_lanes The number of lanes in the dtype.
- * \param device_type The device type of context
- * \param device_id The device id of context.
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param out The output handle.
  * \return 0 when success, -1 when failure happens
  */
@@ -451,9 +446,9 @@ TVM_DLL void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor);
 /*!
  * \brief Create a new runtime stream.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context
- * \param out The new stream handle
+ * \param device_type The device type.
+ * \param device_id The device id.
+ * \param out The new stream handle.
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out);
@@ -461,9 +456,9 @@ TVM_DLL int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out
 /*!
  * \brief Free a created stream handle.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context
- * \param stream The stream to be freed
+ * \param device_type The device type.
+ * \param device_id The device id.
+ * \param stream The stream to be freed.
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream);
@@ -474,8 +469,8 @@ TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream
  *  will use the setted stream handle.
  *  The specific type of stream is runtime device dependent.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context.
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param handle The stream handle.
  * \return 0 when success, -1 when failure happens
  */
@@ -484,8 +479,8 @@ TVM_DLL int TVMSetStream(int device_type, int device_id, TVMStreamHandle handle)
 /*!
  * \brief Wait until all computations on stream completes.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context.
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param stream The stream to be synchronized.
  * \return 0 when success, -1 when failure happens
  */
@@ -494,8 +489,8 @@ TVM_DLL int TVMSynchronize(int device_type, int device_id, TVMStreamHandle strea
 /*!
  * \brief Synchronize two streams of execution.
  *
- * \param device_type The device type of context
- * \param device_id The device id of context
+ * \param device_type The device type.
+ * \param device_id The device id.
  * \param src The source stream to synchronize.
  * \param dst The destination stream to synchronize.
  * \return 0 when success, -1 when failure happens
@@ -548,7 +543,7 @@ TVM_DLL int TVMByteArrayFree(TVMByteArray* arr);
 
 /*!
  * \brief Allocate a data space on device.
- * \param ctx The device context to perform operation.
+ * \param dev The device to perform operation.
  * \param nbytes The number of bytes in memory.
  * \param alignment The alignment of the memory.
  * \param type_hint The type of elements. Only needed by certain backends such
@@ -556,14 +551,14 @@ TVM_DLL int TVMByteArrayFree(TVMByteArray* arr);
  * \param out_data The allocated device pointer.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment,
+TVM_DLL int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment,
                                     DLDataType type_hint, void** out_data);
 
 /*!
  * \brief Allocate a data space on device with special memory scope.
  * \note The memory could use a special multi-dimensional memory layout.
  *       That is why we pass shape and dtype instead of raw number of bytes.
- * \param ctx The device context to perform operation.
+ * \param dev The device to perform operation.
  * \param ndim The number of dimension of the tensor.
  * \param shape The shape of the tensor.
  * \param dtype The type of elements.
@@ -572,17 +567,17 @@ TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignme
  * \param out_data The allocated device pointer.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMDeviceAllocDataSpaceWithScope(DLContext ctx, int ndim, const int64_t* shape,
+TVM_DLL int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape,
                                              DLDataType dtype, const char* mem_scope,
                                              void** out_data);
 
 /*!
  * \brief Free a data space on device.
- * \param ctx The device context to perform operation.
+ * \param dev The device to perform operation.
  * \param ptr The data space.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr);
+TVM_DLL int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr);
 
 /*!
  * \brief Copy data from one place to another.

@@ -29,7 +29,7 @@ from .. import op as _op
 from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import build_module as _build_module
-from ...contrib import graph_runtime
+from ...contrib import graph_executor
 from .kl_divergence import _find_scale_by_kl
 
 
@@ -39,14 +39,14 @@ def _get_profile_runtime(mod):
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
-        ctx = tvm.context(target.kind.name)
+        dev = tvm.device(target.kind.name)
     else:
         target = "llvm"
-        ctx = tvm.context(target)
+        dev = tvm.device(target)
 
     with tvm.transform.PassContext(opt_level=3):
         lib = _build_module.build(func, target=target)
-    runtime = graph_runtime.GraphModule(lib["default"](ctx))
+    runtime = graph_executor.GraphModule(lib["default"](dev))
 
     return runtime
 

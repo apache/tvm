@@ -34,7 +34,7 @@ from tvm.relay import transform
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 from tvm.relay.build_module import bind_params_by_name
 from tvm.contrib.target import vitis_ai
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib import utils
 
 
@@ -142,7 +142,7 @@ def verify_result(
     result,
     tol=1e-5,
     target="llvm",
-    ctx=tvm.cpu(),
+    device=tvm.cpu(),
     params=None,
     dpu_target="DPUCADX8G",
     tvm_ops=0,
@@ -151,8 +151,7 @@ def verify_result(
 
     lib = build_module(mod, target, params=params, dpu_target=dpu_target, tvm_ops=tvm_ops)
     lib = update_lib(lib)
-    ctx = tvm.cpu()
-    rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+    rt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
@@ -163,6 +162,6 @@ def verify_result(
     results = result if isinstance(result, list) else [result]
 
     for idx, shape in enumerate(out_shapes):
-        out = tvm.nd.empty(shape, ctx=ctx)
+        out = tvm.nd.empty(shape, device=device)
         out = rt_mod.get_output(idx, out)
         tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)

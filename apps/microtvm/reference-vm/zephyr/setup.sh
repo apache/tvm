@@ -30,6 +30,10 @@ poetry env use 3.6
 # NOTE: due to https://github.com/python-poetry/poetry/issues/2247, download torch here.
 poetry run pip3 install torch==1.4.0 torchvision==0.5.0
 
+# importers
+poetry install -E importer-onnx
+poetry install -E importer-tflite
+
 echo "------------------------------[ TVM Message ]------------------------------"
 echo "WARNING: running 'poetry lock', which could take several minutes (depending"
 echo "on your network connection and the state of PyPI) as dependencies are"

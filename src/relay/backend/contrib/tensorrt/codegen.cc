@@ -32,7 +32,7 @@
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
 #include "NvInfer.h"
 #endif
 
@@ -217,15 +217,15 @@ runtime::Module TensorRTCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.tensorrt").set_body_typed(TensorRTCompiler);
 
 /*!
- * \brief Check whether TensorRT graph runtime is enabled.
+ * \brief Check whether TensorRT graph executor is enabled.
  * \return True if enabled, False if not.
  */
 inline constexpr bool IsTensorRTRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
   return true;
 #else
   return false;
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
 /*!
@@ -234,11 +234,11 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * runtime is not enabled.
  */
 Array<Integer> GetTensorRTVersion() {
-#if TVM_GRAPH_RUNTIME_TENSORRT
+#if TVM_GRAPH_EXECUTOR_TENSORRT
   return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
 #else
   return {};
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
 TVM_REGISTER_GLOBAL("relay.op.is_tensorrt_runtime_enabled")

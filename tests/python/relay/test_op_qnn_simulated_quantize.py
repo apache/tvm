@@ -19,9 +19,16 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.runtime.vm import VirtualMachine
 from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
+
+
+def allclose_with_rounding(a, b):
+    # Find number of mismatches in inputs.
+    mismatch = a != b
+    # Allow some rounding errors due to GPU fp32 arithmetic.
+    assert np.sum(mismatch) <= 3
 
 
 def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data):
@@ -40,7 +47,7 @@ def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data):
     mod = tvm.IRModule.from_expr(mod)
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, "llvm", params=None)
-    rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+    rt_mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
     rt_mod.set_input(input_data=in_data)
     rt_mod.set_input(**params)
     rt_mod.run()
@@ -82,7 +89,7 @@ def verify_simulated_quantize_simple(dtype):
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_quantize(input_data, scale, zp, dtype)
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+    allclose_with_rounding(sim_q_out.asnumpy(), q_out)
 
 
 def test_simulated_quantize():
@@ -113,7 +120,7 @@ def test_dynamic_channels():
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_quantize(input_data, scale, zp, dtype, axis=0)
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+    allclose_with_rounding(sim_q_out.asnumpy(), q_out)
 
     # Now get the perchannel quantize output and compare without recompiling.
     scale_np = np.array([0.5, 0.25]).astype("float32")
@@ -130,7 +137,7 @@ def test_dynamic_channels():
     )
     # Run the simulated quantize without recompiling and confirm results match.
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+    allclose_with_rounding(sim_q_out.asnumpy(), q_out)
 
 
 def test_dynamic_dtype():
@@ -155,7 +162,7 @@ def test_dynamic_dtype():
     dtype = relay.var("dtype", shape=[])
     vm = build_simulated_quantize(input_data, scale, zp, dtype)
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+    allclose_with_rounding(sim_q_out.asnumpy(), q_out)
 
     # Now test float32 to int32 compilation.
     # Get the reference quantize output.
@@ -169,7 +176,7 @@ def test_dynamic_dtype():
     # Run the simulated quantize without recompiling and confirm results match.
     dtype_np = np.int32(SQNN_DTYPE_TO_CODE["int32"])
     sim_q_out = vm.invoke("main", input_data=data, scale=scale_np, zp=zp_np, dtype=dtype_np)
-    np.testing.assert_equal(sim_q_out.asnumpy(), q_out)
+    allclose_with_rounding(sim_q_out.asnumpy(), q_out)
 
 
 if __name__ == "__main__":

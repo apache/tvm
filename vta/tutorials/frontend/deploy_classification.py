@@ -52,8 +52,8 @@ from matplotlib import pyplot as plt
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, utils, download
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib import graph_executor, utils, download
+from tvm.contrib.debugger import debug_executor
 from tvm.relay import transform
 
 import vta
@@ -135,7 +135,7 @@ else:
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 ######################################################################
-# Build the inference graph runtime
+# Build the inference graph executor
 # ---------------------------------
 # Grab vision model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
@@ -147,7 +147,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # 4. Perform constant folding to reduce number of operators (e.g. eliminate batch norm multiply).
 # 5. Perform relay build to object file.
 # 6. Load the object file onto remote (FPGA device).
-# 7. Generate graph runtime, `m`.
+# 7. Generate graph executor, `m`.
 #
 
 # Load pre-configured AutoTVM schedules
@@ -209,8 +209,8 @@ with autotvm.tophub.context(target):
     remote.upload(temp.relpath("graphlib.tar"))
     lib = remote.load_module("graphlib.tar")
 
-    # Graph runtime
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    # Graph executor
+    m = graph_executor.GraphModule(lib["default"](ctx))
 
 ######################################################################
 # Perform image classification inference

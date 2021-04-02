@@ -58,25 +58,25 @@ def verify_sort(axis, is_ascend):
     else:
         np_sort = np_sort[:, : dshape[axis]]
 
-    def check_device(device):
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        ctx = tvm.context(device, 0)
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _sort_implement)
+        dev = tvm.device(target, 0)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _sort_implement)
             out = fcompute(data, axis=axis, is_ascend=is_ascend)
             s = fschedule(out)
 
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
-        f = tvm.build(s, [data, out], device)
+        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), dev)
+        f = tvm.build(s, [data, out], target)
         f(tvm_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_sort, rtol=1e0)
 
-    for device in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
-        check_device(device)
+    for target in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
+        check_target(target)
 
 
 def verify_argsort(axis, is_ascend):
@@ -98,25 +98,25 @@ def verify_argsort(axis, is_ascend):
     else:
         np_indices = np_indices[:, : dshape[axis]]
 
-    def check_device(device):
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        ctx = tvm.context(device, 0)
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _argsort_implement)
+        dev = tvm.device(target, 0)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _argsort_implement)
             out = fcompute(data, axis=axis, is_ascend=is_ascend)
             s = fschedule(out)
 
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
-        f = tvm.build(s, [data, out], device)
+        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), dev)
+        f = tvm.build(s, [data, out], target)
         f(tvm_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_indices.astype(data_dtype), rtol=1e0)
 
-    for device in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
-        check_device(device)
+    for target in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
+        check_target(target)
 
 
 def verify_topk(k, axis, ret_type, is_ascend, dtype):
@@ -142,22 +142,22 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
             np_values[i, :] = np_data[i, np_indices[i, :]]
     np_indices = np_indices.astype(dtype)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _topk_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _topk_implement)
             outs = fcompute(data, k, axis, ret_type, is_ascend, dtype)
             outs = outs if isinstance(outs, list) else [outs]
             s = fschedule(outs)
-        tvm_data = tvm.nd.array(np_data, ctx)
+        tvm_data = tvm.nd.array(np_data, dev)
         tvm_res = []
         for t in outs:
-            tvm_res.append(tvm.nd.empty(t.shape, dtype=t.dtype, ctx=ctx))
-        f = tvm.build(s, [data] + outs, device)
+            tvm_res.append(tvm.nd.empty(t.shape, dtype=t.dtype, device=dev))
+        f = tvm.build(s, [data] + outs, target)
         f(tvm_data, *tvm_res)
         if ret_type == "both":
             tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_values)
@@ -167,8 +167,8 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
         else:
             tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_indices)
 
-    for device in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
-        check_device(device)
+    for target in ["llvm", "cuda", "opencl", "vulkan", "nvptx"]:
+        check_target(target)
 
 
 @tvm.testing.uses_gpu
