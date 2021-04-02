@@ -140,8 +140,8 @@ def add_tune_parser(subparsers):
     )
     auto_scheduler_group = parser.add_argument(
         "--enable-hardware-params",
-        help="enable hardware specific controls such as cores, threads, memory etc."
-        action="store_false"
+        help="enable hardware specific controls such as cores, threads, memory etc.",
+        action="store_true",
     )
     auto_scheduler_group.add_argument(
         "--cache-line-bytes",
@@ -289,18 +289,19 @@ def drive_tune(args):
             min_repeat_ms=min_repeat_ms,
         )
 
-    if args.enable_autoscheduler and args.enable_hardware_params:
-        # Specify hardware parameters
-        hardware_params = auto_scheduler.HardwareParams(
-            args.num_cores,
-            args.vector_unit_bytes,
-            args.cache_line_bytes,
-            args.max_shared_memory_per_block,
-            args.max_local_memory_per_block,
-            args.max_threads_per_block,
-            args.max_vthread_extent,
-            args.warp_size,
-        )
+    if args.enable_autoscheduler:
+        if args.enable_hardware_params:
+            # Specify hardware parameters
+            hardware_params = auto_scheduler.HardwareParams(
+                args.num_cores,
+                args.vector_unit_bytes,
+                args.cache_line_bytes,
+                args.max_shared_memory_per_block,
+                args.max_local_memory_per_block,
+                args.max_threads_per_block,
+                args.max_vthread_extent,
+                args.warp_size,
+            )
         tasks, weights = autoscheduler_get_tuning_tasks(
             mod=mod,
             params=params,
