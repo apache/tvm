@@ -27,7 +27,7 @@ optimizing framework with APIs available for a number of different languages
 that gives you tremendous flexibility in working with machine learning models.
 
 In this tutorial we will cover the same ground we did with TVMC, but show how
-it is done with the Python API. Upon completion of this section, we will ahve
+it is done with the Python API. Upon completion of this section, we will have
 used the Python API for TVM to accomplish the following tasks:
 
 * Compile a pre-trained ResNet 50 v2 model for the TVM runtime.
@@ -52,7 +52,7 @@ how to use them through the Python API.
 # loading and converting the model, helper utilities for downloading test data,
 # the Python Image Library for working with the image data, ``numpy`` for pre
 # and post-processing of the image data, the TVM Relay framework, and the TVM
-# Graph Runtime.
+# Graph Executor.
 
 import onnx
 from tvm.contrib.download import download_testdata
@@ -60,11 +60,11 @@ from PIL import Image
 import numpy as np
 import tvm.relay as relay
 import tvm
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 ################################################################################
 # Downloading and Loading the ONNX Model
-# ---------------------------------------------
+# --------------------------------------
 #
 # For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a
 # convolutional neural network that is 50-layers deep and designed to classify
@@ -117,7 +117,7 @@ img_path = download_testdata(img_url, "imagenet_cat.png", module="data")
 resized_image = Image.open(img_path).resize((224, 224))
 img_data = np.asarray(resized_image).astype("float32")
 
-# ONNX expects NCHW input, so convert the array
+# Our input image is in HWC layout while ONNX expects CHW input, so convert the array
 img_data = np.transpose(img_data, (2, 0, 1))
 
 # Normalize according to the ImageNet input specification
@@ -127,7 +127,7 @@ norm_img_data = np.zeros(img_data.shape).astype("float32")
 for i in range(img_data.shape[0]):
     norm_img_data[i, :, :] = (img_data[i, :, :] / 255 - imagenet_mean[i]) / imagenet_stddev[i]
 
-# Add the batch dimension
+# Add the batch dimension, as we are expecting 4-dimensional input: NCHW.
 img_data = np.expand_dims(norm_img_data, axis=0)
 
 ###############################################################################
@@ -167,13 +167,13 @@ with tvm.transform.PassContext(opt_level=1):
     lib = relay.build(mod, target=target, params=params)
 
 dev = tvm.device(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](dev))
+module = graph_executor.GraphModule(lib["default"](dev))
 
 ######################################################################
 # Execute on TVM Runtime
 # ----------------------
 # Now that we've compiled the model, we can use the TVM runtime to make
-# predictions with it.  To use TVM to run the model and make predictions, we
+# predictions with it. To use TVM to run the model and make predictions, we
 # need two things:
 #
 # - The compiled model, which we just produced.
@@ -189,7 +189,7 @@ tvm_output = module.get_output(0, tvm.nd.empty(output_shape)).asnumpy()
 # Collect Basic Performance Data
 # ------------------------------
 # We want to collect some basic performance data associated with this
-# unoptimized model and compare it to a tuned model later.  To help account for
+# unoptimized model and compare it to a tuned model later. To help account for
 # CPU noise, we run the computation in multiple batches in multiple
 # repetitions, then gather some basis statistics on the mean, median, and
 # standard deviation.
@@ -212,7 +212,7 @@ print(unoptimized)
 
 ################################################################################
 # Postprocess the output
-# ---------------------------------------------
+# ----------------------
 #
 # As previously mentioned, each model will have its own particular way of
 # providing output tensors.
@@ -250,20 +250,20 @@ for rank in ranks[0:5]:
 
 ################################################################################
 # Tune the model
-# ---------------------------------------------
+# --------------
 # The previous model was compiled to work on the TVM runtime, but did not
 # include any platform specific optimization. In this section, we will show you
 # how to build an optimized model using TVM to target your working platform.
 #
 # In some cases, we might not get the expected performance when running
-# inferences using our compiled module.  In cases like this, we can make use of
+# inferences using our compiled module. In cases like this, we can make use of
 # the auto-tuner, to find a better configuration for our model and get a boost
 # in performance. Tuning in TVM refers to the process by which a model is
 # optimized to run faster on a given target. This differs from training or
 # fine-tuning in that it does not affect the accuracy of the model, but only
 # the runtime performance. As part of the tuning process, TVM will try running
 # many different operator implementation variants to see which perform best.
-# The results of these runs are stored in a tuning  records file
+# The results of these runs are stored in a tuning records file.
 #
 # In the simplest form, tuning requires you to provide three things:
 #
@@ -312,7 +312,7 @@ tuning_option = {
 # .. note:: Defining the Tuning Search Algorithm
 #
 #   By default this search is guided using an `XGBoost Grid` algorithm.
-#   Depending on your model complexity and amount of time avilable, you might
+#   Depending on your model complexity and amount of time available, you might
 #   want to choose a different algorithm.
 
 
@@ -325,7 +325,7 @@ tuning_option = {
 #   spent tuning. The number of trials required for convergence will vary
 #   depending on the specifics of the model and the target platform.
 
-# Identify the tasks that can be tuned, and iterate through them
+# Tune the extracted tasks sequentially.
 for i, task in enumerate(tasks):
     prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
     tuner_obj = XGBTuner(task, loss_type="rank")
@@ -386,7 +386,7 @@ with autotvm.apply_history_best(tuning_option["tuning_records"]):
         lib = relay.build(mod, target=target, params=params)
 
 dev = tvm.device(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](dev))
+module = graph_executor.GraphModule(lib["default"](dev))
 
 ################################################################################
 # Verify that the optimized model runs and produces the same results:
@@ -441,7 +441,7 @@ print("unoptimized: %s" % (unoptimized))
 # -------------
 #
 # In this tutorial, we we gave a short example of how to use the TVM Python API
-# to compile, run, and tune a model.  We also discussed the need for pre and
+# to compile, run, and tune a model. We also discussed the need for pre and
 # post-processing of inputs and outputs. After the tuning process, we
 # demonstrated how to compare the performance of the unoptimized and optimize
 # models.
