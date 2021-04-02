@@ -138,7 +138,11 @@ def add_tune_parser(subparsers):
         "Autoscheduler options",
         "Autoscheduler options, used when --enabled-auto-scheduler is provided",
     )
-
+    auto_scheduler_group = parser.add_argument(
+        "--enable-hardware-params",
+        help="enable hardware specific controls such as cores, threads, memory etc."
+        action="store_false"
+    )
     auto_scheduler_group.add_argument(
         "--cache-line-bytes",
         type=int,
@@ -285,7 +289,7 @@ def drive_tune(args):
             min_repeat_ms=min_repeat_ms,
         )
 
-    if args.enable_autoscheduler:
+    if args.enable_autoscheduler and args.enable_hardware_params:
         # Specify hardware parameters
         hardware_params = auto_scheduler.HardwareParams(
             args.num_cores,
