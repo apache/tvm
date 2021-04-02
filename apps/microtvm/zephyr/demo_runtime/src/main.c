@@ -138,7 +138,7 @@ tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void*
 
 // Called by TVM to deallocate memory.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  k_free(ptr);
+  k_heap_free(&tvm_memory_pool, ptr);
   return kTvmErrorNoError;
 }
 
