@@ -1253,6 +1253,23 @@ class Slice(OnnxOpConverter):
         )
 
 
+def normalize_gather_indices(data, indices, axis):
+    """Make sure gather indicies aren't negative"""
+    ind_dtype = infer_type(indices).checked_type.dtype
+    # Normalize the indices to a positive range
+    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+    cond = fold_constant(indices < _op.const(0, ind_dtype))
+    if isinstance(cond, _expr.Constant):
+        val = cond.data.asnumpy()
+        if val.size == 1:
+            cond = val.item()
+            if cond:
+                indices = indices + s
+            return indices
+    indices = _op.where(cond, indices + s, indices)
+    return indices
+
+
 class Gather(OnnxOpConverter):
     """Operator converter for Gather."""
 
@@ -1261,10 +1278,7 @@ class Gather(OnnxOpConverter):
         axis = attr.get("axis", 0)
         data = inputs[0]
         indices = inputs[1]
-        ind_dtype = infer_type(indices).checked_type.dtype
-        # Normalize the indices to a positive range
-        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
-        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
+        indices = normalize_gather_indices(data, indices, axis)
         return _op.take(data, indices, axis)
 
 
@@ -1276,10 +1290,7 @@ class GatherElements(OnnxOpConverter):
         data = inputs[0]
         indices = inputs[1]
         axis = attr.get("axis", 0)
-        ind_dtype = infer_type(indices).checked_type.dtype
-        # Normalize the indices to a positive range
-        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
-        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
+        indices = normalize_gather_indices(data, indices, axis)
         return _op.gather(data, axis, indices)
 
 
