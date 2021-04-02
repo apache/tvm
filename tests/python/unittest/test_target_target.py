@@ -296,6 +296,7 @@ def test_check_and_update_host_consist_3():
     assert target.kind.name == "cuda"
     assert target.host.kind.name == "llvm"
     assert host.kind.name == "llvm"
+    assert target.host == host
 
 
 if __name__ == "__main__":
