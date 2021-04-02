@@ -449,12 +449,6 @@ if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
-
-  target_include_directories(tvm_runtime SYSTEM
-    PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
-    PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
-    PUBLIC "${USE_HEXAGON_SDK}/incs"
-    PUBLIC "${USE_HEXAGON_SDK}/incs/stddef")
 endif()
 
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
