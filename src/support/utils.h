@@ -27,8 +27,10 @@
 #include <stdio.h>
 #ifndef _WIN32
 #include <sys/types.h>
+#ifndef __hexagon__
 #include <sys/wait.h>
-#endif
+#endif  // __hexagon__
+#endif  // _WIN32
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -45,6 +47,7 @@ namespace support {
  * \param type "r" is for reading or "w" for writing.
  * \return normal standard stream
  */
+#ifndef __hexagon__
 inline FILE* TVMPOpen(const char* command, const char* type) {
 #if defined(_WIN32)
   return _popen(command, type);
@@ -52,12 +55,14 @@ inline FILE* TVMPOpen(const char* command, const char* type) {
   return popen(command, type);
 #endif
 }
+#endif  // __hexagon__
 
 /*!
  * \brief TVMPClose wrapper of pclose between windows / linux
  * \param stream the stream needed to be close.
  * \return exit status
  */
+#ifndef __hexagon__
 inline int TVMPClose(FILE* stream) {
 #if defined(_WIN32)
   return _pclose(stream);
@@ -65,12 +70,14 @@ inline int TVMPClose(FILE* stream) {
   return pclose(stream);
 #endif
 }
+#endif  // __hexagon__
 
 /*!
  * \brief TVMWifexited wrapper of WIFEXITED between windows / linux
  * \param status The status field that was filled in by the wait or waitpid function
  * \return the exit code of the child process
  */
+#ifndef __hexagon__
 inline int TVMWifexited(int status) {
 #if defined(_WIN32)
   return (status != 3);
@@ -78,12 +85,14 @@ inline int TVMWifexited(int status) {
   return WIFEXITED(status);
 #endif
 }
+#endif  // __hexagon__
 
 /*!
  * \brief TVMWexitstatus wrapper of WEXITSTATUS between windows / linux
  * \param status The status field that was filled in by the wait or waitpid function.
  * \return the child process exited normally or not
  */
+#ifndef __hexagon__
 inline int TVMWexitstatus(int status) {
 #if defined(_WIN32)
   return status;
@@ -91,6 +100,7 @@ inline int TVMWexitstatus(int status) {
   return WEXITSTATUS(status);
 #endif
 }
+#endif  // __hexagon__
 
 /*!
  * \brief IsNumber check whether string is a number.
@@ -137,6 +147,7 @@ inline bool EndsWith(std::string const& value, std::string const& end) {
  * \param err_msg The error message if we have
  * \return executed output status
  */
+#ifndef __hexagon__
 inline int Execute(std::string cmd, std::string* err_msg) {
   std::array<char, 128> buffer;
   std::string result;
@@ -151,6 +162,7 @@ inline int Execute(std::string cmd, std::string* err_msg) {
   }
   return 255;
 }
+#endif  // __hexagon__
 
 /*!
  * \brief Combine two hash values into a single one.
