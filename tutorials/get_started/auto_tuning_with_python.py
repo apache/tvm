@@ -71,14 +71,20 @@ from tvm.contrib import graph_executor
 # images. The model we will be using has been pre-trained on more than a
 # million images with 1000 different classifications. The network has an input
 # image size of 224x224. If you are interested exploring more of how the
-# ResNet-50 model is structured, we recommend downloading `Netron
-# <https://netron.app>`, a freely available ML model viewer.
+# ResNet-50 model is structured, we recommend downloading
+# `Netron <https://netron.app>`_, a freely available ML model viewer.
 #
 # TVM provides a helper library to download pre-trained models. By providing a
 # model URL, file name, and model type through the module, TVM will download
 # the model and save it to disk. For the instance of an ONNX model, you can
 # then load it into memory using the ONNX runtime.
 #
+# .. note:: Working with Other Model Formats
+#
+#   TVM supports many popular model formats. A list can be found in the `Compile
+#   Deep Learning Models
+#   <https://tvm.apache.org/docs/tutorials/index.html#compile-deep-learning-models>`_
+#   section of the TVM Documentation.
 
 model_url = "".join(
     [
@@ -163,15 +169,15 @@ shape_dict = {input_name: img_data.shape}
 
 mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
-with tvm.transform.PassContext(opt_level=1):
+with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, target=target, params=params)
 
 dev = tvm.device(str(target), 0)
 module = graph_executor.GraphModule(lib["default"](dev))
 
 ######################################################################
-# Execute on TVM Runtime
-# ----------------------
+# Execute on the TVM Runtime
+# --------------------------
 # Now that we've compiled the model, we can use the TVM runtime to make
 # predictions with it. To use TVM to run the model and make predictions, we
 # need two things:
@@ -276,14 +282,21 @@ import tvm.auto_scheduler as auto_scheduler
 from tvm.autotvm.tuner import XGBTuner
 from tvm import autotvm
 
-# set up some basic parameters
+# Set up some basic parameters for the runner. The runner takes compiled code
+# that is generated with a specific set of parameters and measures the
+# performance of it. ``number`` specifies the number of different
+# configurations that we will test, while ``repeat`` specifies how many
+# measurements we will take of each configuration. ``min_repeat_ms`` is a value
+# that specifies how long need to run configuration test. If the number of
+# repeats falls under this time, it will be increased. This option is necessary
+# for accurate tuning on GPUs, and is not required for CPU tuning. Setting this
+# value to 0 disables it. The ``timeout`` places an upper limit on how long to
+# run training code for each tested configuration.
+
 number = 10
 repeat = 1
 min_repeat_ms = 0  # since we're tuning on a CPU, can be set to 0
 timeout = 10  # in seconds
-
-# begin by extracting the taks from the onnx model
-tasks = autotvm.task.extract_from_program(mod["main"], target=target, params=params)
 
 # create a TVM runner
 runner = autotvm.LocalRunner(
@@ -293,11 +306,21 @@ runner = autotvm.LocalRunner(
     min_repeat_ms=min_repeat_ms,
 )
 
-# create a simple structure for holding tuning options
-# For a production job, you will want to set the number of trials to
-# be larger, at least 100. Tuning can be time intensive, so the value
-# is set to a small number here in the interest of having faster
-# running time.
+# Create a simple structure for holding tuning options. We use an XGBoost
+# algorithim for guiding the search. For a production job, you will want to set
+# the number of trials to be larger than the value of 10 used here. For CPU we
+# recommend 1500, for GPU 3000-4000. The number of trials required can depend
+# on the particular model and processor, so it's worth spending some time
+# evaluating performance across a range of values to find the best balance
+# between tuning time and model optimization. Because running tuning is time
+# intensive we set number of trials to 10, but do not recommend a value this
+# small. The ``early_stopping`` parameter is the minimum number of trails to
+# run before a condition that stops the search early can be applied. The
+# measure option indicates where trial code will be built, and where it will be
+# run. In this case, we're using the ``LocalRunner`` we just created and a
+# ``LocalBuilder``. The ``tuning_records`` option specifies a file to write
+# the tuning data to.
+
 tuning_option = {
     "tuner": "xgb",
     "trials": 10,
@@ -324,6 +347,9 @@ tuning_option = {
 #   you set these values to be higher but this comes at the expense of time
 #   spent tuning. The number of trials required for convergence will vary
 #   depending on the specifics of the model and the target platform.
+
+# begin by extracting the taks from the onnx model
+tasks = autotvm.task.extract_from_program(mod["main"], target=target, params=params)
 
 # Tune the extracted tasks sequentially.
 for i, task in enumerate(tasks):
