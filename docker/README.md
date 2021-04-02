@@ -83,7 +83,7 @@ The built docker images are prefixed by ``tvm.``, for example the command
 ./docker/build.sh image_name 
 ````
 
-produced the image ``tvm.ci_cpu`` that is displayed in the list of docker images
+produces the image ``tvm.ci_cpu`` that is displayed in the list of docker images
 using the command ``docker images``. To run an interactive terminal, execute:
 
 ````bash

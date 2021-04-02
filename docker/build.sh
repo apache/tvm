@@ -22,7 +22,7 @@
 #
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                [--net=host] [--cache-from <IMAGE_NAME>] <COMMAND (optional)>
+#                [--net=host] [--cache-from <IMAGE_NAME>] [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
 #                 e.g. "ci_cpu", "ci_gpu"
