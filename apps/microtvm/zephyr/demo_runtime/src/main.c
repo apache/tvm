@@ -127,18 +127,18 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorNoError;
 }
 
-// K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 120, 4);
-K_HEAP_DEFINE(tvm_memory_pool, 120*1024);
+// Memory pool for use by TVMPlatformMemoryAllocate.
+K_HEAP_DEFINE(tvm_heap, 216*1024);
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  // *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
-  *out_ptr = k_heap_alloc(&tvm_memory_pool, num_bytes, K_NO_WAIT);
+// Called by TVM to allocate memory.
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  *out_ptr = k_heap_alloc(&tvm_heap, num_bytes, K_NO_WAIT);
   return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
 }
 
 // Called by TVM to deallocate memory.
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  k_heap_free(&tvm_memory_pool, ptr);
+  k_heap_free(&tvm_heap, ptr);
   return kTvmErrorNoError;
 }
 
@@ -286,6 +286,7 @@ void main(void) {
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
+  TVMLogf("Mehrdad");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
