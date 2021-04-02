@@ -100,6 +100,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_path = None
         self._get_output_by_layer = module["get_output_by_layer"]
         self._run_individual = module["run_individual"]
+        self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
 
@@ -233,6 +234,24 @@ class GraphModuleDebug(graph_executor.GraphModule):
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
+
+    def profile(self, **input_dict):
+        """Run forward execution of the graph and collect overall and per-op
+        performance metrics.
+
+        Parameters
+        ----------
+        input_dict : dict of str to NDArray
+            List of input values to be feed to
+        Return
+        ------
+        timing_results : str
+            Per-operator and whole graph timing results in a table format.
+        """
+        if input_dict:
+            self.set_input(**input_dict)
+
+        return self._profile()
 
     def exit(self):
         """Exits the dump folder and all its contents"""

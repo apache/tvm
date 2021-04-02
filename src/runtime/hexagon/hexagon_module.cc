@@ -379,7 +379,7 @@ void HexagonModuleNode::RemapArgs(const TVMArgs& args, std::vector<TVMValue>& va
       case kTVMNDArrayHandle:
       case kTVMDLTensorHandle: {
         DLTensor* t = static_cast<DLTensor*>(a);
-        assert(TVMDeviceExtType(t->device.device_type) == kDLHexagon);
+        ICHECK(TVMDeviceExtType(t->device.device_type) == kDLHexagon);
         TVMValue v;
         v.v_handle = CreateRemoteTensor(t);
         remote_tensors.push_back(v.v_handle);

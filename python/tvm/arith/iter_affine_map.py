@@ -128,3 +128,48 @@ def normalize_iter_map_to_expr(expr):
         the corresponding normal PrimExpr
     """
     return _ffi_api.NormalizeIterMapToExpr(expr)
+
+
+def subspace_divide(bindings, input_iters, sub_iters, predicate=True, require_bijective=False):
+    """Detect if bindings can be written as
+    [a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]
+    where a = some-quasi-affine-iter-map(input_iters set_minus sub_iters)
+          b = some-quasi-affine-iter-map(sub_iters)
+          c is constant symbols
+          e is the extent of b
+    For example, z*12 + y*3 + x + c = (z*4+y)*3 + x
+                bindings = [z*12 + y*3 + x + c]
+                input_iters = [z, y, x]
+                sub_iter = [x]
+                Then the result will be [a, b] where
+                a = [z*4 + y]
+                b = [x]
+
+    Parameters
+    ----------
+    bindings : List[PrimExpr]
+        The input bindings
+
+    input_iters : Map[Var, Range]
+        The domain of input iterator, which is the basis of the whole space
+
+    sub_iters : Array[Var]
+        The subset of input_iters, which is the basis of the subspace
+
+    predicate : PrimExpr
+        The predicate constraints on the input iterators
+
+    require_bijective : bool
+        A boolean flag that indicates whether the bindings should be bijective
+
+    Returns
+    -------
+    results : List[List[PrimExpr]]
+        The result list has length len(bindings) + 1
+        [0, len(bindings)): The iter map matching result. The inner list is of length 2.
+                            The first expr is the basis of the quotient space.
+                            The second expr is the basis of the subspace.
+        len(bindings): the predicate of outer space and inner space
+        Empty array if no match can be found.
+    """
+    return _ffi_api.SubspaceDivide(bindings, input_iters, sub_iters, predicate, require_bijective)

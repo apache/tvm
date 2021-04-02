@@ -578,6 +578,53 @@ def test_gather():
     verify_gather((4, 3, 5, 6), [[2, 1, 0, 0]], 0, "float32")
 
 
+@tvm.testing.uses_gpu
+def test_dynamic_gather():
+    dtype = "float32"
+    in_shape = [2, 2]
+    indices = 1
+    axis = 1
+    x = np.random.uniform(size=in_shape).astype(dtype)
+    indices = np.array(indices, dtype="int64")
+    out_np = np.take(x, indices, axis=axis)
+
+    indices = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["indices"],
+        value=onnx.helper.make_tensor(
+            name="const_indices",
+            data_type=onnx.TensorProto.INT64,
+            dims=[],
+            vals=[1],
+        ),
+    )
+    y = helper.make_node("Gather", ["in", "indices"], ["out"], axis=axis)
+
+    graph = helper.make_graph(
+        [indices, y],
+        "gather_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "in", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], ["?", "?"]
+            ),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "out", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], ["?"] * len(out_np.shape)
+            )
+        ],
+    )
+    model = helper.make_model(graph, producer_name="dynamic_gather_test")
+
+    mod, params = relay.frontend.from_onnx(model)
+
+    for target, device in tvm.testing.enabled_targets():
+        ex = relay.create_executor("vm", mod=mod, device=device, target=target)
+        result = ex.evaluate()(x, **params)
+        tvm.testing.assert_allclose(out_np, result.asnumpy(), rtol=1e-5, atol=1e-5)
+
+
 def verify_gatherelements(in_shape, indices, axis):
     x = np.random.uniform(size=in_shape).astype("float32")
     indices = np.array(indices, dtype="int32")
