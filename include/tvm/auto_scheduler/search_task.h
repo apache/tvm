@@ -113,6 +113,8 @@ class SearchTaskNode : public Object {
   ComputeDAG compute_dag;
   /*! \brief The workload key for the compute declaration. */
   String workload_key;
+  /*! \brief The description string of this task. */
+  String desc;
   /*! \brief The target device of this search task. */
   Target target;
   /*! \brief The target host device of this search task. */
@@ -127,6 +129,7 @@ class SearchTaskNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("compute_dag", &compute_dag);
     v->Visit("workload_key", &workload_key);
+    v->Visit("desc", &desc);
     v->Visit("target", &target);
     v->Visit("target_host", &target_host);
     v->Visit("hardware_params", &hardware_params);
@@ -153,10 +156,11 @@ class SearchTask : public ObjectRef {
    * \param hardware_params Hardware parameters used in this search task.
    * \param layout_rewrite_option The layout rewrite option used for measuring programs.
    * \param task_input_names Names of some user defined input data used in program measuring.
+   * \param desc The description string of this task.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
              Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option,
-             Array<String> task_input_names);
+             Array<String> task_input_names, String desc = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };
