@@ -150,7 +150,7 @@ bool AllClassNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
   IndexExpr batch = boxes_shape[0];
   IndexExpr num_classes = scores_shape[1];
-  IndexExpr num_boxes = boxes_shape[2];
+  IndexExpr num_boxes = boxes_shape[1];
 
   IndexExpr num_total_boxes = Any();
   if (!batch.as<AnyNode>() && !num_boxes.as<AnyNode>()) {
