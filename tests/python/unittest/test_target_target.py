@@ -18,7 +18,7 @@ import json
 import sys
 import pytest
 import tvm
-from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost
+from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, Target
 
 
 @tvm.target.generic_func
@@ -266,6 +266,37 @@ def test_target_with_host():
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
+
+
+def test_check_and_update_host_consist_0():
+    target = None
+    host = None
+    target, host = Target.check_and_update_host_consist(target, host)
+
+
+def test_check_and_update_host_consist_1():
+    target = None
+    host = "llvm"
+    with pytest.raises(AssertionError, match=r"Target host is not empty when target is empty."):
+        target, host = Target.check_and_update_host_consist(target, host)
+
+
+def test_check_and_update_host_consist_2():
+    target = Target("cuda")
+    host = Target("llvm")
+    target, host = Target.check_and_update_host_consist(target, host)
+    assert target.kind.name == "cuda"
+    assert target.host.kind.name == "llvm"
+
+
+def test_check_and_update_host_consist_3():
+    target = Target(target="cuda", host="llvm")
+    host = None
+    target, host = Target.check_and_update_host_consist(target, host)
+    assert target.kind.name == "cuda"
+    assert target.host.kind.name == "llvm"
+    assert host.kind.name == "llvm"
+    assert target.host == host
 
 
 if __name__ == "__main__":
