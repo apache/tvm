@@ -1058,6 +1058,20 @@ def nms_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("all_class_non_max_suppression_strategy")
+def all_class_nms_strategy(attrs, inputs, out_type, target):
+    """all class nms generic strategy"""
+    # TODO
+    assert False
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_nms(topi.vision.non_max_suppression),
+        wrap_topi_schedule(topi.generic.schedule_nms),
+        name="nms.generic",
+    )
+    return strategy
+
+
 # roi_align
 def wrap_compute_roi_align(topi_compute):
     """wrap roi_align topi compute"""

@@ -149,3 +149,15 @@ def non_max_suppression(
     if return_indices:
         return expr.TupleWrapper(out, 2)
     return out
+
+
+def all_class_non_max_suppression(
+    boxes, scores, max_output_boxes_per_class=-1, iou_threshold=-1.0, score_threshold=-1.0
+):
+    if not isinstance(max_output_boxes_per_class, expr.Expr):
+        max_output_boxes_per_class = expr.const(max_output_boxes_per_class, "int32")
+    if not isinstance(iou_threshold, expr.Expr):
+        iou_threshold = expr.const(iou_threshold, "float32")
+    return _make.all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+    )
