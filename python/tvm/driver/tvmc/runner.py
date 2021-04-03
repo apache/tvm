@@ -118,7 +118,7 @@ def drive_run(args):
         hostname=rpc_hostname,
         port=rpc_port,
         rpc_key=args.rpc_key,
-        inputs_file=args.inputs,
+        inputs=inputs,
         fill_mode=args.fill_mode,
         repeat=args.repeat,
         profile=args.profile,
@@ -294,7 +294,7 @@ def run_module(
     hostname=None,
     port=9090,
     rpc_key=None,
-    inputs_file=None,
+    inputs=None,
     fill_mode="random",
     repeat=1,
     profile=False,
@@ -319,8 +319,8 @@ def run_module(
     rpc_key : str, optional
         The tracker key of the target device. If this is set, it
         will be assumed that remote points to a tracker.
-    inputs_file : str, optional
-        Path to an .npz file containing the inputs.
+    inputs : dict, optional
+        A dictionary that maps input names to numpy values.
     fill_mode : str, optional
         The fill-mode to use when generating data for input tensors.
         Valid options are "zeros", "ones" and "random".
