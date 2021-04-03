@@ -219,8 +219,10 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
 def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
+    mod, params = tvmc.load(tflite_mobilenet_v1_1_quant)
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        tflite_mobilenet_v1_1_quant,
+        mod,
+        params,
         target="vitis-ai -dpu=DPUCZDX8G-zcu104 -export_runtime_module=vitis_ai.rtmod, llvm",
         dump_code="relay",
     )
