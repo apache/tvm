@@ -2494,7 +2494,8 @@ class NonMaxSuppression(OnnxOpConverter):
         begin = _op.concatenate([zero, zero], axis=0)
         end = _op.concatenate([nms_out[1], three], axis=0)
         strides = _op.const(np.array([1, 1]), dtype="int32")
-        return _op.strided_slice(nms_out[0], begin, end, strides)
+        # TODO: fix cast
+        return _op.cast(_op.strided_slice(nms_out[0], begin, end, strides), "int64")
 
 
 class ATen(OnnxOpConverter):

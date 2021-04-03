@@ -946,7 +946,7 @@ def nms_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@nms_strategy.register(["cuda", "gpu"])
+@all_class_nms_strategy.register(["cuda", "gpu"])
 def all_class_nms_strategy_cuda(attrs, inputs, out_type, target):
     """nms cuda strategy"""
     strategy = _op.OpStrategy()
