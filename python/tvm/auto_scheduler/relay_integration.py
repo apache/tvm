@@ -131,7 +131,7 @@ def extract_tasks(
     # create search tasks
     tasks = []
     weights = []
-    for wkl_key, weight in env.wkl_key_to_weight.items():
+    for (func_name, wkl_key), weight in env.wkl_key_to_weight.items():
         tasks.append(
             SearchTask(
                 workload_key=wkl_key,
@@ -146,6 +146,7 @@ def extract_tasks(
                     else None
                 ),
                 task_inputs_save_to_file=True,
+                desc=func_name,
             )
         )
         weights.append(weight)
@@ -179,17 +180,21 @@ class TracingEnvironment:
     def __exit__(self, exc_type, exc_val, exc_tb):
         TracingEnvironment.current = None
 
-    def add_workload_key(self, workload_key):
+    def add_workload_key(self, func_name, workload_key):
         """Add the workload key of a search task.
 
         Parameters
         ----------
+        func_name: str
+            The function name of the task.
+
         workload_key: str
             The workload key of a task.
         """
-        if workload_key not in self.wkl_key_to_weight:
-            self.wkl_key_to_weight[workload_key] = 0
-        self.wkl_key_to_weight[workload_key] += 1
+        key = (func_name, workload_key)
+        if key not in self.wkl_key_to_weight:
+            self.wkl_key_to_weight[key] = 0
+        self.wkl_key_to_weight[key] += 1
 
     def add_workload_input_names(self, workload_key, input_names):
         """Add special task inputs to this workload.
@@ -328,7 +333,7 @@ def auto_schedule_topi(func_name, outs):
     if env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
-            env.add_workload_key(key)
+            env.add_workload_key(func_name, key)
             input_map = prepare_input_map(io_tensors)
             if input_map:
                 env.add_workload_input_names(key, list(input_map.values()))
