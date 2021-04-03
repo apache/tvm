@@ -160,7 +160,7 @@ bool AllClassNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   // assign output type
   std::vector<Type> fields;
   std::vector<IndexExpr> oshape{num_total_boxes, 3};
-  fields.push_back(TensorType(oshape, DataType::Int(32)));
+  fields.push_back(TensorType(oshape, DataType::Int(64)));
   std::vector<IndexExpr> countshape{1};
   fields.push_back(TensorType(countshape, DataType::Int(64)));
   reporter->Assign(types[5], TupleType(Array<Type>(fields)));

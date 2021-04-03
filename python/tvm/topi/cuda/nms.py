@@ -341,9 +341,9 @@ def _nms_loop(
         ib.scope_attr(tx, "thread_extent", nthread_tx)
 
         num_valid_boxes_local = ib.allocate(
-            "int32", (1,), name="num_valid_boxes_local", scope="local"
+            "int64", (1,), name="num_valid_boxes_local", scope="local"
         )
-        num_valid_boxes_local[0] = 0
+        num_valid_boxes_local[0] = cast(0, "int64")
 
         def nms_inner_loop(ib, i, j, nkeep):
             # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
@@ -400,7 +400,7 @@ def _nms_loop(
                 num_valid_boxes[i] = num_valid_boxes_local[0]
 
         with ib.else_scope():
-            num_valid_boxes[i] = 0
+            num_valid_boxes[i] = cast(0, "int64")
 
     return ib.get()
 
@@ -1054,7 +1054,7 @@ def _all_class_nms_ir(
 
     def on_new_valid_box(ib, tid, num_current_valid_box, i, j):
         with ib.if_scope(tid + 0 == 0):
-            box_indices[i, num_current_valid_box] = sorted_indices[i, j]
+            box_indices[i, num_current_valid_box] = cast(sorted_indices[i, j], "int64")
 
     def max_output_size(batch_class_index):
         return max_output_size_per_class
@@ -1116,7 +1116,7 @@ def _run_all_class_nms(
             outs[0],  # box_indices
             outs[1],  # num_valid_boxes
         ),
-        dtype=["int32", "int32"],
+        dtype=["int64", "int64"],
         in_buffers=[
             boxes_buf,
             sorted_scores_buf,
@@ -1151,7 +1151,7 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
 
     with ib.new_scope():
         idx = bx * nthread_tx + tx
-        idy = by
+        idy = cast(by, "int64")
         batch_id = idy // num_class
         class_id = idy % num_class
         with ib.if_scope(idx < num_detections[idy]):
@@ -1179,7 +1179,7 @@ def _collect_selected_indices(num_class, selected_indices, num_detections, row_o
         [(batch_class * num_boxes, 3)],
         [selected_indices, num_detections, row_offsets],
         lambda ins, outs: _collect_selected_indices_ir(num_class, ins[0], ins[1], ins[2], outs[0]),
-        dtype=["int32"],
+        dtype=["int64"],
         in_buffers=[selected_indices_buf, num_detections_buf, row_offsets_buf],
         name="collect_indices",
         tag="collect_indices",
@@ -1198,7 +1198,7 @@ def all_class_non_max_suppression(
     selected_indices, num_detections = _run_all_class_nms(
         boxes, sorted_scores, sorted_indices, valid_count, max_output_boxes_per_class, iou_threshold
     )
-    num_detections = cast(expand_dims(num_detections, axis=0), "int64")
+    num_detections = expand_dims(num_detections, axis=0)
 
     row_offsets, num_total_detections = exclusive_scan(num_detections, return_reduction=True)
 

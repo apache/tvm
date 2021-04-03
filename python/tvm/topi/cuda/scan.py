@@ -81,7 +81,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
             ib.scope_attr(bx, "thread_extent", batch_size)
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
-                    reduction[bx] = 0
+                    reduction[bx] = cast(identity_value, "int64")
     with ib.else_scope():
         with ib.new_scope():
             nthread_tx = max_threads
