@@ -2489,11 +2489,11 @@ class NonMaxSuppression(OnnxOpConverter):
             boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
         )
 
-        zero = _op.const(np.array([0]), dtype="int32")
-        three = _op.const(np.array([3]), dtype="int32")
+        zero = _op.const(np.array([0]), dtype="int64")
+        three = _op.const(np.array([3]), dtype="int64")
         begin = _op.concatenate([zero, zero], axis=0)
         end = _op.concatenate([nms_out[1], three], axis=0)
-        strides = _op.const(np.array([1, 1]), dtype="int32")
+        strides = _op.const(np.array([1, 1]), dtype="int64")
         # TODO: fix cast
         return _op.cast(_op.strided_slice(nms_out[0], begin, end, strides), "int64")
 

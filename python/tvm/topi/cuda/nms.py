@@ -1198,7 +1198,7 @@ def all_class_non_max_suppression(
     selected_indices, num_detections = _run_all_class_nms(
         boxes, sorted_scores, sorted_indices, valid_count, max_output_boxes_per_class, iou_threshold
     )
-    num_detections = expand_dims(num_detections, axis=0)
+    num_detections = cast(expand_dims(num_detections, axis=0), "int64")
 
     row_offsets, num_total_detections = exclusive_scan(num_detections, return_reduction=True)
 
