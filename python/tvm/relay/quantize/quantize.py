@@ -80,7 +80,7 @@ class QConfig(Object):
         "global_scale": 8.0,
         "weight_scale": "power2",
         "skip_dense_layer": True,
-        "skip_conv_layers": [0],
+        "skip_conv_layers": None,
         "do_simulation": False,
         "round_for_shift": True,
         "debug_enabled_ops": None,
@@ -220,9 +220,8 @@ class QuantizeContext(object):
         if current_qconfig().skip_conv_layers is not None:
             # check skip conv layers
             skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-            if self._conv2d_counter in skipped_indices:
-                if ref_call.op.name == "nn.conv2d":
-                    self._conv2d_counter += 1
+            if self._conv2d_counter in skipped_indices and ref_call.op.name == "nn.conv2d":
+                self._conv2d_counter += 1
                 return True
             if ref_call.op.name == "nn.conv2d":
                 self._conv2d_counter += 1
