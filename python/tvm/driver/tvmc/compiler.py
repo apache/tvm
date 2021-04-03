@@ -111,16 +111,16 @@ def drive_compile(args):
         Zero if successfully completed
 
     """
+    mod, params = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
 
     graph, lib, params, dumps = compile_model(
-        args.FILE,
+        mod,
+        params,
         args.target,
         args.dump_code,
         None,
-        args.model_format,
         args.tuning_records,
         args.desired_layout,
-        args.input_shapes,
     )
 
     if dumps:
@@ -131,14 +131,13 @@ def drive_compile(args):
 
 
 def compile_model(
-    path,
+    mod,
+    params,
     target,
     dump_code=None,
     target_host=None,
-    model_format=None,
     tuning_records=None,
     alter_layout=None,
-    shape_dict=None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -148,8 +147,10 @@ def compile_model(
 
     Parameters
     ----------
-    path: str
-        Path to a file
+    mod: IRModule
+        The relay module to be compiled.
+    params: dict
+        A dictionary containing the module's parameters.
     target : str
         The target for which to compile. Can be a plain string or
         a path.
@@ -159,8 +160,6 @@ def compile_model(
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
-    model_format: str, optional
-        A string representing a name of a frontend to be used
     tuning_records: str, optional
         Path to the file produced by the tuning to be used during
         compilation.
@@ -168,9 +167,6 @@ def compile_model(
         The layout to convert the graph to. Note, the convert layout
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
-    shape_dict: dict, optional
-        A mapping from input names to their shape. When present,
-        the default shapes in the model will be overwritten.
 
     Returns
     -------
@@ -185,7 +181,6 @@ def compile_model(
 
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format, shape_dict)
     config = {}
 
     if alter_layout:

@@ -196,6 +196,11 @@ def test_match_call():
     add_pattern = is_op("add")(wildcard(), wildcard())
     assert add_pattern.match(x + y)
 
+    # Match call with any number of inputs
+    call_pattern = wildcard()(None)
+    assert call_pattern.match(relay.op.nn.relu(x))
+    assert call_pattern.match(relay.op.add(x, y))
+
 
 def test_no_match_call():
     x = relay.var("x")
@@ -210,6 +215,11 @@ def test_match_func():
     wc1 = wildcard()
     wc2 = wildcard()
     func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
+    assert func_pattern.match(relay.Function([x, y], x + y))
+
+    # Match Function with any number of inputs
+    func_pattern = FunctionPattern(None, wildcard())
+    assert func_pattern.match(relay.Function([x], x))
     assert func_pattern.match(relay.Function([x, y], x + y))
 
 
@@ -368,6 +378,13 @@ def test_match_tuple():
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 0))
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 2))
+
+    # Match tuple with any inputs
+    tuple_pattern = is_tuple(None)
+    concat_pattern = is_op("concatenate")(tuple_pattern)
+    assert concat_pattern.match(relay.op.concatenate(relay.expr.Tuple((x,)), axis=0))
+    assert concat_pattern.match(relay.op.concatenate(relay.expr.Tuple((x, y)), axis=0))
+    assert concat_pattern.match(relay.op.concatenate(relay.expr.Tuple((x, y, z)), axis=0))
 
 
 def test_no_match_tuple():
@@ -1375,6 +1392,63 @@ def test_partition_overused():
     assert pattern.partition(out) == out
 
 
+def test_partition_fuzzy_tuple():
+    x = relay.var("x")
+    y = relay.var("y")
+    z = x + y
+    tuple_pattern = is_tuple(None)
+    concat_pattern = is_op("concatenate")(tuple_pattern)
+
+    xp = relay.var("xp")
+    yp = relay.var("yp")
+    zp = relay.var("zp")
+
+    def create_func(args, body):
+        return relay.Function(args, body).with_attr("PartitionedFromPattern", "Tuple_concatenate_")
+
+    def concat(*args):
+        return relay.op.concatenate(relay.expr.Tuple(args), axis=0)
+
+    one = concat_pattern.partition(concat(x))
+    assert tvm.ir.structural_equal(one, create_func([xp], concat(xp))(x))
+    two = concat_pattern.partition(concat(x, y))
+    assert tvm.ir.structural_equal(two, create_func([xp, yp], concat(xp, yp))(x, y))
+    three = concat_pattern.partition(concat(x, y, z))
+    assert tvm.ir.structural_equal(three, create_func([xp, yp, zp], concat(xp, yp, zp))(x, y, z))
+
+
+def test_partition_fuzzy_function_args():
+
+    func_pattern = FunctionPattern(None, wildcard() + wildcard())(None) + wildcard()
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.var("z")
+    b = relay.var("b")
+    xp = relay.var("xp")
+    yp = relay.var("yp")
+    zp = relay.var("zp")
+
+    def create_func(call):
+        N = len(call.op.params)
+        new_params = [relay.var(str(i)) for i in range(N + 1)]
+        label = "add_FunctionCall_add_"
+        if N == 3:
+            label = "add_" + label
+        return relay.Function(
+            new_params, relay.Call(call.op, (new_params[0:-1])) + new_params[-1]
+        ).with_attr("PartitionedFromPattern", label)(*([x, y, z][0:N] + [b]))
+
+    f1 = relay.Function([xp], xp + xp)(x)
+    one = func_pattern.partition(f1 + b)
+    assert tvm.ir.structural_equal(one, create_func(f1))
+    f2 = relay.Function([xp, yp], xp + yp)(x, y)
+    two = func_pattern.partition(f2 + b)
+    assert tvm.ir.structural_equal(two, create_func(f2))
+    f3 = relay.Function([xp, yp, zp], xp + yp + zp)(x, y, z)
+    three = func_pattern.partition(f3 + b)
+    assert tvm.ir.structural_equal(three, create_func(f3))
+
+
 def test_partition_check():
     pattern = is_op("nn.relu")(is_op("nn.conv2d")(is_var("input"), wildcard()))
 
@@ -1529,10 +1603,6 @@ def test_rewrite_function_with_fuzzy_body():
     assert tvm.ir.structural_equal(x + w, x + w)
 
 
-@pytest.mark.skip(
-    """TODO(mbrookhart): The current partitioner can't properly handle 
-                       the partitioned inputs on the fuzzy body"""
-)
 def test_partition_function_with_fuzzy_body():
     """
     Allow Rewriting a function with a fuzzy body via dominator analysis
@@ -1560,7 +1630,7 @@ def test_partition_function_with_fuzzy_body():
     w2 = relay.var("w2")
     b2 = relay.var("b2")
     func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
-        "PartitionedFromPattern", "FunctionCall_add_"
+        "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
     )
     expr2 = func2(x, w, b) + b
     assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
