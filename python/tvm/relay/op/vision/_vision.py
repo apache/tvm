@@ -45,8 +45,8 @@ reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
 reg.register_strategy("vision.non_max_suppression", strategy.nms_strategy)
 reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
 
-reg.register_strategy("vision.all_non_max_suppression", strategy.all_class_nms_strategy)
-reg.register_pattern("vision.all_non_max_suppression", OpPattern.OPAQUE)
+reg.register_strategy("vision.all_class_non_max_suppression", strategy.all_class_nms_strategy)
+reg.register_pattern("vision.all_class_non_max_suppression", OpPattern.OPAQUE)
 
 
 @script

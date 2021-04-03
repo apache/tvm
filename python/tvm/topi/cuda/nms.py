@@ -1203,4 +1203,4 @@ def all_class_non_max_suppression(
         num_class, selected_indices, num_detections, row_offsets
     )
 
-    return selected_indices, num_total_detections
+    return [selected_indices, num_total_detections]
