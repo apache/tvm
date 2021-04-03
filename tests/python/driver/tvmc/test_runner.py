@@ -73,9 +73,11 @@ def test_run_tflite_module__with_profile__valid_input(
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
+    inputs = np.load(imagenet_cat)
+
     outputs, times = tvmc.run(
         tflite_compiled_module_as_tarfile,
-        inputs_file=imagenet_cat,
+        inputs=inputs,
         hostname=None,
         device="cpu",
         profile=True,
