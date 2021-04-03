@@ -399,6 +399,9 @@ def _nms_loop(
             with ib.if_scope(tx + 0 == 0):
                 num_valid_boxes[i] = num_valid_boxes_local[0]
 
+        with ib.else_scope():
+            num_valid_boxes[i] = 0
+
     return ib.get()
 
 
