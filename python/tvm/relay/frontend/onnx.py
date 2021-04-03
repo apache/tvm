@@ -2456,25 +2456,12 @@ class NonMaxSuppression(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        """
-        High level note: ONNX implements what TF calls combined_non_max_suppression
-        It passes in scores for each box for every class in the output and expects boxes to be
-        analyzed for each class independently
-
-        It also asks for the data to be returned in a particular format.
-
-        To support these, we implement a series of lops:
-        The first loop splits over class number, performs NMS, and collects the outputs.
-        The second (nested) loop takes the outputs and transforms them into the format ONNX wants
-        """
         # Get parameter values
         boxes = inputs[0]
         scores = inputs[1]
         max_output_boxes_per_class = inputs[2]
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
-
-        dtype = infer_type(boxes).checked_type.dtype
 
         if "center_point_box" in attr:
             if attr["center_point_box"] != 0:
