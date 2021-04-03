@@ -341,9 +341,9 @@ def _nms_loop(
         ib.scope_attr(tx, "thread_extent", nthread_tx)
 
         num_valid_boxes_local = ib.allocate(
-            "int64", (1,), name="num_valid_boxes_local", scope="local"
+            "int32", (1,), name="num_valid_boxes_local", scope="local"
         )
-        num_valid_boxes_local[0] = cast(0, "int64")
+        num_valid_boxes_local[0] = 0
 
         def nms_inner_loop(ib, i, j, nkeep):
             # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
@@ -400,7 +400,7 @@ def _nms_loop(
                 num_valid_boxes[i] = num_valid_boxes_local[0]
 
         with ib.else_scope():
-            num_valid_boxes[i] = cast(0, "int64")
+            num_valid_boxes[i] = 0
 
     return ib.get()
 
@@ -1054,7 +1054,7 @@ def _all_class_nms_ir(
 
     def on_new_valid_box(ib, tid, num_current_valid_box, i, j):
         with ib.if_scope(tid + 0 == 0):
-            box_indices[i, num_current_valid_box] = cast(sorted_indices[i, j], "int64")
+            box_indices[i, num_current_valid_box] = sorted_indices[i, j]
 
     def max_output_size(batch_class_index):
         return max_output_size_per_class
@@ -1116,7 +1116,7 @@ def _run_all_class_nms(
             outs[0],  # box_indices
             outs[1],  # num_valid_boxes
         ),
-        dtype=["int64", "int64"],
+        dtype=["int32", "int32"],
         in_buffers=[
             boxes_buf,
             sorted_scores_buf,
@@ -1157,7 +1157,7 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
         with ib.if_scope(idx < num_detections[idy]):
             out[row_offsets[idy] + idx, 0] = batch_id
             out[row_offsets[idy] + idx, 1] = class_id
-            out[row_offsets[idy] + idx, 2] = selected_indices[idy, idx]
+            out[row_offsets[idy] + idx, 2] = cast(selected_indices[idy, idx], "int64")
 
     return ib.get()
 
@@ -1200,7 +1200,9 @@ def all_class_non_max_suppression(
     )
     num_detections = expand_dims(num_detections, axis=0)
 
-    row_offsets, num_total_detections = exclusive_scan(num_detections, return_reduction=True)
+    row_offsets, num_total_detections = exclusive_scan(
+        num_detections, return_reduction=True, output_dtype="int64"
+    )
 
     selected_indices = _collect_selected_indices(
         num_class, selected_indices, num_detections, row_offsets
