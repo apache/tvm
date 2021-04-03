@@ -1078,7 +1078,7 @@ def all_class_nms_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_all_class_nms(topi.cuda.all_class_non_max_suppression),
-        wrap_topi_schedule(topi.cuda.schedule_nms),
+        wrap_topi_schedule(topi.cuda.schedule_all_class_non_max_suppression),
         name="all_class_nms.generic",
     )
     return strategy

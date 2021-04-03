@@ -2501,9 +2501,13 @@ class NonMaxSuppression(OnnxOpConverter):
         nms_out = _op.vision.all_class_non_max_suppression(
             boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
         )
-        num_detections = _op.squeeze(nms_out[1], axis=[0])
-        return nms_out[0]
-        #return _op.strided_slice(nms_out[0], _expr.const([0]), num_detections)
+
+        zero = _op.const(np.array([0]), dtype="int32")
+        three = _op.const(np.array([3]), dtype="int32")
+        begin = _op.concatenate([zero, zero], axis=0)
+        end = _op.concatenate([nms_out[1], three], axis=0)
+        strides = _op.const(np.array([1, 1]), dtype="int32")
+        return _op.strided_slice(nms_out[0], begin, end, strides)
 
 
 class ATen(OnnxOpConverter):
