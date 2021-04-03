@@ -94,7 +94,7 @@ wget --no-verbose -O $ZEPHYR_SDK_FILE \
     https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-x86_64-linux-setup.run
 chmod +x $ZEPHYR_SDK_FILE
 "./$ZEPHYR_SDK_FILE" -- -d ~/zephyr-sdk -y
-rm -rf ZEPHYR_SDK_FILE
+rm -rf "${ZEPHYR_SDK_FILE}"
 
 # GDB for Zephyr SDK depends on python3.8
 sudo add-apt-repository ppa:deadsnakes/ppa
