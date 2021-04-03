@@ -43,7 +43,7 @@ from .batch_matmul import *
 from .batch_matmul_tensorcore import *
 from .vision import *
 from .ssd import *
-from .nms import get_valid_counts, non_max_suppression
+from .nms import get_valid_counts, non_max_suppression, all_class_non_max_suppression
 from .rcnn import *
 from .scatter import *
 from .sort import *

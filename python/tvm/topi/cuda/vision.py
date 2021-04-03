@@ -78,6 +78,24 @@ def schedule_nms(outs):
     return _default_schedule(outs)
 
 
+def schedule_all_class_non_max_suppression(outs):
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+
+    def traverse(op):
+        if tag.is_injective(op.tag):
+            schedule_injective_from_existing(s, op.output(0))
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+
+    for out in outs:
+        traverse(out.op)
+    return s
+
+
 def schedule_multibox_prior(outs):
     """Schedule for multibox_prior operator.
 
