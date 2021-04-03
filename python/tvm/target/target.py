@@ -182,6 +182,9 @@ class Target(Object):
         target_is_dict_key : Bool
             When the type of target is dict, whether Target is the key (Otherwise the value)
         """
+        if target is None:
+            assert host is None, "Target host is not empty when target is empty."
+            return target, host
         if isinstance(target, dict) and "kind" not in target:
             new_target = {}
             for tgt, mod in target.items():
