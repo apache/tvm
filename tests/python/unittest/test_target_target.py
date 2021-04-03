@@ -290,7 +290,7 @@ def test_check_and_update_host_consist_2():
 
 
 def test_check_and_update_host_consist_3():
-    target = Target("cuda --host=llvm")
+    target = Target(target="cuda", host="llvm")
     host = None
     target, host = Target.check_and_update_host_consist(target, host)
     assert target.kind.name == "cuda"
