@@ -1097,7 +1097,7 @@ def _run_all_class_nms(
     )
 
     return te.extern(
-        [(batch_class, num_boxes), (batch_class,)],
+        [(batch_class, num_boxes), (1, batch_class)],
         [boxes, sorted_scores, sorted_indices, valid_count],
         lambda ins, outs: _all_class_nms_ir(
             ins[0],  # boxes
@@ -1194,7 +1194,6 @@ def all_class_non_max_suppression(
     selected_indices, num_detections = _run_all_class_nms(
         boxes, sorted_scores, sorted_indices, valid_count, max_output_boxes_per_class, iou_threshold
     )
-    num_detections = expand_dims(num_detections, axis=0)
 
     row_offsets, num_total_detections = exclusive_scan(
         num_detections, return_reduction=True, output_dtype="int64"
