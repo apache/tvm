@@ -20,7 +20,21 @@ import tvm
 from tvm import te
 
 from tvm.te import hybrid
+from tvm.contrib import nvcc
+from tvm.tir import if_then_else
+
 from ..sort import argsort
+from ..math import cast
+from ..utils import ceil_div
+from ..transform import reshape
+from ..reduction import sum
+from ..sort import sort, argsort
+from ..scan import cumsum
+from .nms_util import (
+    binary_search,
+    collect_selected_indices,
+    run_all_class_nms,
+)
 
 
 @hybrid.script
@@ -597,3 +611,194 @@ def non_max_suppression(
             num_anchors=num_anchors,
         )
     return out
+
+
+def _nms_loop(
+    ib,
+    batch_size,
+    num_anchors,
+    top_k,
+    iou_threshold,
+    max_output_size,
+    valid_count,
+    on_new_valid_box_func,
+    on_new_invalidated_box_func,
+    needs_bbox_check_func,
+    calc_overlap_func,
+    out_scores,
+    num_valid_boxes,
+):
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+
+    with ib.new_scope():
+        nthread_by = batch_size
+        nthread_tx = max_threads
+
+        # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock
+        # vs 64K for most GPUs. Since this kernel uses many registers (around 35), the limit will
+        # be exceeded with 1024 threads.
+        target = tvm.target.Target.current(allow_none=False)
+        if target.kind.name == "cuda":
+            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
+                nthread_tx = 512
+
+        by = te.thread_axis("blockIdx.y")
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(by, "thread_extent", nthread_by)
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+
+        num_valid_boxes_local = ib.allocate(
+            "int32", (1,), name="num_valid_boxes_local", scope="local"
+        )
+        num_valid_boxes_local[0] = 0
+
+        def nms_inner_loop(ib, i, j, nkeep):
+            # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
+            on_new_valid_box_func(ib, tx, num_valid_boxes_local[0], i, j)
+            num_valid_boxes_local[0] += 1
+
+            num_iter_per_thread = ceil_div(nkeep - (j + 1), nthread_tx)
+
+            with ib.for_range(0, num_iter_per_thread, name="_k") as _k:
+                k = j + 1 + _k * nthread_tx + tx
+
+                with ib.if_scope(
+                    tvm.tir.all(
+                        k < nkeep,
+                        out_scores[i, k] > 0,  # is the box k still valid?
+                        needs_bbox_check_func(i, j, k),
+                    )
+                ):
+                    iou = calc_overlap_func(i, j, k)
+
+                    with ib.if_scope(iou >= iou_threshold):
+                        # invalidate the box k
+                        out_scores[i, k] = -1.0
+                        on_new_invalidated_box_func(i, k)
+
+        i = by
+
+        nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
+        max_output_size = if_then_else(max_output_size > 0, max_output_size, nkeep)
+
+        with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
+            # Apply nms
+            # No need to do more iteration if we have already reached max_output_size boxes
+            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+            box_idx[0] = 0
+            with ib.while_loop(
+                tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+            ):
+                # Proceed to the inner loop if the box with id box_idx is still valid
+                with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+                    nms_inner_loop(ib, i, box_idx[0], nkeep)
+                box_idx[0] += 1
+
+            with ib.if_scope(tx + 0 == 0):
+                num_valid_boxes[i] = num_valid_boxes_local[0]
+
+        with ib.else_scope():
+            num_valid_boxes[i] = 0
+
+    return ib.get()
+
+
+def _get_valid_box_count(scores, score_threshold):
+    batch_classes, num_boxes = scores.shape
+
+    def searchsorted_ir(scores, valid_count):
+        ib = tvm.tir.ir_builder.create()
+        scores = ib.buffer_ptr(scores)
+        valid_count = ib.buffer_ptr(valid_count)
+
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+
+        with ib.new_scope():
+            ib.scope_attr(bx, "thread_extent", ceil_div(batch_classes, max_threads))
+            ib.scope_attr(tx, "thread_extent", max_threads)
+            tid = bx * max_threads + tx
+
+            with ib.if_scope(tid < batch_classes):
+                binary_search(ib, tid, num_boxes, scores, score_threshold, valid_count)
+
+        return ib.get()
+
+    scores_buf = tvm.tir.decl_buffer(scores.shape, scores.dtype, "scores_buf", data_alignment=8)
+
+    return te.extern(
+        [(batch_classes,)],
+        [scores],
+        lambda ins, outs: searchsorted_ir(ins[0], outs[0]),
+        dtype=["int32"],
+        in_buffers=[scores_buf],
+        name="searchsorted",
+        tag="searchsorted",
+    )
+
+
+def _collect_selected_indices_ir(num_class, selected_indices, num_detections, row_offsets, out):
+    batch_classes, num_boxes = selected_indices.shape
+
+    ib = tvm.tir.ir_builder.create()
+
+    selected_indices = ib.buffer_ptr(selected_indices)
+    num_detections = ib.buffer_ptr(num_detections)
+    row_offsets = ib.buffer_ptr(row_offsets)
+    out = ib.buffer_ptr(out)
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+    nthread_bx = ceil_div(num_boxes, nthread_tx)
+    nthread_by = batch_classes
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
+    by = te.thread_axis("blockIdx.y")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    ib.scope_attr(by, "thread_extent", nthread_by)
+
+    with ib.new_scope():
+        idx = bx * nthread_tx + tx
+        idy = cast(by, "int64")
+        batch_id = idy // num_class
+        class_id = idy % num_class
+        with ib.if_scope(idx < num_detections[idy]):
+            out[row_offsets[idy] + idx, 0] = batch_id
+            out[row_offsets[idy] + idx, 1] = class_id
+            out[row_offsets[idy] + idx, 2] = cast(selected_indices[idy, idx], "int64")
+
+    return ib.get()
+
+
+def all_class_non_max_suppression(
+    boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+):
+    batch, num_class, num_boxes = scores.shape
+
+    scores = reshape(scores, (batch * num_class, num_boxes))
+    # TODO(masahi): CPU argsort should return both sorted values and indices
+    sorted_scores = sort(scores, axis=1, is_ascend=False, dtype="int32")
+    sorted_indices = argsort(scores, axis=1, is_ascend=False, dtype="int32")
+    valid_count = _get_valid_box_count(sorted_scores, score_threshold)
+
+    selected_indices, num_detections = run_all_class_nms(
+        boxes,
+        sorted_scores,
+        sorted_indices,
+        valid_count,
+        max_output_boxes_per_class,
+        iou_threshold,
+        _nms_loop,
+    )
+
+    row_offsets = cumsum(num_detections, exclusive=True, dtype="int64")
+
+    num_total_detections = sum(num_detections, axis=1)
+
+    selected_indices = collect_selected_indices(
+        num_class, selected_indices, num_detections, row_offsets, _collect_selected_indices_ir
+    )
+
+    return [selected_indices, num_total_detections]
