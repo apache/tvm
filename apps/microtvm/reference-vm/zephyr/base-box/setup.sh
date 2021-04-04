@@ -81,17 +81,20 @@ pip3 install --user -U west
 echo 'export PATH=$HOME/.local/bin:"$PATH"' >> ~/.profile
 source ~/.profile
 echo PATH=$PATH
-west init --mr v2.4.0 ~/zephyr
+west init --mr v2.5.0 ~/zephyr
 cd ~/zephyr
 west update
 west zephyr-export
 
 cd ~
 echo "Downloading zephyr SDK..."
-wget --no-verbose https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.11.3/zephyr-sdk-0.11.3-setup.run
-chmod +x zephyr-sdk-0.11.3-setup.run
-./zephyr-sdk-0.11.3-setup.run -- -d ~/zephyr-sdk -y
-rm -rf zephyr-sdk-0.11.3-setup.run
+ZEPHYR_SDK_VERSION=0.12.3
+ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
+wget --no-verbose -O $ZEPHYR_SDK_FILE \
+    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-x86_64-linux-setup.run
+chmod +x $ZEPHYR_SDK_FILE
+"./$ZEPHYR_SDK_FILE" -- -d ~/zephyr-sdk -y
+rm -rf ZEPHYR_SDK_FILE
 
 # GDB for Zephyr SDK depends on python3.8
 sudo add-apt-repository ppa:deadsnakes/ppa
