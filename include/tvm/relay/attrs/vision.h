@@ -115,9 +115,10 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
 };
 
 /*! \brief Attributes used in non_maximum_suppression operator */
-struct AllClassNonMaximumSuppressionAttrs : public tvm::AttrsNode<AllClassNonMaximumSuppressionAttrs> {
-  TVM_DECLARE_ATTRS(AllClassNonMaximumSuppressionAttrs, "relay.attrs.AllClassNonMaximumSuppressionAttrs") {
-  }
+struct AllClassNonMaximumSuppressionAttrs
+    : public tvm::AttrsNode<AllClassNonMaximumSuppressionAttrs> {
+  TVM_DECLARE_ATTRS(AllClassNonMaximumSuppressionAttrs,
+                    "relay.attrs.AllClassNonMaximumSuppressionAttrs") {}
 };
 
 /*! \brief Attributes used in roi_align operators */

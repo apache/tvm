@@ -660,7 +660,7 @@ def verify_all_class_non_max_suppression(
         print(selected_indices.asnumpy()[:num_detections.asnumpy()[0]])
         # tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for target in ["llvm"]:
+    for target in ["llvm", "cuda"]:
         check_device(target)
 
 
