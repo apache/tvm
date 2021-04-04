@@ -26,8 +26,13 @@ from .sort import argsort, argsort_thrust
 from .scan import exclusive_scan
 from ..utils import ceil_div
 from ..math import cast
-from ..transform import reshape, expand_dims
-from ..broadcast import greater
+from ..transform import reshape
+from ..vision.nms_util import (
+    calculate_overlap,
+    binary_search,
+    collect_selected_indices,
+    run_all_class_nms,
+)
 
 
 def cuda_atomic_add_rule(op):
@@ -266,44 +271,6 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     )
 
     return [valid_count, out, out_indices]
-
-
-def get_boundaries(output, box_idx):
-    l = tvm.te.min(
-        output[box_idx],
-        output[box_idx + 2],
-    )
-    t = tvm.te.min(
-        output[box_idx + 1],
-        output[box_idx + 3],
-    )
-    r = tvm.te.max(
-        output[box_idx],
-        output[box_idx + 2],
-    )
-    b = tvm.te.max(
-        output[box_idx + 1],
-        output[box_idx + 3],
-    )
-    return l, t, r, b
-
-
-def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
-    """Calculate overlap of two boxes."""
-    a_l, a_t, a_r, a_b = get_boundaries(out_tensor, box_a_idx)
-    b_l, b_t, b_r, b_b = get_boundaries(out_tensor, box_b_idx)
-
-    # Overlapping width and height
-    w = tvm.te.max(0.0, tvm.te.min(a_r, b_r) - tvm.te.max(a_l, b_l))
-    h = tvm.te.max(0.0, tvm.te.min(a_b, b_b) - tvm.te.max(a_t, b_t))
-
-    # Overlapping area
-    area = h * w
-
-    # total area of the figure formed by box a and box b
-    # except for overlapping area
-    u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-    return tvm.tir.Select(u <= 0.0, 0.0, area / u)
 
 
 def _nms_loop(
@@ -965,22 +932,6 @@ def non_max_suppression(
 def _get_valid_box_count(scores, score_threshold):
     batch_classes, num_boxes = scores.shape
 
-    def binary_search(ib, y, out):
-        lo = ib.allocate("int32", (1,), name="lo", scope="local")
-        hi = ib.allocate("int32", (1,), name="hi", scope="local")
-
-        lo[0] = 0
-        hi[0] = num_boxes
-
-        with ib.while_loop(lo[0] < hi[0]):
-            mid = (hi[0] + lo[0]) >> 1
-            with ib.if_scope(scores[y, mid] > score_threshold):
-                lo[0] = mid + 1
-            with ib.else_scope():
-                hi[0] = mid
-
-        out[y] = lo[0]
-
     def searchsorted_ir(scores, valid_count):
         ib = tvm.tir.ir_builder.create()
         scores = ib.buffer_ptr(scores)
@@ -996,7 +947,7 @@ def _get_valid_box_count(scores, score_threshold):
             tid = bx * max_threads + tx
 
             with ib.if_scope(tid < batch_classes):
-                binary_search(ib, tid, valid_count)
+                binary_search(ib, tid, num_boxes, scores, score_threshold, valid_count)
 
         return ib.get()
 
@@ -1010,117 +961,6 @@ def _get_valid_box_count(scores, score_threshold):
         in_buffers=[scores_buf],
         name="searchsorted",
         tag="searchsorted",
-    )
-
-
-def _all_class_nms_ir(
-    boxes,
-    sorted_scores,
-    sorted_indices,
-    valid_count,
-    batch_class,
-    num_class,
-    num_anchors,
-    iou_threshold,
-    max_output_size_per_class,
-    box_indices,
-    num_valid_boxes,
-):
-    ib = tvm.tir.ir_builder.create()
-    boxes = ib.buffer_ptr(boxes)
-    sorted_scores = ib.buffer_ptr(sorted_scores)
-    sorted_indices = ib.buffer_ptr(sorted_indices)
-    valid_count = ib.buffer_ptr(valid_count)
-    box_indices = ib.buffer_ptr(box_indices)
-    num_valid_boxes = ib.buffer_ptr(num_valid_boxes)
-
-    if isinstance(iou_threshold, float):
-        iou_threshold = tvm.tir.FloatImm("float32", iou_threshold)
-
-    if isinstance(max_output_size_per_class, int):
-        max_output_size_per_class = tvm.tir.const(max_output_size_per_class)
-
-    def calc_overlap(i, j, k):
-        offset_j = sorted_indices[i, j] * 4
-        offset_k = sorted_indices[i, k] * 4
-        batch_id = i // num_class
-        base_bbox_idx = batch_id * num_anchors * 4
-        return calculate_overlap(
-            boxes,
-            base_bbox_idx + offset_j,
-            base_bbox_idx + offset_k,
-        )
-
-    def on_new_valid_box(ib, tid, num_current_valid_box, i, j):
-        with ib.if_scope(tid + 0 == 0):
-            box_indices[i, num_current_valid_box] = sorted_indices[i, j]
-
-    def on_new_invalidated_box(i, k):
-        pass
-
-    def needs_bbox_check(i, j, k):
-        return tvm.tir.const(True)
-
-    return _nms_loop(
-        ib,
-        batch_class,
-        num_anchors,
-        tvm.tir.IntImm("int32", -1),  # top_k
-        iou_threshold,
-        max_output_size_per_class,
-        valid_count,
-        on_new_valid_box,
-        on_new_invalidated_box,
-        needs_bbox_check,
-        calc_overlap,
-        sorted_scores,
-        num_valid_boxes,
-    )
-
-
-def _run_all_class_nms(
-    boxes, sorted_scores, sorted_indices, valid_count, max_output_size_per_class, iou_threshold
-):
-    batch, num_boxes, _ = boxes.shape
-    batch_class = sorted_scores.shape[0]
-    num_class = batch_class // batch
-
-    boxes_buf = tvm.tir.decl_buffer(boxes.shape, boxes.dtype, "boxes_buf", data_alignment=8)
-    sorted_scores_buf = tvm.tir.decl_buffer(
-        sorted_scores.shape, sorted_scores.dtype, "sorted_scores_buf", data_alignment=8
-    )
-    sorted_indices_buf = tvm.tir.decl_buffer(
-        sorted_indices.shape, sorted_indices.dtype, "sorted_indices_buf", data_alignment=8
-    )
-    valid_count_buf = tvm.tir.decl_buffer(
-        valid_count.shape, "int32", "valid_count_buf", data_alignment=4
-    )
-
-    return te.extern(
-        [(batch_class, num_boxes), (1, batch_class)],
-        [boxes, sorted_scores, sorted_indices, valid_count],
-        lambda ins, outs: _all_class_nms_ir(
-            ins[0],  # boxes
-            ins[1],  # sorted_scores
-            ins[2],  # sorted_indices
-            ins[3],  # valid_count
-            batch_class,
-            num_class,
-            num_boxes,
-            iou_threshold,
-            max_output_size_per_class,
-            outs[0],  # box_indices
-            outs[1],  # num_valid_boxes
-        ),
-        dtype=["int32", "int32"],
-        in_buffers=[
-            boxes_buf,
-            sorted_scores_buf,
-            sorted_indices_buf,
-            valid_count_buf,
-        ],
-        name="all_class_nms",
-        tag="all_class_nms",
     )
 
 
@@ -1158,30 +998,6 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
     return ib.get()
 
 
-def _collect_selected_indices(num_class, selected_indices, num_detections, row_offsets):
-    batch_class, num_boxes = selected_indices.shape
-
-    selected_indices_buf = tvm.tir.decl_buffer(
-        selected_indices.shape, selected_indices.dtype, "selected_indices_buf", data_alignment=8
-    )
-    num_detections_buf = tvm.tir.decl_buffer(
-        num_detections.shape, num_detections.dtype, "num_detections_buf", data_alignment=8
-    )
-    row_offsets_buf = tvm.tir.decl_buffer(
-        row_offsets.shape, row_offsets.dtype, "row_offsets_buf", data_alignment=8
-    )
-
-    return te.extern(
-        [(batch_class * num_boxes, 3)],
-        [selected_indices, num_detections, row_offsets],
-        lambda ins, outs: _collect_selected_indices_ir(num_class, ins[0], ins[1], ins[2], outs[0]),
-        dtype=["int64"],
-        in_buffers=[selected_indices_buf, num_detections_buf, row_offsets_buf],
-        name="collect_indices",
-        tag="collect_indices",
-    )
-
-
 def all_class_non_max_suppression(
     boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
 ):
@@ -1191,16 +1007,22 @@ def all_class_non_max_suppression(
     sorted_scores, sorted_indices = _dispatch_sort(scores, ret_type="both")
     valid_count = _get_valid_box_count(sorted_scores, score_threshold)
 
-    selected_indices, num_detections = _run_all_class_nms(
-        boxes, sorted_scores, sorted_indices, valid_count, max_output_boxes_per_class, iou_threshold
+    selected_indices, num_detections = run_all_class_nms(
+        boxes,
+        sorted_scores,
+        sorted_indices,
+        valid_count,
+        max_output_boxes_per_class,
+        iou_threshold,
+        _nms_loop,
     )
 
     row_offsets, num_total_detections = exclusive_scan(
         num_detections, return_reduction=True, output_dtype="int64"
     )
 
-    selected_indices = _collect_selected_indices(
-        num_class, selected_indices, num_detections, row_offsets
+    selected_indices = collect_selected_indices(
+        num_class, selected_indices, num_detections, row_offsets, _collect_selected_indices_ir
     )
 
     return [selected_indices, num_total_detections]
