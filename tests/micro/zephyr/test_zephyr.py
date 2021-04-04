@@ -59,10 +59,10 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
 
 
 def _make_session(model, target, zephyr_board, west_cmd, mod):
-    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}-{model}"
+    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{model}"
     prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
-        f'{test_name}-workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
+        f'{test_name}_workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
     )
     workspace_parent = os.path.dirname(workspace_root)
     if not os.path.exists(workspace_parent):
