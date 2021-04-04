@@ -711,17 +711,8 @@ def _get_valid_box_count(scores, score_threshold):
         scores = ib.buffer_ptr(scores)
         valid_count = ib.buffer_ptr(valid_count)
 
-        bx = te.thread_axis("blockIdx.x")
-        tx = te.thread_axis("threadIdx.x")
-        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-
-        with ib.new_scope():
-            ib.scope_attr(bx, "thread_extent", ceil_div(batch_classes, max_threads))
-            ib.scope_attr(tx, "thread_extent", max_threads)
-            tid = bx * max_threads + tx
-
-            with ib.if_scope(tid < batch_classes):
-                binary_search(ib, tid, num_boxes, scores, score_threshold, valid_count)
+        with ib.for_range(0, batch_classes, name="i") as i:
+            binary_search(ib, i, num_boxes, scores, score_threshold, valid_count)
 
         return ib.get()
 
@@ -748,26 +739,14 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
     row_offsets = ib.buffer_ptr(row_offsets)
     out = ib.buffer_ptr(out)
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-    nthread_tx = max_threads
-    nthread_bx = ceil_div(num_boxes, nthread_tx)
-    nthread_by = batch_classes
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    by = te.thread_axis("blockIdx.y")
-    ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "thread_extent", nthread_bx)
-    ib.scope_attr(by, "thread_extent", nthread_by)
+    with ib.for_range(0, batch_classes, name="i") as i:
+        batch_id = i // num_class
+        class_id = i % num_class
 
-    with ib.new_scope():
-        idx = bx * nthread_tx + tx
-        idy = cast(by, "int64")
-        batch_id = idy // num_class
-        class_id = idy % num_class
-        with ib.if_scope(idx < num_detections[idy]):
-            out[row_offsets[idy] + idx, 0] = batch_id
-            out[row_offsets[idy] + idx, 1] = class_id
-            out[row_offsets[idy] + idx, 2] = cast(selected_indices[idy, idx], "int64")
+        with ib.for_range(0, num_detections[i], name="j", kind="parallel") as j:
+            out[row_offsets[i] + j, 0] = batch_id
+            out[row_offsets[i] + j, 1] = class_id
+            out[row_offsets[i] + j, 2] = cast(selected_indices[i, j], "int64")
 
     return ib.get()
 
@@ -776,9 +755,8 @@ def all_class_non_max_suppression(
     boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
 ):
     batch, num_class, num_boxes = scores.shape
-
     scores = reshape(scores, (batch * num_class, num_boxes))
-    # TODO(masahi): CPU argsort should return both sorted values and indices
+
     sorted_scores = sort(scores, axis=1, is_ascend=False, dtype="int32")
     sorted_indices = argsort(scores, axis=1, is_ascend=False, dtype="int32")
     valid_count = _get_valid_box_count(sorted_scores, score_threshold)
