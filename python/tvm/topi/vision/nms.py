@@ -734,6 +734,9 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
 def all_class_non_max_suppression(
     boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
 ):
+    """
+    TODO
+    """
     batch, num_class, num_boxes = scores.shape
     scores = reshape(scores, (batch * num_class, num_boxes))
 
