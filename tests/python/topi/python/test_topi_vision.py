@@ -66,7 +66,7 @@ _proposal_implement = {
 }
 
 _all_class_nms_implement = {
-    "gpu": (topi.cuda.all_class_non_max_suppression, topi.cuda.schedule_all_class_non_max_suppression),
+    "gpu": (topi.cuda.all_class_non_max_suppression, topi.cuda.schedule_nms),
 }
 
 
@@ -474,7 +474,7 @@ def verify_roi_align(
         tvm_val = tvm_b.asnumpy()
         tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-4)
 
-    for target in ["llvm", "cuda", "opencl"]:
+    for target in ["cuda"]:
         check_device(target)
 
 
