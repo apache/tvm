@@ -66,6 +66,7 @@ _proposal_implement = {
 }
 
 _all_class_nms_implement = {
+    "generic": (topi.vision.all_class_non_max_suppression, topi.generic.schedule_nms),
     "gpu": (topi.cuda.all_class_non_max_suppression, topi.cuda.schedule_nms),
 }
 
@@ -659,7 +660,7 @@ def verify_all_class_non_max_suppression(
         print(selected_indices.asnumpy()[:num_detections.asnumpy()[0]])
         # tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for target in ["cuda"]:
+    for target in ["llvm"]:
         check_device(target)
 
 
