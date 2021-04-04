@@ -312,8 +312,8 @@ def _nms_loop(
     num_anchors,
     top_k,
     iou_threshold,
+    max_output_size,
     valid_count,
-    get_max_output_size_func,
     on_new_valid_box_func,
     on_new_invalidated_box_func,
     needs_bbox_check_func,
@@ -373,7 +373,6 @@ def _nms_loop(
 
         i = by
 
-        max_output_size = get_max_output_size_func(i)
         nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
@@ -632,8 +631,8 @@ def nms_ir(
         num_anchors,
         top_k,
         iou_threshold,
+        max_output_size,
         valid_count,
-        lambda _: max_output_size,
         on_new_valid_box,
         on_new_invalidated_box,
         needs_bbox_check,
@@ -1056,9 +1055,6 @@ def _all_class_nms_ir(
         with ib.if_scope(tid + 0 == 0):
             box_indices[i, num_current_valid_box] = sorted_indices[i, j]
 
-    def max_output_size(batch_class_index):
-        return max_output_size_per_class
-
     def on_new_invalidated_box(i, k):
         pass
 
@@ -1071,8 +1067,8 @@ def _all_class_nms_ir(
         num_anchors,
         tvm.tir.IntImm("int32", -1),  # top_k
         iou_threshold,
+        max_output_size_per_class,
         valid_count,
-        max_output_size,
         on_new_valid_box,
         on_new_invalidated_box,
         needs_bbox_check,

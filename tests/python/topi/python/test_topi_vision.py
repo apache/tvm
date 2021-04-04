@@ -651,15 +651,15 @@ def verify_all_class_non_max_suppression(
 
         tvm_boxes = tvm.nd.array(boxes_np, dev)
         tvm_scores = tvm.nd.array(scores_np, dev)
-        selected_indices = tvm.nd.array(np.zeros((batch * num_class * num_boxes, 3), "int32"), dev)
-        num_detections = tvm.nd.array(np.zeros((1,), "int32"), dev)
+        selected_indices = tvm.nd.array(np.zeros((batch * num_class * num_boxes, 3), "int64"), dev)
+        num_detections = tvm.nd.array(np.zeros((1,), "int64"), dev)
 
         f = tvm.build(s, [boxes, scores, out[0], out[1]], target)
         f(tvm_boxes, tvm_scores, selected_indices, num_detections)
         print(selected_indices.asnumpy()[:num_detections.asnumpy()[0]])
         # tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for target in ["vulkan"]:
+    for target in ["cuda"]:
         check_device(target)
 
 
