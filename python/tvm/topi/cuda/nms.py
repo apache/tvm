@@ -341,26 +341,20 @@ def _nms_loop(
         i = by
 
         nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
+        max_output_size = if_then_else(max_output_size > 0, max_output_size, nkeep)
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
-            with ib.if_scope(max_output_size > 0):
-                # No need to do more iteration if we have already reached max_output_size boxes
-                box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
-                box_idx[0] = 0
-                with ib.while_loop(
-                    tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
-                ):
-                    # Proceed to the inner loop if the box with id box_idx is still valid
-                    with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
-                        nms_inner_loop(ib, i, box_idx[0], nkeep)
-                    box_idx[0] += 1
-
-            with ib.else_scope():
-                with ib.for_range(0, nkeep, name="j") as j:
-                    # Proceed to the inner loop if the box j is still valid
-                    with ib.if_scope(out_scores[i, j] > -1.0):
-                        nms_inner_loop(ib, i, j, nkeep)
+            # No need to do more iteration if we have already reached max_output_size boxes
+            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+            box_idx[0] = 0
+            with ib.while_loop(
+                tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+            ):
+                # Proceed to the inner loop if the box with id box_idx is still valid
+                with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+                    nms_inner_loop(ib, i, box_idx[0], nkeep)
+                box_idx[0] += 1
 
             with ib.if_scope(tx + 0 == 0):
                 num_valid_boxes[i] = num_valid_boxes_local[0]
