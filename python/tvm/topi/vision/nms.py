@@ -635,7 +635,7 @@ def _nms_loop(
 
         num_boxes_to_check = nkeep - (j + 1)
 
-        with ib.for_range(0, num_boxes_to_check, name="k", kind="parallel") as _k:
+        with ib.for_range(0, num_boxes_to_check, name="_k", kind="parallel") as _k:
             k = j + 1 + _k
 
             with ib.if_scope(
@@ -690,7 +690,7 @@ def _get_valid_box_count(scores, score_threshold):
         scores = ib.buffer_ptr(scores)
         valid_count = ib.buffer_ptr(valid_count)
 
-        with ib.for_range(0, batch_classes, name="i") as i:
+        with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
             binary_search(ib, i, num_boxes, scores, score_threshold, valid_count)
 
         return ib.get()
@@ -718,12 +718,12 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
     row_offsets = ib.buffer_ptr(row_offsets)
     out = ib.buffer_ptr(out)
 
-    with ib.for_range(0, batch_classes, name="i") as i:
+    with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
         i = cast(i, "int64")
         batch_id = i // num_class
         class_id = i % num_class
 
-        with ib.for_range(0, num_detections[i], name="j", kind="parallel") as j:
+        with ib.for_range(0, num_detections[i], name="j") as j:
             out[row_offsets[i] + j, 0] = batch_id
             out[row_offsets[i] + j, 1] = class_id
             out[row_offsets[i] + j, 2] = cast(selected_indices[i, j], "int64")
