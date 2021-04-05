@@ -169,7 +169,7 @@ String ReportNode::AsCSV() const {
     std::string header = headers[i];
     s << header;
     if (i < headers.size() - 1) {
-      s << ", ";
+      s << ",";
     }
   }
   s << std::endl;
@@ -190,7 +190,7 @@ String ReportNode::AsCSV() const {
         }
       }
       if (i < headers.size() - 1) {
-        s << ", ";
+        s << ",";
       }
     }
     s << std::endl;
