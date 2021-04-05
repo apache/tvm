@@ -16,6 +16,8 @@
 # under the License.
 import numpy as np
 import pytest
+from io import StringIO
+import csv
 
 import tvm.testing
 from tvm.runtime import profiler_vm
@@ -34,8 +36,14 @@ def test_vm(target, dev):
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     report = vm.profile(data, func_name="main")
-    assert "fused_nn_softmax" in report
-    assert "Total time" in report
+    assert "fused_nn_softmax" in str(report)
+    assert "Total" in str(report)
+
+    f = StringIO(report.csv())
+    reader = csv.reader(f, delimiter=",")
+    # force parsing
+    for row in reader:
+        pass
 
 
 @tvm.testing.parametrize_targets
@@ -47,5 +55,5 @@ def test_graph_executor(target, dev):
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     report = gr.profile(data=data)
-    assert "fused_nn_softmax" in report
-    assert "Total time" in report
+    assert "fused_nn_softmax" in str(report)
+    assert "Total" in str(report)
