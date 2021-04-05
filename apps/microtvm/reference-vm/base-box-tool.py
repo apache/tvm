@@ -358,6 +358,10 @@ def test_command(args):
 
 
 def release_command(args):
+    vm_name = f"mehrdadh/microtvm-{args.platform}"
+    if args.platform == "zephyr":
+        vm_name = f"{vm_name}-{args.zephyr_version}"
+
     if not args.skip_creating_release_version:
         subprocess.check_call(
             [
@@ -365,7 +369,7 @@ def release_command(args):
                 "cloud",
                 "version",
                 "create",
-                f"tlcpack/microtvm-{args.platform}",
+                vm_name,
                 args.release_version,
             ]
         )
