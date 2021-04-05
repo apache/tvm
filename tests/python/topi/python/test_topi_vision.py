@@ -657,7 +657,7 @@ def verify_all_class_non_max_suppression(
 
         f = tvm.build(s, [boxes, scores, out[0], out[1]], target)
         f(tvm_boxes, tvm_scores, selected_indices, num_detections)
-        print(selected_indices.asnumpy()[:num_detections.asnumpy()[0]])
+        print(selected_indices.asnumpy()[: num_detections.asnumpy()[0]])
         # tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
     for target in ["llvm", "cuda"]:

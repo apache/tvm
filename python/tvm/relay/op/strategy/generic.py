@@ -1056,17 +1056,12 @@ def nms_strategy(attrs, inputs, out_type, target):
 
 def wrap_compute_all_class_nms(topi_compute):
     """wrap nms topi compute"""
+
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[2]
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
-        return topi_compute(
-            inputs[0],
-            inputs[1],
-            max_output_size,
-            iou_threshold,
-            score_threshold
-        )
+        return topi_compute(inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold)
 
     return _compute_nms
 

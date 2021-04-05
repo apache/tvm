@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
+"""Common utilities used in Non-maximum suppression operators"""
 import tvm
 from tvm import te
 
 
-def get_boundaries(output, box_idx):
+def _get_boundaries(output, box_idx):
     l = tvm.te.min(
         output[box_idx],
         output[box_idx + 2],
@@ -40,8 +42,8 @@ def get_boundaries(output, box_idx):
 
 def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
     """Calculate overlap of two boxes."""
-    a_l, a_t, a_r, a_b = get_boundaries(out_tensor, box_a_idx)
-    b_l, b_t, b_r, b_b = get_boundaries(out_tensor, box_b_idx)
+    a_l, a_t, a_r, a_b = _get_boundaries(out_tensor, box_a_idx)
+    b_l, b_t, b_r, b_b = _get_boundaries(out_tensor, box_b_idx)
 
     # Overlapping width and height
     w = tvm.te.max(0.0, tvm.te.min(a_r, b_r) - tvm.te.max(a_l, b_l))
@@ -57,6 +59,7 @@ def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
 
 
 def binary_search(ib, y, num_boxes, scores, score_threshold, out):
+    """Binary search for score_threshold on scores sorted in descending order"""
     lo = ib.allocate("int32", (1,), name="lo", scope="local")
     hi = ib.allocate("int32", (1,), name="hi", scope="local")
 
@@ -74,6 +77,7 @@ def binary_search(ib, y, num_boxes, scores, score_threshold, out):
 
 
 def collect_selected_indices(num_class, selected_indices, num_detections, row_offsets, ir):
+    """TODO"""
     batch_class, num_boxes = selected_indices.shape
 
     selected_indices_buf = tvm.tir.decl_buffer(
@@ -109,7 +113,7 @@ def _all_class_nms_ir(
     max_output_size_per_class,
     box_indices,
     num_valid_boxes,
-    nms_loop
+    nms_loop,
 ):
     ib = tvm.tir.ir_builder.create()
     boxes = ib.buffer_ptr(boxes)
@@ -140,16 +144,15 @@ def _all_class_nms_ir(
         with ib.if_scope(tid + 0 == 0):
             box_indices[i, num_current_valid_box] = sorted_indices[i, j]
 
-    def on_new_invalidated_box(i, k):
+    def on_new_invalidated_box(*_):
         pass
 
-    def needs_bbox_check(i, j, k):
+    def needs_bbox_check(*_):
         return tvm.tir.const(True)
 
     return nms_loop(
         ib,
         batch_class,
-        num_anchors,
         tvm.tir.IntImm("int32", -1),  # top_k
         iou_threshold,
         max_output_size_per_class,
@@ -164,8 +167,15 @@ def _all_class_nms_ir(
 
 
 def run_all_class_nms(
-    boxes, sorted_scores, sorted_indices, valid_count, max_output_size_per_class, iou_threshold, nms_loop
+    boxes,
+    sorted_scores,
+    sorted_indices,
+    valid_count,
+    max_output_size_per_class,
+    iou_threshold,
+    nms_loop,
 ):
+    """TODO"""
     batch, num_boxes, _ = boxes.shape
     batch_class = sorted_scores.shape[0]
     num_class = batch_class // batch
@@ -196,7 +206,7 @@ def run_all_class_nms(
             max_output_size_per_class,
             outs[0],  # box_indices
             outs[1],  # num_valid_boxes
-            nms_loop
+            nms_loop,
         ),
         dtype=["int32", "int32"],
         in_buffers=[

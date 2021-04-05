@@ -20,15 +20,12 @@ import tvm
 from tvm import te
 
 from tvm.te import hybrid
-from tvm.contrib import nvcc
 from tvm.tir import if_then_else
 
-from ..sort import argsort
-from ..math import cast
-from ..utils import ceil_div
-from ..transform import reshape
-from ..reduction import sum
 from ..sort import sort, argsort
+from ..math import cast
+from ..transform import reshape
+from .. import reduction
 from ..scan import cumsum
 from .nms_util import (
     binary_search,
@@ -616,7 +613,6 @@ def non_max_suppression(
 def _nms_loop(
     ib,
     batch_size,
-    num_anchors,
     top_k,
     iou_threshold,
     max_output_size,
@@ -709,7 +705,7 @@ def _get_valid_box_count(scores, score_threshold):
 
 
 def _collect_selected_indices_ir(num_class, selected_indices, num_detections, row_offsets, out):
-    batch_classes, num_boxes = selected_indices.shape
+    batch_classes, _ = selected_indices.shape
 
     ib = tvm.tir.ir_builder.create()
 
@@ -756,7 +752,7 @@ def all_class_non_max_suppression(
 
     row_offsets = cumsum(num_detections, exclusive=True, dtype="int64")
 
-    num_total_detections = sum(cast(num_detections, "int64"), axis=1)
+    num_total_detections = reduction.sum(cast(num_detections, "int64"), axis=1)
 
     selected_indices = collect_selected_indices(
         num_class, selected_indices, num_detections, row_offsets, _collect_selected_indices_ir

@@ -276,7 +276,6 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 def _nms_loop(
     ib,
     batch_size,
-    num_anchors,
     top_k,
     iou_threshold,
     max_output_size,
@@ -589,7 +588,6 @@ def nms_ir(
     return _nms_loop(
         ib,
         batch_size,
-        num_anchors,
         top_k,
         iou_threshold,
         max_output_size,
@@ -639,8 +637,7 @@ def _dispatch_sort(scores, ret_type="indices"):
         or can_use_rocthrust(target, "tvm.contrib.thrust.sort")
     ):
         return argsort_thrust(scores, axis=1, is_ascend=False, dtype="int32", ret_type=ret_type)
-    else:
-        return argsort(scores, axis=1, is_ascend=False, dtype="int32", ret_type=ret_type)
+    return argsort(scores, axis=1, is_ascend=False, dtype="int32", ret_type=ret_type)
 
 
 def _get_sorted_indices(data, data_buf, score_index, score_shape):
