@@ -2,11 +2,11 @@
     "stm32f746xx": {
         "vid_hex": "0483",
         "pid_hex": "374b",
-        "test_cmd": ["pytest", "tests/micro/qemu/test_zephyr.py", "--microtvm-platforms=stm32f746xx"]
+        "test_cmd": ["pytest", "tests/micro/zephyr/test_zephyr.py", "--microtvm-platforms=stm32f746xx"]
         },
     "nrf5340dk": {
         "vid_hex": "1366",
         "pid_hex": "1055",
-        "test_cmd": ["pytest", "tests/micro/qemu/test_zephyr.py", "--microtvm-platforms=nrf5340dk"]
+        "test_cmd": ["pytest", "tests/micro/zephyr/test_zephyr.py", "--microtvm-platforms=nrf5340dk"]
         }
 }

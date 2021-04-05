@@ -185,7 +185,7 @@ class Task(object):
             "config_space": self.config_space,
             "flop": self.flop,
             "target": self.target,
-            "target_host": self.target.host,
+            "target_host": self.target_host,
             "func": cloudpickle.dumps(self.func),
         }
 
@@ -465,7 +465,7 @@ def create(task_name, args, target, target_host=None):
 
     ret.flop = ret.config_space.flop or compute_flop(sch)
     ret.target = target
-    ret.target_host = target.host
+    ret.target_host = target_host
 
     return ret
 

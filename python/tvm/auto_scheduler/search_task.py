@@ -357,6 +357,8 @@ class SearchTask(Object):
     task_inputs_save_to_file : bool = False
         Whether to save the data to a local file as well. This can be reused to resume the last
         tuning process.
+    desc: str = ""
+        The description string of this task.
 
     Examples
     --------
@@ -387,6 +389,7 @@ class SearchTask(Object):
         task_inputs=None,
         task_inputs_overwrite=False,
         task_inputs_save_to_file=False,
+        desc="",
     ):
         assert (
             func is not None or workload_key is not None
@@ -429,6 +432,7 @@ class SearchTask(Object):
             hardware_params,
             layout_rewrite_option,
             task_input_names,
+            desc,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -520,6 +524,7 @@ class SearchTask(Object):
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
             "task_input_names": self.task_input_names,
+            "desc": self.desc,
         }
 
     def __setstate__(self, state):
@@ -548,6 +553,7 @@ class SearchTask(Object):
             state["hardware_params"],
             state["layout_rewrite_option"],
             state["task_input_names"],
+            state["desc"],
         )
 
 

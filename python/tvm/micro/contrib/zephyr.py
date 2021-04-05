@@ -703,7 +703,7 @@ class ZephyrDebugger(debugger.GdbDebugger):
         args = dict(
             args=self._west_cmd
             + [
-                "attach",
+                "debug",
                 "--skip-rebuild",
                 "--build-dir",
                 self._build_dir,
