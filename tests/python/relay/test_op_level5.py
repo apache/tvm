@@ -371,8 +371,6 @@ def test_non_max_suppression():
         )
         if isinstance(z_indices, relay.expr.TupleWrapper):
             z_indices = z_indices.astuple()
-        assert "iou_threshold" in z.astext()
-        assert "iou_threshold" in z_indices.astext()
         zz = run_infer_type(z)
         zz_indices = run_infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
