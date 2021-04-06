@@ -16,7 +16,7 @@
 # under the License.
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "tlcpack/microtvm-zephyr"
+  config.vm.box = "tlcpack/microtvm-zephyr-2.5"
 
   tvm_home = "../../../.."
   dirs_to_mount = [Pathname.new(Pathname.new(tvm_home).expand_path())]
