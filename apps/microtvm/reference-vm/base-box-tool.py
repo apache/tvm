@@ -377,10 +377,6 @@ def release_command(args):
         sys.exit(f"--release-version must be specified")
 
     for provider_name in args.provider:
-        vm_name = f"tlcpack/microtvm-{args.platform}"
-        if args.platform == "zephyr":
-            vm_name = f"{vm_name}-{args.zephyr_version}"
-        
         subprocess.check_call(
             [
                 "vagrant",

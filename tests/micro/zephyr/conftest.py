@@ -18,7 +18,6 @@ import pytest
 
 import tvm.target.target
 
-
 # The models that should pass this configuration. Maps a short, identifying platform string to
 # (model, zephyr_board).
 PLATFORMS = {

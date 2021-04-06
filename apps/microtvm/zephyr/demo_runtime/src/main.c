@@ -99,13 +99,12 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
 
 // Called by TVM when an internal invariant is violated, and execution cannot continue.
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  // UtvmErrorReport(g_error);
-  TVMLogf("TVMPlatformAbort: %x", error);
   sys_reboot(SYS_REBOOT_COLD);
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  for (;;) ;
+  for (;;)
+    ;
 }
 // Called by TVM to generate random data.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
@@ -290,7 +289,6 @@ void main(void) {
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
-  TVMLogf("Mehrdad");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
@@ -300,8 +298,6 @@ void main(void) {
   while (true) {
     int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
-      // for (int i_read=0; i_read<bytes_read; i_read++) {
-      // }
       size_t bytes_remaining = bytes_read;
       uint8_t* cursor = main_rx_buf;
       while (bytes_remaining > 0) {
