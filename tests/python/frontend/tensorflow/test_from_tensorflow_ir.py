@@ -42,7 +42,7 @@ def test_moments():
         B = tf.placeholder(shape=shape, dtype=dtype, name="B")
         mean, variance = tf.nn.moments(A, [1], keep_dims=True)
         normalised_input = (A - mean) / tf.sqrt(variance + 0.0005)
- 
+
     mod = run_from_tensorflow(g)
     program = """
     def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
