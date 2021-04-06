@@ -20,9 +20,6 @@
 import warnings
 import numpy as np
 
-import pyxir
-import pyxir.frontend.tvm
-
 from tvm import relay
 import tvm._ffi
 from tvm.relay import transform
@@ -30,12 +27,39 @@ from tvm.relay.expr import Tuple, TupleGetItem
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
+# Placeholder for PyXIR module
+pyxir = None
+
 
 @transform.function_pass(opt_level=0)
 class VitisAIAnnotationPass:
-    """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators"""
+    """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators
+
+    Parameters
+    ----------
+    compiler : str
+        The compiler name used for annotations (`vitis_ai`).
+    dpu_target : str
+        The Vitis AI DPU target identifier.
+    params : dict
+        A dictionary containing the module's parameters.
+    """
 
     def __init__(self, compiler, dpu_target, params):
+        global pyxir
+        try:
+            if pyxir is None:
+                pyxir = __import__("pyxir")
+                __import__("pyxir.frontend.tvm")
+        except ImportError:
+            # add "from None" to silence
+            # "During handling of the above exception, another exception occurred"
+            raise ImportError(
+                "The pyxir package is required for the Vitis AI backend. "
+                "Please install it first. "
+                "Help: (https://tvm.apache.org/docs/deploy/vitis_ai.html) "
+            ) from None
+
         self.compiler = compiler
         self.dpu_target = dpu_target
         self.params = params
