@@ -185,8 +185,7 @@ stage('Build') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-          // FIXME (zhanghao): re-enable the tsim test after chisel implementation is updated to the new ISA
-          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
