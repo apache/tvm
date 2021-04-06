@@ -2815,6 +2815,28 @@ class DequantizeLinear(OnnxOpConverter):
         return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), axis)
 
 
+class DynamicQuantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        """This op is deprecated an only supports uint8"""
+        data = inputs[0]
+        data_dtype = infer_type(data).checked_type.dtype
+        zero = _op.const(0, dtype=data_dtype)
+        maximum = _op.maximum(zero, _op.max(data))
+        minimum = _op.minimum(zero, _op.min(data))
+        scale = (maximum - minimum) / _op.const(255, dtype=data_dtype)
+        zp = zero - _op.min(data) / scale
+        zp = _op.cast(_op.round(_op.clip(zp, 0, 255)), "uint8")
+        return _expr.TupleWrapper(
+            _expr.Tuple(
+                [_qnn.op.quantize(data, scale, _op.cast(zp, "int32"), 0, "uint8"), scale, zp]
+            ),
+            size=3,
+        )
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2983,6 +3005,7 @@ def _get_convert_map(opset):
         # Quantization
         "QuantizeLinear": QuantizeLinear.get_converter(opset),
         "DequantizeLinear": DequantizeLinear.get_converter(opset),
+        "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
     }
 
 
