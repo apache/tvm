@@ -106,6 +106,7 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
   for (;;)
     ;
 }
+
 // Called by TVM to generate random data.
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   uint32_t random;  // one unit of random data.
