@@ -4137,14 +4137,6 @@ onnx_test_folders = sorted(glob.glob("/".join(f.split("/")[0:-1]) + "/backend/te
 
 unsupported_onnx_tests = [
     "test_basic_convinteger/",
-    "test_bitshift_left_uint16/",
-    "test_bitshift_left_uint32/",
-    "test_bitshift_left_uint64/",
-    "test_bitshift_left_uint8/",
-    "test_bitshift_right_uint16/",
-    "test_bitshift_right_uint32/",
-    "test_bitshift_right_uint64/",
-    "test_bitshift_right_uint8/",
     "test_cast_DOUBLE_to_FLOAT16/",
     "test_cast_FLOAT16_to_DOUBLE/",
     "test_cast_FLOAT16_to_FLOAT/",

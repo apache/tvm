@@ -2837,6 +2837,24 @@ class DynamicQuantizeLinear(OnnxOpConverter):
         )
 
 
+class BitShift(OnnxOpConverter):
+    """Operator converter for NonZero"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) != 2:
+            raise ValueError("Bitshift expects 2 inputs")
+
+        direction = attr.get("direction", "LEFT").decode("ascii")
+        if direction == "LEFT":
+            out = _op.left_shift(*inputs)
+        elif direction == "RIGHT":
+            out = _op.right_shift(*inputs)
+        else:
+            raise ValueError("Unsupported Shift Direction: " + direction)
+        return out
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2851,6 +2869,7 @@ def _get_convert_map(opset):
         # defs/experimental
         "Identity": Renamer("copy"),
         "Affine": Affine.get_converter(opset),
+        "BitShift": BitShift.get_converter(opset),
         "ThresholdedRelu": ThresholdedRelu.get_converter(opset),
         "ScaledTanh": ScaledTanh.get_converter(opset),
         "ParametricSoftplus": ParametricSoftPlus.get_converter(opset),
