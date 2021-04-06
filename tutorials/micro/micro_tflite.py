@@ -224,7 +224,7 @@ opts = tvm.micro.default_options(
 #     from tvm.micro.contrib import zephyr
 #
 #     repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
-#     project_dir = f"{repo_root}/tests/micro/qemu/zephyr-runtime"
+#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "demo_runtime")
 #     compiler = zephyr.ZephyrCompiler(
 #         project_dir=project_dir,
 #         board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",

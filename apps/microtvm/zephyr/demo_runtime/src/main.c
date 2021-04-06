@@ -218,7 +218,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // Small buffer used to read data from the UART into the ring buffer.
-static uint8_t uart_data[32];
+static uint8_t uart_data[8];
 
 // UART interrupt callback.
 void uart_irq_cb(const struct device* dev, void* user_data) {
