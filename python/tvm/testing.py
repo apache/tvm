@@ -703,7 +703,7 @@ def parametrize_targets(*args):
     Parameters
     ----------
     f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, device)`:,
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
         where `xxxxxxxxx` is any name.
     targets : list[str], optional
         Set of targets to run against. If not supplied,
