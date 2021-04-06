@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unit tests for converting TensorFlow debugging ops to Relay."""
+"""Unit tests for converting TensorFlow graph to Relay ir."""
 try:
     import tensorflow.compat.v1 as tf
 except ImportError:
