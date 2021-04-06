@@ -22,8 +22,5 @@ set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
 
 source tests/scripts/setup-pytest-env.sh
 
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
 make cython3
 run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr
