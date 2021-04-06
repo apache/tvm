@@ -213,6 +213,7 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
+        "auto_tuning_with_python.py",
         "tensor_expr_get_started.py",
         "autotvm_matmul.py",
         "autoschedule_matmul.py",
