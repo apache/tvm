@@ -106,10 +106,28 @@ def test_simplify_transpose():
         y = relay.transpose(y, axes=[0, 2, 3, 1])
         return relay.Function([x], y)
 
+    # Test a series of transpose and rank changing layout_transform
+    def before4():
+        x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")  # NHWC
+        y = relay.transpose(x, axes=[0, 3, 1, 2])  # To NCHW
+        y = relay.layout_transform(y, "NCHW", "NCHW4c")  # To NCHW4c
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW4c", "NCHW")  # To NCHW
+        y = relay.transpose(y, axes=[0, 2, 3, 1])  # To NHWC
+        return relay.Function([x], y)
+
+    def expected4():
+        x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")  # NHWC
+        y = relay.layout_transform(x, "NHWC", "NCHW4c")  # To NCHW4c
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW4c", "NHWC")  # To NHWC
+        return relay.Function([x], y)
+
     for before, expected in [
         [before1(), expected1()],
         [before2(), expected2()],
         [before3(), expected3()],
+        [before4(), expected4()],
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())

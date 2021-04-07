@@ -118,35 +118,14 @@ class SimplifyTranspose : public DFPatternRewrite {
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     // Helper function to get the axes from call node attribute
-    auto get_axes_from_call = [](const Call trans_call, int ndim) {
-      std::vector<int> attr_axes;
-      if (auto attr = trans_call->attrs.as<TransposeAttrs>()) {
-        if (attr->axes.defined()) {
-          for (int i = 0; i < ndim; ++i) {
-            int64_t axis = attr->axes[i];
-            axis += (axis < 0) ? ndim : 0;
-            attr_axes.push_back(axis);
-          }
-        } else {
-          // Empty axes means reverse
-          for (int i = ndim - 1; i >= 0; --i) {
-            attr_axes.push_back(i);
-          }
-        }
-      } else if (auto attr = trans_call->attrs.as<LayoutTransformAttrs>()) {
-        Layout src_layout(attr->src_layout);
-        Layout dst_layout(attr->dst_layout);
-        for (int i = 0; i < ndim; ++i) {
-          attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
-        }
-      } else {
-        CHECK(false) << "Expected transpose or layout_transform, but got "
-                     << Downcast<Op>(trans_call->op)->name;
-      }
-      return std::move(attr_axes);
-    };
 
     auto x = node_map[x_][0];
+
+    Call trans_call = Downcast<Call>(post);
+
+    if (auto layout_trans = FoldRankChangingLayoutTrans(x, trans_call)) {
+      return layout_trans.value();
+    }
 
     // Initialize axes
     int ndim = Downcast<TensorType>(pre->checked_type())->shape.size();
@@ -157,10 +136,9 @@ class SimplifyTranspose : public DFPatternRewrite {
 
     // Collect axes changes from the matched pattern, including two consecutive transposes.
     std::vector<std::vector<int>> interm_axes;
-    Call trans_call = Downcast<Call>(post);
-    interm_axes.push_back(get_axes_from_call(trans_call, ndim));
+    interm_axes.push_back(GetTransposeAxisOrder(trans_call, ndim));
     trans_call = Downcast<Call>(trans_call->args[0]);
-    interm_axes.push_back(get_axes_from_call(trans_call, ndim));
+    interm_axes.push_back(GetTransposeAxisOrder(trans_call, ndim));
 
     // Calculate the final axes in reverse order (from root to output)
     auto it = interm_axes.rbegin();
@@ -188,6 +166,69 @@ class SimplifyTranspose : public DFPatternRewrite {
       return MakeTranspose(x, axes);
     }
     return x;
+  }
+
+  String PermuteLayout(const String& layout, std::vector<int> axes) const {
+    std::string new_layout{};
+    std::string old_layout{layout};
+    for (auto axis : axes) {
+      new_layout += old_layout[axis];
+    }
+    return String(new_layout);
+  }
+
+  Optional<Expr> FoldRankChangingLayoutTrans(const Expr& data, const Call& call) const {
+    Optional<Expr> layout_trans;
+    if (auto attr = call->attrs.as<LayoutTransformAttrs>()) {
+      Layout src_layout(attr->src_layout);
+      Layout dst_layout(attr->dst_layout);
+      if (src_layout->axes.size() != dst_layout->axes.size()) {
+        auto axes = GetTransposeAxisOrder(Downcast<Call>(call->args[0]), src_layout->axes.size());
+        std::vector<int> inverse(axes.size());
+        for (size_t i = 0; i < axes.size(); i++) {
+          inverse[axes[i]] = i;
+        }
+        String new_layout = PermuteLayout(attr->src_layout, inverse);
+        layout_trans = MakeLayoutTransform(data, new_layout, dst_layout->name);
+      }
+    } else if (auto attr = Downcast<Call>(call->args[0])->attrs.as<LayoutTransformAttrs>()) {
+      Layout src_layout(attr->src_layout);
+      Layout dst_layout(attr->dst_layout);
+      if (src_layout->axes.size() != dst_layout->axes.size()) {
+        auto axes = GetTransposeAxisOrder(call, dst_layout->axes.size());
+        String new_layout = PermuteLayout(attr->dst_layout, axes);
+        layout_trans = MakeLayoutTransform(data, src_layout->name, new_layout);
+      }
+    }
+    return layout_trans;
+  }
+
+  std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) const {
+    std::vector<int> attr_axes;
+    if (auto attr = call->attrs.as<TransposeAttrs>()) {
+      if (attr->axes.defined()) {
+        for (int i = 0; i < ndim; ++i) {
+          int64_t axis = attr->axes[i];
+          axis += (axis < 0) ? ndim : 0;
+          attr_axes.push_back(axis);
+        }
+      } else {
+        // Empty axes means reverse
+        for (int i = ndim - 1; i >= 0; --i) {
+          attr_axes.push_back(i);
+        }
+      }
+    } else if (auto attr = call->attrs.as<LayoutTransformAttrs>()) {
+      Layout src_layout(attr->src_layout);
+      Layout dst_layout(attr->dst_layout);
+      for (int i = 0; i < ndim; ++i) {
+        attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
+      }
+    } else {
+      CHECK(false) << "Expected transpose or layout_transform, but got "
+                   << Downcast<Op>(call->op)->name;
+    }
+    return std::move(attr_axes);
   }
 
  private:
