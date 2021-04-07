@@ -23,11 +23,11 @@ from mxnet.gluon.model_zoo import vision
 import numpy as np
 from PIL import Image
 
-import topi
+from tvm import topi
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, util, download
+from tvm.contrib import graph_runtime, download
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm import record
@@ -119,7 +119,7 @@ tuning_option = {
             port=tracker_port,
             number=5,
             timeout=60,
-            check_correctness=True,
+            # check_correctness=True, # TODO: re-enable when check_correctness works again.
         ),
     ),
 }
