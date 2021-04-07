@@ -165,22 +165,19 @@ inline int Execute(std::string cmd, std::string* err_msg) {
 #endif  // __hexagon__
 
 /*!
- * \brief Combine two hash values into a single one.
+ * \brief hash an object and combines uint64_t key with previous keys
+ *
+ * This hash function is stable across platforms.
+ *
  * \param key The left operand.
  * \param value The right operand.
  * \return the combined result.
  */
-inline size_t HashCombine(size_t key, size_t value) {
-  return key ^ (value + 0x9e3779b9 + (key << 6) + (key >> 2));
-}
-
-/*!
- * \brief hash an object and combines uint64_t key with previous keys
- */
-template <typename T>
+template <typename T, std::enable_if_t<std::is_convertible<T, uint64_t>::value, bool> = true>
 inline uint64_t HashCombine(uint64_t key, const T& value) {
-  std::hash<T> hash_func;
-  return key ^ (hash_func(value) + 0x9e3779b9 + (key << 6) + (key >> 2));
+  // XXX: do not use std::hash in this function. This hash must be stable
+  // across different platforms and std::hash is implementation dependent.
+  return key ^ (uint64_t(value) + 0x9e3779b9 + (key << 6) + (key >> 2));
 }
 
 }  // namespace support
