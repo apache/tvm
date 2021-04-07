@@ -452,9 +452,7 @@ def test_rpc_tracker_request():
     )
     client = rpc.connect_tracker("127.0.0.1", tracker.port)
 
-    proc1 = multiprocessing.Process(
-        target=_target, args=("127.0.0.1", tracker.port, device_key, 4)
-    )
+    proc1 = multiprocessing.Process(target=_target, args=("127.0.0.1", tracker.port, device_key, 4))
     proc2 = multiprocessing.Process(
         target=_target, args=("127.0.0.1", tracker.port, device_key, 200)
     )

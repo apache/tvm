@@ -367,7 +367,7 @@ def _tracker_server(listen_sock, stop_key):
 
 
 class Tracker(object):
-    """Start RPC tracker on a seperate process.
+    """Start RPC tracker on a separate process.
 
     Python implementation based on multi-processing.
 
