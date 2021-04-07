@@ -28,6 +28,7 @@
 #ifndef TVM_TIR_OP_ATTR_TYPES_H_
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
+#include <functional>
 #include <tvm/runtime/container.h>
 
 namespace tvm {
@@ -42,6 +43,11 @@ using TGlobalSymbol = String;
  * \brief Whether the op is overloaded for vector form.
  */
 using TVectorizable = bool;
+
+/*!
+ * \brief The intrinsic lowering function for given OP.
+ */
+using FLowerIntrinsic = PackedFunc;
 
 /*!
  * \brief The effect type of the call.
