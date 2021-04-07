@@ -114,11 +114,11 @@ def drive_run(args):
 
     outputs, times = run_module(
         args.FILE,
-        rpc_hostname,
-        rpc_port,
-        args.rpc_key,
+        args.device,
+        hostname=rpc_hostname,
+        port=rpc_port,
+        rpc_key=args.rpc_key,
         inputs=inputs,
-        device=args.device,
         fill_mode=args.fill_mode,
         repeat=args.repeat,
         profile=args.profile,
@@ -290,10 +290,10 @@ def make_inputs_dict(shape_dict, dtype_dict, inputs=None, fill_mode="random"):
 
 def run_module(
     module_file,
-    hostname,
+    device,
+    hostname=None,
     port=9090,
     rpc_key=None,
-    device=None,
     inputs=None,
     fill_mode="random",
     repeat=1,
@@ -309,16 +309,16 @@ def run_module(
     ----------
     module_file : str
         The path to the module file (a .tar file).
-    hostname : str
+    device: str,
+        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        session, local or remote).
+    hostname : str, optional
         The hostname of the target device on which to run.
     port : int, optional
         The port of the target device on which to run.
     rpc_key : str, optional
         The tracker key of the target device. If this is set, it
         will be assumed that remote points to a tracker.
-    device: str, optional
-        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
-        session, local or remote).
     inputs : dict, optional
         A dictionary that maps input names to numpy values.
     fill_mode : str, optional
@@ -443,7 +443,7 @@ def format_times(times):
     This has the effect of producing a small table that looks like:
 
         Execution time summary:
-        mean (s)   max (s)    min (s)    std (s)
+        mean (ms)   max (ms)    min (ms)    std (ms)
         0.14310    0.16161    0.12933    0.01004
 
     Parameters
@@ -458,13 +458,14 @@ def format_times(times):
     """
 
     # timestamps
-    mean_ts = np.mean(times)
-    std_ts = np.std(times)
-    max_ts = np.max(times)
-    min_ts = np.min(times)
+    mean_ts = np.mean(times) * 1000
+    std_ts = np.std(times) * 1000
+    max_ts = np.max(times) * 1000
+    min_ts = np.min(times) * 1000
 
     header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-        "mean (s)", "max (s)", "min (s)", "std (s)"
+        "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
     )
-    stats = "{0:^10.5f} {1:^10.5f} {2:^10.5f} {3:^10.5f}".format(mean_ts, max_ts, min_ts, std_ts)
+    stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(mean_ts, max_ts, min_ts, std_ts)
+
     return "%s\n%s\n" % (header, stats)
