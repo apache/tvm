@@ -250,7 +250,7 @@ def drive_tune(args):
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
         partition_function = codegen["pass_pipeline"]
-        mod = partition_function(mod, params)
+        mod = partition_function(mod, params, **codegen_from_cli["opts"])
 
     # min_repeat_ms should be:
     # a. the value provided by the user, if any, or
