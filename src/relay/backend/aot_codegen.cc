@@ -50,7 +50,7 @@ using TargetsMap = std::unordered_map<int, Target>;
 
 /*! \brief Lowered outputs */
 struct AOTLoweredOutput {
-  std::string graph_tir;
+  tir::PrimFunc runner_func;
   Map<String, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
@@ -101,8 +101,6 @@ class AotReturnSidVisitor : public ExprVisitor {
   Map<Expr, Array<IntegerArray>> storage_device_map_;
   IntegerArray return_sid_;
 };
-
-using TIRNetwork = tvm::Array<tir::Stmt>;
 
 /*! \brief Code generator for graph runtime */
 class AOTCodegen : public ExprVisitor {
@@ -179,7 +177,7 @@ class AOTCodegen : public ExprVisitor {
     // TODO(giuseros): Using call_extern to call into lookup_linked_param. This is because the
     // builtin::ret is not supported yet in the c target. Once return is supported we can use
     // tvm_call_packed_lowered().
-    int param_sid = param_storage_ids_[reverse_params_lookup_[expr]];
+    int param_sid = param_storage_ids_[params_by_expr_[expr]];
     auto lookup_linked_param_fn = tir::StringImm(::tvm::runtime::symbol::tvm_lookup_linked_param);
     auto param_array = te::Var(make_string("param_", param_sid, "_array"), DataType::Handle());
 
@@ -224,7 +222,7 @@ class AOTCodegen : public ExprVisitor {
       // Input variable
       int main_index = std::distance(input_vars_.begin(), input_iter);
       return {main_signature_[main_index]};
-    } else if (reverse_params_lookup_.find(arg) != reverse_params_lookup_.end()) {
+    } else if (params_by_expr_.find(arg) != params_by_expr_.end()) {
       // Parameter of the network
       return {pack_param(arg)};
     } else {
@@ -387,7 +385,7 @@ class AOTCodegen : public ExprVisitor {
 
     param_storage_ids_[name] = storage_device_map_[expr][0][0]->value;
     params_[name] = op->data;
-    reverse_params_lookup_.Set(expr, name);
+    params_by_expr_.Set(expr, name);
 
     // If the Constant node is an output node we need to copy the content of the parameter to the
     // output A Var node can only produce a single output
@@ -409,7 +407,7 @@ class AOTCodegen : public ExprVisitor {
 
   void VisitExpr_(const LetNode* op) override {
     // TODO(giuseros): support Let nodes in AOT
-    throw std::invalid_argument("Let not yet implemented in AOT");
+    CHECK(false) << "Let not yet implemented in AOT";
   }
   void VisitExpr_(const TupleGetItemNode* op) override { VisitExpr(op->tuple); }
   void VisitExpr_(const OpNode* op) override {
@@ -448,7 +446,7 @@ class AOTCodegen : public ExprVisitor {
       // Only allocate sids that are needed
       const bool is_input =
           (std::find(input_vars_.begin(), input_vars_.end(), kv.first) != input_vars_.end());
-      const bool is_param = (reverse_params_lookup_.find(kv.first) != reverse_params_lookup_.end());
+      const bool is_param = (params_by_expr_.find(kv.first) != params_by_expr_.end());
       if (is_input || is_param) {
         continue;
       }
@@ -478,14 +476,17 @@ class AOTCodegen : public ExprVisitor {
   }
 
  protected:
-  /*! \brief nodes */
   /*! \brief mod */
   runtime::Module* mod_;
+  /*! \brief list of input expressions (i.e., variable passed by the user) */
   std::vector<Expr> input_vars_;
+  /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
   TargetsMap targets_;
+  /*! \brief target host */
   Target target_host_;
+  /*! PrimFunc attributes */
   Map<String, ObjectRef> dict_attrs_;
 
   /*!
@@ -494,8 +495,10 @@ class AOTCodegen : public ExprVisitor {
    * Maps param name to a pair of storage_id and NDArray. At runtime, the storage_id can be
    * used to lookup the parameter.
    */
-  Map<Expr, String> reverse_params_lookup_;
   std::unordered_map<std::string, runtime::NDArray> params_;
+  /*! \brief mapping between expression and parameters */
+  Map<Expr, String> params_by_expr_;
+  /*! \brief mapping between parameter names ("p0", "p1", etc..) and storage identifiers*/
   std::unordered_map<std::string, int64_t> param_storage_ids_;
 
   /*! \brief plan memory of device result */
@@ -582,7 +585,7 @@ class AOTCodegen : public ExprVisitor {
       ret.lowered_funcs.Set(target_host_str, IRModule(symbol_map));
     }
 
-    ret.graph_tir = PrettyPrint(prim_func);
+    ret.runner_func = prim_func;
     ret.aot_metadata = runtime::AOTMetadata(input_vars_.size(), return_sid_.size());
     return ret;
   }
@@ -613,9 +616,9 @@ class AOTCodegenModule : public runtime::ModuleNode {
         Function func = args[0];
         this->output_ = this->codegen_->Codegen(func);
       });
-    } else if (name == "get_graph") {
+    } else if (name == "get_runner_function") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.graph_tir; });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.runner_func; });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Array<runtime::String> ret;

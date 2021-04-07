@@ -19,8 +19,8 @@
 
 #include <dlpack/dlpack.h>
 #include <gtest/gtest.h>
-
-#include "tvm_executor.h"
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/aot_executor.h>
 
 int32_t test_run_func(void* args, void* arg_type_ids, int32_t num_args, void* out_ret_value,
                       void* out_ret_tcode, void* resource_handle) {

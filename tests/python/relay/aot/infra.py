@@ -39,7 +39,7 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.op.contrib import get_pattern_table
-from tvm.contrib import utils
+from tvm.contrib import utils, graph_executor
 from tvm.relay.backend import compile_engine
 from tvm.contrib import utils
 from tvm.contrib import graph_runtime
@@ -72,7 +72,8 @@ def create_main(test_name, input_list, output_list, output_path):
     raw_path = file_path.with_suffix(".c").resolve()
     with open(raw_path, "w") as main_file:
         main_file.write("#include <stdio.h>\n")
-        main_file.write("#include <tvm_executor.h>\n")
+        main_file.write('#include "aot_executor.h"\n')
+        main_file.write('#include "stack_memory.h"\n')
         main_file.write("#define WORKSPACE_SIZE (16384*1024)\n")
         main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
 
@@ -83,7 +84,23 @@ def create_main(test_name, input_list, output_list, output_path):
             main_file.write('#include "output_data%i.h"\n' % i)
 
         main_file.write("extern tvm_model_t network;\n")
-        main_file.write("extern tvm_workspace_t *tvm_runtime_workspace;\n")
+        main_file.write("tvm_workspace_t app_workspace;\n")
+        main_file.write(
+            """
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr){
+    (*out_ptr) = MemoryManager_Allocate(&app_workspace, num_bytes);
+}
+
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev){
+    MemoryManager_Free(&app_workspace,ptr);
+}
+
+void  TVMPlatformAbort(tvm_crt_error_t code) { }
+
+void TVMLogf(const char* msg, ...) { }
+      
+        """
+        )
         main_file.write("int main(){\n")
         main_file.write("void* inputs[%i] = { " % (len(input_list)))
 
@@ -96,11 +113,7 @@ def create_main(test_name, input_list, output_list, output_path):
             main_file.write("output_data%i, " % i)
         main_file.write("};\n")
 
-        main_file.write("")
-        main_file.write(
-            "tvm_workspace_t app_workspace = {.next_alloc=g_aot_memory, .workspace=g_aot_memory, .workspace_size=WORKSPACE_SIZE};\n"
-        )
-        main_file.write("tvm_runtime_workspace = &app_workspace;\n")
+        main_file.write("MemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);")
         main_file.write("tvm_runtime_run(&network, inputs, outputs, NULL);")
 
         for i in range(0, len(output_list)):
@@ -205,7 +218,7 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     lib_path = temp.relpath(lib_name)
     lib.export_library(lib_path)
     lib = tvm.runtime.load_module(lib_path)
-    grt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+    grt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
     grt_mod.set_input(**input_data)
     grt_mod.run()
     output_count = grt_mod.get_num_outputs()

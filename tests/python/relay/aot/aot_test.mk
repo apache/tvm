@@ -29,8 +29,9 @@ CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
 
 
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
-	-I$(TVM_ROOT)/include/tvm/runtime/crt/aot \
-    -I$(TVM_ROOT)/src/runtime/crt/include \
+	-I$(TVM_ROOT)/include/tvm/runtime/crt \
+	-I$(TVM_ROOT)/src/runtime/crt/host \
+	-I$(TVM_ROOT)/include \
 	-I$(DMLC_CORE)/include \
 	-I$(TVM_ROOT)/3rdparty/dlpack/include \
 	-I$(AOT_ROOT)\
@@ -46,7 +47,7 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/tvm_executor.o 
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/tvm_executor.o  $(build_dir)/stack_memory.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
@@ -58,7 +59,15 @@ $(build_dir)/lib0.o: $(build_dir)/../codegen/host/src/lib0.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/tvm_executor.o: $(TVM_ROOT)/src/runtime/crt/aot/tvm_executor.c
+$(build_dir)/tvm_executor.o: $(TVM_ROOT)/src/runtime/crt/aot_executor/aot_executor.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+
+$(build_dir)/stack_memory.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_memory.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+
+$(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/aot_backend_api.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 

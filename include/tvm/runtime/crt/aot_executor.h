@@ -52,8 +52,7 @@
 
 #include <stdint.h>
 
-#include "tvm_backend.h"
-#include "tvm_error.h"
+#include "error_codes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,6 +67,9 @@ extern "C" {
 typedef struct {
 } tvm_context_t;
 
+typedef int32_t(tvm_function_t)(void* args, void* arg_type_ids, int32_t num_args,
+                                void* out_ret_value, void* out_ret_tcode, void* resource_handle);
+
 /*!
  * \brief TVM Model descriptor to describe the
  *  model to the runtime.
@@ -76,7 +78,6 @@ typedef struct {
   uint32_t num_input_tensors;  /** Number of expected input tensors */
   uint32_t num_output_tensors; /** Number of expected output tensors */
   tvm_function_t* run_func;    /** Generated model function, called through tvm_runtime_run */
-  tvm_workspace_t* workspace;  /** Memory workspace for the model to use */
 } tvm_model_t;
 
 /*!

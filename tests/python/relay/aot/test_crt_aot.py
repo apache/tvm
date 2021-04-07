@@ -34,7 +34,7 @@ from tvm.relay.op.contrib import get_pattern_table
 from tvm.contrib import utils
 from tvm.relay.backend import compile_engine
 from tvm.contrib import utils
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.micro import export_model_library_format
 from tvm.relay import testing
 

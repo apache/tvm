@@ -24,7 +24,7 @@ import re
 import tarfile
 
 from ..contrib import utils
-from ..relay.backend import graph_executor_factory
+from ..relay.backend import executor_factory
 from ..relay import param_dict
 
 
@@ -86,10 +86,6 @@ def _build_memory_map(graph_str):
     list :
         A list with one entry per storage id describing that memory.
     """
-    memory_map = []
-    if graph_str.startswith("primfn"):
-        return memory_map
-
     graph = json.loads(graph_str)
 
     seen_storage_ids = set()
@@ -120,7 +116,7 @@ def _build_memory_map(graph_str):
     return memory_map
 
 
-def export_model_library_format(mod: graph_executor_factory.GraphExecutorFactoryModule, file_name):
+def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, file_name):
     """Export the build artifact in Model Library Format.
 
     This function creates a .tar archive containing the build artifacts in a standardized
@@ -129,27 +125,21 @@ def export_model_library_format(mod: graph_executor_factory.GraphExecutorFactory
 
     Parameters
     ----------
-    mod : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
+    mod : tvm.relay.backend.executor_factory.ExecutorFactoryModule
         The return value of tvm.relay.build, which will be exported into Model Library Format.
     file_name : str
         Path to the .tar archive to generate.
     """
     tempdir = utils.tempdir()
-    is_aot = False
-    for v in mod.target.values():
-        if v.attrs.get("executor", "graph_runtime") == "aot":
-            is_aot = True
-            break
-
-    runtime = ["graph"]
-    if is_aot:
-        runtime = ["aot"]
+    is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+    memory_map = [] if is_aot else _build_memory_map(mod.get_internal_repr())
+    runtime = ["aot"] if is_aot else ["graph"]
 
     metadata = {
         "version": 1,
         "model_name": mod.libmod_name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
-        "memory": _build_memory_map(mod.graph),
+        "memory": memory_map,
         "target": {int(k): str(v) for k, v in mod.target.items()},
         "runtimes": runtime,
     }
@@ -170,11 +160,8 @@ def export_model_library_format(mod: graph_executor_factory.GraphExecutorFactory
     with open(tempdir.relpath("relay.txt"), "w") as f:
         f.write(str(mod.ir_mod))
 
-    if not is_aot:
-        graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
-        os.makedirs(graph_config_dir_path)
-        with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
-            f.write(mod.graph)
+    graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
+    mod.save_config(graph_config_dir_path)
 
     with tarfile.open(file_name, "w") as tar_f:
 

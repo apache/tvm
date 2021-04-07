@@ -34,7 +34,7 @@ from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
-from .backend import graph_executor_factory as _graph_executor_factory
+from .backend import executor_factory as _executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -78,11 +78,13 @@ class BuildModule(object):
     def __init__(self):
         self.mod = _build_module._BuildModule()
         self._get_graph = self.mod["get_graph"]
+        self._get_runner_function = self.mod["get_runner_function"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
         self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
+        self._get_executor = self.mod["get_executor"]
 
     def build(self, mod, target=None, target_host=None, params=None):
         """
@@ -143,11 +145,13 @@ class BuildModule(object):
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
-        graph = self.get_graph()
         mod = self.get_module()
         params = self.get_params()
+        internal_repr = (
+            self._get_runner_function() if self.get_executor() == "aot" else self.get_graph()
+        )
 
-        return graph, mod, params
+        return internal_repr, mod, params
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -202,6 +206,9 @@ class BuildModule(object):
         for key, value in params.items():
             ret[key] = value.data
         return ret
+
+    def get_executor(self):
+        return self._get_executor()
 
 
 @register_func("tvm.relay.module_export_library")
@@ -287,11 +294,17 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
+        runtime_repr, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
 
-        graph, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
-        executor_factory = _graph_executor_factory.GraphExecutorFactoryModule(
-            ir_mod, target, graph_json, runtime_mod, mod_name, params
-        )
+        if bld_mod.get_executor() == "aot":
+            executor_factory = _executor_factory.AOTExecutorFactoryModule(
+                ir_mod, target, runtime_repr, runtime_mod, mod_name, params
+            )
+        else:
+            executor_factory = _executor_factory.GraphExecutorFactoryModule(
+                ir_mod, target, runtime_repr, runtime_mod, mod_name, params
+            )
+
         return executor_factory
 
 

@@ -47,13 +47,8 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool is_aot_executor
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
-  if (is_aot_executor) {
-    decl_stream << "#include \"tvm_executor.h\"\n";
-    decl_stream << "#include \"dlpack/dlpack.h\"\n";
-  } else {
-    decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
-    decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
-  }
+  decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+  decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
 
   decl_stream << "#include <math.h>\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
@@ -351,7 +346,8 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 }
 
 runtime::Module BuildCHost(IRModule mod, Target target) {
-  bool is_aot_executor = (target->GetAttr<String>("executor").value_or("graph_runtime") == "aot");
+  bool is_aot_executor =
+      (target->GetAttr<String>("executor").value_or(kTvmExecutorGraph) == kTvmExecutorAot);
 
   using tvm::runtime::Registry;
   bool output_ssa = false;
@@ -399,7 +395,8 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
 
   if (is_aot_executor) {
     ICHECK(aot_executor_fn.defined())
-        << "When using aot executor the executor function should be defined";
+        << "When using aot executor the executor function "
+        << ::tvm::runtime::symbol::tvm_lookup_linked_param << " should be defined";
     cg.AddFunction(aot_executor_fn);
   }
 

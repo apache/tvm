@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -174,6 +175,7 @@ runtime::Module DeviceSourceModuleCreate(
  * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
  * \param modules The modules to be wrapped.
  * \param target the target the modules are compiled for.
+ * \param aot_metadata the metadata needed for aot code generation.
  * \return The wrapped module.
  */
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
