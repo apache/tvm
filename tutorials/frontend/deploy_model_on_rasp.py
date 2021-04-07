@@ -80,14 +80,14 @@ from tvm.contrib.download import download_testdata
 #
 #   .. code-block:: bash
 #
-#     python -m tvm.exec.rpc_server --host localhost --port=9090
+#     python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
 #
 # If you see the line below, it means the RPC server started
 # successfully on your device.
 #
 #    .. code-block:: bash
 #
-#      INFO:root:RPCServer: bind to localhost:9090
+#      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
 
 ######################################################################

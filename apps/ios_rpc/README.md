@@ -28,7 +28,7 @@ Start the RPC proxy by running in a terminal:
 
 On success, you should see something like this:
 
-    INFO:root:RPCProxy: client port bind to localhost:9090
+    INFO:root:RPCProxy: client port bind to 0.0.0.0:9090
     INFO:root:RPCProxy: Websock port bind to 8888
 
 IP-address of this machine will be used to initialize ```TVM_IOS_RPC_PROXY_HOST```

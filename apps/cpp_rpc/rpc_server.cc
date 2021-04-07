@@ -85,7 +85,7 @@ static std::string getNextString(std::stringstream* iss) {
 
 /*!
  * \brief RPCServer RPC Server class.
- * \param host The hostname of the server, Default=localhost
+ * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
  * \param port_end The end search port of the RPC, Default=9099
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
@@ -142,7 +142,7 @@ class RPCServer {
     TrackerClient tracker(tracker_addr_, key_, custom_addr_);
     while (true) {
       support::TCPSocket conn;
-      support::SockAddr addr("localhost", 0);
+      support::SockAddr addr("0.0.0.0", 0);
       std::string opts;
       try {
         // step 1: setup tracker and report to tracker
@@ -364,7 +364,7 @@ void ServerLoopFromChild(SOCKET socket) {
 
 /*!
  * \brief RPCServerCreate Creates the RPC Server.
- * \param host The hostname of the server, Default=localhost
+ * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
  * \param port_end The end search port of the RPC, Default=9099
  * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190

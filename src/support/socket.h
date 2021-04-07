@@ -119,7 +119,7 @@ struct SockAddr {
     std::string port = url.substr(sep + 1, url.length() - 1);
     ICHECK(ValidateIP(host)) << "Url address is not valid " << url;
     if (host == "localhost") {
-      host = "localhost";
+      host = "127.0.0.1";
     }
     this->Set(host.c_str(), std::stoi(port));
   }

@@ -25,7 +25,7 @@ Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
 network for ARM CPU with the auto-scheduler via RPC.
 
-To auto-tune a neural network, we partition the network into small subgraphs and
+To auto-tune a neural network, we partition the network into small subgraphs and 
 tune them independently. Each subgraph is treated as one search task.
 A task scheduler slices the time and dynamically allocates time resources to
 these tasks. The task scheduler predicts the impact of each task on the end-to-end
@@ -164,13 +164,13 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=localhost --port=9190
+#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is
 #
 # .. code-block:: bash
 #
-#   INFO:RPCTracker:bind to localhost:9190
+#   INFO:RPCTracker:bind to 0.0.0.0:9190
 
 #################################################################
 # Register Devices to RPC Tracker
@@ -198,7 +198,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 4B with 64bit OS, and 2 rk3399,
 # the output can be

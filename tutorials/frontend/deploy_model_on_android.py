@@ -93,13 +93,13 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   python3 -m tvm.exec.rpc_tracker --host=localhost --port=9190
+#   python3 -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is
 #
 # .. code-block:: bash
 #
-#   INFO:RPCTracker:bind to localhost:9190
+#   INFO:RPCTracker:bind to 0.0.0.0:9190
 
 #################################################################
 # Register Android device to RPC Tracker
@@ -156,7 +156,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   python3 -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
+#   python3 -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have 1 Android device.
 # the output can be
@@ -175,7 +175,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   export TVM_TRACKER_HOST=localhost
+#   export TVM_TRACKER_HOST=0.0.0.0
 #   export TVM_TRACKER_PORT=9190
 #
 # .. code-block:: bash
@@ -289,7 +289,7 @@ lib.export_library(lib_fname, fcompile)
 # With RPC, you can deploy the model remotely from your host machine
 # to the remote android device.
 
-tracker_host = os.environ.get("TVM_TRACKER_HOST", "localhost")
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 key = "android"
 

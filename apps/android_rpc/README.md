@@ -150,7 +150,7 @@ Then checkout [android\_rpc/tests/android\_rpc\_test.py](https://github.com/apac
 
 ```bash
 # Specify the RPC tracker
-export TVM_TRACKER_HOST=localhost
+export TVM_TRACKER_HOST=0.0.0.0
 export TVM_TRACKER_PORT=[PORT]
 # Specify the standalone Android C++ compiler
 export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/aarch64-linux-android-g++

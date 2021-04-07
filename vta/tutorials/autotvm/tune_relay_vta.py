@@ -129,13 +129,13 @@ def compile_network(env, target, model, start_pack, stop_pack):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=localhost --port=9190
+#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is:
 #
 # .. code-block:: bash
 #
-#   INFO:RPCTracker:bind to localhost:9190
+#   INFO:RPCTracker:bind to 0.0.0.0:9190
 
 #################################################################
 # Register devices to RPC Tracker
@@ -156,7 +156,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have 6 Pynq boards and 11 Raspberry Pi 3B,
 # the output can be
@@ -180,7 +180,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Here we use an Pynq-Z1 board as an example.
 
 # Tracker host and port can be set by your environment
-tracker_host = os.environ.get("TVM_TRACKER_HOST", "localhost")
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file

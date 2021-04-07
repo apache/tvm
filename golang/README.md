@@ -110,7 +110,7 @@ A html version documentation can be accessed by running below command after buil
 ```bash
 godoc -http=:6060  -goroot=./gopath
 ```
-After above command try http://localhost:6060 from any browser.
+After above command try http://127.0.0.1:6060 from any browser.
 
 Also please refer to the sample applications under sample folder.
 
