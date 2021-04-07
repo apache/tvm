@@ -437,14 +437,14 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
                 self._debug_rpc_session,
                 debugger.DebuggerFactory(
                     QemuGdbDebugger,
-                    (
-                        micro_binary.abspath(micro_binary.debug_files[0]),
-                    ),
+                    (micro_binary.abspath(micro_binary.debug_files[0]),),
                     {},
                 ),
             )
 
-        return ZephyrQemuTransport(micro_binary.base_dir, startup_timeout_sec=30.0, debugger=qemu_debugger)
+        return ZephyrQemuTransport(
+            micro_binary.base_dir, startup_timeout_sec=30.0, debugger=qemu_debugger
+        )
 
     def flash(self, micro_binary):
         cmake_entries = read_cmake_cache(
@@ -551,18 +551,22 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
 
 class QemuGdbDebugger(debugger.GdbDebugger):
-
     def __init__(self, elf_file):
         super(QemuGdbDebugger, self).__init__()
         self._elf_file = elf_file
 
     def popen_kwargs(self):
         # expect self._elf file to follow the form .../zephyr/zephyr.elf
-        cmake_cache_path = (
-            pathlib.Path(self._elf_file).parent.parent / "CMakeCache.txt")
+        cmake_cache_path = pathlib.Path(self._elf_file).parent.parent / "CMakeCache.txt"
         cmake_cache = read_cmake_cache(cmake_cache_path)
         return {
-            "args": [cmake_cache["CMAKE_GDB"], "-ex", "target remote localhost:1234", "-ex", f"file {self._elf_file}"],
+            "args": [
+                cmake_cache["CMAKE_GDB"],
+                "-ex",
+                "target remote localhost:1234",
+                "-ex",
+                f"file {self._elf_file}",
+            ],
         }
 
 
@@ -626,11 +630,11 @@ class ZephyrQemuTransport(Transport):
         self.pipe = os.path.join(self.pipe_dir, "fifo")
         self.write_pipe = os.path.join(self.pipe_dir, "fifo.in")
         self.read_pipe = os.path.join(self.pipe_dir, "fifo.out")
-        
+
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
         if self.debugger is not None:
-            if 'env' in self.kwargs:
+            if "env" in self.kwargs:
                 self.kwargs["env"] = copy.copy(self.kwargs["env"])
             else:
                 self.kwargs["env"] = copy.copy(os.environ)
@@ -638,9 +642,7 @@ class ZephyrQemuTransport(Transport):
             self.kwargs["env"]["TVM_QEMU_DEBUG"] = "1"
 
         self.proc = subprocess.Popen(
-            ["make",
-             "run",
-             f"QEMU_PIPE={self.pipe}"],
+            ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             **self.kwargs,
         )

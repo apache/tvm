@@ -55,6 +55,7 @@ _LOG = logging.getLogger(__name__)
 
 PLATFORMS = conftest.PLATFORMS
 
+
 def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     target = tvm.target.target.micro(model)
     target = tvm.target.Target(target=target, host=target)
@@ -127,6 +128,7 @@ def _make_add_sess(model, zephyr_board, west_cmd):
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C])
+
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 def test_compile_runtime(platform, west_cmd):
@@ -390,6 +392,7 @@ def test_byoc_utvm(platform, west_cmd):
         zephyr_board=zephyr_board,
         west_cmd=west_cmd,
     )
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))

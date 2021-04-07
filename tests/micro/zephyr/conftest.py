@@ -28,6 +28,7 @@ PLATFORMS = {
     "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
 }
 
+
 def pytest_addoption(parser):
     parser.addoption(
         "--microtvm-platforms",
