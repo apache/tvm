@@ -31,7 +31,7 @@ import tvm
 from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
-from tvm.relay.op.contrib.vitis_ai import annotation
+from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 from tvm.relay.build_module import bind_params_by_name
 from tvm.contrib.target import vitis_ai
 from tvm.contrib import graph_executor
@@ -84,10 +84,7 @@ def build_module(
         opt_level=3, config={"relay.ext.vitis_ai.options.target": dpu_target}
     ):
         if enable_vitis_ai:
-            mod["main"] = bind_params_by_name(mod["main"], params)
-            mod = annotation(mod, params, dpu_target)
-            mod = transform.MergeCompilerRegions()(mod)
-            mod = transform.PartitionGraph()(mod)
+            mod = partition_for_vitis_ai(mod, params, dpu_target)
             tvm_op_count = get_cpu_op_count(mod)
             assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
                 tvm_op_count, tvm_ops
