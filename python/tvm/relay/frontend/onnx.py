@@ -29,6 +29,7 @@ from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from .. import qnn as _qnn
 from .. import vision as _vision
 from .. import loops as _loops
 from .. import ty as _ty
@@ -2782,6 +2783,60 @@ class ATen(OnnxOpConverter):
         return cls._op_dispatch(operator, inputs, attr, params)
 
 
+class QuantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        out_dtype = infer_type(zp).checked_type.dtype
+        return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), 0, out_dtype)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        out_dtype = infer_type(zp).checked_type.dtype
+        axis = attr.get("axis", 1)
+        return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), axis, out_dtype)
+
+
+class DequantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), 0)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        axis = attr.get("axis", 1)
+        return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), axis)
+
+
+class DynamicQuantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        """This op is deprecated an only supports uint8"""
+        data = inputs[0]
+        data_dtype = infer_type(data).checked_type.dtype
+        zero = _op.const(0, dtype=data_dtype)
+        maximum = _op.maximum(zero, _op.max(data))
+        minimum = _op.minimum(zero, _op.min(data))
+        scale = (maximum - minimum) / _op.const(255, dtype=data_dtype)
+        zp = zero - _op.min(data) / scale
+        zp = _op.cast(_op.round(_op.clip(zp, 0, 255)), "uint8")
+        return _expr.TupleWrapper(
+            _expr.Tuple(
+                [_qnn.op.quantize(data, scale, _op.cast(zp, "int32"), 0, "uint8"), scale, zp]
+            ),
+            size=3,
+        )
+
+
 class BitShift(OnnxOpConverter):
     """Operator converter for NonZero"""
 
@@ -2966,6 +3021,10 @@ def _get_convert_map(opset):
         "If": If.get_converter(opset),
         # Torch ATen Dispatcher.
         "ATen": ATen.get_converter(opset),
+        # Quantization
+        "QuantizeLinear": QuantizeLinear.get_converter(opset),
+        "DequantizeLinear": DequantizeLinear.get_converter(opset),
+        "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
     }
 
 
