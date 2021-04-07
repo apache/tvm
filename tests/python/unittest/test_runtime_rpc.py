@@ -406,13 +406,8 @@ def test_rpc_tracker_register():
         key=device_key,
         tracker_addr=("127.0.0.1", tracker.port),
     )
-<<<<<<< HEAD
-    client = rpc.connect_tracker(tracker.host, tracker.port)
-    time.sleep(1)
-=======
     time.sleep(1)
     client = rpc.connect_tracker("127.0.0.1", tracker.port)
->>>>>>> Address host address issues in rpc test
 
     summary = client.summary()
     assert summary["queue_info"][device_key]["free"] == 1

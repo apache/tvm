@@ -423,7 +423,7 @@ class Server(object):
 
     def __init__(
         self,
-        host="0.0.0.0",
+        host,
         port=9091,
         port_end=9199,
         is_proxy=False,

@@ -386,7 +386,7 @@ class Tracker(object):
         Whether run in silent mode
     """
 
-    def __init__(self, host="0.0.0.0", port=9190, port_end=9199, silent=False):
+    def __init__(self, host, port=9190, port_end=9199, silent=False):
         if silent:
             logger.setLevel(logging.WARN)
 
@@ -399,7 +399,7 @@ class Tracker(object):
                 self.port = my_port
                 break
             except socket.error as sock_err:
-                if sock_err.errno in [98, 48, 10098, 10048]:
+                if sock_err.errno in [98, 48]:
                     continue
                 raise sock_err
         if not self.port:
@@ -414,7 +414,7 @@ class Tracker(object):
 
     def _stop_tracker(self):
         sock = socket.socket(base.get_addr_family((self.host, self.port)), socket.SOCK_STREAM)
-        sock.connect(("127.0.0.1", self.port))
+        sock.connect((self.host, self.port))
         sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
         magic = struct.unpack("<i", base.recvall(sock, 4))[0]
         assert magic == base.RPC_TRACKER_MAGIC
