@@ -85,7 +85,7 @@ inline std::string GetHostName() {
  * \return result of operation.
  */
 inline bool ValidateIP(std::string ip) {
-  if (ip == "localhost") {
+  if (ip == "127.0.0.1") {
     return true;
   }
   struct sockaddr_in sa_ipv4;
@@ -118,7 +118,7 @@ struct SockAddr {
     std::string host = url.substr(2, sep - 3);
     std::string port = url.substr(sep + 1, url.length() - 1);
     ICHECK(ValidateIP(host)) << "Url address is not valid " << url;
-    if (host == "localhost") {
+    if (host == "127.0.0.1") {
       host = "127.0.0.1";
     }
     this->Set(host.c_str(), std::stoi(port));

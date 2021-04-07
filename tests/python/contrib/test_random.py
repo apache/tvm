@@ -120,7 +120,7 @@ def test_random_fill():
         if not tvm.testing.device_enabled("rpc") or not tvm.runtime.enabled("llvm"):
             return
         np_ones = np.ones((512, 512), dtype=dtype)
-        server = rpc.Server("localhost")
+        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         value = tvm.nd.empty(np_ones.shape, np_ones.dtype, remote.cpu())
         random_fill = remote.get_function("tvm.contrib.random.random_fill")

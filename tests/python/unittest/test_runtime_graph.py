@@ -67,7 +67,7 @@ def test_graph_simple():
 
     def check_remote():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        server = rpc.Server("localhost")
+        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         temp = utils.tempdir()
         dev = remote.cpu(0)
