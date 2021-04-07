@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file simple_analysis.cc
+ * \file var_touch.cc
  * \brief Implementation of simple passes
  */
 #include <tvm/tir/analysis.h>
