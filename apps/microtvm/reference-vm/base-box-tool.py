@@ -358,7 +358,7 @@ def test_command(args):
 
 
 def release_command(args):
-    vm_name = f"mehrdadh/microtvm-{args.platform}"
+    vm_name = f"tlcpack/microtvm-{args.platform}"
     if args.platform == "zephyr":
         vm_name = f"{vm_name}-{args.zephyr_version}"
 
@@ -467,6 +467,7 @@ def parse_args():
 
     parser.add_argument(
         "--zephyr-version",
+        default="2.5",
         help="Zephyr RTOS version to release, in the form 'x.y'. Must be specified with release.",
     )
 
