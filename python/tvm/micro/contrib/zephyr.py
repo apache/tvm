@@ -644,7 +644,7 @@ class ZephyrQemuTransport(Transport):
             cwd=self.base_dir,
             **self.kwargs,
         )
-        print('START DEBUG', self.debugger)
+
         if self.debugger is not None:
             self.debugger.start()
 
