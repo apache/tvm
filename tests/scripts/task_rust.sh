@@ -45,18 +45,16 @@ cargo fmt -- --check
 cd $RUST_DIR/tvm-sys
 # First we test w/o the bindings feature on.
 cargo build
-cargo test --tests
+cargo test --features static-linking --tests
 
 # Second we test w/ the bindings feature on.
-cargo build --features bindings
-cargo test --features bindings --tests
+cargo build --features dynamic-linking
+cargo test --features dynamic-linking --tests
 
 # Next we test the runtime API.
 cd $RUST_DIR/tvm-rt
-
 # Build and run the tests.
-cargo build
-cargo test --tests
+cargo test
 
 # Next we test the graph executor crate.
 cd $RUST_DIR/tvm-graph-rt
@@ -89,11 +87,10 @@ cd -
 # and compiler bindings.
 cd $RUST_DIR/tvm
 
-cargo test --tests -- --test-threads=1
+cargo test
 
 # run basic tests on cpu
 cd tests/basics
-cargo build --features cpu
 cargo run --features cpu
 # uncomment when have more CI resources
 # cargo build --features gpu
@@ -101,6 +98,7 @@ cargo run --features cpu
 # fi
 cd -
 
+# TODO(@jroesch): I believe this is no longer true, refactor in follow up PR.
 # run callback tests separately: https://discuss.tvm.ai/t/are-global-functions-need-to-be-accessed-in-separate-processes/1075
 cd tests/callback
 cargo build
