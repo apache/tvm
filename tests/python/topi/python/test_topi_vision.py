@@ -629,7 +629,7 @@ def test_proposal():
 
 
 def verify_all_class_non_max_suppression(
-    boxes_np, scores_np, max_output_boxes_per_class, iou_threshold, score_threshold
+    boxes_np, scores_np, max_output_boxes_per_class, iou_threshold, score_threshold, expected_indices
 ):
     dshape = boxes_np.shape
     batch, num_boxes, _ = dshape
@@ -657,10 +657,11 @@ def verify_all_class_non_max_suppression(
 
         f = tvm.build(s, [boxes, scores, out[0], out[1]], target)
         f(tvm_boxes, tvm_scores, selected_indices, num_detections)
-        print(selected_indices.asnumpy()[: num_detections.asnumpy()[0]])
-        # tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for target in ["llvm", "cuda"]:
+        tvm_res = selected_indices.asnumpy()[: num_detections.asnumpy()[0]]
+        np.testing.assert_equal(tvm_res, expected_indices)
+
+    for target in ["llvm", "cuda", "opencl", "vulkan"]:
         check_device(target)
 
 
@@ -696,8 +697,10 @@ def test_all_class_non_max_suppression():
     iou_threshold = 0.8
     score_threshold = 0.0
 
+    expected = []
+
     verify_all_class_non_max_suppression(
-        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
     )
 
     boxes = np.array(
@@ -717,8 +720,10 @@ def test_all_class_non_max_suppression():
     iou_threshold = 0.5
     score_threshold = 0.4
 
+    expected = []
+
     verify_all_class_non_max_suppression(
-        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
     )
 
 
