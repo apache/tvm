@@ -28,7 +28,6 @@
 #ifndef TVM_TIR_OP_ATTR_TYPES_H_
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
-#include <functional>
 #include <tvm/runtime/container.h>
 
 namespace tvm {

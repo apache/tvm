@@ -26,6 +26,7 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include <sstream>
 
@@ -93,63 +94,89 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
 }
 
 namespace llvm {
+using namespace tir;
 
 // dummy because we don't have the activemask
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_activemask")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      PrimExpr zero = tir::make_zero(DataType::Int(32));
-      *rv = zero;
-    });
+TVM_REGISTER_OP("tir.tvm_warp_activemask").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+  PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
+    PrimExpr zero = tir::make_zero(DataType::Int(32));
+    *rv = zero;
+  }));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle").set_body(DispatchShuffle);
+TVM_REGISTER_OP("tir.tvm_warp_shuffle")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchShuffle));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle_up").set_body(DispatchShuffle);
+TVM_REGISTER_OP("tir.tvm_warp_shuffle_up")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchShuffle));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle_down").set_body(DispatchShuffle);
+TVM_REGISTER_OP("tir.tvm_warp_shuffle_down")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchShuffle));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.floor")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.ceil")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.round")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.trunc")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.fabs")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.exp")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.exp2")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp10").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.exp10")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.erf")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.fma")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.log")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.log2")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.log10")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.sqrt")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.pow")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.tanh")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.tan")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.cos")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.cosh")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.sin")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.sinh")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan").set_body(DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.atan")
+  .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", PackedFunc(DispatchPureExternOCML));
 
 }  // namespace llvm
 }  // namespace codegen

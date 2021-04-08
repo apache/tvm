@@ -30,6 +30,7 @@ namespace tvm {
 namespace codegen {
 namespace intrin {
 // Add float suffix to the intrinsics, CUDA fast math.
+using namespace tir;
 struct CUDAMath {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_float()) {
@@ -126,63 +127,86 @@ static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
   *rv = Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), cuda_args);
 }
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.floor")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.ceil").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.ceil")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.trunc").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.trunc")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fabs").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.fabs")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.round")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.exp")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.exp2")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.exp10")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.erf")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.log")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.log2")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.log10")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan").set_body(DispatchPureExtern<CUDAFastMathTan>);
+TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
+  PackedFunc(DispatchPureExtern<CUDAFastMathTan>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.cos")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.cosh")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin").set_body(DispatchPureExtern<CUDAFastMath>);
+TVM_REGISTER_OP("tir.sin")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAFastMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.sinh")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.atan")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.tanh")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.sqrt")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.pow")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount").set_body(DispatchPureExtern<CUDAPopcount>);
+TVM_REGISTER_OP("tir.popcount")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAPopcount>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
-    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+TVM_REGISTER_OP("tir.tvm_warp_shuffle").set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
+  PackedFunc(DispatchCUDAShuffle<CUDAWarpIntrinsic>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_up")
-    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+TVM_REGISTER_OP("tir.tvm_warp_shuffle_up").set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
+  PackedFunc(DispatchCUDAShuffle<CUDAWarpIntrinsic>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_down")
-    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+TVM_REGISTER_OP("tir.tvm_warp_shuffle_down").set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
+  PackedFunc(DispatchCUDAShuffle<CUDAWarpIntrinsic>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_activemask")
-    .set_body(DispatchCUDAWarpActiveMask);
+TVM_REGISTER_OP("tir.tvm_warp_activemask")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchCUDAWarpActiveMask));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod").set_body(DispatchPureExtern<CUDAMath>);
+TVM_REGISTER_OP("tir.fmod")
+  .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", PackedFunc(DispatchPureExtern<CUDAMath>));
 
 // Register low-level builtin ops.
 // TODO(tvm-team): consider make CUDA its own subfolder and create a file for low-level builtins.
