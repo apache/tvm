@@ -188,7 +188,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
           // Automatically convert input DLTensors to NDArray
           DLTensor* tensor = args[i];
           std::vector<int64_t> shape;
-          for (size_t i = 0; i < tensor->ndim; i++) {
+          for (int64_t i = 0; i < tensor->ndim; i++) {
             shape.push_back(tensor->shape[i]);
           }
           NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
