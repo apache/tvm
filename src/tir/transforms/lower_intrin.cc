@@ -71,7 +71,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
               if (r.defined()) return r;
             }
           }
-      }
+        }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
