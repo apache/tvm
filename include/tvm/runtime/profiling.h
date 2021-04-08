@@ -265,7 +265,7 @@ class Profiler {
    *  \returns A `Report` that can either be formatted as CSV (with `.AsCSV`)
    *  or as a human readable table (with `.AsTable`).
    */
-  Report Report(bool aggregate = true, bool sort = true);
+  profiling::Report Report(bool aggregate = true, bool sort = true);
   /*! \brief Check if the profiler is currently running.
    * \returns Whether or not the profiler is running.
    */
