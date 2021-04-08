@@ -58,18 +58,19 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      for (size_t i = 0; i < patterns_.size(); ++i) {
-        auto default_intrin = Op::GetAttrMap<FLowerIntrinsic>(patterns_[i]);
-        FLowerIntrinsic f = default_intrin.get(GetRef<Op>(ptr_op), nullptr);
-        const PrimExpr e = GetRef<PrimExpr>(op);
-        if (f != nullptr) {
-          PrimExpr r = f(e);
-          ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
-          if (!r.same_as(e)) {
-            r = this->VisitExpr(r);
-            if (r.defined()) return r;
+      for (size_t i = 0; i < patterns_.size(); ++i)
+        if (Op::HasAttrMap(patterns_[i])) {
+          auto default_intrin = Op::GetAttrMap<FLowerIntrinsic>(patterns_[i]);
+          FLowerIntrinsic f = default_intrin.get(GetRef<Op>(ptr_op), nullptr);
+          const PrimExpr e = GetRef<PrimExpr>(op);
+          if (f != nullptr) {
+            PrimExpr r = f(e);
+            ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+            if (!r.same_as(e)) {
+              r = this->VisitExpr(r);
+              if (r.defined()) return r;
+            }
           }
-        }
       }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
