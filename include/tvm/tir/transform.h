@@ -346,6 +346,12 @@ TVM_DLL Pass PointerValueTypeRewrite();
  */
 TVM_DLL Pass HoistIfThenElse();
 
+/*!
+ * \brief Lower block init stmt into IfThenElse stmts
+ * \return The pass.
+ */
+TVM_DLL Pass LowerInitBlock();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
