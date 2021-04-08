@@ -22,10 +22,9 @@
  */
 #include <GLSL.std.450.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 namespace tvm {
 namespace codegen {
@@ -56,47 +55,55 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   *rv = CallGLSLIntrin<id>(targs, rv);
 }
 
-TVM_REGISTER_OP("tir.floor").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Floor>));
+TVM_REGISTER_OP("tir.floor")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Floor>));
 
-TVM_REGISTER_OP("tir.ceil").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Ceil>));
+TVM_REGISTER_OP("tir.ceil")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Ceil>));
 
-TVM_REGISTER_OP("tir.round").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Round>));
+TVM_REGISTER_OP("tir.round")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Round>));
 
-TVM_REGISTER_OP("tir.trunc").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Trunc>));
+TVM_REGISTER_OP("tir.trunc")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Trunc>));
 
-TVM_REGISTER_OP("tir.fabs").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450FAbs>));
+TVM_REGISTER_OP("tir.fabs")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450FAbs>));
 
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Exp>));
+TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>(
+    "vulkan.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Exp>));
 
-TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Sin>));
+TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>(
+    "vulkan.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Sin>));
 
-TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Cos>));
+TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>(
+    "vulkan.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Cos>));
 
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Log>));
+TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>(
+    "vulkan.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Log>));
 
-TVM_REGISTER_OP("tir.log2").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Log2>));
+TVM_REGISTER_OP("tir.log2")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Log2>));
 
-TVM_REGISTER_OP("tir.sqrt").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Sqrt>));
+TVM_REGISTER_OP("tir.sqrt")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Sqrt>));
 
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Pow>));
+TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
+    "vulkan.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Pow>));
 
-TVM_REGISTER_OP("tir.tanh").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Tanh>));
+TVM_REGISTER_OP("tir.tanh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Tanh>));
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.clz")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
+    "vulkan.FLowerIntrinsic", PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
       PrimExpr e = targs[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
@@ -104,38 +111,45 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.clz")
       PrimExpr arg = call->args[0];
       PrimExpr msb = CallGLSLIntrin<GLSLstd450FindUMsb>(targs, rv);
       *rv = PrimExpr(arg.dtype().bits() - 1) - msb;
-    });
+    }));
 
 // WebGPU rules.
-TVM_REGISTER_OP("tir.floor").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Floor>));
+TVM_REGISTER_OP("tir.floor")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Floor>));
 
-TVM_REGISTER_OP("tir.ceil").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Ceil>));
+TVM_REGISTER_OP("tir.ceil")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Ceil>));
 
-TVM_REGISTER_OP("tir.round").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Round>));
+TVM_REGISTER_OP("tir.round")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Round>));
 
-TVM_REGISTER_OP("tir.trunc").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Trunc>));
+TVM_REGISTER_OP("tir.trunc")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Trunc>));
 
-TVM_REGISTER_OP("tir.fabs").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450FAbs>));
+TVM_REGISTER_OP("tir.fabs")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450FAbs>));
 
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Exp>));
+TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>(
+    "webgpu.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Exp>));
 
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Log>));
+TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>(
+    "webgpu.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Log>));
 
-TVM_REGISTER_OP("tir.sqrt").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Sqrt>));
+TVM_REGISTER_OP("tir.sqrt")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Sqrt>));
 
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Pow>));
+TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
+    "webgpu.FLowerIntrinsic", PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Pow>));
 
-TVM_REGISTER_OP("tir.tanh").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-  PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Tanh>));
+TVM_REGISTER_OP("tir.tanh")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               PackedFunc(DispatchGLSLPureIntrin<GLSLstd450Tanh>));
 
 }  // namespace spirv
 }  // namespace codegen
