@@ -443,7 +443,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             )
 
         return ZephyrQemuTransport(
-            micro_binary.base_dir, startup_timeout_sec=30.0, debugger=qemu_debugger
+            micro_binary.base_dir, startup_timeout_sec=30.0, qemu_debugger=qemu_debugger
         )
 
     def flash(self, micro_binary):
@@ -609,20 +609,20 @@ class QemuFdTransport(file_descriptor.FdTransport):
 class ZephyrQemuTransport(Transport):
     """The user-facing Zephyr QEMU transport class."""
 
-    def __init__(self, base_dir, startup_timeout_sec=5.0, debugger=None, **kwargs):
+    def __init__(self, base_dir, startup_timeout_sec=5.0, qemu_debugger=None, **kwargs):
         self.base_dir = base_dir
         self.startup_timeout_sec = startup_timeout_sec
         self.kwargs = kwargs
         self.proc = None
         self.fd_transport = None
         self.pipe_dir = None
-        self.debugger = debugger
+        self.qemu_debugger = qemu_debugger
 
     def timeouts(self):
         return TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
             session_start_timeout_sec=self.startup_timeout_sec,
-            session_established_timeout_sec=5.0 if self.debugger is None else 0,
+            session_established_timeout_sec=5.0 if self.qemu_debugger is None else 0,
         )
 
     def open(self):
@@ -633,11 +633,11 @@ class ZephyrQemuTransport(Transport):
 
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
-        if self.debugger is not None:
+        if self.qemu_debugger is not None:
             if "env" in self.kwargs:
                 self.kwargs["env"] = copy.copy(self.kwargs["env"])
             else:
-                self.kwargs["env"] = copy.copy(os.environ)
+                self.kwargs["env"] = os.environ.copy()
 
             self.kwargs["env"]["TVM_QEMU_DEBUG"] = "1"
 
@@ -647,8 +647,8 @@ class ZephyrQemuTransport(Transport):
             **self.kwargs,
         )
 
-        if self.debugger is not None:
-            self.debugger.start()
+        if self.qemu_debugger is not None:
+            self.qemu_debugger.start()
 
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
@@ -664,8 +664,8 @@ class ZephyrQemuTransport(Transport):
         self.fd_transport.open()
 
     def close(self):
-        if self.debugger is not None:
-            self.debugger.stop()
+        if self.qemu_debugger is not None:
+            self.qemu_debugger.stop()
 
         if self.fd_transport is not None:
             self.fd_transport.child_transport.write_monitor_quit()
