@@ -475,7 +475,7 @@ def verify_roi_align(
         tvm_val = tvm_b.asnumpy()
         tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-4)
 
-    for target in ["cuda"]:
+    for target in ["llvm", "cuda", "opencl"]:
         check_device(target)
 
 

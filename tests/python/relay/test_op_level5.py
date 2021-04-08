@@ -1371,9 +1371,7 @@ def test_all_class_non_max_suppression():
         score_threshold,
         expected_indices,
     ):
-        dshape = boxes_np.shape
-
-        boxes = relay.var("boxes", relay.ty.TensorType(dshape, "float32"))
+        boxes = relay.var("boxes", relay.ty.TensorType(boxes_np.shape, "float32"))
         scores = relay.var("scores", relay.ty.TensorType(scores_np.shape, "float32"))
 
         out = relay.vision.all_class_non_max_suppression(
