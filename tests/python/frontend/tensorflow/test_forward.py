@@ -5451,5 +5451,44 @@ def test_forward_unique_with_counts():
             _test_unique_with_counts(20, dtype, is_dyn)
 
 
+#######################################################################
+# check graph ir for nn.moments
+# ------------
+
+SEMVER = '#[version = "0.0.5"]\n'
+
+
+def run_from_tensorflow(graph):
+    mod, _ = from_tensorflow(graph.as_graph_def(add_shapes=True))
+    return mod
+
+
+def test_moments():
+    g = tf.Graph()
+    shape = [4, 176, 8, 8]
+    dtype = "float32"
+    with g.as_default():
+        A = tf.placeholder(shape=shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=shape, dtype=dtype, name="B")
+        mean, variance = tf.nn.moments(A, [1], keep_dims=True)
+        normalised_input = (A - mean) / tf.sqrt(variance + 0.0005)
+
+    mod = run_from_tensorflow(g)
+    program = """
+    def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
+        %527 = mean(%A, axis=[1], keepdims=True) /* moments/mean */;
+        %528 = subtract(%A, %527) /* sub */;
+        %529 = subtract(%A, %527);
+        %530 = multiply(%529, %529) /* moments/SquaredDifference */;
+        %531 = mean(%530, axis=[1], keepdims=True) /* moments/variance */;
+        %532 = add(%531, 0.0005f) /* add */;
+        %533 = sqrt(%532) /* Sqrt */;
+        divide(%528, %533) /* truediv */
+    }
+    """
+    mod_golden = tvm.parser.parse(SEMVER + program)
+    tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
