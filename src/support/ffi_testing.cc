@@ -81,6 +81,25 @@ TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue
   *ret = dev;
 });
 
+TVM_REGISTER_GLOBAL("rpc.test.addone").set_body([](TVMArgs args, TVMRetValue* ret) {
+  int x = args[0];
+  *ret = x + 1;
+});
+
+TVM_REGISTER_GLOBAL("rpc.test.strcat").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::stringstream ss;
+  std::string s1 = args[0];
+  int i1 = args[1];
+  ss << s1 << ":" << i1;
+  std::string str = ss.str();
+  *ret = str;
+});
+
+TVM_REGISTER_GLOBAL("rpc.test.except").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string name = args[0];
+  throw tvm::Error(name);
+});
+
 // in src/api_test.cc
 void ErrorTest(int x, int y) {
   // raise ValueError
