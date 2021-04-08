@@ -477,16 +477,17 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     TVMArgs args = RecvPackedSeq();
 
     this->SwitchToState(kWaitForAsyncCallback);
-    GetServingSession()->AsyncCallFunc(reinterpret_cast<void*>(call_handle), args.values,
-                                       args.type_codes, args.size(),
-                                       [this](RPCCode status, TVMArgs args) {
-                                         if (status == RPCCode::kException) {
-                                           this->ReturnException(args.values[0].v_str);
-                                         } else {
-                                           this->ReturnPackedSeq(args);
-                                         }
-                                         this->SwitchToState(kRecvPacketNumBytes);
-                                       });
+    GetServingSession()->AsyncCallFunc(
+        reinterpret_cast<void*>(call_handle), args.values, args.type_codes, args.size(),
+        [this](RPCCode status, TVMArgs args) {
+          if (status == RPCCode::kException) {
+            this->ReturnException(args.values[0].v_str);
+          } else {
+            ValidateArguments(args.values, args.type_codes, args.size());
+            this->ReturnPackedSeq(args);
+          }
+          this->SwitchToState(kRecvPacketNumBytes);
+        });
   }
 
   void HandleInitServer() {

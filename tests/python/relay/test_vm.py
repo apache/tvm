@@ -823,8 +823,9 @@ def test_vm_rpc():
     path = temp.relpath("vm_library.so")
     vm_exec.mod.export_library(path)
 
-    # Use LocalRPC for testing.
-    remote = rpc.LocalSession()
+    # Use local rpc server for testing.
+    server = rpc.Server("localhost", key="x")
+    remote = rpc.connect(server.host, server.port, key="x")
 
     # Upload the serialized Executable.
     remote.upload(path)
@@ -837,7 +838,7 @@ def test_vm_rpc():
     np_input = np.random.uniform(size=(10, 1)).astype("float32")
     input_tensor = tvm.nd.array(np_input, ctx)
     # Invoke its "main" function.
-    out = vm_factory.invoke("main", [input_tensor])
+    out = vm_factory.invoke("main", input_tensor)
     # Check the result.
     np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
 
