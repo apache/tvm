@@ -48,6 +48,7 @@ from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
 from packaging import version as package_version
 
 import tvm.testing
