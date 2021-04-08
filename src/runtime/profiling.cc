@@ -295,7 +295,7 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
     }
   }
   col_sums["Name"] = String("Sum");
-  aggregated_calls.push_back({{String("Name"), String("----------")}});  // seperator
+  aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
   aggregated_calls.push_back(col_sums);
 
   // overall metrics
