@@ -786,9 +786,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : smap_(smap), fmap_(fmap), source_(source), max_push_constants_(GetMaxPushConstantsSize()) {
-    LOG(INFO) << "VulkanModuleNode, max_push_constants: " << max_push_constants_;
-  }
+      : smap_(smap), fmap_(fmap), source_(source), max_push_constants_(GetMaxPushConstantsSize()) {}
 
   const char* type_key() const final { return "vulkan"; }
 
@@ -898,7 +896,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
     if (nbytes_scalars > max_push_constants_) {
-      LOG(INFO) << "Using ubo";
       push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     }
 
@@ -1044,7 +1041,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   // The source
   std::string source_;
   // The maximum size of push constants in bytes
-  uint32_t max_push_constants_;
+  const uint32_t max_push_constants_;
 
   // Guards accesses to `ecache_`
   std::mutex mutex_;
