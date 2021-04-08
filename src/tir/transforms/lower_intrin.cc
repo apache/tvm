@@ -62,7 +62,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         if (Op::HasAttrMap(patterns_[i])) {
           auto default_intrin = Op::GetAttrMap<FLowerIntrinsic>(patterns_[i]);
           FLowerIntrinsic f = default_intrin.get(GetRef<Op>(ptr_op), nullptr);
-          const PrimExpr e = GetRef<PrimExpr>(op);
+          PrimExpr e = GetRef<PrimExpr>(op);
           if (f != nullptr) {
             PrimExpr r = f(e);
             ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
