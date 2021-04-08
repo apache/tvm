@@ -179,17 +179,19 @@ TVM_REGISTER_GLOBAL("relay.op.vision._make.all_class_non_max_suppression")
     .set_body_typed(MakeAllClassNMS);
 
 RELAY_REGISTER_OP("vision.all_class_non_max_suppression")
-    .describe(R"doc(Non-maximum suppression. The input boxes should
-be in the format of [class_id, score, left, top, right, bottom]
-or [score, left, top, right, bottom]. Set id_index to be -1 to
-ignore class_id axis.
+    .describe(R"doc(Non-maximum suppression operator for object detection, corresponding to ONNX
+    NonMaxSuppression and TensorFlow combined_non_max_suppression.
+    NMS is performed for each class separately
 )doc" TVM_ADD_FILELINE)
     .set_num_inputs(5)
-    .add_argument("data", "Tensor", "Input data.")
-    .add_argument("valid_count", "Tensor", "Number of valid anchor boxes.")
-    .add_argument("indices", "Tensor", "Corresponding indices in original input tensor.")
-    .add_argument("max_output_size", "Tensor", "Max number of output valid boxes.")
-    .add_argument("iou_threshold", "Tensor", "Threshold for box overlap.")
+    .add_argument("boxes", "Tensor", "The input boxes in the format [batch, num_boxes, 4].")
+    .add_argument("scores", "Tensor",
+                  "Scores for each box and class in the format [batch, num_classes, num_boxes].")
+    .add_argument("max_output_boxes_per_class", "Tensor",
+                  "The maximum number of output boxes per class.")
+    .add_argument("iou_threshold", "Tensor", "The IoU threshold for box the overlap test.")
+    .add_argument("score_threshold", "Tensor",
+                  "The score threshold to filter out low score boxes early.")
     .set_support_level(5)
     .add_type_rel("AllClassNMS", AllClassNMSRel);
 
