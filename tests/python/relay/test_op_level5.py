@@ -21,7 +21,6 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 import tvm.testing
@@ -1373,8 +1372,6 @@ def test_all_class_non_max_suppression():
         expected_indices,
     ):
         dshape = boxes_np.shape
-        batch, num_boxes, _ = dshape
-        _, num_class, _ = scores_np.shape
 
         boxes = relay.var("boxes", relay.ty.TensorType(dshape, "float32"))
         scores = relay.var("scores", relay.ty.TensorType(scores_np.shape, "float32"))
@@ -1387,13 +1384,13 @@ def test_all_class_non_max_suppression():
             score_threshold,
         )
 
-        func_indices = relay.Function([boxes, scores], out)
-        func_indices = run_infer_type(func_indices)
+        func = relay.Function([boxes, scores], out.astuple())
+        func = run_infer_type(func)
 
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["graph", "vm"]:
+            for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, device=dev, target=target)
-                selected_indices, num_detections = intrp.evaluate(func_indices)(boxes_np, scores_np)
+                selected_indices, num_detections = intrp.evaluate(func)(boxes_np, scores_np)
                 tvm_res = selected_indices.asnumpy()[: num_detections.asnumpy()[0]]
                 np.testing.assert_equal(tvm_res, expected_indices)
 
@@ -1427,7 +1424,9 @@ def test_all_class_non_max_suppression():
     iou_threshold = 0.8
     score_threshold = 0.0
 
-    expected = []
+    expected = np.array(
+        [[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 2], [1, 0, 4], [1, 0, 1], [1, 1, 4], [1, 1, 1]]
+    )
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
@@ -1450,7 +1449,7 @@ def test_all_class_non_max_suppression():
     iou_threshold = 0.5
     score_threshold = 0.4
 
-    expected = []
+    expected = np.array([[0, 0, 3], [0, 0, 0]])
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected

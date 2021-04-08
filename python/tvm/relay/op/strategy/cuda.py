@@ -948,7 +948,7 @@ def nms_strategy_cuda(attrs, inputs, out_type, target):
 
 @all_class_nms_strategy.register(["cuda", "gpu"])
 def all_class_nms_strategy_cuda(attrs, inputs, out_type, target):
-    """nms cuda strategy"""
+    """all class nms cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_all_class_nms(topi.cuda.all_class_non_max_suppression),

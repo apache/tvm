@@ -629,7 +629,12 @@ def test_proposal():
 
 
 def verify_all_class_non_max_suppression(
-    boxes_np, scores_np, max_output_boxes_per_class, iou_threshold, score_threshold, expected_indices
+    boxes_np,
+    scores_np,
+    max_output_boxes_per_class,
+    iou_threshold,
+    score_threshold,
+    expected_indices,
 ):
     dshape = boxes_np.shape
     batch, num_boxes, _ = dshape
@@ -697,7 +702,9 @@ def test_all_class_non_max_suppression():
     iou_threshold = 0.8
     score_threshold = 0.0
 
-    expected = []
+    expected = np.array(
+        [[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 2], [1, 0, 4], [1, 0, 1], [1, 1, 4], [1, 1, 1]]
+    )
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
@@ -720,7 +727,7 @@ def test_all_class_non_max_suppression():
     iou_threshold = 0.5
     score_threshold = 0.4
 
-    expected = []
+    expected = np.array([[0, 0, 3], [0, 0, 0]])
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
@@ -728,11 +735,11 @@ def test_all_class_non_max_suppression():
 
 
 if __name__ == "__main__":
-    # test_get_valid_counts()
-    # test_multibox_prior()
-    # test_multibox_detection()
-    # test_roi_align()
-    # test_roi_pool()
-    # test_proposal()
-    # test_non_max_suppression()
+    test_get_valid_counts()
+    test_multibox_prior()
+    test_multibox_detection()
+    test_roi_align()
+    test_roi_pool()
+    test_proposal()
+    test_non_max_suppression()
     test_all_class_non_max_suppression()

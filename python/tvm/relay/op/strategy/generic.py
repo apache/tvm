@@ -1055,7 +1055,7 @@ def nms_strategy(attrs, inputs, out_type, target):
 
 
 def wrap_compute_all_class_nms(topi_compute):
-    """wrap nms topi compute"""
+    """wrap all class nms topi compute"""
 
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[2]
