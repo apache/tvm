@@ -17,7 +17,7 @@
 
 [package]
 name = "tvm"
-version = "0.1.0"
+version = "0.1.1-alpha"
 license = "Apache-2.0"
 description = "Rust frontend support for TVM"
 repository = "https://github.com/apache/tvm"
@@ -36,7 +36,7 @@ blas = ["ndarray/blas"]
 python = ["pyo3"]
 
 [dependencies.tvm-rt]
-version = "0.1"
+version = "0.1.0-alpha"
 default-features = false
 path = "../tvm-rt/"
 
@@ -46,7 +46,7 @@ anyhow = "^1.0"
 lazy_static = "1.1"
 ndarray = "0.12"
 num-traits = "0.2"
-tvm-macros = { version = "*", path = "../tvm-macros/" }
+tvm-macros = { version = "0.1.1-alpha", path = "../tvm-macros/" }
 paste = "0.1"
 mashup = "0.1"
 once_cell = "^1.3.1"
