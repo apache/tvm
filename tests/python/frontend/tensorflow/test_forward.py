@@ -5455,13 +5455,6 @@ def test_forward_unique_with_counts():
 # check graph ir for nn.moments
 # ------------
 
-SEMVER = '#[version = "0.0.5"]\n'
-
-
-def run_from_tensorflow(graph):
-    mod, _ = from_tensorflow(graph.as_graph_def(add_shapes=True))
-    return mod
-
 
 def test_moments():
     g = tf.Graph()
@@ -5473,7 +5466,7 @@ def test_moments():
         mean, variance = tf.nn.moments(A, [1], keep_dims=True)
         normalised_input = (A - mean) / tf.sqrt(variance + 0.0005)
 
-    mod = run_from_tensorflow(g)
+    mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
     program = """
     def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
         %527 = mean(%A, axis=[1], keepdims=True) /* moments/mean */;
@@ -5486,7 +5479,7 @@ def test_moments():
         divide(%528, %533) /* truediv */
     }
     """
-    mod_golden = tvm.parser.parse(SEMVER + program)
+    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 
