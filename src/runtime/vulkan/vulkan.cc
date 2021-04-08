@@ -823,12 +823,11 @@ class VulkanModuleNode final : public runtime::ModuleNode {
         vkDestroyDescriptorSetLayout(vctx.device, pe->descriptor_set_layout, nullptr);
         vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
         // UBO
-        if (pe->ubo.host_buf) {
+        if (pe->ubo.vk_buf) {
+          vkUnmapMemory(vctx.device, pe->ubo.vk_buf->memory);
           vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
           vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
           delete pe->ubo.vk_buf;
-          // TOOD(masahi): Fix segfault here
-          // delete[] (ArgUnion64*)pe->ubo.host_buf;
         }
       }
     }
@@ -986,7 +985,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     if (nbytes_scalars > max_push_constants_) {
       // Allocate, bind and map UBO
       UniformBuffer& ubo = pe->ubo;
-      ubo.host_buf = new ArgUnion64[num_pod];
       ubo.vk_buf = CreateBuffer(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
       vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &(ubo.host_buf));
     }
