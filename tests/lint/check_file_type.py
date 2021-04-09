@@ -137,7 +137,9 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/demo_runtime/boards/nrf5340dk_nrf5340_cpuapp.conf",
     "apps/microtvm/zephyr/demo_runtime/boards/nucleo_f746zg.conf",
     "apps/microtvm/zephyr/demo_runtime/boards/stm32f746g_disco.conf",
+    "apps/microtvm/zephyr/demo_runtime/boards/mps2_an521.conf",
     "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-i386",
+    "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-arm",
     "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-riscv32",
     "apps/microtvm/zephyr/demo_runtime/qemu-hack/qemu-system-riscv64",
     # microTVM Virtual Machines
