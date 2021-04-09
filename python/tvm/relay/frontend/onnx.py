@@ -3202,6 +3202,24 @@ class GraphProto:
                 outputs_num = 1
             else:
                 outputs_num = len(op)
+            if outputs_num > 1:
+                valid_outputs = [False] * outputs_num
+                for i in range(len(node_output)):
+                    if node_output[i] != "":
+                        valid_outputs[i] = True
+                if not all(valid_outputs):
+                    tup = op.astuple()
+                    if isinstance(tup, _expr.Tuple):
+                        outputs = [tup.fields[i] for i, valid in enumerate(valid_outputs) if valid]
+                    else:
+                        outputs = [op[i] for i, valid in enumerate(valid_outputs) if valid]
+
+                    if len(outputs) == 1:
+                        op = outputs[0]
+                    else:
+                        op = _expr.TupleWrapper(outputs, len(outputs))
+                    outputs_num = len(outputs)
+                    node_output = [output for output in node_output if output != ""]
             assert (
                 len(node_output) == outputs_num
             ), "Number of output mismatch {} vs {} in {}.".format(
