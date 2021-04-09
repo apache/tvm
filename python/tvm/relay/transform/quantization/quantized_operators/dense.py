@@ -68,17 +68,17 @@ def generate_generic_quantized_dense(
     first_term = nn.dense(data, weight, units=out_units, out_dtype=internal_accumulation_dtype)
 
     # The fields for the reduction operations to make things clear
-    axis = [1]
+    axis = 1
     keep_dims = True
     exclude = False
 
-    second_term = tensor._make.sum(data, axis, keep_dims, exclude) * weight_zero_point
+    second_term = relay.op.sum(data, axis, keep_dims, exclude) * weight_zero_point
 
     # The fields for the reduction operations to make things clear
-    axis = [1]
+    axis = 1
     keep_dims = False
     exclude = False
-    third_term = tensor._make.sum(weight, axis, keep_dims, exclude) * data_zero_point
+    third_term = relay.op.sum(weight, axis, keep_dims, exclude) * data_zero_point
 
     fourth_term = (
         relay.Constant(tvm.nd.array(np.array(in_units, dtype=internal_accumulation_dtype)))

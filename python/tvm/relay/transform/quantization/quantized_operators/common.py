@@ -17,8 +17,8 @@ class AffineQuantizationVarCreator:
         self.qparams = []
 
     def get_qparams(self, name_hint: str, dtype: str = "int8") -> QParams:
-        scale = relay.Var(f"{name_hint}.scale")
-        zero_point = relay.Var(f"{name_hint}.zero_point")
+        scale = relay.var(f"{name_hint}.scale", type_annotation="float32")
+        zero_point = relay.var(f"{name_hint}.zero_point", type_annotation="int8")
         qparam = QParams(scale, zero_point, dtype)
         self.qparams.append(qparam)
         self.ref_count += 1
@@ -63,7 +63,7 @@ def get_quantization_parameters(
 
     return QParams(
         relay.const(np.float32(scale)),
-        relay.const(int(zero_point)),
+        relay.const(np.int8(zero_point)),
         "int8",
     )
 
