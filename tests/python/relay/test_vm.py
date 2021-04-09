@@ -825,7 +825,7 @@ def test_vm_rpc():
 
     # Use local rpc server for testing.
     server = rpc.Server("localhost", key="x")
-    remote = rpc.connect(server.host, server.port, key="x")
+    remote = rpc.connect(server.host, server.port, key="x", session_timeout=10)
 
     # Upload the serialized Executable.
     remote.upload(path)
@@ -841,6 +841,9 @@ def test_vm_rpc():
     out = vm_factory.invoke("main", input_tensor)
     # Check the result.
     np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
+
+    server.terminate()
+    del server
 
 
 if __name__ == "__main__":
