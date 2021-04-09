@@ -181,10 +181,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         Index device_type = vm_func.params_device_type[i - 1];
         Device dev = GetDevice(device_type);
 
-        if (args[i].IsObjectRef<NDArray>()) {
-          ObjectRef obj = CopyTo(args[i], dev);
-          func_args[i - 1] = obj;
-        } else {
+        if (args[i].type_code() == kTVMDLTensorHandle) {
           // Automatically convert input DLTensors to NDArray
           DLTensor* tensor = args[i];
           std::vector<int64_t> shape;
@@ -194,6 +191,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
           NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
           ary.CopyFrom(tensor);
           func_args[i - 1] = ary;
+        } else {
+          ObjectRef obj = CopyTo(args[i], dev);
+          func_args[i - 1] = obj;
         }
       }
       inputs_.erase(func_name);
