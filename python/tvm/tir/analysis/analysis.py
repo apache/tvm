@@ -129,3 +129,7 @@ def get_block_access_region(block, buffer_var_map):
             - third: opaque regions
     """
     return _ffi_api.get_block_access_region(block, buffer_var_map)
+
+
+def calculate_workspace_bytes(func):
+    return _ffi_api.calculate_workspace_bytes(func)
