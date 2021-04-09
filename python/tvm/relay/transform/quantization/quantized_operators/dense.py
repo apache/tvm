@@ -34,73 +34,46 @@ def generate_generic_quantized_dense(
     if out_units is None:
         out_units = weight.checked_type.shape[-2]
 
-    data_scale, data_zero_point, data_dtype = data_qparams
-    weight_scale, weight_zero_point, weight_dtype = weight_qparams
-
-    # This means use simulated operations
-    if internal_accumulation_dtype == "float32":
-        quantize_op = relay.qnn.op.simulated_quantize
-        dequantize_op = relay.qnn.op.simulated_dequantize
-    elif "int" in internal_accumulation_dtype:
-        quantize_op = relay.qnn.op.quantize
-        dequantize_op = relay.qnn.op.dequantize
-    else:
-        raise ValueError(
-            f"Unknown quantization from specified internal accumulation dtype {internal_accumulation_dtype}"
-        )
-    data = quantize_op(
-        data=data, output_scale=data_scale, output_zero_point=data_zero_point, out_dtype=data_dtype
-    )
-    weight = quantize_op(
-        data=weight,
-        output_scale=weight_scale,
-        output_zero_point=weight_zero_point,
-        out_dtype=weight_dtype,
+    data, weight = utils.quantize_inputs(
+        internal_accumulation_dtype,
+        data,
+        data_qparams,
+        weight,
+        weight_qparams,
     )
 
     # Assume this casting is a no-op in the case we are casting back to itself
-    weight_zero_point = relay.cast(weight_zero_point, internal_accumulation_dtype)
-    data_zero_point = relay.cast(data_zero_point, internal_accumulation_dtype)
-
-    data = relay.cast(data, internal_accumulation_dtype)
-    weight = relay.cast(weight, internal_accumulation_dtype)
+    weight_zero_point, data_zero_point, data, weight = utils.cast_all(
+        internal_accumulation_dtype,
+        weight_qparams.zero_point,
+        data_qparams.zero_point,
+        data,
+        weight,
+    )
 
     first_term = nn.dense(data, weight, units=out_units, out_dtype=internal_accumulation_dtype)
-
-    # The fields for the reduction operations to make things clear
-    axis = 1
-    keep_dims = True
-    exclude = False
-
-    second_term = relay.op.sum(data, axis, keep_dims, exclude) * weight_zero_point
-
-    # The fields for the reduction operations to make things clear
-    axis = 1
-    keep_dims = False
-    exclude = False
-    third_term = relay.op.sum(weight, axis, keep_dims, exclude) * data_zero_point
-
+    second_term = relay.op.sum(data, axis=1, keepdims=True, exclude=False) * weight_zero_point
+    third_term = relay.op.sum(weight, axis=1, keepdims=False, exclude=False) * data_zero_point
     fourth_term = (
-        relay.Constant(tvm.nd.array(np.array(in_units, dtype=internal_accumulation_dtype)))
+        relay.const(np.array(in_units, dtype=internal_accumulation_dtype))
         * data_zero_point
         * weight_zero_point
     )
 
     # TODO: simulate overflow for other data types
+
     output_qparams = utils.QParams(
-        data_scale * weight_scale, relay.const(0), simulated_accumulation_dtype
+        data_qparams.scale_factor * weight_qparams.scale_factor,
+        relay.const(0),
+        simulated_accumulation_dtype,
     )
 
-    # Make graph more parallizable by being exact with order of operations
+    # Make graph more parallizable by manually creating tree of computation
     output_term = (first_term - second_term) - (third_term - fourth_term)
 
     if dequantize:
-        quantization_axis = -1
-        output_term = dequantize_op(
-            data=output_term,
-            input_scale=output_qparams.scale_factor,
-            input_zero_point=output_qparams.zero_point,
-            in_dtype=output_qparams.dtype,
+        output_term = utils.dequantize_expr(
+            internal_accumulation_dtype, output_term, output_qparams
         )
 
     return output_term, output_qparams

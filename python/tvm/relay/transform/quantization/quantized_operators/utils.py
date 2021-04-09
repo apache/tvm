@@ -25,22 +25,21 @@ class AffineQuantizationVarCreator:
         return qparam
 
 
-def cast_all(*args, dtype: Optional[str] = None):
-    if dtype is None:
-        raise ValueError("Need to provide a dtype!")
-    return (relay.cast(data, dtype) for data in args)
+def cast_all(dtype: str, *args: List[relay.Expr]) -> Union[List[relay.Expr], relay.Expr]:
+    result = [relay.cast(data, dtype) for data in args]
+    if len(result) == 1:
+        result = result[0]
+    return result
 
 
 def quantize_inputs(
+    internal_accumulation_dtype: str,
     *args: Union[relay.Expr, QParams],
-    internal_accumulation_dtype: Optional[str] = None,
 ) -> Union[List[relay.Expr], relay.Expr]:
     if len(args) % 2 != 0:
         raise ValueError(
             f"Expected alternating expressions and QParams but have odd number of entries: {len(args)}"
         )
-    if internal_accumulation_dtype is None:
-        raise ValueError("Must provide internal_accumulation_dtype!")
 
     # This means use simulated operations
     if internal_accumulation_dtype == "float32":
@@ -75,19 +74,16 @@ def quantize_inputs(
             )
         )
 
-    if len(quantize_expr) == 0:
+    if len(quantized_expr) == 1:
         quantized_expr = quantized_expr[0]
     return quantized_expr
 
 
 def dequantize_expr(
+    internal_accumulation_dtype: str,
     expr: relay.Expr,
     qparam: QParams,
-    internal_accumulation_dtype: Optional[str] = None,
 ) -> Tuple[relay.Expr]:
-    if internal_accumulation_dtype is None:
-        raise ValueError("Must provide internal_accumulation_dtype!")
-
     if internal_accumulation_dtype == "float32":
         dequantize_op = relay.qnn.op.simulated_dequantize
     elif "int" in internal_accumulation_dtype:
