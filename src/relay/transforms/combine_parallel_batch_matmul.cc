@@ -78,7 +78,8 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
       weights.push_back(call->args[1]);
     }
     Expr new_weight = MakeConcatenate(Tuple(weights), 1);
-    return Downcast<Call>(MakeBatchMatmul(data, new_weight));
+    const auto batch_matmul_attrs = make_object<BatchMatmulAttrs>();
+    return Downcast<Call>(MakeBatchMatmul(data, new_weight, batch_matmul_attrs->out_dtype));
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }

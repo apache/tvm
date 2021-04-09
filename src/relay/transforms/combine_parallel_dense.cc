@@ -70,7 +70,8 @@ class ParallelDenseToBatchCombiner : public ParallelOpBatchCombiner {
     }
 
     CHECK_EQ(num_args, 2);
-    return Downcast<Call>(MakeBatchMatmul(new_args[0], new_args[1]));
+    const auto batch_matmul_attrs = make_object<BatchMatmulAttrs>();
+    return Downcast<Call>(MakeBatchMatmul(new_args[0], new_args[1], batch_matmul_attrs->out_dtype));
   }
 
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
