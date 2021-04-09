@@ -77,7 +77,34 @@ def binary_search(ib, y, num_boxes, scores, score_threshold, out):
 
 
 def collect_selected_indices(num_class, selected_indices, num_detections, row_offsets, ir):
-    """TODO"""
+    """Collect selected indices from the core NMS loop into one linear output
+
+    Parameters
+    ----------
+    num_class : int
+
+    selected_indices: tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes), representing the indices
+        of selected boxes by the core NMS loop.
+
+    num_detections tvm.te.Tensor
+        1-D tensor with shape (batch_size * num_classes,), representing
+        the number of boxes selected by the core NMS loop, per batch and class
+
+    row_offsets tvm.te.Tensor
+        1-D tensor with shape (batch_size * num_classes,), this should be the exclusive scan
+        of num_detections
+
+    ir : function
+        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        The output is indices of size (batch_size * num_class* num_boxes , 3).
+        Rows of indices are ordered such that selected boxes from batch 0, class 0 come
+        first, in descending of scores, followed by boxes from batch 0, class 1 etc.
+    """
     batch_class, num_boxes = selected_indices.shape
 
     selected_indices_buf = tvm.tir.decl_buffer(
@@ -175,7 +202,42 @@ def run_all_class_nms(
     iou_threshold,
     nms_loop,
 ):
-    """TODO"""
+    """The core all class NMS routine
+
+    Parameters
+    ----------
+    boxes : tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, 4)
+
+    sorted_scores: tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes)
+        One of the outputs from argsort
+
+    sorted_indices: tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes)
+        The other output from argsort
+
+    valid_count: tvm.te.Tensor
+        1-D tensor with shape (batch_size * num_classes,), representing
+        the number of boxes whose score is above score_threshold, per batch and class
+
+    max_output_boxes_per_class : int or tvm.te.Tensor, optional
+        The maxinum number of output selected boxes per class
+
+    iou_threshold : float or tvm.te.Tensor, optionaIl
+        IoU test threshold
+
+    nms_loop : function
+        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py
+
+    Returns
+    -------
+    out : [tvm.te.Tensor, tvm.te.Tensor]
+        The output is two tensors, the first is indices of size
+        (batch_size * num_class, num_boxes) and the second is a tensor
+        num_selected_boxes of shape (batch_size * num_class,) representing the total number of
+        selected boxes per batch and class.
+    """
     batch, num_boxes, _ = boxes.shape
     batch_class = sorted_scores.shape[0]
     num_class = batch_class // batch
@@ -205,7 +267,7 @@ def run_all_class_nms(
             iou_threshold,
             max_output_size_per_class,
             outs[0],  # box_indices
-            outs[1],  # num_valid_boxes
+            outs[1],  # num_selected_boxes
             nms_loop,
         ),
         dtype=["int32", "int32"],

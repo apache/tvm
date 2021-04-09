@@ -992,8 +992,37 @@ def _collect_selected_indices_ir(num_class, selected_indices, num_detections, ro
 def all_class_non_max_suppression(
     boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
 ):
-    """
-    TODO
+    """Non-maximum suppression operator for object detection, corresponding to ONNX
+    NonMaxSuppression and TensorFlow combined_non_max_suppression.
+    NMS is performed for each class separately.
+
+    Parameters
+    ----------
+    boxes : tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, 4)
+
+    scores: tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_classes, num_boxes)
+
+    max_output_boxes_per_class : int or tvm.te.Tensor, optional
+        The maxinum number of output selected boxes per class
+
+    iou_threshold : float or tvm.te.Tensor, optionaIl
+        IoU test threshold
+
+    score_threshold : float or tvm.te.Tensor, optional
+        Score threshold to filter out low score boxes early
+
+    Returns
+    -------
+    out : [tvm.te.Tensor, tvm.te.Tensor]
+        The output is two tensors, the first is `indices` of size
+        `(batch_size * num_class* num_boxes , 3)` and the second is a scalar tensor
+        `num_total_detection` of shape `(1,)` representing the total number of selected
+        boxes. Rows of `indices` are ordered such that selected boxes from batch 0, class 0 come
+        first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
+        `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
+        rows are valid.
     """
     batch, num_class, num_boxes = scores.shape
 

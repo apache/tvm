@@ -161,23 +161,13 @@ def all_class_non_max_suppression(
     Parameters
     ----------
     boxes : relay.Expr
-        3-D tensor with shape [batch_size, num_anchors, 6]
-        or [batch_size, num_anchors, 5].
-        The last dimension should be in format of
-        [class_id, score, box_left, box_top, box_right, box_bottom]
-        or [score, box_left, box_top, box_right, box_bottom]. It could
-        be the second output out_tensor of get_valid_counts.
+        3-D tensor with shape (batch_size, num_boxes, 4)
 
     scores: relay.Expr
-        2-D tensor with shape [batch_size, num_anchors], represents
-        the index of box in original data. It could be the third
-        output out_indices of get_valid_counts. The values in the
-        second dimension are like the output of arange(num_anchors)
-        if get_valid_counts is not used before non_max_suppression.
+        3-D tensor with shape (batch_size, num_classes, num_boxes)
 
     max_output_boxes_per_class : int or relay.Expr, optional
-        Max number of output valid boxes for each instance.
-        Return all valid boxes if the value of max_output_size is less than 0.
+        The maxinum number of output selected boxes per class
 
     iou_threshold : float or relay.Expr, optionaIl
         IoU test threshold
@@ -188,8 +178,13 @@ def all_class_non_max_suppression(
     Returns
     -------
     out : relay.Tuple
-        The output is a relay.Tuple of two 2-D tensors, with
-        shape [batch_size, num_anchors] and [batch_size, num_valid_anchors] respectively.
+        The output is a relay.Tuple of two tensors, the first is `indices` of size
+        `(batch_size * num_class* num_boxes , 3)` and the second is a scalar tensor
+        `num_total_detection` of shape `(1,)` representing the total number of selected boxes.
+        Rows of `indices` are ordered such that selected boxes from batch 0, class 0 come first,
+        in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
+        `batch_size * num_class* num_boxes` rows of indices,  only the first `num_total_detection`
+        rows are valid.
     """
     if not isinstance(max_output_boxes_per_class, expr.Expr):
         max_output_boxes_per_class = expr.const(max_output_boxes_per_class, "int32")
