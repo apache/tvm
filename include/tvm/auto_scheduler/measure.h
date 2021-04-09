@@ -236,7 +236,7 @@ class MeasureCallback : public ObjectRef {
  *  This class will call functions defined in the python */
 class PythonBasedMeasureCallbackNode : public MeasureCallbackNode {
  public:
-  /*! \brief Pointer to the callback funcion in python */
+  /*! \brief Pointer to the callback function in python */
   PackedFunc callback_func;
 
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
@@ -280,6 +280,10 @@ class ProgramBuilderNode : public Object {
    */
   virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) = 0;
 
+  virtual void SubmitToBuild(const MeasureInput& inputs, int verbose,
+                             PackedFunc callback_func) = 0;
+
+
   static constexpr const char* _type_key = "auto_scheduler.ProgramBuilder";
   TVM_DECLARE_BASE_OBJECT_INFO(ProgramBuilderNode, Object);
 };
@@ -320,6 +324,13 @@ class ProgramRunnerNode : public Object {
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                                    const Array<BuildResult>& build_results, int verbose) = 0;
 
+  /*!
+   * Experiments
+   */
+  virtual void SubmitToRun(const MeasureInput& inputs,
+                           const BuildResult& build_results,
+                           int verbose, PackedFunc callback) = 0;
+
   static constexpr const char* _type_key = "auto_scheduler.ProgramRunner";
   TVM_DECLARE_BASE_OBJECT_INFO(ProgramRunnerNode, Object);
 };
@@ -340,8 +351,13 @@ class LocalBuilderNode : public ProgramBuilderNode {
  public:
   /*! \brief Build function. */
   String build_func;
+  /*! \brief Functor with python implementation of submit method. */
+  PackedFunc submit_func;
 
   Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) final;
+
+  void SubmitToBuild(const MeasureInput& inputs, int verbose,
+                                   PackedFunc callback_func) final;
 
   static constexpr const char* _type_key = "auto_scheduler.LocalBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalBuilderNode, ProgramBuilderNode);
@@ -360,7 +376,7 @@ class LocalBuilder : public ProgramBuilder {
    * \param n_parallel The number of threads used to build in parallel.
    * \param build_func The name of the registered build function.
    */
-  LocalBuilder(int timeout, int n_parallel, const String& build_func);
+  LocalBuilder(PackedFunc submit_func, int timeout, int n_parallel, const String& build_func);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, ProgramBuilder, LocalBuilderNode);
 };
@@ -370,6 +386,10 @@ class LocalRunnerNode : public ProgramRunnerNode {
  public:
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results, int verbose) final;
+
+  void SubmitToRun(const MeasureInput& inputs,
+                   const BuildResult& build_results,
+                   int verbose, PackedFunc callback) final;
 
   static constexpr const char* _type_key = "auto_scheduler.LocalRunner";
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, ProgramRunnerNode);
@@ -415,6 +435,11 @@ class RPCRunnerNode : public ProgramRunnerNode {
   int priority;
   /*! \brief The number of tasks run in parallel. */
   int n_parallel;
+  /*! \brief Functor with python implementation of submit method. */
+  PackedFunc submit_func;
+
+  void SubmitToRun(const MeasureInput& inputs, const BuildResult& build_results, int verbose,
+                   PackedFunc callback) final;
 
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results, int verbose) final;
@@ -444,10 +469,9 @@ class RPCRunner : public ProgramRunner {
    * \param cooldown_interval The cool down interval between two measurements.
    * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
    */
-  RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
-            int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
-            bool enable_cpu_cache_flush);
-
+  RPCRunner(PackedFunc submit_func, const String& key, const String& host, int port, int priority,
+            int n_parallel, int timeout, int number, int repeat, int min_repeat_ms,
+            double cooldown_interval, bool enable_cpu_cache_flush);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
 };
 
@@ -478,6 +502,8 @@ class ProgramMeasurerNode : public Object {
   int verbose;
   /*! \brief The number of allowed maximum continuous error before forcely stopping the tuning */
   int max_continuous_error;
+  /*! \brief The sync/async measure mode specifier */
+  bool async_mode;
 
   /*! \brief Reset book keeping variables */
   void Reset();
@@ -502,6 +528,15 @@ class ProgramMeasurerNode : public Object {
   void SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
                      Array<MeasureResult>* results);
 
+  /*!
+   * \brief Experimental
+   * \param task
+   * \param inputs
+   * \param results
+   */
+  void SilentMeasureAsync(const SearchTask& task, const Array<MeasureInput>& inputs,
+                          Array<MeasureResult>* results);
+
   /*! \brief The default max continuous error setting. */
   static const int DEFAULT_MAX_CONTINUOUS_ERROR = 150;
 
@@ -523,11 +558,12 @@ class ProgramMeasurer : public ObjectRef {
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * measuring.
    * \param max_continuous_error The number of allowed maximum continuous error before
+   * \param async if true the async version on Builder/Runner will be used
    * forcely stopping the tuning.
    */
   ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                   Optional<Array<MeasureCallback>> callbacks, int verbose,
-                  int max_continuous_error = -1);
+                  int max_continuous_error = -1, bool async = false);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
 };

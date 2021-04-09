@@ -106,11 +106,13 @@ MeasureResult MeasureResultNode::copy() const {
 }
 
 /********** LocalBuilder **********/
-LocalBuilder::LocalBuilder(int timeout, int n_parallel, const String& build_func) {
+LocalBuilder::LocalBuilder(PackedFunc submit_func, int timeout, int n_parallel,
+                           const String& build_func) {
   auto node = make_object<LocalBuilderNode>();
   node->timeout = timeout;
   node->n_parallel = n_parallel;
   node->build_func = build_func;
+  node->submit_func = submit_func;
   data_ = std::move(node);
 }
 
@@ -123,6 +125,11 @@ Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, in
              << "This is a function registered in Python, "
              << "make sure the TVM Python runtime has been loaded successfully.";
   throw;
+}
+
+void LocalBuilderNode::SubmitToBuild(const MeasureInput& input, int verbose,
+                                     PackedFunc callback) {
+  submit_func(input, build_func, timeout, verbose, callback);
 }
 
 /********** LocalRunner **********/
@@ -152,15 +159,23 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
   throw;
 }
 
+void LocalRunnerNode::SubmitToRun(const MeasureInput& inputs,
+                                  const BuildResult& build_results, int verbose,
+                                  PackedFunc callback) {
+  LOG(FATAL) << "LocalRunnerNode::SubmitToRun method is not implemented.";
+  throw;
+}
+
 /********** RPCRunner **********/
-RPCRunner::RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
-                     int timeout, int number, int repeat, int min_repeat_ms,
-                     double cooldown_interval, bool enable_cpu_cache_flush) {
+RPCRunner::RPCRunner(PackedFunc submit_func, const String& key, const String& host, int port,
+                     int priority, int n_parallel, int timeout, int number, int repeat,
+                     int min_repeat_ms, double cooldown_interval, bool enable_cpu_cache_flush) {
   auto node = make_object<RPCRunnerNode>();
   node->key = key;
   node->host = host;
   node->port = port;
   node->priority = priority;
+  node->submit_func = submit_func;
   node->timeout = timeout;
   node->n_parallel = n_parallel;
   node->number = number;
@@ -186,6 +201,13 @@ Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
   return Array<MeasureResult>();
 }
 
+void RPCRunnerNode::SubmitToRun(const MeasureInput& input,
+                                const BuildResult& build_results, int verbose,
+                                PackedFunc callback) {
+  submit_func(input, build_results, key, host, port, priority, timeout, number, repeat,
+              min_repeat_ms, cooldown_interval, enable_cpu_cache_flush, verbose, callback);
+}
+
 /********** MeasureCallback **********/
 PythonBasedMeasureCallback::PythonBasedMeasureCallback(PackedFunc callback_func) {
   auto node = make_object<PythonBasedMeasureCallbackNode>();
@@ -208,12 +230,13 @@ void PythonBasedMeasureCallbackNode::Callback(const SearchPolicy& policy,
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                                  Optional<Array<MeasureCallback>> callbacks, int verbose,
-                                 int max_continuous_error) {
+                                 int max_continuous_error, bool async) {
   auto node = make_object<ProgramMeasurerNode>();
   node->builder = std::move(builder);
   node->runner = std::move(runner);
   node->callbacks = std::move(callbacks);
   node->verbose = verbose;
+  node->async_mode = async;
   node->max_continuous_error = max_continuous_error < 0
                                    ? ProgramMeasurerNode::DEFAULT_MAX_CONTINUOUS_ERROR
                                    : max_continuous_error;
@@ -237,6 +260,9 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
   Array<MeasureResult> results;
   results.reserve(inputs.size());
 
+  if (async_mode)
+    batch_size = inputs.size();
+
   if (batch_size == -1) {
     // set default batch size
     batch_size = builder->n_parallel * 2;
@@ -252,7 +278,11 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     Array<MeasureResult> result_batch;
 
     // build and run
-    SilentMeasure(task, input_batch, &result_batch);
+    if (async_mode) {
+      SilentMeasureAsync(task, input_batch, &result_batch);
+    } else {
+      SilentMeasure(task, input_batch, &result_batch);
+    }
 
     // update current best state according to the new measure result
     for (size_t j = 0; j < input_batch.size(); ++j) {
@@ -307,6 +337,40 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
   PrintTimeElapsed(t_begin, "measurement", verbose);
 
   return results;
+}
+
+void ProgramMeasurerNode::SilentMeasureAsync(const SearchTask& task,
+                                             const Array<MeasureInput>& inputs,
+                                             Array<MeasureResult>* results) {
+  results->clear();
+  results->resize(inputs.size());
+
+  std::mutex mtx;
+  std::condition_variable cv;
+  int count = 0;
+
+  for (int i = 0; i < inputs.size(); i++) {
+    auto &input = inputs[i];
+    TypedPackedFunc<void(MeasureResult)> onRunCompletion(
+        [i, &results, &mtx, &cv, &count] (MeasureResult m_res) {
+          std::unique_lock<std::mutex> lock(mtx);
+          results->Set(i, m_res);
+          lock.unlock();
+          cv.notify_one();
+          count++;
+        });
+
+    TypedPackedFunc<void(BuildResult)> onBuildCompletion(
+        [this, input, onRunCompletion] (BuildResult b_res) {
+          runner->SubmitToRun(input, b_res, verbose, onRunCompletion);
+        });
+
+    builder->SubmitToBuild(input, verbose, onBuildCompletion);
+  }
+
+  // Wait all measure results are reached
+  std::unique_lock<std::mutex> lk(mtx);
+  cv.wait(lk, [&count, &inputs] { return count == inputs.size(); });
 }
 
 void ProgramMeasurerNode::SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
@@ -403,8 +467,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ProgramRunnerRun")
                        int verbose) { return runner->Run(inputs, build_results, verbose); });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.LocalBuilder")
-    .set_body_typed([](int timeout, int n_parallel, const String& build_func) {
-      return LocalBuilder(timeout, n_parallel, build_func);
+    .set_body_typed([](PackedFunc submit_func, int timeout, int n_parallel,
+                       const String& build_func) {
+      return LocalBuilder(submit_func, timeout, n_parallel, build_func);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.LocalRunner")
@@ -415,11 +480,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.LocalRunner")
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.RPCRunner")
-    .set_body_typed([](const String& key, const String& host, int port, int priority,
-                       int n_parallel, int timeout, int number, int repeat, int min_repeat_ms,
-                       double cooldown_interval, bool enable_cpu_cache_flush) {
-      return RPCRunner(key, host, port, priority, n_parallel, timeout, number, repeat,
-                       min_repeat_ms, cooldown_interval, enable_cpu_cache_flush);
+    .set_body_typed([](PackedFunc submit_func, const String& key, const String& host, int port,
+                       int priority, int n_parallel, int timeout, int number, int repeat,
+                       int min_repeat_ms, double cooldown_interval, bool enable_cpu_cache_flush) {
+      return RPCRunner(submit_func, key, host, port, priority, n_parallel, timeout,
+                       number, repeat, min_repeat_ms, cooldown_interval, enable_cpu_cache_flush);
     });
 
 }  // namespace auto_scheduler

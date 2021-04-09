@@ -343,8 +343,11 @@ class LocalBuilder(ProgramBuilder):
         else:
             raise ValueError("Invalid build_func" + build_func)
 
+        worker = AsyncWorker(lambda *args: BuildResult(*local_build_worker(args)),
+                             n_parallel=n_parallel)
+
         self.__init_handle_by_constructor__(
-            _ffi_api.LocalBuilder, timeout, n_parallel, BuildFunc.name
+            _ffi_api.LocalBuilder, worker.submit, timeout, n_parallel, BuildFunc.name
         )
 
 
@@ -405,6 +408,38 @@ class LocalRunner(ProgramRunner):
             cooldown_interval,
             enable_cpu_cache_flush,
         )
+
+
+class AsyncWorker:
+    """
+    The ThreadPool wrapper. To make it in compatible with PackedFunction form to store
+    on native level.
+
+    To retain this object on C++ level just wrap "submit" method it into packed function
+    ad pass it into native.
+    """
+
+    def __init__(self, task_handler, n_parallel=1):
+        self._task_handler = task_handler
+        self._n_parallel = n_parallel
+        self._pool = None
+
+    def __del__(self):
+        self._pool.terminate()
+        self._pool.join()
+
+    @staticmethod
+    def _error_callback(exp):
+        raise exp
+
+    def submit(self, *args):
+        if self._pool is None:
+            self._pool = multiprocessing.pool.ThreadPool(self._n_parallel)
+
+        task_args = (args[0].serialize(),) + args[1:-1]
+        clb = args[-1]
+        self._pool.apply_async(self._task_handler, args=task_args, callback=clb,
+                               error_callback=AsyncWorker._error_callback)
 
 
 @tvm._ffi.register_object("auto_scheduler.RPCRunner")
@@ -468,8 +503,12 @@ class RPCRunner(ProgramRunner):
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
+        worker = AsyncWorker(lambda *args: MeasureResult(*_rpc_run_worker(args)),
+                             n_parallel=n_parallel)
+
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
+            worker.submit,
             key,
             host,
             port,
