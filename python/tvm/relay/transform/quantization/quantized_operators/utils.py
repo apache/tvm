@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional
+from typing import *
 
 import numpy as np
 import tvm
@@ -23,6 +23,85 @@ class AffineQuantizationVarCreator:
         self.qparams.append(qparam)
         self.ref_count += 1
         return qparam
+
+
+def cast_all(*args, dtype: Optional[str] = None):
+    if dtype is None:
+        raise ValueError("Need to provide a dtype!")
+    return (relay.cast(data, dtype) for data in args)
+
+
+def quantize_inputs(
+    *args: Union[relay.Expr, QParams],
+    internal_accumulation_dtype: Optional[str] = None,
+) -> Union[List[relay.Expr], relay.Expr]:
+    if len(args) % 2 != 0:
+        raise ValueError(
+            f"Expected alternating expressions and QParams but have odd number of entries: {len(args)}"
+        )
+    if internal_accumulation_dtype is None:
+        raise ValueError("Must provide internal_accumulation_dtype!")
+
+    # This means use simulated operations
+    if internal_accumulation_dtype == "float32":
+        quantize_op = relay.qnn.op.simulated_quantize
+    elif "int" in internal_accumulation_dtype:
+        quantize_op = relay.qnn.op.quantize
+    else:
+        raise ValueError(
+            f"Unknown quantization from specified internal accumulation dtype {internal_accumulation_dtype}"
+        )
+
+    quantized_expr = []
+    for i in range(len(args) // 2):
+        cur_expr = args[2 * i]
+        cur_qparam = args[2 * i + 1]
+
+        if not isinstance(cur_expr, relay.Expr):
+            raise ValueError(
+                f"Expected alternating relay.Expr and QParams! Got a {type(cur_expr)} when expecting relay.Expr"
+            )
+        if not isinstance(cur_qparam, QParams):
+            raise ValueError(
+                f"Expected alternating relay.Expr and QParams! Got a {type(cur_expr)} when expecting QParams"
+            )
+
+        quantized_expr.append(
+            quantize_op(
+                data=cur_expr,
+                output_scale=cur_qparam.scale_factor,
+                output_zero_point=cur_qparam.zero_point,
+                out_dtype=cur_qparam.dtype,
+            )
+        )
+
+    if len(quantize_expr) == 0:
+        quantized_expr = quantized_expr[0]
+    return quantized_expr
+
+
+def dequantize_expr(
+    expr: relay.Expr,
+    qparam: QParams,
+    internal_accumulation_dtype: Optional[str] = None,
+) -> Tuple[relay.Expr]:
+    if internal_accumulation_dtype is None:
+        raise ValueError("Must provide internal_accumulation_dtype!")
+
+    if internal_accumulation_dtype == "float32":
+        dequantize_op = relay.qnn.op.simulated_dequantize
+    elif "int" in internal_accumulation_dtype:
+        dequantize_op = relay.qnn.op.dequantize
+    else:
+        raise ValueError(
+            f"Unknown quantization from specified internal accumulation dtype {internal_accumulation_dtype}"
+        )
+    return dequantize_op(
+        data=expr,
+        input_scale=qparam.scale_factor,
+        input_zero_point=qparam.zero_point,
+        in_dtype=qparam.dtype,
+    )
 
 
 def get_quantization_parameters(
