@@ -48,6 +48,7 @@ from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
 from packaging import version as package_version
 
 import tvm.testing
@@ -5449,6 +5450,38 @@ def test_forward_unique_with_counts():
         for is_dyn in [False, True]:
             _test_unique_with_counts(10, dtype, is_dyn)
             _test_unique_with_counts(20, dtype, is_dyn)
+
+
+#######################################################################
+# check graph ir for nn.moments
+# ------------
+
+
+def test_moments():
+    g = tf.Graph()
+    shape = [4, 176, 8, 8]
+    dtype = "float32"
+    with g.as_default():
+        A = tf.placeholder(shape=shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=shape, dtype=dtype, name="B")
+        mean, variance = tf.nn.moments(A, [1], keep_dims=True)
+        normalised_input = (A - mean) / tf.sqrt(variance + 0.0005)
+
+    mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
+    program = """
+    def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
+        %527 = mean(%A, axis=[1], keepdims=True) /* moments/mean */;
+        %528 = subtract(%A, %527) /* sub */;
+        %529 = subtract(%A, %527);
+        %530 = multiply(%529, %529) /* moments/SquaredDifference */;
+        %531 = mean(%530, axis=[1], keepdims=True) /* moments/variance */;
+        %532 = add(%531, 0.0005f) /* add */;
+        %533 = sqrt(%532) /* Sqrt */;
+        divide(%528, %533) /* truediv */
+    }
+    """
+    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 
 if __name__ == "__main__":

@@ -3851,11 +3851,11 @@ class GraphProto(object):
     @staticmethod
     def _set_span(sym, node_name):
         span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
-        if isinstance(sym, _expr.Call):
+        if isinstance(sym, _expr.Call) and sym.span is None:
             sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
         elif isinstance(sym, _expr.TupleWrapper):
             tuple_value = sym.tuple_value
-            if isinstance(tuple_value, _expr.Call):
+            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
                 tuple_value = _expr.Call(
                     tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
                 )
