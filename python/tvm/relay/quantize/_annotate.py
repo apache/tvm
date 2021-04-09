@@ -418,7 +418,6 @@ def batch_matmul_rewrite(ref_call, new_args, ctx):
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
-    # print("Quantized Batch Matmul: ", lhs_kind, rhs_kind)
     if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         if _analysis.check_constant(lhs_expr):
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.WEIGHT)
