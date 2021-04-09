@@ -70,8 +70,7 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
 
     auto res = eq(rhs_a->dtype, rhs_b->dtype) && eq(restype_a->dtype, restype_b->dtype) &&
                (rhs_a->shape.size() == 3) && (rhs_b->shape.size() == 3) &&
-               eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
-               eq(rhs_a->shape[0], rhs_b->shape[0]);
+               eq(rhs_a->shape[0], rhs_b->shape[0]) && eq(attrs_a->out_dtype, attrs_b->out_dtype);
     return res;
   }
 
