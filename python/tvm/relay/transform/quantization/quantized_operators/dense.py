@@ -11,20 +11,20 @@ from tvm.relay.dataflow_pattern import (
     wildcard,
 )
 from tvm.relay.op import nn, tensor
-from tvm.relay.transform.quantization.quantized_operators import common
+from tvm.relay.transform.quantization.quantized_operators import utils
 
 
 def generate_generic_quantized_dense(
     data: tvm.relay.Expr,
     weight: tvm.relay.Expr,
-    data_qparams: common.QParams,
-    weight_qparams: common.QParams,
+    data_qparams: utils.QParams,
+    weight_qparams: utils.QParams,
     internal_accumulation_dtype: str = "float32",
     simulated_accumulation_dtype: str = "int32",
     out_units: Optional[int] = None,
     in_units: Optional[int] = None,
     dequantize: bool = False,
-) -> Tuple[tvm.relay.Expr, common.QParams]:
+) -> Tuple[tvm.relay.Expr, utils.QParams]:
     """TODO"""
 
     # TODO: figure out whether we need this or we can always have the
@@ -87,7 +87,7 @@ def generate_generic_quantized_dense(
     )
 
     # TODO: simulate overflow for other data types
-    output_qparams = common.QParams(
+    output_qparams = utils.QParams(
         data_scale * weight_scale, relay.const(0), simulated_accumulation_dtype
     )
 
@@ -109,13 +109,13 @@ def generate_generic_quantized_dense(
 def generate_static_quantized_dense(
     data: tvm.relay.Expr,
     weight: tvm.relay.Expr,
-    data_qparams: common.QParams,
-    weight_qparams: common.QParams,
+    data_qparams: utils.QParams,
+    weight_qparams: utils.QParams,
     accumulation_dtype: str = "int32",
     out_units: Optional[int] = None,
     in_units: Optional[int] = None,
     dequantize: bool = True,
-) -> Tuple[tvm.relay.Expr, common.QParams]:
+) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_dense(
         data,
         weight,
@@ -132,13 +132,13 @@ def generate_static_quantized_dense(
 def generate_simulated_quantized_dense(
     data: tvm.relay.Expr,
     weight: tvm.relay.Expr,
-    data_qparams: common.QParams,
-    weight_qparams: common.QParams,
+    data_qparams: utils.QParams,
+    weight_qparams: utils.QParams,
     simulated_accumulation_dtype: str = "int32",
     out_units: Optional[int] = None,
     in_units: Optional[int] = None,
     dequantize: bool = True,
-) -> Tuple[tvm.relay.Expr, common.QParams]:
+) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_dense(
         data,
         weight,
@@ -157,7 +157,7 @@ def example_dense_simulated(n, in_units, out_units, seed=42):
     data_arr = np.random.uniform(-10, 10, size=(n, in_units)).astype("float32")
     weight_arr = np.random.uniform(-10, 10, size=(out_units, in_units)).astype("float32")
 
-    var_creator = common.AffineQuantizationVarCreator()
+    var_creator = utils.AffineQuantizationVarCreator()
     data = relay.var("data")
     weight = relay.var("weight")
     data_qparams = var_creator.get_qparams("dense_data")
@@ -178,8 +178,8 @@ def example_dense_simulated(n, in_units, out_units, seed=42):
     )
     print(f)
 
-    actual_data_qparams = common.get_quantization_parameters(data_arr, True, 8)
-    actual_weight_qparams = common.get_quantization_parameters(data_arr, True, 8)
+    actual_data_qparams = utils.get_quantization_parameters(data_arr, True, 8)
+    actual_weight_qparams = utils.get_quantization_parameters(data_arr, True, 8)
 
     mod = tvm.ir.IRModule.from_expr(f)
     intrp = relay.create_executor(kind="debug", mod=mod)
