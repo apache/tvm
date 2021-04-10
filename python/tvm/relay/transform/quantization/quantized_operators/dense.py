@@ -24,6 +24,7 @@ def generate_generic_quantized_dense(
     out_units: Optional[int] = None,
     in_units: Optional[int] = None,
     dequantize: bool = False,
+    bias: Optional[tvm.relay.Expr] = None,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     """TODO"""
 
@@ -64,12 +65,16 @@ def generate_generic_quantized_dense(
 
     output_qparams = utils.QParams(
         data_qparams.scale_factor * weight_qparams.scale_factor,
-        relay.const(0),
+        relay.const(0, dtype=simulated_accumulation_dtype),
         simulated_accumulation_dtype,
     )
 
     # Make graph more parallizable by manually creating tree of computation
     output_term = (first_term - second_term) - (third_term - fourth_term)
+
+    if bias is not None:
+        bias = utils.quantize_inputs(internal_accumulation_dtype, bias, output_qparams)
+        output_term += bias
 
     if dequantize:
         output_term = utils.dequantize_expr(
@@ -88,6 +93,7 @@ def generate_static_quantized_dense(
     out_units: Optional[int] = None,
     in_units: Optional[int] = None,
     dequantize: bool = True,
+    bias: Optional[tvm.relay.Expr] = None,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_dense(
         data,
@@ -99,6 +105,7 @@ def generate_static_quantized_dense(
         out_units=out_units,
         in_units=in_units,
         dequantize=dequantize,
+        bias=bias,
     )
 
 
@@ -111,6 +118,7 @@ def generate_simulated_quantized_dense(
     out_units: Optional[int] = None,
     in_units: Optional[int] = None,
     dequantize: bool = True,
+    bias: Optional[tvm.relay.Expr] = None,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_dense(
         data,
@@ -122,6 +130,7 @@ def generate_simulated_quantized_dense(
         out_units=out_units,
         in_units=in_units,
         dequantize=dequantize,
+        bias=bias,
     )
 
 
@@ -129,14 +138,22 @@ def example_dense_simulated(n, in_units, out_units, seed=42):
     np.random.seed(seed=seed)
     data_arr = np.random.uniform(-10, 10, size=(n, in_units)).astype("float32")
     weight_arr = np.random.uniform(-10, 10, size=(out_units, in_units)).astype("float32")
+    bias_arr = np.random.uniform(-100, 100, size=(n, out_units)).astype("float32")
 
     var_creator = utils.AffineQuantizationVarCreator()
     data = relay.var("data")
     weight = relay.var("weight")
+    bias = relay.var("bias")
     data_qparams = var_creator.get_qparams("dense_data")
     weight_qparams = var_creator.get_qparams("dense_weight")
     dense_output, output_qparams = generate_simulated_quantized_dense(
-        data, weight, data_qparams, weight_qparams, in_units=in_units, out_units=out_units
+        data,
+        weight,
+        data_qparams,
+        weight_qparams,
+        in_units=in_units,
+        out_units=out_units,
+        bias=bias,
     )
     f = relay.Function(
         [
@@ -146,13 +163,14 @@ def example_dense_simulated(n, in_units, out_units, seed=42):
             data_qparams.zero_point,
             weight_qparams.scale_factor,
             weight_qparams.zero_point,
+            bias,
         ],
         dense_output,
     )
     print(f)
 
     actual_data_qparams = utils.get_quantization_parameters(data_arr, True, 8)
-    actual_weight_qparams = utils.get_quantization_parameters(data_arr, True, 8)
+    actual_weight_qparams = utils.get_quantization_parameters(weight_arr, True, 8)
 
     mod = tvm.ir.IRModule.from_expr(f)
     intrp = relay.create_executor(kind="debug", mod=mod)
@@ -163,13 +181,14 @@ def example_dense_simulated(n, in_units, out_units, seed=42):
         actual_data_qparams.zero_point,
         actual_weight_qparams.scale_factor,
         actual_weight_qparams.zero_point,
+        bias_arr,
     ).asnumpy()
 
     print("Quantized result:")
     print(result)
     print()
     print("FP32 result:")
-    print(data_arr @ weight_arr.T)
+    print(data_arr @ weight_arr.T + bias_arr)
 
 
 if __name__ == "__main__":
