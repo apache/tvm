@@ -742,3 +742,25 @@ def fast_erf(x):
         The result.
     """
     return cpp.fast_erf(x, x.dtype, tag.ELEMWISE)
+
+
+def ceil_log2(x):
+    """TODO"""
+    if not isinstance(x, tvm.tir.PrimExpr):
+        x = tvm.tir.const(x)
+
+    if "float" in x.dtype:
+        return tvm.tir.ceil(tvm.tir.log2(x))
+
+    if "vulkan" in tvm.target.Target.current().kind.name:
+        # SPIR-V does not support log2 on fp64. Instead, we compute ceil_log2 via clz
+        clz = tvm.tir.clz(x)
+        bits = int(x.dtype[-2:])
+        ceil_log2 = tvm.tir.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
+
+        if ceil_log2.dtype != x.dtype:
+            return cast(ceil_log2, x.dtype)
+
+        return ceil_log2
+
+    return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float64"))), x.dtype)

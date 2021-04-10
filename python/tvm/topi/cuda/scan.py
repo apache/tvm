@@ -23,7 +23,7 @@ from tvm import te
 from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
 
 from .. import tag
-from ..math import cast
+from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose
 from ..utils import ceil_div, get_const_int, prod, swap
 from .injective import schedule_injective_from_existing
@@ -103,9 +103,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
 
         # The following algorithm performs parallel exclusive scan
         # Up Sweep of exclusive scan
-        lim = tvm.tir.generic.cast(
-            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(scan_axis_size, "float64"))), "int64"
-        )
+        lim = ceil_log2(scan_axis_size)
+
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << l2_width
 
