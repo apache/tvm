@@ -96,7 +96,7 @@ def collect_selected_indices(num_class, selected_indices, num_detections, row_of
         of num_detections
 
     ir : function
-        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py
+        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py
 
     Returns
     -------
