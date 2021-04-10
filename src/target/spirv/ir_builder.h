@@ -576,7 +576,7 @@ class IRBuilder {
   }
 
   /*!
-   * \brief The common function to declare push constants and uniform buffe
+   * \brief The common function to declare push constants or uniform buffer
    * \param value_types The values in the push constants or uniform buffer
    * \param storage_class An enum defined by SPIR-V indicating push constant or uniform
    * \param kind An enum indicating push constant or uniform
