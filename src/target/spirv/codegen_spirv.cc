@@ -30,6 +30,9 @@
 
 #include <string>
 
+#include "../../runtime/pack_args.h"
+#include "../../runtime/vulkan/vulkan_common.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -66,16 +69,26 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   spirv::Value func_ptr = builder_->NewFunction();
   builder_->StartFunction(func_ptr);
 
-  // All the POD arguments are passed in through PushConstant
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    spirv::Value ptr = builder_->DeclarePushConstant(value_types);
-    for (size_t i = 0; i < pod_args.size(); ++i) {
-      spirv::Value value = builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
-      var_map_[pod_args[i].get()] = value;
+    const auto max_push_constants = runtime::vulkan::GetMaxPushConstantsSize();
+    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= max_push_constants) {
+      spirv::Value ptr = builder_->DeclarePushConstant(value_types);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value =
+            builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
+    } else {
+      // If we need to pass more arguments than push constants could handle, we use UBO.
+      spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, num_buffer);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value = builder_->GetUniform(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
     }
   }
   this->VisitStmt(f->body);

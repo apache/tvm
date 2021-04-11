@@ -142,6 +142,9 @@ struct VulkanContext {
   bool UseImmediate() const { return descriptor_template_khr_functions.get() != nullptr; }
 };
 
+/*! \brief returns maximum push constant sizes in bytes for the target platform */
+uint32_t GetMaxPushConstantsSize();
+
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
