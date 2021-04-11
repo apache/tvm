@@ -205,8 +205,8 @@ Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set
   return val;
 }
 
-Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
-                                        spv::StorageClass storage_class, ValueKind kind) {
+Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
+  ICHECK_EQ(push_const_.id, 0);
   SType struct_type;
   struct_type.id = id_counter_++;
   struct_type.type = DataType::Handle();
@@ -226,41 +226,24 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
     ICHECK_EQ(nbits % 8, 0);
     uint32_t bytes = (nbits / 8);
     if (t.bits() == 32) {
-      // In our Vulkan runtime, each scalar argument always occupies 64 bit.
+      // In our Vulkan runtime, each push constant always occupies 64 bit.
       offset += bytes * 2;
     } else {
       ICHECK_EQ(t.bits(), 64);
       offset += bytes;
     }
   }
+  // Decorate push constants as UBO
   this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
 
-  SType ptr_type = GetPointerType(struct_type, storage_class);
-  Value val = NewValue(ptr_type, kind);
-  ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
+  SType ptr_type = GetPointerType(struct_type, spv::StorageClassPushConstant);
+  Value val = NewValue(ptr_type, kPushConstantPtr);
+  ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, spv::StorageClassPushConstant).Commit(&global_);
   return val;
-}
-
-Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
-  ICHECK_EQ(push_const_.id, 0);
-  return DeclareStorageVariable(value_types, spv::StorageClassPushConstant, kPushConstantPtr);
 }
 
 Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index) {
   SType ptr_vtype = this->GetPointerType(v_type, spv::StorageClassPushConstant);
-  Value ptr = this->MakeValue(spv::OpAccessChain, ptr_vtype, ptr_push_const,
-                              IntImm(t_int32_, static_cast<int64_t>(index)));
-  return this->MakeValue(spv::OpLoad, v_type, ptr);
-}
-
-Value IRBuilder::DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding) {
-  Value val = DeclareStorageVariable(value_types, spv::StorageClassUniform, kUniformPtr);
-  this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
-  return val;
-}
-
-Value IRBuilder::GetUniform(Value ptr_push_const, const SType& v_type, uint32_t index) {
-  SType ptr_vtype = this->GetPointerType(v_type, spv::StorageClassUniform);
   Value ptr = this->MakeValue(spv::OpAccessChain, ptr_vtype, ptr_push_const,
                               IntImm(t_int32_, static_cast<int64_t>(index)));
   return this->MakeValue(spv::OpLoad, v_type, ptr);
