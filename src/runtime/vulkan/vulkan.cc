@@ -1147,7 +1147,6 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > m_->MaxPushConstantsSize();
   if (use_ubo) {
     CHECK(pipeline->ubo.host_buf) << "The UBO host buffer is not allocated";
-    memcpy(pipeline->ubo.host_buf, pack_args, nbytes_scalars);
     VkDescriptorBufferInfo binfo;
     binfo.buffer = pipeline->ubo.vk_buf->buffer;
     binfo.offset = 0;
@@ -1156,6 +1155,9 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
+    if (use_ubo) {
+      memcpy(pipeline->ubo.host_buf, pack_args, nbytes_scalars);
+    }
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
       ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
@@ -1207,7 +1209,11 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
                            0, 0);
   };
-  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage](VulkanStreamState* state) {
+  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo,
+                                 nbytes_scalars](VulkanStreamState* state) {
+    if (use_ubo) {
+      memcpy(pipeline->ubo.host_buf, pack_args_storage.data(), nbytes_scalars);
+    }
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
