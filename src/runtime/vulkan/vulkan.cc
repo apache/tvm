@@ -205,6 +205,46 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, VkBufferCreateInfo info,
   return pbuf;
 }
 
+void CopyFromHostToDevice(VkDevice device, const void* from, size_t from_offset, void* to,
+                          size_t to_offset, size_t size, int vk_device_id, int cpu_device_id,
+                          bool coherent_staging) {
+  const auto* to_buf = static_cast<const VulkanBuffer*>(to);
+  VulkanStagingBuffer* temp = VulkanThreadEntry::ThreadLocal()->StagingBuffer(vk_device_id, size);
+  memcpy(temp->host_addr, static_cast<const char*>(from) + from_offset, size);
+  // host side flush if access is not coherent.
+  // so writes from CPU is visible to GPU
+  if (!coherent_staging) {
+    VkMappedMemoryRange mrange;
+    mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    mrange.pNext = nullptr;
+    mrange.memory = temp->memory;
+    mrange.offset = 0;
+    mrange.size = VK_WHOLE_SIZE;  // size;
+    VULKAN_CALL(vkFlushMappedMemoryRanges(device, 1, &mrange));
+  }
+
+  VulkanThreadEntry::ThreadLocal()->Stream(cpu_device_id)->Launch([&](VulkanStreamState* state) {
+    // 0: barrier(host->transfer)
+    VkMemoryBarrier barrier_info;
+    barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier_info.pNext = nullptr;
+    barrier_info.srcAccessMask = 0;
+    barrier_info.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(state->cmd_buffer_, VK_PIPELINE_STAGE_HOST_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &barrier_info, 0, nullptr, 0,
+                         nullptr);
+    // 1: copy
+    VkBufferCopy copy_info;
+    copy_info.srcOffset = 0;
+    copy_info.dstOffset = to_offset;
+    copy_info.size = size;
+    vkCmdCopyBuffer(state->cmd_buffer_, temp->buffer, to_buf->buffer, 1, &copy_info);
+  });
+  // TODO(tulloch): should we instead make the staging buffer a property of the
+  // Stream? This would allow us to elide synchronizations here.
+  VulkanThreadEntry::ThreadLocal()->Stream(cpu_device_id)->Synchronize();
+}
+
 class VulkanDeviceAPI final : public DeviceAPI {
  public:
   VulkanDeviceAPI();
@@ -308,44 +348,8 @@ class VulkanDeviceAPI final : public DeviceAPI {
       memcpy(static_cast<char*>(to) + to_offset, static_cast<char*>(temp->host_addr), size);
     } else if (from_dev_type == kDLCPU && to_dev_type == kDLVulkan) {
       const auto& vctx = context(dev_to.device_id);
-      const auto* to_buf = static_cast<const VulkanBuffer*>(to);
-      VulkanStagingBuffer* temp =
-          VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_to.device_id, size);
-      memcpy(temp->host_addr, static_cast<const char*>(from) + from_offset, size);
-      // host side flush if access is not coherent.
-      // so writes from CPU is visible to GPU
-      if (!vctx.coherent_staging) {
-        VkMappedMemoryRange mrange;
-        mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-        mrange.pNext = nullptr;
-        mrange.memory = temp->memory;
-        mrange.offset = 0;
-        mrange.size = VK_WHOLE_SIZE;  // size;
-        VULKAN_CALL(vkFlushMappedMemoryRanges(vctx.device, 1, &mrange));
-      }
-
-      VulkanThreadEntry::ThreadLocal()
-          ->Stream(dev_from.device_id)
-          ->Launch([&](VulkanStreamState* state) {
-            // 0: barrier(host->transfer)
-            VkMemoryBarrier barrier_info;
-            barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-            barrier_info.pNext = nullptr;
-            barrier_info.srcAccessMask = 0;
-            barrier_info.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vkCmdPipelineBarrier(state->cmd_buffer_, VK_PIPELINE_STAGE_HOST_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &barrier_info, 0, nullptr, 0,
-                                 nullptr);
-            // 1: copy
-            VkBufferCopy copy_info;
-            copy_info.srcOffset = 0;
-            copy_info.dstOffset = to_offset;
-            copy_info.size = size;
-            vkCmdCopyBuffer(state->cmd_buffer_, temp->buffer, to_buf->buffer, 1, &copy_info);
-          });
-      // TODO(tulloch): should we instead make the staging buffer a property of the
-      // Stream? This would allow us to elide synchronizations here.
-      VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
+      CopyFromHostToDevice(vctx.device, from, from_offset, to, to_offset, size, dev_to.device_id,
+                           dev_from.device_id, vctx.coherent_staging);
     } else {
       LOG(FATAL) << "Expect copy from/to Vulkan or between Vulkan"
                  << ", from=" << from_dev_type << ", to=" << to_dev_type;
@@ -824,9 +828,9 @@ class VulkanModuleNode final : public runtime::ModuleNode {
         vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
         // UBO
         if (pe->ubo.vk_buf) {
-	  if (pe->ubo.host_buf) {
-	    vkUnmapMemory(vctx.device, pe->ubo.vk_buf->memory);
-	  }
+          if (pe->ubo.host_buf) {
+            vkUnmapMemory(vctx.device, pe->ubo.vk_buf->memory);
+          }
           vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
           vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
           delete pe->ubo.vk_buf;
@@ -990,9 +994,11 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
       auto info = MakeBufferCreateInfo(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
       auto mem_type_index = FindMemoryType(vctx, info, prop);
-      if (mem_type_index == -1) {
-	// If host visible memory is not found, use a normal storage buffer
-        ubo.vk_buf = CreateBuffer(vctx, info, vctx.compute_mtype_index);
+      if (true || mem_type_index == -1) {
+        // If host visible memory is not found, use a normal storage buffer
+        auto usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        ubo.vk_buf = CreateBuffer(vctx, MakeBufferCreateInfo(vctx, nbytes_scalars, usage),
+                                  vctx.compute_mtype_index);
       } else {
         ubo.vk_buf = CreateBuffer(vctx, info, mem_type_index);
         vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &(ubo.host_buf));
@@ -1159,7 +1165,6 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
   bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > m_->MaxPushConstantsSize();
   if (use_ubo) {
-    CHECK(pipeline->ubo.host_buf) << "The UBO host buffer is not allocated";
     VkDescriptorBufferInfo binfo;
     binfo.buffer = pipeline->ubo.vk_buf->buffer;
     binfo.offset = 0;
@@ -1224,12 +1229,17 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
                            0, 0);
   };
-  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo,
-                                 nbytes_scalars](VulkanStreamState* state) {
+  bool coherent_staging = vctx.coherent_staging;
+  VkDevice device = vctx.device;
+  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo, nbytes_scalars,
+                                 device_id, coherent_staging, device](VulkanStreamState* state) {
     if (use_ubo && pipeline->ubo.host_buf) {
       memcpy(pipeline->ubo.host_buf, pack_args_storage.data(), nbytes_scalars);
     } else if (use_ubo) {
-      // TODO
+      // TODO(masahi): Is this ok
+      int cpu_device_id = 0;
+      CopyFromHostToDevice(device, pack_args_storage.data(), 0, pipeline->ubo.vk_buf, 0,
+                           nbytes_scalars, cpu_device_id, device_id, coherent_staging);
     }
 
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
