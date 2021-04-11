@@ -824,7 +824,9 @@ class VulkanModuleNode final : public runtime::ModuleNode {
         vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
         // UBO
         if (pe->ubo.vk_buf) {
-          vkUnmapMemory(vctx.device, pe->ubo.vk_buf->memory);
+	  if (pe->ubo.host_buf) {
+	    vkUnmapMemory(vctx.device, pe->ubo.vk_buf->memory);
+	  }
           vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
           vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
           delete pe->ubo.vk_buf;
@@ -989,6 +991,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       auto info = MakeBufferCreateInfo(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
       auto mem_type_index = FindMemoryType(vctx, info, prop);
       if (mem_type_index == -1) {
+	// If host visible memory is not found, use a normal storage buffer
         ubo.vk_buf = CreateBuffer(vctx, info, vctx.compute_mtype_index);
       } else {
         ubo.vk_buf = CreateBuffer(vctx, info, mem_type_index);
@@ -1165,8 +1168,10 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
-    if (use_ubo) {
+    if (use_ubo && pipeline->ubo.host_buf) {
       memcpy(pipeline->ubo.host_buf, pack_args, nbytes_scalars);
+    } else if (use_ubo) {
+      // TODO
     }
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
@@ -1221,9 +1226,12 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo,
                                  nbytes_scalars](VulkanStreamState* state) {
-    if (use_ubo) {
+    if (use_ubo && pipeline->ubo.host_buf) {
       memcpy(pipeline->ubo.host_buf, pack_args_storage.data(), nbytes_scalars);
+    } else if (use_ubo) {
+      // TODO
     }
+
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
