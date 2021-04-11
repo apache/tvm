@@ -140,6 +140,32 @@ class StorageInfo : private ExprVisitor{
         primitive_supports_texture_ = true;
       }
     }
+    else if (auto attrs = call->attrs.as<GlobalPool2DAttrs>()) {
+      if (attrs->layout == "NCHW4c") {
+        primitive_supports_texture_ = true;
+      }
+    }
+    else if (auto attrs = call->attrs.as<MaxPool2DAttrs>()) {
+      if (attrs->layout == "NCHW4c") {
+        primitive_supports_texture_ = true;
+      }
+    }
+    else if (auto attrs = call->attrs.as<AvgPool2DAttrs>()) {
+      if (attrs->layout == "NCHW4c") {
+        primitive_supports_texture_ = true;
+      }
+    } else if (call->attrs.as<ConcatenateAttrs>()) {
+      primitive_supports_texture_ = true;
+    } else if (auto attrs = call->attrs.as<LayoutTransformAttrs>()) {
+      // Enable if either the source or destination layout is packed with vector length == 4.
+      // Disabled for layout contraction due to a bug when writing from texture to global buffer.
+      // TODO(csullivan): Enable proper code generation when emitting non-coalesced writes
+      // of elements from a coalesced texture read.
+      if ((attrs->dst_layout.find("4") == 4) /* || (attrs->src_layout.find("4") == 4) */) {
+        primitive_supports_texture_ = true;
+      }
+    }
+
     for (auto& arg : call->args) {
       Visit(arg);
     }
@@ -151,11 +177,28 @@ class StorageInfo : private ExprVisitor{
       std::string consumer_scope = GetConsumerScope(consumer_scopes_it->second);
       ICHECK(!storage_scope_.count(expr))
         << "Already propagated consumer scopes to input: " << GetRef<Expr>(expr);
-      storage_scope_[expr].push_back(consumer_scope);
-      if (consumer_scope == "texture") {
-        if (!scope_suffix.empty()) {
-          storage_scope_[expr][0] += (":" + scope_suffix);
+
+      bool expr_is_rgba_vectorizable = false;
+      if (const auto* ttype = expr->checked_type().as<TensorTypeNode>()) {
+        auto inner_dim = ttype->shape.back().as<IntImmNode>();
+        if (inner_dim && inner_dim->value == 4) {
+          expr_is_rgba_vectorizable = true;
         }
+      }
+
+      // Only propagate texture scope from consumers to input expr if
+      // the input shape of the input expr is rgba vectorizable.
+      if (consumer_scope == "texture") {
+        if (expr_is_rgba_vectorizable) {
+          std::string scope = consumer_scope;
+          // Apply any provided storage scope suffix before assignment
+          if (!scope_suffix.empty()) {
+            scope += (":" + scope_suffix);
+          }
+          storage_scope_[expr].push_back(scope);
+        }
+      } else {
+        storage_scope_[expr].push_back(consumer_scope);
       }
     }
   }
