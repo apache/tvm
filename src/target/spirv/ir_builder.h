@@ -60,8 +60,7 @@ enum ValueKind {
   kStructArrayPtr,
   kPushConstantPtr,
   kFunction,
-  kExtInst,
-  kUniformPtr
+  kExtInst
 };
 
 /*! \brief Represent the SPIRV Value */
@@ -474,7 +473,6 @@ class IRBuilder {
    * \param The argument type.
    */
   Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding);
-
   /*!
    * \brief Declare POD arguments through push constants.
    *
@@ -490,23 +488,6 @@ class IRBuilder {
    * \return the value of push constant
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
-
-  /*!
-   * \brief Declare POD arguments through uniform buffer.
-   *
-   * \note Only call this function once!
-   * \param value_types The values in the uniform buffer
-   * \param binding The binding locaiton in descriptor set
-   * \return reference to self.
-   */
-  Value DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding);
-  /*!
-   * \brief Get i-th uniform constant
-   * \param v_type The value type
-   * \param index The uniform index
-   * \return the value of uniform constant
-   */
-  Value GetUniform(Value ptr_ubo, const SType& v_type, uint32_t index);
   /*!
    * \brief Declare a new function
    * \return The created function ID.
@@ -574,17 +555,6 @@ class IRBuilder {
     val.flag = flag;
     return val;
   }
-
-  /*!
-   * \brief The common function to declare push constants or uniform buffer
-   * \param value_types The values in the push constants or uniform buffer
-   * \param storage_class An enum defined by SPIR-V indicating push constant or uniform
-   * \param kind An enum indicating push constant or uniform
-   * \return The created new label
-   */
-  Value DeclareStorageVariable(const std::vector<SType>& value_types,
-                               spv::StorageClass storage_class, ValueKind kind);
-
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
   // declare type
