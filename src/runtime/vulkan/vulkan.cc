@@ -45,13 +45,16 @@ static constexpr const int kVulkanMaxNumDevice = 8;
 /*! \brief TVM Vulkan binary pack magic number */
 static constexpr const int kVulkanModuleMagic = 0x02700027;
 
-struct VulkanStagingBuffer {
+struct VulkanHostVisibleBuffer {
   VkDevice device{nullptr};
   VkBuffer buffer{VK_NULL_HANDLE};
   VkDeviceMemory memory{VK_NULL_HANDLE};
   void* host_addr{nullptr};
   size_t size{0};
 };
+
+using VulkanStagingBuffer = VulkanHostVisibleBuffer;
+using VulkanUniformBuffer = VulkanHostVisibleBuffer;
 
 class VulkanThreadEntry {
  public:
@@ -92,6 +95,7 @@ class VulkanThreadEntry {
  private:
   std::unordered_map<size_t, std::unique_ptr<VulkanStream>> streams_;
   std::unordered_map<size_t, std::unique_ptr<VulkanStagingBuffer>> staging_buffers_;
+  std::unordered_map<size_t, std::unique_ptr<VulkanUniformBuffer>> uniform_buffers_;
 };
 
 struct VulkanBuffer {
@@ -848,7 +852,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       return cp;
     }
     // Create new pipeline
-    auto pe = std::shared_ptr<VulkanPipeline>(new VulkanPipeline());
+    auto pe = std::make_shared<VulkanPipeline>();
     {
       // create shader
       auto sit = smap_.find(func_name);
@@ -1067,7 +1071,7 @@ VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::
 
 VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
   if (!staging_buffers_[device_id]) {
-    staging_buffers_[device_id] = std::unique_ptr<VulkanStagingBuffer>(new VulkanStagingBuffer());
+    staging_buffers_[device_id] = std::make_unique<VulkanStagingBuffer>();
   }
   auto& buf = *(staging_buffers_[device_id]);
   if (buf.device != nullptr && buf.size < size) {
