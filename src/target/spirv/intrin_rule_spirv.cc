@@ -83,15 +83,16 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.pow").set_body(DispatchGLSLPureIntri
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.tanh").set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.clz").set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-  PrimExpr e = targs[0];
-  const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr);
-  ICHECK_EQ(call->args.size(), 1);
-  PrimExpr arg = call->args[0];
-  PrimExpr msb = CallGLSLIntrin<GLSLstd450FindUMsb>(targs, rv);
-  *rv = PrimExpr(arg.dtype().bits() - 1) - msb;
-});
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.clz")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      PrimExpr e = targs[0];
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      ICHECK_EQ(call->args.size(), 1);
+      PrimExpr arg = call->args[0];
+      PrimExpr msb = CallGLSLIntrin<GLSLstd450FindUMsb>(targs, rv);
+      *rv = PrimExpr(arg.dtype().bits() - 1) - msb;
+    });
 
 // WebGPU rules.
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.floor")

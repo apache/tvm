@@ -169,7 +169,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.clz").set_body([](const TVMArgs& targs
   cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
   cargs.push_back(IntImm(DataType::UInt(32), 2));
   cargs.push_back(call->args[0]);
-  cargs.push_back(IntImm(DataType::Int(1), 1)); // is_zero_undef
+  cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
   // LLVM requires that the return type must match the first argument type
   auto clz = tir::Call(call->args[0]->dtype, tir::builtin::call_llvm_intrin(), cargs);
   *rv = cast(call->dtype, clz);
