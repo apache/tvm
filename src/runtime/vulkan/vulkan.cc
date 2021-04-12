@@ -58,7 +58,7 @@ struct UniformBuffer {
 
 struct VulkanHostVisibleBuffer {
   VkDevice device{nullptr};
-  VulkanBuffer vk_buf;
+  VulkanBuffer* vk_buf{nullptr};
   void* host_addr{nullptr};
   size_t size{0};
 };
@@ -85,14 +85,17 @@ class VulkanThreadEntry {
         continue;
       }
       auto& buf = *(kv.second);
-      if (buf.host_addr != nullptr) {
-        vkUnmapMemory(buf.device, buf.vk_buf.memory);
-      }
-      if (buf.vk_buf.memory != VK_NULL_HANDLE) {
-        vkFreeMemory(buf.device, buf.vk_buf.memory, nullptr);
-      }
-      if (buf.vk_buf.buffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(buf.device, buf.vk_buf.buffer, nullptr);
+      if (buf.vk_buf) {
+        if (buf.host_addr != nullptr) {
+          vkUnmapMemory(buf.device, buf.vk_buf->memory);
+        }
+        if (buf.vk_buf->memory != VK_NULL_HANDLE) {
+          vkFreeMemory(buf.device, buf.vk_buf->memory, nullptr);
+        }
+        if (buf.vk_buf->buffer != VK_NULL_HANDLE) {
+          vkDestroyBuffer(buf.device, buf.vk_buf->buffer, nullptr);
+        }
+        delete buf.vk_buf;
       }
     }
   }
@@ -217,6 +220,12 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, VkBufferCreateInfo info,
   return pbuf;
 }
 
+VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
+                           uint32_t mem_type_index) {
+  auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
+  return CreateBuffer(vctx, info, mem_type_index);
+}
+
 class VulkanDeviceAPI final : public DeviceAPI {
  public:
   VulkanDeviceAPI();
@@ -239,8 +248,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     const auto& vctx = context(dev.device_id);
     auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
-    return CreateBuffer(vctx, info, vctx.compute_mtype_index);
+    return CreateBuffer(vctx, nbytes, usage, vctx.staging_mtype_index);
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
@@ -305,14 +313,15 @@ class VulkanDeviceAPI final : public DeviceAPI {
             copy_info.srcOffset = from_offset;
             copy_info.dstOffset = 0;
             copy_info.size = size;
-            vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, temp->vk_buf.buffer, 1, &copy_info);
+            vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, temp->vk_buf->buffer, 1,
+                            &copy_info);
           });
       VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
       if (!vctx.coherent_staging) {
         VkMappedMemoryRange mrange;
         mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
         mrange.pNext = nullptr;
-        mrange.memory = temp->vk_buf.memory;
+        mrange.memory = temp->vk_buf->memory;
         mrange.offset = 0;
         mrange.size = VK_WHOLE_SIZE;  // size;
         VULKAN_CALL(vkInvalidateMappedMemoryRanges(vctx.device, 1, &mrange));
@@ -330,7 +339,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
         VkMappedMemoryRange mrange;
         mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
         mrange.pNext = nullptr;
-        mrange.memory = temp->vk_buf.memory;
+        mrange.memory = temp->vk_buf->memory;
         mrange.offset = 0;
         mrange.size = VK_WHOLE_SIZE;  // size;
         VULKAN_CALL(vkFlushMappedMemoryRanges(vctx.device, 1, &mrange));
@@ -353,7 +362,8 @@ class VulkanDeviceAPI final : public DeviceAPI {
             copy_info.srcOffset = 0;
             copy_info.dstOffset = to_offset;
             copy_info.size = size;
-            vkCmdCopyBuffer(state->cmd_buffer_, temp->vk_buf.buffer, to_buf->buffer, 1, &copy_info);
+            vkCmdCopyBuffer(state->cmd_buffer_, temp->vk_buf->buffer, to_buf->buffer, 1,
+                            &copy_info);
           });
       // TODO(tulloch): should we instead make the staging buffer a property of the
       // Stream? This would allow us to elide synchronizations here.
@@ -1085,46 +1095,35 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
   }
   auto& buf = *(staging_buffers_[device_id]);
   if (buf.device != nullptr && buf.size < size) {
+    ICHECK(buf.vk_buf);
     // free previous buffer
     if (buf.host_addr != nullptr) {
-      vkUnmapMemory(buf.device, buf.vk_buf.memory);
+      vkUnmapMemory(buf.device, buf.vk_buf->memory);
     }
-    if (buf.vk_buf.memory != VK_NULL_HANDLE) {
-      vkFreeMemory(buf.device, buf.vk_buf.memory, nullptr);
+    if (buf.vk_buf->memory != VK_NULL_HANDLE) {
+      vkFreeMemory(buf.device, buf.vk_buf->memory, nullptr);
     }
-    if (buf.vk_buf.buffer != VK_NULL_HANDLE) {
-      vkDestroyBuffer(buf.device, buf.vk_buf.buffer, nullptr);
+    if (buf.vk_buf->buffer != VK_NULL_HANDLE) {
+      vkDestroyBuffer(buf.device, buf.vk_buf->buffer, nullptr);
     }
     buf.host_addr = nullptr;
-    buf.vk_buf.memory = VK_NULL_HANDLE;
+    delete buf.vk_buf;
   }
+
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
 
   if (buf.device == nullptr) {
     buf.device = vctx.device;
   }
-  if (buf.vk_buf.memory == VK_NULL_HANDLE) {
-    // allocate the stagging buffer memory if necessary
-    VkBufferCreateInfo info;
-    info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    info.pNext = nullptr;
-    info.flags = 0;
-    info.size = size;
-    info.queueFamilyIndexCount = 1;
-    info.pQueueFamilyIndices = &(vctx.queue_family_index);
-    info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &(buf.vk_buf.buffer)));
-    VkMemoryAllocateInfo minfo;
-    minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    minfo.pNext = nullptr;
-    minfo.allocationSize = size;
-    minfo.memoryTypeIndex = vctx.staging_mtype_index;
-    VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &(buf.vk_buf.memory)));
-    VULKAN_CALL(vkBindBufferMemory(vctx.device, (buf.vk_buf.buffer), buf.vk_buf.memory, 0));
-    VULKAN_CALL(vkMapMemory(vctx.device, buf.vk_buf.memory, 0, size, 0, &(buf.host_addr)));
+  if (buf.host_addr == nullptr) {
+    // allocate the staging buffer memory if necessary
+    auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    buf.vk_buf = CreateBuffer(vctx, size, usage, vctx.staging_mtype_index);
+    VULKAN_CALL(vkMapMemory(vctx.device, buf.vk_buf->memory, 0, size, 0, &(buf.host_addr)));
     buf.size = size;
   }
+
+  ICHECK(buf.size >= size);
   memset(buf.host_addr, 0, size);
   return &buf;
 }
