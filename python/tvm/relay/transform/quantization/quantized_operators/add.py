@@ -21,7 +21,7 @@ def generate_generic_quantized_add(
     input2_qparams: utils.QParams,
     internal_accumulation_dtype: str = "float32",
     simulated_accumulation_dtype: str = "int32",
-    dequantize: bool = False,
+    dequantize: bool = True,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
 
     output_qparams = utils.QParams(
@@ -51,7 +51,7 @@ def generate_static_quantized_add(
     input1_qparams: utils.QParams,
     input2_qparams: utils.QParams,
     accumulation_dtype: str = "int32",
-    dequantize: bool = False,
+    dequantize: bool = True,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_add(
         input1,
@@ -70,7 +70,7 @@ def generate_simulated_quantized_add(
     input1_qparams: utils.QParams,
     input2_qparams: utils.QParams,
     accumulation_dtype: str = "int32",
-    dequantize: bool = False,
+    dequantize: bool = True,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_add(
         input1,
