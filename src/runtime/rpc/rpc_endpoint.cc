@@ -638,7 +638,7 @@ RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncod
         if (handler_->CanCleanShutdown()) {
           return RPCCode::kShutdown;
         } else {
-          LOG(FATAL) << "Channel closes before we get neded bytes";
+          LOG(FATAL) << "Channel closes before we get needed bytes";
         }
       }
     }
@@ -795,7 +795,7 @@ void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, const TVMValue* arg_v
   handler_->SendPackedSeq(arg_values, arg_type_codes, num_args, true);
 
   code = HandleUntilReturnEvent(true, encode_return);
-  ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
+  ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);
 }
 
 void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {

@@ -29,6 +29,10 @@ from tvm.contrib import utils
 from tvm import rpc
 import tvm.testing
 
+# Something contaminates global state in this file so that the python rpc
+# server hangs. We run each test in its own process to avoid this issue.
+pytestmark = pytest.mark.forked
+
 
 def check_result(args, expected_result, mod=None):
     """
