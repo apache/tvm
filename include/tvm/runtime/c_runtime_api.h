@@ -343,6 +343,17 @@ TVM_DLL int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle,
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override);
 
 /*!
+ * \brief Register the Op lowering function to runtime's Op table.
+ *
+ * The registered Op then can be pulled by the backend by the name.
+ *
+ * \param name The name of the Op.
+ * \param f The Op lowering function to be registered.
+ * \param override Whether allow override already registered function.
+ */
+TVM_DLL int TVMOpLoweringFuncRegister(const char* name, TVMFunctionHandle f, int override);
+
+/*!
  * \brief Get a global function.
  *
  * \param name The name of the function.

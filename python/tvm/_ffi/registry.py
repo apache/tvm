@@ -198,6 +198,42 @@ def register_func(func_name, f=None, override=False):
     return register
 
 
+def register_op(op_name, f=None, override=False):
+    """Register Op lowering function
+
+    Parameters
+    ----------
+    op_name : str or function
+        The op name
+
+    f : function, optional
+        The function to be registered.
+
+    override: boolean optional
+        Whether override existing entry.
+
+    Returns
+    -------
+    fregister : function
+        Register op lowering function if f is not specified.
+    """
+    if not isinstance(op_name, str):
+        raise ValueError("expect string function name")
+
+    ioverride = ctypes.c_int(override)
+
+    def register(myf):
+        """internal register function"""
+        if not isinstance(myf, PackedFuncBase):
+            myf = convert_to_tvm_func(myf)
+        check_call(_LIB.TVMOpLoweringFuncRegister(c_str(op_name), myf.handle, ioverride))
+        return myf
+
+    if f:
+        return register(f)
+    return register
+
+
 def get_global_func(name, allow_missing=False):
     """Get a global function by name
 

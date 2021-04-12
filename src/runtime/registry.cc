@@ -22,8 +22,11 @@
  * \brief The global registry of packed function.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include <array>
 #include <memory>
@@ -120,6 +123,14 @@ int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
   API_BEGIN();
   tvm::runtime::Registry::Register(name, override != 0)
       .set_body(*static_cast<tvm::runtime::PackedFunc*>(f));
+  API_END();
+}
+
+int TVMOpLoweringFuncRegister(const char* name, TVMFunctionHandle f, int override) {
+  API_BEGIN();
+  ::tvm::OpRegEntry::RegisterOrGet(name).set_name()
+    .set_attr<tvm::tir::FLowerIntrinsic>(
+      "default.FLowerIntrinsic", *static_cast<tvm::runtime::PackedFunc*>(f));
   API_END();
 }
 
