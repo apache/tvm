@@ -155,8 +155,9 @@ VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes
   return info;
 }
 
-VulkanBuffer* CreateBuffer(const VulkanContext& vctx, VkBufferCreateInfo info,
+VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
                            uint32_t mem_type_index) {
+  auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
   // create buffer
   VkBuffer buffer;
   VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
@@ -213,12 +214,6 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, VkBufferCreateInfo info,
   pbuf->memory = memory;
   pbuf->buffer = buffer;
   return pbuf;
-}
-
-VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
-                           uint32_t mem_type_index) {
-  auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
-  return CreateBuffer(vctx, info, mem_type_index);
 }
 
 class VulkanDeviceAPI final : public DeviceAPI {
