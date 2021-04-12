@@ -50,12 +50,6 @@ struct VulkanBuffer {
   VkDeviceMemory memory{VK_NULL_HANDLE};
 };
 
-// To remove
-struct UniformBuffer {
-  VulkanBuffer* vk_buf;
-  void* host_buf;
-};
-
 struct VulkanHostVisibleBuffer {
   VkDevice device{nullptr};
   VulkanBuffer* vk_buf{nullptr};
@@ -122,7 +116,6 @@ struct VulkanPipeline {
   VkPipelineLayout pipeline_layout{VK_NULL_HANDLE};
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkDescriptorUpdateTemplateKHR descriptor_update_template{VK_NULL_HANDLE};
-  UniformBuffer ubo;
 };
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
@@ -846,13 +839,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
         vkDestroyDescriptorPool(vctx.device, pe->descriptor_pool, nullptr);
         vkDestroyDescriptorSetLayout(vctx.device, pe->descriptor_set_layout, nullptr);
         vkDestroyShaderModule(vctx.device, pe->shader, nullptr);
-        // UBO
-        if (pe->ubo.vk_buf) {
-          vkUnmapMemory(vctx.device, pe->ubo.vk_buf->memory);
-          vkDestroyBuffer(vctx.device, pe->ubo.vk_buf->buffer, nullptr);
-          vkFreeMemory(vctx.device, pe->ubo.vk_buf->memory, nullptr);
-          delete pe->ubo.vk_buf;
-        }
       }
     }
   }
@@ -1244,8 +1230,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
                            0, 0);
   };
-  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo,
-                                 nbytes_scalars, device_id](VulkanStreamState* state) {
+  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo, nbytes_scalars,
+                                 device_id](VulkanStreamState* state) {
     if (use_ubo) {
       auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
       memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
