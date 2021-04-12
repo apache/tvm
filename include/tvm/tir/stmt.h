@@ -1317,6 +1317,12 @@ constexpr const char* fragment_layout = "fragment_layout";
  */
 constexpr const char* hand_threaded = "hand_threaded";
 
+/*!
+ * \brief Mark that whether a block need to be complete access region during script parsing.
+ * \note The result should be a integer mask with range [0, 4).
+ *       if (mask & 1) the read region should be detected,
+ *       if (mask & 2) the write region should be detected.
+ */
 constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
 /*!
  * \brief Check if attr_key is a pragma key extension
