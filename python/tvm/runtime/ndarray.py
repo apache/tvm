@@ -184,12 +184,12 @@ class NDArray(NDArrayBase):
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
         if old_dtype == "int4":
             length = np_arr.size
-            np_arr_ret = np.empty((length, ), dtype="int8")
+            np_arr_ret = np.empty((length,), dtype="int8")
             np_arr = np_arr.reshape((length,))
-            old_index = np.bitwise_and(np_arr, 0x0f)
-            even_index = np.bitwise_and(np_arr >> 4, 0x0f)
-            np_arr_ret[1::2] = old_index[0:length // 2]
-            np_arr_ret[0::2] = even_index[0:length // 2]
+            old_index = np.bitwise_and(np_arr, 0x0F)
+            even_index = np.bitwise_and(np_arr >> 4, 0x0F)
+            np_arr_ret[1::2] = old_index[0 : length // 2]
+            np_arr_ret[0::2] = even_index[0 : length // 2]
             return np_arr_ret.reshape(shape)
         return np_arr
 
