@@ -117,6 +117,7 @@ struct VulkanPipeline {
   VkPipelineLayout pipeline_layout{VK_NULL_HANDLE};
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkDescriptorUpdateTemplateKHR descriptor_update_template{VK_NULL_HANDLE};
+  bool use_ubo{false};
 };
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
@@ -853,6 +854,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       // create shader
       auto sit = smap_.find(func_name);
       ICHECK(sit != smap_.end());
+      pe->use_ubo = sit->second.flag & (1 << kUSE_UBO);
       const std::vector<uint32_t>& data = sit->second.data;
       VkShaderModuleCreateInfo shader_cinfo;
       shader_cinfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -903,7 +905,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     }
 
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
-    if (nbytes_scalars > kMaxPushConstantsBytes) {
+    if (pe->use_ubo) {
       // Use UBO instead of push constants
       push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
       VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
@@ -960,7 +962,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     playout_cinfo.setLayoutCount = 1;
     playout_cinfo.pSetLayouts = &(pe->descriptor_set_layout);
 
-    if (0 < nbytes_scalars && nbytes_scalars <= kMaxPushConstantsBytes) {
+    if (0 < nbytes_scalars && !pe->use_ubo) {
       playout_cinfo.pushConstantRangeCount = 1;
       playout_cinfo.pPushConstantRanges = &crange;
       ICHECK_LE(crange.size, vctx.phy_device_prop.limits.maxPushConstantsSize);
@@ -1141,8 +1143,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     descriptor_buffers[i] = binfo;
   }
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
-  bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > kMaxPushConstantsBytes;
-  if (use_ubo) {
+  if (pipeline->use_ubo) {
     auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
     CHECK(ubo->host_addr) << "The UBO host buffer is not allocated";
     VkDescriptorBufferInfo binfo;
@@ -1153,7 +1154,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
-    if (use_ubo) {
+    if (pipeline->use_ubo) {
       auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
       memcpy(ubo->host_addr, pack_args, nbytes_scalars);
     }
@@ -1163,7 +1164,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       vctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
-      if (num_pack_args_ > 0 && num_pack_args_ <= kMaxPushConstantsBytes) {
+      if (num_pack_args_ > 0 && !pipeline->use_ubo) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
                            pack_args);
@@ -1184,7 +1185,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 
   // Otherwise, the more expensive deferred path.
   std::vector<ArgUnion64> pack_args_storage(pack_args, pack_args + num_pack_args_);
-  const auto& deferred_initializer = [&vctx, pipeline, descriptor_buffers, use_ubo]() {
+  const auto& deferred_initializer = [&vctx, pipeline, descriptor_buffers]() {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     write_descriptor_sets.resize(descriptor_buffers.size());
     for (size_t i = 0; i < write_descriptor_sets.size(); i++) {
@@ -1198,7 +1199,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       write_descriptor_sets[i].pBufferInfo = &(descriptor_buffers[i]);
       write_descriptor_sets[i].pTexelBufferView = 0;
 
-      if (use_ubo && i == write_descriptor_sets.size() - 1) {
+      if (pipeline->use_ubo && i == write_descriptor_sets.size() - 1) {
         // The last binding is for UBO
         write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
       } else {
@@ -1208,9 +1209,9 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
                            0, 0);
   };
-  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo, nbytes_scalars,
+  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
                                  device_id](VulkanStreamState* state) {
-    if (use_ubo) {
+    if (pipeline->use_ubo) {
       auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
       memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
     }
@@ -1218,7 +1219,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
                             nullptr);
-    if (num_pack_args_ > 0 && num_pack_args_ <= kMaxPushConstantsBytes) {
+    if (num_pack_args_ > 0 && !pipeline->use_ubo) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                          0, pack_args_storage.size() * sizeof(ArgUnion64),
                          pack_args_storage.data());

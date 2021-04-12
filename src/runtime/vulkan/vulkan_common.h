@@ -37,6 +37,8 @@ namespace vulkan {
 
 #define kMaxPushConstantsBytes 128
 
+enum ShaderMetaDataKind { kUSE_UBO = 0 };
+
 inline const char* VKGetErrorString(VkResult error) {
   switch (error) {
     case VK_SUCCESS:
