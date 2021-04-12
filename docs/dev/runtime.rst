@@ -138,7 +138,7 @@ This philosophy of embedded API is very like Lua, except that we don't have a ne
 
 One fun fact about PackedFunc is that we use it for both compiler and deployment stack.
 
-- All TVM's compiler pass functions are exposed to frontend as PackedFunc, see `here`_
+- All compiler pass functions of TVM are exposed to frontend as PackedFunc, see `here`_
 - The compiled module also returns the compiled function as PackedFunc
 
 .. _here: https://github.com/apache/tvm/tree/main/src/api
