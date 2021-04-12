@@ -105,6 +105,7 @@ class VulkanThreadEntry {
   VulkanStream* Stream(size_t device_id);
   VulkanStagingBuffer* StagingBuffer(int device_id, size_t size);
   void AllocateUniformBuffer(int device_id, size_t size);
+  VulkanUniformBuffer* GetUniformBuffer(int device_id, size_t size);
 
  private:
   std::unordered_map<size_t, std::unique_ptr<VulkanStream>> streams_;
@@ -1006,17 +1007,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
     if (nbytes_scalars > max_push_constants_) {
       // Allocate, bind and map UBO
-      UniformBuffer& ubo = pe->ubo;
-      // Find a memory type that supports UBO
-      auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-      auto info = MakeBufferCreateInfo(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-      auto mem_type_index = FindMemoryType(vctx, info, prop);
-      if (mem_type_index == -1) {
-        ubo.vk_buf = CreateBuffer(vctx, info, vctx.compute_mtype_index);
-      } else {
-        ubo.vk_buf = CreateBuffer(vctx, info, mem_type_index);
-        vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &(ubo.host_buf));
-      }
+      VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
     }
 
     if (vctx.UseImmediate()) {
@@ -1143,6 +1134,13 @@ void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
                 uniform_buffers_);
 }
 
+VulkanUniformBuffer* VulkanThreadEntry::GetUniformBuffer(int device_id, size_t size) {
+  auto& buf = uniform_buffers_[device_id];
+  ICHECK(buf);
+  ICHECK_GE(buf->size, size);
+  return buf.get();
+}
+
 VulkanThreadEntry::VulkanThreadEntry()
     : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
                                            VulkanDeviceAPI::Global())) {
@@ -1181,9 +1179,10 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
   bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > m_->MaxPushConstantsSize();
   if (use_ubo) {
-    CHECK(pipeline->ubo.host_buf) << "The UBO host buffer is not allocated";
+    auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+    CHECK(ubo->host_addr) << "The UBO host buffer is not allocated";
     VkDescriptorBufferInfo binfo;
-    binfo.buffer = pipeline->ubo.vk_buf->buffer;
+    binfo.buffer = ubo->vk_buf->buffer;
     binfo.offset = 0;
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers.push_back(binfo);
@@ -1191,7 +1190,8 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     if (use_ubo) {
-      memcpy(pipeline->ubo.host_buf, pack_args, nbytes_scalars);
+      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+      memcpy(ubo->host_addr, pack_args, nbytes_scalars);
     }
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
@@ -1245,9 +1245,10 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                            0, 0);
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, use_ubo,
-                                 nbytes_scalars](VulkanStreamState* state) {
+                                 nbytes_scalars, device_id](VulkanStreamState* state) {
     if (use_ubo) {
-      memcpy(pipeline->ubo.host_buf, pack_args_storage.data(), nbytes_scalars);
+      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+      memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
     }
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
