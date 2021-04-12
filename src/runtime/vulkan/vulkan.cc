@@ -122,13 +122,16 @@ struct VulkanPipeline {
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
 
-uint32_t FindMemoryType(VkDevice logical_device, VkPhysicalDevice phy_device, VkBuffer buffer,
-                        VkMemoryPropertyFlags req_prop) {
+int FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
+                   VkMemoryPropertyFlags req_prop) {
+  VkBuffer buffer;
+  VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
+
   VkMemoryRequirements mem_reqs;
-  vkGetBufferMemoryRequirements(logical_device, buffer, &mem_reqs);
+  vkGetBufferMemoryRequirements(vctx.device, buffer, &mem_reqs);
   uint32_t type_bits = mem_reqs.memoryTypeBits;
   VkPhysicalDeviceMemoryProperties phy_mem_prop;
-  vkGetPhysicalDeviceMemoryProperties(phy_device, &phy_mem_prop);
+  vkGetPhysicalDeviceMemoryProperties(vctx.phy_device, &phy_mem_prop);
   for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
     if ((type_bits & 1) == 1 &&
         (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
@@ -136,11 +139,12 @@ uint32_t FindMemoryType(VkDevice logical_device, VkPhysicalDevice phy_device, Vk
     }
     type_bits >>= 1;
   }
-  LOG(FATAL) << "Requested memory type not found";
-  return 0;
+  LOG(INFO) << "Requested memory type not found";
+  return -1;
 }
 
-VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage) {
+VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes,
+                                        VkBufferUsageFlags usage) {
   VkBufferCreateInfo info;
   info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   info.pNext = nullptr;
@@ -150,17 +154,14 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
   info.pQueueFamilyIndices = &(vctx.queue_family_index);
   info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   info.usage = usage;
+  return info;
+}
+
+VulkanBuffer* CreateBuffer(const VulkanContext& vctx, VkBufferCreateInfo info,
+                           uint32_t mem_type_index) {
   // create buffer
   VkBuffer buffer;
   VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
-
-  uint32_t mem_type_index = vctx.compute_mtype_index;
-
-  if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
-    // Find a memory type that supports UBO
-    auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    mem_type_index = FindMemoryType(vctx.device, vctx.phy_device, buffer, prop);
-  }
 
   // bind to memory
   bool dedicated_allocation = false;
@@ -191,7 +192,7 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     VkMemoryAllocateInfo minfo;
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     minfo.pNext = nullptr;
-    minfo.allocationSize = nbytes;
+    minfo.allocationSize = info.size;
     minfo.memoryTypeIndex = mem_type_index;
     VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
   } else {
@@ -238,7 +239,8 @@ class VulkanDeviceAPI final : public DeviceAPI {
     const auto& vctx = context(dev.device_id);
     auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    return CreateBuffer(vctx, nbytes, usage);
+    auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
+    return CreateBuffer(vctx, info, vctx.compute_mtype_index);
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
@@ -994,8 +996,16 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     if (nbytes_scalars > max_push_constants_) {
       // Allocate, bind and map UBO
       UniformBuffer& ubo = pe->ubo;
-      ubo.vk_buf = CreateBuffer(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-      vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &(ubo.host_buf));
+      // Find a memory type that supports UBO
+      auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+      auto info = MakeBufferCreateInfo(vctx, nbytes_scalars, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+      auto mem_type_index = FindMemoryType(vctx, info, prop);
+      if (mem_type_index == -1) {
+        ubo.vk_buf = CreateBuffer(vctx, info, vctx.compute_mtype_index);
+      } else {
+        ubo.vk_buf = CreateBuffer(vctx, info, mem_type_index);
+        vkMapMemory(vctx.device, ubo.vk_buf->memory, 0, nbytes_scalars, 0, &(ubo.host_buf));
+      }
     }
 
     if (vctx.UseImmediate()) {
