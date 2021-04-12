@@ -45,6 +45,14 @@ static constexpr const int kVulkanMaxNumDevice = 8;
 /*! \brief TVM Vulkan binary pack magic number */
 static constexpr const int kVulkanModuleMagic = 0x02700027;
 
+struct VulkanStagingBuffer {
+  VkDevice device{nullptr};
+  VkBuffer buffer{VK_NULL_HANDLE};
+  VkDeviceMemory memory{VK_NULL_HANDLE};
+  void* host_addr{nullptr};
+  size_t size{0};
+};
+
 class VulkanThreadEntry {
  public:
   VulkanThreadEntry();

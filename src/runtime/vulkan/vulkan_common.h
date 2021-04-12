@@ -105,14 +105,6 @@ struct VulkanGetBufferMemoryRequirements2Functions {
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
 };
 
-struct VulkanStagingBuffer {
-  VkDevice device{nullptr};
-  VkBuffer buffer{VK_NULL_HANDLE};
-  VkDeviceMemory memory{VK_NULL_HANDLE};
-  void* host_addr{nullptr};
-  size_t size{0};
-};
-
 struct VulkanContext {
   // phyiscal device
   VkPhysicalDevice phy_device{nullptr};
