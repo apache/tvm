@@ -17,24 +17,30 @@ from tvm.relay.transform.quantization.quantized_operators import utils
 def generate_generic_quantized_add(
     input1: tvm.relay.Expr,
     input2: tvm.relay.Expr,
-    input1_qparams: utils.QParams,
-    input2_qparams: utils.QParams,
+    output_qparams: Optional[utils.QParams],
+    input1_qparams: Optional[utils.QParams] = None,
+    input2_qparams: Optional[utils.QParams] = None,
     internal_accumulation_dtype: str = "float32",
     simulated_accumulation_dtype: str = "int32",
     dequantize: bool = True,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
+    if output_qparams is None and (input1_qparams is None or input2_qparams is None):
+        raise ValueError(
+            "Must give either the output qparams or both input qparams to infer output qparams!"
+        )
 
-    output_qparams = utils.QParams(
-        input1_qparams.scale_factor + input2_qparams.scale_factor,
-        relay.const(0, dtype=simulated_accumulation_dtype),
-        simulated_accumulation_dtype,
-    )
+    if output_qparams is None:
+        output_qparams = utils.QParams(
+            input1_qparams.scale_factor + input2_qparams.scale_factor,
+            relay.const(0, dtype=simulated_accumulation_dtype),
+            simulated_accumulation_dtype,
+        )
     input1, input2 = utils.quantize_inputs(
         internal_accumulation_dtype, input1, output_qparams, input2, output_qparams
     )
 
     input1, input2 = utils.cast_all(internal_accumulation_dtype, input1, input2)
-    output_term = input1 + input2
+    output_term = input1 + input2 - output_qparams.zero_point
 
     if dequantize:
         output_term = utils.dequantize_expr(
