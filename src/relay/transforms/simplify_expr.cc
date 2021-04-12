@@ -76,6 +76,59 @@ class SimplifyReshape : public DFPatternRewrite {
 };
 
 /*!
+ * \brief SimplifyCastLike matches the pattern of cast data to the same dtype.
+ */
+class SimplifyCastLike : public DFPatternRewrite {
+ public:
+  explicit SimplifyCastLike() {
+    data_pat_ = IsWildcard();
+    like_pat_ = IsWildcard();
+    pattern_ = IsOp("cast_like")({data_pat_, like_pat_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto data = node_map[data_pat_][0];
+    const TensorTypeNode* data_ty = data->checked_type().as<TensorTypeNode>();
+    const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
+    if (like_ty->dtype == data_ty->dtype) {
+      return data;
+    }
+    return post;
+  }
+
+ protected:
+  DFPattern data_pat_;
+  DFPattern like_pat_;
+};
+
+/*!
+ * \brief SimplifyCast matches the pattern of cast data to the same dtype.
+ */
+class SimplifyCast : public DFPatternRewrite {
+ public:
+  explicit SimplifyCast() {
+    data_pat_ = IsWildcard();
+    pattern_ = IsOp("cast")({data_pat_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call = pre.as<CallNode>();
+    auto attrs = call->attrs.as<CastAttrs>();
+    auto data = node_map[data_pat_][0];
+    const TensorTypeNode* data_ty = data->checked_type().as<TensorTypeNode>();
+    if (attrs->dtype == data_ty->dtype) {
+      return data;
+    }
+    return post;
+  }
+
+ protected:
+  DFPattern data_pat_;
+};
+
+/*!
  * \brief SimplifyTranspose matches the pattern of consecutive transpose op,
  *   and merges or cancels them.
  */
@@ -321,6 +374,17 @@ class ConcretizeOnesLikeRewrite : public ConcretizeLikeRewrite {
   }
 };
 
+class ConcretizeFullLikeRewrite : public ConcretizeLikeRewrite {
+ public:
+  ConcretizeFullLikeRewrite() : ConcretizeLikeRewrite(Op::Get("full_like")) {}
+
+  Expr Concretize(const Map<DFPattern, Array<Expr>>& node_map, Array<Integer> shape,
+                  DataType dtype) const override {
+    // `like_pat_` here is `fill_value`
+    return MakeFull(node_map[like_pat_][0], shape, dtype);
+  }
+};
+
 class ConcretizeReshapeLikeRewrite : public ConcretizeLikeRewrite {
  public:
   ConcretizeReshapeLikeRewrite() : ConcretizeLikeRewrite(Op::Get("reshape_like")) {}
@@ -439,12 +503,15 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   DFPatternRewriteComposer composer;
   composer.AddRewrite<ConcretizeZerosLikeRewrite>();
   composer.AddRewrite<ConcretizeOnesLikeRewrite>();
+  composer.AddRewrite<ConcretizeFullLikeRewrite>();
   composer.AddRewrite<ConcretizeReshapeLikeRewrite>();
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
+  composer.AddRewrite<SimplifyCastLike>();
+  composer.AddRewrite<SimplifyCast>();
   composer.AddRewrite<FullElementwise>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
