@@ -268,7 +268,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
                 "cmake_cache": ["CMakeCache.txt"],
                 "device_tree": [os.path.join("zephyr", "zephyr.dts")],
             },
-            immobile=True if self._qemu else False,
+            immobile=bool(self._qemu),
         )
 
     @property
