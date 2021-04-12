@@ -728,6 +728,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_int8, need_out_dtype=True),
             wrap_topi_schedule(topi.cuda.schedule_batch_matmul_int8),
             name="batch_matmul_int8.cuda",
+            plevel=10,
         )
     else:
         strategy.add_implementation(

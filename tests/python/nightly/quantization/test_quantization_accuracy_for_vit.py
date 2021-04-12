@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 import os
+import sys
 from tvm import relay
 from tvm.relay import quantize as qtz
 import logging
@@ -37,16 +38,34 @@ def calibrate_dataset(model_name, rec_val, batch_size, calibration_samples):
         yield {"data": data}
 
 
-def get_onnx_model(model_name, batch_size, qconfig, target=None, original=False, dataset=None):
+def download_file(url_base, file_name):
+    if not os.path.exists(file_name) or not os.path.isfile(file_name):
+        import urllib.request as urllib2
 
+        url = "{}/{}".format(url_base, file_name)
+        try:
+            print("download from {}".format(url))
+            if sys.version_info >= (3,):
+                urllib2.urlretrieve(url, file_name)
+            else:
+                f = urllib2.urlopen(url)
+                data = f.read()
+                with open(file_name, "wb") as code:
+                    code.write(data)
+        except Exception as err:
+            if os.path.exists(file_name):
+                os.remove(file_name)
+            raise Exception("download {} failed due to {}!".format(file_name, repr(err)))
+
+
+def get_onnx_model(model_name, batch_size, qconfig, target=None, original=False, dataset=None):
     assert model_name == "vit32", "Only support vit32 model!"
+    base = "https://github.com/TheGreatCold/tvm-vit/raw/d2aa1e60eef42e2fdedbd1e13aa85ac5faf0a7fc"
     logfile = "gtx1660_vit_B32_224.log"
     onnx_path = "vit_B32_224.onnx"
 
-    if not os.path.exists(logfile):
-        os.system("wget https://github.com/TheGreatCold/tvm-vit/raw/master/{}".format(logfile))
-    if not os.path.exists(onnx_path):
-        os.system("wget https://github.com/TheGreatCold/tvm-vit/raw/master/{}".format(onnx_path))
+    download_file(base, logfile)
+    download_file(base, onnx_path)
 
     onnx_graph = onnx.load(open(onnx_path, "rb"))
     data_shape = (batch_size, 3, 224, 224)
