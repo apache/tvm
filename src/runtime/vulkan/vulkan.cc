@@ -104,6 +104,7 @@ class VulkanThreadEntry {
   std::unique_ptr<WorkspacePool> pool;
   VulkanStream* Stream(size_t device_id);
   VulkanStagingBuffer* StagingBuffer(int device_id, size_t size);
+  void AllocateUniformBuffer(int device_id, size_t size);
 
  private:
   std::unordered_map<size_t, std::unique_ptr<VulkanStream>> streams_;
@@ -1089,11 +1090,13 @@ Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
 
 VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::Get(); }
 
-VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
-  if (!staging_buffers_[device_id]) {
-    staging_buffers_[device_id] = std::make_unique<VulkanStagingBuffer>();
+VulkanHostVisibleBuffer* GetOrAllocate(
+    int device_id, size_t size, VkBufferUsageFlags usage, uint32_t mem_type_index,
+    std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>& buffers) {
+  if (!buffers[device_id]) {
+    buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
   }
-  auto& buf = *(staging_buffers_[device_id]);
+  auto& buf = *(buffers[device_id]);
   if (buf.device != nullptr && buf.size < size) {
     ICHECK(buf.vk_buf);
     // free previous buffer
@@ -1116,16 +1119,19 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
     buf.device = vctx.device;
   }
   if (buf.host_addr == nullptr) {
-    // allocate the staging buffer memory if necessary
-    auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    buf.vk_buf = CreateBuffer(vctx, size, usage, vctx.staging_mtype_index);
+    buf.vk_buf = CreateBuffer(vctx, size, usage, mem_type_index);
     VULKAN_CALL(vkMapMemory(vctx.device, buf.vk_buf->memory, 0, size, 0, &(buf.host_addr)));
     buf.size = size;
   }
-
-  ICHECK(buf.size >= size);
-  memset(buf.host_addr, 0, size);
   return &buf;
+}
+
+VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
+  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+  auto buf = GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, staging_buffers_);
+  memset(buf->host_addr, 0, size);
+  return buf;
 }
 
 VulkanThreadEntry::VulkanThreadEntry()
