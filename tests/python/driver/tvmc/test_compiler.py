@@ -251,5 +251,7 @@ def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_
     graph, lib, params, dumps = tvmc.compile(mod, params, target="mockcodegen -testopt=value, llvm")
 
     mock_pc.assert_called_once_with(
-        opt_level=3, config={"relay.ext.mock.options": {"testopt": "value"}}
+        opt_level=3,
+        config={"relay.ext.mock.options": {"testopt": "value"}},
+        disabled_pass=None,
     )

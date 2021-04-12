@@ -333,27 +333,29 @@ def tracker_host_port_from_cli(rpc_tracker_str):
     return rpc_hostname, rpc_port
 
 
-def parse_disabled_pass(input_string):
-    """Parse an input string for disabled passes
+def parse_pass_list_str(input_string):
+    """Parse an input string for existing passes
 
     Parameters
     ----------
     input_string: str
-        Possibly comma-separated string with the names of disabled passes
+        Possibly comma-separated string with the names of passes
 
     Returns
     -------
-    list: a list of disabled passes.
+    list: a list of existing passes.
     """
-    if input_string is not None:
-        pass_list = input_string.split(",")
-        nf = [_ for _ in pass_list if tvm.get_global_func("relay._transform." + _, True) is None]
-        if len(nf) > 0:
-            raise argparse.ArgumentTypeError(
-                "Following passes are not registered within tvm: " + str(nf)
-            )
-        return pass_list
-    return None
+    pass_list = input_string.split(",")
+    missing_list = [
+        p.strip()
+        for p in pass_list
+        if len(p.strip()) > 0 and tvm.get_global_func("relay._transform." + p.strip(), True) is None
+    ]
+    if len(missing_list) > 0:
+        raise argparse.ArgumentTypeError(
+            "Following passes are not registered within tvm: " + str(missing_list)
+        )
+    return pass_list
 
 
 def parse_shape_string(inputs_string):
