@@ -80,7 +80,7 @@ class SimplifyReshape : public DFPatternRewrite {
  */
 class SimplifyCastLike : public DFPatternRewrite {
  public:
-  explicit SimplifyCastLike() {
+  SimplifyCastLike() {
     data_pat_ = IsWildcard();
     like_pat_ = IsWildcard();
     pattern_ = IsOp("cast_like")({data_pat_, like_pat_});
@@ -107,7 +107,7 @@ class SimplifyCastLike : public DFPatternRewrite {
  */
 class SimplifyCast : public DFPatternRewrite {
  public:
-  explicit SimplifyCast() {
+  SimplifyCast() {
     data_pat_ = IsWildcard();
     pattern_ = IsOp("cast")({data_pat_});
   }
