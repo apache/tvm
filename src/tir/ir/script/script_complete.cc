@@ -79,7 +79,7 @@ class ScriptCompleter : public StmtMutator {
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
     int mask = 0;
-    auto it = op->annotations.find("script_detect_access");
+    auto it = op->annotations.find(attr::script_parsing_detect_access);
     if (it != op->annotations.end()) {
       mask = Downcast<IntImm>((*it).second)->value;
     }
@@ -103,7 +103,7 @@ class ScriptCompleter : public StmtMutator {
       if (mask & 1) n->reads = reads;
       if (mask & 2) n->writes = writes;
       n->annotations = op->annotations;
-      n->annotations.erase("script_detect_access");
+      n->annotations.erase(attr::script_parsing_detect_access);
       return Block(n);
     } else {
       return std::move(block);

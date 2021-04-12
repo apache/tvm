@@ -1316,6 +1316,8 @@ constexpr const char* fragment_layout = "fragment_layout";
  * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
  */
 constexpr const char* hand_threaded = "hand_threaded";
+
+constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared

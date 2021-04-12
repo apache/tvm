@@ -283,11 +283,12 @@ class Block(WithScopeHandler):
                 else []
             )
 
-            region_detect_mask: int = (block_info.reads is None) | ((block_info.reads is None) << 1)
+            region_detect_mask: int = (block_info.reads is None) | (
+                (block_info.writes is None) << 1
+            )
             annotations = {} if block_info.annotations is None else block_info.annotations
             if region_detect_mask != 0:
-                annotations["script_detect_access"] = region_detect_mask
-
+                annotations["tir.script_parsing_detect_access"] = region_detect_mask
             inner = tvm.tir.Block(
                 block_iters,
                 reads,
