@@ -1087,7 +1087,6 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
   auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
   auto buf = GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, staging_buffers_);
-  memset(buf->host_addr, 0, size);
   return buf;
 }
 
