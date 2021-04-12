@@ -14,7 +14,7 @@ from tvm.relay.op import nn, tensor
 from tvm.relay.transform.quantization.quantized_operators import utils
 
 
-def generate_generic_quantized_add(
+def generate_generic_quantized_add_or_subtract(
     input1: tvm.relay.Expr,
     input2: tvm.relay.Expr,
     output_qparams: Optional[utils.QParams],
@@ -23,6 +23,7 @@ def generate_generic_quantized_add(
     internal_accumulation_dtype: str = "float32",
     simulated_accumulation_dtype: str = "int32",
     dequantize: bool = True,
+    mode: str = "add",
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     if output_qparams is None and (input1_qparams is None or input2_qparams is None):
         raise ValueError(
@@ -40,9 +41,17 @@ def generate_generic_quantized_add(
     )
 
     input1, input2 = utils.cast_all(internal_accumulation_dtype, input1, input2)
-    output_term = (
-        input1 + input2 - utils.cast_all(internal_accumulation_dtype, output_qparams.zero_point)
-    )
+
+    if mode == "add":
+        output_term = (
+            input1 + input2 - utils.cast_all(internal_accumulation_dtype, output_qparams.zero_point)
+        )
+    elif mode == "sub":
+        output_term = (
+            input1 - input2 + utils.cast_all(internal_accumulation_dtype, output_qparams.zero_point)
+        )
+    else:
+        raise ValueError("Only support addition and subtraction")
 
     if dequantize:
         output_term = utils.dequantize_expr(
@@ -71,6 +80,7 @@ def generate_static_quantized_add(
         internal_accumulation_dtype=accumulation_dtype,
         simulated_accumulation_dtype=accumulation_dtype,
         dequantize=dequantize,
+        mode="add",
     )
 
 
@@ -92,6 +102,51 @@ def generate_simulated_quantized_add(
         internal_accumulation_dtype="float32",
         simulated_accumulation_dtype=accumulation_dtype,
         dequantize=dequantize,
+        mode="add",
+    )
+
+
+def generate_static_quantized_sub(
+    input1: tvm.relay.Expr,
+    input2: tvm.relay.Expr,
+    output_qparams: Optional[utils.QParams],
+    input1_qparams: Optional[utils.QParams] = None,
+    input2_qparams: Optional[utils.QParams] = None,
+    accumulation_dtype: str = "int32",
+    dequantize: bool = True,
+) -> Tuple[tvm.relay.Expr, utils.QParams]:
+    return generate_generic_quantized_add(
+        input1,
+        input2,
+        output_qparams,
+        input1_qparams=input1_qparams,
+        input2_qparams=input2_qparams,
+        internal_accumulation_dtype=accumulation_dtype,
+        simulated_accumulation_dtype=accumulation_dtype,
+        dequantize=dequantize,
+        mode="sub",
+    )
+
+
+def generate_simulated_quantized_sub(
+    input1: tvm.relay.Expr,
+    input2: tvm.relay.Expr,
+    output_qparams: Optional[utils.QParams],
+    input1_qparams: Optional[utils.QParams] = None,
+    input2_qparams: Optional[utils.QParams] = None,
+    accumulation_dtype: str = "int32",
+    dequantize: bool = True,
+) -> Tuple[tvm.relay.Expr, utils.QParams]:
+    return generate_generic_quantized_add(
+        input1,
+        input2,
+        output_qparams,
+        input1_qparams=input1_qparams,
+        input2_qparams=input2_qparams,
+        internal_accumulation_dtype="float32",
+        simulated_accumulation_dtype=accumulation_dtype,
+        dequantize=dequantize,
+        mode="sub",
     )
 
 
