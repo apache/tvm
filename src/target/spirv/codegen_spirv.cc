@@ -32,11 +32,12 @@
 
 #include "../../runtime/pack_args.h"
 #include "../../runtime/vulkan/vulkan_common.h"
+#include "../../runtime/vulkan/vulkan_shader.h"
 
 namespace tvm {
 namespace codegen {
 
-std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
+runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
@@ -97,8 +98,9 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   builder_->MakeInst(spv::OpFunctionEnd);
 
   builder_->CommitKernelFunction(func_ptr, name);
-
-  return builder_->Finalize();
+  runtime::VulkanShader shader;
+  shader.data = builder_->Finalize();
+  return shader;
 }
 
 void CodeGenSPIRV::InitFuncState() {
