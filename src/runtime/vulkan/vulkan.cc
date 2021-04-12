@@ -60,6 +60,22 @@ struct VulkanHostVisibleBuffer {
 using VulkanStagingBuffer = VulkanHostVisibleBuffer;
 using VulkanUniformBuffer = VulkanHostVisibleBuffer;
 
+void DeleteHostVisibleBuffer(VulkanHostVisibleBuffer* buf) {
+  if (buf && buf->vk_buf) {
+    if (buf->host_addr != nullptr) {
+      vkUnmapMemory(buf->device, buf->vk_buf->memory);
+    }
+    if (buf->vk_buf->memory != VK_NULL_HANDLE) {
+      vkFreeMemory(buf->device, buf->vk_buf->memory, nullptr);
+    }
+    if (buf->vk_buf->buffer != VK_NULL_HANDLE) {
+      vkDestroyBuffer(buf->device, buf->vk_buf->buffer, nullptr);
+    }
+    buf->host_addr = nullptr;
+    delete buf->vk_buf;
+  }
+}
+
 class VulkanThreadEntry {
  public:
   VulkanThreadEntry();
@@ -75,22 +91,7 @@ class VulkanThreadEntry {
     pool.reset();
     streams_.clear();
     for (const auto& kv : staging_buffers_) {
-      if (!kv.second) {
-        continue;
-      }
-      auto& buf = *(kv.second);
-      if (buf.vk_buf) {
-        if (buf.host_addr != nullptr) {
-          vkUnmapMemory(buf.device, buf.vk_buf->memory);
-        }
-        if (buf.vk_buf->memory != VK_NULL_HANDLE) {
-          vkFreeMemory(buf.device, buf.vk_buf->memory, nullptr);
-        }
-        if (buf.vk_buf->buffer != VK_NULL_HANDLE) {
-          vkDestroyBuffer(buf.device, buf.vk_buf->buffer, nullptr);
-        }
-        delete buf.vk_buf;
-      }
+      DeleteHostVisibleBuffer(kv.second.get());
     }
   }
 
@@ -903,7 +904,9 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
     if (nbytes_scalars > max_push_constants_) {
+      // Use UBO instead of push constants
       push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+      VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
     }
 
     {
@@ -986,11 +989,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     VULKAN_CALL(vkCreateComputePipelines(vctx.device, VK_NULL_HANDLE, 1, &pipeline_cinfo, nullptr,
                                          &(pe->pipeline)));
 
-    if (nbytes_scalars > max_push_constants_) {
-      // Allocate, bind and map UBO
-      VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
-    }
-
     if (vctx.UseImmediate()) {
       VkDescriptorUpdateTemplateCreateInfoKHR descrip_template_cinfo;
       descrip_template_cinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR;
@@ -1070,19 +1068,8 @@ VulkanHostVisibleBuffer* GetOrAllocate(
   }
   auto& buf = *(buffers[device_id]);
   if (buf.device != nullptr && buf.size < size) {
-    ICHECK(buf.vk_buf);
     // free previous buffer
-    if (buf.host_addr != nullptr) {
-      vkUnmapMemory(buf.device, buf.vk_buf->memory);
-    }
-    if (buf.vk_buf->memory != VK_NULL_HANDLE) {
-      vkFreeMemory(buf.device, buf.vk_buf->memory, nullptr);
-    }
-    if (buf.vk_buf->buffer != VK_NULL_HANDLE) {
-      vkDestroyBuffer(buf.device, buf.vk_buf->buffer, nullptr);
-    }
-    buf.host_addr = nullptr;
-    delete buf.vk_buf;
+    DeleteHostVisibleBuffer(&buf);
   }
 
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
