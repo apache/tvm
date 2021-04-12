@@ -22,6 +22,7 @@
 import os
 import sys
 import argparse
+import tarfile
 
 #
 # Disable GPU usage information:
@@ -158,9 +159,9 @@ def extract_tflite_quantization (model):
 # ==================================================================
 #   fix_model_name
 # ==================================================================
-def fix_model_name (name):
-    fixed_name = re.sub('[^0-9a-zA-Z_]+', '_', name)
-    return fixed_name.lower()
+#def fix_model_name (name):
+#    fixed_name = re.sub('[^0-9a-zA-Z_]+', '_', name)
+#    return fixed_name.lower()
 
 # ==================================================================
 #   __main__
@@ -178,7 +179,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_path = args.model
-
     target_dir = args.target_dir
 
     #
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     else:
         model_name = args.name
 
-    model_name = fix_model_name(model_name)
+    #model_name = fix_model_name(model_name)
 
     if not target_dir:
         target_dir = model_file_ext[0]+'_gen'
@@ -223,7 +223,14 @@ if __name__ == "__main__":
                                 target=target,
                                 params=params
         )
+        #
+        # Export model library format
+        #
+        mlf_tar_path = model_name+"_lib.tar"
+        import tvm.micro as micro
 
+        micro.export_model_library_format(rt_module, mlf_tar_path)
+        
     #
     # Instantiate the STM32 code emitter.
     #  May take 3 optional arguments:
@@ -250,9 +257,11 @@ if __name__ == "__main__":
     print ("== Quantization: {}".format(quantization))
 
     #
-    # Initialize the emiiter
+    # Initialize the emiiter: use the LibraryModuleFormat
     #
-    emitter.parse_module (rt_module, quantization)
+    #emitter.parse_module (rt_module, quantization)
+    emitter.parse_library_format (mlf_tar_path, quantization)
+
     #
     # Emit the C code
     #

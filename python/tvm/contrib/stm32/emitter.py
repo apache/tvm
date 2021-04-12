@@ -19,6 +19,11 @@
 
 import os
 import sys
+import shutil
+import tarfile
+import re
+
+from distutils.dir_util import copy_tree
 
 import numpy as np
 
@@ -26,7 +31,10 @@ import json            # reading json graph
 
 from string import Template
 
+import tvm
 import tvm.relay as relay
+from tvm.contrib import utils
+from tvm.relay.backend import graph_runtime_factory
 
 import logging
 
@@ -147,6 +155,24 @@ def _get_tensor_elts (dims):
 def _get_tensor_size (dims, dltype):
     size = _get_tensor_elts (dims)
     return size * _get_type_size(dltype)
+
+# ==================================================================
+#   _preprocess_code
+# ==================================================================
+def _preprocess_code (src):
+    """ Hack the C code implementing the model. """
+
+    dst = "#include <stdio.h>\n" \
+          "#include <math.h>\n" \
+          "#include \"stm32lib.h\"\n\n"""
+    for line in src.splitlines():
+        #
+        # This is sort of hacking - when AoT is available, we will be
+        # able to clean this ...
+        #
+        dst = dst + line + "\n"
+
+    return dst
 
 # ==========================================================
 #                       CodeEmitter
@@ -384,6 +410,7 @@ class CodeEmitter (object) :
         offset = 0
 
         for key in self.params_:
+            #for key,data in self.params_.items():
             #
             # First, find the node in graph
             #
@@ -574,48 +601,36 @@ class CodeEmitter (object) :
 
 
     # ==========================================================
-    #   parse_module
+    #   _parse_model
     # ==========================================================
-    def parse_module (self, module, quantization=None):
+    def _parse_model (self, quantization=None):
         """Parse the module. Build internal data structures.
 
         Parameters
         ----------
-        module : TVM module
+        module : TVM module or ModuleLibraryFormat object
            The module to parse
 
         quantization: Dictionary
            The quantization information for model inputs/outputs.
         """
 
-        self.graph_ = module.get_json()
-        self.params_ = module.get_params()
-        self.lib_ = module.get_lib()
-
-        if not isinstance(self.graph_, (str,)):
-            try:
-                self.graph = self.graph._tvm_graph_json()
-            except AttributeError:
-                raise ValueError("Type %s is not supported" % type(self.graph))
-
-        graph_dict = json.loads(self.graph_)
-        
-        for key in graph_dict:
+        for key in self.graph_:
             if key == 'nodes':
-                self.nodes_ = graph_dict['nodes']
+                self.nodes_ = self.graph_['nodes']
                 #print (" -- nodes: {}".format(graph_dict['nodes']))
                 self.__json_parse_nodes (self.nodes_)
             elif key == 'arg_nodes':
-                self.arg_nodes_ = graph_dict['arg_nodes']
+                self.arg_nodes_ = self.graph_['arg_nodes']
                 #print (" -- inputs: {}".format(arg_nodes_))
             elif key == 'node_row_ptr':
-                self.node_row_ptr_ = graph_dict['node_row_ptr']
+                self.node_row_ptr_ = self.graph_['node_row_ptr']
                 #print (" -- node_row_ptr: {}".format(graph_dict['node_row_ptr']))
             elif key == 'heads':
-                self.outputs_ = graph_dict['heads']
+                self.outputs_ = self.graph_['heads']
                 #print (" -- outputs: {}".format(outputs_))
             elif key == 'attrs':
-                self.attrs_ = graph_dict['attrs']
+                self.attrs_ = self.graph_['attrs']
                 #print (" -- attrs: {}".format(attrs_))
             elif key == 'metadata':
                 #print (" -- meta: {}".format(graph_dict['metadata']))
@@ -635,6 +650,91 @@ class CodeEmitter (object) :
         if quantization != None:
             self.__extract_quantization_info (quantization)
 
+    # ==========================================================
+    #   parse_library_format
+    # ==========================================================
+    #def parse_library_format (self, graph_dict, src_files, params_dict, quantization=None):
+    def parse_library_format (self, model_library_format_path, quantization=None):
+        """Parse the module. Build internal data structures.
+
+        Parameters
+        ----------
+        model_library_format_path :
+           The module to parse
+
+        quantization: Dictionary
+           The quantization information for model inputs/outputs.
+        """
+
+        temp_dir = utils.tempdir()
+        extract_path = temp_dir.relpath("extract")
+        os.mkdir(extract_path)
+        with tarfile.TarFile(model_library_format_path) as tf:
+            tf.extractall(extract_path)
+
+        #
+        # Extract informations from the Model Library Format
+        #
+        graph_file = os.path.join(extract_path, 'runtime-config', 'graph', 'graph.json')
+        with open(graph_file, 'r') as f:
+            # returns JSON object as a dictionary
+            graph_dict = json.load(f)
+
+        params_dict = {}
+        param_file = os.path.join(extract_path, 'parameters', 'default.params')
+        with open(param_file, 'rb') as f:
+            params = tvm.runtime.load_param_dict(f.read())
+            #
+            # Map -> Python Dict
+            #
+            for (k, v) in params.items():
+                params_dict[k] = v
+
+        src_dir = os.path.join(extract_path, 'codegen', 'host', 'src')
+        # List of strings from Model Library Format C files
+        src_files = []
+        for filename in os.listdir(src_dir):
+            with open(os.path.join(src_dir, filename), 'r') as fin:
+                src = fin.read()
+                src_files.append(src)
+        #for filename in os.listdir(src_dir):
+        #    if filename.endswith(".c"):
+        #        src_files.append(os.path.join(src_dir, filename))
+            
+        self.graph_ = graph_dict
+        self.params_ = params_dict
+        self.lib_ = src_files
+
+        self._parse_model (quantization)
+
+    # ==========================================================
+    #   parse_module
+    # ==========================================================
+    def parse_module (self, module, quantization=None):
+        """Parse the module. Build internal data structures.
+
+        Parameters
+        ----------
+        module : TVM module
+           The module to parse
+
+        quantization: Dictionary
+           The quantization information for model inputs/outputs.
+        """
+
+        graph = module.get_json()
+        if not isinstance(graph, (str,)):
+            try:
+                graph = graph._tvm_graph_json()
+            except AttributeError:
+                raise ValueError("Type %s is not supported" % type(graph))
+            
+        self.graph_ = json.loads(graph)
+        self.params_ = module.get_params()
+        self.lib_ = module.get_lib()
+        
+        self._parse_model (quantization)
+            
     # ==========================================================
     #   __emit_params_data
     # ==========================================================
@@ -675,6 +775,7 @@ class CodeEmitter (object) :
         offset = 0
     
         for key in self.params_:
+            #for (key, data) in self.params_.items():
             data = self.params_[key]    # ND Array
             npdata = data.asnumpy()
             blob = npdata.tobytes()
@@ -747,7 +848,7 @@ class CodeEmitter (object) :
         out_c.write (f'\n')
     
         out_c.write (f'#include \"dlpack/dlpack.h\" \n')
-        out_c.write (f'#include \"c_runtime_api.h\" \n')
+        out_c.write (f'#include \"tvm/runtime/c_runtime_api.h\" \n')
         out_c.write (f'#include \"{name}.h\" \n')
         out_c.write (f'#include \"{name}_data.h\" \n')
         out_c.write (f'\n')
@@ -1378,43 +1479,86 @@ class CodeEmitter (object) :
     def emit_code (self, dest_dir, model_name):
         """ Emit the C code implementing the model. """
 
-        if not os.path.exists (dest_dir):
-            os.makedirs (dest_dir)
-
-        prefix = dest_dir+'/'+model_name
-
         #
-        # Write the C code:
+        # Build the directory structure
         #
-        src = "#include <stdio.h>\n" \
-              "#include <math.h>\n" \
-              "#include \"stm32lib.h\"\n\n"
-        for m in self.lib_.imported_modules:
-            src = src + m.get_source(fmt="c")
+        if os.path.exists (dest_dir):
+            print(f'Removing existing \"{dest_dir}\" directory')
+            try:
+                shutil.rmtree(dest_dir)
+            except OSError as e:
+                print(f'emit_code.Error: {dest_dir} : {e.strerror}')
+                sys.exit(-1)
 
-        with open (prefix+'_lib.c', "w") as f:
-            f.write(src)
+        # Make a new one
+        os.mkdir(dest_dir)
+                
+        #
+        # Fix the model name
+        #
+        model_name = re.sub('[^0-9a-zA-Z_]+', '_', model_name)
+        model_name = model_name.lower()
+        
+        #
+        # Write the C code: we can parse the string
+        #
+        if isinstance (self.lib_, list):
+            # List of strings from Model Library Format C files
+            for idx, src in enumerate(self.lib_):
+                code = _preprocess_code(src)
+                filename = os.path.join(dest_dir, f'{model_name}_lib{idx}.c')
+                with open (filename, "w") as fout:
+                    fout.write(code)
+            # List of C files from Module Format
+            #for idx, filename in enumerate(self.lib_):
+            #    with open(filename, 'r') as fin:
+            #        src = fin.read()
+            #        code = _preprocess_code(src)
+            #        filename = os.path.join(dest_dir, f'{model_name}_lib{idx}.c')
+            #        with open (filename, "w") as fout:
+            #            fout.write(code)
+        else:
+            # a TVM RuntimeGraphFactory
+            #src = src + self.lib_.get_source(fmt="c")
+            #for m in self.lib_.imported_modules:
+            #    src = src + m.get_source(fmt="c")
+            src = self.lib_.get_source(fmt="c")
+            code = _preprocess_code(src)
+            #code = header+src
+            filename = os.path.join(dest_dir, f'{model_name}_lib.c')
+            with open (filename, "w") as fout:
+                fout.write(code)
 
         #
         # Save params as bynary data
         #
-        saved_params = relay.save_param_dict(self.params_)
-        with open (prefix+'_params.dat', 'wb') as f:
+        saved_params = tvm.runtime.save_param_dict(self.params_)
+        params_name = os.path.join(dest_dir, model_name+'.params')
+        with open (params_name, 'wb') as f:
             f.write(saved_params)
+            #f.write(self.params_)
         
         #
         # Write the .json
         #
-        with open (prefix+'_graph.json', 'w') as f:
-            f.write(self.graph_)
+        graph_name = os.path.join(dest_dir, model_name+'.json')
+        with open (graph_name, 'w') as f:
+            #f.write(self.graph_)
+            json.dump(self.graph_, f)
 
         #
         # emit X_data[c,h]
         #
-        data_h = open('{}_data.h'.format(prefix), 'w')
-        data_c = open('{}_data.c'.format(prefix), 'w')
-        out_h = open('{}.h'.format(prefix), 'w')
-        out_c = open('{}.c'.format(prefix), 'w')
+
+        data_h_name = os.path.join(dest_dir, model_name+'_data.h')
+        data_c_name = os.path.join(dest_dir, model_name+'_data.c')
+        model_h_name = os.path.join(dest_dir, model_name+'.h')
+        model_c_name = os.path.join(dest_dir, model_name+'.c')
+        
+        data_h = open(data_h_name, 'w')
+        data_c = open(data_c_name, 'w')
+        out_h = open(model_h_name, 'w')
+        out_c = open(model_c_name, 'w')
 
         #
         # emit X[c,h]

@@ -27,7 +27,7 @@
 
 #include "dlpack/dlpack.h"   // From TVM
 
-#include "c_runtime_api.h"   // From TVM
+#include "tvm/runtime/c_runtime_api.h"   // From TVM
 
 #include "ai_platform.h"
 
