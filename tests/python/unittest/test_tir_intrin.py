@@ -150,8 +150,11 @@ def test_clz():
         clz[np.bitwise_and(x, x - 1) == 0] -= 1
         return clz
 
-    for dtype in ["int32", "int64"]:
-        for target in ["llvm", "vulkan"]:
+    for target in ["llvm", "vulkan"]:
+        if not tvm.testing.device_enabled("vulkan"):
+            continue
+
+        for dtype in ["int32", "int64"]:
             m = te.var("m")
             A = te.placeholder((m,), name="A", dtype=dtype)
             B = te.compute((m,), lambda *i: tvm.tir.clz(A(*i)), name="B")

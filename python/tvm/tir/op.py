@@ -753,7 +753,18 @@ def rsqrt(x):
 
 
 def clz(x):
-    """TODO"""
+    """Count leading zero bits of an integer x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument. The result is undefined if the input is 0.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
     return call_intrin("int32", "tir.clz", x)
 
 
