@@ -1134,6 +1134,15 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
   return buf;
 }
 
+void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
+  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  auto info = MakeBufferCreateInfo(vctx, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+  auto mem_type_index = FindMemoryType(vctx, info, prop);
+  GetOrAllocate(device_id, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, mem_type_index,
+                uniform_buffers_);
+}
+
 VulkanThreadEntry::VulkanThreadEntry()
     : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
                                            VulkanDeviceAPI::Global())) {
