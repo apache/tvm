@@ -108,15 +108,14 @@ class ZephyrCompiler(tvm.micro.Compiler):
                 f"project_dir supplied to ZephyrCompiler does not exist: {project_dir}"
             )
 
-        if "qemu" in board:
-            self._qemu = True
+        self._qemu = "qemu" in board
 
-            # For Zephyr boards that run emulated by default, i.e. "simulation: qemu" is set in
-            # the board's .yaml config file, and which their names don't have the prefix "qemu_", a
-            # suffix "-qemu" is used in microTVM to inform that the QEMU transporter has to be used.
-            # So the suffix needs to be trimmed off before the board name is passed to Zephyr.
-            if "-qemu" in board:
-                board = board.replace("-qemu", "")
+        # For Zephyr boards that run emulated by default but don't have the prefix "qemu_" in their
+        # board names, a suffix "-qemu" is added by users of µTVM when specifying the board name to
+        # inform that the QEMU transporter must be used just like for the boards with the prefix.
+        # Zephyr does not recognize the suffix, so we trim it off before passing it.
+        if "-qemu" in board:
+            board = board.replace("-qemu", "")
 
         self._board = board
 
