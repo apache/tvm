@@ -102,8 +102,7 @@ def test_random_fill():
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
             return
-        np_ones = np.ones((512, 512), dtype=dtype)
-        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, dev)
+        value = tvm.nd.empty((512, 512), dtype, dev)
         random_fill = tvm.get_global_func("tvm.contrib.random.random_fill")
         random_fill(value)
 
@@ -119,10 +118,9 @@ def test_random_fill():
             return
         if not tvm.testing.device_enabled("rpc") or not tvm.runtime.enabled("llvm"):
             return
-        np_ones = np.ones((512, 512), dtype=dtype)
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
-        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, remote.cpu())
+        value = tvm.nd.empty((512, 512), dtype, remote.cpu())
         random_fill = remote.get_function("tvm.contrib.random.random_fill")
         random_fill(value)
 
@@ -134,6 +132,7 @@ def test_random_fill():
 
     for dtype in [
         "bool",
+        "int4",
         "int8",
         "uint8",
         "int16",
