@@ -268,14 +268,17 @@ class ZephyrCompiler(tvm.micro.Compiler):
                 "cmake_cache": ["CMakeCache.txt"],
                 "device_tree": [os.path.join("zephyr", "zephyr.dts")],
             },
-            immobile = True if self._qemu else False
+            immobile=True if self._qemu else False,
         )
 
     @property
     def flasher_factory(self):
         return compiler.FlasherFactory(
             ZephyrFlasher,
-            (self._board, self._qemu,),
+            (
+                self._board,
+                self._qemu,
+            ),
             dict(
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
