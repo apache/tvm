@@ -307,12 +307,12 @@ def run_tvm_model (model_name, target_dir):
     return tvm_results
     
 # ========================================================
-#   test_mnist_fp
+#   test_network
 # ========================================================
-def test_mnist_fp():
+def test_network(target_name):
 
     model_name = 'network'
-    target_dir = 'mnist_fp_gen'
+    target_dir = target_name+'_gen'
     
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     model_path = os.path.join(curr_path, 'mnist.tflite')
@@ -336,7 +336,7 @@ def test_mnist_fp():
     #
     # Export model library format
     #
-    mlf_tar_path = "mnist_fp_lib.tar"
+    mlf_tar_path = target_name+'_lib.tar'
     import tvm.micro as micro
     micro.export_model_library_format(rt_module, mlf_tar_path)
 
@@ -354,5 +354,18 @@ def test_mnist_fp():
     #tvm.testing.assert_allclose(tf_results.asnumpy(), tvm_results.asnumpy())
     np.allclose(tf_results, tvm_results)
 
+# ========================================================
+#   test_mnist_int
+# ========================================================
+def test_mnist_int():
+    test_network('mnist_int')
+    
+# ========================================================
+#   test_mnist_fp
+# ========================================================
+def test_mnist_fp():
+    test_network('mnist_fp')
+    
 if __name__ == "__main__":
     test_mnist_fp()
+    test_mnist_int()
