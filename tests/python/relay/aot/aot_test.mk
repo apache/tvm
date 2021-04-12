@@ -47,7 +47,7 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/tvm_executor.o  $(build_dir)/stack_memory.o $(build_dir)/crt_backend_api.o
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/tvm_executor.o  $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
@@ -63,7 +63,7 @@ $(build_dir)/tvm_executor.o: $(TVM_ROOT)/src/runtime/crt/aot_executor/aot_execut
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/stack_memory.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_memory.c
+$(build_dir)/stack_allocator.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_allocator.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 

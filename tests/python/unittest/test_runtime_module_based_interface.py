@@ -543,7 +543,7 @@ def test_debug_graph_executor():
     debug_g_mod = debug_runtime.GraphModuleDebug(
         complied_graph_lib["debug_create"]("default", ctx),
         [ctx],
-        complied_graph_lib.get_graph(),
+        complied_graph_lib.get_graph_json(),
         None,
     )
     debug_g_mod.set_input("data", data)

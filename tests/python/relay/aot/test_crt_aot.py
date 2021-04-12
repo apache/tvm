@@ -25,7 +25,7 @@ import shutil
 import subprocess
 import tempfile
 import tarfile
-
+import pytest
 
 import tvm
 from tvm import relay
@@ -244,15 +244,4 @@ def test_mobilenet():
 
 
 if __name__ == "__main__":
-    test_tuple_output()
-    test_mobilenet()
-    test_subtract()
-    test_mul_param()
-    test_id()
-    test_add_const()
-    test_tuple_getitem()
-    test_nested_tuples()
-    test_concatenate()
-    test_conv_with_params()
-    test_add_with_params()
-    test_conv2d()
+    pytest.main([__file__])

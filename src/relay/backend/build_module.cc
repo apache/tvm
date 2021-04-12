@@ -43,14 +43,16 @@ namespace backend {
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
 
-enum class Executor { Graph, Aot };
+/*!
+ * Type of supported executors
+ */
+enum class ExecutorType { Graph, Aot };
 
 /*!
  * \brief Output of building module
- *
  */
 struct BuildOutput {
-  std::string graph;
+  std::string graph_json;
   tir::PrimFunc runner_function;
   runtime::Module mod;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
@@ -66,23 +68,23 @@ struct GraphCodegen {
     const String executor_str =
         target_host->GetAttr<String>("executor").value_or(kTvmExecutorGraph);
     if (executor_str == kTvmExecutorGraph) {
-      executor_ = Executor::Graph;
+      executor_ = ExecutorType::Graph;
       auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
       mod = (*pf)();
     } else if (executor_str == kTvmExecutorAot) {
-      executor_ = Executor::Aot;
+      executor_ = ExecutorType::Aot;
       auto pf = GetPackedFunc("relay.build_module._GraphAOTCodegen");
       mod = (*pf)();
     } else {
-      LOG(FATAL) << "Executor not supported";
+      LOG(FATAL) << "Executor " << executor_str << " not supported";
     }
   }
   ~GraphCodegen() {}
 
   void Init(runtime::Module* m, TargetsMap targets) {
-    if (executor_ == Executor::Graph) {
+    if (executor_ == ExecutorType::Graph) {
       CallFunc("init", m, targets);
-    } else if (executor_ == Executor::Aot) {
+    } else if (executor_ == ExecutorType::Aot) {
       CallFunc("init", m, targets, target_host_);
     } else {
       LOG(FATAL) << "Executor not supported";
@@ -91,16 +93,16 @@ struct GraphCodegen {
 
   void Codegen(const Function& func) { CallFunc("codegen", func); }
 
-  std::string GetGraph() {
-    if (executor_ == Executor::Graph) {
-      return CallFunc<std::string>("get_graph", nullptr);
+  std::string GetJSON() {
+    if (executor_ == ExecutorType::Graph) {
+      return CallFunc<std::string>("get_graph_json", nullptr);
     } else {
       return "";
     }
   }
 
   tir::PrimFunc GetRunnerFunction() {
-    if (executor_ == Executor::Aot) {
+    if (executor_ == ExecutorType::Aot) {
       return CallFunc<tir::PrimFunc>("get_runner_function");
     } else {
       return tir::PrimFunc();
@@ -138,7 +140,7 @@ struct GraphCodegen {
   }
 
   runtime::AOTMetadata GetAOTMetadata() {
-    if (executor_ == Executor::Aot) {
+    if (executor_ == ExecutorType::Aot) {
       return CallFunc<runtime::AOTMetadata>("get_aot_metadata");
     } else {
       // Graph runtime does not need AOT metadata
@@ -147,7 +149,7 @@ struct GraphCodegen {
   }
 
  protected:
-  Executor executor_;
+  ExecutorType executor_;
   Target target_host_;
   tvm::runtime::Module mod;
   template <typename R, typename... Args>
@@ -176,9 +178,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \return The corresponding member function.
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    if (name == "get_graph") {
+    if (name == "get_graph_json") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetGraph(); });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetJSON(); });
     } else if (name == "get_runner_function") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetRunnerFunction(); });
@@ -216,7 +218,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1], this->params_);
       });
-    } else if (name == "get_executor") {
+    } else if (name == "get_executor_type") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         auto target_host = GetTargetHost();
         const String executor_str =
@@ -235,7 +237,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return const std::string graph_json
    */
-  const std::string& GetGraph() { return ret_.graph; }
+  const std::string& GetJSON() { return ret_.graph_json; }
 
   /*!
    * \brief Get the GraphJSON for runtime
@@ -547,7 +549,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     graph_codegen_->Init(nullptr, targets_);
     graph_codegen_->Codegen(func);
 
-    ret_.graph = graph_codegen_->GetGraph();
+    ret_.graph_json = graph_codegen_->GetJSON();
     ret_.runner_function = graph_codegen_->GetRunnerFunction();
     ret_.params = graph_codegen_->GetParams();
 

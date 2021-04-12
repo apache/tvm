@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/runtime/crt/memory.h
+ * \file tvm/runtime/crt/page_allocator.h
  * \brief An implementation of a dynamic memory allocator for microcontrollers.
  */
 
-#ifndef TVM_RUNTIME_CRT_MEMORY_H_
-#define TVM_RUNTIME_CRT_MEMORY_H_
+#ifndef TVM_RUNTIME_CRT_PAGE_ALLOCATOR_H_
+#define TVM_RUNTIME_CRT_PAGE_ALLOCATOR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,4 +79,4 @@ tvm_crt_error_t MemoryManagerCreate(MemoryManagerInterface** manager, uint8_t* m
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_MEMORY_H_
+#endif  // TVM_RUNTIME_CRT_PAGE_ALLOCATOR_H_

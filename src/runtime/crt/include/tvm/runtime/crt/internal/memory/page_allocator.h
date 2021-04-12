@@ -18,17 +18,17 @@
  */
 
 /*!
- * \file runtime/crt/include/tvm/runtime/crt/internal/memory/memory.h
+ * \file runtime/crt/include/tvm/runtime/crt/internal/memory/page_allocator.h
  * \brief Defines data types and functions used in the internal memory manager.
  *     Exposed for testing.
  */
 
-#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_MEMORY_H_
-#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_MEMORY_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_PAGE_ALLOCATOR_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_PAGE_ALLOCATOR_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 
 #include "crt_config.h"
 
@@ -109,4 +109,4 @@ typedef struct MemoryManager {
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_MEMORY_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_PAGE_ALLOCATOR_H_

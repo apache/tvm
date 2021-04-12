@@ -14,84 +14,51 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Graph executor factory."""
+"""Executor factory modules."""
 import warnings
+from abc import abstractmethod
+
 from ..._ffi.base import string_types
 from ..._ffi.registry import get_global_func
 from ...runtime import ndarray
+
 from tvm import tir
 
 
 class ExecutorFactoryModule:
-    """Graph executor factory module.
-    This is a module of graph executor factory
-
-    Parameters
-    ----------
-    graph_str : str
-        Depending on executor:
-        * Graph executor: the graph to be deployed in json format output by graph compiler.
-        The graph can contain operator(tvm_op) that points to the name of
-        PackedFunc in the libmod.
-        * AOT executor: the string representation of the TIR executor PrimFunction
-    target : tvm.Target
-        The Target used to build this module.
-    libmod : tvm.Module
-        The module of the corresponding function
-    libmod_name: str
-        The name of module
-    params : dict of str to NDArray
-        The parameters of module
+    """Common interface for executor factory modules
+    This class describes the common API of different
+    factory modules
     """
 
+    @abstractmethod
     def get_internal_repr(self):
-        return self.internal_repr
+        """Common function to return the internal representation
+        the executor relies upon to execute the network
+        """
+        raise NotImplementedError
 
+    @abstractmethod
     def get_params(self):
-        return None
+        """
+        Sometimes we want to get params explicitly.
+        For example, we want to save its params value to
+        an independent file.
+        """
+        raise NotImplementedError
 
+    @abstractmethod
     def get_lib(self):
-        return None
-
-    def __getitem__(self, item):
-        return None
-
-    def __iter__(self):
-        warnings.warn(
-            "legacy graph executor behavior of producing json / lib / params will be "
-            "removed in the next release."
-            " Please see documents of tvm.contrib.graph_executor.GraphModule for the "
-            " new recommended usage.",
-            DeprecationWarning,
-            2,
-        )
-        return self
-
-    def save_config(self, config_path):
-        pass
-
-    def __next__(self):
-        if self.iter_cnt > 2:
-            raise StopIteration
-
-        objs = [self.internal_repr, self.lib, self.params]
-        obj = objs[self.iter_cnt]
-        self.iter_cnt += 1
-        return obj
+        """ Return the generated library"""
+        raise NotImplementedError
 
 
 class AOTExecutorFactoryModule(ExecutorFactoryModule):
-    """Graph executor factory module.
-    This is a module of graph executor factory
+    """AOT executor factory module.
 
     Parameters
     ----------
-    graph_str : str
-        Depending on executor:
-        * Graph executor: the graph to be deployed in json format output by graph compiler.
-        The graph can contain operator(tvm_op) that points to the name of
-        PackedFunc in the libmod.
-        * AOT executor: the string representation of the TIR executor PrimFunction
+    runner_function : the PrimFunc containing of the TIR main executor function.
     target : tvm.Target
         The Target used to build this module.
     libmod : tvm.Module
@@ -111,7 +78,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
 
         self.ir_mod = ir_mod
         self.target = target
-        self.internal_repr = runner_function
+        self.runner_func = runner_function
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
@@ -123,34 +90,11 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     def get_params(self):
         return self.params
 
-    def get_runner_function(self):
-        return self.internal_repr
+    def get_internal_repr(self):
+        return self.runner_func
 
     def get_lib(self):
         return self.lib
-
-    def __getitem__(self, item):
-        return self.module.__getitem__(item)
-
-    def __iter__(self):
-        warnings.warn(
-            "legacy graph executor behavior of producing json / lib / params will be "
-            "removed in the next release."
-            " Please see documents of tvm.contrib.graph_executor.GraphModule for the "
-            " new recommended usage.",
-            DeprecationWarning,
-            2,
-        )
-        return self
-
-    def __next__(self):
-        if self.iter_cnt > 2:
-            raise StopIteration
-
-        objs = [self.graph, self.lib, self.params]
-        obj = objs[self.iter_cnt]
-        self.iter_cnt += 1
-        return obj
 
 
 class GraphExecutorFactoryModule(ExecutorFactoryModule):
@@ -159,12 +103,9 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
     Parameters
     ----------
-    graph_str : str
-        Depending on executor:
-        * Graph executor: the graph to be deployed in json format output by graph compiler.
+    graph_str : the json graph to be deployed in json format output by graph compiler.
         The graph can contain operator(tvm_op) that points to the name of
         PackedFunc in the libmod.
-        * AOT executor: the string representation of the TIR executor PrimFunction
     target : tvm.Target
         The Target used to build this module.
     libmod : tvm.Module
@@ -186,7 +127,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.ir_mod = ir_mod
         self.target = target
         self.module = fcreate(graph_str, libmod, libmod_name, *args)
-        self.internal_repr = graph_str
+        self.graph = graph_str
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
@@ -195,19 +136,17 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
-    def save_config(self, config_path):
-        os.makedirs(config_path)
-        with open(os.path.join(config_path, "graph.json"), "w") as f:
-            f.write(mod.graph)
+    def save_executor_config(self):
+        return self.graph
 
-    # Sometimes we want to get params explicitly.
-    # For example, we want to save its params value to
-    # an independent file.
     def get_params(self):
         return self.params
 
-    def get_graph(self):
+    def get_graph_json(self):
         return self.internal_repr
+
+    def get_internal_repr(self):
+        return self.graph
 
     def get_lib(self):
         return self.lib

@@ -18,8 +18,8 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/crt/internal/memory/memory.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/internal/memory/page_allocator.h>
+#include <tvm/runtime/crt/page_allocator.h>
 
 #include "crt_config.h"
 #include "platform.cc"

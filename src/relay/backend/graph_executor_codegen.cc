@@ -604,7 +604,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         Function func = args[0];
         this->output_ = this->codegen_->Codegen(func);
       });
-    } else if (name == "get_graph") {
+    } else if (name == "get_graph_json") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.graph_json; });
     } else if (name == "list_params_name") {

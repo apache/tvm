@@ -77,14 +77,14 @@ class BuildModule(object):
 
     def __init__(self):
         self.mod = _build_module._BuildModule()
-        self._get_graph = self.mod["get_graph"]
+        self._get_graph_json = self.mod["get_graph_json"]
         self._get_runner_function = self.mod["get_runner_function"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
         self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
-        self._get_executor = self.mod["get_executor"]
+        self._get_executor_type = self.mod["get_executor_type"]
 
     def build(self, mod, target=None, target_host=None, params=None):
         """
@@ -148,7 +148,9 @@ class BuildModule(object):
         mod = self.get_module()
         params = self.get_params()
         internal_repr = (
-            self._get_runner_function() if self.get_executor() == "aot" else self.get_graph()
+            self._get_runner_function()
+            if self.get_executor_type() == "aot"
+            else self.get_graph_json()
         )
 
         return internal_repr, mod, params
@@ -191,9 +193,9 @@ class BuildModule(object):
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))
 
-    def get_graph(self):
+    def get_graph_json(self):
         """Return the json file of the built program."""
-        return self._get_graph()
+        return self._get_graph_json()
 
     def get_module(self):
         """Return the built module."""
@@ -207,8 +209,9 @@ class BuildModule(object):
             ret[key] = value.data
         return ret
 
-    def get_executor(self):
-        return self._get_executor()
+    def get_executor_type(self):
+        """ Return the executor TVM is building for """
+        return self._get_executor_type()
 
 
 @register_func("tvm.relay.module_export_library")
@@ -258,7 +261,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     Returns
     -------
-    factory_module : tvm.relay.backend.graph_executor_factory.ExecutorFactoryModule
+    factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
             The runtime factory for the TVM graph executor.
     """
     # pylint: enable=line-too-long
@@ -294,16 +297,18 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        runtime_repr, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
+        internal_repr, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
 
-        if bld_mod.get_executor() == "aot":
+        if bld_mod.get_executor_type() == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
-                ir_mod, target, runtime_repr, runtime_mod, mod_name, params
+                ir_mod, target, internal_repr, runtime_mod, mod_name, params
+            )
+        elif bld_mod.get_executor_type() == "graph":
+            executor_factory = _executor_factory.GraphExecutorFactoryModule(
+                ir_mod, target, internal_repr, runtime_mod, mod_name, params
             )
         else:
-            executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, runtime_repr, runtime_mod, mod_name, params
-            )
+            assert False, "Executor not supported"
 
         return executor_factory
 

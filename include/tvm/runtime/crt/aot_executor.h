@@ -47,52 +47,38 @@
  * }
  */
 
-#ifndef TVM_RUNTIME_CRT_AOT_TVM_EXECUTOR_H_
-#define TVM_RUNTIME_CRT_AOT_TVM_EXECUTOR_H_
+#ifndef TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
+#define TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
 
 #include <stdint.h>
-
-#include "error_codes.h"
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*!
- * \brief Context information for future integrations
- *  which is passed through to the operators.
- *
- * \note Can be used for drivers and platform specific information.
- */
-typedef struct {
-} tvm_context_t;
-
-typedef int32_t(tvm_function_t)(void* args, void* arg_type_ids, int32_t num_args,
-                                void* out_ret_value, void* out_ret_tcode, void* resource_handle);
-
-/*!
  * \brief TVM Model descriptor to describe the
  *  model to the runtime.
  */
 typedef struct {
-  uint32_t num_input_tensors;  /** Number of expected input tensors */
-  uint32_t num_output_tensors; /** Number of expected output tensors */
-  tvm_function_t* run_func;    /** Generated model function, called through tvm_runtime_run */
+  uint32_t num_input_tensors;     /** Number of expected input tensors */
+  uint32_t num_output_tensors;    /** Number of expected output tensors */
+  TVMBackendPackedCFunc run_func; /** Generated model function, called through tvm_runtime_run */
 } tvm_model_t;
 
 /*!
- * \brief Main entry point for
+ * \brief Main entry point to execute the AOT runner function
  * \param model Model descriptor structure to reference for runtime information
  * \param inputs Pointer to input pointer(s)
  * \param outputs Pointer to output pointer(s)
- * \param context Context information to be passed through to operators
  * \return tvm_status_t containing success or errors from the model run
  */
-tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** outputs,
-                                tvm_context_t* context);
+tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** outputs);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_AOT_TVM_EXECUTOR_H_
+#endif  // TVM_RUNTIME_CRT_AOT_EXECUTOR_H_

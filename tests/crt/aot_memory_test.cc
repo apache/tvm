@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/crt/stack_memory.h>
+#include <tvm/runtime/crt/stack_allocator.h>
 
 /*
  * Tests allocations are properly aligned when allocated
@@ -27,18 +27,18 @@ TEST(AOTMemory, Allocate) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
 
-  MemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
+  StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
 
-  void* block_one = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_one = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_one, &model_memory[0]);
 
-  void* block_two = MemoryManager_Allocate(&tvm_runtime_workspace, 2);
+  void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 2);
   ASSERT_EQ(block_two, &model_memory[16]);
 
-  void* two_blocks = MemoryManager_Allocate(&tvm_runtime_workspace, 24);
+  void* two_blocks = StackMemoryManager_Allocate(&tvm_runtime_workspace, 24);
   ASSERT_EQ(two_blocks, &model_memory[32]);
 
-  void* block_three = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_three = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_three, &model_memory[64]);
 }
 
@@ -48,20 +48,20 @@ TEST(AOTMemory, Allocate) {
 TEST(AOTMemory, Free) {
   static uint8_t model_memory[80];
   tvm_workspace_t tvm_runtime_workspace;
-  MemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
+  StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
 
-  void* block_one = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_one = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_one, &model_memory[0]);
 
-  void* block_two = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_two, &model_memory[16]);
-  ASSERT_EQ(0, MemoryManager_Free(&tvm_runtime_workspace, block_two));
+  ASSERT_EQ(0, StackMemoryManager_Free(&tvm_runtime_workspace, block_two));
 
-  void* two_blocks = MemoryManager_Allocate(&tvm_runtime_workspace, 2);
+  void* two_blocks = StackMemoryManager_Allocate(&tvm_runtime_workspace, 2);
   ASSERT_EQ(two_blocks, &model_memory[16]);
-  ASSERT_EQ(0, MemoryManager_Free(&tvm_runtime_workspace, two_blocks));
+  ASSERT_EQ(0, StackMemoryManager_Free(&tvm_runtime_workspace, two_blocks));
 
-  void* block_three = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_three = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_three, &model_memory[16]);
 }
 
@@ -71,15 +71,15 @@ TEST(AOTMemory, Free) {
 TEST(AOTMemory, OverAllocate) {
   static uint8_t model_memory[72];
   tvm_workspace_t tvm_runtime_workspace;
-  MemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
+  StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
 
-  void* block_one = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_one = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_one, &model_memory[0]);
 
-  void* block_two = MemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_two, &model_memory[16]);
 
-  void* two_blocks = MemoryManager_Allocate(&tvm_runtime_workspace, 64);
+  void* two_blocks = StackMemoryManager_Allocate(&tvm_runtime_workspace, 64);
   ASSERT_EQ(two_blocks, (void*)NULL);
 }
 

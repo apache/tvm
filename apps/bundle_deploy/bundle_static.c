@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/graph_executor.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/packed_func.h>
 #include <unistd.h>
 

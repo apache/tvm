@@ -33,9 +33,8 @@
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
-#include <tvm/runtime/crt/internal/memory/memory.h>
+#include <tvm/runtime/crt/internal/memory/page_allocator.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
 
 // construct a new page

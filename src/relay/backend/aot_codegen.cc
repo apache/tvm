@@ -102,7 +102,7 @@ class AotReturnSidVisitor : public ExprVisitor {
   IntegerArray return_sid_;
 };
 
-/*! \brief Code generator for graph runtime */
+/*! \brief Code generator for AOT executor */
 class AOTCodegen : public ExprVisitor {
  protected:
   /*!
@@ -367,8 +367,9 @@ class AOTCodegen : public ExprVisitor {
     Expr expr = GetRef<Expr>(op);
 
     // If the Var node is an output node we need to copy the content of the variable to the output
-    // A Var node can only produce a single output
+    // It's safe to check the SID here because Var StorageToken are never reallocated
     Array<IntegerArray> sids = storage_device_map_[expr];
+
     auto output_iter = std::find(return_sid_.begin(), return_sid_.end(),
                                  static_cast<int>((sids[0][0].as<IntImmNode>())->value));
     if (output_iter != return_sid_.end()) {
@@ -459,6 +460,8 @@ class AOTCodegen : public ExprVisitor {
           continue;
         }
 
+        // TODO(giuseros): we should allocate this one time outside the PrimFunc
+        // so we dont' pay the price of allocation for every inference
         if (!allocated[sid]) {
           body = tir::LetStmt(sids_table_[sid], AllocateBackendMemory(size), body);
         }
@@ -602,57 +605,39 @@ class AOTCodegenModule : public runtime::ModuleNode {
         void* mod = args[0];
         Map<Integer, tvm::Target> tmp = args[1];
         tvm::Target target_host = args[2];
-        TargetsMap targets;
-        for (const auto& it : tmp) {
-          auto dev_type = it.first.as<tir::IntImmNode>();
-          ICHECK(dev_type);
-          targets[dev_type->value] = it.second;
-        }
-        codegen_ = std::make_shared<AOTCodegen>(reinterpret_cast<runtime::Module*>(mod), targets,
-                                                target_host);
+        init(mod, tmp, target_host);
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
-        this->output_ = this->codegen_->Codegen(func);
+        this->output_ = codegen(func);
       });
     } else if (name == "get_runner_function") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.runner_func; });
-    } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Array<runtime::String> ret;
-        for (const auto& kv : this->output_.params) {
-          ret.push_back(kv.first);
-        }
-        *rv = ret;
-      });
+        *rv = get_runner_function();
+      });  // c; });
+    } else if (name == "list_params_name") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = list_params_name(); });
     } else if (name == "get_param_by_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         String key = args[0];
-        auto it = this->output_.params.find(key);
-        CHECK(it != this->output_.params.end()) << "no such parameter " << key;
-        *rv = (*it).second.second;
+        *rv = get_param_by_name(key);
       });
     } else if (name == "get_param_id") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         String key = args[0];
-        auto it = this->output_.params.find(key);
-        CHECK(it != this->output_.params.end()) << "no such parameter " << key;
-        *rv = (*it).second.first;
+        *rv = get_param_id(key);
       });
     } else if (name == "get_irmodule") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->output_.lowered_funcs;
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_irmodule(); });
     } else if (name == "get_external_modules") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->output_.external_mods;
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_external_modules(); });
     } else if (name == "get_aot_metadata") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->output_.aot_metadata;
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_aot_metadata(); });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});
     }
@@ -661,6 +646,47 @@ class AOTCodegenModule : public runtime::ModuleNode {
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
 
  private:
+  void init(void* mod, Map<Integer, tvm::Target> tmp, Target target_host) {
+    TargetsMap targets;
+    for (const auto& it : tmp) {
+      auto dev_type = it.first.as<tir::IntImmNode>();
+      ICHECK(dev_type);
+      targets[dev_type->value] = it.second;
+    }
+    codegen_ =
+        std::make_shared<AOTCodegen>(reinterpret_cast<runtime::Module*>(mod), targets, target_host);
+  }
+
+  AOTLoweredOutput codegen(Function func) { return this->codegen_->Codegen(func); }
+
+  tir::PrimFunc get_runner_function() { return this->output_.runner_func; }
+
+  Array<runtime::String> list_params_name() {
+    Array<runtime::String> ret;
+    for (const auto& kv : this->output_.params) {
+      ret.push_back(kv.first);
+    }
+    return ret;
+  }
+
+  runtime::NDArray get_param_by_name(String key) {
+    auto it = this->output_.params.find(key);
+    CHECK(it != this->output_.params.end()) << "no such parameter " << key;
+    return (*it).second.second;
+  }
+
+  Array<tvm::runtime::Module> get_external_modules() { return output_.external_mods; }
+
+  int get_param_id(String key) {
+    auto it = this->output_.params.find(key);
+    CHECK(it != this->output_.params.end()) << "no such parameter " << key;
+    return (*it).second.first;
+  }
+
+  Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
+
+  runtime::AOTMetadata get_aot_metadata() { return output_.aot_metadata; }
+
   std::shared_ptr<AOTCodegen> codegen_;
   AOTLoweredOutput output_;
 };

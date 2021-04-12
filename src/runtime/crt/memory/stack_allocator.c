@@ -19,10 +19,10 @@
 
 // LINT_C_FILE
 
-#include <tvm/runtime/crt/stack_memory.h>
+#include <tvm/runtime/crt/stack_allocator.h>
 
-void* MemoryManager_Allocate(tvm_workspace_t *tvm_runtime_workspace, int32_t nbytes) {
-  uint32_t offset_bytes = (~nbytes + 1) & (TVM_RUNTIME_ALLOC_ALIGNMENT - 1);
+void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes) {
+  uint32_t offset_bytes = (~nbytes + 1) & (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1);
   uint8_t* current_alloc = tvm_runtime_workspace->next_alloc;
   uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
   uint8_t* workspace_end = tvm_runtime_workspace->workspace + tvm_runtime_workspace->workspace_size;
@@ -35,13 +35,14 @@ void* MemoryManager_Allocate(tvm_workspace_t *tvm_runtime_workspace, int32_t nby
   return current_alloc;
 }
 
-tvm_crt_error_t MemoryManager_Free(tvm_workspace_t *tvm_runtime_workspace, void* ptr) {
+tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr) {
   tvm_runtime_workspace->next_alloc = ptr;
   return 0;
 }
 
-void MemoryManager_Init(tvm_workspace_t *tvm_runtime_workspace, uint8_t* g_aot_memory, size_t workspace_size){
-	tvm_runtime_workspace->next_alloc = g_aot_memory;
-	tvm_runtime_workspace->workspace = g_aot_memory;
-	tvm_runtime_workspace->workspace_size = workspace_size;
+void StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace, uint8_t* g_aot_memory,
+                             size_t workspace_size) {
+  tvm_runtime_workspace->next_alloc = g_aot_memory;
+  tvm_runtime_workspace->workspace = g_aot_memory;
+  tvm_runtime_workspace->workspace_size = workspace_size;
 }

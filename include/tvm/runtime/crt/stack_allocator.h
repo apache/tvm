@@ -18,8 +18,8 @@
  */
 
 // LINT_C_FILE
-#ifndef TVM_RUNTIME_CRT_STACK_MEMORY_H_
-#define TVM_RUNTIME_CRT_STACK_MEMORY_H_
+#ifndef TVM_RUNTIME_CRT_STACK_ALLOCATOR_H_
+#define TVM_RUNTIME_CRT_STACK_ALLOCATOR_H_
 #include <stddef.h>
 #include <stdint.h>
 
@@ -27,8 +27,8 @@
 
 /*! Memory alignment for allocator */
 
-#ifndef TVM_RUNTIME_ALLOC_ALIGNMENT
-#define TVM_RUNTIME_ALLOC_ALIGNMENT 16
+#ifndef TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES
+#define TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES 16
 #endif
 
 #ifdef __cplusplus
@@ -36,20 +36,20 @@ extern "C" {
 #endif
 
 typedef struct {
-  uint8_t* next_alloc;   /** Pointer to the next block of bytes to allocate */
-  uint8_t* workspace;    /** Pointer to start of the workspace */
-  size_t workspace_size; /** Total number of bytes in the workspace */
+  uint8_t* next_alloc;    // Pointer to the next block of TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES
+  uint8_t* workspace;     // Pointer to start of the workspace
+  size_t workspace_size;  // Total number of bytes in the workspace
 } tvm_workspace_t;
 
-void MemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace, uint8_t* g_aot_memory,
-                        size_t workspace_size);
+void StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace, uint8_t* g_aot_memory,
+                             size_t workspace_size);
 
-void* MemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes);
+void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes);
 
-tvm_crt_error_t MemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr);
+tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_STACK_MEMORY_H_
+#endif  // TVM_RUNTIME_CRT_STACK_ALLOCATOR_H_

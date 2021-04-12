@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/crt/internal/graph_executor/load_json.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/platform.h>
 
 // the node entry structure in serialized format

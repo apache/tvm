@@ -22,8 +22,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/aot_executor.h>
 
-int32_t test_run_func(void* args, void* arg_type_ids, int32_t num_args, void* out_ret_value,
-                      void* out_ret_tcode, void* resource_handle) {
+int test_run_func(TVMValue* args, int* arg_type_ids, int num_args, TVMValue* out_ret_value,
+                  int* out_ret_tcode, void* resource_handle) {
   return kTvmErrorNoError;
 }
 
@@ -34,11 +34,11 @@ TEST(AOTRuntime, NoOp) {
       .run_func = &test_run_func,
   };
 
-  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&test_model, NULL, NULL, NULL));
+  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&test_model, NULL, NULL));
 }
 
-int32_t error_run_func(void* args, void* arg_type_ids, int32_t num_args, void* out_ret_value,
-                       void* out_ret_tcode, void* resource_handle) {
+int32_t error_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args, TVMValue* out_ret_value,
+                       int* out_ret_tcode, void* resource_handle) {
   return kTvmErrorPlatformNoMemory;
 }
 
@@ -49,11 +49,11 @@ TEST(AOTRuntime, Error) {
       .run_func = &error_run_func,
   };
 
-  ASSERT_EQ(kTvmErrorPlatformNoMemory, tvm_runtime_run(&error_model, NULL, NULL, NULL));
+  ASSERT_EQ(kTvmErrorPlatformNoMemory, tvm_runtime_run(&error_model, NULL, NULL));
 }
 
-int32_t identity_run_func(void* args, void* arg_type_ids, int32_t num_args, void* out_ret_value,
-                          void* out_ret_tcode, void* resource_handle) {
+int32_t identity_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args,
+                          TVMValue* out_ret_value, int* out_ret_tcode, void* resource_handle) {
   void* arg0 = (((TVMValue*)args)[0].v_handle);
   void* arg1 = (((TVMValue*)args)[1].v_handle);
   void* placeholder = (((DLTensor*)arg0)[0].data);
@@ -74,12 +74,12 @@ TEST(AOTRuntime, Identity) {
   uint32_t outputs1[1];
   void* outputs[] = {outputs1};
 
-  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&identity_model, inputs, outputs, NULL));
+  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&identity_model, inputs, outputs));
   ASSERT_EQ(outputs1[0], 404);
 }
 
-int32_t add_run_func(void* args, void* arg_type_ids, int32_t num_args, void* out_ret_value,
-                     void* out_ret_tcode, void* resource_handle) {
+int32_t add_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args, TVMValue* out_ret_value,
+                     int* out_ret_tcode, void* resource_handle) {
   void* arg0 = (((TVMValue*)args)[0].v_handle);
   void* arg1 = (((TVMValue*)args)[1].v_handle);
   void* placeholder = (((DLTensor*)arg0)[0].data);
@@ -102,12 +102,13 @@ TEST(AOTRuntime, Add) {
   uint32_t outputs1[1];
   void* outputs[] = {outputs1};
 
-  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&add_model, inputs, outputs, NULL));
+  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&add_model, inputs, outputs));
   ASSERT_EQ(outputs1[0], 904);
 }
 
-int32_t multiple_inputs_run_func(void* args, void* arg_type_ids, int32_t num_args,
-                                 void* out_ret_value, void* out_ret_tcode, void* resource_handle) {
+int32_t multiple_inputs_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args,
+                                 TVMValue* out_ret_value, int* out_ret_tcode,
+                                 void* resource_handle) {
   void* arg0 = (((TVMValue*)args)[0].v_handle);
   void* arg1 = (((TVMValue*)args)[1].v_handle);
   void* arg2 = (((TVMValue*)args)[2].v_handle);
@@ -133,12 +134,13 @@ TEST(AOTRuntime, MultipleInputs) {
   uint32_t outputs1[1];
   void* outputs[] = {outputs1};
 
-  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&multiple_inputs_model, inputs, outputs, NULL));
+  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&multiple_inputs_model, inputs, outputs));
   ASSERT_EQ(outputs1[0], 1306);
 }
 
-int32_t multiple_outputs_run_func(void* args, void* arg_type_ids, int32_t num_args,
-                                  void* out_ret_value, void* out_ret_tcode, void* resource_handle) {
+int32_t multiple_outputs_run_func(TVMValue* args, int* arg_type_ids, int32_t num_args,
+                                  TVMValue* out_ret_value, int* out_ret_tcode,
+                                  void* resource_handle) {
   void* arg0 = (((TVMValue*)args)[0].v_handle);
   void* arg1 = (((TVMValue*)args)[1].v_handle);
   void* arg2 = (((TVMValue*)args)[2].v_handle);
@@ -164,32 +166,9 @@ TEST(AOTRuntime, MultipleOutputs) {
   uint32_t outputs2[1];
   void* outputs[] = {outputs1, outputs2};
 
-  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&multiple_outputs_model, inputs, outputs, NULL));
+  ASSERT_EQ(kTvmErrorNoError, tvm_runtime_run(&multiple_outputs_model, inputs, outputs));
   ASSERT_EQ(outputs1[0], 404);
   ASSERT_EQ(outputs2[0], 500);
-}
-
-int32_t resource_handle_check_run_func(void* args, void* arg_type_ids, int32_t num_args,
-                                       void* out_ret_value, void* out_ret_tcode,
-                                       void* resource_handle) {
-  if (resource_handle == NULL) {
-    return kTvmErrorFunctionCallWrongArgType;
-  }
-  return kTvmErrorNoError;
-}
-
-TEST(AOTRuntime, ContextPassing) {
-  tvm_context_t stub_context = {};
-  const tvm_model_t resource_handle_check_model = {
-      .num_input_tensors = 0,
-      .num_output_tensors = 0,
-      .run_func = &resource_handle_check_run_func,
-  };
-
-  ASSERT_EQ(kTvmErrorNoError,
-            tvm_runtime_run(&resource_handle_check_model, NULL, NULL, &stub_context));
-  ASSERT_EQ(kTvmErrorFunctionCallWrongArgType,
-            tvm_runtime_run(&resource_handle_check_model, NULL, NULL, NULL));
 }
 
 int main(int argc, char** argv) {

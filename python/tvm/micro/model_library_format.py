@@ -73,7 +73,7 @@ def _populate_codegen_dir(mod, codegen_dir: str):
         dso_mod.save(file_name)
 
 
-def _build_memory_map(graph_str):
+def _build_memory_map(graph_json):
     """Build a simpler memory map from graph JSON.
 
     Parameters
@@ -86,7 +86,7 @@ def _build_memory_map(graph_str):
     list :
         A list with one entry per storage id describing that memory.
     """
-    graph = json.loads(graph_str)
+    graph = json.loads(graph_json)
 
     seen_storage_ids = set()
     for node_id, storage_id in enumerate(graph["attrs"]["storage_id"][1]):
@@ -160,8 +160,11 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
     with open(tempdir.relpath("relay.txt"), "w") as f:
         f.write(str(mod.ir_mod))
 
-    graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
-    mod.save_config(graph_config_dir_path)
+    if not is_aot:
+        graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
+        os.makedirs(graph_config_dir_path)
+        with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
+            f.write(mod.save_executor_config())
 
     with tarfile.open(file_name, "w") as tar_f:
 
