@@ -25,7 +25,7 @@ def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.asnumpy(), b.asnumpy()))
 
 
-def test_packed_func(target="llvm"):
+def check_packed_func(target="llvm"):
     ib = tvm.tir.ir_builder.create()
 
     m = n = k = 16
@@ -133,7 +133,11 @@ def test_packed_func(target="llvm"):
     tvm.ir.assert_structural_equal(alloca_shape, expected_stmt, map_free_vars=True)
 
 
+def test_packed_func():
+    check_packed_func("llvm")
+    check_packed_func("stackvm")
+
+
 if __name__ == "__main__":
     # Test cases for issue: https://github.com/apache/tvm/issues/7246
-    test_packed_func("llvm")
-    test_packed_func("stackvm")
+    test_packed_func()
