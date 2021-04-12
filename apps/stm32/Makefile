@@ -22,7 +22,7 @@
 # Set the path to your ARM Toolset.
 # Only gcc is supported at this time.
 #
-export ARM_PATH ?= /sw/arm/gcc-arm-none-eabi/9-2019-q4-major/x86_64/bin
+#export ARM_PATH ?= 
 ifndef ARM_PATH
 $(error ARM_PATH must be set and point at your GCC ARM compiler installation)
 endif
@@ -30,7 +30,7 @@ endif
 #
 # Set the path to your TVM compiler installation
 #
-export TVM_PATH ?= /prj/p_mcd_ais/users/stoutchi/Compiler/incubator-tvm
+#export TVM_PATH ?= 
 ifndef TVM_PATH
 $(error TVM_PATH must be set and point at your TVM stack installation)
 endif
@@ -38,12 +38,12 @@ endif
 #
 # Set the path to your CubeMX installation
 #
-export X_CUBE_PATH ?= /prj/p_mcd_ais/users/stoutchi/tvm-apps-stm32/STM32Cube_FW_H7_V1.8.0
+#export X_CUBE_PATH ?= 
 ifndef X_CUBE_PATH
 $(error X_CUBE_PATH must be set and point at your STM32 Cube Firmware installation)
 endif
 
-export X_CUBE_TOOL_PATH ?= /prj/p_mcd_ais/users/stoutchi/tvm-apps-stm32/STM32CubeProgrammer/bin
+#export X_CUBE_TOOL_PATH ?= 
 ifndef X_CUBE_TOOL_PATH
 $(error X_CUBE_TOOL_PATH must be set and point at your STM32 Cube Programmer installation)
 endif
@@ -51,7 +51,7 @@ endif
 #
 # Setup path to your network generated files
 #
-#export MODEL_PATH = mnist
+#export MODEL_PATH = 
 ifndef MODEL_PATH
 $(error MODEL_PATH must be set and point at your model implementation generated with the TVM compiler)
 endif
@@ -61,11 +61,17 @@ LDCONF ?= 4
 
 all: perf valid
 
-perf: 
+check_model:
+	@if [ ! -d "$(MODEL_PATH)" ]; then \
+		echo "$(MODEL_PATH) does not exist! check Makefile!"; \
+		exit 1; \
+	fi
+
+perf: check_model
 	@echo " === Perf: Building from TVM sources ..."
 	$(MAKE) -f $(BOARD)/makefile.base CONFIG=$(LDCONF)
 
-valid:
+valid: check_model
 	@echo " === Validation: Building from TVM sources ..."
 	$(MAKE) -f $(BOARD)/makefile.base VALID=1 CONFIG=$(LDCONF)
 
