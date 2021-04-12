@@ -40,7 +40,9 @@ def generate_generic_quantized_add(
     )
 
     input1, input2 = utils.cast_all(internal_accumulation_dtype, input1, input2)
-    output_term = input1 + input2 - output_qparams.zero_point
+    output_term = (
+        input1 + input2 - utils.cast_all(internal_accumulation_dtype, output_qparams.zero_point)
+    )
 
     if dequantize:
         output_term = utils.dequantize_expr(
@@ -54,16 +56,18 @@ def generate_generic_quantized_add(
 def generate_static_quantized_add(
     input1: tvm.relay.Expr,
     input2: tvm.relay.Expr,
-    input1_qparams: utils.QParams,
-    input2_qparams: utils.QParams,
+    output_qparams: Optional[utils.QParams],
+    input1_qparams: Optional[utils.QParams] = None,
+    input2_qparams: Optional[utils.QParams] = None,
     accumulation_dtype: str = "int32",
     dequantize: bool = True,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_add(
         input1,
         input2,
-        input1_qparams,
-        input2_qparams,
+        output_qparams,
+        input1_qparams=input1_qparams,
+        input2_qparams=input2_qparams,
         internal_accumulation_dtype=accumulation_dtype,
         simulated_accumulation_dtype=accumulation_dtype,
         dequantize=dequantize,
@@ -73,16 +77,18 @@ def generate_static_quantized_add(
 def generate_simulated_quantized_add(
     input1: tvm.relay.Expr,
     input2: tvm.relay.Expr,
-    input1_qparams: utils.QParams,
-    input2_qparams: utils.QParams,
+    output_qparams: Optional[utils.QParams],
+    input1_qparams: Optional[utils.QParams] = None,
+    input2_qparams: Optional[utils.QParams] = None,
     accumulation_dtype: str = "int32",
     dequantize: bool = True,
 ) -> Tuple[tvm.relay.Expr, utils.QParams]:
     return generate_generic_quantized_add(
         input1,
         input2,
-        input1_qparams,
-        input2_qparams,
+        output_qparams,
+        input1_qparams=input1_qparams,
+        input2_qparams=input2_qparams,
         internal_accumulation_dtype="float32",
         simulated_accumulation_dtype=accumulation_dtype,
         dequantize=dequantize,
@@ -100,7 +106,7 @@ def example_add_simulated(seed=42):
     a_qparams = var_creator.get_qparams("a")
     b_qparams = var_creator.get_qparams("b")
     add_output, output_qparams = generate_simulated_quantized_add(
-        a, b, a_qparams, b_qparams, dequantize=True
+        a, b, None, a_qparams, b_qparams, dequantize=True
     )
     f = relay.Function(
         [
