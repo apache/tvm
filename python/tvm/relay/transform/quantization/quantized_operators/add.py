@@ -31,7 +31,9 @@ def generate_generic_quantized_add(
 
     if output_qparams is None:
         output_qparams = utils.QParams(
-            input1_qparams.scale_factor + input2_qparams.scale_factor,
+            # Must multiply scales by 2.0 since we do not know where the zero point is
+            # and the range of the first input might encomp
+            (input1_qparams.scale_factor + input2_qparams.scale_factor) * relay.const(2.0),
             relay.const(0, dtype=simulated_accumulation_dtype),
             simulated_accumulation_dtype,
         )
