@@ -70,13 +70,14 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   spirv::Value func_ptr = builder_->NewFunction();
   builder_->StartFunction(func_ptr);
 
+  runtime::VulkanShader shader;
+
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    const auto max_push_constants = runtime::vulkan::GetMaxPushConstantsSize();
-    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= max_push_constants) {
+    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= kMaxPushConstantsBytes) {
       spirv::Value ptr = builder_->DeclarePushConstant(value_types);
       for (size_t i = 0; i < pod_args.size(); ++i) {
         spirv::Value value =
@@ -98,7 +99,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   builder_->MakeInst(spv::OpFunctionEnd);
 
   builder_->CommitKernelFunction(func_ptr, name);
-  runtime::VulkanShader shader;
+
   shader.data = builder_->Finalize();
   return shader;
 }

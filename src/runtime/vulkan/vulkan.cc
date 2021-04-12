@@ -801,7 +801,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : smap_(smap), fmap_(fmap), source_(source), max_push_constants_(GetMaxPushConstantsSize()) {}
+      : smap_(smap), fmap_(fmap), source_(source) {}
 
   const char* type_key() const final { return "vulkan"; }
 
@@ -903,7 +903,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     }
 
     size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
-    if (nbytes_scalars > max_push_constants_) {
+    if (nbytes_scalars > kMaxPushConstantsBytes) {
       // Use UBO instead of push constants
       push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
       VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
@@ -960,7 +960,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     playout_cinfo.setLayoutCount = 1;
     playout_cinfo.pSetLayouts = &(pe->descriptor_set_layout);
 
-    if (0 < nbytes_scalars && nbytes_scalars <= max_push_constants_) {
+    if (0 < nbytes_scalars && nbytes_scalars <= kMaxPushConstantsBytes) {
       playout_cinfo.pushConstantRangeCount = 1;
       playout_cinfo.pPushConstantRanges = &crange;
       ICHECK_LE(crange.size, vctx.phy_device_prop.limits.maxPushConstantsSize);
@@ -1032,8 +1032,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     return source_;
   }
 
-  uint32_t MaxPushConstantsSize() const { return max_push_constants_; }
-
  private:
   // function information table.
   std::unordered_map<std::string, VulkanShader> smap_;
@@ -1043,8 +1041,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   std::string fmt_{"vulkan"};
   // The source
   std::string source_;
-  // The maximum size of push constants in bytes
-  const uint32_t max_push_constants_;
 
   // Guards accesses to `ecache_`
   std::mutex mutex_;
@@ -1145,7 +1141,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     descriptor_buffers[i] = binfo;
   }
   const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
-  bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > m_->MaxPushConstantsSize();
+  bool use_ubo = num_pack_args_ != 0 && nbytes_scalars > kMaxPushConstantsBytes;
   if (use_ubo) {
     auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
     CHECK(ubo->host_addr) << "The UBO host buffer is not allocated";
@@ -1167,7 +1163,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       vctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
-      if (num_pack_args_ > 0 && num_pack_args_ <= m_->MaxPushConstantsSize()) {
+      if (num_pack_args_ > 0 && num_pack_args_ <= kMaxPushConstantsBytes) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
                            pack_args);
@@ -1222,7 +1218,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
                             nullptr);
-    if (num_pack_args_ > 0 && num_pack_args_ <= m_->MaxPushConstantsSize()) {
+    if (num_pack_args_ > 0 && num_pack_args_ <= kMaxPushConstantsBytes) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                          0, pack_args_storage.size() * sizeof(ArgUnion64),
                          pack_args_storage.data());
@@ -1275,12 +1271,6 @@ Module VulkanModuleLoadBinary(void* strm) {
   stream->Read(&fmap);
   stream->Read(&smap);
   return VulkanModuleCreate(smap, fmap, "");
-}
-
-uint32_t GetMaxPushConstantsSize() {
-  int device_id = VulkanThreadEntry::ThreadLocal()->device.device_id;
-  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
-  return vctx.phy_device_prop.limits.maxPushConstantsSize;
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_vulkan").set_body_typed(VulkanModuleLoadFile);
