@@ -136,7 +136,7 @@ class RandomEngine {
   void FillData(DLTensor* tensor, int64_t size) {
     // Make the value be 1.0 - 10.0, not (0.0 - 1.0) so that we could satisfy
     // quantized dtype (uint8 / int8) data non-empty requirement
-    std::uniform_real_distribution<> dist(8.0, 16.0);
+    std::uniform_real_distribution<> dist(9.0, 16.0);
     // Use float representation could make us work well on float / int type too.
     if (tensor->dtype.bits == 1) {
       std::generate_n(static_cast<bool*>(tensor->data), size, [&]() { return dist(rnd_engine_); });
