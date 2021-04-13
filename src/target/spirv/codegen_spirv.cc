@@ -85,7 +85,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
         var_map_[pod_args[i].get()] = value;
       }
     } else {
-      shader.flag |= 1 << runtime::vulkan::kUSE_UBO;
+      shader.flag |= 1 << runtime::vulkan::ShaderMetaDataFlagMask::kUseUBO;
       // If we need to pass more arguments than push constants could handle, we use UBO.
       spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, num_buffer);
       for (size_t i = 0; i < pod_args.size(); ++i) {

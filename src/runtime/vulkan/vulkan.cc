@@ -854,7 +854,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       // create shader
       auto sit = smap_.find(func_name);
       ICHECK(sit != smap_.end());
-      pe->use_ubo = sit->second.flag & (1 << kUSE_UBO);
+      pe->use_ubo = sit->second.flag & (1 << ShaderMetaDataFlagMask::kUseUBO);
       const std::vector<uint32_t>& data = sit->second.data;
       VkShaderModuleCreateInfo shader_cinfo;
       shader_cinfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;

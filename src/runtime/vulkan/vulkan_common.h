@@ -37,7 +37,8 @@ namespace vulkan {
 
 const int kMaxPushConstantsBytes = 128;
 
-enum ShaderMetaDataKind { kUSE_UBO = 0 };
+/*! \brief A mask used when we attach additional information to shaders */
+enum ShaderMetaDataFlagMask { kUseUBO = 0 };
 
 inline const char* VKGetErrorString(VkResult error) {
   switch (error) {
