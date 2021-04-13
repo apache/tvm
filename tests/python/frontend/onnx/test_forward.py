@@ -4214,8 +4214,6 @@ unsupported_onnx_tests = [
     "test_shrink_soft/",
     "test_simple_rnn_defaults/",
     "test_simple_rnn_with_initial_bias/",
-    "test_slice_neg_steps/",
-    "test_slice_start_out_of_bounds/",
     "test_strnormalizer_export_monday_casesensintive_lower/",
     "test_strnormalizer_export_monday_casesensintive_nochangecase/",
     "test_strnormalizer_export_monday_casesensintive_upper/",
