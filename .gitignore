@@ -233,3 +233,8 @@ conda/pkg
 # nix files
 .envrc
 *.nix
+
+# Downloaded models/datasets
+.tvm_test_data
+.dgl
+.caffe2
