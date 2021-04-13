@@ -76,8 +76,15 @@ class ScriptCompleter : public StmtMutator {
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->erase(alloc_buffer->data);
     }
+    // Get access detection mask
+    // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
+    int mask = 0;
+    auto it = op->annotations.find(attr::script_parsing_detect_access);
+    if (it != op->annotations.end()) {
+      mask = Downcast<IntImm>((*it).second)->value;
+    }
     // ignore root block or blocks which already has reads/writes regions
-    if (block->reads.empty() || block->writes.empty()) {
+    if (mask != 0) {
       if (op->iter_vars.empty()) {
         // non-root opaque block is not allowed
         CHECK(is_root_block)
@@ -93,8 +100,10 @@ class ScriptCompleter : public StmtMutator {
           << "ValueError: Can not auto detect buffer access region from tir.Load, tir.Store or "
              "direct access by buffer data. Please annotation the access region manually";
       auto n = CopyOnWrite(block.operator->());
-      if (n->reads.empty()) n->reads = reads;
-      if (n->writes.empty()) n->writes = writes;
+      if (mask & 1) n->reads = reads;
+      if (mask & 2) n->writes = writes;
+      n->annotations = op->annotations;
+      n->annotations.erase(attr::script_parsing_detect_access);
       return Block(n);
     } else {
       return std::move(block);
