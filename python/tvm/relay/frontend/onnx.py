@@ -1560,10 +1560,7 @@ class Softmax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # set default value when axis is not set in the model
-        if "axis" not in attr:
-            attr["axis"] = 1
-        axis = attr["axis"]
+        axis = attr.get("axis", 1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
@@ -1579,10 +1576,7 @@ class LogSoftmax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # set default value when axis is not set in the model
-        if "axis" not in attr:
-            attr["axis"] = 1
-        axis = attr["axis"]
+        axis = attr.get("axis", 1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
@@ -1592,6 +1586,40 @@ class LogSoftmax(OnnxOpConverter):
         e = _op.exp(x - m)
         s = _op.sum(e, axes, keepdims=True)
         return x - m - _op.log(s)
+
+
+class Hardmax(OnnxOpConverter):
+    """Operator converter for Softmax."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get("axis", 1)
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        dtype = infer_type(inputs[0]).checked_type.dtype
+
+        if axis == 0:
+            pre = _op.const([1], "int64")
+        else:
+            pre = _op.prod(
+                _op.strided_slice(shape_of(inputs[0]), [0], [axis], [1]), axis=0, keepdims=True
+            )
+        post = _op.prod(
+            _op.strided_slice(shape_of(inputs[0]), [axis], [2147483647], [1]), axis=0, keepdims=True
+        )
+        newshape = _op.concatenate([pre, post], axis=0)
+        x = _op.reshape(inputs[0], fold_constant(newshape))
+        argmax = _op.argmax(x, axis=1)
+        onehot = _op.one_hot(
+            argmax,
+            _op.const(1.0, dtype),
+            _op.const(0.0, dtype),
+            fold_constant(_op.take(shape_of(x), _op.const([1], "int64"))),
+            1,
+            dtype,
+        )
+        return _op.reshape(onehot, shape_of(inputs[0]))
 
 
 class OneHot(OnnxOpConverter):
@@ -2956,7 +2984,7 @@ def _get_convert_map(opset):
         "Softmax": Softmax.get_converter(opset),
         "LogSoftmax": LogSoftmax.get_converter(opset),
         "OneHot": OneHot.get_converter(opset),
-        # 'Hardmax'
+        "Hardmax": Hardmax.get_converter(opset),
         "Shrink": Shrink.get_converter(opset),
         "Softsign": Softsign.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
