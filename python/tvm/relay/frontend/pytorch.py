@@ -1597,7 +1597,7 @@ class PyTorchOpConverter:
             # Convert b into a 3 dimensional tensor. Note that the last two dimensions
             # are transposed.
             if len(b_shape) != 3:
-                b = _op.reshape(b, [-1, b_shape[-1], b_shape[-2]])
+                b = _op.repeat(_op.reshape(b, [-1, b_shape[-1], b_shape[-2]]), a_shape[0], 0)
 
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
