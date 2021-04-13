@@ -198,16 +198,19 @@ void OpenCLModuleNode::Init() {
     while (true) {
       begin += del.size();
       end = source.find('\n', begin);
-      std::string func_name = source.substr(begin, end-begin);
+      std::string func_name = source.substr(begin, end - begin);
       begin = ++end;
       // std::string::substr returns either start of next kernel
       // or std::string::npos, in the latter case substr returns
       // all characters until the end of the source string.
       end = source.find(del, begin);
-      std::string func_source = source.substr(begin, (end == std::string::npos) ? end : end-begin);
+      std::string func_source =
+          source.substr(begin, (end == std::string::npos) ? end : end - begin);
       parsed_kernels_.insert({func_name, func_source});
       begin = end;
-      if (end == std::string::npos) { break; }
+      if (end == std::string::npos) {
+        break;
+      }
     }
   }
   for (auto& kv : parsed_kernels_) {
@@ -232,7 +235,8 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       size_t len = data_.length();
       cl_int err;
       cl_device_id dev = w->devices[device_id];
-      programs_[func_name][device_id] = clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
+      programs_[func_name][device_id] =
+          clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
       LOG(FATAL) << "Unknown OpenCL format " << fmt_;
@@ -244,9 +248,11 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
     if (err != CL_SUCCESS) {
       size_t len;
       std::string log;
-      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &len);
+      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+                            &len);
       log.resize(len);
-      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len, &log[0], nullptr);
+      clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
+                            &log[0], nullptr);
       LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
     }
   }
