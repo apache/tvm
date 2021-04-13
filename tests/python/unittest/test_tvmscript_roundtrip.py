@@ -2828,6 +2828,41 @@ def test_block_elements():
     assert block.annotations["attr_key"] == "attr_value"
 
 
+@tvm.script.tir
+def opaque_block(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    B = tir.match_buffer(b, (16, 16), "float32")
+
+    for i in range(0, 16):
+        for j in range(0, 16):
+            with tir.block([]):
+                tir.reads([])
+                tir.writes(A[i, j])
+                A[i, j] = tir.float32(0)
+        with tir.block([]):
+            tir.reads([A[i, 0:16]])
+            tir.writes([B[i, 0:16]])
+            for j in range(0, 16):
+                B[i, j] = A[i, j]
+
+
+def test_opaque_block():
+    func = opaque_block
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    root_block = rt_func.body.block
+    assert isinstance(root_block, tir.stmt.Block)
+    assert isinstance(root_block.body, tir.stmt.For)
+    assert isinstance(root_block.body.body[0], tir.stmt.For)
+    assert isinstance(root_block.body.body[0].body, tir.stmt.BlockRealize)
+    assert isinstance(root_block.body.body[0].body.block, tir.stmt.Block)
+    assert len(root_block.body.body[0].body.block.iter_vars) == 0
+    assert isinstance(root_block.body.body[1], tir.stmt.BlockRealize)
+    assert isinstance(root_block.body.body[1].block, tir.stmt.Block)
+    assert len(root_block.body.body[1].block.iter_vars) == 0
+
+
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()
@@ -2842,3 +2877,4 @@ if __name__ == "__main__":
     test_predicate()
     test_for_thread_binding()
     test_block_elements()
+    test_opaque_block()
