@@ -44,7 +44,7 @@ def generate_generic_quantized_dense(
     )
 
     # Assume this casting is a no-op in the case we are casting back to itself
-    weight_zero_point, data_zero_point, data, weight = utils.cast_all(
+    weight_zero_point, data_zero_point, data_casted, weight_casted = utils.cast_all(
         internal_accumulation_dtype,
         weight_qparams.zero_point,
         data_qparams.zero_point,
@@ -53,8 +53,12 @@ def generate_generic_quantized_dense(
     )
 
     first_term = nn.dense(data, weight, units=out_units, out_dtype=internal_accumulation_dtype)
-    second_term = relay.op.sum(data, axis=1, keepdims=True, exclude=False) * weight_zero_point
-    third_term = relay.op.sum(weight, axis=1, keepdims=False, exclude=False) * data_zero_point
+    second_term = (
+        relay.op.sum(data_casted, axis=1, keepdims=True, exclude=False) * weight_zero_point
+    )
+    third_term = (
+        relay.op.sum(weight_casted, axis=1, keepdims=False, exclude=False) * data_zero_point
+    )
     fourth_term = (
         relay.const(np.array(in_units, dtype=internal_accumulation_dtype))
         * data_zero_point
