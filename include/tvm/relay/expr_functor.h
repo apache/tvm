@@ -33,7 +33,6 @@
 #include <tvm/relay/op.h>
 
 #include <deque>
-#include <stack>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -449,7 +448,7 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
   std::deque<v_info> stack;
   auto fpush_to_stack = [&fcheck_visited, &stack](const Expr& expr) {
     if (!fcheck_visited(expr)) {
-      stack.push_front(std::move(v_info(expr)));
+      stack.emplace_front(v_info(expr));
     }
   };
 
@@ -487,7 +486,7 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
     } else if (const TupleGetItemNode* op = expr.as<TupleGetItemNode>()) {
       result.push_back(op->tuple);
     }
-    return std::move(result);
+    return result;
   };
   ExpandDataflow(expr, fcheck_visited, fvisit_leaf, fexpand_expr);
 }
