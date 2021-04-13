@@ -4128,6 +4128,14 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+"""
+  The following parameterized tests loads the tests that ONNX ships as
+  serialized ONNX files, inputs, and outputs. The goal of this test
+  is to ensure the ONNX importer is in line with the ONNX specification.
+  To allow these tests to run in CI before all pass, a number of tests that
+  are not yet supported are skipped.
+"""
+
 from onnx import numpy_helper
 
 f = onnx.__file__
