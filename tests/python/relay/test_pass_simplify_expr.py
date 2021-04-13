@@ -236,25 +236,18 @@ def test_eliminate_identity():
         check(id_op(const, x), id_op(op_like(x), x))
 
 
-def test_simplify_cast_like():
-    dtype = "int32"
-    data = relay.var("data", shape=(3, 4, 5), dtype=dtype)
-    dtype_like = relay.var("dtype_like", shape=(2, 2, 2), dtype=dtype)
-    expr = relay.cast_like(data, dtype_like)
-
-    expected = run_infer_type(data)
-    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
-
-
 def test_simplify_cast():
     dtype = "int32"
     data = relay.var("data", shape=(3, 4, 5), dtype=dtype)
-    expr = relay.cast(data, dtype)
+    expr1 = relay.cast(data, dtype)
+    dtype_like = relay.var("dtype_like", shape=(2, 2, 2), dtype=dtype)
+    expr2 = relay.cast_like(data, dtype_like)
 
     expected = run_infer_type(data)
-    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    actual1 = run_opt_pass(expr1, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual1, expected)
+    actual2 = run_opt_pass(expr2, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual2, expected)
 
 
 def test_concretize_reshape_like():

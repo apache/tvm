@@ -76,23 +76,23 @@ class SimplifyReshape : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyCastLike matches the pattern of cast data to the same dtype.
+ * \brief SimplifyCast matches the pattern of cast data to the same dtype.
  */
-class SimplifyCastLike : public DFPatternRewrite {
+class SimplifyCast : public DFPatternRewrite {
  public:
-  SimplifyCastLike() {
+  SimplifyCast() {
     data_pat_ = IsWildcard();
     like_pat_ = IsWildcard();
-    pattern_ = IsOp("cast_like")({data_pat_, like_pat_});
+    pattern_ = IsOp("cast_like")({data_pat_, like_pat_}) || IsOp("cast")({data_pat_});
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
-    auto data = node_map[data_pat_][0];
-    const TensorTypeNode* data_ty = data->checked_type().as<TensorTypeNode>();
+    const CallNode* call = pre.as<CallNode>();
+    const TensorTypeNode* data_ty = call->args[0]->checked_type().as<TensorTypeNode>();
     const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
     if (like_ty->dtype == data_ty->dtype) {
-      return data;
+      return node_map[data_pat_][0];
     }
     return post;
   }
@@ -100,32 +100,6 @@ class SimplifyCastLike : public DFPatternRewrite {
  protected:
   DFPattern data_pat_;
   DFPattern like_pat_;
-};
-
-/*!
- * \brief SimplifyCast matches the pattern of cast data to the same dtype.
- */
-class SimplifyCast : public DFPatternRewrite {
- public:
-  SimplifyCast() {
-    data_pat_ = IsWildcard();
-    pattern_ = IsOp("cast")({data_pat_});
-  }
-
-  Expr Callback(const Expr& pre, const Expr& post,
-                const Map<DFPattern, Array<Expr>>& node_map) const override {
-    const CallNode* call = pre.as<CallNode>();
-    auto attrs = call->attrs.as<CastAttrs>();
-    auto data = node_map[data_pat_][0];
-    const TensorTypeNode* data_ty = data->checked_type().as<TensorTypeNode>();
-    if (attrs->dtype == data_ty->dtype) {
-      return data;
-    }
-    return post;
-  }
-
- protected:
-  DFPattern data_pat_;
 };
 
 /*!
@@ -510,7 +484,6 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
-  composer.AddRewrite<SimplifyCastLike>();
   composer.AddRewrite<SimplifyCast>();
   composer.AddRewrite<FullElementwise>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
