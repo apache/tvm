@@ -54,8 +54,9 @@ TVMBackendAllocWorkspace (
   //ptr = memalign (64, nbytes);
   ptr = malloc (nbytes);
 #else //_x86_
-  const int ret = posix_memalign (&ptr, 64, nbytes);
-  assert(ret == 0);
+  //const int ret = posix_memalign (&ptr, 64, nbytes);
+  //assert(ret == 0);
+  ptr = malloc (nbytes);
 #endif
   
   return ptr;

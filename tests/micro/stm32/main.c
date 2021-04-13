@@ -48,9 +48,9 @@ static ai_model_info * _model_p = &network_network;
 //
 static ai_handle _network = AI_HANDLE_NULL;
 
-static uint8_t LoadInputImg (const char * filename, ai_quantization_info * quant, ai_ptr data);
-static uint8_t quantize_val (float val, ai_quantization_info * quant);
-static uint8_t dequantize_val (uint8_t val, ai_quantization_info * quant);
+static uint8_t LoadInputImg (const char * filename, ai_tensor * input);
+static int32_t quantize_val (float val, ai_quantization_info * quant);
+static float dequantize_val (int32_t val, ai_quantization_info * quant);
 
 // =================================================================
 //   Convert_Fixed_To_Float
@@ -269,7 +269,7 @@ static int aiRun (void)
   ai_status err = AI_STATUS_OK;
   
   //
-  // Setup input data
+  // Inputs
   //
   ai_tensor * input = ai_get_input(_network, 0);
   if (input == NULL) {
@@ -278,25 +278,19 @@ static int aiRun (void)
     return -1;
   }
 
-  DLDataType dtype = input->dltensor.dtype;
-
-  if (dtype.lanes > 1) {
-    printf("E: vector inputs are not supported ...\r\n");
-    return -1;
-  }
-
-  if (dtype.code == kDLBfloat) {
-    printf("E: Double float inputs are not supported ...\r\n");
-    return -1;
-  }
-
   //
-  // Results
+  // Outputs
   //
   ai_tensor * output = ai_get_output(_network, 0);
   if (output == NULL) {
     const char * err = ai_get_error(_network);
     aiLogErr("ai_run", err);
+    return -1;
+  }
+
+  DLDataType out_dtype = output->dltensor.dtype;
+  if (out_dtype.lanes > 1) {
+    printf("E: vector outputs are not supported ...\r\n");
     return -1;
   }
 
@@ -310,7 +304,7 @@ static int aiRun (void)
 
     sprintf (image, "0%d.bin", i);
     printf ("Loading input image %s ... \n", image);
-    if (LoadInputImg (image, input->quant, input->dltensor.data) != 0) {
+    if (LoadInputImg (image, input) != 0) {
       error ("Loading image %s\n", image);
     }
 
@@ -332,7 +326,7 @@ static int aiRun (void)
       float * probabilities = (float*)output->dltensor.data;
       for (int i = 0; i < elts; i++) {
 	float val = probabilities[i];
-	printf (" -- probability[%d] = %g \n", i, val);
+	//printf (" -- probability[%d] = %g \n", i, val);
 	fprintf (outfile, "%g ", val);
       }
       
@@ -341,12 +335,23 @@ static int aiRun (void)
       //
       // Quantized model
       //
-      uint8_t * probabilities = (uint8_t *)output->dltensor.data;
-      for (int i = 0; i < elts; i++) {
-	uint8_t qval = probabilities[i];
-	printf (" -- probability[%d] = %d \n", i, qval);
-	float val = dequantize_val (qval, output->quant);
-	fprintf (outfile, "%g ", val);
+      if (out_dtype.code == kDLInt) {
+	int8_t * probabilities = (int8_t *)output->dltensor.data;
+	for (int i = 0; i < elts; i++) {
+	  int8_t qval = probabilities[i];
+	  //printf (" -- probability[%d] = %d \n", i, qval);
+	  float val = dequantize_val (qval, output->quant);
+	  fprintf (outfile, "%g ", val);
+	}
+      }
+      else {
+	uint8_t * probabilities = (uint8_t *)output->dltensor.data;
+	for (int i = 0; i < elts; i++) {
+	  uint8_t qval = probabilities[i];
+	  //printf (" -- probability[%d] = %d \n", i, qval);
+	  float val = dequantize_val (qval, output->quant);
+	  fprintf (outfile, "%g ", val);
+	}
       }
     }
     fprintf (outfile, "\n");
@@ -359,25 +364,23 @@ static int aiRun (void)
 // =================================================================
 //   quantize_val
 // =================================================================
-static uint8_t quantize_val (float val, ai_quantization_info * quant)
+static int32_t quantize_val (float val, ai_quantization_info * quant)
 {
   float new_val;
   float input_scale = quant->scale[0];
   int32_t input_zero_point = quant->zero_point[0];
-  printf ("== TFLite input quantization: scale=%g, zero=%d", input_scale, input_zero_point);
   new_val = val / input_scale + input_zero_point;
-  return (uint8_t)new_val;
+  return (int32_t)new_val;
 }
 
 // =================================================================
 //   dequantize_val
 // =================================================================
-static uint8_t dequantize_val (uint8_t val, ai_quantization_info * quant)
+static float dequantize_val (int32_t val, ai_quantization_info * quant)
 {
   float new_val;
   float output_scale = quant->scale[0];
   int32_t output_zero_point = quant->zero_point[0];
-  printf ("== TFLite output quantization: scale=%g, zero=%d", output_scale, output_zero_point);
   new_val = (val - output_zero_point) * output_scale;
   return new_val;
 }
@@ -387,10 +390,21 @@ static uint8_t dequantize_val (uint8_t val, ai_quantization_info * quant)
 // =================================================================
 uint8_t LoadInputImg (
   const char * filename,
-  ai_quantization_info * quant,
-  ai_ptr data
+  ai_tensor * input
 )
 {
+  DLDataType dtype = input->dltensor.dtype;
+
+  if (dtype.lanes > 1) {
+    printf("E: vector inputs are not supported ...\r\n");
+    return -1;
+  }
+
+  if (dtype.code == kDLBfloat) {
+    printf("E: Double float inputs are not supported ...\r\n");
+    return -1;
+  }
+  
   FILE * file = fopen(filename, "r");
   if (file == NULL) {
     printf ("== File %s not found\n", filename);
@@ -404,7 +418,7 @@ uint8_t LoadInputImg (
   size_t img_size = ftell(file); 
   (void)fseek(file, 0L, SEEK_SET);
 
-  printf ("== Image size = %d\n", img_size);
+  //printf ("== Image size = %d\n", img_size);
 
   uint8_t * image = (uint8_t *)malloc(img_size);
   size_t size = fread(image, 1, img_size, file);
@@ -418,7 +432,7 @@ uint8_t LoadInputImg (
 
   uint32_t x;
   uint8_t * p = image;
-  uint8_t * pg = (uint8_t*)data;
+  uint8_t * pg = (uint8_t*)input->dltensor.data;
 
   for (x = 0; x < img_size; x++) {
     uint8_t val = p[x];
@@ -426,10 +440,17 @@ uint8_t LoadInputImg (
     // Input image needs to be normalized into [0..1] interval
     //
     float nval = ((float)val) / 255.0;
-    if (quant != NULL) {
-      uint8_t qval = quantize_val (nval, quant);
-      *pg = qval;
-      pg += sizeof(uint8_t);
+    if (input->quant != NULL) {
+      if (dtype.code == kDLInt) {
+	int8_t qval = quantize_val (nval, input->quant);
+	*pg = qval;
+	pg += sizeof(int8_t);
+      }
+      else {
+	uint8_t qval = quantize_val (nval, input->quant);
+	*pg = qval;
+	pg += sizeof(uint8_t);
+      }
     }
     else {
       *(float*)pg = nval;

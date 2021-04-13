@@ -226,21 +226,14 @@ def run_tflite_model (model_path):
     #
     # Run test images
     #
-    #tf_results = []
     tf_results = np.empty(shape=[len(TEST_IMAGES),10], dtype=np.float)
     for i, filename in enumerate(TEST_IMAGES):
-        #filename = '/prj/p_mcd_ais/common/Appli/data/mnist/test_images/01647.png'
         image = Image.open (filename).convert('L')
         image_data = np.array(image, dtype="uint8")
         #
         # Run the TFLite model: channels last
         #
         image_data = image_data.reshape ([1, 28, 28, 1])
-        #
-        # Dump as file
-        #
-        #dump_image('img0.bin', image_data)
-
         #
         # Normalize the input data
         #
@@ -292,6 +285,7 @@ def run_tvm_model (model_name, target_dir):
     
     tvm_results = np.loadtxt(tvm_results_name)
     #print (f'== tvm_results shape: {tvm_results.shape}')
+    print (f'== TVM Output:\n {tvm_results}')
     
     #
     # Clean temporary image files
@@ -309,13 +303,10 @@ def run_tvm_model (model_name, target_dir):
 # ========================================================
 #   test_network
 # ========================================================
-def test_network(target_name):
+def test_network(target_name, model_path):
 
     model_name = 'network'
     target_dir = target_name+'_gen'
-    
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, 'mnist.tflite')
     
     model, shape_dict, dtype_dict = get_tflite_model (model_path)
     mod, params = relay.frontend.from_tflite(model, shape_dict, dtype_dict)
@@ -351,21 +342,42 @@ def test_network(target_name):
     tf_results = run_tflite_model (model_path)
     tvm_results = run_tvm_model (model_name, target_dir)
 
-    #tvm.testing.assert_allclose(tf_results.asnumpy(), tvm_results.asnumpy())
     np.allclose(tf_results, tvm_results)
 
 # ========================================================
-#   test_mnist_int
+#   test_mnist_quant_fp
 # ========================================================
-def test_mnist_int():
-    test_network('mnist_int')
+def test_mnist_quant_fp():
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    model_path = os.path.join(curr_path, 'mnist.quant.2_mod.tflite')
+    test_network('mnist_quant_fp', model_path)
+    
+# ========================================================
+#   test_mnist_quant_int
+# ========================================================
+def test_mnist_quant_int():
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    model_path = os.path.join(curr_path, 'mnist_q_with_int8_io.tflite')
+    test_network('mnist_quant_int', model_path)
+
+# ========================================================
+#   test_mnist_quant_uint
+# ========================================================
+def test_mnist_quant_uint():
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    model_path = os.path.join(curr_path, 'mnist_q_with_uint8_io.tflite')
+    test_network('mnist_quant_uint', model_path)
     
 # ========================================================
 #   test_mnist_fp
 # ========================================================
 def test_mnist_fp():
-    test_network('mnist_fp')
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    model_path = os.path.join(curr_path, 'mnist.tflite')
+    test_network('mnist_fp', model_path)
     
 if __name__ == "__main__":
     test_mnist_fp()
-    test_mnist_int()
+    test_mnist_quant_fp()
+    test_mnist_quant_int()
+    test_mnist_quant_uint()
