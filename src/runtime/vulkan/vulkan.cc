@@ -1060,7 +1060,8 @@ VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::
 
 VulkanHostVisibleBuffer* GetOrAllocate(
     int device_id, size_t size, VkBufferUsageFlags usage, uint32_t mem_type_index,
-    std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>& buffers) {
+    std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>* buffers_ptr) {
+  auto& buffers = *buffers_ptr;
   if (!buffers[device_id]) {
     buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
   }
@@ -1086,7 +1087,7 @@ VulkanHostVisibleBuffer* GetOrAllocate(
 VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
   auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  auto buf = GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, staging_buffers_);
+  auto buf = GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, &staging_buffers_);
   return buf;
 }
 
@@ -1096,7 +1097,7 @@ void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
   auto info = MakeBufferCreateInfo(vctx, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   auto mem_type_index = FindMemoryType(vctx, info, prop);
   GetOrAllocate(device_id, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, mem_type_index,
-                uniform_buffers_);
+                &uniform_buffers_);
 }
 
 VulkanUniformBuffer* VulkanThreadEntry::GetUniformBuffer(int device_id, size_t size) {
