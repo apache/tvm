@@ -25,9 +25,10 @@ def test_common_parse_pass_list_str():
 
     with pytest.raises(argparse.ArgumentTypeError) as ate:
         tvmc.common.parse_pass_list_str("MyYobaPass,MySuperYobaPass,FuseOps")
-    assert "MyYobaPass" in str(ate)
-    assert "MySuperYobaPass" in str(ate)
-    assert "FuseOps" not in str(ate)
+
+    assert "MyYobaPass" in str(ate.value)
+    assert "MySuperYobaPass" in str(ate.value)
+    assert "FuseOps" in str(ate.value)
 
 
 if __name__ == "__main__":

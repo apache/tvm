@@ -345,15 +345,23 @@ def parse_pass_list_str(input_string):
     -------
     list: a list of existing passes.
     """
+    _prefix = "relay._transform."
     pass_list = input_string.split(",")
     missing_list = [
         p.strip()
         for p in pass_list
-        if len(p.strip()) > 0 and tvm.get_global_func("relay._transform." + p.strip(), True) is None
+        if len(p.strip()) > 0 and tvm.get_global_func(_prefix + p.strip(), True) is None
     ]
     if len(missing_list) > 0:
+        from tvm._ffi import registry
+
+        available_list = [
+            n[len(_prefix) :] for n in registry.list_global_func_names() if n.startswith(_prefix)
+        ]
         raise argparse.ArgumentTypeError(
-            "Following passes are not registered within tvm: " + str(missing_list)
+            "Following passes are not registered within tvm: {}. Available: {}.".format(
+                ", ".join(missing_list), ", ".join(sorted(available_list))
+            )
         )
     return pass_list
 
