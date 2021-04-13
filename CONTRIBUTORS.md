@@ -94,6 +94,7 @@ We do encourage everyone to work anything they are interested in.
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1
