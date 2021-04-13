@@ -80,7 +80,7 @@ class QConfig(Object):
         "global_scale": 8.0,
         "weight_scale": "power2",
         "skip_dense_layer": True,
-        "skip_conv_layers": None,
+        "skip_conv_layers": [0],
         "do_simulation": False,
         "round_for_shift": True,
         "debug_enabled_ops": None,
