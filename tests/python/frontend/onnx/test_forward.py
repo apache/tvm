@@ -4210,8 +4210,6 @@ unsupported_onnx_tests = [
     "test_scan_sum/",
     "test_scatternd/",
     "test_selu_default/",
-    "test_shrink_hard/",
-    "test_shrink_soft/",
     "test_simple_rnn_defaults/",
     "test_simple_rnn_with_initial_bias/",
     "test_strnormalizer_export_monday_casesensintive_lower/",
