@@ -108,7 +108,17 @@ class ZephyrCompiler(tvm.micro.Compiler):
                 f"project_dir supplied to ZephyrCompiler does not exist: {project_dir}"
             )
 
+        self._qemu = "qemu" in board
+
+        # For Zephyr boards that run emulated by default but don't have the prefix "qemu_" in their
+        # board names, a suffix "-qemu" is added by users of µTVM when specifying the board name to
+        # inform that the QEMU transporter must be used just like for the boards with the prefix.
+        # Zephyr does not recognize the suffix, so we trim it off before passing it.
+        if "-qemu" in board:
+            board = board.replace("-qemu", "")
+
         self._board = board
+
         if west_cmd is None:
             self._west_cmd = [sys.executable, "-mwest.app.main"]
         elif isinstance(west_cmd, str):
@@ -257,14 +267,17 @@ class ZephyrCompiler(tvm.micro.Compiler):
                 "cmake_cache": ["CMakeCache.txt"],
                 "device_tree": [os.path.join("zephyr", "zephyr.dts")],
             },
-            immobile="qemu" in self._board,
+            immobile=bool(self._qemu),
         )
 
     @property
     def flasher_factory(self):
         return compiler.FlasherFactory(
             ZephyrFlasher,
-            (self._board,),
+            (
+                self._board,
+                self._qemu,
+            ),
             dict(
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
@@ -316,6 +329,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
     def __init__(
         self,
         board,
+        qemu,
         zephyr_base=None,
         project_dir=None,
         subprocess_env=None,
@@ -336,6 +350,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             sys.path.pop(0)
 
         self._board = board
+        self._qemu = qemu
         self._zephyr_base = zephyr_base
         self._project_dir = project_dir
         self._west_cmd = west_cmd
@@ -447,10 +462,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         )
 
     def flash(self, micro_binary):
-        cmake_entries = read_cmake_cache(
-            micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
-        )
-        if "qemu" in cmake_entries["BOARD"]:
+        if self._qemu:
             return self._zephyr_transport(micro_binary)
 
         build_dir = os.path.dirname(
