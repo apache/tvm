@@ -26,6 +26,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include <memory>
 
@@ -120,6 +121,20 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
           reg.set_attr(attr_key, value, plevel);
         }
       }
+    });
+
+TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
+    .set_body_typed([](String name, TVMFunctionHandle f, String target = "default", int plevel = 10,
+                       int can_override = 0) {
+      if (Op::HasAttrMap(target + ".FLowerIntrinsic") &&
+          OpRegistry::Global()->Get(name) != nullptr &&
+          Op::GetAttrMap<tvm::tir::FLowerIntrinsic>(target + ".FLowerIntrinsic")
+              .count(Op::Get(name))) {
+        ICHECK(can_override) << "Op " << name << "'s intrinsic lowering function " << target
+                             << ".FlowerIntrinsic is already registered";
+      }
+      tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<tvm::tir::FLowerIntrinsic>(
+          target + ".FLowerIntrinsic", *static_cast<tvm::runtime::PackedFunc*>(f), plevel);
     });
 
 // helper to get internal dev function in objectref.

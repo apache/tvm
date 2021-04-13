@@ -292,7 +292,7 @@ def mem_info_acc_buffer():
 
 
 # TVM Op related registration
-@tvm.register_op("tir.vta.coproc_sync")
+@tvm.ir.op.register_op_intrin_lowering("tir.vta.coproc_sync")
 def coproc_sync(op):
     _ = op
     return tvm.tir.call_extern(
@@ -303,14 +303,14 @@ def coproc_sync(op):
     )
 
 
-@tvm.register_op("tir.vta.coproc_dep_push")
+@tvm.ir.op.register_op_intrin_lowering("tir.vta.coproc_dep_push")
 def coproc_dep_push(op):
     return tvm.tir.call_extern(
         "int32", "VTADepPush", get_env().dev.command_handle, op.args[0], op.args[1]
     )
 
 
-@tvm.register_op("tir.vta.coproc_dep_pop")
+@tvm.ir.op.register_op_intrin_lowering("tir.vta.coproc_dep_pop")
 def coproc_dep_pop(op):
     return tvm.tir.call_extern(
         "int32", "VTADepPop", get_env().dev.command_handle, op.args[0], op.args[1]

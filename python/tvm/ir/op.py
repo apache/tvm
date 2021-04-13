@@ -16,9 +16,22 @@
 # under the License.
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
+import ctypes
 import tvm._ffi
+from tvm._ffi.base import _FFI_MODE
 from .expr import RelayExpr
 from . import _ffi_api
+
+try:
+    # pylint: disable=wrong-import-position,unused-import
+    if _FFI_MODE == "ctypes":
+        raise ImportError()
+    from tvm._ffi._cy3.core import convert_to_tvm_func, _get_global_func, PackedFuncBase
+except (RuntimeError, ImportError) as error:
+    # pylint: disable=wrong-import-position,unused-import
+    if _FFI_MODE == "cython":
+        raise error
+    from tvm._ffi._ctypes.packed_func import convert_to_tvm_func, _get_global_func, PackedFuncBase
 
 
 @tvm._ffi.register_object("Op")
@@ -115,3 +128,50 @@ def register_op_attr(op_name, attr_key, value=None, level=10):
         return v
 
     return _register(value) if value is not None else _register
+
+
+def register_op_intrin_lowering(
+    op_name,
+    f=None,
+    target="default",
+    plevel=10,
+    override=False,
+):
+    """Register Op lowering function
+
+    Parameters
+    ----------
+    op_name : str or function
+        The op name
+
+    f : function, optional
+        The function to be registered.
+
+    target : str
+        The target string for given intrinsic lowering function
+
+    plevel : int
+        The priority level
+
+    override: boolean optional
+        Whether override existing entry.
+
+    Returns
+    -------
+    fregister : function
+        Register op lowering function if f is not specified.
+    """
+    if not isinstance(op_name, str):
+        raise ValueError("expect string op name")
+
+    def _register(myf):
+        """internal intrinsic lowering registration function"""
+        assert isinstance(target, str)
+        if not isinstance(myf, PackedFuncBase):
+            myf = convert_to_tvm_func(myf)
+        _ffi_api.RegisterOpLowerIntrinsic(op_name, myf.handle, target, plevel, override)
+        return myf
+
+    if f:
+        return _register(f)
+    return _register

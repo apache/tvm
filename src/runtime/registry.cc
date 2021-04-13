@@ -126,13 +126,6 @@ int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
   API_END();
 }
 
-int TVMOpLoweringFuncRegister(const char* name, TVMFunctionHandle f, int override) {
-  API_BEGIN();
-  tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<tvm::tir::FLowerIntrinsic>(
-    "default.FLowerIntrinsic", *static_cast<tvm::runtime::PackedFunc*>(f));
-  API_END();
-}
-
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   API_BEGIN();
   const tvm::runtime::PackedFunc* fp = tvm::runtime::Registry::Get(name);
