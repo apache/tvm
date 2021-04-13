@@ -77,7 +77,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= kMaxPushConstantsBytes) {
+    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= runtime::vulkan::kMaxPushConstantsBytes) {
       spirv::Value ptr = builder_->DeclarePushConstant(value_types);
       for (size_t i = 0; i < pod_args.size(); ++i) {
         spirv::Value value =

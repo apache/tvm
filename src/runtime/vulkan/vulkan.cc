@@ -1153,21 +1153,22 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
-    if (pipeline->use_ubo) {
-      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
-      memcpy(ubo->host_addr, pack_args, nbytes_scalars);
-    }
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
       ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
       vctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
-      if (num_pack_args_ > 0 && !pipeline->use_ubo) {
+
+      if (pipeline->use_ubo) {
+        auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+        memcpy(ubo->host_addr, pack_args, nbytes_scalars);
+      } else if (num_pack_args_ > 0) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
                            pack_args);
       }
+
       vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
       VkMemoryBarrier barrier_info;
       barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -1210,19 +1211,20 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
                                  device_id](VulkanStreamState* state) {
-    if (pipeline->use_ubo) {
-      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
-      memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
-    }
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
                             nullptr);
-    if (num_pack_args_ > 0 && !pipeline->use_ubo) {
+
+    if (pipeline->use_ubo) {
+      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+      memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
+    } else if (num_pack_args_ > 0) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                          0, pack_args_storage.size() * sizeof(ArgUnion64),
                          pack_args_storage.data());
     }
+
     vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
     VkMemoryBarrier barrier_info;
     barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;

@@ -35,7 +35,7 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-#define kMaxPushConstantsBytes 128
+const int kMaxPushConstantsBytes = 128;
 
 enum ShaderMetaDataKind { kUSE_UBO = 0 };
 
