@@ -186,34 +186,9 @@ void OpenCLModuleNode::Init() {
     kid_map_[key] = e;
   }
 
-  // Use function delimiters to parse the serialized source
-  // into separate source files for each kernel primitive
-  std::string source = GetSource("cl");
-  if (source.size()) {
-    std::string del{"// Function: "};
-    size_t end;
-    size_t begin = source.find(del);
-    ICHECK(begin != std::string::npos) << "The OpenCL module expects a kernel delimited "
-                                       << "source from code generation, but no kernel "
-                                       << "delimiter was found.";
-    while (true) {
-      begin += del.size();
-      end = source.find('\n', begin);
-      std::string func_name = source.substr(begin, end - begin);
-      begin = ++end;
-      // std::string::substr returns either start of next kernel
-      // or std::string::npos, in the latter case substr returns
-      // all characters until the end of the source string.
-      end = source.find(del, begin);
-      std::string func_source =
-          source.substr(begin, (end == std::string::npos) ? end : end - begin);
-      parsed_kernels_.insert({func_name, func_source});
-      begin = end;
-      if (end == std::string::npos) {
-        break;
-      }
-    }
-  }
+  // split into source artifacts for each kernel
+  parsed_kernels_ = SplitKernels(GetSource("cl"));
+  // zero initialize cl_program pointers for each device kernel
   for (auto& kv : parsed_kernels_) {
     programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
   }
@@ -265,6 +240,37 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   t->kernel_table[e.kernel_id].version = e.version;
   kernels_.push_back(kernel);
   return kernel;
+}
+
+std::unordered_map<std::string, std::string> OpenCLModuleNode::SplitKernels(
+    std::string source) const {
+  std::unordered_map<std::string, std::string> split_kernels;
+  if (source.size()) {
+    std::string del{"// Function: "};
+    size_t end;
+    size_t begin = source.find(del);
+    ICHECK(begin != std::string::npos) << "The OpenCL module expects a kernel delimited "
+                                       << "source from code generation, but no kernel "
+                                       << "delimiter was found.";
+    while (true) {
+      begin += del.size();
+      end = source.find('\n', begin);
+      std::string func_name = source.substr(begin, end - begin);
+      begin = ++end;
+      // std::string::substr returns either start of next kernel
+      // or std::string::npos, in the latter case substr returns
+      // all characters until the end of the source string.
+      end = source.find(del, begin);
+      std::string func_source =
+          source.substr(begin, (end == std::string::npos) ? end : end - begin);
+      split_kernels.insert({func_name, func_source});
+      begin = end;
+      if (end == std::string::npos) {
+        break;
+      }
+    }
+  }
+  return split_kernels;
 }
 
 Module OpenCLModuleCreate(std::string data, std::string fmt,
