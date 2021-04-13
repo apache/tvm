@@ -122,8 +122,8 @@ struct VulkanPipeline {
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
 
-int FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
-                   VkMemoryPropertyFlags req_prop) {
+uint32_t FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
+                        VkMemoryPropertyFlags req_prop) {
   VkBuffer buffer;
   VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
 
@@ -139,8 +139,8 @@ int FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
     }
     type_bits >>= 1;
   }
-  LOG(INFO) << "Requested memory type not found";
-  return -1;
+  LOG(FATAL) << "Requested memory type not found";
+  return 0;
 }
 
 VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes,
@@ -1087,8 +1087,7 @@ VulkanHostVisibleBuffer* GetOrAllocate(
 VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
   auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  auto buf = GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, &staging_buffers_);
-  return buf;
+  return GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, &staging_buffers_);
 }
 
 void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
