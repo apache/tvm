@@ -29,7 +29,7 @@ import tvm
 
 from tvm import relay
 from tvm import transform
-
+from tvm._ffi import registry
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -353,8 +353,6 @@ def parse_pass_list_str(input_string):
         if len(p.strip()) > 0 and tvm.get_global_func(_prefix + p.strip(), True) is None
     ]
     if len(missing_list) > 0:
-        from tvm._ffi import registry
-
         available_list = [
             n[len(_prefix) :] for n in registry.list_global_func_names() if n.startswith(_prefix)
         ]
