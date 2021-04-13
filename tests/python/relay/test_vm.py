@@ -824,8 +824,10 @@ def test_vm_rpc():
     vm_exec.mod.export_library(path)
 
     # Use local rpc server for testing.
-    server = rpc.Server("localhost", key="x")
-    remote = rpc.connect(server.host, server.port, key="x", session_timeout=10)
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    server = rpc.Server("localhost", use_popen=True)
+    remote = rpc.connect(server.host, server.port, session_timeout=10)
 
     # Upload the serialized Executable.
     remote.upload(path)
@@ -842,8 +844,11 @@ def test_vm_rpc():
     # Check the result.
     np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
 
+    # delete tensors before the server shuts down so we don't throw errors.
+    del input_tensor
+    del out
+
     server.terminate()
-    del server
 
 
 if __name__ == "__main__":
