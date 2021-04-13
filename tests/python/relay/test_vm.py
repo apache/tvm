@@ -826,7 +826,7 @@ def test_vm_rpc():
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
     # will crash otherwise.
-    server = rpc.Server("localhost", use_popen=True)
+    server = rpc.Server("localhost", port=9120, use_popen=True)
     remote = rpc.connect(server.host, server.port, session_timeout=10)
 
     # Upload the serialized Executable.
