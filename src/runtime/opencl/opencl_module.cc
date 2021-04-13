@@ -105,12 +105,11 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   for (cl_kernel k : kernels_) {
     OPENCL_CALL(clReleaseKernel(k));
   }
-  if (programs_.size()) {
-    for (auto& kv : programs_) {
-      for (auto& program : kv.second) {
-        if (program) {
-          OPENCL_CALL(clReleaseProgram(program));
-        }
+  // free the programs
+  for (auto& kv : programs_) {
+    for (auto& program : kv.second) {
+      if (program) {
+        OPENCL_CALL(clReleaseProgram(program));
       }
     }
   }
@@ -187,6 +186,8 @@ void OpenCLModuleNode::Init() {
     kid_map_[key] = e;
   }
 
+  // Use function delimiters to parse the serialized source
+  // into separate source files for each kernel primitive
   std::string source = GetSource("cl");
   if (source.size()) {
     std::string del{"// Function: "};
