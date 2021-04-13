@@ -1,4 +1,4 @@
-from typing import *
+gfrom typing import *
 
 import numpy as np
 import tvm
@@ -53,17 +53,28 @@ def generate_generic_quantized_dense(
     )
 
     first_term = nn.dense(data, weight, units=out_units, out_dtype=internal_accumulation_dtype)
-    second_term = (
-        relay.op.sum(data_casted, axis=1, keepdims=True, exclude=False) * weight_zero_point
-    )
-    third_term = (
-        relay.op.sum(weight_casted, axis=1, keepdims=False, exclude=False) * data_zero_point
-    )
-    fourth_term = (
-        relay.const(np.array(in_units, dtype=internal_accumulation_dtype))
-        * data_zero_point
-        * weight_zero_point
-    )
+    if weight_zero_point == relay.const(0):
+        second_term = relay.const(0)
+    else:
+        second_term = (
+            relay.op.sum(data_casted, axis=1, keepdims=True, exclude=False) * weight_zero_point
+        )
+
+    if data_zero_point == relay.const(0):
+        third_term = relay.const(0)
+    else:
+        third_term = (
+            relay.op.sum(weight_casted, axis=1, keepdims=False, exclude=False) * data_zero_point
+        )
+
+    if weight_zero_point == relay.const(0) or data_zero_point == relay.const(0):
+        fourth_term = 0
+    else:
+        fourth_term = (
+            relay.const(np.array(in_units, dtype=internal_accumulation_dtype))
+            * data_zero_point
+            * weight_zero_point
+        )
 
     # TODO: simulate overflow for other data types
 
