@@ -1,13 +1,37 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+ifndef TVM_PATH
+$(error TVM_PATH must be set and point at your TVM installation)
+endif
 
 ifndef MODEL_PATH
 $(error MODEL_PATH must be set and point at your model implementation)
 endif
 
-#
-# Top-level TVM directory
-#
-TVM_PATH = $(shell pwd)/../../..
+ifndef BUILD_PATH
+$(error BUILD_PATH must be set and point at where your models are built)
+endif
 
+ifndef IMAGE_PATH
+$(error IMAGE_PATH must be set and point at where your images are stored)
+endif
+
+SRC_PATH = $(TVM_PATH)/tests/micro/stm32/src
 RUNTIME_PATH = $(TVM_PATH)/src/runtime/stm32
 
 #
@@ -24,7 +48,7 @@ C_SOURCES += $(RUNTIME_PATH)/ai_runtime_api.c
 #
 # Application sources
 #
-C_SOURCES += main.c 
+C_SOURCES += $(SRC_PATH)/main.c 
 
 vpath %.c $(sort $(dir $(C_SOURCES)))
 
@@ -52,7 +76,7 @@ $(BUILD_DIR)/$(TARGET): $(OBJECTS)
 	$(CXX) $(CFLAGS) -o $@  $^ $(LDFLAGS)
 
 $(BUILD_DIR)/main.o: main.c
-	$(CXX) $(CFLAGS) -I$(MODEL_PATH) -c $< -o $@
+	$(CXX) -DBUILD_PATH=\"$(BUILD_PATH)\" -DIMAGE_PATH=\"$(IMAGE_PATH)\"$(CFLAGS) -I$(MODEL_PATH) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.c
 	$(CXX) $(CFLAGS) -c $< -o $@

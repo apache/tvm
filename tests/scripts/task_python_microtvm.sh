@@ -27,3 +27,4 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 make cython3
 run_pytest ctypes python-microtvm-qemu tests/micro/qemu
+run_pytest ctypes python-microtvm-stm32 tests/micro/stm32

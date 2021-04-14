@@ -296,13 +296,15 @@ static int aiRun (void)
 
   uint32_t elts = get_tensor_elts (output);
 
-  FILE * outfile = fopen ("tvm_results.txt", "w");
+  char outfile_name[128];
+  sprintf (outfile_name, "%s/tvm_results.txt", BUILD_PATH);
+  FILE * outfile = fopen (outfile_name, "w");
   
   for (int i=0; i <=9; i++) {
 
-    char image[8];
+    char image[128];
 
-    sprintf (image, "0%d.bin", i);
+    sprintf (image, "%s/0%d.raw", IMAGE_PATH, i);
     printf ("Loading input image %s ... \n", image);
     if (LoadInputImg (image, input) != 0) {
       error ("Loading image %s\n", image);

@@ -31,28 +31,27 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import numpy as np
 
-from PIL import Image
-
 import tensorflow as tf
 
 import tvm
 import tvm.relay as relay
 from tvm.contrib import stm32
+from tvm import testing
 
 TEST_IMAGES = [
-        '00.png',
-        '01.png',
-        '02.png',
-        '03.png',
-        '04.png',
-        '05.png',
-        '06.png',
-        '07.png',
-        '08.png',
-        '09.png'
+        '00.raw',
+        '01.raw',
+        '02.raw',
+        '03.raw',
+        '04.raw',
+        '05.raw',
+        '06.raw',
+        '07.raw',
+        '08.raw',
+        '09.raw'
     ]
 
-# Docker: ?
+BUILD_DIR = 'build'
 
 # ==================================================================
 #   dump_image
@@ -210,8 +209,8 @@ def extract_tflite_quantization (model):
 # ========================================================
 #   run_tflite_model
 # ========================================================
-def run_tflite_model (model_path):
-
+def run_tflite_model (model_path, image_path):
+    
     #
     # Load TFLite model and allocate tensors.
     #
@@ -228,8 +227,7 @@ def run_tflite_model (model_path):
     #
     tf_results = np.empty(shape=[len(TEST_IMAGES),10], dtype=np.float)
     for i, filename in enumerate(TEST_IMAGES):
-        image = Image.open (filename).convert('L')
-        image_data = np.array(image, dtype="uint8")
+        image_data = np.fromfile(os.path.join(image_path,filename), dtype='uint8')
         #
         # Run the TFLite model: channels last
         #
@@ -253,38 +251,26 @@ def run_tflite_model (model_path):
 # ========================================================
 #   run_tvm_model
 # ========================================================
-def run_tvm_model (model_name, target_dir):
+def run_tvm_model (build_dir, model_name, target_dir, image_path):
 
-    tvm_results_name = 'tvm_results.txt'
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    
+    tvm_results_name = os.path.join(build_dir, 'tvm_results.txt')
 
     #
     # Build the model
     #
-    command = f'make MODEL_PATH={target_dir}'
+    command = f'make -f {curr_path}/Makefile TVM_PATH={curr_path}/../../.. MODEL_PATH={target_dir} BUILD_PATH={build_dir} IMAGE_PATH={image_path}'
     print (f'{command} ...')
     os.system(command)
     #
     # Run
-    #
-    for filename in TEST_IMAGES:
-        image = Image.open (filename).convert('L')
-        image_data = np.array(image, dtype="uint8")
-        #
-        # Run the TFLite model: channels last
-        #
-        image_data = image_data.reshape ([1, 28, 28, 1])
-        #
-        # Dump as file
-        #
-        outfile = os.path.splitext(filename)[0]+'.bin'
-        dump_image(outfile, image_data)
-    
+    #    
     command = f'{target_dir}/{model_name}.exe'
     print (f'{command} ...')
     os.system(command)
     
     tvm_results = np.loadtxt(tvm_results_name)
-    #print (f'== tvm_results shape: {tvm_results.shape}')
     print (f'== TVM Output:\n {tvm_results}')
     
     #
@@ -292,21 +278,17 @@ def run_tvm_model (model_name, target_dir):
     #
     if os.path.exists (tvm_results_name):
         os.remove(tvm_results_name)
-        
-    for filename in TEST_IMAGES:
-        outfile = os.path.splitext(filename)[0]+'.bin'
-        if os.path.exists (outfile):
-            os.remove(outfile)
 
     return tvm_results
     
 # ========================================================
-#   test_network
+#   check_network
 # ========================================================
-def test_network(target_name, model_path):
+def check_network(build_dir, target_name, model_path, image_path):
 
     model_name = 'network'
-    target_dir = target_name+'_gen'
+
+    target_dir = os.path.join(build_dir, target_name+'_gen')
     
     model, shape_dict, dtype_dict = get_tflite_model (model_path)
     mod, params = relay.frontend.from_tflite(model, shape_dict, dtype_dict)
@@ -327,7 +309,7 @@ def test_network(target_name, model_path):
     #
     # Export model library format
     #
-    mlf_tar_path = target_name+'_lib.tar'
+    mlf_tar_path = os.path.join(build_dir, target_name+'_lib.tar')
     import tvm.micro as micro
     micro.export_model_library_format(rt_module, mlf_tar_path)
 
@@ -339,45 +321,77 @@ def test_network(target_name, model_path):
     #
     # Results
     #
-    tf_results = run_tflite_model (model_path)
-    tvm_results = run_tvm_model (model_name, target_dir)
+    tf_results = run_tflite_model (model_path, image_path)
+    tvm_results = run_tvm_model (build_dir, model_name, target_dir, image_path)
 
-    np.allclose(tf_results, tvm_results)
+    check_result (tf_results, tvm_results)
 
+# ========================================================
+#   check_result
+# ========================================================
+def check_result (tflite_results, tvm_results):
+    """Helper function to verify results"""
+
+    #
+    # MNIST quantized uint8 results in one single difference of
+    # ~ 0.004 so just escape this
+    #
+    ATOL = 1e-3
+    RTOL = 0.5
+
+    tvm.testing.assert_allclose(tflite_results, tvm_results, rtol=RTOL, atol=ATOL)
+    
 # ========================================================
 #   test_mnist_quant_fp
 # ========================================================
 def test_mnist_quant_fp():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, 'mnist.quant.2_mod.tflite')
-    test_network('mnist_quant_fp', model_path)
+    model_path = os.path.join(curr_path, 'models/mnist.quant.2_mod.tflite')
+    image_path = os.path.join(curr_path, 'images')
+    build_dir = os.path.join(curr_path, BUILD_DIR)
+    if not os.path.exists (build_dir):
+        os.makedirs(build_dir)
+    check_network(build_dir, 'mnist_quant_fp', model_path, image_path)
     
 # ========================================================
 #   test_mnist_quant_int
 # ========================================================
 def test_mnist_quant_int():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, 'mnist_q_with_int8_io.tflite')
-    test_network('mnist_quant_int', model_path)
+    model_path = os.path.join(curr_path, 'models/mnist_q_with_int8_io.tflite')
+    image_path = os.path.join(curr_path, 'images')
+    build_dir = os.path.join(curr_path, BUILD_DIR)
+    if not os.path.exists (build_dir):
+        os.makedirs(build_dir)
+    check_network(build_dir, 'mnist_quant_int', model_path, image_path)
 
 # ========================================================
 #   test_mnist_quant_uint
 # ========================================================
 def test_mnist_quant_uint():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, 'mnist_q_with_uint8_io.tflite')
-    test_network('mnist_quant_uint', model_path)
+    model_path = os.path.join(curr_path, 'models/mnist_q_with_uint8_io.tflite')
+    image_path = os.path.join(curr_path, 'images')
+    build_dir = os.path.join(curr_path, BUILD_DIR)
+    if not os.path.exists (build_dir):
+        os.makedirs(build_dir)
+    check_network(build_dir, 'mnist_quant_uint', model_path, image_path)
     
 # ========================================================
 #   test_mnist_fp
 # ========================================================
 def test_mnist_fp():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, 'mnist.tflite')
-    test_network('mnist_fp', model_path)
+    model_path = os.path.join(curr_path, 'models/mnist.tflite')
+    image_path = os.path.join(curr_path, 'images')
+    build_dir = os.path.join(curr_path, BUILD_DIR)
+    if not os.path.exists (build_dir):
+        os.makedirs(build_dir)
+    check_network(build_dir, 'mnist_fp', model_path, image_path)
     
 if __name__ == "__main__":
-    test_mnist_fp()
-    test_mnist_quant_fp()
-    test_mnist_quant_int()
-    test_mnist_quant_uint()
+    #test_mnist_fp()
+    #test_mnist_quant_fp()
+    #test_mnist_quant_int()
+    #test_mnist_quant_uint()
+    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
