@@ -119,6 +119,9 @@ class SimplifyConvPad {
     ICHECK(pad_node);
     const PadAttrs* param = pad_node->attrs.as<PadAttrs>();
     ICHECK(param);
+
+    /*
+    TODO
     if (param->pad_mode == "constant" && param->pad_value == 0.0) {
       Attrs attrs;
       if (node_map.count(conv1d_)) {
@@ -137,6 +140,7 @@ class SimplifyConvPad {
       auto w = node_map[w_][0];
       return Call(call_node->op, {x, w}, attrs, call_node->type_args, call_node->span);
     }
+    */
     return post;
   }
 
