@@ -35,6 +35,7 @@ import threading
 import multiprocessing
 import time
 import tvm._ffi
+import errno
 
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path

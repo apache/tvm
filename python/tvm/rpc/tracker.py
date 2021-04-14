@@ -399,7 +399,7 @@ class Tracker(object):
                 self.port = my_port
                 break
             except socket.error as sock_err:
-                if sock_err.errno in [98, 48, 10098, 10048]:
+                if sock_err.errno in [errno.EADDRINUSE]:
                     continue
                 raise sock_err
         if not self.port:
