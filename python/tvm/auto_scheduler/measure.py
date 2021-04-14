@@ -17,13 +17,17 @@
 
 """
 Distributed measurement infrastructure to measure the runtime costs of tensor programs.
+
 These functions are responsible for building the tvm module, uploading it to
 remote devices, recording the running time costs, and checking the correctness of the output.
+
 We separate the measurement into two steps: build and run.
 A builder builds the executable binary files and a runner runs the binary files to
 get the measurement results. The flow of data structures is
+
   .               `ProgramBuilder`                 `ProgramRunner`
   `MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
+
 We implement these in python to utilize python's multiprocessing and error handling.
 """
 
@@ -95,6 +99,7 @@ class PythonBasedMeasureCallback(MeasureCallback):
 
     def callback(self, policy, inputs, results):
         """The callback function.
+
         Parameters
         ----------
         policy: auto_scheduler.search_policy.SearchPolicy
@@ -110,6 +115,7 @@ class PythonBasedMeasureCallback(MeasureCallback):
 @tvm._ffi.register_object("auto_scheduler.MeasureInput")
 class MeasureInput(Object):
     """Store the input of a measurement.
+
     Parameters
     ----------
     task : SearchTask
@@ -125,6 +131,7 @@ class MeasureInput(Object):
     def serialize(self):
         """Custom serialization to workaround MeasureInput not exposing all its
         members to the TVM ffi interface.
+
         Note that we do not implement __getstate__ as it does not seem to work
         with initialization of the workload registry (maybe because of
         initialization order?).
@@ -144,6 +151,7 @@ class MeasureInput(Object):
 @tvm._ffi.register_object("auto_scheduler.BuildResult")
 class BuildResult(Object):
     """Store the result of a build.
+
     Parameters
     ----------
     filename : Optional[str]
@@ -170,6 +178,7 @@ class BuildResult(Object):
 @tvm._ffi.register_object("auto_scheduler.MeasureResult")
 class MeasureResult(Object):
     """Store the results of a measurement.
+
     Parameters
     ----------
     costs : List[float]
@@ -197,12 +206,14 @@ def recover_measure_input(inp, rebuild_state=False):
     Recover a deserialized MeasureInput by rebuilding the missing fields.
     1. Rebuid the compute_dag in inp.task
     2. (Optional) Rebuild the stages in inp.state
+
     Parameters
     ----------
     inp: MeasureInput
         The deserialized MeasureInput
     rebuild_state: bool = False
         Whether rebuild the stages in MeasureInput.State
+
     Returns
     -------
     new_input: MeasureInput
@@ -237,12 +248,14 @@ class ProgramBuilder(Object):
 
     def build(self, measure_inputs, verbose=1):
         """Build programs and return results.
+
         Parameters
         ----------
         measure_inputs : List[MeasureInput]
             A List of MeasureInput.
         verbose: int = 1
             Verbosity level. 0 for silent, 1 to output information during program building.
+
         Returns
         -------
         res : List[BuildResult]
@@ -256,6 +269,7 @@ class ProgramRunner(Object):
 
     def run(self, measure_inputs, build_results, verbose=1):
         """Run measurement and return results.
+
         Parameters
         ----------
         measure_inputs : List[MeasureInput]
@@ -264,6 +278,7 @@ class ProgramRunner(Object):
             A List of BuildResult to be ran.
         verbose: int = 1
             Verbosity level. 0 for silent, 1 to output information during program running.
+
         Returns
         -------
         res : List[MeasureResult]
@@ -276,6 +291,7 @@ class ProgramMeasurer(Object):
     """
     Measurer that measures the time costs of tvm programs
     This class combines ProgramBuilder and ProgramRunner, and provides a simpler API.
+
     Parameters
     ----------
     builder : ProgramBuilder
@@ -300,6 +316,7 @@ class ProgramMeasurer(Object):
 @tvm._ffi.register_object("auto_scheduler.LocalBuilder")
 class LocalBuilder(ProgramBuilder):
     """LocalBuilder use local CPU cores to build programs in parallel.
+
     Parameters
     ----------
     timeout : int = 15
@@ -334,6 +351,7 @@ class LocalBuilder(ProgramBuilder):
 @tvm._ffi.register_object("auto_scheduler.LocalRunner")
 class LocalRunner(ProgramRunner):
     """LocalRunner that uses local CPU/GPU to measures the time cost of programs.
+
     Parameters
     ----------
     timeout : int = 10
@@ -394,6 +412,7 @@ class RPCRunner(ProgramRunner):
     """RPCRunner that uses RPC call to measures the time cost of programs on remote devices.
     Or sometime we may need to use RPC even in local running to insulate the thread environment.
     (e.g. running CUDA programs)
+
     Parameters
     ----------
     key : str
@@ -478,6 +497,7 @@ class RPCRunner(ProgramRunner):
 class LocalRPCMeasureContext:
     """A context wrapper for running RPCRunner locally.
     This will launch a local RPC Tracker and local RPC Server.
+
     Parameters
     ----------
     priority : int = 1
@@ -630,10 +650,12 @@ def _timed_func(inp_serialized, build_func, verbose):
 def local_build_worker(args):
     """
     Build function of LocalBuilder to be ran in the Builder thread pool.
+
     Parameters
     ----------
     args: Tuple[MeasureInput, str, int, int]
         inputs, build-func, time, verbose args passed to local_builder_build
+
     Returns
     -------
     res : BuildResult
@@ -662,6 +684,7 @@ def local_build_worker(args):
 def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbose=1):
     """
     Build function of LocalBuilder to build the MeasureInputs to runnable modules.
+
     Parameters
     ----------
     inputs : List[MeasureInput]
@@ -675,6 +698,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         The name of build function to process the built module.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program building.
+
     Returns
     -------
     res : List[BuildResult]
@@ -710,8 +734,10 @@ TASK_INPUT_CHECK_FUNC_REGISTRY = {}
 
 def register_task_input_check_func(func_name, f=None, override=False):
     """Register a function that checks the input buffer map.
+
     The input function should take a list of Tensor wich indicate the Input/output Tensor of a TVM
     subgraph and return a Map from the input Tensor to its buffer name.
+
     Parameters
     ----------
     func_name : Union[Function, str]
@@ -720,9 +746,11 @@ def register_task_input_check_func(func_name, f=None, override=False):
         The check function to be registered.
     override : boolean = False
         Whether to override existing entry.
+
     Examples
     --------
     .. code-block:: python
+
       @auto_scheduler.register_task_input_check_func
       def check_task_input_by_placeholder_name(args : List[Tensor]):
           tensor_input_map = {}
@@ -755,14 +783,17 @@ def register_task_input_check_func(func_name, f=None, override=False):
 def prepare_input_map(args):
     """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
     to a specific buffer name in the global buffer map.
+
     Parameters
     ----------
     args : List[Tensor]
         Input/output Tensor of a TVM subgraph.
+
     Returns
     -------
     Dict[Tensor, str] :
         Map from the input Tensor to its buffer name.
+
     Notes
     -----
     The buffer name is specially designed, and these buffer should be provided in
@@ -895,6 +926,7 @@ def local_run(
 ):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
+
     Parameters
     ----------
     inputs : List[MeasureInput]
@@ -930,6 +962,7 @@ def local_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+
     Returns
     -------
     res : List[MeasureResult]
@@ -1102,10 +1135,12 @@ def _timed_rpc_run(
 
 def _rpc_run_worker(args):
     """Function to be ran in the RPCRunner thread pool.
+
     Parameters
     ----------
     args : Tuple[MeasureInput, BuildResult, ...]
         Single input and build result plus the rest of the arguments to `rpc_runner_run`.
+
     Returns
     -------
     res : MeasureResult
@@ -1164,6 +1199,7 @@ def rpc_runner_run(
     verbose=1,
 ):
     """Run function of RPCRunner to test the performance of the input BuildResults.
+
     Parameters
     ----------
     inputs : List[MeasureInput]
@@ -1209,6 +1245,7 @@ def rpc_runner_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+
     Returns
     -------
     res : List[MeasureResult]
