@@ -107,8 +107,13 @@ def generate_generic_quantized_conv2d(
         else:
             padding.append(pad_w)
 
-    # padded_data = relay.pad(data, tuple(padding), pad_value=data_qparams.zero_point)
-    padded_data = relay.nn.pad(data, tuple(padding), pad_value=-45)
+    padded_data = relay.nn.pad(
+        data,
+        tuple(padding),
+        pad_value=utils.cast_all(
+            internal_accumulation_dtype, data_qparams.zero_point
+        ),  # relay.cast_like(data_qparams.zero_point, data)
+    )
 
     first_term = relay.nn.conv2d(
         padded_data,
@@ -269,19 +274,26 @@ def example_conv_no_zp(in_channels, out_channels, img_height, img_width, groups=
 
 
 if __name__ == "__main__":
-    example_conv_no_zp(10, 20, 5, 5, groups=2)
+    # example_conv_no_zp(10, 20, 5, 5, groups=1)
     # op_res = intrp.evaluate(f)(np.int8(120), np.int16(10))
     # print("*" * 10, op_res)
-
-"""
-    data = relay.Var("data")
+    data_shape = [1, 2, 3, 3]
+    data = relay.var("data", shape=data_shape, dtype="float32")
     pad_value = relay.Var("pad_value")
-    out = relay.nn.pad(data, ((0, 0), (0, 0), (1, 1), (1, 1)), pad_value=pad_value)
-    f = relay.Function([data, pad_value], out)
+    weight = relay.Var("weight")
+    pad_data = relay.nn.pad(data, ((0, 0), (0, 0), (1, 1), (1, 1)), pad_value=pad_value)
+    out = relay.nn.conv2d(pad_data, weight)
+    f = relay.Function([data, weight, pad_value], out)
     print(f)
+
+    relay.dyn.nn
 
     mod = tvm.ir.IRModule.from_expr(f)
     intrp = relay.create_executor(kind="debug", mod=mod)
-    result = intrp.evaluate(f)(np.random.uniform(-10, 10, size=(1, 2, 3, 3)), 0).asnumpy()
+
+    data_arr = np.random.uniform(-10, 10, size=data_shape).astype("float32")
+    weight_arr = np.random.uniform(-10, 10, size=(5, 2, 3, 3)).astype("float32")
+    pad_value = 2
+    result = intrp.evaluate(f)(data_arr, weight_arr, pad_value).asnumpy()
     print(result)
-"""
+    print(result.shape)
