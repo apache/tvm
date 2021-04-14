@@ -339,22 +339,25 @@ def test_left_shift_negative():
         shift_amount = left_shift_op.args[1].data.asnumpy()
         assert shift_amount >= 0, "Shift amount must be non-negative."
 
+
 def test_dense_conv2d_rewrite():
     n, c, h, w = 1, 16, 64, 64
-    data     = relay.var("data", relay.TensorType((n, c, h, w)))
-    inp      = relay.var("inp", relay.TensorType((n, c * h * w)))
+    data = relay.var("data", relay.TensorType((n, c, h, w)))
+    inp = relay.var("inp", relay.TensorType((n, c * h * w)))
     weight_T = relay.const(np.random.random((n, c * h * w)), dtype='float32')
-    bias     = relay.const(np.random.random((n,)), dtype='float32')
-    conv_w   = relay.const(np.random.random((16, 16, 3, 3)), dtype='float32')
+    bias = relay.const(np.random.random((n,)), dtype='float32')
+    conv_w = relay.const(np.random.random((16, 16, 3, 3)), dtype='float32')
 
-    dense_o  = relay.nn.dense(inp, weight_T)
+    dense_o = relay.nn.dense(inp, weight_T)
     linear_o = relay.nn.bias_add(dense_o, bias)
     conv2d_o = relay.nn.conv2d(data, conv_w, kernel_size=(3, 3), padding=(1, 1), channels=16)
     result = relay.Tuple((linear_o, conv2d_o))
 
     mod = tvm.IRModule.from_expr(result)
     with tvm.transform.PassContext(opt_level=3):
-        with relay.quantize.qconfig(calibrate_mode="global_scale", global_scale=8.0, skip_dense_layer=False):
+        with relay.quantize.qconfig(
+            calibrate_mode="global_scale", global_scale=8.0, skip_dense_layer=False
+        ):
             qnn_mod = relay.quantize.quantize(mod)
 
     def _check_dense(node):
@@ -369,6 +372,7 @@ def test_dense_conv2d_rewrite():
                 assert node.checked_type.dtype == "float32"
 
     relay.analysis.post_order_visit(qnn_mod["main"], _check_dense)
+
 
 if __name__ == "__main__":
     test_mul_rewrite()
