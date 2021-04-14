@@ -2185,25 +2185,6 @@ Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  if (axis.size() == 0) {
-    return Array<Array<Layout>>{{inferred_input}, {inferred_output}};
-  }
-
-  auto kept = [&](size_t i, Array<Integer> axis) {
-    auto ndim = shape.size();
-    for (const auto& e : axis) {
-      int64_t axis_val = e->value;
-      if (axis_val < 0) {
-        axis_val += ndim;
-      }
-
-      if (static_cast<int64_t>(i) == axis_val) {
-        return false;
-      }
-    }
-    return true;
-  };
-
   // If new_in_layouts are defined, this code tries to modify the layout
   if (new_in_layouts.defined() && old_in_layouts.defined()) {
     Array<Integer> new_axis;
@@ -2218,7 +2199,21 @@ Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
   // Infer output layout
   Array<tir::IterVar> kept_axes;
   for (size_t i = 0; i < inferred_input.ndim(); i++) {
-    if (kept(i, axis)) {
+    bool is_dim_kept = true;
+
+    // Check whether the dim should be kept
+    for (const auto& e : axis) {
+      int64_t axis_val = e->value;
+      if (axis_val < 0) {
+        axis_val += inferred_input.ndim();
+      }
+      if (static_cast<int64_t>(i) == axis_val) {
+        is_dim_kept = false;
+        break;
+      }
+    }
+
+    if (is_dim_kept) {
       kept_axes.push_back(inferred_input->axes[i]);
     }
   }

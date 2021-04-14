@@ -1624,8 +1624,43 @@ def test_conv_squeeze_convert_layout():
 
         assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
+    def _test_conv_squeeze_convert_layout3():
+        # squeeze axis is empty
+        def before():
+            x = relay.var("x", shape=(1, 1, 1, 2048))
+            weight = relay.var("weight", shape=(1, 1, 2048, 1000))
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=1000,
+                kernel_size=(1, 1),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+            y = relay.nn.relu(y)
+            y = relay.squeeze(y, axis=[])
+            return relay.Function(analysis.free_vars(y), y)
+
+        def expected():
+            x = relay.var("x", shape=(1, 1, 1, 2048))
+            weight = relay.var("weight", shape=(1, 1, 2048, 1000))
+            weight = relay.layout_transform(weight, "HWIO", "OIHW")
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            y = relay.nn.conv2d(x, weight, channels=1000, kernel_size=(1, 1))
+            y = relay.nn.relu(y)
+            y = relay.squeeze(y, axis=[])
+            y = relay.layout_transform(y, "NCHW", "NHWC")
+            return relay.Function(analysis.free_vars(y), y)
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
     _test_conv_squeeze_convert_layout1()
     _test_conv_squeeze_convert_layout2()
+    _test_conv_squeeze_convert_layout3()
 
 
 def test_conv_reduce_convert_layout():
