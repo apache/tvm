@@ -185,11 +185,7 @@ Expr MakePad(Expr data, Array<Array<Integer>> pad_width, Expr pad_value, String 
   return Call(op, {data, pad_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.pad")
-    .set_body_typed([](Expr data, Array<Array<Integer>> pad_width, Expr pad_value,
-                       String pad_mode) -> Expr {
-      return MakePad(data, pad_width, pad_value, pad_mode);
-    });
+TVM_REGISTER_GLOBAL("relay.op.nn._make.pad").set_body_typed(MakePad);
 
 RELAY_REGISTER_OP("nn.pad")
     .describe(R"code(Pad for n-D tensor.
