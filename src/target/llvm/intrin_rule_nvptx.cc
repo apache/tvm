@@ -58,7 +58,7 @@ inline void DispatchPureExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
 }
 
 namespace llvm {
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));

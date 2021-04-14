@@ -22,11 +22,8 @@
  * \brief The global registry of packed function.
  */
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/op_attr_types.h>
 
 #include <array>
 #include <memory>

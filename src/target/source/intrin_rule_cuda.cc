@@ -30,7 +30,8 @@ namespace tvm {
 namespace codegen {
 namespace intrin {
 // Add float suffix to the intrinsics, CUDA fast math.
-using namespace tir;
+using tir::FLowerIntrinsic;
+
 struct CUDAMath {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_float()) {

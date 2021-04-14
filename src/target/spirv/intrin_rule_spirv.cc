@@ -29,9 +29,7 @@
 namespace tvm {
 namespace codegen {
 namespace spirv {
-
-using namespace runtime;
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 // num_signature means number of arguments used to query signature
 

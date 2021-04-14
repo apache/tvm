@@ -94,7 +94,7 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
 }
 
 namespace llvm {
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 // dummy because we don't have the activemask
 TVM_REGISTER_OP("tir.tvm_warp_activemask")

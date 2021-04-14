@@ -37,6 +37,7 @@ namespace tvm {
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using tir::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
@@ -128,12 +129,12 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
                        int can_override = 0) {
       if (Op::HasAttrMap(target + ".FLowerIntrinsic") &&
           OpRegistry::Global()->Get(name) != nullptr &&
-          Op::GetAttrMap<tvm::tir::FLowerIntrinsic>(target + ".FLowerIntrinsic")
+          Op::GetAttrMap<FLowerIntrinsic>(target + ".FLowerIntrinsic")
               .count(Op::Get(name))) {
         ICHECK(can_override) << "Op " << name << "'s intrinsic lowering function " << target
                              << ".FlowerIntrinsic is already registered";
       }
-      tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<tvm::tir::FLowerIntrinsic>(
+      tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<FLowerIntrinsic>(
           target + ".FLowerIntrinsic", *static_cast<tvm::runtime::PackedFunc*>(f), plevel);
     });
 

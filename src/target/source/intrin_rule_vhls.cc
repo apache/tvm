@@ -28,7 +28,7 @@
 namespace tvm {
 namespace codegen {
 namespace intrin {
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("sdaccel.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));

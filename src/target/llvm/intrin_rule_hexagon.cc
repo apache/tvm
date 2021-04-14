@@ -26,7 +26,7 @@
 namespace tvm {
 namespace codegen {
 namespace llvm {
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>(
     "hexagon.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>));

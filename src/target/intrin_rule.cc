@@ -29,7 +29,7 @@
 namespace tvm {
 namespace codegen {
 namespace intrin {
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      PackedFunc(DispatchPureExtern<FloatSuffix>));

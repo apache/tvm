@@ -30,7 +30,7 @@
 namespace tvm {
 namespace codegen {
 namespace llvm {
-using namespace tir;
+using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.prefetch")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
