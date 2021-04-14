@@ -264,7 +264,7 @@ def any(*args, span=None):
 
 
 def all(*args, span=None):
-    """Create a new experssion of the intersection of all conditions in the
+    """Create a new expression of the intersection of all conditions in the
       arguments
 
     Parameters
