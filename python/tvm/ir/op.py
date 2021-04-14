@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
-import ctypes
 import tvm._ffi
 from tvm._ffi.base import _FFI_MODE
 from .expr import RelayExpr
