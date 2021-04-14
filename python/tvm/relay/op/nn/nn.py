@@ -1606,15 +1606,13 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     result : tvm.relay.Expr
         The computed result.
     """
-    if isinstance(pad_value, Constant):
-        pad_value = pad_value.data.asnumpy().item()
     if isinstance(pad_width, Constant):
         pad_width = [list(i) for i in pad_width.data.asnumpy()]
+    if not isinstance(pad_value, Expr):
+        pad_value = const(pad_value)
     if isinstance(pad_width, Expr):
         if not isinstance(pad_width, Expr):
             pad_width = const(list(pad_width))
-        if not isinstance(pad_value, Expr):
-            pad_value = const(pad_value)
         return _dyn_make.pad(data, pad_width, pad_value, pad_mode)
     return _make.pad(data, pad_width, pad_value, pad_mode)
 
