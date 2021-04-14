@@ -236,6 +236,20 @@ def test_eliminate_identity():
         check(id_op(const, x), id_op(op_like(x), x))
 
 
+def test_simplify_cast():
+    dtype = "int32"
+    data = relay.var("data", shape=(3, 4, 5), dtype=dtype)
+    expr1 = relay.cast(data, dtype)
+    dtype_like = relay.var("dtype_like", shape=(2, 2, 2), dtype=dtype)
+    expr2 = relay.cast_like(data, dtype_like)
+
+    expected = run_infer_type(data)
+    actual1 = run_opt_pass(expr1, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual1, expected)
+    actual2 = run_opt_pass(expr2, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual2, expected)
+
+
 def test_concretize_reshape_like():
     data = relay.var("data", shape=(2, 3, 4), dtype="float32")
     shape_like = relay.var("shape_like", shape=(6, 2, 2), dtype="float32")
@@ -272,6 +286,17 @@ def test_concretize_ones_like():
     expr = relay.ones_like(shape_like)
 
     expected = run_infer_type(relay.ones((3, 4, 5), dtype))
+    actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
+    assert tvm.ir.structural_equal(actual, expected)
+
+
+def test_concretize_full_like():
+    dtype = "int32"
+    shape_like = relay.var("shape_like", shape=(3, 4, 5), dtype=dtype)
+    fill_value = relay.var("fill", relay.TensorType((), "float32"))
+    expr = relay.full_like(shape_like, fill_value)
+
+    expected = run_infer_type(relay.full(fill_value, (3, 4, 5), dtype))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
     assert tvm.ir.structural_equal(actual, expected)
 
