@@ -81,7 +81,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
             ib.scope_attr(bx, "thread_extent", batch_size)
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
-                    reduction[bx] = 0
+                    reduction[bx] = cast(identity_value, out_dtype)
     with ib.else_scope():
         with ib.new_scope():
             nthread_tx = max_threads
@@ -393,7 +393,7 @@ def exclusive_scan(
                 lambda ins, outs: exclusive_scan_ir(
                     ins[0], outs[0], outs[1], binop=binop, identity_value=identity_value
                 ),
-                dtype=[data.dtype, output_dtype],
+                dtype=[output_dtype, output_dtype],
                 in_buffers=[data_buf],
                 name="exclusive_scan",
                 tag="exclusive_scan_gpu",

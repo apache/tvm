@@ -20,7 +20,18 @@ import tvm
 from tvm import te
 
 from tvm.te import hybrid
-from ..sort import argsort
+from tvm.tir import if_then_else
+
+from ..sort import sort, argsort
+from ..math import cast
+from ..transform import reshape
+from .. import reduction
+from ..scan import cumsum
+from .nms_util import (
+    binary_search,
+    collect_selected_indices,
+    run_all_class_nms,
+)
 
 
 @hybrid.script
@@ -597,3 +608,183 @@ def non_max_suppression(
             num_anchors=num_anchors,
         )
     return out
+
+
+def _nms_loop(
+    ib,
+    batch_size,
+    top_k,
+    iou_threshold,
+    max_output_size,
+    valid_count,
+    on_new_valid_box_func,
+    on_new_invalidated_box_func,
+    needs_bbox_check_func,
+    calc_overlap_func,
+    out_scores,
+    num_valid_boxes,
+):
+    def nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local):
+        # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
+        on_new_valid_box_func(ib, 0, num_valid_boxes_local[0], i, j)
+        num_valid_boxes_local[0] += 1
+
+        num_boxes_to_check = nkeep - (j + 1)
+
+        with ib.for_range(0, num_boxes_to_check, name="_k", kind="parallel") as _k:
+            k = j + 1 + _k
+
+            with ib.if_scope(
+                tvm.tir.all(
+                    k < nkeep,
+                    out_scores[i, k] > 0,  # is the box k still valid?
+                    needs_bbox_check_func(i, j, k),
+                )
+            ):
+                iou = calc_overlap_func(i, j, k)
+
+                with ib.if_scope(iou >= iou_threshold):
+                    # invalidate the box k
+                    out_scores[i, k] = -1.0
+                    on_new_invalidated_box_func(i, k)
+
+    with ib.for_range(0, batch_size, name="i") as i:
+        nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
+        max_output_size = if_then_else(max_output_size > 0, max_output_size, nkeep)
+
+        with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
+            num_valid_boxes_local = ib.allocate(
+                "int32", (1,), name="num_valid_boxes_local", scope="local"
+            )
+            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+            num_valid_boxes_local[0] = 0
+            box_idx[0] = 0
+
+            # Apply nms
+            # No need to do more iteration if we have already reached max_output_size boxes
+            with ib.while_loop(
+                tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+            ):
+                # Proceed to the inner loop if the box with id box_idx is still valid
+                with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+                    nms_inner_loop(ib, i, box_idx[0], nkeep, num_valid_boxes_local)
+                box_idx[0] += 1
+
+            num_valid_boxes[i] = num_valid_boxes_local[0]
+
+        with ib.else_scope():
+            num_valid_boxes[i] = 0
+
+    return ib.get()
+
+
+def _get_valid_box_count(scores, score_threshold):
+    batch_classes, num_boxes = scores.shape
+
+    def searchsorted_ir(scores, valid_count):
+        ib = tvm.tir.ir_builder.create()
+        scores = ib.buffer_ptr(scores)
+        valid_count = ib.buffer_ptr(valid_count)
+
+        with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
+            binary_search(ib, i, num_boxes, scores, score_threshold, valid_count)
+
+        return ib.get()
+
+    scores_buf = tvm.tir.decl_buffer(scores.shape, scores.dtype, "scores_buf", data_alignment=8)
+
+    return te.extern(
+        [(batch_classes,)],
+        [scores],
+        lambda ins, outs: searchsorted_ir(ins[0], outs[0]),
+        dtype=["int32"],
+        in_buffers=[scores_buf],
+        name="searchsorted",
+        tag="searchsorted",
+    )
+
+
+def _collect_selected_indices_ir(num_class, selected_indices, num_detections, row_offsets, out):
+    batch_classes, _ = selected_indices.shape
+
+    ib = tvm.tir.ir_builder.create()
+
+    selected_indices = ib.buffer_ptr(selected_indices)
+    num_detections = ib.buffer_ptr(num_detections)
+    row_offsets = ib.buffer_ptr(row_offsets)
+    out = ib.buffer_ptr(out)
+
+    with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
+        i = cast(i, "int64")
+        batch_id = i // num_class
+        class_id = i % num_class
+
+        with ib.for_range(0, num_detections[i], name="j") as j:
+            out[row_offsets[i] + j, 0] = batch_id
+            out[row_offsets[i] + j, 1] = class_id
+            out[row_offsets[i] + j, 2] = cast(selected_indices[i, j], "int64")
+
+    return ib.get()
+
+
+def all_class_non_max_suppression(
+    boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+):
+    """Non-maximum suppression operator for object detection, corresponding to ONNX
+    NonMaxSuppression and TensorFlow combined_non_max_suppression.
+    NMS is performed for each class separately.
+
+    Parameters
+    ----------
+    boxes : tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, 4)
+
+    scores: tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_classes, num_boxes)
+
+    max_output_boxes_per_class : int or tvm.te.Tensor, optional
+        The maxinum number of output selected boxes per class
+
+    iou_threshold : float or tvm.te.Tensor, optionaIl
+        IoU test threshold
+
+    score_threshold : float or tvm.te.Tensor, optional
+        Score threshold to filter out low score boxes early
+
+    Returns
+    -------
+    out : [tvm.te.Tensor, tvm.te.Tensor]
+        The output is two tensors, the first is `indices` of size
+        `(batch_size * num_class* num_boxes , 3)` and the second is a scalar tensor
+        `num_total_detection` of shape `(1,)` representing the total number of selected
+        boxes. Rows of `indices` are ordered such that selected boxes from batch 0, class 0 come
+        first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
+        `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
+        rows are valid.
+    """
+    batch, num_class, num_boxes = scores.shape
+    scores = reshape(scores, (batch * num_class, num_boxes))
+
+    sorted_scores = sort(scores, axis=1, is_ascend=False)
+    sorted_indices = argsort(scores, axis=1, is_ascend=False, dtype="int32")
+    valid_count = _get_valid_box_count(sorted_scores, score_threshold)
+
+    selected_indices, num_detections = run_all_class_nms(
+        boxes,
+        sorted_scores,
+        sorted_indices,
+        valid_count,
+        max_output_boxes_per_class,
+        iou_threshold,
+        _nms_loop,
+    )
+
+    row_offsets = cumsum(num_detections, exclusive=True, dtype="int64")
+
+    num_total_detections = reduction.sum(cast(num_detections, "int64"), axis=1)
+
+    selected_indices = collect_selected_indices(
+        num_class, selected_indices, num_detections, row_offsets, _collect_selected_indices_ir
+    )
+
+    return [selected_indices, num_total_detections]
