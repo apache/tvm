@@ -74,6 +74,29 @@ def test_batch_flatten_rewrite():
     relay.analysis.post_order_visit(qmod["main"], _check_batch_flatten)
 
 
+def test_batch_matmul_rewrite():
+    data = relay.var("data", shape=(1, 4, 16, 16))
+    data2 = relay.sigmoid(relay.var("data", shape=(4, 16, 64)))
+    out = relay.nn.conv2d(data, relay.var("weight"), kernel_size=(3, 3), padding=(1, 1), channels=8)
+
+    out = relay.nn.batch_flatten(out)
+    out = relay.reshape(out, [1, 32, 64])
+    out = relay.nn.batch_matmul(out, data2)
+
+    qmod = quantize_and_build(out)
+
+    def _check_batch_matmul(node):
+        if isinstance(node, Call):
+
+            if node.op.name in ["nn.batch_matmul", "nn.conv2d"]:
+                assert node.checked_type.dtype == "int32"
+            elif node.op.name == "nn.batch_flatten":
+                assert node.checked_type.dtype == "int8"
+
+    # check if batch_matmul is quantized
+    relay.analysis.post_order_visit(qmod["main"], _check_batch_matmul)
+
+
 def get_calibration_dataset(mod, input_name):
     dataset = []
     input_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
@@ -103,6 +126,13 @@ def test_calibrate_memory_bound():
 
     num_cpu = multiprocessing.cpu_count()
     with relay.quantize.qconfig(calibrate_mode="kl_divergence", calibrate_chunk_by=num_cpu):
+        relay.quantize.quantize(mod, params, dataset)
+
+
+def test_calibrate_percentile():
+    mod, params = testing.synthetic.get_workload()
+    dataset = get_calibration_dataset(mod, "data")
+    with relay.quantize.qconfig(calibrate_mode="percentile"):
         relay.quantize.quantize(mod, params, dataset)
 
 
@@ -343,9 +373,11 @@ def test_left_shift_negative():
 if __name__ == "__main__":
     test_mul_rewrite()
     test_batch_flatten_rewrite()
+    test_batch_matmul_rewrite()
     test_calibrate_target(False)
     test_calibrate_target(True)
     test_calibrate_memory_bound()
+    test_calibrate_percentile()
 
     test_add_partition()
     test_conv2d_partition()
