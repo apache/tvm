@@ -58,7 +58,7 @@ Expr MakeAutoSchedulerLayoutTransform(Expr data, String src_layout, String dst_l
 
 Expr MakeOnes(Array<Integer> shape, DataType dtype);
 
-Expr MakePad(Expr data, Array<Array<Integer>> pad_width, double pad_value, String pad_mode);
+Expr MakePad(Expr data, Array<Array<Integer>> pad_width, Expr pad_value, String pad_mode);
 
 Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, String op_name);
 

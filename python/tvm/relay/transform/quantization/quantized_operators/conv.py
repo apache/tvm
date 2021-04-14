@@ -283,7 +283,7 @@ if __name__ == "__main__":
     weight = relay.Var("weight")
     pad_data = relay.nn.pad(data, ((0, 0), (0, 0), (1, 1), (1, 1)), pad_value=pad_value)
     out = relay.nn.conv2d(pad_data, weight)
-    f = relay.Function([data, weight, pad_value], out)
+    f = relay.Function([data, weight, pad_value], pad_data)
     print(f)
 
     relay.dyn.nn

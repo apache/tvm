@@ -18,10 +18,10 @@
 """Neural network operations."""
 from tvm.relay import expr
 
-from . import _make
+from ...expr import Constant, Expr, const
 from ..dyn.nn import _make as _dyn_make
+from . import _make
 from .utils import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
-from ...expr import const, Expr, Constant
 
 
 def conv1d(
@@ -1610,7 +1610,7 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
         pad_value = pad_value.data.asnumpy().item()
     if isinstance(pad_width, Constant):
         pad_width = [list(i) for i in pad_width.data.asnumpy()]
-    if isinstance(pad_width, Expr) or (isinstance(pad_value, Expr)):
+    if isinstance(pad_width, Expr):
         if not isinstance(pad_width, Expr):
             pad_width = const(list(pad_width))
         if not isinstance(pad_value, Expr):

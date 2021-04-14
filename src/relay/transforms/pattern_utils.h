@@ -676,13 +676,20 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
                                      count_include_pad, "nn.avg_pool2d");
 }
 
-static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, Expr pad_value,
                        std::string pad_mode) {
   Array<Array<Integer>> pad_width_int;
   for (size_t i = 0; i < pad_width.size(); ++i) {
     pad_width_int.push_back(CheckConstantShapeArrayInteger(pad_width[i]));
   }
   return MakePad(data, pad_width_int, pad_value, pad_mode);
+}
+
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
+                       std::string pad_mode) {
+  std::vector<double> pad_value_vec = {pad_value};
+  Expr pad_value_relay = MakeConstantTensor(DataType::Float(64), {1}, pad_value_vec);
+  return Pad(data, pad_width, pad_value_relay, pad_mode);
 }
 
 static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }
