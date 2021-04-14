@@ -135,36 +135,7 @@ class StorageInfo : private ExprVisitor{
       }
     }
 
-    if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
-      if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
-        primitive_supports_texture_ = true;
-      }
-    }
-    else if (auto attrs = call->attrs.as<GlobalPool2DAttrs>()) {
-      if (attrs->layout == "NCHW4c") {
-        primitive_supports_texture_ = true;
-      }
-    }
-    else if (auto attrs = call->attrs.as<MaxPool2DAttrs>()) {
-      if (attrs->layout == "NCHW4c") {
-        primitive_supports_texture_ = true;
-      }
-    }
-    else if (auto attrs = call->attrs.as<AvgPool2DAttrs>()) {
-      if (attrs->layout == "NCHW4c") {
-        primitive_supports_texture_ = true;
-      }
-    } else if (call->attrs.as<ConcatenateAttrs>()) {
-      primitive_supports_texture_ = true;
-    } else if (auto attrs = call->attrs.as<LayoutTransformAttrs>()) {
-      // Enable if either the source or destination layout is packed with vector length == 4.
-      // Disabled for layout contraction due to a bug when writing from texture to global buffer.
-      // TODO(csullivan): Enable proper code generation when emitting non-coalesced writes
-      // of elements from a coalesced texture read.
-      if ((attrs->dst_layout.find("4") == 4) /* || (attrs->src_layout.find("4") == 4) */) {
-        primitive_supports_texture_ = true;
-      }
-    }
+    primitive_supports_texture_ = SupportsTextureStorage(call);
 
     for (auto& arg : call->args) {
       Visit(arg);
@@ -281,6 +252,39 @@ class StorageInfo : private ExprVisitor{
       }
     }
     return false;
+  }
+
+  bool SupportsTextureStorage(const CallNode* call) const {
+    bool supports_texture_storage = false;
+    if (auto attrs = call->attrs.as<Conv2DAttrs>()) {
+      if (attrs->data_layout == "NCHW4c" && attrs->kernel_layout == "OIHW4o") {
+        supports_texture_storage = true;
+      }
+    } else if (auto attrs = call->attrs.as<GlobalPool2DAttrs>()) {
+      if (attrs->layout == "NCHW4c") {
+        supports_texture_storage = true;
+      }
+    } else if (auto attrs = call->attrs.as<MaxPool2DAttrs>()) {
+      if (attrs->layout == "NCHW4c") {
+        supports_texture_storage = true;
+      }
+    } else if (auto attrs = call->attrs.as<AvgPool2DAttrs>()) {
+      if (attrs->layout == "NCHW4c") {
+        supports_texture_storage = true;
+      }
+    } else if (call->attrs.as<ConcatenateAttrs>()) {
+      supports_texture_storage = true;
+    } else if (auto attrs = call->attrs.as<LayoutTransformAttrs>()) {
+      // Enable if either the source or destination layout is packed with vector length == 4.
+      // Disabled for layout contraction due to a bug when writing from texture to global buffer.
+      // TODO(csullivan): Enable proper code generation when emitting non-coalesced writes
+      // of elements from a coalesced texture read.
+      if ((attrs->dst_layout.find("4") == 4) /* || (attrs->src_layout.find("4") == 4) */) {
+        supports_texture_storage = true;
+      }
+    }
+
+    return supports_texture_storage;
   }
 
   /*! \brief expr device mapping */
