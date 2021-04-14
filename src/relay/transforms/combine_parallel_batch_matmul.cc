@@ -57,15 +57,20 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     StructuralEqual eq;
+    const auto* attrs_a = a->attrs.as<BatchMatmulAttrs>();
+    const auto* attrs_b = b->attrs.as<BatchMatmulAttrs>();
+    ICHECK(attrs_a);
+    ICHECK(attrs_b);
     const auto* rhs_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* rhs_b = b->args[1]->type_as<TensorTypeNode>();
     const auto* restype_a = a->type_as<TensorTypeNode>();
     const auto* restype_b = b->type_as<TensorTypeNode>();
     // shape[2] is the contraction axis and automatically consistent
     // if it were valid batch_matmul ops
+
     auto res = eq(rhs_a->dtype, rhs_b->dtype) && eq(restype_a->dtype, restype_b->dtype) &&
                (rhs_a->shape.size() == 3) && (rhs_b->shape.size() == 3) &&
-               eq(rhs_a->shape[0], rhs_b->shape[0]);
+               eq(rhs_a->shape[0], rhs_b->shape[0]) && eq(attrs_a->out_dtype, attrs_b->out_dtype);
     return res;
   }
 
@@ -78,7 +83,10 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
       weights.push_back(call->args[1]);
     }
     Expr new_weight = MakeConcatenate(Tuple(weights), 1);
-    return Downcast<Call>(MakeBatchMatmul(data, new_weight));
+
+    const auto* origin_attrs = branches[0][0]->attrs.as<BatchMatmulAttrs>();
+    ICHECK(origin_attrs);
+    return Downcast<Call>(MakeBatchMatmul(data, new_weight, origin_attrs->out_dtype));
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }
