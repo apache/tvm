@@ -124,7 +124,7 @@ def get_quantization_parameters(
 
     scale = (rmax - rmin) / (2 ** nbits - 1)
     if symmetric:
-        zero_point = 0
+        zero_point = 2 ** (nbits - 1)
     else:
         # This zero point will be based on an unsigned version of nbits, we'll adjust later
         zero_point = abs(rmin // scale)
