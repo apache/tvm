@@ -1,7 +1,9 @@
 from typing import *
 
 import numpy as np
+import torch
 import tvm
+from torch import nn
 from tvm import relay
 from tvm.relay.transform.quantization.quantized_operators import utils
 
@@ -123,14 +125,11 @@ def generate_generic_quantized_conv2d(
         out_dtype=internal_accumulation_dtype,
     )
 
-    blur_kernel = weight * relay.const(0, dtype=internal_accumulation_dtype) + relay.const(
-        1, dtype=internal_accumulation_dtype
-    )
     # TODO: extend dilations + groups to avg_pool2d operator
     second_term = (
         relay.nn.conv2d(
             padded_data,
-            blur_kernel,
+            relay.ones_like(weight),
             strides=strides,
             padding=(0, 0),
             dilation=dilation,
@@ -192,7 +191,7 @@ def generate_generic_quantized_conv2d(
     return output_term, output_qparams
 
 
-def example_conv_no_zp(in_channels, out_channels, img_height, img_width, seed=42):
+def example_conv_no_zp(in_channels, out_channels, img_height, img_width, groups=2, seed=42):
     np.random.seed(seed=seed)
     kernel_size = 3
     padding = 1
@@ -202,7 +201,7 @@ def example_conv_no_zp(in_channels, out_channels, img_height, img_width, seed=42
         "float32"
     )
     weight_arr = np.random.uniform(
-        -5, 10, size=(out_channels, in_channels, kernel_size, kernel_size)
+        -5, 10, size=(out_channels, in_channels // groups, kernel_size, kernel_size)
     ).astype("float32")
 
     # bias_arr = np.random.uniform(-100, 100, size=(n, out_units)).astype("float32")
@@ -221,6 +220,7 @@ def example_conv_no_zp(in_channels, out_channels, img_height, img_width, seed=42
         padding=(padding, padding),
         out_channels=out_channels,
         in_channels=in_channels,
+        groups=2,
     )
 
     f = relay.Function(
@@ -253,9 +253,6 @@ def example_conv_no_zp(in_channels, out_channels, img_height, img_width, seed=42
         actual_weight_qparams.zero_point,
     ).asnumpy()
 
-    import torch
-    from torch import nn
-
     print("Quantized result:")
     q_result = torch.Tensor(result)
     print(q_result)
@@ -263,7 +260,7 @@ def example_conv_no_zp(in_channels, out_channels, img_height, img_width, seed=42
 
     print("FP32 result:")
     fp32_result = nn.functional.conv2d(
-        torch.Tensor(data_arr), torch.Tensor(weight_arr), padding=(padding, padding)
+        torch.Tensor(data_arr), torch.Tensor(weight_arr), padding=(padding, padding), groups=groups
     )
     print(fp32_result)
     print()
@@ -272,7 +269,7 @@ def example_conv_no_zp(in_channels, out_channels, img_height, img_width, seed=42
 
 
 if __name__ == "__main__":
-    example_conv_no_zp(3, 5, 5, 5, 3)
+    example_conv_no_zp(10, 20, 5, 5, groups=2)
     # op_res = intrp.evaluate(f)(np.int8(120), np.int16(10))
     # print("*" * 10, op_res)
 
