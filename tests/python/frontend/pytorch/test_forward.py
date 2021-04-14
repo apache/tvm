@@ -225,7 +225,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
             if isinstance(op, tvm.ir.op.Op):
                 if op.name in expected_ops:
                     expected_ops.remove(op.name)
-                
+
         tvm.relay.analysis.post_order_visit(mod['main'].body, visit)
 
         if expected_ops:
