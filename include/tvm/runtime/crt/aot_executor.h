@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file include/tvm/runtime/crt/aot/tvm_executor.h
+ * \file include/tvm/runtime/crt/aot_executor.h
  * \brief TVM Executor for the Ahead-of-Time Runtime
  *
  * AOT models are described by the TVM model descriptor format
