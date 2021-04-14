@@ -45,6 +45,7 @@ if __name__ == "__main__":
 # run individual functions. Somewhere along the way, the imports are being
 # lost, so the server ends up not registering the functions.
 pytestmark = pytest.mark.skipif(
+    # Windows does not support fork so we can enable Windows for testing
     sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
     reason=(
         "pytest + multiprocessing spawn method causes tvm.register_func to "
