@@ -220,19 +220,17 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
 
-    if len(expected_ops) != 0:
-        found_op = dict.fromkeys(expected_ops, False)
+    if expected_ops:
         def visit(op):
             if isinstance(op, tvm.ir.op.Op):
                 if op.name in expected_ops:
-                    found_op[op.name] = True
+                    expected_ops.remove(op.name)
                 
         tvm.relay.analysis.post_order_visit(mod['main'].body, visit)
 
-        for op_name, is_found in enumerate(found_op):
-            if not is_found:
-                msg = "TVM Relay do not contain expected op [{}]"
-                raise AssertionError(msg.format(op_name))
+        if expected_ops:
+            msg = "TVM Relay do not contain expected ops {}"
+            raise AssertionError(msg.format(expected_ops))
 
     del model_name
     del baseline_model
