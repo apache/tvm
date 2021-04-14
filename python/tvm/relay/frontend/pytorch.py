@@ -1613,10 +1613,10 @@ class PyTorchOpConverter:
             trans_axes = list(range(len(b_shape)))
             trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
             input_1 = _op.reshape(_op.transpose(inputs_1, trans_axes), [-1, b_shape[-2]])
-        elif len(b_shape) == 1:
-            input_1 = _op.expand_dims(inputs_1, 0, 1)
         elif len(b_shape) == 2:
             input_1 = _op.transpose(inputs_1, axes=(1, 0))
+        elif len(b_shape) == 1:
+            input_1 = _op.expand_dims(inputs_1, 0, 1)
 
         out = _op.nn.dense(inputs_0, input_1)
 
