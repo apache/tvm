@@ -260,6 +260,8 @@ Install Contrib Libraries
    nnpack
 
 
+.. _install-from-source-cpp-tests:
+
 Enable C++ Tests
 ----------------
 We use `Google Test <https://github.com/google/googletest>`_ to drive the C++
@@ -271,7 +273,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd googletest
        mkdir build
        cd build
-       cmake ..
+       cmake -DMAKE_SHARED_LIBS=ON ..
        make
        sudo make install
 
