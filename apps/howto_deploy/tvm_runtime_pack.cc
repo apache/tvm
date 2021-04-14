@@ -37,7 +37,9 @@
  *  You need to remember to change it to point to the right file.
  *
  */
+#define TVM_USE_LIBBACKTRACE 0
 #include "../../src/runtime/c_runtime_api.cc"
+#include "../../src/runtime/container.cc"
 #include "../../src/runtime/cpu_device_api.cc"
 #include "../../src/runtime/file_utils.cc"
 #include "../../src/runtime/library_module.cc"
