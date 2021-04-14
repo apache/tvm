@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Executor factory modules."""
-import warnings
 from abc import abstractmethod
+
+from tvm import tir
 
 from ..._ffi.base import string_types
 from ..._ffi.registry import get_global_func
 from ...runtime import ndarray
-
-from tvm import tir
 
 
 class ExecutorFactoryModule:
