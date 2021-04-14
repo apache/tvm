@@ -338,7 +338,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
       }
 
       VulkanThreadEntry::ThreadLocal()
-          ->Stream(dev_from.device_id)
+          ->Stream(dev_to.device_id)
           ->Launch([&](VulkanStreamState* state) {
             // 0: barrier(host->transfer)
             VkMemoryBarrier barrier_info;
@@ -359,7 +359,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
           });
       // TODO(tulloch): should we instead make the staging buffer a property of the
       // Stream? This would allow us to elide synchronizations here.
-      VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
+      VulkanThreadEntry::ThreadLocal()->Stream(dev_to.device_id)->Synchronize();
     } else {
       LOG(FATAL) << "Expect copy from/to Vulkan or between Vulkan"
                  << ", from=" << from_dev_type << ", to=" << to_dev_type;
@@ -1060,15 +1060,20 @@ VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::
 
 VulkanHostVisibleBuffer* GetOrAllocate(
     int device_id, size_t size, VkBufferUsageFlags usage, uint32_t mem_type_index,
-    std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>* buffers_ptr) {
+    std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>* buffers_ptr,
+    bool sync_after_realloc = false) {
   auto& buffers = *buffers_ptr;
   if (!buffers[device_id]) {
     buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
   }
+
   auto& buf = *(buffers[device_id]);
   if (buf.device != nullptr && buf.size < size) {
     // free previous buffer
     DeleteHostVisibleBuffer(&buf);
+    if (sync_after_realloc) {
+      VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Synchronize();
+    }
   }
 
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
@@ -1096,7 +1101,7 @@ void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
   auto info = MakeBufferCreateInfo(vctx, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   auto mem_type_index = FindMemoryType(vctx, info, prop);
   GetOrAllocate(device_id, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, mem_type_index,
-                &uniform_buffers_);
+                &uniform_buffers_, true);
 }
 
 VulkanUniformBuffer* VulkanThreadEntry::GetUniformBuffer(int device_id, size_t size) {
