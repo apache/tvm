@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import time
 
 import tvm
 from tvm import runtime
@@ -827,6 +828,7 @@ def test_vm_rpc():
     # Server must use popen so it doesn't inherit the current process state. It
     # will crash otherwise.
     server = rpc.Server("localhost", port=9120, use_popen=True)
+    time.sleep(2)
     remote = rpc.connect(server.host, server.port, session_timeout=10)
 
     # Upload the serialized Executable.
