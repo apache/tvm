@@ -1628,7 +1628,9 @@ class PyTorchOpConverter:
             out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
         elif len(b_shape) > 2:
             out = _op.reshape(out, [a_shape[-2], -1, b_shape[-1]])
-            out = _op.reshape(_op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]])
+            out = _op.reshape(
+                _op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]]
+            )
 
         return out
 
