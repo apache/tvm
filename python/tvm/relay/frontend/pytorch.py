@@ -970,8 +970,9 @@ class PyTorchOpConverter:
         kernel_size = weight_shape[2:]
         use_bias = isinstance(bias, _expr.Expr)
 
-        # We are trying to invoke various relay operations through a single conv_op variable. However the function
-        # signatures for some operations have additional attributes so we pass these in along with the standard ones.
+        # We are trying to invoke various relay operations through a single conv_op variable.
+        # However the function signatures for some operations have additional attributes so we
+        # pass these in along with the standard ones.
         additional_arguments = dict()
 
         if use_transpose:
@@ -1016,7 +1017,6 @@ class PyTorchOpConverter:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
 
-
         conv_out = conv_op(
             data,
             weight,
@@ -1037,8 +1037,8 @@ class PyTorchOpConverter:
         else:
             res = conv_out
         if is_grouped_conv1d:
-            # Because we conducted grouped conv1d convolution through conv2d we must squeeze the output to get the
-            # correct result.
+            # Because we conducted grouped conv1d convolution through conv2d we must
+            # squeeze the output to get the correct result.
             res = _op.squeeze(res, axis=[2])
         return res
 

@@ -952,10 +952,17 @@ def test_forward_conv():
 @pytest.mark.parametrize("output_padding", [0, 1, 2], ids=lambda x: 'output_padding=' + str(x))
 @pytest.mark.parametrize("groups", [1], ids=lambda x: 'groups=' + str(x))
 @pytest.mark.parametrize("bias", [True, False], ids=lambda x: 'bias=' + str(x))
-def test_forward_conv_transpose(in_channels, out_channels, kernel_size, output_padding, bias, groups):
-    # Note we do not test with groups  > 1 because that is not supported in tvm for conv transpose operations
+def test_forward_conv_transpose(in_channels,
+                                out_channels,
+                                kernel_size,
+                                output_padding,
+                                bias,
+                                groups):
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
 
-    # output padding must be smaller than either stride or dilation so we opt to make the stride 1 + output padding
+    # Output padding must be smaller than either stride or dilation so we
+    # opt to make the stride 1 + output padding
     stride = output_padding + 1
 
     #Conv 3D Transpose Tests
