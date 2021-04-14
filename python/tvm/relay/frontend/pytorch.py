@@ -1624,7 +1624,7 @@ class PyTorchOpConverter:
         if len(b_shape) == 1:
             out = _op.squeeze(out, axis=[-1])
 
-        # Reshape a into a N dimensional tensor when its dim > 2
+        # Reshape output into a N dimensional tensor when a dim > 2
         if len(a_shape) > 2:
             out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
 
