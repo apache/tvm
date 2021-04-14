@@ -36,6 +36,7 @@ import multiprocessing
 import time
 import tvm._ffi
 import errno
+import tvm._ffi
 
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
