@@ -18,7 +18,7 @@
 """Unique operator"""
 from tvm import te, tir
 from ..te import hybrid
-from .cumsum import cumsum
+from .scan import cumsum
 from .sort import sort, argsort
 
 

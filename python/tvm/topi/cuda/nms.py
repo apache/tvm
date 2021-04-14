@@ -474,7 +474,9 @@ def nms_ir(
                     box_indices[i * num_anchors + j] = -1
 
         with ib.else_scope():
-            with ib.if_scope(j < valid_count[i]):
+            # Need to copy all boxes if not using return_indices
+            bounds = valid_count[i] if return_indices else num_anchors
+            with ib.if_scope(j < bounds):
                 src_offset = base_src_idx + j * box_data_length
 
                 with ib.for_range(0, 4, kind="unroll") as k:
@@ -869,10 +871,10 @@ def non_max_suppression(
         np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "cuda")
-        ctx = tvm.gpu(0)
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
+        dev = tvm.gpu(0)
+        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_valid_count = tvm.nd.array(np_valid_count, dev)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), dev)
         f(tvm_data, tvm_valid_count, tvm_out)
     """
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)

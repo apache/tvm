@@ -1231,10 +1231,10 @@ constexpr const char* storage_scope = "storage_scope";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
-/*! \brief The allocation context for global malloc in host. */
-constexpr const char* device_context_id = "device_context_id";
+/*! \brief The allocation device for global malloc in host. */
+constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
-constexpr const char* device_context_type = "device_context_type";
+constexpr const char* device_type = "device_type";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
@@ -1312,6 +1312,19 @@ constexpr const char* fragment_shape = "fragment_shape";
  */
 constexpr const char* fragment_layout = "fragment_layout";
 
+/*!
+ * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
+ */
+constexpr const char* hand_threaded = "hand_threaded";
+
+/*!
+ * \brief Mark whether the script-completer need to fill in missing access region
+ *        during script parsing.
+ * \note The result should be a integer mask with range [0, 4).
+ *       if (mask & 1) the read region should be detected,
+ *       if (mask & 2) the write region should be detected.
+ */
+constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared

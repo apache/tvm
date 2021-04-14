@@ -39,7 +39,7 @@ class AOCLWorkspace final : public OpenCLWorkspace {
  public:
   // override OpenCL device API
   void Init() final;
-  bool IsOpenCLDevice(TVMContext ctx) final;
+  bool IsOpenCLDevice(Device dev) final;
   OpenCLThreadEntry* GetThreadEntry() final;
   // get the global workspace
   static OpenCLWorkspace* Global();

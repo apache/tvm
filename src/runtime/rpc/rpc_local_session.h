@@ -54,7 +54,7 @@ class LocalSession : public RPCSession {
 
   void FreeHandle(void* handle, int type_code) override;
 
-  DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) override;
+  DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing = false) override;
 
   bool IsLocalSession() const override { return true; }
 

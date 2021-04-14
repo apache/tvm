@@ -26,12 +26,12 @@ from tvm.relay.testing import check_grad, run_infer_type
 import tvm.testing
 
 
-def verify_func(func, data, ref_res, target_ctx=tvm.testing.enabled_targets()):
+def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()):
     assert isinstance(data, list)
-    for target, ctx in target_ctx:
+    for target, dev in target_device:
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
             op_res = intrp.evaluate()(*data)
             if isinstance(op_res, tvm.runtime.container.ADT):
                 assert len(op_res) == len(

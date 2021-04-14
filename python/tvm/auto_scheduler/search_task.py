@@ -299,13 +299,18 @@ def get_task_input_buffer(workload_key, input_name):
         TASK_INPUT_BUFFER_TABLE[workload_key] = {}
     input_table = TASK_INPUT_BUFFER_TABLE[workload_key]
 
-    if input_name not in input_table.keys():
+    if input_name not in input_table:
         # Try to load buffer data from local file
         tensor_from_file = _try_load_buffer_from_file(input_name)
         if tensor_from_file:
             input_table[input_name] = tensor_from_file
 
-    if input_name in input_table.keys():
+    # Then check for the default table, the input names extracted from a relay model will be
+    # stored here for we're not able to get the workload_key at that time
+    if input_name not in input_table:
+        input_table = TASK_INPUT_BUFFER_TABLE["default"]
+
+    if input_name in input_table:
         return input_table[input_name]
 
     raise ValueError(
@@ -352,6 +357,8 @@ class SearchTask(Object):
     task_inputs_save_to_file : bool = False
         Whether to save the data to a local file as well. This can be reused to resume the last
         tuning process.
+    desc: str = ""
+        The description string of this task.
 
     Examples
     --------
@@ -382,6 +389,7 @@ class SearchTask(Object):
         task_inputs=None,
         task_inputs_overwrite=False,
         task_inputs_save_to_file=False,
+        desc="",
     ):
         assert (
             func is not None or workload_key is not None
@@ -393,10 +401,8 @@ class SearchTask(Object):
             compute_dag = ComputeDAG(workload_key)
 
         assert target is not None, "Must specify a target."
-        if isinstance(target, str):
-            target = Target(target)
-        if isinstance(target_host, str):
-            target_host = Target(target_host)
+
+        target, target_host = Target.check_and_update_host_consist(target, target_host)
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
@@ -426,6 +432,7 @@ class SearchTask(Object):
             hardware_params,
             layout_rewrite_option,
             task_input_names,
+            desc,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -506,6 +513,9 @@ class SearchTask(Object):
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
     def __getstate__(self):
+        self.target, self.target_host = Target.check_and_update_host_consist(
+            self.target, self.target_host
+        )
         return {
             "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
@@ -514,6 +524,7 @@ class SearchTask(Object):
             "hardware_params": self.hardware_params,
             "layout_rewrite_option": self.layout_rewrite_option,
             "task_input_names": self.task_input_names,
+            "desc": self.desc,
         }
 
     def __setstate__(self, state):
@@ -530,15 +541,19 @@ class SearchTask(Object):
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
+        state["target"], state["target_host"] = Target.check_and_update_host_consist(
+            state["target"], state["target_host"]
+        )
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             state["compute_dag"],
             state["workload_key"],
             state["target"],
-            state["target_host"],
+            state["target"].host,
             state["hardware_params"],
             state["layout_rewrite_option"],
             state["task_input_names"],
+            state["desc"],
         )
 
 

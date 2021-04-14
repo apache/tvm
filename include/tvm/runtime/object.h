@@ -24,7 +24,7 @@
 #define TVM_RUNTIME_OBJECT_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 #include <type_traits>
@@ -186,7 +186,7 @@ class TVM_DLL Object {
   template <typename TargetType>
   inline bool IsInstance() const;
   /*!
-   * \return Weather the cell has only one reference
+   * \return Whether the cell has only one reference
    * \note We use stl style naming to be consistent with known API in shared_ptr.
    */
   inline bool unique() const;
@@ -337,7 +337,7 @@ inline RelayRefType GetRef(const ObjectType* ptr);
 /*!
  * \brief Downcast a base reference type to a more specific type.
  *
- * \param ref The inptut reference
+ * \param ref The input reference
  * \return The corresponding SubRef.
  * \tparam SubRef The target specific reference type.
  * \tparam BaseRef the current reference type.
@@ -416,7 +416,7 @@ class ObjectPtr {
     return *get();
   }
   /*!
-   * \brief copy assignmemt
+   * \brief copy assignment
    * \param other The value to be assigned.
    * \return reference to self.
    */
@@ -427,7 +427,7 @@ class ObjectPtr {
     return *this;
   }
   /*!
-   * \brief move assignmemt
+   * \brief move assignment
    * \param other The value to be assigned.
    * \return reference to self.
    */
@@ -632,7 +632,7 @@ struct ObjectPtrEqual {
 };
 
 /*!
- * \brief helper macro to declare a base object type that can be inheritated.
+ * \brief helper macro to declare a base object type that can be inherited.
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
@@ -648,10 +648,10 @@ struct ObjectPtrEqual {
     return _GetOrAllocRuntimeTypeIndex();                                                      \
   }                                                                                            \
   static uint32_t _GetOrAllocRuntimeTypeIndex() {                                              \
-    static uint32_t tidx = Object::GetOrAllocRuntimeTypeIndex(                                 \
+    static uint32_t tindex = Object::GetOrAllocRuntimeTypeIndex(                               \
         TypeName::_type_key, TypeName::_type_index, ParentType::_GetOrAllocRuntimeTypeIndex(), \
         TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow);                \
-    return tidx;                                                                               \
+    return tindex;                                                                             \
   }
 
 /*!
@@ -664,7 +664,7 @@ struct ObjectPtrEqual {
   static const constexpr int _type_child_slots = 0;         \
   TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
 
-/*! \brief helper macro to supress unused warning */
+/*! \brief helper macro to suppress unused warning */
 #if defined(__GNUC__)
 #define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
 #else
@@ -686,7 +686,7 @@ struct ObjectPtrEqual {
   TVM_STR_CONCAT(TVM_OBJECT_REG_VAR_DEF, __COUNTER__) = TypeName::_GetOrAllocRuntimeTypeIndex()
 
 /*
- * \brief Define the default copy/move constructor and assign opeator
+ * \brief Define the default copy/move constructor and assign operator
  * \param TypeName The class typename.
  */
 #define TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName) \
@@ -737,6 +737,21 @@ struct ObjectPtrEqual {
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
   ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
+  using ContainerType = ObjectName;
+
+/*
+ * \brief Define object reference methods that is both not nullable and mutable.
+ *
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
+  ObjectName* get() const { return operator->(); }                                          \
+  static constexpr bool _type_is_nullable = false;                                          \
   using ContainerType = ObjectName;
 
 /*!
@@ -827,7 +842,7 @@ inline bool Object::IsInstance() const {
       if (!TargetType::_type_child_slots_can_overflow) return false;
       // Invariance: parent index is always smaller than the child.
       if (self->type_index_ < TargetType::RuntimeTypeIndex()) return false;
-      // The rare slower-path, check type hierachy.
+      // The rare slower-path, check type hierarchy.
       return self->DerivedFrom(TargetType::RuntimeTypeIndex());
     }
   } else {

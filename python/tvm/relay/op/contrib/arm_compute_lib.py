@@ -18,11 +18,11 @@
 """Arm Compute Library supported operators."""
 import tvm
 
+from tvm import relay
 from tvm._ffi import register_func
 from tvm.relay.expr import const
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr
 from .register import register_pattern_table
@@ -30,7 +30,7 @@ from ..strategy.generic import is_depthwise_conv2d
 
 
 def is_arm_compute_runtime_enabled():
-    """Check if the ACL graph runtime is present.
+    """Check if the ACL graph executor is present.
 
     Returns
     -------
@@ -43,7 +43,7 @@ def is_arm_compute_runtime_enabled():
     return False
 
 
-def partition_for_arm_compute_lib(mod, params=None):
+def partition_for_arm_compute_lib(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Compute Library.
 
@@ -111,9 +111,9 @@ def preprocess_module(mod):
 
         return convert_conv
 
-    with TempOpAttr(
+    with OpAttrContext(
         "nn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.nn.conv2d)
-    ), TempOpAttr(
+    ), OpAttrContext(
         "qnn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.qnn.op.conv2d)
     ):
         seq = tvm.transform.Sequential(
@@ -481,3 +481,36 @@ def qnn_add(expr):
             return False
 
     return True
+
+
+class OpAttrContext(object):
+    """ Temporarily changes the attr of an op. """
+
+    def __init__(self, op_name, attr_key, attr_value):
+        """Saves the required info for RAII pattern usage.
+
+        Parameters
+        ----------
+        op_name : str
+            The op name.
+
+        attr_key : str
+            The attribute name.
+
+        attr_value : object
+            The attribute value.
+        """
+        self.op = relay.op.get(op_name)
+        self.attr_key = attr_key
+        self.attr_value = attr_value
+
+    def __enter__(self):
+        self.older_attr = self.op.get_attr(self.attr_key)
+        self.op.reset_attr(self.attr_key)
+        self.op.set_attr(self.attr_key, self.attr_value)
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        self.op.reset_attr(self.attr_key)
+        if self.older_attr:
+            self.op.set_attr(self.attr_key, self.older_attr)

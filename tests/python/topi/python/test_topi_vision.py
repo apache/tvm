@@ -89,31 +89,31 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
                     np_out2[i, j, k] = -1.0
                 np_out3[i, j] = -1
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _get_valid_counts_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _get_valid_counts_implement)
             data = te.placeholder(dshape, name="data", dtype=dtype)
             outs = fcompute(data, score_threshold, id_index, score_index)
             s = fschedule(outs)
 
-        tvm_input_data = tvm.nd.array(np_data, ctx)
-        tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
-        tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), ctx)
-        tvm_out3 = tvm.nd.array(np.zeros(np_out3.shape, dtype="int32"), ctx)
+        tvm_input_data = tvm.nd.array(np_data, dev)
+        tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), dev)
+        tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), dev)
+        tvm_out3 = tvm.nd.array(np.zeros(np_out3.shape, dtype="int32"), dev)
 
-        f = tvm.build(s, [data, outs[0], outs[1], outs[2]], device)
+        f = tvm.build(s, [data, outs[0], outs[1], outs[2]], target)
         f(tvm_input_data, tvm_out1, tvm_out2, tvm_out3)
         tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
         tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
         tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
 
-    for device in ["llvm", "cuda", "opencl", "vulkan"]:
-        check_device(device)
+    for target in ["llvm", "cuda", "opencl", "vulkan"]:
+        check_device(target)
 
 
 @tvm.testing.uses_gpu
@@ -146,14 +146,14 @@ def verify_non_max_suppression(
     valid_count = te.placeholder((batch,), dtype="int32", name="valid_count")
     indices = te.placeholder((batch, num_anchors), dtype="int32", name="indices")
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _nms_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _nms_implement)
             out = fcompute(
                 data,
                 valid_count,
@@ -183,22 +183,22 @@ def verify_non_max_suppression(
             s = fschedule(out)
             indices_s = fschedule(indices_out)
 
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_indices = tvm.nd.array(np_indices, ctx)
+        tvm_data = tvm.nd.array(np_data, dev)
+        tvm_valid_count = tvm.nd.array(np_valid_count, dev)
+        tvm_indices = tvm.nd.array(np_indices, dev)
 
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
-        f = tvm.build(s, [data, valid_count, indices, out], device)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), dev)
+        f = tvm.build(s, [data, valid_count, indices, out], target)
         f(tvm_data, tvm_valid_count, tvm_indices, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
-        tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
-        f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], device)
+        tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), dev)
+        f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], target)
         f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
         tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for device in ["llvm", "cuda", "opencl", "nvptx"]:
-        check_device(device)
+    for target in ["llvm", "cuda", "opencl", "nvptx"]:
+        check_device(target)
 
 
 @tvm.testing.uses_gpu
@@ -339,26 +339,26 @@ def verify_multibox_prior(
     if clip:
         np_out = np.clip(np_out, 0, 1)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
+        print("Running on target: %s" % target)
 
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _multibox_prior_implement)
-        with tvm.target.Target(device):
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _multibox_prior_implement)
+        with tvm.target.Target(target):
             out = fcompute(data, sizes, ratios, steps, offsets, clip)
             s = fschedule(out)
 
-        tvm_input_data = tvm.nd.array(input_data, ctx)
-        tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), ctx)
-        f = tvm.build(s, [data, out], device)
+        tvm_input_data = tvm.nd.array(input_data, dev)
+        tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), dev)
+        f = tvm.build(s, [data, out], target)
         f(tvm_input_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
 
-    for device in ["llvm", "opencl", "cuda"]:
-        check_device(device)
+    for target in ["llvm", "opencl", "cuda"]:
+        check_device(target)
 
 
 @tvm.testing.uses_gpu
@@ -394,28 +394,28 @@ def test_multibox_detection():
         ]
     )
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
+        print("Running on target: %s" % target)
 
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _multibox_detection_implement)
-        with tvm.target.Target(device):
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _multibox_detection_implement)
+        with tvm.target.Target(target):
             out = fcompute(cls_prob, loc_preds, anchors)
             s = fschedule(out)
 
-        tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
-        tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), ctx)
-        tvm_anchors = tvm.nd.array(np_anchors.astype(anchors.dtype), ctx)
-        tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), ctx)
-        f = tvm.build(s, [cls_prob, loc_preds, anchors, out], device)
+        tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), dev)
+        tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), dev)
+        tvm_anchors = tvm.nd.array(np_anchors.astype(anchors.dtype), dev)
+        tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), dev)
+        f = tvm.build(s, [cls_prob, loc_preds, anchors, out], target)
         f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
 
-    for device in ["llvm", "opencl", "cuda"]:
-        check_device(device)
+    for target in ["llvm", "opencl", "cuda"]:
+        check_device(target)
 
 
 def verify_roi_align(
@@ -445,13 +445,13 @@ def verify_roi_align(
 
     a_np, rois_np, b_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _roi_align_implement)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _roi_align_implement)
             b = fcompute(
                 a,
                 rois,
@@ -462,16 +462,16 @@ def verify_roi_align(
             )
             s = fschedule(b)
 
-        tvm_a = tvm.nd.array(a_np, ctx)
-        tvm_rois = tvm.nd.array(rois_np, ctx)
-        tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), ctx=ctx)
-        f = tvm.build(s, [a, rois, b], device)
+        tvm_a = tvm.nd.array(a_np, dev)
+        tvm_rois = tvm.nd.array(rois_np, dev)
+        tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), device=dev)
+        f = tvm.build(s, [a, rois, b], target)
         f(tvm_a, tvm_rois, tvm_b)
         tvm_val = tvm_b.asnumpy()
         tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-4)
 
-    for device in ["llvm", "cuda", "opencl"]:
-        check_device(device)
+    for target in ["llvm", "cuda", "opencl"]:
+        check_device(target)
 
 
 @tvm.testing.uses_gpu
@@ -506,29 +506,29 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
 
     a_np, rois_np, b_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
+        print("Running on target: %s" % target)
 
-        with tvm.target.Target(device):
+        with tvm.target.Target(target):
             b = topi.vision.rcnn.roi_pool_nchw(
                 a, rois, pooled_size=pooled_size, spatial_scale=spatial_scale
             )
-            s_func = tvm.topi.testing.dispatch(device, _roi_pool_schedule)
+            s_func = tvm.topi.testing.dispatch(target, _roi_pool_schedule)
             s = s_func(b)
 
-        tvm_a = tvm.nd.array(a_np, ctx)
-        tvm_rois = tvm.nd.array(rois_np, ctx)
-        tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), ctx=ctx)
-        f = tvm.build(s, [a, rois, b], device)
+        tvm_a = tvm.nd.array(a_np, dev)
+        tvm_rois = tvm.nd.array(rois_np, dev)
+        tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), device=dev)
+        f = tvm.build(s, [a, rois, b], target)
         f(tvm_a, tvm_rois, tvm_b)
         tvm.testing.assert_allclose(tvm_b.asnumpy(), b_np, rtol=1e-4)
 
-    for device in ["cuda", "llvm"]:
-        check_device(device)
+    for target in ["cuda", "llvm"]:
+        check_device(target)
 
 
 @tvm.testing.uses_gpu
@@ -542,26 +542,26 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
     bbox_pred = te.placeholder(np_bbox_pred.shape)
     im_info = te.placeholder(np_im_info.shape)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _proposal_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _proposal_implement)
             out = fcompute(cls_prob, bbox_pred, im_info, **attrs)
             s = fschedule(out)
-            f = tvm.build(s, [cls_prob, bbox_pred, im_info, out], device)
-            tvm_cls_prob = tvm.nd.array(np_cls_prob, ctx=ctx)
-            tvm_bbox_pred = tvm.nd.array(np_bbox_pred, ctx=ctx)
-            tvm_im_info = tvm.nd.array(np_im_info, ctx=ctx)
-            tvm_out = tvm.nd.empty(ctx=ctx, shape=out.shape, dtype=out.dtype)
+            f = tvm.build(s, [cls_prob, bbox_pred, im_info, out], target)
+            tvm_cls_prob = tvm.nd.array(np_cls_prob, device=dev)
+            tvm_bbox_pred = tvm.nd.array(np_bbox_pred, device=dev)
+            tvm_im_info = tvm.nd.array(np_im_info, device=dev)
+            tvm_out = tvm.nd.empty(device=dev, shape=out.shape, dtype=out.dtype)
             f(tvm_cls_prob, tvm_bbox_pred, tvm_im_info, tvm_out)
             tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
 
-    for device in ["llvm", "cuda"]:
-        check_device(device)
+    for target in ["llvm", "cuda"]:
+        check_device(target)
 
 
 @tvm.testing.uses_gpu

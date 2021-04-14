@@ -25,6 +25,7 @@
 
 #include <tvm/runtime/registry.h>
 
+#include <cassert>
 #include <fstream>
 #include <streambuf>
 #include <string>
@@ -49,7 +50,7 @@ VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const Array<Strin
 }
 
 VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const std::string& xgraph_str,
-                               const Array<String> const_names, const std::string& target,
+                               const Array<String> const_names, const std::string& dpu_target,
                                const std::string& build_dir, const std::string& work_dir,
                                const std::string& export_rt_mod_path)
     : symbol_name_(symbol_name),
@@ -61,22 +62,23 @@ VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const std::string
   in_tensor_names_ = xgraph->get_input_names();
   out_tensor_names_ = xgraph->get_meta_attr("tvm_out_tensors").get_strings();
 
-  pyxir::partition(xgraph, std::vector<std::string>{target}, "");
+  pyxir::partition(xgraph, std::vector<std::string>{dpu_target}, "");
 
   pyxir::RunOptionsHolder run_options(new pyxir::runtime::RunOptions());
   run_options->on_the_fly_quantization = true;
   run_options->build_dir = build_dir;
+  run_options->export_runtime_module_path = export_rt_mod_path_;
   if (!work_dir.empty()) run_options->work_dir = work_dir;
   rt_mod_ =
-      pyxir::build_rt(xgraph, target, in_tensor_names_, out_tensor_names_, "vai", run_options);
+      pyxir::build_rt(xgraph, dpu_target, in_tensor_names_, out_tensor_names_, "vai", run_options);
 }
 
 Module VitisAIRuntimeCreate(const std::string& name, const std::string& xgraph_str,
-                            const std::string& target, const std::string& build_dir,
+                            const std::string& dpu_target, const std::string& build_dir,
                             const std::string& work_dir, const std::string& export_rt_mod_path) {
   Array<String> const_vars;
-  auto exec = make_object<VitisAIRuntime>(name, xgraph_str, const_vars, target, build_dir, work_dir,
-                                          export_rt_mod_path);
+  auto exec = make_object<VitisAIRuntime>(name, xgraph_str, const_vars, dpu_target, build_dir,
+                                          work_dir, export_rt_mod_path);
   return Module(exec);
 }
 

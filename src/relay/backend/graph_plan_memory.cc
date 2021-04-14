@@ -20,7 +20,7 @@
 /*!
  * \file relay/backend/graph_plan_memory.cc
  * \brief Memory index assignment pass for executing
- *   the program in the graph runtime.
+ *   the program in the graph executor.
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -42,7 +42,7 @@ struct StorageToken {
   /*! \brief The corresponding tensor type node. */
   const TensorTypeNode* ttype{nullptr};
   /*! \brief virtual device index that corresponds to the device_type in
-   * DLContext. */
+   * DLDevice. */
   int device_type{0};
   /*! \brief The storage id */
   int64_t storage_id{-1};

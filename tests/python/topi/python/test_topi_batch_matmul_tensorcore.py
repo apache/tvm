@@ -47,15 +47,15 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K):
     a_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _batch_matmul_implement)
             out = fcompute(x, y)
             s = fschedule([out])
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=dtype), dev)
         f = tvm.build(s, [x, y, out], device, name="dense")
         f(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)

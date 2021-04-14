@@ -44,6 +44,17 @@ from .common import infer_value as _infer_value
 __all__ = ["from_tensorflow"]
 
 
+def check_symbolic_shape(shape):
+    return not all([isinstance(dim, (int, tvm.tir.IntImm)) for dim in shape])
+
+
+def list_shape_of(tensor, ndim):
+    shape_tensor = _op.shape_of(tensor)
+    return [
+        _op.strided_slice(shape_tensor, begin=[i], end=[i + 1], strides=[1]) for i in range(ndim)
+    ]
+
+
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
@@ -1022,13 +1033,31 @@ def _batch_matmul():
         input_y = inputs[1]
         orig_shape_x = _infer_shape(input_x, mod)
         orig_shape_y = _infer_shape(input_y, mod)
+        ndim = len(orig_shape_x)
+
+        is_static = not check_symbolic_shape(orig_shape_x)
+
+        if ndim > 3 and not is_static:
+            shape_of_x = list_shape_of(inputs[0], ndim)
+            shape_of_y = list_shape_of(inputs[1], ndim)
 
         # reshape n-dimensional batch matmul into 3d
-        if len(orig_shape_x) > 3:
+        if ndim > 3:
             outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
-            num_outer_elts = np.prod(outer_dims)
-            new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
-            new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+            if is_static:
+                num_outer_elts = np.prod(outer_dims)
+                new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
+                new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+            else:  # handle dynamic shape (dyn.reshape op)
+                # new shape = [prod(shape[:-2]), -2, -1]
+                new_shape_x = [_op.const(1), shape_of_x[-2], shape_of_x[-1]]
+                new_shape_y = [_op.const(1), shape_of_y[-2], shape_of_y[-1]]
+                for i in range(ndim - 2):
+                    new_shape_x[0] *= shape_of_x[i]
+                    new_shape_y[0] *= shape_of_y[i]
+                new_shape_x = _op.concatenate(_op.Tuple(new_shape_x), axis=0)
+                new_shape_y = _op.concatenate(_op.Tuple(new_shape_y), axis=0)
+
             input_x = _op.reshape(input_x, newshape=new_shape_x)
             input_y = _op.reshape(input_y, newshape=new_shape_y)
 
@@ -1039,12 +1068,19 @@ def _batch_matmul():
         ret = get_relay_op("batch_matmul")(input_x, input_y)
 
         # reshape result back to n-dimensional
-        if len(orig_shape_x) > 3:
-            final_shape = list(orig_shape_x)
-            final_shape[-2] = orig_shape_x[-1] if adj_x else orig_shape_x[-2]
-            final_shape[-1] = orig_shape_y[-2] if adj_y else orig_shape_y[-1]
-            ret = _op.reshape(ret, newshape=final_shape)
+        if ndim > 3:
+            if is_static:
+                final_shape = list(orig_shape_x)
+                final_shape[-2] = orig_shape_x[-1] if adj_x else orig_shape_x[-2]
+                final_shape[-1] = orig_shape_y[-2] if adj_y else orig_shape_y[-1]
+            else:
+                # calculate the resulting shape = [shape[:-2], 0, 0]
+                final_shape = list(shape_of_x)
+                final_shape[-2] = shape_of_x[-1] if adj_x else shape_of_x[-2]
+                final_shape[-1] = shape_of_y[-2] if adj_y else shape_of_y[-1]
+                final_shape = _op.concatenate(_op.Tuple(final_shape), axis=0)
 
+            ret = _op.reshape(ret, newshape=final_shape)
         return ret
 
     return _impl
@@ -1282,6 +1318,40 @@ def _sparse_segment_mean_with_num_segments():
         segment_sum = _op.segment_sum(data, inputs[2], num_segments=num_segments)
 
         return row_wise_divide(segment_sum, real_counts)
+
+    return _impl
+
+
+def _sparse_tensor_dense_add():
+    # Sparse utility from scipy
+    from scipy.sparse import csr_matrix
+
+    def _impl(inputs, attr, params, mod):
+        assert (
+            len(inputs) == 4
+        ), "There should be 4 input tensors [sparse_indices, sparse_values, sparse_shape, dense]."
+
+        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+
+        data = inputs[3]
+
+        rows = [x[0] for x in indices_tensor]
+        cols = [x[1] for x in indices_tensor]
+
+        # Create scipy sparse Tensor(CSR)
+        weight_sp = csr_matrix(
+            (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
+        )
+
+        weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
+        weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
+        weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
+
+        ret = _op.nn.sparse_add(data, [weight_data, weight_indices, weight_indptrs])
+
+        return ret
 
     return _impl
 
@@ -2787,6 +2857,7 @@ _convert_map = {
     "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sum_sqrtn_with_num_segments(),
     "SparseSegmentMean": _sparse_segment_mean(),
     "SparseSegmentMeanWithNumSegments": _sparse_segment_mean_with_num_segments(),
+    "SparseTensorDenseAdd": _sparse_tensor_dense_add(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
@@ -3780,11 +3851,11 @@ class GraphProto(object):
     @staticmethod
     def _set_span(sym, node_name):
         span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
-        if isinstance(sym, _expr.Call):
+        if isinstance(sym, _expr.Call) and sym.span is None:
             sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
         elif isinstance(sym, _expr.TupleWrapper):
             tuple_value = sym.tuple_value
-            if isinstance(tuple_value, _expr.Call):
+            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
                 tuple_value = _expr.Call(
                     tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
                 )

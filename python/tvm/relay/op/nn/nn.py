@@ -2038,7 +2038,7 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
     return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
 
 
-def batch_matmul(x, y):
+def batch_matmul(x, y, out_dtype=""):
     r"""
     Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
     in batch.
@@ -2055,12 +2055,15 @@ def batch_matmul(x, y):
     y : tvm.relay.Expr
         The second input.
 
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision batch matmul
+
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(x, y)
+    return _make.batch_matmul(x, y, out_dtype)
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
@@ -2146,6 +2149,53 @@ def sparse_transpose(x):
     if hasattr(x, "indices"):
         return expr.TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
     return expr.TupleWrapper(_make.sparse_transpose(x[0], x[1], x[2]), 3)
+
+
+# pylint: disable=no-else-return,inconsistent-return-statements
+def sparse_add(dense_mat, sparse_mat):
+    r"""
+    Computes the matrix addition of `dense_mat` and `sparse_mat`, where `dense_mat` is
+    a dense matrix and `sparse_mat` is a sparse (CSR) namedtuple with
+    fields `data`, `indices`, and `indptr`.
+
+    .. math::
+
+        \mbox{sparse_add}(dense_mat, sparse_mat)[m, n] = \mbox{add}(\mbox{as_dense}(S), (D))[m, n]
+
+    where `as_dense` returns dense equivalent of the given S(sparse matrix)
+    while performing addition with given D(dense matrix).
+
+    Parameters
+    ----------
+    dense_mat : tvm.relay.Expr
+        The input dense matrix for the matrix addition
+
+    sparse_mat : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
+        The input sparse matrix(CSR) for the matrix addition.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+
+    Examples
+    -------
+    .. code-block:: python
+        dense_data = [[ 3.,   4.,   4. ]
+                      [ 4.,  2.,  5. ]]
+        sparse_data = [4., 8.]
+        sparse_indices =[0, 2]
+        sparse_indptr =[0, 1, 2]
+
+        output = relay.sparse_add(dense_data, sparse_data, sparse_indices, sparse_indptr)
+
+        output = [[ 7.,   4.,   4. ]
+                  [ 4.,  2.,  13. ]]
+    """
+    if hasattr(sparse_mat, "indices"):
+        return _make.sparse_add(dense_mat, sparse_mat.data, sparse_mat.indices, sparse_mat.indptr)
+    else:
+        return _make.sparse_add(dense_mat, sparse_mat[0], sparse_mat[1], sparse_mat[2])
 
 
 def contrib_conv2d_winograd_without_weight_transform(

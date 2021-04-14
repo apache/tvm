@@ -118,7 +118,7 @@ def get_runtime_libs() -> str:
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 
 
-_COMMON_CFLAGS = ["-Wall", "-Werror"]
+_COMMON_CFLAGS = ["-Wall", "-Werror", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
 
 
 def _build_default_compiler_options(standalone_crt_dir: typing.Optional[str] = None) -> str:

@@ -46,7 +46,7 @@ Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype);
 
-Expr MakeBatchMatmul(Expr lhs, Expr rhs);
+Expr MakeBatchMatmul(Expr lhs, Expr rhs, DataType out_dtype);
 
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
@@ -74,6 +74,8 @@ Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 Expr MakeSqueeze(Expr data, Array<Integer> axis);
 
 Expr MakeStack(Expr data, int axis);
+
+Expr MakeTranspose(Expr data, Array<Integer> axes);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides,
                       String slice_mode);

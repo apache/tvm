@@ -20,9 +20,9 @@
  * \file src/runtime/object.cc
  * \brief Object type management system.
  */
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <iostream>
 #include <mutex>
@@ -88,7 +88,7 @@ class TypeContext {
     }
     // try to allocate from parent's type table.
     ICHECK_LT(parent_tindex, type_table_.size())
-        << " skey= " << skey << "static_index=" << static_tindex;
+        << " skey=" << skey << ", static_index=" << static_tindex;
     TypeInfo& pinfo = type_table_[parent_tindex];
     ICHECK_EQ(pinfo.index, parent_tindex);
 

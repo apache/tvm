@@ -69,7 +69,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
     else:
         raise NotImplementedError
 
-    def check_device(device, ctx):
+    def check_device(device, dev):
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             s = tvm.topi.testing.get_reduce_schedule(device)(B)
@@ -98,8 +98,8 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             out_npy = _my_npy_argmin(in_npy_map, axis=axis, keepdims=keepdims)
         else:
             raise NotImplementedError
-        data_tvm = tvm.nd.array(in_npy, ctx=ctx)
-        out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=ctx, dtype=out_dtype)
+        data_tvm = tvm.nd.array(in_npy, device=dev)
+        out_tvm = tvm.nd.empty(shape=out_npy.shape, device=dev, dtype=out_dtype)
         for _ in range(1):
             foo(data_tvm, out_tvm)
         if type == "argmax" or type == "argmin":
@@ -119,8 +119,8 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
         else:
             tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1e-3, 1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for device, dev in tvm.testing.enabled_targets():
+        check_device(device, dev)
 
 
 @tvm.testing.uses_gpu
@@ -163,7 +163,7 @@ def test_complex_reduce():
     C = topi.add(B, B)
     D = topi.multiply(B, B)
     E = topi.add(C, D)
-    for device, ctx in tvm.testing.enabled_targets():
+    for device, dev in tvm.testing.enabled_targets():
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             s = tvm.topi.testing.get_reduce_schedule(device)(E)
@@ -171,8 +171,8 @@ def test_complex_reduce():
         in_npy = np.random.uniform(-1, 1, size=in_shape).astype(dtype)
         sum_npy = in_npy.sum(axis=axis, keepdims=keepdims)
         out_npy = sum_npy * 2 + sum_npy * sum_npy
-        data_tvm = tvm.nd.array(in_npy, ctx=ctx)
-        out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=ctx, dtype=dtype)
+        data_tvm = tvm.nd.array(in_npy, device=dev)
+        out_tvm = tvm.nd.empty(shape=out_npy.shape, device=dev, dtype=dtype)
         foo(data_tvm, out_tvm)
         tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1e-3, 1e-3)
 

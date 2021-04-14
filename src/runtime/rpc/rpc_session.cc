@@ -46,7 +46,7 @@ void RPCSession::AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values
   try {
     this->CallFunc(func, arg_values, arg_type_codes, num_args,
                    [&callback](TVMArgs args) { callback(RPCCode::kReturn, args); });
-  } catch (const std::runtime_error& e) {
+  } catch (const std::exception& e) {
     this->SendException(callback, e.what());
   }
 }
@@ -60,7 +60,7 @@ void RPCSession::AsyncCopyToRemote(void* local_from_bytes, DLTensor* remote_to, 
   try {
     this->CopyToRemote(local_from_bytes, remote_to, nbytes);
     callback(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
-  } catch (const std::runtime_error& e) {
+  } catch (const std::exception& e) {
     this->SendException(callback, e.what());
   }
 }
@@ -74,21 +74,21 @@ void RPCSession::AsyncCopyFromRemote(DLTensor* remote_from, void* local_to_bytes
   try {
     this->CopyFromRemote(remote_from, local_to_bytes, nbytes);
     callback(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
-  } catch (const std::runtime_error& e) {
+  } catch (const std::exception& e) {
     this->SendException(callback, e.what());
   }
 }
 
-void RPCSession::AsyncStreamWait(TVMContext ctx, TVMStreamHandle stream,
+void RPCSession::AsyncStreamWait(Device dev, TVMStreamHandle stream,
                                  RPCSession::FAsyncCallback callback) {
   TVMValue value;
   int32_t tcode = kTVMNullptr;
   value.v_handle = nullptr;
 
   try {
-    this->GetDeviceAPI(ctx)->StreamSync(ctx, stream);
+    this->GetDeviceAPI(dev)->StreamSync(dev, stream);
     callback(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
-  } catch (const std::runtime_error& e) {
+  } catch (const std::exception& e) {
     this->SendException(callback, e.what());
   }
 }

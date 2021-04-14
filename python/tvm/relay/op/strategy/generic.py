@@ -17,11 +17,12 @@
 """Definition of generic operator strategy."""
 # pylint: disable=invalid-name,unused-argument
 import logging
-
 import re
-from tvm import topi, _ffi, te, ir
-from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
+
+from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
+from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
+
 from .. import op as _op
 
 logger = logging.getLogger("strategy")
@@ -745,13 +746,15 @@ def dense_pack_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, need_out_dtype=False):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
         args = [inputs[0], inputs[1], out_type.shape]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        if need_out_dtype:
+            args.append(out_type.dtype)
         return [topi_compute(*args)]
 
     return _compute_batch_matmul
@@ -797,6 +800,29 @@ def sparse_dense_strategy(attrs, inputs, out_type, target):
 def sparse_dense_padded_strategy(attrs, inputs, out_type, target):
     """sparse dense padded generic strategy"""
     raise NotImplementedError("sparse_dense_padded is only implemented for cuda")
+
+
+# sparse_add
+def wrap_compute_sparse_add(topi_compute):
+    """wrap sparse add topi compute"""
+
+    def _compute_sparse_add(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+    return _compute_sparse_add
+
+
+@override_native_generic_func("sparse_add_strategy")
+def sparse_add_strategy(attrs, inputs, out_type, target):
+    """sparse add generic strategy"""
+    logger.warning("sparse add is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_add(topi.nn.sparse_add),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="sparse_add.generic",
+    )
+    return strategy
 
 
 # sparse_transpose
@@ -1440,13 +1466,13 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-def wrap_compute_cumsum(topi_compute):
-    """Wrap cumsum topi compute"""
+def wrap_compute_scanop(topi_compute):
+    """Wrap scanop style topi compute"""
 
-    def _compute_cumsum(attrs, inputs, _):
+    def _compute_scanop(attrs, inputs, _):
         return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
-    return _compute_cumsum
+    return _compute_scanop
 
 
 @override_native_generic_func("cumsum_strategy")
@@ -1454,9 +1480,21 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumsum(topi.cumsum),
+        wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("cumprod_strategy")
+def cumprod_strategy(attrs, inputs, out_type, target):
+    """cumprod generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.cumprod),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumprod.generic",
     )
     return strategy
 

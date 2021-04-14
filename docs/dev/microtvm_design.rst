@@ -68,7 +68,7 @@ The parts of this process are described below:
 
 #. **Deployment**. The project is built and the residual firmware binary is flashed onto the device.
    Model inference is driven either by TVM using an on-device RPC server, or on the device using the
-   on-device Graph Runtime.
+   on-device Graph Executor.
 
 Design Goals
 ============
@@ -189,14 +189,14 @@ The TVM compiler traditionally outputs three pieces:
 2. A model execution graph, encoded as JSON; and
 3. Simplified parameters.
 
-To correctly execute the model, a Graph Runtime needs to reconstruct the graph in memory, load the
+To correctly execute the model, a Graph Executor needs to reconstruct the graph in memory, load the
 parameters, and then invoke the operator implementations in the correct order.
 
 microTVM supports two ways to do this:
 
-1. **Host-Driven**. The Graph Runtime can run on the host and carry out execution by issuing
+1. **Host-Driven**. The Graph Executor can run on the host and carry out execution by issuing
    commands to the device using an RPC link with a UART-like transport.
-2. **Standalone**. A C Graph Runtime is available to be compiled on-device, but it is not
+2. **Standalone**. A C Graph Executor is available to be compiled on-device, but it is not
    particularly memory efficient. This way enables standalone execution without any attached host.
 
 Host-Driven is designed for experimenting with models on-device and, like AutoTVM, uses the RPC server to
@@ -213,8 +213,8 @@ In Host-Driven execution, the firmware binary is the following:
 4. The TVM RPC server.
 5. (optional) Simplified Parameters.
 
-This firmware image is flashed onto the device and a GraphRuntime instance is created on the host.
-The GraphRuntime drives execution by sending RPC commands over a UART:
+This firmware image is flashed onto the device and a GraphExecutor instance is created on the host.
+The GraphExecutor drives execution by sending RPC commands over a UART:
 
 .. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_host_driven.svg
    :align: center
@@ -223,7 +223,7 @@ The GraphRuntime drives execution by sending RPC commands over a UART:
 Standalone Execution
 ^^^^^^^^^^^^^^^^^^^^
 
-In Standalone execution, the GraphRuntime is instantiated on device:
+In Standalone execution, the GraphExecutor is instantiated on device:
 
 .. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_standalone.svg
    :align: center
@@ -248,7 +248,7 @@ When configuring for host-driven inference or AutoTVM, the remaining tasks are w
 When configuring for standalone deployment, the firmware needs to:
 
 1. Instantiate the system library by calling the ``runtime.SystemLib`` PackedFunc.
-2. Instantiate a GraphRuntime passing the system library module.
+2. Instantiate a GraphExecutor passing the system library module.
 3. Configure parameters and inputs as needed.
 4. Run the model.
 
@@ -267,7 +267,7 @@ For Host-driven model execution, firmware also needs:
 
 For Standalone model execution, firmware also needs:
 
-4. The TVM C GraphRuntime library, supplied by TVM as a static library.
+4. The TVM C GraphExecutor library, supplied by TVM as a static library.
 5. The remaining compiler outputs (Simplified Parameters and Graph JSON).
 
 The Automated Build Flow
@@ -323,11 +323,11 @@ Future Work
 Ahead-of-Time Runtime
 ----------------------
 
-A limitation of the Graph Runtime is the amount of memory overhead required in parsing the JSON.
+A limitation of the Graph Executor is the amount of memory overhead required in parsing the JSON.
 The current implementation contributes significantly to the dynamic memory usage of microTVM,
 limiting its utility. An ahead-of-time runtime can avoid the need for any Graph JSON parsing and
 improve inference speed by generating C code to call the generated operator implementations directly
-rather than relying on a data-driven approach with the Graph Runtime.
+rather than relying on a data-driven approach with the Graph Executor.
 
 Memory Planning
 ----------------

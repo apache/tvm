@@ -81,7 +81,7 @@ def get_conv2d_nchw_implement(target):
     return dispatch(target, _conv2d_nchw_implement)
 
 
-def compare_numpy_tvm(inputs, output, target, ctx, compute, schedule):
+def compare_numpy_tvm(inputs, output, target, device, compute, schedule):
     """Compare a numpy inputs and output of a function to the results of the TVM version.
 
     Parameters
@@ -92,7 +92,7 @@ def compare_numpy_tvm(inputs, output, target, ctx, compute, schedule):
         Verified correct function output.
     target : tvm.target.Target
         Target to run on.
-    ctx : tvm.TVMContext
+    device : tvm.runtime.Device
         Context to run on.
     compute : callable
         Topi compute function to test against.
@@ -100,11 +100,11 @@ def compare_numpy_tvm(inputs, output, target, ctx, compute, schedule):
         Topi scheduling function to test against.
     """
     te_inputs = [tvm.te.placeholder(shape=i.shape, dtype=str(i.dtype)) for i in inputs]
-    te_out = tvm.nd.array(np.zeros(output.shape).astype(output.dtype), ctx=ctx)
+    te_out = tvm.nd.array(np.zeros(output.shape).astype(output.dtype), device=device)
     with tvm.target.Target(target):
         out = compute(*te_inputs)
         s = schedule([out])
         func = tvm.build(s, te_inputs + [out])
-        arys = [tvm.nd.array(x, ctx=ctx) for x in inputs]
+        arys = [tvm.nd.array(x, device=device) for x in inputs]
         func(*(arys + [te_out]))
         assert_allclose(te_out.asnumpy(), output, atol=1e-4, rtol=1e-4)

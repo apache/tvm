@@ -210,10 +210,15 @@ subsection_order = ExplicitOrder(
 # The unlisted files always appear after listed files.
 within_subsection_order = {
     "get_started": [
-        "relay_quick_start.py",
-        "tensor_expr_get_started.py",
+        "introduction.py",
+        "install.py",
         "tvmc_command_line_driver.py",
+        "auto_tuning_with_python.py",
+        "tensor_expr_get_started.py",
+        "autotvm_matmul.py",
+        "autoschedule_matmul.py",
         "cross_compilation_and_rpc.py",
+        "relay_quick_start.py",
     ],
     "frontend": [
         "from_pytorch.py",

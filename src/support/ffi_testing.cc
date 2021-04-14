@@ -72,13 +72,13 @@ TVM_REGISTER_GLOBAL("testing.test_check_eq_callback").set_body([](TVMArgs args, 
       runtime::TypedPackedFunc<void(int x, int y)>([msg](int x, int y) { CHECK_EQ(x, y) << msg; });
 });
 
-TVM_REGISTER_GLOBAL("testing.context_test").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLContext ctx = args[0];
+TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue* ret) {
+  Device dev = args[0];
   int dtype = args[1];
   int did = args[2];
-  CHECK_EQ(static_cast<int>(ctx.device_type), dtype);
-  CHECK_EQ(static_cast<int>(ctx.device_id), did);
-  *ret = ctx;
+  CHECK_EQ(static_cast<int>(dev.device_type), dtype);
+  CHECK_EQ(static_cast<int>(dev.device_id), did);
+  *ret = dev;
 });
 
 // in src/api_test.cc

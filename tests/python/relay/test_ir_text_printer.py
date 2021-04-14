@@ -181,11 +181,6 @@ def test_squeezenet():
         astext(net)
 
 
-def test_vgg():
-    net, _ = tvm.relay.testing.vgg.get_workload(batch_size=1)
-    astext(net)
-
-
 def test_densenet():
     net, _ = tvm.relay.testing.densenet.get_workload(batch_size=1)
     astext(net)

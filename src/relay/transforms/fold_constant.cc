@@ -248,16 +248,16 @@ class ConstantFolder : public MixedModeMutator {
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 
     using tvm::transform::PassContext;
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     Target target = Target("llvm");
     // use a fresh build context
     // in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
     With<PassContext> fresh_build_ctx(PassContext::Create());
 
-    FInterpreter executor = CreateInterpreter(mod, ctx, target);
+    FInterpreter executor = CreateInterpreter(mod, dev, target);
     return ObjectToExpr(executor(expr));
   }
 
@@ -276,17 +276,17 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant shape
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
     if (ishape.size() == 0) {
-      value = runtime::NDArray::Empty({}, cdtype, ctx);
+      value = runtime::NDArray::Empty({}, cdtype, dev);
     } else {
       ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
-      value = runtime::NDArray::Empty(cshape, cdtype, ctx);
+      value = runtime::NDArray::Empty(cshape, cdtype, dev);
       int32_t* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
@@ -301,7 +301,7 @@ class ConstantFolder : public MixedModeMutator {
     Constant shape = Downcast<Constant>(ObjectToExpr(value));
 
     if (shape->data.Shape().size() == 0 && GetScalarFromConstant<int32_t>(shape) == 0) {
-      auto ndarray = runtime::NDArray::Empty({}, cdtype, ctx);
+      auto ndarray = runtime::NDArray::Empty({}, cdtype, dev);
       shape = Constant(ndarray);
     }
 
@@ -323,12 +323,12 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant size
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    value = runtime::NDArray::Empty({}, cdtype, ctx);
+    value = runtime::NDArray::Empty({}, cdtype, dev);
     int32_t* data = static_cast<int32_t*>(value->data);
     if (ishape.size() == 0) {
       *data = 0;

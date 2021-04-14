@@ -49,7 +49,7 @@ import numpy as np
 import tvm
 from tvm import relay, auto_scheduler
 import tvm.relay.testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import os
 
 #################################################################
@@ -139,8 +139,7 @@ layout = "NHWC"
 use_ndk = True
 # Path to cross compiler
 os.environ["TVM_NDK_CC"] = "/usr/bin/aarch64-linux-gnu-g++"
-target_host = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
-target = tvm.target.Target("opencl -device=mali")
+target = tvm.target.Target("opencl -device=mali", host="llvm -mtriple=aarch64-linux-gnu")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
@@ -170,7 +169,7 @@ device_key = "rk3399"
 # Extract tasks from the network
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
-tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host)
+tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
@@ -182,14 +181,14 @@ for idx, task in enumerate(tasks):
 #
 #     from tvm.auto_scheduler.utils import request_remote
 #     remote = request_remote(device_key, "0.0.0.0", 9190)
-#     ctx = remote.cl()
-#     max_shared_memory_per_block = ctx.max_shared_memory_per_block
+#     dev = remote.cl()
+#     max_shared_memory_per_block = dev.max_shared_memory_per_block
 #     # There is no explicit local memory limition
 #     # so we can use INT32_MAX to disalbe the check on local_memory.
 #     max_local_memory_per_block = 2147483647 # INT32_MAX
-#     max_threads_per_block = ctx.max_threads_per_block
-#     max_vthread_extent = int(ctx.warp_size / 4) if int(ctx.warp_size / 4) > 1 else ctx.warp_size
-#     warp_size = ctx.warp_size
+#     max_threads_per_block = dev.max_threads_per_block
+#     max_vthread_extent = int(dev.warp_size / 4) if int(dev.warp_size / 4) > 1 else dev.warp_size
+#     warp_size = dev.warp_size
 #     hardware_params = auto_scheduler.HardwareParams(-1, 16, 64,
 #                                                     max_shared_memory_per_block, max_local_memory_per_block,
 #                                                     max_threads_per_block, max_vthread_extent, warp_size)
@@ -198,7 +197,9 @@ for idx, task in enumerate(tasks):
 #
 #   .. code-block:: python
 #
-#     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host, hardware_params)
+#    tasks, task_weights = auto_scheduler.extract_tasks(
+#        mod["main"], params, target, hardware_params = hardware_params
+#    )
 #
 
 #################################################################
@@ -240,14 +241,14 @@ def tune_and_evaluate():
         with tvm.transform.PassContext(
             opt_level=3, config={"relay.backend.use_auto_scheduler": True}
         ):
-            lib = relay.build(mod, target=target, target_host=target_host, params=params)
+            lib = relay.build(mod, target, params=params)
 
-    # Create graph runtime
+    # Create graph executor
     print("=============== Request Remote ===============")
     from tvm.auto_scheduler.utils import request_remote
 
     remote = request_remote(device_key, "0.0.0.0", 9190)
-    ctx = remote.cl()
+    dev = remote.cl()
     from tvm.contrib import utils, ndk
 
     temp = utils.tempdir()
@@ -256,14 +257,14 @@ def tune_and_evaluate():
     lib.export_library(path_lib, ndk.create_shared)
     remote.upload(path_lib)
     loaded_lib = remote.load_module(filename)
-    module = graph_runtime.GraphModule(loaded_lib["default"](ctx))
+    module = graph_executor.GraphModule(loaded_lib["default"](dev))
     data = (np.random.uniform(size=input_shape)).astype(dtype)
     data_tvm = tvm.nd.array(data)
     module.set_input("data", data_tvm)
 
     # Evaluate
     print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+    ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
     print(
         "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
@@ -329,7 +330,7 @@ def tune_and_evaluate():
 #   The last line also prints the total number of measurement trials,
 #   total time spent on auto-tuning and the id of the next task to tune.
 #
-#   There will also be some "dmlc::Error"s errors, because the
+#   There will also be some "tvm::Error"s errors, because the
 #   auto-scheduler will try some invalid schedules.
 #   You can safely ignore them if the tuning can continue, because these
 #   errors are isolated from the main process.
