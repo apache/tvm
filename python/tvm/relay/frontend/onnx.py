@@ -3058,7 +3058,7 @@ class GraphProto:
         self._renames = {}
         self._num_input = 0
         self._num_param = 0
-        self._shape = shape if shape else {}
+        self._shape = shape.copy() if shape else {}
         self._input_names = []
         self._dtype = dtype
         self.opset = None
