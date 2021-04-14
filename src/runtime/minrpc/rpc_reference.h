@@ -49,12 +49,12 @@ enum class RPCCode : int {
   kDevGetAttr,
   kDevAllocData,
   kDevFreeData,
-  kDevCreateStream,
-  kDevFreeStream,
   kDevStreamSync,
-  kDevSetStream,
   kCopyAmongRemote,
   kDevAllocDataWithScope,
+  kDevCreateStream,
+  kDevFreeStream,
+  kDevSetStream,
 };
 
 /*!
