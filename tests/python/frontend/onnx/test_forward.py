@@ -3579,7 +3579,7 @@ def test_roi_align():
     # ONNX implementation of roi_align with max mode is incorrect, so we don't compare outputs here.
 
 
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
     def verify_nms(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims

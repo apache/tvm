@@ -304,6 +304,11 @@ class NonMaximumSuppressionAttrs(Attrs):
     """Attributes for vision.non_maximum_suppression"""
 
 
+@tvm._ffi.register_object("relay.attrs.AllClassNonMaximumSuppressionAttrs")
+class AllClassNonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.all_classnon_maximum_suppression"""
+
+
 @tvm._ffi.register_object("relay.attrs.ROIAlignAttrs")
 class ROIAlignAttrs(Attrs):
     """Attributes for vision.roi_align"""

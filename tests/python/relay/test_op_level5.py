@@ -21,7 +21,6 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 import tvm.testing
@@ -371,8 +370,6 @@ def test_non_max_suppression():
         )
         if isinstance(z_indices, relay.expr.TupleWrapper):
             z_indices = z_indices.astuple()
-        assert "iou_threshold" in z.astext()
-        assert "iou_threshold" in z_indices.astext()
         zz = run_infer_type(z)
         zz_indices = run_infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
@@ -1364,6 +1361,99 @@ def test_batch_to_space_nd():
     verify_batch_to_space_nd([8, 1, 3, 1], [2, 2], [[0, 0], [2, 0]])
 
 
+@tvm.testing.uses_gpu
+def test_all_class_non_max_suppression():
+    def verify_all_class_non_max_suppression(
+        boxes_np,
+        scores_np,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected_indices,
+    ):
+        boxes = relay.var("boxes", relay.ty.TensorType(boxes_np.shape, "float32"))
+        scores = relay.var("scores", relay.ty.TensorType(scores_np.shape, "float32"))
+
+        out = relay.vision.all_class_non_max_suppression(
+            boxes,
+            scores,
+            max_output_boxes_per_class,
+            iou_threshold,
+            score_threshold,
+        )
+
+        func = relay.Function([boxes, scores], out.astuple())
+        func = run_infer_type(func)
+
+        for target, dev in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, device=dev, target=target)
+                selected_indices, num_detections = intrp.evaluate(func)(boxes_np, scores_np)
+                tvm_res = selected_indices.asnumpy()[: num_detections.asnumpy()[0]]
+                np.testing.assert_equal(tvm_res, expected_indices)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.95, 0.95],
+                [0.5, 0.5, 0.96, 0.96],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+        ]
+    ).astype("float32")
+
+    scores = np.array(
+        [
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+        ]
+    ).astype("float32")
+
+    max_output_boxes_per_class = 2
+    iou_threshold = 0.8
+    score_threshold = 0.0
+
+    expected = np.array(
+        [[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 2], [1, 0, 4], [1, 0, 1], [1, 1, 4], [1, 1, 1]]
+    )
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, -0.1, 1.0, 0.9],
+                [0.0, 10.0, 1.0, 11.0],
+                [0.0, 10.1, 1.0, 11.1],
+                [0.0, 100.0, 1.0, 101.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.9, 0.75, 0.6, 0.95, 0.5, 0.3]]]).astype(np.float32)
+    max_output_boxes_per_class = 3
+    iou_threshold = 0.5
+    score_threshold = 0.4
+
+    expected = np.array([[0, 0, 3], [0, 0, 0]])
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
@@ -1386,3 +1476,4 @@ if __name__ == "__main__":
     test_affine_grid()
     test_grid_sample()
     test_space_to_batch_nd()
+    test_all_class_non_max_suppression()
