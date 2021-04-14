@@ -52,7 +52,7 @@ cpptest:
 	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) cpptest
 
 crttest:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) crttest
 
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11\
