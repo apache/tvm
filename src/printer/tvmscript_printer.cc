@@ -232,6 +232,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintConstScalar(DataType dtype, const T* data) {
     Doc doc;
     std::ostringstream os;
+    if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
+      os.precision(17);
+    }
     os << data[0];
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
