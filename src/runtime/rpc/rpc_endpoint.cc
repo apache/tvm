@@ -802,7 +802,7 @@ void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) 
 
   uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*to));
   ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
-      << "Overflow in tensor size: (" << to->byte_offset << ", " << nbytes << ", "
+      << "CopyToRemote: overflow in tensor size: (" << to->byte_offset << ", " << nbytes << ", "
       << tensor_total_size_bytes << ")";
 
   uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(to, code, nbytes);
@@ -820,8 +820,10 @@ void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes
   std::lock_guard<std::mutex> lock(mutex_);
   RPCCode code = RPCCode::kCopyFromRemote;
 
-  uint64_t num_data_bytes = static_cast<uint64_t>(GetDataSize(*from));
-  CHECK_EQ(nbytes, num_data_bytes);
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*from));
+  ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
+      << "CopyFromRemote: overflow in tensor size: (" << from->byte_offset << ", " << nbytes << ", "
+      << tensor_total_size_bytes << ")";
 
   uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(from, code, nbytes);
   uint64_t packet_nbytes = overhead;
@@ -995,7 +997,22 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   }
 
   void CopyFromRemote(DLTensor* remote_from, void* local_to_bytes, uint64_t nbytes) final {
-    endpoint_->CopyFromRemote(remote_from, local_to_bytes, nbytes);
+    RPCCode code = RPCCode::kCopyFromRemote;
+    uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_from, code, nbytes);
+    const uint64_t block_size = GetRPCMaxTransferSize() - overhead;
+    uint64_t block_count = 0;
+    const uint64_t num_blocks = nbytes / block_size;
+
+    for (block_count = 0; block_count < num_blocks; block_count++) {
+      remote_from->byte_offset = block_count * block_size;
+      endpoint_->CopyFromRemote(remote_from, local_to_bytes, block_size);
+    }
+
+    const uint64_t remainder_bytes = nbytes % block_size;
+    if (remainder_bytes != 0) {
+      remote_from->byte_offset = block_count * block_size;
+      endpoint_->CopyFromRemote(remote_from, local_to_bytes, remainder_bytes);
+    }
   }
 
   void FreeHandle(void* handle, int type_code) final {
