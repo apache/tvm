@@ -96,7 +96,7 @@ def add_compile_parser(subparsers):
         default=None,
     )
     parser.add_argument(
-        "--disable-pass",
+        "--disabled-pass",
         help="disable specific passes, comma-separated list of pass names",
         type=common.parse_pass_list_str,
         default="",
