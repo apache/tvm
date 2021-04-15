@@ -61,7 +61,7 @@ class Stream {
     }];
     return cb;
   }
-  bool IsErrorHappened() { return error_happened_; }
+  bool HasErrorHappened() { return error_happened_; }
 
  private:
   void SetErrorStatus() { error_happened_ = true; }

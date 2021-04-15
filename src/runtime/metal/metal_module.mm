@@ -186,7 +186,7 @@ class MetalWrappedFunc {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
       auto stream = static_cast<metal::Stream*>(t->stream[device_id]);
-      if (stream->IsErrorHappened()) return;
+      if (stream->HasErrorHappened()) return;
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }

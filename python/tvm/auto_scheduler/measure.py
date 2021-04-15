@@ -1080,7 +1080,7 @@ def _timed_rpc_run(
             try:
                 stream = dev.create_raw_stream()
                 dev.set_raw_stream(stream)
-            except Exception:
+            finally:
                 pass
             random_fill = remote.get_function("tvm.contrib.random.random_fill")
             assert (

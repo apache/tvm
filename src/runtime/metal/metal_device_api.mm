@@ -187,7 +187,7 @@ void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
   }
 }
 
-Stream* getStream(TVMStreamHandle stream, int device_id) {
+Stream* GetStream(TVMStreamHandle stream, int device_id) {
   if (stream != nullptr)
     return static_cast<Stream*>(stream);
   else
@@ -200,8 +200,8 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
   @autoreleasepool {
     this->Init();
     Device dev = dev_from;
-    Stream* s = getStream(stream, dev.device_id);
-    if (s->IsErrorHappened()) {
+    Stream* s = GetStream(stream, dev.device_id);
+    if (s->HasErrorHappened()) {
       LOG(FATAL) << "Error! Some problems on GPU happaned! Cannot copy data to current stream";
     }
     if (dev_from.device_type == kDLCPU) dev = dev_to;
@@ -275,12 +275,12 @@ void MetalWorkspace::FreeStream(Device dev, TVMStreamHandle stream) {
 
 void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   @autoreleasepool {
-    Stream* s = getStream(stream, dev.device_id);
+    Stream* s = GetStream(stream, dev.device_id);
     // commit an empty command buffer and wait until it completes.
     id<MTLCommandBuffer> cb = s->GetCommandBuffer();
     [cb commit];
     [cb waitUntilCompleted];
-    if (s->IsErrorHappened()) {
+    if (s->HasErrorHappened()) {
       LOG(FATAL) << "Error! Some problems on GPU happaned!";
     }
   }
