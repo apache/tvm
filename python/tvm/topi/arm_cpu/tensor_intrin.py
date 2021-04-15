@@ -1054,6 +1054,6 @@ def _q_multiply_shift_arm(op):
     return tvm.tir.Select(s < 0, out_1, out_2)
 
 
-tvm.target.intrin.register_intrin_rule(
-    "llvm.aarch64", "q_multiply_shift", _q_multiply_shift_arm, override=True
+tvm.ir.op.register_op_intrin_lowering(
+    "tir.q_multiply_shift", f=_q_multiply_shift_arm, target="llvm.aarch64", override=True
 )

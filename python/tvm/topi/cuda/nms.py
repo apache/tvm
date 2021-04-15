@@ -51,10 +51,12 @@ def opencl_atomic_add_rule(op):
     raise RuntimeError("only support int32")
 
 
-tvm.target.intrin.register_intrin_rule("cuda", "atomic_add", cuda_atomic_add_rule, override=True)
+tvm.ir.op.register_op_intrin_lowering(
+    "tir.atomic_add", f=cuda_atomic_add_rule, target="cuda", override=True
+)
 
-tvm.target.intrin.register_intrin_rule(
-    "opencl", "atomic_add", opencl_atomic_add_rule, override=True
+tvm.ir.op.register_op_intrin_lowering(
+    "tir.atomic_add", f=opencl_atomic_add_rule, target="opencl", override=True
 )
 
 

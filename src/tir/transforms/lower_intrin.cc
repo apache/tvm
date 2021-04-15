@@ -46,7 +46,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
     bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
     if (is_llvm_aarch64) {
-      patterns_.push_back(target + "." + "aarch64.FLowerIntrinsic");
+      patterns_.push_back(target + ".aarch64.FLowerIntrinsic");
     }
 
     patterns_.push_back("default.FLowerIntrinsic");
