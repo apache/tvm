@@ -133,7 +133,7 @@ def register_op_intrin_lowering(
     op_name,
     f=None,
     target="default",
-    plevel=10,
+    level=10,
     override=False,
 ):
     """Register Op lowering function
@@ -149,7 +149,7 @@ def register_op_intrin_lowering(
     target : str
         The target string for given intrinsic lowering function
 
-    plevel : int
+    level : int
         The priority level
 
     override: boolean optional
@@ -168,7 +168,7 @@ def register_op_intrin_lowering(
         assert isinstance(target, str)
         if not isinstance(myf, PackedFuncBase):
             myf = convert_to_tvm_func(myf)
-        _ffi_api.RegisterOpLowerIntrinsic(op_name, myf.handle, target, plevel, override)
+        _ffi_api.RegisterOpLowerIntrinsic(op_name, myf.handle, target, level, override)
         return myf
 
     if f:
