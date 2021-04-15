@@ -262,22 +262,48 @@ class Device(ctypes.Structure):
         """
         return json.loads(self._GetDeviceAttr(self.device_type, self.device_id, 8))
 
-    def create_stream(self):
-        """Create a new runtime stream at the context."""
+    def create_raw_stream(self):
+        """Create a new runtime stream at the context.
+
+        User should free the stream after use.
+
+        Returns
+        -------
+        stream : TVMStreamHandle
+            The created runtime stream.
+        """
         stream = ctypes.c_void_p()
         check_call(_LIB.TVMStreamCreate(self.device_type, self.device_id, ctypes.byref(stream)))
         return stream
 
-    def free_stream(self, stream):
-        """Free a created stream handle."""
+    def free_raw_stream(self, stream):
+        """Free a created stream handle.
+
+        Parameters
+        ----------
+        stream : TVMStreamHandle
+            The stream which should to be released.
+        """
         check_call(_LIB.TVMStreamFree(self.device_type, self.device_id, stream))
 
-    def set_stream(self, stream):
-        """Set a created stream handle."""
+    def set_raw_stream(self, stream):
+        """Set a created stream handle.
+
+        Parameters
+        ----------
+        stream : TVMStreamHandle
+            The stream which should to be set to the device.
+        """
         check_call(_LIB.TVMSetStream(self.device_type, self.device_id, stream))
 
     def sync(self, stream=None):
-        """Synchronize until jobs finished at the context."""
+        """Synchronize until jobs finished at the context.
+
+        Parameters
+        ----------
+        stream : TVMStreamHandle
+            Jobs in this stream should be finished.
+        """
         check_call(_LIB.TVMSynchronize(self.device_type, self.device_id, stream))
 
     def __eq__(self, other):

@@ -1076,8 +1076,12 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
-            stream = dev.create_stream()
-            dev.set_stream(stream)
+            stream = None
+            try:
+                stream = dev.create_raw_stream()
+                dev.set_raw_stream(stream)
+            except Exception:
+                pass
             random_fill = remote.get_function("tvm.contrib.random.random_fill")
             assert (
                 random_fill
@@ -1121,10 +1125,12 @@ def _timed_rpc_run(
             remote.remove(build_res.filename)
             remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
             remote.remove("")
-            dev.free_stream(stream)
+            if stream is not None:
+                dev.free_raw_stream(stream)
         # pylint: disable=broad-except
         except Exception:
-            dev.free_stream(stream)
+            if stream is not None:
+                dev.free_raw_stream(stream)
             costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_traceback_info()
