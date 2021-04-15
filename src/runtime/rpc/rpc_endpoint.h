@@ -48,8 +48,8 @@ const int kRPCSuccess = kRPCMagic + 0;
 // cannot found matched key in server
 const int kRPCMismatch = kRPCMagic + 2;
 
-// When tvm.rpc.server.GetTransferMaxSize global function is not registered.
-const int kRPCMaxTransferSizeDefault = 128000;
+// When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
+const uint64_t kRPCMaxTransferSizeBytesDefault = 128 * 1024;
 
 /*! \brief Enumeration code for the RPC tracker */
 enum class TrackerCode : int {
@@ -207,6 +207,15 @@ template <typename... Args>
 inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
   return syscall_remote_(static_cast<int>(code), std::forward<Args>(args)...);
 }
+
+/*!
+ * \brief Calculates overhead size of a CopyToRemote packet.
+ * \param to DLTensor to copy.
+ * \param code RPCCode for this transfer.
+ * \param nbytes Number of bytes to transfer.
+ */
+uint64_t RemoteCopyCalculatePacketOverheadSize(DLTensor* tensor, RPCCode code, uint64_t nbytes);
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_ENDPOINT_H_

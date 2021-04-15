@@ -51,9 +51,6 @@
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
-/*! Size of the global function for max RPC transfer, in bytes. */
-#define TVM_CRT_RPC_MAX_TRANSFER_SIZE_BYTES 2048
-
 // #define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

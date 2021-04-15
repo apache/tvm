@@ -300,7 +300,7 @@ static tvm_crt_error_t FindFunctionOrSetAPIError(tvm_module_index_t module_index
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   tvm_crt_error_t to_return =
       FindFunctionOrSetAPIError(kGlobalFuncModuleIndex, &global_func_registry.registry, name, out);
-  // For compatibility with C++
+  // For compatibility with the C++ runtime equivalent, in src/runtime/registry.cc.
   if (to_return == kTvmErrorFunctionNameNotFound) {
     *out = NULL;
     to_return = kTvmErrorNoError;
@@ -378,10 +378,12 @@ int TVMFuncFree(TVMFunctionHandle func) {
 int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
                      int* ret_type_code);
 
-// Sends maximum transfer size for RPC.
-int RPCGetTransferMaxSize(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value,
-                          int* ret_type_codes) {
-  ret_value[0].v_int64 = TVM_CRT_RPC_MAX_TRANSFER_SIZE_BYTES;
+// Sends CRT max packet size.
+int RPCGetCRTMaxPacketSize(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value,
+                           int* ret_type_codes) {
+  // 11 bytes is for microtvm overhead:
+  // packet start(2), length(4), session header(3), crc(2)
+  ret_value[0].v_int64 = TVM_CRT_MAX_PACKET_SIZE_BYTES - 11;
   ret_type_codes[0] = kTVMArgInt;
   return 0;
 }
@@ -427,7 +429,7 @@ tvm_crt_error_t TVMInitializeRuntime() {
   }
 
   if (error == kTvmErrorNoError) {
-    error = TVMFuncRegisterGlobal("tvm.rpc.server.GetTransferMaxSize", &RPCGetTransferMaxSize, 0);
+    error = TVMFuncRegisterGlobal("tvm.rpc.server.GetCRTMaxPacketSize", &RPCGetCRTMaxPacketSize, 0);
   }
 
   if (error != kTvmErrorNoError) {
