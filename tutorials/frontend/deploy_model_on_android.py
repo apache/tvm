@@ -34,7 +34,7 @@ import tvm
 from tvm import te
 import tvm.relay as relay
 from tvm import rpc
-from tvm.contrib import utils, ndk, graph_runtime as runtime
+from tvm.contrib import utils, ndk, graph_executor as runtime
 from tvm.contrib.download import download_testdata
 
 
@@ -71,7 +71,7 @@ from tvm.contrib.download import download_testdata
 #         -DUSE_RPC=ON \
 #         -DUSE_SORT=ON \
 #         -DUSE_VULKAN=ON \
-#         -DUSE_GRAPH_RUNTIME=ON \
+#         -DUSE_GRAPH_EXECUTOR=ON \
 #         ..
 #   make -j10
 #
@@ -257,25 +257,21 @@ test_target = "cpu"
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
 arch = "arm64"
-target = "llvm -mtriple=%s-linux-android" % arch
-target_host = None
+target = tvm.target.Target("llvm -mtriple=%s-linux-android" % arch)
 
 if local_demo:
-    target_host = None
-    target = "llvm"
+    target = tvm.target.Target("llvm")
 elif test_target == "opencl":
-    target_host = target
-    target = "opencl"
+    target = tvm.target.Target("opencl", host=target)
 elif test_target == "vulkan":
-    target_host = target
-    target = "vulkan"
+    target = tvm.target.Target("vulkan", host=target)
 
 input_name = "input_1"
 shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    lib = relay.build(mod, target=target, params=params)
 
 # After `relay.build`, you will get three return values: graph,
 # library and the new parameter, since we do some optimization that will
@@ -305,20 +301,20 @@ else:
     remote = tracker.request(key, priority=0, session_timeout=60)
 
 if local_demo:
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
 elif test_target == "opencl":
-    ctx = remote.cl(0)
+    dev = remote.cl(0)
 elif test_target == "vulkan":
-    ctx = remote.vulkan(0)
+    dev = remote.vulkan(0)
 else:
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
 rlib = remote.load_module("net.so")
 
 # create the remote runtime module
-module = runtime.GraphModule(rlib["default"](ctx))
+module = runtime.GraphModule(rlib["default"](dev))
 
 ######################################################################
 # Execute on TVM
@@ -336,7 +332,7 @@ top1 = np.argmax(out.asnumpy())
 print("TVM prediction top-1: {}".format(synset[top1]))
 
 print("Evaluate inference time cost...")
-ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=10)
+ftimer = module.module.time_evaluator("run", dev, number=1, repeat=10)
 prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
 print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 

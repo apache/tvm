@@ -136,6 +136,7 @@ class IterMark : public ObjectRef {
   TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IterMark, ObjectRef, IterMarkNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };
 
 /*!
@@ -259,7 +260,6 @@ class IterSumExpr : public IterMapExpr {
 
 /*!
  * \brief Detect if indices can be written as
- *
  *  [y_0 + c_0, y_1 + c_1, ..., y_n + c_n]
  *
  *  Here y = some-quasi-affine-iter-map(input_iters)
@@ -272,13 +272,46 @@ class IterSumExpr : public IterMapExpr {
  *
  * \param indices The indices to detect pattern for.
  * \param input_iters Map from variable to iterator's range.
+ * \param predicate The predicate constraints on the input iterators
+ * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
  *
  * \return The detected pattern if a match exists,
  *         otherwise return an empty array.
  */
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+                                 const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer);
+
+/*!
+ * \brief Detect if bindings can be written as
+ * [a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]
+ *
+ * where a = some-quasi-affine-iter-map(input_iters set_minus sub_iters)
+ *       b = some-quasi-affine-iter-map(sub_iters)
+ *       c is constant symbols
+ *       e is the extent of b
+ *
+ * For example, z*12 + y*3 + x + c = (z*4+y)*3 + x, if sub_iters={x}
+ *
+ * \param bindings The input bindings
+ * \param input_iters Map from variable to iterator's range.
+ * \param sub_iters Iterators of subspace.
+ * \param predicate The predicate constraints on the input iterators
+ * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
+ * \param analyzer Analyzer used to get context information.
+ *
+ * \return The result list has length len(bindings) + 1
+        [0, len(bindings)): The iter map matching result. The inner list is of length 2.
+                            The first expr is the basis of the quotient space.
+                            The second expr is the basis of the subspace.
+        len(bindings): the predicate of outer space and inner space
+        Empty array if no match can be found.
+ */
+Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
+                                      const Map<Var, Range>& input_iters,
+                                      const Array<Var>& sub_iters, const PrimExpr& predicate,
+                                      bool require_bijective, arith::Analyzer* analyzer);
 
 }  // namespace arith
 }  // namespace tvm

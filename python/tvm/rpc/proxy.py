@@ -22,12 +22,11 @@ RPCProxy allows both client and server connect to the proxy server,
 the proxy server will forward the message between the client and server.
 """
 # pylint: disable=unused-variable, unused-argument
-from __future__ import absolute_import
-
 import os
+import asyncio
 import logging
 import socket
-import multiprocessing
+import threading
 import errno
 import struct
 import time
@@ -43,6 +42,7 @@ except ImportError as error_msg:
         "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg
     )
 
+from tvm.contrib.popen_pool import PopenWorker
 from . import _ffi_api
 from . import base
 from .base import TrackerCode
@@ -261,6 +261,7 @@ class ProxyServerHandler(object):
                 logging.info(pair)
             self.app = tornado.web.Application(handlers)
             self.app.listen(web_port)
+
         self.sock = sock
         self.sock.setblocking(0)
         self.loop = ioloop.IOLoop.current()
@@ -471,6 +472,7 @@ def _proxy_server(
     index_page,
     resource_files,
 ):
+    asyncio.set_event_loop(asyncio.new_event_loop())
     handler = ProxyServerHandler(
         listen_sock,
         listen_port,
@@ -482,6 +484,87 @@ def _proxy_server(
         resource_files,
     )
     handler.run()
+
+
+class PopenProxyServerState(object):
+    """Internal PopenProxy State for Popen"""
+
+    current = None
+
+    def __init__(
+        self,
+        host,
+        port=9091,
+        port_end=9199,
+        web_port=0,
+        timeout_client=600,
+        timeout_server=600,
+        tracker_addr=None,
+        index_page=None,
+        resource_files=None,
+    ):
+
+        sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
+        self.port = None
+        for my_port in range(port, port_end):
+            try:
+                sock.bind((host, my_port))
+                self.port = my_port
+                break
+            except socket.error as sock_err:
+                if sock_err.errno in [98, 48]:
+                    continue
+                raise sock_err
+        if not self.port:
+            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+        logging.info("RPCProxy: client port bind to %s:%d", host, self.port)
+        sock.listen(1)
+        self.thread = threading.Thread(
+            target=_proxy_server,
+            args=(
+                sock,
+                self.port,
+                web_port,
+                timeout_client,
+                timeout_server,
+                tracker_addr,
+                index_page,
+                resource_files,
+            ),
+        )
+        # start the server in a different thread
+        # so we can return the port directly
+        self.thread.start()
+
+
+def _popen_start_server(
+    host,
+    port=9091,
+    port_end=9199,
+    web_port=0,
+    timeout_client=600,
+    timeout_server=600,
+    tracker_addr=None,
+    index_page=None,
+    resource_files=None,
+):
+    # This is a function that will be sent to the
+    # Popen worker to run on a separate process.
+    # Create and start the server in a different thread
+    state = PopenProxyServerState(
+        host,
+        port,
+        port_end,
+        web_port,
+        timeout_client,
+        timeout_server,
+        tracker_addr,
+        index_page,
+        resource_files,
+    )
+    PopenProxyServerState.current = state
+    # returns the port so that the main can get the port number.
+    return state.port
 
 
 class Proxy(object):
@@ -532,43 +615,31 @@ class Proxy(object):
         index_page=None,
         resource_files=None,
     ):
-        sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
-        self.port = None
-        for my_port in range(port, port_end):
-            try:
-                sock.bind((host, my_port))
-                self.port = my_port
-                break
-            except socket.error as sock_err:
-                if sock_err.errno in [98, 48]:
-                    continue
-                raise sock_err
-        if not self.port:
-            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
-        logging.info("RPCProxy: client port bind to %s:%d", host, self.port)
-        sock.listen(1)
-        self.proc = multiprocessing.Process(
-            target=_proxy_server,
-            args=(
-                sock,
-                self.port,
+        self.proc = PopenWorker()
+        # send the function
+        self.proc.send(
+            _popen_start_server,
+            [
+                host,
+                port,
+                port_end,
                 web_port,
                 timeout_client,
                 timeout_server,
                 tracker_addr,
                 index_page,
                 resource_files,
-            ),
+            ],
         )
-        self.proc.start()
-        sock.close()
+        # receive the port
+        self.port = self.proc.recv()
         self.host = host
 
     def terminate(self):
         """Terminate the server process"""
         if self.proc:
             logging.info("Terminating Proxy Server...")
-            self.proc.terminate()
+            self.proc.kill()
             self.proc = None
 
     def __del__(self):

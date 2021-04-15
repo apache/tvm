@@ -23,7 +23,7 @@ use std::{
 };
 
 use crate::ffi::{
-    DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
+    DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLDevice,
     DLDeviceType_kDLCPU, DLTensor,
 };
 
@@ -35,7 +35,7 @@ macro_rules! impl_dltensor_from_ndarray {
             fn from(arr: &'a mut ndarray::Array<$type, D>) -> Self {
                 DLTensor {
                     data: arr.as_mut_ptr() as *mut c_void,
-                    ctx: DLContext {
+                    device: DLDevice {
                         device_type: DLDeviceType_kDLCPU,
                         device_id: 0,
                     },

@@ -52,17 +52,17 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     a_np, b_np, c_np, d_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         print("Running on target: %s" % device)
         for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
             with tvm.target.Target(device):
                 D = fcompute(A, B, C if use_bias else None)
                 D = topi.nn.relu(D)
                 s = fschedule([D])
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(b_np, ctx)
-            c = tvm.nd.array(c_np, ctx)
-            d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(b_np, dev)
+            c = tvm.nd.array(c_np, dev)
+            d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
             f = tvm.build(s, [A, B, C, D], device, name="dense")
             f(a, b, c, d)
             tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-3)

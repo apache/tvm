@@ -26,7 +26,7 @@
 #include <fstream>
 
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-#define TVM_BACKTRACE_DISABLED 1
+#define TVM_USE_LIBBACKTRACE 0
 /* Enable custom logging - this will cause TVM to use a custom implementation
  * of tvm::runtime::detail::LogMessage. We use this to pass TVM log messages to
  * Android logcat.
@@ -37,8 +37,9 @@
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/dso_library.cc"
 #include "../src/runtime/file_utils.cc"
-#include "../src/runtime/graph/graph_runtime.cc"
+#include "../src/runtime/graph_executor/graph_executor.cc"
 #include "../src/runtime/library_module.cc"
+#include "../src/runtime/logging.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
 #include "../src/runtime/object.cc"

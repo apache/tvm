@@ -88,7 +88,7 @@ The configuration of TVM can be modified by `config.cmake`.
   - On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
   - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. Do the same for other backends and libraries
     you want to build for (OpenCL, RCOM, METAL, VULKAN, ...).
-  - To help with debugging, ensure the embedded graph runtime and debugging functions are enabled with ``set(USE_GRAPH_RUNTIME ON)`` and ``set(USE_GRAPH_RUNTIME_DEBUG ON)``
+  - To help with debugging, ensure the embedded graph executor and debugging functions are enabled with ``set(USE_GRAPH_EXECUTOR ON)`` and ``set(USE_PROFILER ON)``
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -260,6 +260,8 @@ Install Contrib Libraries
    nnpack
 
 
+.. _install-from-source-cpp-tests:
+
 Enable C++ Tests
 ----------------
 We use `Google Test <https://github.com/google/googletest>`_ to drive the C++
@@ -271,7 +273,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd googletest
        mkdir build
        cd build
-       cmake ..
+       cmake -DMAKE_SHARED_LIBS=ON ..
        make
        sudo make install
 

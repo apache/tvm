@@ -27,6 +27,7 @@ from tvm import autotvm, auto_scheduler
 from tvm import relay, runtime
 from tvm.contrib import cc
 from tvm.contrib import utils
+from tvm.target import Target
 
 from . import common, composite_target, frontends
 from .main import register_parser
@@ -94,6 +95,12 @@ def add_compile_parser(subparsers):
         type=common.parse_shape_string,
         default=None,
     )
+    parser.add_argument(
+        "--disable-pass",
+        help="disable specific passes, comma-separated list of pass names",
+        type=common.parse_pass_list_str,
+        default="",
+    )
 
 
 def drive_compile(args):
@@ -110,16 +117,17 @@ def drive_compile(args):
         Zero if successfully completed
 
     """
+    mod, params = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
 
     graph, lib, params, dumps = compile_model(
-        args.FILE,
+        mod,
+        params,
         args.target,
         args.dump_code,
         None,
-        args.model_format,
         args.tuning_records,
         args.desired_layout,
-        args.input_shapes,
+        args.disable_pass,
     )
 
     if dumps:
@@ -130,25 +138,27 @@ def drive_compile(args):
 
 
 def compile_model(
-    path,
+    mod,
+    params,
     target,
     dump_code=None,
     target_host=None,
-    model_format=None,
     tuning_records=None,
     alter_layout=None,
-    shape_dict=None,
+    disabled_pass=None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
     This function takes a union of the arguments of both frontends.load_model
     and compiler.compile_relay. The resulting TVM module can be executed using
-    the graph runtime.
+    the graph executor.
 
     Parameters
     ----------
-    path: str
-        Path to a file
+    mod: IRModule
+        The relay module to be compiled.
+    params: dict
+        A dictionary containing the module's parameters.
     target : str
         The target for which to compile. Can be a plain string or
         a path.
@@ -158,8 +168,6 @@ def compile_model(
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
-    model_format: str, optional
-        A string representing a name of a frontend to be used
     tuning_records: str, optional
         Path to the file produced by the tuning to be used during
         compilation.
@@ -167,9 +175,10 @@ def compile_model(
         The layout to convert the graph to. Note, the convert layout
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
-    shape_dict: dict, optional
-        A mapping from input names to their shape. When present,
-        the default shapes in the model will be overwritten.
+    disabled_pass: str, optional
+        Comma-separated list of passes which needs to be disabled
+        during compilation
+
 
     Returns
     -------
@@ -184,7 +193,6 @@ def compile_model(
 
     """
     dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format, shape_dict)
     config = {}
 
     if alter_layout:
@@ -192,11 +200,12 @@ def compile_model(
 
     tvm_target, extra_targets = common.target_from_cli(target)
     target_host = tvm_target if not target_host else target_host
+    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
         partition_function = codegen["pass_pipeline"]
-        mod = partition_function(mod, params)
+        mod = partition_function(mod, params, **codegen_from_cli["opts"])
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
 
@@ -212,22 +221,22 @@ def compile_model(
         if use_autoscheduler:
             with auto_scheduler.ApplyHistoryBest(tuning_records):
                 config["relay.backend.use_auto_scheduler"] = True
-                with tvm.transform.PassContext(opt_level=3, config=config):
+                with tvm.transform.PassContext(
+                    opt_level=3, config=config, disabled_pass=disabled_pass
+                ):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(
-                        mod, target=target, params=params, target_host=target_host
-                    )
+                    graph_module = relay.build(mod, target=target, params=params)
         else:
             with autotvm.apply_history_best(tuning_records):
-                with tvm.transform.PassContext(opt_level=3, config=config):
+                with tvm.transform.PassContext(
+                    opt_level=3, config=config, disabled_pass=disabled_pass
+                ):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(
-                        mod, tvm_target, params=params, target_host=target_host
-                    )
+                    graph_module = relay.build(mod, tvm_target, params=params)
     else:
-        with tvm.transform.PassContext(opt_level=3, config=config):
+        with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=disabled_pass):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
+            graph_module = relay.build(mod, tvm_target, params=params)
 
     # Generate output dump files with sources
     dump_code = dump_code or []

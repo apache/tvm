@@ -76,7 +76,7 @@ class VulkanThreadEntry {
     }
   }
 
-  TVMContext ctx;
+  Device device;
   std::unique_ptr<WorkspacePool> pool;
   VulkanStream* Stream(size_t device_id);
   VulkanStagingBuffer* StagingBuffer(int device_id, size_t size);
@@ -115,16 +115,15 @@ class VulkanDeviceAPI final : public DeviceAPI {
       vkDestroyInstance(instance_, nullptr);
     }
   }
-  void SetDevice(TVMContext ctx) final { VulkanThreadEntry::ThreadLocal()->ctx = ctx; }
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void SetDevice(Device dev) final { VulkanThreadEntry::ThreadLocal()->device = dev; }
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     if (nbytes == 0) {
       // Vulkan seems to have issues if we return nullptr on zero size alloc
       nbytes = 1;
     }
-    const auto& vctx = context(ctx.device_id);
+    const auto& vctx = context(dev.device_id);
     VkBufferCreateInfo info;
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     info.pNext = nullptr;
@@ -191,12 +190,12 @@ class VulkanDeviceAPI final : public DeviceAPI {
     return pbuf;
   }
 
-  void FreeDataSpace(TVMContext ctx, void* ptr) final {
+  void FreeDataSpace(Device dev, void* ptr) final {
     // Before releasing the vkBuffer, call sync to
     // finish all the vulkan commands that reference the buffer.
-    StreamSync(ctx, nullptr);
+    StreamSync(dev, nullptr);
 
-    const auto& vctx = context(ctx.device_id);
+    const auto& vctx = context(dev.device_id);
     auto* pbuf = static_cast<VulkanBuffer*>(ptr);
     vkDestroyBuffer(vctx.device, pbuf->buffer, nullptr);
     vkFreeMemory(vctx.device, pbuf->memory, nullptr);
@@ -205,19 +204,19 @@ class VulkanDeviceAPI final : public DeviceAPI {
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     ICHECK(stream == nullptr);
-    TVMContext ctx = ctx_from;
-    if (ctx_from.device_type == kDLCPU) {
-      ctx = ctx_to;
+    Device dev = dev_from;
+    if (dev_from.device_type == kDLCPU) {
+      dev = dev_to;
     }
 
-    int from_dev_type = static_cast<int>(ctx_from.device_type);
-    int to_dev_type = static_cast<int>(ctx_to.device_type);
+    int from_dev_type = static_cast<int>(dev_from.device_type);
+    int to_dev_type = static_cast<int>(dev_to.device_type);
     if (from_dev_type == kDLVulkan && to_dev_type == kDLVulkan) {
       VulkanThreadEntry::ThreadLocal()
-          ->Stream(ctx_from.device_id)
+          ->Stream(dev_from.device_id)
           ->Launch([=](VulkanStreamState* state) {
             // 1: copy
             const auto* from_buf = static_cast<const VulkanBuffer*>(from);
@@ -228,7 +227,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
             copy_info.size = size;
             vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, to_buf->buffer, 1, &copy_info);
             // 2: barrier(transfer-> compute|transfer)
-            ICHECK_EQ(ctx_from.device_id, ctx_to.device_id) << "Vulkan disallow cross device copy.";
+            ICHECK_EQ(dev_from.device_id, dev_to.device_id) << "Vulkan disallow cross device copy.";
             VkMemoryBarrier barrier_info;
             barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
             barrier_info.pNext = nullptr;
@@ -244,10 +243,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
 
     } else if (from_dev_type == kDLVulkan && to_dev_type == kDLCPU) {
       const auto* from_buf = static_cast<const VulkanBuffer*>(from);
-      const auto& vctx = context(ctx_from.device_id);
-      auto* temp = VulkanThreadEntry::ThreadLocal()->StagingBuffer(ctx_from.device_id, size);
+      const auto& vctx = context(dev_from.device_id);
+      auto* temp = VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_from.device_id, size);
       VulkanThreadEntry::ThreadLocal()
-          ->Stream(ctx_from.device_id)
+          ->Stream(dev_from.device_id)
           ->Launch([&](VulkanStreamState* state) {
             VkBufferCopy copy_info;
             copy_info.srcOffset = from_offset;
@@ -255,7 +254,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
             copy_info.size = size;
             vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, temp->buffer, 1, &copy_info);
           });
-      VulkanThreadEntry::ThreadLocal()->Stream(ctx_from.device_id)->Synchronize();
+      VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
       if (!vctx.coherent_staging) {
         VkMappedMemoryRange mrange;
         mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
@@ -267,10 +266,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
       }
       memcpy(static_cast<char*>(to) + to_offset, static_cast<char*>(temp->host_addr), size);
     } else if (from_dev_type == kDLCPU && to_dev_type == kDLVulkan) {
-      const auto& vctx = context(ctx_to.device_id);
+      const auto& vctx = context(dev_to.device_id);
       const auto* to_buf = static_cast<const VulkanBuffer*>(to);
       VulkanStagingBuffer* temp =
-          VulkanThreadEntry::ThreadLocal()->StagingBuffer(ctx_to.device_id, size);
+          VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_to.device_id, size);
       memcpy(temp->host_addr, static_cast<const char*>(from) + from_offset, size);
       // host side flush if access is not coherent.
       // so writes from CPU is visible to GPU
@@ -285,7 +284,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
       }
 
       VulkanThreadEntry::ThreadLocal()
-          ->Stream(ctx_from.device_id)
+          ->Stream(dev_from.device_id)
           ->Launch([&](VulkanStreamState* state) {
             // 0: barrier(host->transfer)
             VkMemoryBarrier barrier_info;
@@ -305,7 +304,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
           });
       // TODO(tulloch): should we instead make the staging buffer a property of the
       // Stream? This would allow us to elide synchronizations here.
-      VulkanThreadEntry::ThreadLocal()->Stream(ctx_from.device_id)->Synchronize();
+      VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
     } else {
       LOG(FATAL) << "Expect copy from/to Vulkan or between Vulkan"
                  << ", from=" << from_dev_type << ", to=" << to_dev_type;
@@ -314,37 +313,37 @@ class VulkanDeviceAPI final : public DeviceAPI {
 
  public:
   // Always use the default stream
-  TVMStreamHandle CreateStream(TVMContext ctx) {
+  TVMStreamHandle CreateStream(Device dev) {
     LOG(FATAL) << "Not implemented";
     return nullptr;
   }
 
-  void FreeStream(TVMContext ctx, TVMStreamHandle stream) {
+  void FreeStream(Device dev, TVMStreamHandle stream) {
     LOG(FATAL) << "Not implemented";
     return;
   }
 
-  void SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
+  void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
     LOG(FATAL) << "Not implemented";
     return;
   }
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
+  void StreamSync(Device dev, TVMStreamHandle stream) final {
     ICHECK(stream == nullptr);
-    VulkanThreadEntry::ThreadLocal()->Stream(ctx.device_id)->Synchronize();
+    VulkanThreadEntry::ThreadLocal()->Stream(dev.device_id)->Synchronize();
   }
 
-  void SetStream(TVMContext ctx, TVMStreamHandle stream) final {
+  void SetStream(Device dev, TVMStreamHandle stream) final {
     LOG(FATAL) << "Not implemented";
     return;
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
-    return VulkanThreadEntry::ThreadLocal()->pool->AllocWorkspace(ctx, size);
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
+    return VulkanThreadEntry::ThreadLocal()->pool->AllocWorkspace(dev, size);
   }
 
-  void FreeWorkspace(TVMContext ctx, void* data) final {
-    VulkanThreadEntry::ThreadLocal()->pool->FreeWorkspace(ctx, data);
+  void FreeWorkspace(Device dev, void* data) final {
+    VulkanThreadEntry::ThreadLocal()->pool->FreeWorkspace(dev, data);
   }
 
   static VulkanDeviceAPI* Global() {
@@ -363,8 +362,8 @@ class VulkanDeviceAPI final : public DeviceAPI {
   std::vector<VulkanContext> context_;
 };
 
-void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
-  size_t index = static_cast<size_t>(ctx.device_id);
+void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
+  size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
     *rv = static_cast<int>(index < context_.size());
     return;
@@ -1045,8 +1044,8 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
 VulkanThreadEntry::VulkanThreadEntry()
     : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
                                            VulkanDeviceAPI::Global())) {
-  ctx.device_id = 0;
-  ctx.device_type = static_cast<DLDeviceType>(kDLVulkan);
+  device.device_id = 0;
+  device.device_type = static_cast<DLDeviceType>(kDLVulkan);
 }
 
 VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
@@ -1059,7 +1058,7 @@ VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
 
 void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
                                    const ArgUnion64* pack_args) const {
-  int device_id = VulkanThreadEntry::ThreadLocal()->ctx.device_id;
+  int device_id = VulkanThreadEntry::ThreadLocal()->device.device_id;
   ICHECK_LT(device_id, kVulkanMaxNumDevice);
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
   if (!scache_[device_id]) {

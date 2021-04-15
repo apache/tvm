@@ -25,6 +25,7 @@ import pytest
 import tvm
 
 from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.contrib.target.vitis_ai import vitis_ai_available
 
 from tvm.driver import tvmc
 
@@ -44,9 +45,9 @@ def test_save_dumps(tmpdir_factory):
 
 def verify_compile_tflite_module(model, shape_dict=None):
     pytest.importorskip("tflite")
-
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        model, target="llvm", dump_code="ll", alter_layout="NCHW", shape_dict=shape_dict
+    mod, params = tvmc.load(model, shape_dict=shape_dict)
+    graph, lib, params, dumps = tvmc.compile(
+        mod, params, target="llvm", dump_code="ll", alter_layout="NCHW"
     )
 
     # check for output types
@@ -74,8 +75,10 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
 def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        tflite_mobilenet_v1_1_quant,
+    mod, params = tvmc.load(tflite_mobilenet_v1_1_quant)
+    graph, lib, params, dumps = tvmc.compile(
+        mod,
+        params,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
     )
@@ -91,9 +94,8 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        keras_resnet50, target="llvm", dump_code="ll"
-    )
+    mod, params = tvmc.load(keras_resnet50)
+    graph, lib, params, dumps = tvmc.compile(mod, params, target="llvm", dump_code="ll")
 
     expected_temp_dir = tmpdir_factory.mktemp("saved_output")
     expected_file_name = "saved.tar"
@@ -111,8 +113,10 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        keras_resnet50,
+    mod, params = tvmc.load(keras_resnet50)
+    graph, lib, params, dumps = tvmc.compile(
+        mod,
+        params,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
     )
@@ -128,10 +132,8 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 def verify_compile_onnx_module(model, shape_dict=None):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
-
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        model, target="llvm", dump_code="ll", shape_dict=shape_dict
-    )
+    mod, params = tvmc.load(model, shape_dict=shape_dict)
+    graph, lib, params, dumps = tvmc.compile(mod, params, target="llvm", dump_code="ll")
 
     # check for output types
     assert type(graph) is str
@@ -158,8 +160,10 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        onnx_resnet50,
+    mod, params = tvmc.load(onnx_resnet50)
+    graph, lib, params, dumps = tvmc.compile(
+        mod,
+        params,
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
         dump_code="asm",
     )
@@ -175,11 +179,11 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
 @tvm.testing.requires_opencl
 def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     pytest.importorskip("tflite")
-
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        tflite_mobilenet_v1_0_25_128,
-        target="opencl",
-        target_host="llvm",
+    mod, params = tvmc.load(tflite_mobilenet_v1_0_25_128)
+    graph, lib, params, dumps = tvmc.compile(
+        mod,
+        params,
+        target="opencl --host=llvm",
         alter_layout="NCHW",
     )
 
@@ -196,9 +200,31 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
 )
 def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
+    mod, params = tvmc.load(tflite_mobilenet_v1_1_quant)
+    graph, lib, params, dumps = tvmc.compile(
+        mod, params, target="ethos-n77, llvm", dump_code="relay"
+    )
 
+    # check for output types
+    assert type(graph) is str
+    assert type(lib) is tvm.runtime.module.Module
+    assert type(params) is dict
+    assert type(dumps) is dict
+
+
+@pytest.mark.skipif(
+    not vitis_ai_available(),
+    reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
+)
+def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+
+    mod, params = tvmc.load(tflite_mobilenet_v1_1_quant)
     graph, lib, params, dumps = tvmc.compiler.compile_model(
-        tflite_mobilenet_v1_1_quant, target="ethos-n77, llvm", dump_code="relay"
+        mod,
+        params,
+        target="vitis-ai -dpu=DPUCZDX8G-zcu104 -export_runtime_module=vitis_ai.rtmod, llvm",
+        dump_code="relay",
     )
 
     # check for output types
@@ -210,21 +236,22 @@ def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant
 
 @mock.patch("tvm.relay.build")
 @mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
-@mock.patch("tvm.driver.tvmc.frontends.load_model")
+@mock.patch("tvm.driver.tvmc.load")
 @mock.patch("tvm.transform.PassContext")
 def test_compile_check_configs_composite_target(mock_pc, mock_fe, mock_ct, mock_relay):
     mock_codegen = {}
     mock_codegen["config_key"] = "relay.ext.mock.options"
-    mock_codegen["pass_pipeline"] = lambda *args: None
+    mock_codegen["pass_pipeline"] = lambda *args, **kwargs: None
 
     mock_fe.return_value = (None, None)
     mock_ct.return_value = mock_codegen
     mock_relay.return_value = mock.MagicMock()
 
-    graph, lib, params, dumps = tvmc.compiler.compile_model(
-        "no_file_needed", target="mockcodegen -testopt=value, llvm"
-    )
+    mod, params = tvmc.load("no_file_needed")
+    graph, lib, params, dumps = tvmc.compile(mod, params, target="mockcodegen -testopt=value, llvm")
 
     mock_pc.assert_called_once_with(
-        opt_level=3, config={"relay.ext.mock.options": {"testopt": "value"}}
+        opt_level=3,
+        config={"relay.ext.mock.options": {"testopt": "value"}},
+        disabled_pass=None,
     )

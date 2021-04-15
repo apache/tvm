@@ -96,13 +96,13 @@ set(USE_CPP_RPC OFF)
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
-# Whether enable tiny embedded graph runtime.
-set(USE_GRAPH_RUNTIME ON)
+# Whether enable tiny embedded graph executor.
+set(USE_GRAPH_EXECUTOR ON)
 
-# Whether enable tiny graph runtime with CUDA Graph
-set(USE_GRAPH_RUNTIME_CUDA_GRAPH OFF)
+# Whether enable tiny graph executor with CUDA Graph
+set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
-# Whether to enable the profiler for the graph runtime and vm
+# Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
 # Whether enable uTVM standalone runtime
@@ -207,10 +207,10 @@ set(USE_DNNL_CODEGEN OFF)
 #
 # USE_ARM_COMPUTE_LIB - Support for compiling a relay graph offloading supported
 #                       operators to Arm Compute Library. OFF/ON
-# USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME - Run Arm Compute Library annotated functions via the ACL
+# USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR - Run Arm Compute Library annotated functions via the ACL
 #                                     runtime. OFF/ON/"path/to/ACL"
 set(USE_ARM_COMPUTE_LIB OFF)
-set(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME OFF)
+set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 
 # Whether to build with Arm Ethos-N support
 # Possible values:

@@ -55,12 +55,12 @@ def test_llvm_add_pipeline():
         binds = {A: Ab}
         # BUILD and invoke the kernel.
         f = tvm.build(s, [A, B, C], "llvm", binds=binds)
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -96,10 +96,10 @@ def test_llvm_import():
             s[B].pragma(s[B].op.axis[0], "import_llvm", ll_code)
         # BUILD and invoke the kernel.
         f = tvm.build(s, [A, B], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1.0)
 

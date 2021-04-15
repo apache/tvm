@@ -86,8 +86,13 @@ class FdTransport(base.Transport):
 
         end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
 
-        self._await_ready([self.read_fd], [], end_time=end_time)
-        to_return = os.read(self.read_fd, n)
+        while True:
+            self._await_ready([self.read_fd], [], end_time=end_time)
+            try:
+                to_return = os.read(self.read_fd, n)
+                break
+            except BlockingIOError:
+                pass
 
         if not to_return:
             self.close()

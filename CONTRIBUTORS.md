@@ -46,7 +46,7 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
-- [Chenfan](https://github.com/jcf94): @jcf94 - autoscheduling
+- [Chenfan](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
@@ -70,12 +70,12 @@ We do encourage everyone to work anything they are interested in.
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
 - [Leyuan Wang](https://github.com/Laurawly) (PMC): @Laurawly: - topi
-- [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
+- [Yao Wang](https://github.com/kevinthesun): @kevinthesun (PMC): - topi, vision
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
-- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, ansor
-- [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, topi, relay
+- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, auto_scheduler
+- [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 
 ## Reviewers
 
@@ -92,8 +92,10 @@ We do encourage everyone to work anything they are interested in.
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
+- [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1

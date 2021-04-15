@@ -88,22 +88,22 @@ def test_rpc_module():
 
     # connect to the proxy
     remote = rpc.connect(proxy_host, proxy_port, key=key)
-    ctx = remote.metal(0)
+    dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-    time_f = f1.time_evaluator(f1.entry_name, ctx, number=10)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op" % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
     # CPU
-    ctx = remote.cpu(0)
+    dev = remote.cpu(0)
     f2 = remote.load_module("cpu_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-    time_f = f2.time_evaluator(f1.entry_name, ctx, number=10)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    time_f = f2.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op" % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)

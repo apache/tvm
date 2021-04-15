@@ -16,7 +16,7 @@
 # under the License.
 """Annotation operations."""
 from tvm.runtime import ndarray as _nd
-from tvm.runtime import TVMContext as _TVMContext
+from tvm.runtime import Device as _Device
 
 from . import _make
 from .. import op as reg
@@ -30,7 +30,7 @@ def on_device(data, device):
     data : tvm.relay.Expr
         The expression to be annotated.
 
-    device : Union[:py:class:`TVMContext`, str]
+    device : Union[:py:class:`Device`, str]
         The device type to annotate.
 
     Returns
@@ -38,13 +38,13 @@ def on_device(data, device):
     result : tvm.relay.Expr
         The annotated expression.
     """
-    if isinstance(device, _TVMContext):
+    if isinstance(device, _Device):
         device = device.device_type
     elif isinstance(device, str):
-        device = _nd.context(device).device_type
+        device = _nd.device(device).device_type
     else:
         raise ValueError(
-            "device is expected to be the type of TVMContext or "
+            "device is expected to be the type of Device or "
             "str, but received %s" % (type(device))
         )
     return _make.on_device(data, device)

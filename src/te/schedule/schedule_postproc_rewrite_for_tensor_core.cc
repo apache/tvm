@@ -1089,8 +1089,8 @@ Stmt SchedulePostProcRewriteForTensorCore(Stmt stmt, Schedule schedule,
   }
 
   // Check if current runtime support GPU CUDA
-  TVMContext ctx{kDLGPU, 0};
-  auto api = tvm::runtime::DeviceAPI::Get(ctx, true);
+  Device dev{kDLGPU, 0};
+  auto api = tvm::runtime::DeviceAPI::Get(dev, true);
   if (api == nullptr) {
     return stmt;
   }

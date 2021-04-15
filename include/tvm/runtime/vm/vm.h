@@ -239,17 +239,17 @@ class VirtualMachine : public runtime::ModuleNode {
                             Index output_size, const std::vector<ObjectRef>& args);
 
   /*!
-   * \brief Initialize the virtual machine for a set of contexts.
-   * \param contexts The set of TVM contexts.
-   * \param alloc_types The allocator types for each context.
+   * \brief Initialize the virtual machine for a set of devices.
+   * \param devices The set of TVM devices.
+   * \param alloc_types The allocator types for each device.
    */
-  void Init(const std::vector<TVMContext>& contexts, const std::vector<AllocatorType>& alloc_types);
+  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
 
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get context from the context list based on a given device type. */
-  TVMContext GetContext(Index device_type) const;
+  /*! \brief Get device from the device list based on a given device type. */
+  Device GetDevice(Index device_type) const;
 
   /*!
    * \brief Invoke a global setting up the VM state to execute.
@@ -275,8 +275,8 @@ class VirtualMachine : public runtime::ModuleNode {
   const Executable* exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
-  /*! \brief The set of TVM contexts the VM is currently executing on. */
-  std::vector<TVMContext> ctxs_;
+  /*! \brief The set of TVM devices the VM is currently executing on. */
+  std::vector<Device> devices_;
   /*! \brief The cached memory allocators. */
   std::vector<Allocator*> allocators_;
   /*!

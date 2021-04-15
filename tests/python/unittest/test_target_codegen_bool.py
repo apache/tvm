@@ -39,11 +39,11 @@ def test_cmp_load_store():
         s[C].parallel(xo2)
         # BUILD and invoke the kernel.
         f = tvm.build(s, [A, B, D], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         a_np = np.random.uniform(size=n).astype(A.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
         np.testing.assert_equal(
             d.asnumpy(),
@@ -53,7 +53,7 @@ def test_cmp_load_store():
     def check_device(device):
         if not tvm.testing.device_enabled(device):
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         s = te.create_schedule(D.op)
         for stage in [C, D]:
             xo, xi = s[stage].split(stage.op.axis[0], factor=4)
@@ -61,9 +61,9 @@ def test_cmp_load_store():
             s[stage].bind(xi, te.thread_axis("threadIdx.x"))
         f = tvm.build(s, [A, B, D], device)
         a_np = np.random.uniform(size=n).astype(A.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
         np.testing.assert_equal(
             d.asnumpy(),
