@@ -31,10 +31,18 @@ def compute_resize(attrs, inputs, out_type):
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
+    rounding_method = attrs.rounding_method
     out_dtype = attrs.out_dtype
     return [
         tvm.topi.image.resize(
-            inputs[0], inputs[1], layout, method, coord_trans, out_dtype, out_type.shape
+            inputs[0],
+            inputs[1],
+            layout,
+            method,
+            coord_trans,
+            rounding_method,
+            out_dtype,
+            out_type.shape,
         )
     ]
 

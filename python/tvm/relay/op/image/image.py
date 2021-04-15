@@ -26,6 +26,7 @@ def resize(
     layout="NCHW",
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
+    rounding_method="round",
     out_dtype=None,
 ):
     """Image resize operator.
@@ -58,6 +59,10 @@ def resize(
         Refer to the ONNX Resize operator specification for details.
         [half_pixel, align_corners, asymmetric]
 
+    rounding_method: string, optional
+        indicates how to find the "nearest" pixel in nearest_neighbor method
+        [round, floor, ceil]
+
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
 
@@ -70,9 +75,11 @@ def resize(
         size = list(size.data.asnumpy().astype("int32"))
     if isinstance(size, Expr):
         return _dyn_make.resize(
-            data, size, layout, method, coordinate_transformation_mode, out_dtype
+            data, size, layout, method, coordinate_transformation_mode, rounding_method, out_dtype
         )
-    return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
+    return _make.resize(
+        data, size, layout, method, coordinate_transformation_mode, rounding_method, out_dtype
+    )
 
 
 def resize3d(

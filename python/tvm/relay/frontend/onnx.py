@@ -2045,11 +2045,13 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        mode = attr.get("mode")
-        if mode == b"nearest":
+        mode = attr.get("mode").decode("ascii")
+        if mode == "nearest":
             method = "nearest_neighbor"
-        elif mode == b"linear":
+        elif mode == "linear":
             method = "bilinear"
+        elif mode == "cubic":
+            method = "bicubic"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
@@ -2063,11 +2065,13 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        mode = attr.get("mode")
-        if mode == b"nearest":
+        mode = attr.get("mode").decode("ascii")
+        if mode == "nearest":
             method = "nearest_neighbor"
-        elif mode == b"linear":
+        elif mode == "linear":
             method = "bilinear"
+        elif mode == "cubic":
+            method = "bicubic"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
@@ -2084,20 +2088,12 @@ class Resize(OnnxOpConverter):
             assert len(scale_shape) != 0, "One of scale or size should be passed."
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
 
-        coord_trans = attr.get("coordinate_transformation_mode")
-        if coord_trans in [b"pytorch_half_pixel", b"half_pixel"]:
-            coord_trans = "half_pixel"
-        elif coord_trans == b"align_corners":
-            coord_trans = "align_corners"
-        elif coord_trans == b"asymmetric" or method == "nearest_neighbor":
-            coord_trans = "asymmetric"
-        else:
-            raise tvm.error.OpAttributeInvalid(
-                "Unsupported coordinate_transformation_mode: {}".format(coord_trans)
-            )
+        coord_trans = attr.get("coordinate_transformation_mode", b"half_pixel").decode("ascii")
+        nearest_mode = attr.get("nearest_mode", "round_prefer_floor")
+
         layout = "NCHW"  # ONNX assumes NCHW layout
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-        return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
+        return _op.image.resize(inputs[0], out_size, layout, method, coord_trans, nearest_mode)
 
 
 class NonZero(OnnxOpConverter):

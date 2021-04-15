@@ -71,6 +71,7 @@ def resize_nearest_neighbor(
     extrapolation_value=None,
     layout="NCHW",
     coordinate_transformation_mode="align_corners",
+    rounding_method="round",
     out_dtype=None,
 ):
 
@@ -120,6 +121,10 @@ def resize_nearest_neighbor(
         Refer to the ONNX Resize operator specification for details.
         Available options are "half_pixel", "align_corners" and "asymmetric".
 
+    rounding_method: string, optional
+        indicates how to find the "nearest" pixel in nearest_neighbor method
+        [round, floor, ceil]
+
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
@@ -150,29 +155,48 @@ def resize_nearest_neighbor(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        if coordinate_transformation_mode == "align_corners":
-            h_scale = (image_height - 1).astype("float") / (target_height - 1)
-            w_scale = (image_width - 1).astype("float") / (target_width - 1)
-        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-            h_scale = image_height.astype("float") / target_height
-            w_scale = image_width.astype("float") / target_width
+        scale_y = te.div(image_height.astype("float"), target_height.astype("float"))
+        scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
+        if coordinate_transformation_mode == "half_pixel":
+            in_y = (y + 0.5) * scale_y - 0.5
+            in_x = (x + 0.5) * scale_x - 0.5
+        elif coordinate_transformation_mode == "align_corners":
+            in_y = y * (image_height - 1).astype("float") / (target_height - 1)
+            in_x = x * (image_width - 1).astype("float") / (target_width - 1)
+        elif coordinate_transformation_mode == "asymmetric":
+            in_y = y * scale_y
+            in_x = x * scale_x
+        elif coordinate_transformation_mode in ["pytorch_half_pixel", "tf_half_pixel_for_nn"]:
+            in_y = (y + 0.5) * scale_y
+            in_x = (x + 0.5) * scale_x
         else:
             raise ValueError(
                 "Unsupported coordinate_transformation_mode: {}".format(
                     coordinate_transformation_mode
                 )
             )
-        in_y = h_scale * y
-        in_x = w_scale * x
 
-    if coordinate_transformation_mode == "align_corners" or boxes is not None:
+    if rounding_method == "round" or boxes is not None:
         closest_x_index = te.round(in_x).astype("int32")
         closest_y_index = te.round(in_y).astype("int32")
-    else:
+    elif rounding_method == "round_prefer_floor":
+        closest_x_index = te.ceil(in_x - 0.5).astype("int32")
+        closest_y_index = te.ceil(in_y - 0.5).astype("int32")
+    elif rounding_method == "round_prefer_ceil":
+        closest_x_index = te.floor(in_x + 0.5).astype("int32")
+        closest_y_index = te.floor(in_y + 0.5).astype("int32")
+    elif rounding_method == "floor":
         # Add epsilon to floor to prevent gpu rounding errors.
         epsilon = 1e-5
         closest_y_index = te.floor(in_y + epsilon).astype("int32")
         closest_x_index = te.floor(in_x + epsilon).astype("int32")
+    elif rounding_method == "ceil":
+        # Subract epsilon from ceil to prevent gpu rounding errors.
+        epsilon = 1e-5
+        closest_y_index = te.ceil(in_y - epsilon).astype("int32")
+        closest_x_index = te.ceil(in_x - epsilon).astype("int32")
+    else:
+        raise ValueError("Uknown rounding method: {}".format(rounding_method))
 
     value = get_2d_pixel(
         data,
@@ -611,6 +635,7 @@ def resize(
     layout="NCHW",
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
+    rounding_method="round",
     out_dtype=None,
     output_shape=None,
 ):
@@ -683,6 +708,7 @@ def resize(
             size[1],
             layout=layout,
             coordinate_transformation_mode=coordinate_transformation_mode,
+            rounding_method=rounding_method,
             out_dtype=out_dtype,
         )
 

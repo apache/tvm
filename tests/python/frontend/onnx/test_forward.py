@@ -4186,11 +4186,11 @@ unsupported_onnx_tests = [
     "test_resize_downsample_scales_cubic_A_n0p5_exclude_outside/",
     "test_resize_downsample_scales_cubic_align_corners/",
     "test_resize_downsample_scales_linear/",
-    "test_resize_downsample_scales_nearest/",
+    # "test_resize_downsample_scales_nearest/",
     "test_resize_downsample_sizes_cubic/",
     "test_resize_downsample_sizes_linear_pytorch_half_pixel/",
-    "test_resize_downsample_sizes_nearest/",
-    "test_resize_downsample_sizes_nearest_tf_half_pixel_for_nn/",
+    # "test_resize_downsample_sizes_nearest/",
+    # "test_resize_downsample_sizes_nearest_tf_half_pixel_for_nn/",
     "test_resize_tf_crop_and_resize/",
     "test_resize_upsample_scales_cubic/",
     "test_resize_upsample_scales_cubic_A_n0p5_exclude_outside/",
@@ -4198,9 +4198,11 @@ unsupported_onnx_tests = [
     "test_resize_upsample_scales_cubic_asymmetric/",
     "test_resize_upsample_scales_linear/",
     "test_resize_upsample_sizes_cubic/",
+    ## For these three tests, ONNX 1.6.0 has incorrect graphs, they pass with ONNX 1.7.0
     "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
     "test_resize_upsample_sizes_nearest_floor_align_corners/",
     "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric/",
+    # ----
     "test_reversesequence_batch/",
     "test_reversesequence_time/",
     "test_rnn_seq_length/",
@@ -4261,6 +4263,8 @@ def test_onnx_nodes(test):
                 outputs.append(numpy_helper.to_array(new_tensor))
             else:
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
+        ort_val = get_onnxruntime_output(onnx_model, inputs)
+        tvm.testing.assert_allclose(outputs[0], ort_val, rtol=1e-5, atol=1e-5)
         tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
         if len(outputs) == 1:
             tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)

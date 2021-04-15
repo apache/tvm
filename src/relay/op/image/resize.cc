@@ -66,12 +66,13 @@ bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // Positional relay function to create image operator
 // used by frontend FFI.
 Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
-                String coordinate_transformation_mode, DataType out_dtype) {
+                String coordinate_transformation_mode, String rounding_method, DataType out_dtype) {
   auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
+  attrs->rounding_method = rounding_method;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize");
   return Call(op, {data}, Attrs(attrs), {});
