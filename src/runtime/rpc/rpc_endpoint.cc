@@ -980,14 +980,14 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_to, code, nbytes);
     const uint64_t block_size = GetRPCMaxTransferSize() - overhead;
     uint64_t block_count = 0;
-    uint64_t num_blocks = nbytes / block_size;
+    const uint64_t num_blocks = nbytes / block_size;
 
     for (block_count = 0; block_count < num_blocks; block_count++) {
       remote_to->byte_offset = block_count * block_size;
       endpoint_->CopyToRemote(local_from_bytes, remote_to, block_size);
     }
 
-    uint64_t remainder_bytes = nbytes % block_size;
+    const uint64_t remainder_bytes = nbytes % block_size;
     if (remainder_bytes != 0) {
       remote_to->byte_offset = block_count * block_size;
       endpoint_->CopyToRemote(local_from_bytes, remote_to, remainder_bytes);

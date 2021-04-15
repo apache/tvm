@@ -48,9 +48,6 @@ const int kRPCSuccess = kRPCMagic + 0;
 // cannot found matched key in server
 const int kRPCMismatch = kRPCMagic + 2;
 
-// When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
-const uint64_t kRPCMaxTransferSizeBytesDefault = 128 * 1024;
-
 /*! \brief Enumeration code for the RPC tracker */
 enum class TrackerCode : int {
   kFail = -1,
