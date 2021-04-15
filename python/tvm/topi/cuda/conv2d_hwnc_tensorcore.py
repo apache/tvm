@@ -241,6 +241,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     cfg.define_knob("warp_row_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("warp_col_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("chunk", [1, 2, 4, 8])
+    cfg.define_knob("fuse_pack", [0, 1])
     cfg.define_knob("split_block_k_nums", [1, 2, 4, 8, 16, 32])
     cfg.define_knob("vector_ws", [1, 8])
     cfg.define_knob("vector_as", [1, 8, 16])
@@ -253,7 +254,13 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     vector_as = cfg["vector_as"].val
     vector_ws = cfg["vector_ws"].val
     split_block_k_nums = cfg["split_block_k_nums"].val
+    fuse_pack = cfg["fuse_pack"].val
 
+    if not fuse_pack:
+        s[packed_data].compute_inline()
+    else:
+        with Target("cuda"):
+            schedule_injective_from_existing(s, packed_data)
     s[packed_data].compute_inline()
 
     if data_dtype in ["int4", "uint4"]:
