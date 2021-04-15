@@ -1199,7 +1199,7 @@ def test_pad_infer_type():
     n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(
-        t, ((1, 1), (2, 2), (3, 3), (4, 4)), pad_value=relay.const(2.2) * relay.const(3.14)
+        t, ((1, 1), (2, 2), (3, 3), (4, 4)), pad_value=relay.var("pad_value", "float32")
     )
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
