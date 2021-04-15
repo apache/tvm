@@ -54,7 +54,7 @@ def get_network():
 
 
 mod, dshape = get_network()
-pl = [1, 2]
+pl = [0, 2, 3]
 mods = pipeline_graph(mod["main"], pl)
 
 data = np.full(dshape, 5).astype("float32")
@@ -65,5 +65,7 @@ out = run_module(mod, ctx, "data", data)
 o1 = run_module(mods[0], ctx, "data", data)
 o2 = run_module(mods[1], ctx, "x", o1)
 o3 = run_module(mods[2], ctx, "x", o2)
+o4 = run_module(mods[3], ctx, "x", o3)
 
-tvm.testing.assert_allclose(out, o3)
+tvm.testing.assert_allclose(out, o4)
+print("suc")

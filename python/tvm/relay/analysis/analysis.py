@@ -21,6 +21,7 @@ This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 import tvm
+from tvm import relay
 from tvm.ir import IRModule
 from tvm.relay import transform, build_module
 from tvm.runtime.ndarray import cpu
@@ -479,12 +480,35 @@ def pipeline_graph(expr, indexs):
 
         return operator_current_idx
 
-    def _recursion(anf, operator_indx, pipeline_mods, indexs):
+    """Enumrate all operator of compute graph then split the compute graph
+    into a group subgraph.
+    Parameters
+    ----------
+    anf: 
+        ANF format expression
+
+    operator_indx:
+        current operator indice
+
+    pipeline_mods:
+        the subgraph list get storage in this variable
+
+    indices:
+        Array of indices use to define the subgraph scope
+
+    constant_expr:
+        constant defined before current operator
+    """
+    def _recursion(anf, operator_indx, pipeline_mods, indexs, constant_expr):
         """Do the split work"""
         if isinstance(anf, tvm.relay.Function):
             return tvm.relay.Function(
                 anf.params,
-                _recursion(anf.body, operator_indx, pipeline_mods, indexs),
+                _recursion(anf.body,
+                           operator_indx,
+                           pipeline_mods,
+                           indexs,
+                           constant_expr),
                 anf.ret_type,
                 anf.type_params,
                 anf.attrs,
@@ -492,27 +516,72 @@ def pipeline_graph(expr, indexs):
         if isinstance(anf, tvm.relay.expr.Let):
             value = anf.value
             operator_indx = _operator_idx_inc(value, operator_indx)
+            '''
+            record constan expr to make sure all sugraph can find correct
+            constant.
+            '''
+            if (isinstance(value, tvm.relay.expr.Constant)):
+                if not constant_expr:
+                    constant_expr = tvm.relay.expr.Let(anf.var, value, anf.var)
+                else:
+                    expr = tvm.relay.expr.Let(anf.var, value, anf.var)
+                    constant_expr = tvm.relay.expr.Let(anf.var,
+                                                       value,
+                                                       constant_expr)
+
             if isinstance(value, tvm.relay.expr.Call):
                 if isinstance(value.op, tvm.ir.Op):
+                    '''
+                    if have expr a(b(c(d(e)))) and indexes are [1,2,3]
+                    then would get separate modules for a(b),c,d(e).
+                    the split area is a(b)[0,1] c[2,2] d(e)[2,3]
+                    '''
                     if indexs and operator_indx == indexs[0]:
                         indexs.pop(0)
-                        ann = _recursion(anf.body, operator_indx, pipeline_mods, indexs)
+                        #anf.body.value = relay.var("data", relay.TensorType((3,3), "float32"))
+                        ann = _recursion(anf.body,
+                                         operator_indx,
+                                         pipeline_mods,
+                                         indexs,
+                                         constant_expr)
+                        '''
+                        when current subgraph use previous subgraph constant,
+                        such constant may become free varaible due to the constant
+                        not exist, merge the previous constant with current subgraph
+                        to avoid such issue.
+                        '''
+                        if (constant_expr):
+                            ann = tvm.relay.expr.Let(constant_expr.var,
+                                                 constant_expr.value,
+                                                 ann)
+
                         ann = run_opt_pass(ann, transform.ToGraphNormalForm())
                         mod = tvm.IRModule.from_expr(ann)
                         pipeline_mods.insert(0, mod)
                         return tvm.relay.expr.Let(anf.var, value, anf.var)
             return tvm.relay.expr.Let(
-                anf.var, value, _recursion(anf.body, operator_indx, pipeline_mods, indexs)
+                anf.var,
+                value,
+                _recursion(anf.body,
+                           operator_indx,
+                           pipeline_mods,
+                           indexs,
+                           constant_expr)
             )
         else:
             return anf
 
     pipeline_mods = []
-    operator_indx = 0
-    anf = run_opt_pass(expr, transform.SimplifyInference())
-    anf = run_opt_pass(anf, transform.ToANormalForm())
+    operator_indx = -1
+    constant_expr = None
+    subgraph_indexs = indexs.copy()
+    anf = run_opt_pass(expr, transform.ToANormalForm())
     anf = run_opt_pass(anf, transform.InferType())
-    ann = _recursion(anf, operator_indx, pipeline_mods, indexs)
+    ann = _recursion(anf,
+                     operator_indx,
+                     pipeline_mods,
+                     subgraph_indexs,
+                     constant_expr)
     ann = run_opt_pass(ann.body, transform.ToGraphNormalForm())
     mod = tvm.IRModule.from_expr(ann)
     pipeline_mods.insert(0, mod)
