@@ -325,7 +325,7 @@ def compare_tflite_with_tvm(
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
             # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
-            if quantized:
+            if quantized and not fp16_quantized:
                 for i in range(len(tflite_output)):
                     # allow absolute tolerance of 1 in the quantized results
                     tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1, rtol=1e-5)
@@ -1050,8 +1050,6 @@ def _test_convolution(
 def test_forward_convolution():
     for quantized in [False, True]:
         for fp16_quantized in [False, True]:
-            if quantized and fp16_quantized:
-                continue
             _test_convolution(
                 [4, 8, 8, 176],
                 [1, 1, 176, 32],
@@ -1265,8 +1263,6 @@ def _test_transpose_conv(
 def test_forward_transpose_conv():
     for quantized in [True, False]:
         for fp16_quantized in [True, False]:
-            if quantized and fp16_quantized:
-                continue
             # kernel 3x3, padding VALID
             _test_transpose_conv(
                 [4, 32, 32, 16],
@@ -3557,8 +3553,12 @@ def _test_fully_connected(
 
     # Initializes the input tensor with array containing incrementing
     # numbers from 1.
-    data_array = np.arange(1, total_size_1 + 1, dtype=np.uint8 if quantized else np.float32)
-    filter_array = np.arange(1, total_size_2 + 1, dtype=np.uint8 if quantized else np.float32)
+    data_array = np.arange(
+        1, total_size_1 + 1, dtype=np.uint8 if quantized and not fp16_quantized else np.float32
+    )
+    filter_array = np.arange(
+        1, total_size_2 + 1, dtype=np.uint8 if quantized and not fp16_quantized else np.float32
+    )
     in_name = "input"
 
     with tf.Graph().as_default():
@@ -3641,8 +3641,6 @@ def test_forward_fully_connected():
         for const_input in [False, True]:
             for quantized in [False, True]:
                 for fp16_quantized in [False, True]:
-                    if quantized and fp16_quantized:
-                        continue
                     _test_fully_connected(
                         input_shape,
                         const_input,
