@@ -72,7 +72,7 @@ inline void DispatchPureExtern(const TVMArgs& args, TVMRetValue* rv) {
     for (auto arg : call->args) {
       new_args.push_back(arg);
     }
-    *rv = Call(call->dtype, tir::builtin::call_pure_extern(), new_args);
+    *rv = Call(call->dtype, builtin::call_pure_extern(), new_args);
   } else {
     *rv = e;
   }
