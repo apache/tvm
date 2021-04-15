@@ -179,7 +179,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
 
              const PadAttrs* param = call_node->attrs.as<PadAttrs>();
              ICHECK(param);
-             return MakePad(call_node->args[0], ToMatrix(pad_width->data), ToScalar(pad_fill->data),
+
+             Expr pad_value = args[2];
+             return MakePad(call_node->args[0], ToMatrix(pad_width->data), pad_value,
                             param->pad_mode);
            }
            return Expr(nullptr);

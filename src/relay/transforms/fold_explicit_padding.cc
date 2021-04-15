@@ -119,7 +119,12 @@ class SimplifyConvPad {
     ICHECK(pad_node);
     const PadAttrs* param = pad_node->attrs.as<PadAttrs>();
     ICHECK(param);
-    if (param->pad_mode == "constant" && param->pad_value == 0.0) {
+    Array<Expr> args = pad_node->args;
+
+    // Possibly perform more optimizations if the pad_value is 0
+    Expr pad_value = args[1];
+    Constant zero_scalar = MakeConstantScalar(DataType::Float(64), 0);
+    if (param->pad_mode == "constant" && IsEqualScalar(pad_value, zero_scalar)) {
       Attrs attrs;
       if (node_map.count(conv1d_)) {
         attrs = GetAttrs(param, call_node->attrs.as<Conv1DAttrs>());
