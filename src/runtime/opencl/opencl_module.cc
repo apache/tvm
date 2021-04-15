@@ -252,7 +252,7 @@ std::unordered_map<std::string, std::string> OpenCLModuleNode::SplitKernels(
     ICHECK(begin != std::string::npos) << "The OpenCL module expects a kernel delimited "
                                        << "source from code generation, but no kernel "
                                        << "delimiter was found.";
-    while (true) {
+    for (size_t num_kernels = 0; num_kernels < workspace_->num_registered_kernels; num_kernels++) {
       begin += del.size();
       end = source.find('\n', begin);
       std::string func_name = source.substr(begin, end - begin);
@@ -270,6 +270,8 @@ std::unordered_map<std::string, std::string> OpenCLModuleNode::SplitKernels(
       }
     }
   }
+  ICHECK_EQ(workspace_->num_registered_kernels, split_kernels.size())
+      << "The number of registered kernels does not match number of parsed kernel sources";
   return split_kernels;
 }
 
