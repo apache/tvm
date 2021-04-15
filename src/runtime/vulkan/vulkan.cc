@@ -1066,7 +1066,7 @@ VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::
 VulkanHostVisibleBuffer* GetOrAllocate(
     int device_id, size_t size, VkBufferUsageFlags usage, uint32_t mem_type_index,
     std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>* buffers_ptr,
-    bool sync_after_delete = false) {
+    bool sync_before_realloc = false) {
   auto& buffers = *buffers_ptr;
   if (!buffers[device_id]) {
     buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
@@ -1075,15 +1075,15 @@ VulkanHostVisibleBuffer* GetOrAllocate(
   auto& buf = *(buffers[device_id]);
   if (buf.device != nullptr && buf.size < size) {
     // free previous buffer
-    DeleteHostVisibleBuffer(&buf);
-    if (sync_after_delete) {
+    if (sync_before_realloc) {
       // For the deferred execution mode, we need to make sure that old tasks that use
       // the older, smaller buffer get finished
       // Synchronization on staging buffers is done after host to device memory copy
-      // For UBO, we sync here before we allocate a larger buffer, to minimize synchronization
+      // For UBO, we sync here before we reallocate a larger buffer, to minimize synchronization
       // points
       VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Synchronize();
     }
+    DeleteHostVisibleBuffer(&buf);
   }
 
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
