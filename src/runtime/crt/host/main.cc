@@ -110,7 +110,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 }
 }
 
-uint8_t memory[1024 * 1024];
+uint8_t memory[512 * 1024];
 
 static char** g_argv = NULL;
 
@@ -135,10 +135,13 @@ int main(int argc, char** argv) {
   CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
            "failed to register GraphExecutor TVMModule");
 #endif
-  
-  int error = TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server, 0);
+
+  int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
+                                    (TVMFunctionHandle)&testonly_reset_server, 0);
   if (error) {
-    fprintf(stderr, "utvm runtime: internal error (error#: %d) registering global packedfunc; exiting\n", error);
+    fprintf(stderr,
+            "utvm runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
+            error);
     return 2;
   }
 
