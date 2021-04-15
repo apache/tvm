@@ -1611,8 +1611,6 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     if not isinstance(pad_value, Expr):
         pad_value = const(pad_value)
     if isinstance(pad_width, Expr):
-        if not isinstance(pad_width, Expr):
-            pad_width = const(list(pad_width))
         return _dyn_make.pad(data, pad_width, pad_value, pad_mode)
     return _make.pad(data, pad_width, pad_value, pad_mode)
 
