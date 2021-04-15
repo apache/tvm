@@ -50,10 +50,15 @@ struct VulkanBuffer {
   VkDeviceMemory memory{VK_NULL_HANDLE};
 };
 
+/*! \brief A struct to represent Vulkan buffers backed by host visible memory */
 struct VulkanHostVisibleBuffer {
+  // A device where the buffer is allocated
   VkDevice device{nullptr};
+  // Vulkan buffer and memory
   VulkanBuffer* vk_buf{nullptr};
+  // The corresponding pointer to the host memory
   void* host_addr{nullptr};
+  // The size of the buffer in bytes
   size_t size{0};
 };
 
@@ -1061,7 +1066,7 @@ VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::
 VulkanHostVisibleBuffer* GetOrAllocate(
     int device_id, size_t size, VkBufferUsageFlags usage, uint32_t mem_type_index,
     std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>* buffers_ptr,
-    bool sync_after_realloc = false) {
+    bool sync_after_delete = false) {
   auto& buffers = *buffers_ptr;
   if (!buffers[device_id]) {
     buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
@@ -1071,7 +1076,12 @@ VulkanHostVisibleBuffer* GetOrAllocate(
   if (buf.device != nullptr && buf.size < size) {
     // free previous buffer
     DeleteHostVisibleBuffer(&buf);
-    if (sync_after_realloc) {
+    if (sync_after_delete) {
+      // For the deferred execution mode, we need to make sure that old tasks that use
+      // the older, smaller buffer get finished
+      // Synchronization on staging buffers is done after host to device memory copy
+      // For UBO, we sync here before we allocate a larger buffer, to minimize synchronization
+      // points
       VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Synchronize();
     }
   }
