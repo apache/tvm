@@ -465,9 +465,10 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         if self._qemu:
             return self._zephyr_transport(micro_binary)
 
-        build_dir = os.path.dirname(
-            micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
-        )
+        cmake_cache_path = micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
+        cmake_entries = read_cmake_cache(cmake_cache_path)
+
+        build_dir = os.path.dirname(cmake_cache_path)
 
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
         # This is because readback protection is enabled by default when this device is flashed.
