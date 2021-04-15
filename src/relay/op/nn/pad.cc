@@ -151,7 +151,7 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   }
 
-  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), data->dtype));
+  reporter->Assign(types[2], TensorType(Array<IndexExpr>(oshape), data->dtype));
   return true;
 }
 
