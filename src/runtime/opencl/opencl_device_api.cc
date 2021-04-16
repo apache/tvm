@@ -85,7 +85,9 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       cl_uint value;
       OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint),
                                   &value, nullptr));
-      *rv = static_cast<int32_t>(value);
+      // OpenCL returns the clock rate in MHz, while CUDA/ROCm return the
+      // clock rate in kHz.  Converting to the same units for each.
+      *rv = static_cast<int32_t>(value * 1000);
       break;
     }
     case kMultiProcessorCount: {
