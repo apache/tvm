@@ -70,7 +70,7 @@ size_t CalculateWorkspaceBytes(const PrimFunc& func) {
   return wc(func);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes").set_body_typed([=](PrimFunc func) {
+TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes").set_body_typed([](PrimFunc func) {
   return static_cast<int>(CalculateWorkspaceBytes(func));
 });
 
