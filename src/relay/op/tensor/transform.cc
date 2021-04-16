@@ -2159,6 +2159,69 @@ Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::squeeze(inputs[0], param->axis)};
 }
 
+Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
+  // NOTE: Discard "const" qualifier here.
+  SqueezeAttrs* params = const_cast<SqueezeAttrs*>(attrs.as<SqueezeAttrs>());
+
+  Layout inferred_input = new_in_layouts.defined() ? new_in_layouts[0] : old_in_layouts[0];
+  Layout inferred_output = inferred_input;
+
+  ICHECK(old_in_types[0].as<TensorTypeNode>());
+  const auto& shape = old_in_types[0].as<TensorTypeNode>()->shape;
+
+  // axis to squeeze
+  Array<Integer> axis;
+  if (params->axis.defined()) {
+    axis = params->axis;
+  } else {
+    // if axes is None, squeeze all axes of dimension 1
+    for (size_t i = 0; i < shape.size(); i++) {
+      if (topi::detail::GetConstInt(shape[i]) == 1) {
+        axis.push_back(i);
+      }
+    }
+  }
+
+  // If new_in_layouts are defined, this code tries to modify the layout
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    Array<Integer> new_axis;
+    for (const auto& e : axis) {
+      const auto& dim = old_in_layouts[0][e];
+      new_axis.push_back((new_in_layouts[0]).IndexOf(dim));
+    }
+    params->axis = new_axis;
+    axis = new_axis;
+  }
+
+  // Infer output layout
+  Array<tir::IterVar> kept_axes;
+  for (size_t i = 0; i < inferred_input.ndim(); i++) {
+    bool is_dim_kept = true;
+
+    // Check whether the dim should be kept
+    for (const auto& e : axis) {
+      int64_t axis_val = e->value;
+      if (axis_val < 0) {
+        axis_val += inferred_input.ndim();
+      }
+      if (static_cast<int64_t>(i) == axis_val) {
+        is_dim_kept = false;
+        break;
+      }
+    }
+
+    if (is_dim_kept) {
+      kept_axes.push_back(inferred_input->axes[i]);
+    }
+  }
+  inferred_output = Layout(kept_axes);
+
+  return Array<Array<Layout>>{{inferred_input}, {inferred_output}};
+}
+
 RELAY_REGISTER_OP("squeeze")
     .describe(R"code(Squeeze the input tensor at the dimensions given by axes
 
@@ -2171,7 +2234,8 @@ RELAY_REGISTER_OP("squeeze")
     .set_support_level(3)
     .add_type_rel("Squeeze", SqueezeRel)
     .set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SqueezeInferCorrectLayout);
 
 // CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
 bool CollapseSumLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

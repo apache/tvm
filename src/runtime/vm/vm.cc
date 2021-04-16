@@ -132,6 +132,21 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         *rv = Invoke(func, func_args);
       }
     });
+  } else if (name == "invoke_stateful") {
+    // TODO(tkonolige, jroesch, tqchen): invoke_stateful and get_output are
+    // stop-gap measure to allow using vm over a remote connection.
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      PackedFunc invoke = GetFunction("invoke", sptr_to_self);
+      TVMRetValue rv_;
+      invoke.CallPacked(args, &rv_);
+    });
+  } else if (name == "get_output") {
+    return TypedPackedFunc<NDArray(int64_t)>([this](int64_t index) {
+      return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
+    });
+  } else if (name == "get_num_outputs") {
+    return TypedPackedFunc<int64_t(void)>(
+        [this]() -> int64_t { return Downcast<ADT>(this->return_register_).size(); });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size() % 3, 0);
@@ -165,8 +180,21 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       for (int i = 1; i < args.size(); ++i) {
         Index device_type = vm_func.params_device_type[i - 1];
         Device dev = GetDevice(device_type);
-        ObjectRef obj = CopyTo(args[i], dev);
-        func_args[i - 1] = obj;
+
+        if (args[i].type_code() == kTVMDLTensorHandle) {
+          // Automatically convert input DLTensors to NDArray
+          DLTensor* tensor = args[i];
+          std::vector<int64_t> shape;
+          for (int64_t i = 0; i < tensor->ndim; i++) {
+            shape.push_back(tensor->shape[i]);
+          }
+          NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+          ary.CopyFrom(tensor);
+          func_args[i - 1] = ary;
+        } else {
+          ObjectRef obj = CopyTo(args[i], dev);
+          func_args[i - 1] = obj;
+        }
       }
       inputs_.erase(func_name);
       inputs_.emplace(func_name, func_args);

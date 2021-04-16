@@ -41,12 +41,12 @@ pub struct ByteArray {
 impl ByteArray {
     /// Gets the underlying byte-array
     pub fn data(&self) -> &'static [u8] {
-        unsafe { std::slice::from_raw_parts(self.array.data as *const u8, self.array.size) }
+        unsafe { std::slice::from_raw_parts(self.array.data as *const u8, self.array.size as _) }
     }
 
     /// Gets the length of the underlying byte-array
     pub fn len(&self) -> usize {
-        self.array.size
+        self.array.size as _
     }
 
     /// Converts the underlying byte-array to `Vec<u8>`
@@ -66,7 +66,7 @@ impl<T: AsRef<[u8]>> From<T> for ByteArray {
         ByteArray {
             array: TVMByteArray {
                 data: arg.as_ptr() as *const c_char,
-                size: arg.len(),
+                size: arg.len() as _,
             },
         }
     }

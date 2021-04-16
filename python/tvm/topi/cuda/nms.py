@@ -25,6 +25,14 @@ from tvm.tir import if_then_else
 from .sort import argsort, argsort_thrust
 from .scan import exclusive_scan
 from ..utils import ceil_div
+from ..math import cast
+from ..transform import reshape
+from ..vision.nms_util import (
+    calculate_overlap,
+    binary_search,
+    collect_selected_indices,
+    run_all_class_nms,
+)
 
 
 def cuda_atomic_add_rule(op):
@@ -265,6 +273,97 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     return [valid_count, out, out_indices]
 
 
+def _nms_loop(
+    ib,
+    batch_size,
+    top_k,
+    iou_threshold,
+    max_output_size,
+    valid_count,
+    on_new_valid_box_func,
+    on_new_invalidated_box_func,
+    needs_bbox_check_func,
+    calc_overlap_func,
+    out_scores,
+    num_valid_boxes,
+):
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+
+    with ib.new_scope():
+        nthread_by = batch_size
+        nthread_tx = max_threads
+
+        # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock
+        # vs 64K for most GPUs. Since this kernel uses many registers (around 35), the limit will
+        # be exceeded with 1024 threads.
+        target = tvm.target.Target.current(allow_none=False)
+        if target.kind.name == "cuda":
+            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
+                nthread_tx = 512
+
+        by = te.thread_axis("blockIdx.y")
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(by, "thread_extent", nthread_by)
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+
+        num_valid_boxes_local = ib.allocate(
+            "int32", (1,), name="num_valid_boxes_local", scope="local"
+        )
+        num_valid_boxes_local[0] = 0
+
+        def nms_inner_loop(ib, i, j, nkeep):
+            # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
+            on_new_valid_box_func(ib, tx, num_valid_boxes_local[0], i, j)
+            num_valid_boxes_local[0] += 1
+
+            num_iter_per_thread = ceil_div(nkeep - (j + 1), nthread_tx)
+
+            with ib.for_range(0, num_iter_per_thread, name="_k") as _k:
+                k = j + 1 + _k * nthread_tx + tx
+
+                with ib.if_scope(
+                    tvm.tir.all(
+                        k < nkeep,
+                        out_scores[i, k] > 0,  # is the box k still valid?
+                        needs_bbox_check_func(i, j, k),
+                    )
+                ):
+                    iou = calc_overlap_func(i, j, k)
+
+                    with ib.if_scope(iou >= iou_threshold):
+                        # invalidate the box k
+                        out_scores[i, k] = -1.0
+                        on_new_invalidated_box_func(i, k)
+
+                ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+
+        i = by
+
+        nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
+        max_output_size = if_then_else(max_output_size > 0, max_output_size, nkeep)
+
+        with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
+            # Apply nms
+            # No need to do more iteration if we have already reached max_output_size boxes
+            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+            box_idx[0] = 0
+            with ib.while_loop(
+                tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
+            ):
+                # Proceed to the inner loop if the box with id box_idx is still valid
+                with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
+                    nms_inner_loop(ib, i, box_idx[0], nkeep)
+                box_idx[0] += 1
+
+            with ib.if_scope(tx + 0 == 0):
+                num_valid_boxes[i] = num_valid_boxes_local[0]
+
+        with ib.else_scope():
+            num_valid_boxes[i] = 0
+
+    return ib.get()
+
+
 def nms_ir(
     data,
     sorted_index,
@@ -352,43 +451,6 @@ def nms_ir(
     stmt : Stmt
         The result IR statement.
     """
-
-    def get_boundaries(output, box_idx):
-        l = tvm.te.min(
-            output[box_idx],
-            output[box_idx + 2],
-        )
-        t = tvm.te.min(
-            output[box_idx + 1],
-            output[box_idx + 3],
-        )
-        r = tvm.te.max(
-            output[box_idx],
-            output[box_idx + 2],
-        )
-        b = tvm.te.max(
-            output[box_idx + 1],
-            output[box_idx + 3],
-        )
-        return l, t, r, b
-
-    def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
-        """Calculate overlap of two boxes."""
-        a_l, a_t, a_r, a_b = get_boundaries(out_tensor, box_a_idx)
-        b_l, b_t, b_r, b_b = get_boundaries(out_tensor, box_b_idx)
-
-        # Overlapping width and height
-        w = tvm.te.max(0.0, tvm.te.min(a_r, b_r) - tvm.te.max(a_l, b_l))
-        h = tvm.te.max(0.0, tvm.te.min(a_b, b_b) - tvm.te.max(a_t, b_t))
-
-        # Overlapping area
-        area = h * w
-
-        # total area of the figure formed by box a and box b
-        # except for overlapping area
-        u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-        return tvm.tir.Select(u <= 0.0, 0.0, area / u)
-
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
@@ -492,105 +554,51 @@ def nms_ir(
 
                 box_indices[i * num_anchors + j] = j
 
-    with ib.new_scope():
-        nthread_by = batch_size
-        nthread_tx = max_threads
+    if isinstance(max_output_size, int):
+        max_output_size = tvm.tir.const(max_output_size)
 
-        # Some cuda architectures have smaller limit of 32K for cudaDevAttrMaxRegistersPerBlock
-        # vs 64K for most GPUs. Since this kernel uses many registers (around 35), the limit will
-        # be exceeded with 1024 threads.
-        target = tvm.target.Target.current(allow_none=False)
-        if target.kind.name == "cuda":
-            if nvcc.get_target_compute_version(target) in ["3.2", "5.3", "6.2"]:
-                nthread_tx = 512
-
-        by = te.thread_axis("blockIdx.y")
-        tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(by, "thread_extent", nthread_by)
-        ib.scope_attr(tx, "thread_extent", nthread_tx)
-
-        i = by
-
+    def calc_overlap(i, j, k):
+        offset_j = j * 4
+        offset_k = k * 4
         base_bbox_idx = i * num_anchors * 4
-        num_valid_boxes_local = ib.allocate(
-            "int32", (1,), name="num_valid_boxes_local", scope="local"
+        return calculate_overlap(
+            out_bboxes,
+            base_bbox_idx + offset_j,
+            base_bbox_idx + offset_k,
         )
-        num_valid_boxes_local[0] = 0
-        nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
 
-        def nms_inner_loop(ib, j):
-            # The box j is valid, invalidate other boxes that overlap with j above iou_threshold
+    def on_new_valid_box(ib, tid, num_current_valid_box, i, j):
+        # When return_indices is False, no need to populate box_indices
+        if return_indices:
+            with ib.if_scope(tid + 0 == 0):
+                orig_idx = sorted_index[i * num_anchors + j]
+                box_indices[i, num_current_valid_box] = indices[i, orig_idx]
 
-            # When return_indices is False, no need to populate box_indices
-            if return_indices:
-                with ib.if_scope(tx + 0 == 0):
-                    orig_idx = sorted_index[i * num_anchors + j]
-                    box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
+    def on_new_invalidated_box(i, k):
+        if return_indices is False and id_index >= 0:
+            out_class_ids[i, k] = -1.0
 
-            num_valid_boxes_local[0] += 1
+    def needs_bbox_check(i, j, k):
+        return tvm.tir.any(
+            force_suppress > 0,
+            id_index < 0,
+            out_class_ids[i, k] == out_class_ids[i, j],
+        )
 
-            offset_j = j * 4
-            num_iter_per_thread = ceil_div(nkeep - (j + 1), nthread_tx)
-
-            with ib.for_range(0, num_iter_per_thread, name="_k") as _k:
-                k = j + 1 + _k * nthread_tx + tx
-                offset_k = k * 4
-
-                with ib.if_scope(
-                    tvm.tir.all(
-                        k < nkeep,
-                        out_scores[i, k] > 0,  # is the box k still valid?
-                        tvm.tir.any(
-                            force_suppress > 0,
-                            id_index < 0,
-                            out_class_ids[i, k] == out_class_ids[i, j],
-                        ),
-                    )
-                ):
-                    iou = calculate_overlap(
-                        out_bboxes,
-                        base_bbox_idx + offset_j,
-                        base_bbox_idx + offset_k,
-                    )
-                    with ib.if_scope(iou >= iou_threshold):
-                        # invalidate the box k
-                        out_scores[i, k] = -1.0
-
-                        if return_indices is False and id_index >= 0:
-                            out_class_ids[i, k] = -1.0
-
-                ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
-
-        if isinstance(max_output_size, int):
-            max_output_size = tvm.tir.const(max_output_size)
-
-        with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
-            # Apply nms
-            with ib.if_scope(max_output_size > 0):
-                # No need to do more iteration if we have already reached max_output_size boxes
-                box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
-                box_idx[0] = 0
-                with ib.while_loop(
-                    tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)
-                ):
-                    # Proceed to the inner loop if the box with id box_idx is still valid
-                    with ib.if_scope(out_scores[i, box_idx[0]] > -1.0):
-                        nms_inner_loop(ib, box_idx[0])
-                    box_idx[0] += 1
-
-            with ib.else_scope():
-                with ib.for_range(0, nkeep, name="j") as j:
-                    # Proceed to the inner loop if the box j is still valid
-                    with ib.if_scope(out_scores[i, j] > -1.0):
-                        nms_inner_loop(ib, j)
-
-            with ib.if_scope(tx + 0 == 0):
-                num_valid_boxes[i] = num_valid_boxes_local[0]
-
-        with ib.else_scope():
-            num_valid_boxes[i] = 0
-
-    return ib.get()
+    return _nms_loop(
+        ib,
+        batch_size,
+        top_k,
+        iou_threshold,
+        max_output_size,
+        valid_count,
+        on_new_valid_box,
+        on_new_invalidated_box,
+        needs_bbox_check,
+        calc_overlap,
+        out_scores,
+        num_valid_boxes,
+    )
 
 
 def _fetch_score_ir(data, score, axis):
@@ -622,6 +630,16 @@ def _fetch_score_ir(data, score, axis):
     return ib.get()
 
 
+def _dispatch_sort(scores, ret_type="indices"):
+    target = tvm.target.Target.current()
+    if target and (
+        can_use_thrust(target, "tvm.contrib.thrust.sort")
+        or can_use_rocthrust(target, "tvm.contrib.thrust.sort")
+    ):
+        return argsort_thrust(scores, axis=1, is_ascend=False, dtype="int32", ret_type=ret_type)
+    return argsort(scores, axis=1, is_ascend=False, dtype="int32", ret_type=ret_type)
+
+
 def _get_sorted_indices(data, data_buf, score_index, score_shape):
     """Extract a 1D score tensor from the packed input and do argsort on it."""
     score_buf = tvm.tir.decl_buffer(score_shape, data.dtype, "score_buf", data_alignment=8)
@@ -639,17 +657,7 @@ def _get_sorted_indices(data, data_buf, score_index, score_shape):
         name="fetch_score",
         tag="fetch_score",
     )
-
-    target = tvm.target.Target.current()
-    if target and (
-        can_use_thrust(target, "tvm.contrib.thrust.sort")
-        or can_use_rocthrust(target, "tvm.contrib.thrust.sort")
-    ):
-        sort_tensor = argsort_thrust(score_tensor, axis=1, is_ascend=False, dtype="int32")
-    else:
-        sort_tensor = argsort(score_tensor, axis=1, is_ascend=False, dtype="int32")
-
-    return sort_tensor
+    return _dispatch_sort(score_tensor)
 
 
 def _run_nms(
@@ -910,3 +918,134 @@ def non_max_suppression(
         score_index,
         id_index,
     )
+
+
+def _get_valid_box_count(scores, score_threshold):
+    batch_classes, num_boxes = scores.shape
+
+    def searchsorted_ir(scores, valid_count):
+        ib = tvm.tir.ir_builder.create()
+        scores = ib.buffer_ptr(scores)
+        valid_count = ib.buffer_ptr(valid_count)
+
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+
+        with ib.new_scope():
+            ib.scope_attr(bx, "thread_extent", ceil_div(batch_classes, max_threads))
+            ib.scope_attr(tx, "thread_extent", max_threads)
+            tid = bx * max_threads + tx
+
+            with ib.if_scope(tid < batch_classes):
+                binary_search(ib, tid, num_boxes, scores, score_threshold, valid_count)
+
+        return ib.get()
+
+    scores_buf = tvm.tir.decl_buffer(scores.shape, scores.dtype, "scores_buf", data_alignment=8)
+
+    return te.extern(
+        [(batch_classes,)],
+        [scores],
+        lambda ins, outs: searchsorted_ir(ins[0], outs[0]),
+        dtype=["int32"],
+        in_buffers=[scores_buf],
+        name="searchsorted",
+        tag="searchsorted",
+    )
+
+
+def _collect_selected_indices_ir(num_class, selected_indices, num_detections, row_offsets, out):
+    batch_classes, num_boxes = selected_indices.shape
+
+    ib = tvm.tir.ir_builder.create()
+
+    selected_indices = ib.buffer_ptr(selected_indices)
+    num_detections = ib.buffer_ptr(num_detections)
+    row_offsets = ib.buffer_ptr(row_offsets)
+    out = ib.buffer_ptr(out)
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+    nthread_bx = ceil_div(num_boxes, nthread_tx)
+    nthread_by = batch_classes
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
+    by = te.thread_axis("blockIdx.y")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    ib.scope_attr(by, "thread_extent", nthread_by)
+
+    with ib.new_scope():
+        idx = bx * nthread_tx + tx
+        idy = cast(by, "int64")
+        batch_id = idy // num_class
+        class_id = idy % num_class
+        with ib.if_scope(idx < num_detections[idy]):
+            out[row_offsets[idy] + idx, 0] = batch_id
+            out[row_offsets[idy] + idx, 1] = class_id
+            out[row_offsets[idy] + idx, 2] = cast(selected_indices[idy, idx], "int64")
+
+    return ib.get()
+
+
+def all_class_non_max_suppression(
+    boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+):
+    """Non-maximum suppression operator for object detection, corresponding to ONNX
+    NonMaxSuppression and TensorFlow combined_non_max_suppression.
+    NMS is performed for each class separately.
+
+    Parameters
+    ----------
+    boxes : tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, 4)
+
+    scores: tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_classes, num_boxes)
+
+    max_output_boxes_per_class : int or tvm.te.Tensor, optional
+        The maxinum number of output selected boxes per class
+
+    iou_threshold : float or tvm.te.Tensor, optionaIl
+        IoU test threshold
+
+    score_threshold : float or tvm.te.Tensor, optional
+        Score threshold to filter out low score boxes early
+
+    Returns
+    -------
+    out : [tvm.te.Tensor, tvm.te.Tensor]
+        The output is two tensors, the first is `indices` of size
+        `(batch_size * num_class* num_boxes , 3)` and the second is a scalar tensor
+        `num_total_detection` of shape `(1,)` representing the total number of selected
+        boxes. Rows of `indices` are ordered such that selected boxes from batch 0, class 0 come
+        first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
+        `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
+        rows are valid.
+    """
+    batch, num_class, num_boxes = scores.shape
+
+    scores = reshape(scores, (batch * num_class, num_boxes))
+    sorted_scores, sorted_indices = _dispatch_sort(scores, ret_type="both")
+    valid_count = _get_valid_box_count(sorted_scores, score_threshold)
+
+    selected_indices, num_detections = run_all_class_nms(
+        boxes,
+        sorted_scores,
+        sorted_indices,
+        valid_count,
+        max_output_boxes_per_class,
+        iou_threshold,
+        _nms_loop,
+    )
+
+    row_offsets, num_total_detections = exclusive_scan(
+        num_detections, return_reduction=True, output_dtype="int64"
+    )
+
+    selected_indices = collect_selected_indices(
+        num_class, selected_indices, num_detections, row_offsets, _collect_selected_indices_ir
+    )
+
+    return [selected_indices, num_total_detections]

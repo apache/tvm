@@ -407,3 +407,28 @@ def global_avg_pool2d_rewrite(ref_call, new_args, ctx):
     # stop quantize after global_avg_pool2d
     quantize_context().stop_quantize()
     return expr
+
+
+@register_annotate_function("nn.batch_matmul")
+def batch_matmul_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for batch_matmul"""
+    if quantize_context().check_to_skip(ref_call):
+        return None
+
+    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+
+    if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
+        if _analysis.check_constant(lhs_expr):
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.WEIGHT)
+        else:
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+
+    if rhs_kind is None or rhs_kind == QAnnotateKind.ACTIVATION:
+        if _analysis.check_constant(rhs_expr):
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+        else:
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+
+    expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)

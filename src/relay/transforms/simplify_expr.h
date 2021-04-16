@@ -74,7 +74,7 @@ class DFPatternRewriteComposer {
 
   inline Array<DFPatternCallback> MakeCallbacks() const {
     Array<DFPatternCallback> callbacks;
-    for (const auto rewrite : rewrites_) {
+    for (const auto& rewrite : rewrites_) {
       callbacks.push_back(rewrite->MakeCallback());
     }
     return callbacks;

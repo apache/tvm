@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import time
 
 import tvm
 from tvm import runtime
@@ -823,8 +824,12 @@ def test_vm_rpc():
     path = temp.relpath("vm_library.so")
     vm_exec.mod.export_library(path)
 
-    # Use LocalRPC for testing.
-    remote = rpc.LocalSession()
+    # Use local rpc server for testing.
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    server = rpc.Server("localhost", port=9120, use_popen=True)
+    time.sleep(2)
+    remote = rpc.connect(server.host, server.port, session_timeout=10)
 
     # Upload the serialized Executable.
     remote.upload(path)
@@ -837,9 +842,15 @@ def test_vm_rpc():
     np_input = np.random.uniform(size=(10, 1)).astype("float32")
     input_tensor = tvm.nd.array(np_input, ctx)
     # Invoke its "main" function.
-    out = vm_factory.invoke("main", [input_tensor])
+    out = vm_factory.invoke("main", input_tensor)
     # Check the result.
     np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
+
+    # delete tensors before the server shuts down so we don't throw errors.
+    del input_tensor
+    del out
+
+    server.terminate()
 
 
 if __name__ == "__main__":

@@ -685,9 +685,9 @@ code but may be inserted in a pass. Any :code:`TempExpr` created in a pass
 should ideally be eliminated before the pass is complete, as a
 :code:`TempExpr` only stores internal state and has no semantics of its own.
 
-For an example of :code:`TempExpr` being used in a pass,
-see :code:`src/relay/pass/alter_op_layout.cc`, which uses :code:`TempExpr` nodes
-to store information about operator layouts as the pass tries to rearrange operator
-calls.
+For an example of :code:`TempExpr` being used in a pass, see
+:code:`src/relay/transforms/fold_scale_axis.cc`, which uses
+:code:`TempExpr` nodes to store information about scaling parameters
+as the pass tries to fold these into the weights of a convolution.
 
 See :py:class:`~tvm.relay.expr.TempExpr` for its definition and documentation.

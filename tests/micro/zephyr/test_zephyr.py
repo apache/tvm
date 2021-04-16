@@ -23,6 +23,7 @@ import logging
 import os
 import subprocess
 import sys
+import logging
 
 import pytest
 import numpy as np
@@ -39,6 +40,8 @@ from tvm.contrib import utils
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
+import conftest
+
 # If set, build the uTVM binary from scratch on each test.
 # Otherwise, reuses the build from the previous test run.
 BUILD = True
@@ -47,6 +50,10 @@ BUILD = True
 # Before running the test, in a separate shell, you should run:
 #   python -m tvm.exec.microtvm_debug_shell
 DEBUG = False
+
+_LOG = logging.getLogger(__name__)
+
+PLATFORMS = conftest.PLATFORMS
 
 
 def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
@@ -59,7 +66,7 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
 
 
 def _make_session(model, target, zephyr_board, west_cmd, mod):
-    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{model}"
+    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{zephyr_board}"
     prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
         f'{test_name}_workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
@@ -121,15 +128,6 @@ def _make_add_sess(model, zephyr_board, west_cmd):
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C])
-
-
-# The models that should pass this configuration. Maps a short, identifying platform string to
-# (model, zephyr_board).
-PLATFORMS = {
-    "host": ("host", "qemu_x86"),
-    "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
-    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
-}
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.

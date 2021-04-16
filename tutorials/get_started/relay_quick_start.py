@@ -141,7 +141,7 @@ print(temp.listdir())
 
 # load the module back.
 loaded_lib = tvm.runtime.load_module(path_lib)
-input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
+input_data = tvm.nd.array(data)
 
 module = graph_executor.GraphModule(loaded_lib["default"](dev))
 module.run(data=input_data)
@@ -151,4 +151,4 @@ out_deploy = module.get_output(0).asnumpy()
 print(out_deploy.flatten()[0:10])
 
 # check whether the output from deployed module is consistent with original one
-tvm.testing.assert_allclose(out_deploy, out, atol=1e-3)
+tvm.testing.assert_allclose(out_deploy, out, atol=1e-5)

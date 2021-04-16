@@ -313,6 +313,16 @@ TEST(Map, Mutate) {
   ICHECK(it == dict2.end());
 }
 
+TEST(Map, Clear) {
+  using namespace tvm;
+  Var x("x");
+  auto z = max(x + 1 + 2, 100);
+  Map<PrimExpr, PrimExpr> dict{{x, z}, {z, 2}};
+  ICHECK(dict.size() == 2);
+  dict.clear();
+  ICHECK(dict.size() == 0);
+}
+
 TEST(Map, Iterator) {
   using namespace tvm;
   PrimExpr a = 1, b = 2;

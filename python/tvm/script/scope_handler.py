@@ -282,6 +282,13 @@ class Block(WithScopeHandler):
                 if block_info.writes
                 else []
             )
+
+            region_detect_mask: int = (block_info.reads is None) | (
+                (block_info.writes is None) << 1
+            )
+            annotations = {} if block_info.annotations is None else block_info.annotations
+            if region_detect_mask != 0:
+                annotations["tir.script_parsing_detect_access"] = region_detect_mask
             inner = tvm.tir.Block(
                 block_iters,
                 reads,
@@ -291,14 +298,17 @@ class Block(WithScopeHandler):
                 block_info.init,
                 block_info.alloc_buffers,
                 block_info.match_buffers,
-                block_info.annotations,
+                annotations,
                 span,
             )
             # create block var iter binding
             values: List[PrimExpr]
             if not block_info.iter_bindings:
                 values = self.context.loop_stack[-2].copy()
-                if len(values) == 0:
+                if len(block_iters) == 0:
+                    # It is an opaque block without any bindings
+                    values = []
+                elif len(values) == 0:
                     values = [tvm.tir.const(float("nan"), dtype="float32")] * len(block_iters)
                 elif len(values) != len(block_iters):
                     self.context.report_error(
