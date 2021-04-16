@@ -244,5 +244,5 @@ def coreml_compiler(func):
         shutil.rmtree(mlmodelc_path)
     builder.compile(model_dir)
 
-    ctx = tvm.cpu(0)
-    return coreml_runtime.create(name, mlmodelc_path, ctx).module
+    dev = tvm.cpu(0)
+    return coreml_runtime.create(name, mlmodelc_path, dev).module

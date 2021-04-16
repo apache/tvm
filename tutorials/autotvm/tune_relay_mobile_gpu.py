@@ -69,7 +69,7 @@ from tvm import relay, autotvm
 import tvm.relay.testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.contrib.utils import tempdir
-import tvm.contrib.graph_runtime as runtime
+import tvm.contrib.graph_executor as runtime
 
 #################################################################
 # Define network
@@ -201,12 +201,9 @@ def get_network(name, batch_size):
 # set :code:`use_android` to True if you use android phone.
 
 #### DEVICE CONFIG ####
-
-target = tvm.target.Target("opencl -device=mali")
-
 # Replace "aarch64-linux-gnu" with the correct target of your board.
 # This target host is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target_host = "llvm -mtriple=aarch64-linux-gnu"
+target = tvm.target.Target("opencl -device=mali", host="llvm -mtriple=aarch64-linux-gnu")
 
 # Also replace this with the device key in your tracker
 device_key = "rk3399"
@@ -317,7 +314,6 @@ def tune_and_evaluate(tuning_opt):
     tasks = autotvm.task.extract_from_program(
         mod["main"],
         target=target,
-        target_host=target_host,
         params=params,
         ops=(relay.op.get("nn.conv2d"),),
     )
@@ -330,9 +326,7 @@ def tune_and_evaluate(tuning_opt):
     with autotvm.apply_history_best(log_file):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build_module.build(
-                mod, target=target, params=params, target_host=target_host
-            )
+            lib = relay.build_module.build(mod, target=target, params=params)
         # export library
         tmp = tempdir()
         if use_android:
@@ -351,14 +345,14 @@ def tune_and_evaluate(tuning_opt):
         rlib = remote.load_module(filename)
 
         # upload parameters to device
-        ctx = remote.context(str(target), 0)
-        module = runtime.GraphModule(rlib["default"](ctx))
+        dev = remote.device(str(target), 0)
+        module = runtime.GraphModule(rlib["default"](dev))
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input("data", data_tvm)
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=30)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=30)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"

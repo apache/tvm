@@ -40,8 +40,8 @@ void AOCLWorkspace::Init() {
   OpenCLWorkspace::Init("aocl", "accelerator", "Intel(R) FPGA SDK for OpenCL(TM)");
 }
 
-bool AOCLWorkspace::IsOpenCLDevice(TVMContext ctx) {
-  return ctx.device_type == static_cast<DLDeviceType>(kDLAOCL);
+bool AOCLWorkspace::IsOpenCLDevice(Device dev) {
+  return dev.device_type == static_cast<DLDeviceType>(kDLAOCL);
 }
 
 typedef dmlc::ThreadLocalStore<AOCLThreadEntry> AOCLThreadStore;

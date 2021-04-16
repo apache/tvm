@@ -58,7 +58,7 @@ static void VerifyComputeOp(const ComputeOpNode* op);
 
 inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
   return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) && (a->condition.same_as(b->condition)) &&
+         (a->axis.same_as(b->axis)) && StructuralEqual()(a->condition, b->condition) &&
          ((a->init.empty() && b->init.empty()) || (a->init.same_as(b->init)));
 }
 

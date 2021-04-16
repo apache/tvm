@@ -70,7 +70,7 @@ def test_search_task_record():
     # TODO(jcf94): Check the compute dag & hardware parameter
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
 
     # Log with 1 task input
@@ -86,7 +86,7 @@ def test_search_task_record():
     new_task = auto_scheduler._ffi_api.DeserializeSearchTask(task_record)
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_input_names) == 1
     assert new_task.task_input_names[0] == "test_input_0"
@@ -107,7 +107,7 @@ def test_search_task_record():
     new_task = auto_scheduler._ffi_api.DeserializeSearchTask(task_record)
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_input_names) == 2
     assert new_task.task_input_names[0] == "test_input_0"
@@ -118,7 +118,7 @@ def test_search_task_record():
     new_task = auto_scheduler._ffi_api.DeserializeSearchTask(v5_log)
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_input_names) == 0
 
@@ -139,7 +139,7 @@ def test_recover_measure_input_with_task_input():
     new_task = measure_log[0].task
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
 
     # Log with 1 task input
@@ -160,7 +160,7 @@ def test_recover_measure_input_with_task_input():
     new_task = measure_log[0].task
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_input_names) == 1
     assert new_task.task_input_names[0] == "test_input_0"
@@ -184,7 +184,7 @@ def test_recover_measure_input_with_task_input():
     new_task = measure_log[0].task
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_input_names) == 2
     assert new_task.task_input_names[0] == "test_input_0"
@@ -196,7 +196,7 @@ def test_recover_measure_input_with_task_input():
     new_task = measure_log[0].task
     assert task.workload_key == new_task.workload_key
     assert str(task.target) == str(new_task.target)
-    assert str(task.target_host) == str(new_task.target_host)
+    assert str(task.target.host) == str(new_task.target.host)
     assert task.layout_rewrite_option == new_task.layout_rewrite_option
     assert len(new_task.task_input_names) == 0
 

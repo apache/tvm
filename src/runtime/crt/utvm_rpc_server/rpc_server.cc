@@ -208,15 +208,15 @@ utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* w
     TVMPlatformAbort(err);
   }
 
-  DLContext ctx = {kDLCPU, 0};
+  DLDevice dev = {kDLCPU, 0};
   void* receive_buffer_memory;
-  err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_PACKET_SIZE_BYTES, ctx, &receive_buffer_memory);
+  err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_PACKET_SIZE_BYTES, dev, &receive_buffer_memory);
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }
   auto receive_buffer = new (receive_buffer_memory) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
   void* rpc_server_memory;
-  err = TVMPlatformMemoryAllocate(sizeof(tvm::runtime::micro_rpc::MicroRPCServer), ctx,
+  err = TVMPlatformMemoryAllocate(sizeof(tvm::runtime::micro_rpc::MicroRPCServer), dev,
                                   &rpc_server_memory);
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);

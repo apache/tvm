@@ -307,6 +307,22 @@ The final example is matching diamonds with a post-dominator relationship. We em
         assert diamond.match(out)
 
 
+Matching Fuzzy Patterns
+=======================
+
+The Dominator analysis above lets one match a subgraph of Relay AST that doesn't correspond to a set of patterns nodes exactly 1-to-1. There are a few other places where we support such "fuzzy" matching.
+
+Tuples, Functions, and Call nodes with any number of inputs can be matched by passing `None` as the argument value, i.e.::
+
+    tuple_pattern = is_tuple(None)
+    func_pattern = FunctionPattern(None, wildcard() + wildcard())
+    call_pattern = func_pattern(None)
+
+These patterns allow matching more generic classes patterns by constraining the use of the arguments rather than the number of arguments.
+
+Additionally, we support matching Functions with fuzzy bodies, i.e., a function body that is under constrained by the pattern. The pattern `FunctionPattern([is_var(), is_var()], wildcard() + wildcard()])` will match `relay.Function([x, y], x + y)`, but it will also match `relay.Function([x, y], x * x + y)`. In the second case, the pattern doesn't perfectly constrain the body of the function, so the resulting match is fuzzy.
+
+
 Pattern Language Design
 =======================
 

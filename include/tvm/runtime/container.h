@@ -2980,6 +2980,13 @@ class Map : public ObjectRef {
   }
   /*! \return whether array is empty */
   bool empty() const { return size() == 0; }
+  /*! \brief Release reference to all the elements */
+  void clear() {
+    MapNode* n = GetMapNode();
+    if (n != nullptr) {
+      data_ = MapNode::Empty();
+    }
+  }
   /*!
    * \brief set the Map.
    * \param key The index key.

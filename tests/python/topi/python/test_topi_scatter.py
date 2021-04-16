@@ -22,7 +22,7 @@ import tvm.topi.testing
 
 
 @tvm.testing.parametrize_targets
-def test_scatter_nd(ctx, target):
+def test_scatter_nd(dev, target):
     def check_scatter_nd(data, indices, shape, out):
         implementations = {
             "generic": (lambda x, y: topi.scatter_nd(x, y, shape), topi.generic.schedule_extern),
@@ -30,7 +30,7 @@ def test_scatter_nd(ctx, target):
             "cpu": (lambda x, y: topi.x86.scatter_nd(x, y, shape), topi.generic.schedule_extern),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
-        tvm.topi.testing.compare_numpy_tvm([data, indices], out, target, ctx, fcompute, fschedule)
+        tvm.topi.testing.compare_numpy_tvm([data, indices], out, target, dev, fcompute, fschedule)
 
     data = np.array([2, 3, 0])
     indices = np.array([[1, 1, 0], [0, 1, 0]])
@@ -64,4 +64,4 @@ def test_scatter_nd(ctx, target):
 
 
 if __name__ == "__main__":
-    test_scatter_nd(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_scatter_nd(tvm.device("cpu"), tvm.target.Target("llvm"))

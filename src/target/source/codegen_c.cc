@@ -267,10 +267,10 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
         os << "dtype.lanes";
         break;
       case builtin::kArrDeviceId:
-        os << "ctx.device_id";
+        os << "device.device_id";
         break;
       case builtin::kArrDeviceType:
-        os << "ctx.device_type";
+        os << "device.device_type";
         break;
       default:
         LOG(FATAL) << "unknown field code";
@@ -525,7 +525,21 @@ void CodeGenC::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
 void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintBinaryExpr(op, "%", os, this);
+  if (op->dtype.is_int() || op->dtype.is_uint()) {
+    PrintBinaryExpr(op, "%", os, this);
+  } else {
+    ICHECK(op->dtype.is_float()) << "Expected floating point or integer dtype in Mod, but got "
+                                 << op->dtype;
+    if (op->dtype.bits() == 32) {
+      PrintBinaryExpr(op, "fmodf", os, this);
+    } else if (op->dtype.bits() == 64) {
+      PrintBinaryExpr(op, "fmod", os, this);
+    } else {
+      ICHECK(false)
+          << "Non single or double precision floating point in Mod, expected 32 or 64 bits but got "
+          << op->dtype.bits() << " bits.";
+    }
+  }
 }
 void CodeGenC::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);

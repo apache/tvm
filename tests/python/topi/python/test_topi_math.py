@@ -58,18 +58,18 @@ def test_ewise():
             a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
         b_np = f_numpy(a_np)
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(B)
-            foo = tvm.build(s, [A, B], device, name=name)
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(np.zeros_like(b_np), ctx)
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(B)
+            foo = tvm.build(s, [A, B], target, name=name)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(np.zeros_like(b_np), dev)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            check_device(target, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     def test_isnan(
         low,
@@ -94,18 +94,18 @@ def test_ewise():
             a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-5
         b_np = np.isnan(a_np)
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(B)
-            foo = tvm.build(s, [A, B], device, name="isnan")
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(np.zeros_like(b_np), ctx)
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(B)
+            foo = tvm.build(s, [A, B], target, name="isnan")
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(np.zeros_like(b_np), dev)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            check_device(target, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     def test_infiniteness_ops(topi_op, ref_op, name):
         for dtype in ["float32", "float64", "int32", "int16"]:
@@ -125,17 +125,17 @@ def test_ewise():
                 ] = np.nan
             b_np = ref_op(a_np)
 
-            def check_device(device, ctx):
-                with tvm.target.Target(device):
-                    s = tvm.topi.testing.get_injective_schedule(device)(B)
-                foo = tvm.build(s, [A, B], device, name=name)
-                a = tvm.nd.array(a_np, ctx)
-                b = tvm.nd.array(np.zeros_like(b_np), ctx)
+            def check_target(target, dev):
+                with tvm.target.Target(target):
+                    s = tvm.topi.testing.get_injective_schedule(target)(B)
+                foo = tvm.build(s, [A, B], target, name=name)
+                a = tvm.nd.array(a_np, dev)
+                b = tvm.nd.array(np.zeros_like(b_np), dev)
                 foo(a, b)
                 tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-            for target, ctx in tvm.testing.enabled_targets():
-                check_device(target, ctx)
+            for target, dev in tvm.testing.enabled_targets():
+                check_target(target, dev)
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
@@ -177,13 +177,13 @@ def test_cast():
             a_np = a_np - a_np[2, 3]
         b_np = a_np.astype(to_dtype)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(B)
-            foo = tvm.build(s, [A, B], device)
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.empty(shape=shape, dtype=to_dtype, ctx=ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(B)
+            foo = tvm.build(s, [A, B], target)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.empty(shape=shape, dtype=to_dtype, device=dev)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np)
 
@@ -205,21 +205,21 @@ def test_fastmath():
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not tvm.testing.device_enabled(device):
-                print("Skip because %s is not enabled" % device)
+        def check_target(target):
+            dev = tvm.device(target, 0)
+            if not tvm.testing.device_enabled(target):
+                print("Skip because %s is not enabled" % target)
                 return
-            with tvm.target.Target(device):
+            with tvm.target.Target(target):
                 s = topi.generic.schedule_injective(B)
-            func = tvm.build(s, [A, B], device, name=name)
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(np.zeros_like(b_np), ctx)
+            func = tvm.build(s, [A, B], target, name=name)
+            a = tvm.nd.array(a_np, dev)
+            b = tvm.nd.array(np.zeros_like(b_np), dev)
             func(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        check_device("llvm")
-        check_device("llvm -device=arm-cpu")
+        check_target("llvm")
+        check_target("llvm -device=arm-cpu")
 
     test_apply(topi.fast_exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(topi.fast_erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)

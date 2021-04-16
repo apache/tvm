@@ -31,7 +31,7 @@
 namespace tvm {
 namespace runtime {
 
-void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx) {
+void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   const char* buffer = tflite_model_bytes.c_str();
   size_t buffer_size = tflite_model_bytes.size();
   // Load compiled model as a FlatBufferModel
@@ -53,12 +53,12 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx)
   status = interpreter_->AllocateTensors();
   CHECK_TFLITE_STATUS(status) << "Failed to allocate tensors.";
 
-  ctx_ = ctx;
+  device_ = dev;
 }
 
-Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, TVMContext ctx) {
+Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   auto exec = make_object<EdgeTPURuntime>();
-  exec->Init(tflite_model_bytes, ctx);
+  exec->Init(tflite_model_bytes, dev);
   return Module(exec);
 }
 

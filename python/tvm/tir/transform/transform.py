@@ -536,3 +536,14 @@ def HoistIfThenElse(variant=None):
         return _ffi_api.HoistIfThenElseBasic()
     elif variant is None:
         return _ffi_api.HoistIfThenElse()
+
+
+def LowerInitBlock():
+    """Lower block init stmt into IfThenElse stmts
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerInitBlock()

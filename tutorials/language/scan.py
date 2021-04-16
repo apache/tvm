@@ -83,12 +83,12 @@ print(tvm.lower(s, [X, s_scan], simple_mode=True))
 # numpy to verify the correctness of the result.
 #
 fscan = tvm.build(s, [X, s_scan], "cuda", name="myscan")
-ctx = tvm.gpu(0)
+dev = tvm.gpu(0)
 n = 1024
 m = 10
 a_np = np.random.uniform(size=(m, n)).astype(s_scan.dtype)
-a = tvm.nd.array(a_np, ctx)
-b = tvm.nd.array(np.zeros((m, n), dtype=s_scan.dtype), ctx)
+a = tvm.nd.array(a_np, dev)
+b = tvm.nd.array(np.zeros((m, n), dtype=s_scan.dtype), dev)
 fscan(a, b)
 tvm.testing.assert_allclose(b.asnumpy(), np.cumsum(a_np, axis=0))
 

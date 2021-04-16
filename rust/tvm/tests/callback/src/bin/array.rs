@@ -47,7 +47,7 @@ fn main() {
 
     let shape = &[2];
     let data = vec![3.0, 4.0];
-    let mut arr = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
+    let mut arr = NDArray::empty(shape, Device::cpu(0), DataType::float(32, 1));
     arr.copy_from_buffer(data.as_slice());
 
     register_untyped(sum, "sum", true).unwrap();

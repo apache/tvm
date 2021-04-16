@@ -22,7 +22,7 @@ import tvm.testing
 import tvm.relay as relay
 from tvm import topi
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 
 def test_fastmath():
@@ -42,10 +42,10 @@ def test_fastmath():
         func_name = "fused_" + name
         assert lib.get_function(func_name)
 
-        ctx = tvm.cpu(0)
-        m = graph_runtime.create(graph, lib, ctx)
+        dev = tvm.cpu(0)
+        m = graph_executor.create(graph, lib, dev)
         # Set inputs
-        m.set_input("x", tvm.nd.array(a_np, ctx))
+        m.set_input("x", tvm.nd.array(a_np, dev))
         m.set_input(**params)
         # Execute
         m.run()

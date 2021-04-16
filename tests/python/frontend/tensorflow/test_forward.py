@@ -48,6 +48,7 @@ from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
 from packaging import version as package_version
 
 import tvm.testing
@@ -110,7 +111,7 @@ def run_tvm_graph(
     target="llvm",
     out_names=None,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     layout=None,
     disabled_pass=None,
@@ -132,9 +133,9 @@ def run_tvm_graph(
     mod, params = relay.frontend.from_tensorflow(
         graph_def, layout=layout, shape=shape_dict, outputs=out_names
     )
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -164,10 +165,11 @@ def run_tvm_graph(
         return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
-            graph, lib, params = relay.build(mod, target, target_host, params)
-        from tvm.contrib import graph_runtime
+            target = tvm.target.Target(target, target_host)
+            graph, lib, params = relay.build(mod, target=target, params=params)
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_executor.create(graph, lib, dev)
         # set inputs
         for e, i in zip(input_node, input_data):
             if e != "":
@@ -207,7 +209,7 @@ def compare_tf_with_tvm(
     init_global_variables=False,
     no_gpu=False,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
     targets=None,
@@ -237,7 +239,7 @@ def compare_tf_with_tvm(
         devices = targets if targets else ["llvm", "cuda"]
 
         for device in devices:
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
@@ -1689,7 +1691,7 @@ def test_forward_variable():
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-def test_read_variable_op(target, ctx):
+def test_read_variable_op(target, dev):
     """ Read Variable op test """
 
     tf.reset_default_graph()
@@ -3717,7 +3719,7 @@ def test_forward_resnetv2():
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, "input_tensor:0", out_node + ":0")
                 for device in ["llvm", "cuda"]:
-                    ctx = tvm.context(device, 0)
+                    dev = tvm.device(device, 0)
                     if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
@@ -3754,7 +3756,7 @@ def _test_ssd_impl():
             )
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -3856,10 +3858,10 @@ def test_forward_ptb():
         target = "llvm"
         with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod, target, params=params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        ctx = tvm.cpu(0)
-        return params, graph_runtime.create(graph, lib, ctx)
+        dev = tvm.cpu(0)
+        return params, graph_executor.create(graph, lib, dev)
 
     def _do_tvm_sample(model, data, in_states, params, num_samples):
         """Sampled from the model"""
@@ -4073,7 +4075,7 @@ def test_forward_floor():
 def test_forward_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.relu(in1)
@@ -4083,7 +4085,7 @@ def test_forward_relu():
 def test_forward_leaky_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.leaky_relu(in1, alpha=0.4)
@@ -5271,7 +5273,7 @@ def test_forward_dynamic_input_shape():
             tf_output = run_tf_graph(sess, np_data, "data:0", ["{}:0".format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -5448,6 +5450,38 @@ def test_forward_unique_with_counts():
         for is_dyn in [False, True]:
             _test_unique_with_counts(10, dtype, is_dyn)
             _test_unique_with_counts(20, dtype, is_dyn)
+
+
+#######################################################################
+# check graph ir for nn.moments
+# ------------
+
+
+def test_moments():
+    g = tf.Graph()
+    shape = [4, 176, 8, 8]
+    dtype = "float32"
+    with g.as_default():
+        A = tf.placeholder(shape=shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=shape, dtype=dtype, name="B")
+        mean, variance = tf.nn.moments(A, [1], keep_dims=True)
+        normalised_input = (A - mean) / tf.sqrt(variance + 0.0005)
+
+    mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
+    program = """
+    def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
+        %527 = mean(%A, axis=[1], keepdims=True) /* moments/mean */;
+        %528 = subtract(%A, %527) /* sub */;
+        %529 = subtract(%A, %527);
+        %530 = multiply(%529, %529) /* moments/SquaredDifference */;
+        %531 = mean(%530, axis=[1], keepdims=True) /* moments/variance */;
+        %532 = add(%531, 0.0005f) /* add */;
+        %533 = sqrt(%532) /* Sqrt */;
+        divide(%528, %533) /* truediv */
+    }
+    """
+    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 
 if __name__ == "__main__":

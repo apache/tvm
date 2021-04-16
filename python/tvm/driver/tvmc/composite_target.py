@@ -19,9 +19,14 @@ Provides support to composite target on TVMC.
 """
 import logging
 
+# Make sure Vitis AI codegen is registered
+import tvm.contrib.target.vitis_ai  # pylint: disable=unused-import
+
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
 from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.relay.op.contrib.bnns import partition_for_bnns
+from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
+
 
 from .common import TVMCException
 
@@ -29,9 +34,16 @@ from .common import TVMCException
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
-# Global dictionary to map targets with the configuration key
-# to be used in the PassContext (if any), and a function
-# responsible for partitioning to that target.
+
+# Global dictionary to map targets
+#
+# Options
+# -------
+# config_key : str
+#   The configuration key to be used in the PassContext (if any).
+# pass_pipeline : Callable
+#   A function to transform a Module before compilation, mainly used
+#   for partitioning for the target currently.
 REGISTERED_CODEGEN = {
     "compute-library": {
         "config_key": None,
@@ -44,6 +56,10 @@ REGISTERED_CODEGEN = {
     "bnns": {
         "config_key": None,
         "pass_pipeline": partition_for_bnns,
+    },
+    "vitis-ai": {
+        "config_key": "relay.ext.vitis_ai.options",
+        "pass_pipeline": partition_for_vitis_ai,
     },
 }
 
@@ -62,10 +78,15 @@ def get_codegen_names():
 def get_codegen_by_target(name):
     """Return a codegen entry by name.
 
+    Parameters
+    ----------
+    name : str
+        The name of the target for which the codegen info should be retrieved.
+
     Returns
     -------
     dict
-        requested target information
+        requested target codegen information
     """
     try:
         return REGISTERED_CODEGEN[name]

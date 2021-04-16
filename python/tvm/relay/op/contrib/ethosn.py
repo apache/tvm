@@ -46,7 +46,7 @@ def ethosn_available():
     return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
-def partition_for_ethosn(mod, params=None):
+def partition_for_ethosn(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Ethos-N NPU.
 
