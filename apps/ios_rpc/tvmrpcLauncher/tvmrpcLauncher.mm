@@ -23,7 +23,8 @@
  */
 
 #import <XCTest/XCTest.h>
-#import "TVMRuntime.h"
+#import "rpc_args.h"
+#import "RPCServer.h"
 
 @interface tvmrpcLauncher : XCTestCase
 
@@ -31,16 +32,18 @@
 
 @implementation tvmrpcLauncher
 
-- (void)setUp {
-  [super setUp];
-}
-
-- (void)tearDown {
-  [super tearDown];
-}
-
 - (void)testRPC {
-  [TVMRuntime launchSyncServer];
+  RPCArgs args = get_current_rpc_args();
+  RPCServerMode server_mode = args.server_mode == 0 ? RPCServerMode_Tracker :
+                              args.server_mode == 1 ? RPCServerMode_Proxy :
+                                                      RPCServerMode_PureServer;
+
+  RPCServer* server_ = [RPCServer serverWithMode:server_mode];
+
+  RPCServer* server = [RPCServer serverWithMode:server_mode];
+  [server startWithHost:@(args.host_url)
+                   port:args.host_port
+                    key:@(args.key)];
 }
 
 @end

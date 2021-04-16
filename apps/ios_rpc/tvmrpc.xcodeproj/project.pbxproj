@@ -26,6 +26,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		016B19C22657B390002E1719 /* RPCServer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 016B19C12657B390002E1719 /* RPCServer.mm */; };
+		01A1DB432652CBA700655BBC /* rpc_args.mm in Sources */ = {isa = PBXBuildFile; fileRef = 01A1DB412652CBA700655BBC /* rpc_args.mm */; };
+		01A9B7B3265BD1FD000D092F /* libtvm_runtime.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */; };
+		01A9B7B8265BD307000D092F /* libtvm_runtime.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		C02637501F1C25E8007247A9 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = C026374F1F1C25E8007247A9 /* main.m */; };
 		C02637531F1C25E8007247A9 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = C02637521F1C25E8007247A9 /* AppDelegate.m */; };
 		C02637591F1C25E8007247A9 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C02637571F1C25E8007247A9 /* Main.storyboard */; };
@@ -47,7 +51,26 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		01A9B7B9265BD307000D092F /* Embed Libraries */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				01A9B7B8265BD307000D092F /* libtvm_runtime.dylib in Embed Libraries */,
+			);
+			name = "Embed Libraries";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		016B19C02657B390002E1719 /* RPCServer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RPCServer.h; sourceTree = "<group>"; };
+		016B19C12657B390002E1719 /* RPCServer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = RPCServer.mm; sourceTree = "<group>"; };
+		01A1DB402652CBA700655BBC /* rpc_args.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rpc_args.h; sourceTree = "<group>"; };
+		01A1DB412652CBA700655BBC /* rpc_args.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = rpc_args.mm; sourceTree = "<group>"; };
+		01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libtvm_runtime.dylib; path = "${TVM_BUILD_DIR}/libtvm_runtime.dylib"; sourceTree = "<group>"; };
 		C026374B1F1C25E8007247A9 /* tvmrpc.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tvmrpc.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C026374F1F1C25E8007247A9 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		C02637511F1C25E8007247A9 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -58,7 +81,6 @@
 		C026375D1F1C25E8007247A9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		C026375F1F1C25E8007247A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C02637651F1C2690007247A9 /* TVMRuntime.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = TVMRuntime.mm; sourceTree = "<group>"; };
-		C02637671F1C269B007247A9 /* TVMRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TVMRuntime.h; sourceTree = "<group>"; };
 		C02637681F1C26AF007247A9 /* ViewController.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = ViewController.mm; sourceTree = "<group>"; };
 		C05A2C861F1DCE0900D4798B /* tvmrpcLauncher.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = tvmrpcLauncher.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C05A2C881F1DCE0900D4798B /* tvmrpcLauncher.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = tvmrpcLauncher.mm; sourceTree = "<group>"; };
@@ -71,6 +93,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01A9B7B3265BD1FD000D092F /* libtvm_runtime.dylib in Frameworks */,
 				D7685AD324390EAE00D1469C /* CoreML.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -109,12 +132,15 @@
 		C026374D1F1C25E8007247A9 /* tvmrpc */ = {
 			isa = PBXGroup;
 			children = (
-				C02637681F1C26AF007247A9 /* ViewController.mm */,
-				C02637671F1C269B007247A9 /* TVMRuntime.h */,
+				016B19C02657B390002E1719 /* RPCServer.h */,
+				016B19C12657B390002E1719 /* RPCServer.mm */,
+				01A1DB402652CBA700655BBC /* rpc_args.h */,
+				01A1DB412652CBA700655BBC /* rpc_args.mm */,
 				C02637651F1C2690007247A9 /* TVMRuntime.mm */,
 				C02637511F1C25E8007247A9 /* AppDelegate.h */,
 				C02637521F1C25E8007247A9 /* AppDelegate.m */,
 				C02637541F1C25E8007247A9 /* ViewController.h */,
+				C02637681F1C26AF007247A9 /* ViewController.mm */,
 				C02637571F1C25E8007247A9 /* Main.storyboard */,
 				C026375A1F1C25E8007247A9 /* Assets.xcassets */,
 				C026375C1F1C25E8007247A9 /* LaunchScreen.storyboard */,
@@ -144,6 +170,7 @@
 		D7685AD124390EAD00D1469C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				01A9B7B2265BD1FD000D092F /* libtvm_runtime.dylib */,
 				D7685AD224390EAD00D1469C /* CoreML.framework */,
 			);
 			name = Frameworks;
@@ -160,6 +187,7 @@
 				C02637481F1C25E8007247A9 /* Frameworks */,
 				C02637491F1C25E8007247A9 /* Resources */,
 				C05A2C901F1E683A00D4798B /* ShellScript */,
+				01A9B7B9265BD307000D092F /* Embed Libraries */,
 			);
 			buildRules = (
 			);
@@ -199,7 +227,7 @@
 				TargetAttributes = {
 					C026374A1F1C25E8007247A9 = {
 						CreatedOnToolsVersion = 8.3.3;
-						DevelopmentTeam = 3FR42MXLK9;
+						DevelopmentTeam = B2Q598A43U;
 						ProvisioningStyle = Automatic;
 					};
 					C05A2C851F1DCE0900D4798B = {
@@ -271,6 +299,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C02637691F1C26AF007247A9 /* ViewController.mm in Sources */,
+				01A1DB432652CBA700655BBC /* rpc_args.mm in Sources */,
+				016B19C22657B390002E1719 /* RPCServer.mm in Sources */,
 				C02637531F1C25E8007247A9 /* AppDelegate.m in Sources */,
 				C02637661F1C2690007247A9 /* TVMRuntime.mm in Sources */,
 				C02637501F1C25E8007247A9 /* main.m in Sources */,
@@ -351,6 +381,7 @@
 					"$(inherited)",
 					"DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
 					"TVM_USE_LIBBACKTRACE=0",
+					"TVM_LOG_CUSTOMIZE=1",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -398,6 +429,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
 					"TVM_USE_LIBBACKTRACE=0",
+					"TVM_LOG_CUSTOMIZE=1",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;

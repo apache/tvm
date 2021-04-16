@@ -57,7 +57,7 @@ ExternalProject_Add(custom_dso_loader
 # iOS RPC Xcode project wrapper to integrate into Cmake
 ExternalProject_Add(ios_rpc
         PREFIX ios_rpc
-        DEPENDS custom_dso_loader
+        DEPENDS custom_dso_loader tvm_runtime
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
