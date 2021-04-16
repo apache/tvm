@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
+#include "../../runtime/vulkan/vulkan_shader.h"
 #include "ir_builder.h"
 
 namespace tvm {
@@ -55,7 +56,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
    * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual std::vector<uint32_t> BuildFunction(const PrimFunc& f, const std::string& name);
+  virtual runtime::VulkanShader BuildFunction(const PrimFunc& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
