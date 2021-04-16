@@ -182,7 +182,7 @@ TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
  * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
  * \param func The TIR PrimFunc for which the workspace size to be calculated
  */
-TVM_DLL int CalculateWorkspaceBytes(const PrimFunc& func);
+TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
