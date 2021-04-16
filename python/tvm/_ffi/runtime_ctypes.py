@@ -225,14 +225,16 @@ class Device(ctypes.Structure):
 
     @property
     def compute_version(self):
-        """Get compute verison number in string.
+        """Get compute version number as string.
 
-        Currently used to get compute capability of CUDA device.
+        Returns maximum API version (e.g. CUDA/OpenCL/Vulkan)
+        supported by the device.
 
         Returns
         -------
         version : str
             The version string in `major.minor` format.
+
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 4)
 
@@ -261,6 +263,35 @@ class Device(ctypes.Structure):
             The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
         """
         return json.loads(self._GetDeviceAttr(self.device_type, self.device_id, 8))
+
+    @property
+    def api_version(self):
+        """Returns version number of the SDK used to compile TVM.
+
+        For example, CUDA_VERSION for cuda or VK_HEADER_VERSION for
+        Vulkan.
+
+        Returns
+        -------
+        version : int
+            The version of the SDK
+
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+
+    @property
+    def driver_version(self):
+        """Returns version number of the driver
+
+        Returns driver vendor's internal version number.
+        (e.g. "450.408.256" for nvidia-driver-450)
+
+        Returns
+        -------
+        version : str
+            The version string in `major.minor.patch` format.
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
 
     def create_raw_stream(self):
         """Create a new runtime stream at the context.
