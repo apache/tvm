@@ -745,7 +745,20 @@ def fast_erf(x):
 
 
 def ceil_log2(x):
-    """TODO"""
+    """Compute integer ceil log2 with a special code path for vulkan
+    SPIR-V does not support log2 on fp64. Instead, we compute integer ceil_log2 via clz
+    intrinsic when the target is vulkan.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
     if not isinstance(x, tvm.tir.PrimExpr):
         x = tvm.tir.const(x)
 
@@ -753,7 +766,6 @@ def ceil_log2(x):
         return tvm.tir.ceil(tvm.tir.log2(x))
 
     if "vulkan" in tvm.target.Target.current().kind.name:
-        # SPIR-V does not support log2 on fp64. Instead, we compute ceil_log2 via clz
         clz = tvm.tir.clz(x)
         bits = int(x.dtype[-2:])
         ceil_log2 = tvm.tir.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
