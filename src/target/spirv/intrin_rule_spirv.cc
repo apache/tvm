@@ -24,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace codegen {
@@ -32,8 +33,9 @@ namespace spirv {
 using namespace runtime;
 
 // num_signature means number of arguments used to query signature
+
 template <unsigned id>
-inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
+PrimExpr CallGLSLIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
@@ -44,7 +46,12 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, tir::builtin::call_spirv_pure_glsl450(), cargs);
+  return tir::Call(call->dtype, tir::builtin::call_spirv_pure_glsl450(), cargs);
+}
+
+template <unsigned id>
+inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
+  *rv = CallGLSLIntrin<id>(targs, rv);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
@@ -75,6 +82,17 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.sqrt").set_body(DispatchGLSLPureIntr
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.pow").set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.tanh").set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.clz")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      PrimExpr e = targs[0];
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      ICHECK_EQ(call->args.size(), 1);
+      PrimExpr arg = call->args[0];
+      PrimExpr msb = CallGLSLIntrin<GLSLstd450FindUMsb>(targs, rv);
+      *rv = PrimExpr(arg.dtype().bits() - 1) - msb;
+    });
 
 // WebGPU rules.
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.floor")
