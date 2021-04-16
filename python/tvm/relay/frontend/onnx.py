@@ -2065,8 +2065,9 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        mode = attr.get("mode").decode("ascii")
         layout = "NCHW"  # ONNX assumes NCHW layout
+
+        mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -2078,6 +2079,11 @@ class Resize(OnnxOpConverter):
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
             )
 
+        coord_trans = attr.get("coordinate_transformation_mode", b"half_pixel").decode("ascii")
+        nearest_mode = attr.get("nearest_mode", b"round_prefer_floor").decode("ascii")
+        alpha = attr.get("cubic_coeff_a", -0.75)
+        exclude = attr.get("exclude_outside", 0)
+
         scale = inputs[2]
         scale_shape = infer_shape(scale)
         if len(inputs) == 4:
@@ -2088,18 +2094,17 @@ class Resize(OnnxOpConverter):
         else:
             assert len(scale_shape) != 0, "One of scale or size should be passed."
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
 
-        coord_trans = attr.get("coordinate_transformation_mode", b"half_pixel").decode("ascii")
         ## TODO(mbrookhart): Need Dynamic Crop and Resize :(
         # if coord_trans == "tf_crop_and_resize":
         #     extrapolation_value = attr.get("extrapolation_value", 0.0)
         #     boxes = _op.reshape(inputs[1], [-1, 4])
         #     box_indices = fold_constant(_op.take(shape_of(boxes), _op.const(0, "int64"), axis=0))
-        #     return _op.image.crop_and_resize(inputs[1], boxes, box_indices, size, layout, method, extrapolation_value)
-
-        nearest_mode = attr.get("nearest_mode", "round_prefer_floor")
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-        return _op.image.resize(inputs[0], out_size, layout, method, coord_trans, nearest_mode)
+        #     return _op.image.crop_and_resize(inputs[1], boxes, box_indices, out_size, layout, method, extrapolation_value)
+        return _op.image.resize(
+            inputs[0], out_size, layout, method, coord_trans, nearest_mode, alpha, exclude
+        )
 
 
 class NonZero(OnnxOpConverter):

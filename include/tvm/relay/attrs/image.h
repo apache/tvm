@@ -39,6 +39,8 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   std::string method;
   std::string coordinate_transformation_mode;
   std::string rounding_method;
+  double bicubic_alpha;
+  int bicubic_exclude;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
@@ -67,6 +69,12 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
         .describe(
             "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
             "Available options are round, floor, and ceil.");
+    TVM_ATTR_FIELD(bicubic_alpha)
+        .set_default(-0.5)
+        .describe("Spline Coefficient for Bicubic Interpolation");
+    TVM_ATTR_FIELD(bicubic_exclude)
+        .set_default(0)
+        .describe("Flag to exclude exterior of the image during bicubic interpolation");
     TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
   }
 };

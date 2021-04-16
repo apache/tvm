@@ -446,10 +446,13 @@ def resize_bicubic(
     layout="NCHW",
     coordinate_transformation_mode="align_corners",
     out_dtype=None,
+    alpha=-0.5,
+    exclude_outside=0,
 ):
     """Perform resize operation with bicubic method on the data.
     More details about Bicubic interpolation please refer to
     https://en.wikipedia.org/wiki/Bicubic_interpolation.
+    This algorithm is doing a bicubic spline interpolation
 
     Parameters
     ----------
@@ -459,7 +462,7 @@ def resize_bicubic(
     data : tvm.te.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
-        or  [batch, in_height, in_width, channel]
+        or  [:batch, in_height, in_width, channel]
 
     image_height : integer
         Input image height
@@ -472,6 +475,7 @@ def resize_bicubic(
 
     target_width : integer
         The target resized image width
+
 
     boxes : tvm.te.Tensor, optional
         A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
@@ -496,6 +500,9 @@ def resize_bicubic(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
+    alpha: float, optional
+        Bicubic spline coefficient
+
     Returns
     -------
     output : out_dtype
@@ -503,9 +510,9 @@ def resize_bicubic(
     """
 
     def _cubic_kernel(A, B, C, D, t):
-        a = -A / 2.0 + (3.0 * B) / 2.0 - (3.0 * C) / 2.0 + D / 2.0
-        b = A - (5.0 * B) / 2.0 + 2.0 * C - D / 2.0
-        c = -A / 2.0 + C / 2.0
+        a = -(alpha * (D - A) + (alpha + 2) * (C - B))
+        b = 2 * alpha * (C - A) + 3 * (C - B) + alpha * (D - B)
+        c = -alpha * (C - A)
         d = B
         return a * t * t * t + b * t * t + c * t + d
 
@@ -531,25 +538,15 @@ def resize_bicubic(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        if coordinate_transformation_mode == "align_corners":
-            h_scale = (image_height - 1).astype("float") / (target_height - 1)
-            w_scale = (image_width - 1).astype("float") / (target_width - 1)
-        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-            h_scale = image_height.astype("float") / target_height
-            w_scale = image_width.astype("float") / target_width
-        else:
-            raise ValueError(
-                "Unsupported coordinate_transformation_mode: {}".format(
-                    coordinate_transformation_mode
-                )
-            )
-
-        if coordinate_transformation_mode == "half_pixel":
-            in_y = h_scale * (y + 0.5) - 0.5
-            in_x = w_scale * (x + 0.5) - 0.5
-        else:
-            in_y = h_scale * y
-            in_x = w_scale * x
+        in_y, in_x = get_iny_inx(
+            y,
+            x,
+            image_height,
+            image_width,
+            target_height,
+            target_width,
+            coordinate_transformation_mode,
+        )
 
     xint = te.floor(in_x).astype("int32")
     xfract = in_x - te.floor(in_x)
@@ -557,67 +554,30 @@ def resize_bicubic(
     yint = te.floor(in_y).astype("int32")
     yfract = in_y - te.floor(in_y)
 
-    # 1st row
-    p00 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint - 1, cc, inum, ic
-    )
-    p10 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 0, cc, inum, ic
-    )
-    p20 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 1, cc, inum, ic
-    )
-    p30 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 2, cc, inum, ic
-    )
-
-    # 2nd row
-    p01 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint - 1, cc, inum, ic
-    )
-    p11 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 0, cc, inum, ic
-    )
-    p21 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 1, cc, inum, ic
-    )
-    p31 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 2, cc, inum, ic
-    )
-
-    # 3rd row
-    p02 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint - 1, cc, inum, ic
-    )
-    p12 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 0, cc, inum, ic
-    )
-    p22 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 1, cc, inum, ic
-    )
-    p32 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 2, cc, inum, ic
-    )
-
-    # 4th row
-    p03 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint - 1, cc, inum, ic
-    )
-    p13 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 0, cc, inum, ic
-    )
-    p23 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 1, cc, inum, ic
-    )
-    p33 = _get_pixel(
-        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 2, cc, inum, ic
-    )
+    # Get the surrounding values
+    p = [[0 for i in range(4)] for j in range(4)]
+    for j in range(4):
+        for i in range(4):
+            p[j][i] = get_2d_pixel(
+                data,
+                layout,
+                boxes,
+                image_height,
+                image_width,
+                box_idx,
+                c,
+                yint + j - 1,
+                xint + i - 1,
+                cc,
+                inum,
+                ic,
+            )
 
     # Interpolate bicubically
-    col0 = _cubic_kernel(p00, p10, p20, p30, xfract)
-    col1 = _cubic_kernel(p01, p11, p21, p31, xfract)
-    col2 = _cubic_kernel(p02, p12, p22, p32, xfract)
-    col3 = _cubic_kernel(p03, p13, p23, p33, xfract)
+    col0 = _cubic_kernel(*p[0], xfract)
+    col1 = _cubic_kernel(*p[1], xfract)
+    col2 = _cubic_kernel(*p[2], xfract)
+    col3 = _cubic_kernel(*p[3], xfract)
     value = _cubic_kernel(col0, col1, col2, col3, yfract)
 
     # use extrapolation_value if in_y/in_x is out of boundary
@@ -642,6 +602,8 @@ def resize(
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="round",
+    bicubic_alpha=-0.5,
+    bicubic_exclude=0,
     out_dtype=None,
     output_shape=None,
 ):
@@ -738,9 +700,11 @@ def resize(
             in_w,
             size[0],
             size[1],
-            layout,
+            layout=layout,
             coordinate_transformation_mode=coordinate_transformation_mode,
             out_dtype=out_dtype,
+            alpha=bicubic_alpha,
+            exclude_outside=bicubic_exclude,
         )
 
     # Determine which interpolation method to use then run it.

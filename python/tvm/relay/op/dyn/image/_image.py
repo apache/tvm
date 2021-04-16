@@ -32,6 +32,8 @@ def compute_resize(attrs, inputs, out_type):
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     rounding_method = attrs.rounding_method
+    bicubic_alpha = attrs.bicubic_alpha
+    bicubic_exclude = attrs.bicubic_exclude
     out_dtype = attrs.out_dtype
     return [
         tvm.topi.image.resize(
@@ -41,6 +43,8 @@ def compute_resize(attrs, inputs, out_type):
             method,
             coord_trans,
             rounding_method,
+            bicubic_alpha,
+            bicubic_exclude,
             out_dtype,
             out_type.shape,
         )
