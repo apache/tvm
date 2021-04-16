@@ -39,26 +39,23 @@ static char * g_last_error = NULL;
 //   TVMBackendAllocWorkspace
 // ====================================================
 void *
-TVMBackendAllocWorkspace (
+TVMBackendAllocWorkspace(
   int device_type,
   int device_id,
   uint64_t nbytes,
   int dtype_code_hint,
   int dtype_bits_hint
 ) {
-  
+
   void * ptr = NULL;
   assert (nbytes > 0);
 
 #ifdef __arm__
-  //ptr = memalign (64, nbytes);
   ptr = malloc (nbytes);
 #else //_x86_
-  //const int ret = posix_memalign (&ptr, 64, nbytes);
-  //assert(ret == 0);
   ptr = malloc (nbytes);
 #endif
-  
+
   return ptr;
 }
 
@@ -66,8 +63,7 @@ TVMBackendAllocWorkspace (
 //   TVMBackendFreeWorkspace
 // ====================================================
 int
-TVMBackendFreeWorkspace (int device_type, int device_id, void* ptr)
-{
+TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   free(ptr);
   return 0;
 }
@@ -75,12 +71,11 @@ TVMBackendFreeWorkspace (int device_type, int device_id, void* ptr)
 // ====================================================
 //   TVMAPISetLastError
 // ====================================================
-void TVMAPISetLastError (const char * msg)
-{
+void TVMAPISetLastError(const char * msg) {
   if (g_last_error) {
     free (g_last_error);
   }
-  
+
   g_last_error = malloc (strlen(msg)+1);
   strcpy (g_last_error, msg);
 }
@@ -88,8 +83,7 @@ void TVMAPISetLastError (const char * msg)
 // ====================================================
 //   TVMGetLastError
 // ====================================================
-const char * TVMGetLastError (void)
-{
+const char * TVMGetLastError(void) {
   assert (g_last_error);
   return g_last_error;
 }

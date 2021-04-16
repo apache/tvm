@@ -22,8 +22,8 @@
  * \brief Support for the TVM code generation for STM32 ARM targets.
  */
 
-#ifndef _NETWORK_IMPL_included_
-#define _NETWORK_IMPL_included_
+#ifndef TVM_RUNTIME_STM32_STM32LIB_H_
+#define TVM_RUNTIME_STM32_STM32LIB_H_
 
 #include <stdint.h>
 
@@ -34,11 +34,10 @@
 // =========================================================
 //   conv2d_nhwc_int8_smlad_reset_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t 
-conv2d_nhwc_int8_smlad_reset_ (
+__attribute__((always_inline)) inline static int32_t
+conv2d_nhwc_int8_smlad_reset_(
   int32_t * conv
-)
-{
+) {
   *conv = 0;
   return 0;
 }
@@ -46,22 +45,21 @@ conv2d_nhwc_int8_smlad_reset_ (
 // =========================================================
 //   conv2d_nhwc_int8_smlad_update_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t 
-conv2d_nhwc_int8_smlad_update_ (
+__attribute__((always_inline)) inline static int32_t
+conv2d_nhwc_int8_smlad_update_(
   int8_t * input,
   int8_t * weights,
   int32_t * conv,
   int16_t omaps,
   int16_t channels
-)
-{
+) {
   // te.sum((a[k]*b[k,i]).astype('int32'), axis=k
 
 #ifdef __arm__
     //
     // Load and extend int8x2 => int16x2
     //
-  int32_t in = *(int32_t*)input;  // TODO: fix it !!
+  int32_t in = *(int32_t*)input;  // TODO(stoa): fix it !!
     //
     // Pack 2 kernel values
     //
@@ -69,7 +67,7 @@ conv2d_nhwc_int8_smlad_update_ (
     int8_t ker1 = *(weights+1*channels);
     int32_t ker = ((ker1<<16)&0x00FF)|(ker0&0x00FF);
 
-    *(conv) = __SMLAD (in, ker, *(conv));
+    *(conv) = __SMLAD(in, ker, *(conv));
 #else
     int8_t in0 = *(input+0);
     int8_t ker0 = *(weights+0*channels);
@@ -85,11 +83,10 @@ conv2d_nhwc_int8_smlad_update_ (
 // =========================================================
 //   conv2d_nhwc_int16_smlad_reset_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t 
-conv2d_nhwc_int16_smlad_reset_ (
+__attribute__((always_inline)) inline static int32_t
+conv2d_nhwc_int16_smlad_reset_(
   int32_t * conv
-)
-{
+) {
   *conv = 0;
   return 0;
 }
@@ -97,14 +94,13 @@ conv2d_nhwc_int16_smlad_reset_ (
 // =========================================================
 //   conv2d_nhwc_int16_smlad_update_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t 
-conv2d_nhwc_int16_smlad_update_ (
+__attribute__((always_inline)) inline static int32_t
+conv2d_nhwc_int16_smlad_update_(
   int16_t * input,
   int16_t * weights,
   int32_t * conv,
   int16_t channels
-)
-{
+) {
   // te.sum((a[k]*b[k,i]).astype('int32'), axis=k
 
   //
@@ -121,7 +117,7 @@ conv2d_nhwc_int16_smlad_update_ (
   //
   int32_t ker = (ker1<<16)|(ker0&0xFFFF);
   
-  *conv = __SMLAD (in, ker, *conv);
+  *conv = __SMLAD(in, ker, *conv);
   
 #else
   
@@ -142,11 +138,10 @@ conv2d_nhwc_int16_smlad_update_ (
 // =========================================================
 //   conv2d_NCHWc_int16_smlad_reset_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t 
-conv2d_NCHWc_int16_smlad_reset_ (
+__attribute__((always_inline)) inline static int32_t
+conv2d_NCHWc_int16_smlad_reset_(
   int32_t * conv
-)
-{
+) {
   *conv = 0;
   return 0;
 }
@@ -154,14 +149,13 @@ conv2d_NCHWc_int16_smlad_reset_ (
 // =========================================================
 //   conv2d_NCHWc_int16_smlad_update_
 // =========================================================
-__attribute__((always_inline)) inline static int32_t 
-conv2d_NCHWc_int16_smlad_update_ (
+__attribute__((always_inline)) inline static int32_t
+conv2d_NCHWc_int16_smlad_update_(
   int16_t * input,
   int16_t * weights,
   int32_t * conv,
   int16_t channels
-)
-{
+) {
   //
   // Load input: int16x2
   //
@@ -179,7 +173,7 @@ conv2d_NCHWc_int16_smlad_update_ (
   //
   int32_t ker = (ker1<<16)|(ker0&0xFFFF);
 
-  *conv = __SMLAD (in, ker, *conv);
+  *conv = __SMLAD(in, ker, *conv);
   
 #else
   
@@ -193,10 +187,10 @@ conv2d_NCHWc_int16_smlad_update_ (
   int16_t ker1 = *(weights+1*channels);
 
   *conv = *conv + in0*ker0 + in1*ker1;
-  
+
 #endif
 
   return 0;
 }
 
-#endif // _NETWORK_IMPL_included_
+#endif // TVM_RUNTIME_STM32_STM32LIB_H_

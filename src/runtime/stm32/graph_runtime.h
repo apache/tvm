@@ -22,8 +22,8 @@
  *        the graph and its parameters.
  * \file graph_runtime.h
  */
-#ifndef TVM_RUNTIME_STM_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_STM_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_STM32_GRAPH_RUNTIME_H_
+#define TVM_RUNTIME_STM32_GRAPH_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
 #include <dmlc/memory_io.h>
@@ -182,7 +182,6 @@ class GraphRuntime : public ModuleNode {
 
 
  protected:
-  
   // Memory pool entry.
   struct PoolEntry {
     size_t size;
@@ -198,7 +197,7 @@ class GraphRuntime : public ModuleNode {
     uint32_t index;
     uint32_t version;
     // JSON Loader
-    void Load (dmlc::JSONReader *reader) {
+    void Load(dmlc::JSONReader *reader) {
       reader->BeginArray();
       CHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&node_id);
@@ -227,9 +226,9 @@ class GraphRuntime : public ModuleNode {
     std::vector<NodeEntry> inputs;
     // control deps
     std::vector<uint32_t> control_deps;
-    
+
     // JSON Loader
-    void LoadAttrs (dmlc::JSONReader *reader, TVMOpParam* param) {
+    void LoadAttrs(dmlc::JSONReader *reader, TVMOpParam* param) {
       int bitmask = 0;
       std::string key, value;
       reader->BeginObject();
@@ -253,7 +252,7 @@ class GraphRuntime : public ModuleNode {
     }
 
     // JSON Loader
-    void Load (dmlc::JSONReader *reader) {
+    void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
       int bitmask = 0;
       std::string key;
@@ -288,9 +287,9 @@ class GraphRuntime : public ModuleNode {
     std::vector<int> device_index;
     std::vector<std::string> dltype;
     std::vector<std::vector<int64_t> > shape;
-    
+
     // The graph attribute fields.
-    void Load (dmlc::JSONReader *reader) {
+    void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
       int bitmask = 0;
       std::string key, type;
@@ -351,9 +350,9 @@ class GraphRuntime : public ModuleNode {
       CHECK_EQ(bitmask, 1|2|4) << "invalid format";
     }
   };
-  
+
   // The graph attribute fields.
-  void Load (dmlc::JSONReader *reader) {
+  void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
       int bitmask = 0;
       std::string key;
@@ -381,7 +380,7 @@ class GraphRuntime : public ModuleNode {
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
   }
-  
+
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors. */
@@ -440,4 +439,4 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args);
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_STM_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_STM32_GRAPH_RUNTIME_H_
