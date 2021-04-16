@@ -34,7 +34,6 @@ from string import Template
 import tvm
 import tvm.relay as relay
 from tvm.contrib import utils
-#from tvm.relay.backend import graph_runtime_factory
 
 import logging
 

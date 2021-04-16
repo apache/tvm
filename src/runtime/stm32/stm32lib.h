@@ -33,6 +33,8 @@
 #include "cmsis_compiler.h"
 #endif
 
+extern "C" {
+
 // =========================================================
 //   conv2d_nhwc_int8_smlad_reset_
 // =========================================================
@@ -194,5 +196,7 @@ conv2d_NCHWc_int16_smlad_update_(
 
   return 0;
 }
+
+}  // extern "C"
 
 #endif  // TVM_RUNTIME_STM32_STM32LIB_H_

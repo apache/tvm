@@ -77,7 +77,7 @@ void TVMAPISetLastError(const char * msg) {
   uint32_t nbytes = strlen(msg)+1;
   g_last_error = malloc(nbytes);
   // strcpy(g_last_error, msg);
-  snprintf (g_last_error, nbytes, "%s", msg);
+  snprintf(g_last_error, nbytes, "%s", msg);
 }
 
 // ====================================================
