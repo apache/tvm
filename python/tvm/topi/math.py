@@ -768,11 +768,11 @@ def ceil_log2(x):
     if "vulkan" in tvm.target.Target.current().kind.name:
         clz = tvm.tir.clz(x)
         bits = int(x.dtype[-2:])
-        ceil_log2 = tvm.tir.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
+        res = tvm.tir.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
 
-        if ceil_log2.dtype != x.dtype:
-            return cast(ceil_log2, x.dtype)
+        if res.dtype != x.dtype:
+            return cast(res, x.dtype)
 
-        return ceil_log2
+        return res
 
     return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float64"))), x.dtype)
