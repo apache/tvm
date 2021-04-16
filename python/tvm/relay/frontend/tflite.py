@@ -769,11 +769,18 @@ class OperatorConverter(object):
         """Convert TFLite TANH"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
-
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = _op.tanh(in_expr)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = _op.tanh(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_range(self, op):
