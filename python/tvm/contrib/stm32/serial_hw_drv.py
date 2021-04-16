@@ -19,10 +19,6 @@
 Serial Low Level or Hw Driver
 """
 
-__author__ = "Jean-Michel Delorme"
-__copyright__ = "Copyright (c) 2020, STMicroelectronics"
-__license__ = "Limited License Agreement - SLA0069"
-
 import time as t
 
 from serial import Serial
