@@ -55,8 +55,8 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     // 1) Create a map from axis to param_width using old layout.
     std::map<std::string, tvm::Array<Integer>> axis_pad_width;
     int index_counter = 0;
-    ICHECK_EQ(new_in_layouts.size(), 1);
-    ICHECK_EQ(old_in_layouts.size(), 1);
+    ICHECK_EQ(new_in_layouts.size(), 2);
+    ICHECK_EQ(old_in_layouts.size(), 2);
     for (auto iter_var : old_in_layouts[0]->axes) {
       const auto& old_layout_axis = LayoutAxis::Get(iter_var);
       axis_pad_width.emplace(old_layout_axis.name(), params->pad_width[index_counter]);
@@ -102,7 +102,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
 
   if (!is_layout_modified) {
     if (old_in_layouts.defined()) {
-      ICHECK_EQ(old_in_layouts.size(), 1);
+      ICHECK_EQ(old_in_layouts.size(), 2);
       ret = old_in_layouts[0];
     } else {
       ret = Layout::Undef();
