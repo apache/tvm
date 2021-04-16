@@ -109,7 +109,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     }
   }
 
-  return Array<Array<Layout>>{{ret}, {ret}};
+  return Array<Array<Layout>>{{ret, new_in_layouts[0]}, {ret, new_in_layouts[0]}};
 }
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
