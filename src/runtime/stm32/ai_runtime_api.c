@@ -22,6 +22,8 @@
  * \brief The runtime API for the TVM generated C code.
  */
 
+// LINT__C_FILE
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

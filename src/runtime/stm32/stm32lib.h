@@ -22,6 +22,8 @@
  * \brief Support for the TVM code generation for STM32 ARM targets.
  */
 
+// LINT__C_FILE
+
 #ifndef TVM_RUNTIME_STM32_STM32LIB_H_
 #define TVM_RUNTIME_STM32_STM32LIB_H_
 

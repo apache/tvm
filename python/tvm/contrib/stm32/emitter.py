@@ -34,7 +34,7 @@ from string import Template
 import tvm
 import tvm.relay as relay
 from tvm.contrib import utils
-from tvm.relay.backend import graph_runtime_factory
+#from tvm.relay.backend import graph_runtime_factory
 
 import logging
 
@@ -1004,7 +1004,7 @@ class CodeEmitter (object) :
         # TODO: use the 'storage_id'
         #
         #out_c.write ("    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1]))
-        out_c.write (f'  .ctx = {{ kDLCPU, 0 }}, \n')
+        out_c.write (f'  .device = {{ kDLCPU, 0 }}, \n')
         out_c.write (f'  .ndim = {ndim}, \n')
         out_c.write (f'  .dtype = {{ {dtype} }}, \n')
         out_c.write (f'  .shape = {dl_tensor_name}_shape, \n')

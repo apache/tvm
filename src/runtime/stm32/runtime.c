@@ -51,7 +51,7 @@ TVMBackendAllocWorkspace(
 
 #ifdef __arm__
   ptr = malloc(nbytes);
-#else //_x86_
+#else  // _x86_
   ptr = malloc(nbytes);
 #endif
 
@@ -74,9 +74,10 @@ void TVMAPISetLastError(const char * msg) {
   if (g_last_error) {
     free(g_last_error);
   }
-
-  g_last_error = malloc(strlen(msg)+1);
-  strcpy(g_last_error, msg);
+  uint32_t nbytes = strlen(msg)+1;
+  g_last_error = malloc(nbytes);
+  // strcpy(g_last_error, msg);
+  snprintf (g_last_error, nbytes, "%s", msg);
 }
 
 // ====================================================

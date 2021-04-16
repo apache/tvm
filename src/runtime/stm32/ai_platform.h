@@ -22,6 +22,8 @@
  * \brief Definitions of AI platform public APIs types
  */
 
+// LINT__C_FILE
+
 #ifndef AI_PLATFORM_H
 #define AI_PLATFORM_H
 #pragma once
@@ -80,7 +82,7 @@
   #define AI_ALIGNED(x)         /* AI_ALIGNED(x) */
 #elif defined(__ICCARM__) || defined(__IAR_SYSTEMS_ICC__)
   #define AI_API_ENTRY          /* AI_API_ENTRY */
-  #define AI_ALIGNED(x)         AI_CONCAT(AI_ALIGNED_,x)
+  #define AI_ALIGNED(x)         AI_CONCAT(AI_ALIGNED_, x)
   #define AI_ALIGNED_1          _Pragma("data_alignment = 1")
   #define AI_ALIGNED_2          _Pragma("data_alignment = 2")
   #define AI_ALIGNED_4          _Pragma("data_alignment = 4")
@@ -127,10 +129,10 @@
   ((list_) ? (((list_)->info) && ((list_)->size>0)) : false)
 
 #define AI_INTQ_INFO_LIST_SCALE(list_, type_, pos_) \
-  (((list_) && (list_)->info && ((pos_)<(list_)->size)) ? ((type_*)((list_)->info->scale))[(pos_)] : 0)
+  (((list_) && (list_)->info && ((pos_) < (list_)->size)) ? ((type_*)((list_)->info->scale))[(pos_)] : 0)
 
 #define AI_INTQ_INFO_LIST_ZEROPOINT(list_, type_, pos_) \
-  (((list_) && (list_)->info && ((pos_)<(list_)->size)) ? ((type_*)((list_)->info->zeropoint))[(pos_)] : 0)
+  (((list_) && (list_)->info && ((pos_) < (list_)->size)) ? ((type_*)((list_)->info->zeropoint))[(pos_)] : 0)
 
 /*! ai_buffer format handlers *************************************************/
 
@@ -154,9 +156,9 @@ typedef int32_t ai_buffer_format;
 #define AI_BUFFER_FMT_TYPE_Q             (0x2)
 #define AI_BUFFER_FMT_TYPE_BOOL          (0x3)
 
-#define AI_BUFFER_FMT_FLAG_CONST         (0x1U<<30)
-#define AI_BUFFER_FMT_FLAG_STATIC        (0x1U<<29)
-#define AI_BUFFER_FMT_FLAG_IS_IO         (0x1U<<27)
+#define AI_BUFFER_FMT_FLAG_CONST         (0x1U << 30)
+#define AI_BUFFER_FMT_FLAG_STATIC        (0x1U << 29)
+#define AI_BUFFER_FMT_FLAG_IS_IO         (0x1U << 27)
 
 #define AI_BUFFER_FMT_PACK(value_, mask_, bits_) \
   ( ((value_) & (mask_)) << (bits_) )
