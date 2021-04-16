@@ -126,13 +126,15 @@
   ((list_) ? (list_)->size : 0)
 
 #define AI_HAS_INTQ_INFO_LIST(list_) \
-  ((list_) ? (((list_)->info) && ((list_)->size>0)) : false)
+  ((list_) ? (((list_)->info) && ((list_)->size > 0)) : false)
 
 #define AI_INTQ_INFO_LIST_SCALE(list_, type_, pos_) \
-  (((list_) && (list_)->info && ((pos_) < (list_)->size)) ? ((type_*)((list_)->info->scale))[(pos_)] : 0)
+  (((list_) && (list_)->info && ((pos_) < (list_)->size)) ? \
+   ((type_*)((list_)->info->scale))[(pos_)] : 0)
 
 #define AI_INTQ_INFO_LIST_ZEROPOINT(list_, type_, pos_) \
-  (((list_) && (list_)->info && ((pos_) < (list_)->size)) ? ((type_*)((list_)->info->zeropoint))[(pos_)] : 0)
+  (((list_) && (list_)->info && ((pos_) < (list_)->size)) ? \
+   ((type_*)((list_)->info->zeropoint))[(pos_)] : 0)
 
 /*! ai_buffer format handlers *************************************************/
 
@@ -333,8 +335,7 @@ typedef struct ai_intq_info_ {
 typedef struct ai_intq_info_list_ {
   ai_u16          flags;  /*!< optional flags to store intq info attributes */
   ai_u16          size;   /*!< number of elements in the the intq_info list  */
-  INTQ_CONST ai_intq_info* info;  /*!< pointer to an array of metainfo
-                                   * associated to the intq_info list */
+  INTQ_CONST ai_intq_info* info;  /*!< pointer to an array of quant info */
 } ai_intq_info_list;
 
 /******************************************************************************/
