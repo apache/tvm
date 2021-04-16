@@ -190,17 +190,11 @@ void DeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to, s
 
 void DeviceAPI::FreeWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
 
-TVMStreamHandle DeviceAPI::CreateStream(Device dev) {
-  LOG(FATAL) << "Device does not support stream api.";
-  return nullptr;
-}
+TVMStreamHandle DeviceAPI::CreateStream(Device dev) { return nullptr; }
 
-void DeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {
-  LOG(FATAL) << "Device does not support stream api.";
-}
+void DeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {}
 
 void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
-  LOG(FATAL) << "Device does not support stream api.";
 }
 
 //--------------------------------------------------------
