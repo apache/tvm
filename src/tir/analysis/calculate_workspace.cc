@@ -32,23 +32,23 @@ namespace tir {
 class WorkspaceCalculator : public StmtExprVisitor {
  public:
   WorkspaceCalculator() = default;
-  int operator()(const PrimFunc& func);
+  size_t operator()(const PrimFunc& func);
 
  private:
   void VisitStmt_(const AllocateNode* op) override;
-  int CalculateExtentsSize(const AllocateNode* op);
-  int current_size = 0;
-  int max_size = 0;
+  size_t CalculateExtentsSize(const AllocateNode* op);
+  size_t current_size = 0;
+  size_t max_size = 0;
 };
 
-int WorkspaceCalculator::operator()(const PrimFunc& func) {
+size_t WorkspaceCalculator::operator()(const PrimFunc& func) {
   this->VisitStmt(func->body);
   return this->max_size;
 }
 
-int WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
-  int element_size_bytes = op->dtype.bytes();
-  int num_elements = 1;
+size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
+  size_t element_size_bytes = op->dtype.bytes();
+  size_t num_elements = 1;
   for (const auto& ext : op->extents) {
     num_elements *= Downcast<IntImm>(ext)->value;
   }
@@ -65,13 +65,14 @@ void WorkspaceCalculator::VisitStmt_(const AllocateNode* op) {
   current_size -= size;
 }
 
-int CalculateWorkspaceBytes(const PrimFunc& func) {
+size_t CalculateWorkspaceBytes(const PrimFunc& func) {
   WorkspaceCalculator wc;
   return wc(func);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes")
-    .set_body_typed(CalculateWorkspaceBytes);
+TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes").set_body_typed([=](PrimFunc func) {
+  return static_cast<int>(CalculateWorkspaceBytes(func));
+});
 
 }  // namespace tir
 }  // namespace tvm
