@@ -22,7 +22,7 @@
  * \brief Definitions of AI platform public APIs types
  */
 
-// LINT__C_FILE
+// LINT_C_FILE
 
 #ifndef AI_PLATFORM_H
 #define AI_PLATFORM_H

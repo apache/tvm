@@ -22,7 +22,7 @@
  * \brief Support for the TVM code generation for STM32 ARM targets.
  */
 
-// LINT__C_FILE
+// LINT_C_FILE
 
 #ifndef TVM_RUNTIME_STM32_STM32LIB_H_
 #define TVM_RUNTIME_STM32_STM32LIB_H_
@@ -32,8 +32,6 @@
 #ifdef __arm__
 #include "cmsis_compiler.h"
 #endif
-
-extern "C" {
 
 // =========================================================
 //   conv2d_nhwc_int8_smlad_reset_
@@ -196,7 +194,5 @@ conv2d_NCHWc_int16_smlad_update_(
 
   return 0;
 }
-
-}  // extern "C"
 
 #endif  // TVM_RUNTIME_STM32_STM32LIB_H_
