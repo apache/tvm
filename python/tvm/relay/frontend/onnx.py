@@ -2066,6 +2066,7 @@ class Resize(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         mode = attr.get("mode").decode("ascii")
+        layout = "NCHW"  # ONNX assumes NCHW layout
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -2089,9 +2090,14 @@ class Resize(OnnxOpConverter):
             size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
 
         coord_trans = attr.get("coordinate_transformation_mode", b"half_pixel").decode("ascii")
-        nearest_mode = attr.get("nearest_mode", "round_prefer_floor")
+        ## TODO(mbrookhart): Need Dynamic Crop and Resize :(
+        # if coord_trans == "tf_crop_and_resize":
+        #     extrapolation_value = attr.get("extrapolation_value", 0.0)
+        #     boxes = _op.reshape(inputs[1], [-1, 4])
+        #     box_indices = fold_constant(_op.take(shape_of(boxes), _op.const(0, "int64"), axis=0))
+        #     return _op.image.crop_and_resize(inputs[1], boxes, box_indices, size, layout, method, extrapolation_value)
 
-        layout = "NCHW"  # ONNX assumes NCHW layout
+        nearest_mode = attr.get("nearest_mode", "round_prefer_floor")
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         return _op.image.resize(inputs[0], out_size, layout, method, coord_trans, nearest_mode)
 

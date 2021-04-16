@@ -59,6 +59,33 @@ def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc,
     return data(n, c, y, x, cc).astype("float")
 
 
+def get_iny_inx(
+    y, x, image_height, image_width, target_height, target_width, coordinate_transformation_mode
+):
+    scale_y = te.div(image_height.astype("float"), target_height.astype("float"))
+    scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
+    if coordinate_transformation_mode == "half_pixel":
+        in_y = (y + 0.5) * scale_y - 0.5
+        in_x = (x + 0.5) * scale_x - 0.5
+    elif coordinate_transformation_mode == "align_corners":
+        in_y = y * (image_height - 1).astype("float") / (target_height - 1)
+        in_x = x * (image_width - 1).astype("float") / (target_width - 1)
+    elif coordinate_transformation_mode == "asymmetric":
+        in_y = y * scale_y
+        in_x = x * scale_x
+    elif coordinate_transformation_mode == "pytorch_half_pixel":
+        in_y = te.if_then_else(target_height > 1, (y + 0.5) * scale_y - 0.5, 0.0)
+        in_x = te.if_then_else(target_width > 1, (x + 0.5) * scale_x - 0.5, 0.0)
+    elif coordinate_transformation_mode == "tf_half_pixel_for_nn":
+        in_y = (y + 0.5) * scale_y
+        in_x = (x + 0.5) * scale_x
+    else:
+        raise ValueError(
+            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+        )
+    return in_y, in_x
+
+
 def resize_nearest_neighbor(
     indices,
     data,
@@ -155,26 +182,15 @@ def resize_nearest_neighbor(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        scale_y = te.div(image_height.astype("float"), target_height.astype("float"))
-        scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
-        if coordinate_transformation_mode == "half_pixel":
-            in_y = (y + 0.5) * scale_y - 0.5
-            in_x = (x + 0.5) * scale_x - 0.5
-        elif coordinate_transformation_mode == "align_corners":
-            in_y = y * (image_height - 1).astype("float") / (target_height - 1)
-            in_x = x * (image_width - 1).astype("float") / (target_width - 1)
-        elif coordinate_transformation_mode == "asymmetric":
-            in_y = y * scale_y
-            in_x = x * scale_x
-        elif coordinate_transformation_mode in ["pytorch_half_pixel", "tf_half_pixel_for_nn"]:
-            in_y = (y + 0.5) * scale_y
-            in_x = (x + 0.5) * scale_x
-        else:
-            raise ValueError(
-                "Unsupported coordinate_transformation_mode: {}".format(
-                    coordinate_transformation_mode
-                )
-            )
+        in_y, in_x = get_iny_inx(
+            y,
+            x,
+            image_height,
+            image_width,
+            target_height,
+            target_width,
+            coordinate_transformation_mode,
+        )
 
     if rounding_method == "round" or boxes is not None:
         closest_x_index = te.round(in_x).astype("int32")
@@ -323,25 +339,15 @@ def resize_bilinear(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        if coordinate_transformation_mode == "align_corners":
-            h_scale = (image_height - 1).astype("float") / (target_height - 1)
-            w_scale = (image_width - 1).astype("float") / (target_width - 1)
-        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-            h_scale = image_height.astype("float") / target_height
-            w_scale = image_width.astype("float") / target_width
-        else:
-            raise ValueError(
-                "Unsupported coordinate_transformation_mode: {}".format(
-                    coordinate_transformation_mode
-                )
-            )
-
-        if coordinate_transformation_mode == "half_pixel":
-            in_y = h_scale * (y + 0.5) - 0.5
-            in_x = w_scale * (x + 0.5) - 0.5
-        else:
-            in_y = h_scale * y
-            in_x = w_scale * x
+        in_y, in_x = get_iny_inx(
+            y,
+            x,
+            image_height,
+            image_width,
+            target_height,
+            target_width,
+            coordinate_transformation_mode,
+        )
 
     top_y_index = te.floor(in_y).astype("int32")
     bottom_y_index = te.ceil(in_y).astype("int32")
@@ -678,7 +684,6 @@ def resize(
         or 5-D with shape [batch, channel-major, in_height*scale, in_width*scale, channel-minor]
     """
     method = method.lower()
-
     if layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
         if output_shape is None:
@@ -802,7 +807,6 @@ def crop_and_resize(
     method = method.lower()
     target_h = crop_size[0]
     target_w = crop_size[1]
-
     if layout == "NHWC":
         output_shape = [box_indices.shape[0], crop_size[0], crop_size[1], data.shape[3]]
         image_h = data.shape[1].astype("int32")

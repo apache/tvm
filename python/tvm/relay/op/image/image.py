@@ -158,7 +158,7 @@ def crop_and_resize(
         A 1-D tensor of shape [num_boxes], box_ind[i] specifies the data that
         the i-th box refers to.
 
-    crop_size : Tuple of Expr
+    crop_size : Tuple of PrimExpr
         The target size to which each box will be resized.
 
     layout : str, optional
