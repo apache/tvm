@@ -752,6 +752,22 @@ def rsqrt(x):
     return call_intrin(x.dtype, "tir.rsqrt", x)
 
 
+def clz(x):
+    """Count leading zero bits of an integer x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument. The result is undefined if the input is 0.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_intrin("int32", "tir.clz", x)
+
+
 def floor(x, span=None):
     """Take floor of float input x.
 
