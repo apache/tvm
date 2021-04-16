@@ -107,7 +107,7 @@ conv2d_nhwc_int16_smlad_update_(
   // Load int16x2
   //
 #ifdef __arm__
-  
+
   int32_t in = *(int32_t*)input;
 
   int16_t ker0 = *(weights+0*channels);
@@ -116,11 +116,11 @@ conv2d_nhwc_int16_smlad_update_(
   // Pack 2 kernel values
   //
   int32_t ker = (ker1<<16)|(ker0&0xFFFF);
-  
+
   *conv = __SMLAD(in, ker, *conv);
-  
+
 #else
-  
+
   int16_t in0 = *(input+0);
   int16_t in1 = *(input+1);
 
@@ -128,12 +128,12 @@ conv2d_nhwc_int16_smlad_update_(
   int16_t ker1 = *(weights+1*channels);
 
   *conv = *conv + in0*ker0 + in1*ker1;
-  
+
 #endif
 
   return 0;
 }
-#endif // 0
+#endif  // 0
 
 // =========================================================
 //   conv2d_NCHWc_int16_smlad_reset_
@@ -160,7 +160,7 @@ conv2d_NCHWc_int16_smlad_update_(
   // Load input: int16x2
   //
 #ifdef __arm__
-  
+
   int32_t in = *(int32_t*)input;
 
   //
@@ -174,9 +174,9 @@ conv2d_NCHWc_int16_smlad_update_(
   int32_t ker = (ker1<<16)|(ker0&0xFFFF);
 
   *conv = __SMLAD(in, ker, *conv);
-  
+
 #else
-  
+
   int16_t in0 = *(input+0);
   int16_t in1 = *(input+1);
 
@@ -193,4 +193,4 @@ conv2d_NCHWc_int16_smlad_update_(
   return 0;
 }
 
-#endif // TVM_RUNTIME_STM32_STM32LIB_H_
+#endif  // TVM_RUNTIME_STM32_STM32LIB_H_

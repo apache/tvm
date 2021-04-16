@@ -43,7 +43,7 @@
 
 #if defined(_MSC_VER)
   #define AI_INLINE             __inline
-#elif defined(__ICCARM__) || defined (__IAR_SYSTEMS_ICC__)
+#elif defined(__ICCARM__) || defined(__IAR_SYSTEMS_ICC__)
   #define AI_INLINE             inline
 #elif defined(__CC_ARM)
   #define AI_INLINE             __inline
@@ -68,11 +68,11 @@ typedef enum {
 // =======================================================
 //                  ai_quantization_info
 //
-//   Parameters for asymmetric quantization across a dimension (i.e 
+//   Parameters for asymmetric quantization across a dimension (i.e
 //   per output channel quantization).
-//   quantized_dimension specifies which dimension the scales and 
+//   quantized_dimension specifies which dimension the scales and
 //   zero_points correspond to.
-//   For a particular value in quantized_dimension, quantized values 
+//   For a particular value in quantized_dimension, quantized values
 //   can be converted back to float using:
 //     real_value = scale * (quantized_value - zero_point)
 // =======================================================
@@ -104,8 +104,7 @@ typedef struct {
 // =======================================================
 //   get_dltensor
 // =======================================================
-AI_STATIC AI_INLINE DLTensor * get_dltensor (ai_tensor * tensor)
-{
+AI_STATIC AI_INLINE DLTensor * get_dltensor(ai_tensor * tensor) {
   return &tensor->dltensor;
 }
 
@@ -156,7 +155,6 @@ typedef struct {
   ai_status (*ai_create)(const ai_ptr weights, const ai_ptr activations);
   ai_status (*ai_destroy)();
   ai_status (*ai_run)(ai_tensor *input[], ai_tensor *output[]);
-
 } ai_model_info;
 
 #define AI_MODEL_name(x)              (x->name)
@@ -234,4 +232,4 @@ const ai_ptr ai_get_params(ai_handle handle);
 //
 const ai_quantization_info * ai_get_quantization(ai_tensor * tensor);
 
-#endif // TVM_RUNTIME_STM32_AI_RUNTIME_API_H_
+#endif  // TVM_RUNTIME_STM32_AI_RUNTIME_API_H_

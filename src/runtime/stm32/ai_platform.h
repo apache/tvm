@@ -78,7 +78,7 @@
 #if defined(_MSC_VER)
   #define AI_API_ENTRY          __declspec(dllexport)
   #define AI_ALIGNED(x)         /* AI_ALIGNED(x) */
-#elif defined(__ICCARM__) || defined (__IAR_SYSTEMS_ICC__)
+#elif defined(__ICCARM__) || defined(__IAR_SYSTEMS_ICC__)
   #define AI_API_ENTRY          /* AI_API_ENTRY */
   #define AI_ALIGNED(x)         AI_CONCAT(AI_ALIGNED_,x)
   #define AI_ALIGNED_1          _Pragma("data_alignment = 1")
@@ -127,12 +127,10 @@
   ((list_) ? (((list_)->info) && ((list_)->size>0)) : false)
 
 #define AI_INTQ_INFO_LIST_SCALE(list_, type_, pos_) \
-  (((list_) && (list_)->info && ((pos_)<(list_)->size)) \
-   ? ((type_*)((list_)->info->scale))[(pos_)] : 0)
+  (((list_) && (list_)->info && ((pos_)<(list_)->size)) ? ((type_*)((list_)->info->scale))[(pos_)] : 0)
 
 #define AI_INTQ_INFO_LIST_ZEROPOINT(list_, type_, pos_) \
-  (((list_) && (list_)->info && ((pos_)<(list_)->size)) \
-   ? ((type_*)((list_)->info->zeropoint))[(pos_)] : 0)
+  (((list_) && (list_)->info && ((pos_)<(list_)->size)) ? ((type_*)((list_)->info->zeropoint))[(pos_)] : 0)
 
 /*! ai_buffer format handlers *************************************************/
 

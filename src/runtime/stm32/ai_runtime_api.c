@@ -73,23 +73,23 @@ ai_model_info * ai_model_iterator_value(ai_model_iterator idx) {
 //   ai_network_find
 // =======================================================
 AI_STATIC
-ai_handle ai_network_find (const char * model_name) {
+ai_handle ai_network_find(const char * model_name) {
   uint32_t i;
 
   uint32_t n_models = (_modelsSection_end-_modelsSection_start+1)/sizeof(ai_network_t);
 
-  printf (" == models_section: 0x%08lx - 0x%08lx\r\n", _modelsSection_start, _modelsSection_end);
+  printf(" == models_section: 0x%08lx - 0x%08lx\r\n", _modelsSection_start, _modelsSection_end);
 
-  //printf (" == Looking among %lu models.\r\n", n_models);
+  // printf (" == Looking among %lu models.\r\n", n_models);
 
   for (i = 0; i < n_models; i++) {
     ai_network_t * network = (ai_network_t *)(_modelsSection_start+i*sizeof(ai_network_t));
 
-    printf (" == [%ld]: network = 0x%08x\r\n", i, (unsigned int)network);
+    printf(" == [%ld]: network = 0x%08x\r\n", i, (unsigned int)network);
 
     const char * name = network->name;
 
-    //printf (" == [%ld]: network->name = %s\r\n", i, name);
+    // printf (" == [%ld]: network->name = %s\r\n", i, name);
 
     if (!strcmp(name, model_name)) {
       return (ai_handle)network;
@@ -98,7 +98,7 @@ ai_handle ai_network_find (const char * model_name) {
 
   return NULL;
 }
-#endif // 0
+#endif  // 0
 
 // =======================================================
 //   ai_create
@@ -117,15 +117,15 @@ AI_API_ENTRY ai_status ai_create(
   //
   // Find the model from name.
   //
-  ai_network_t * network = ai_network_find (model_name);
+  ai_network_t * network = ai_network_find(model_name);
   if (network == NULL) {
     network->error = "Model not found";
     *handle = NULL;
     return AI_STATUS_ERROR;
   }
-#endif // 0
+#endif  // 0
 
-  //printf (" == Initializing the network ...\r\n");
+  // printf (" == Initializing the network ...\r\n");
 
   //
   // Create internal network representation
@@ -146,7 +146,7 @@ AI_API_ENTRY ai_status ai_create(
   network->error = NULL;
 
   const ai_ptr params = nn->ai_get_params();
-  status = nn->ai_create (params, activations);
+  status = nn->ai_create(params, activations);
   if (status != AI_STATUS_OK) {
     network->error = TVMGetLastError();
   }
@@ -156,31 +156,29 @@ AI_API_ENTRY ai_status ai_create(
   //
   *handle = network;
 
-  return status; 
+  return status;
 }
 
 // =======================================================
 //   ai_destroy
 // =======================================================
 AI_API_ENTRY ai_status ai_destroy(ai_handle handle) {
-
   if (handle == NULL) {
     return AI_STATUS_ERROR;
   }
 
   ai_network_t * network = (ai_network_t *)handle;
 
-  free (network);
+  free(network);
 
-  return AI_STATUS_OK; 
+  return AI_STATUS_OK;
 }
 
 // =======================================================
 //   ai_get_error
 // =======================================================
-AI_API_ENTRY 
+AI_API_ENTRY
 const char * ai_get_error(ai_handle handle) {
-
   if (handle == NULL) {
     return "Network handle is NULL";
   }
@@ -195,7 +193,6 @@ const char * ai_get_error(ai_handle handle) {
 //   ai_get_input_size
 // =======================================================
 AI_API_ENTRY int32_t ai_get_input_size(ai_handle handle) {
-
   if (handle == NULL) {
     return 0;
   }
@@ -207,7 +204,6 @@ AI_API_ENTRY int32_t ai_get_input_size(ai_handle handle) {
 //   ai_get_output_size
 // =======================================================
 AI_API_ENTRY int32_t ai_get_output_size(ai_handle handle) {
-
   if (handle == NULL) {
     return 0;
   }
@@ -219,7 +215,6 @@ AI_API_ENTRY int32_t ai_get_output_size(ai_handle handle) {
 //   ai_get_input
 // =======================================================
 AI_API_ENTRY ai_tensor * ai_get_input(ai_handle handle, int32_t index) {
-
   if (handle == NULL) {
     return NULL;
   }
@@ -235,7 +230,6 @@ AI_API_ENTRY ai_tensor * ai_get_input(ai_handle handle, int32_t index) {
 //   ai_get_output
 // =======================================================
 AI_API_ENTRY ai_tensor * ai_get_output(ai_handle handle, int32_t index) {
-
   if (handle == NULL) {
     return NULL;
   }
@@ -251,7 +245,6 @@ AI_API_ENTRY ai_tensor * ai_get_output(ai_handle handle, int32_t index) {
 //   ai_run
 // =======================================================
 AI_API_ENTRY ai_status ai_run(ai_handle handle) {
-
   if (handle == NULL) {
     return AI_STATUS_ERROR;
   }
@@ -298,7 +291,6 @@ AI_API_ENTRY ai_status ai_run(ai_handle handle) {
 //   ai_get_name
 // =======================================================
 const char * ai_get_name(ai_handle handle) {
-  
   if (handle == NULL) {
     return NULL;
   }
@@ -310,7 +302,6 @@ const char * ai_get_name(ai_handle handle) {
 //   ai_get_datetime
 // =======================================================
 const char * ai_get_datetime(ai_handle handle) {
-  
   if (handle == NULL) {
     return NULL;
   }
@@ -322,7 +313,6 @@ const char * ai_get_datetime(ai_handle handle) {
 //   ai_get_revision
 // =======================================================
 const char * ai_get_revision(ai_handle handle) {
-
   if (handle == NULL) {
     return NULL;
   }
@@ -334,7 +324,6 @@ const char * ai_get_revision(ai_handle handle) {
 //   ai_get_tool_version
 // =======================================================
 const char * ai_get_tool_version(ai_handle handle) {
-
   if (handle == NULL) {
     return NULL;
   }
@@ -346,7 +335,6 @@ const char * ai_get_tool_version(ai_handle handle) {
 //   ai_get_api_version
 // =======================================================
 const char * ai_get_api_version(ai_handle handle) {
-
   if (handle == NULL) {
     return NULL;
   }
@@ -358,7 +346,6 @@ const char * ai_get_api_version(ai_handle handle) {
 //   ai_get_node_size
 // =======================================================
 uint32_t ai_get_node_size(ai_handle handle) {
-
   if (handle == NULL) {
     return 0;
   }
@@ -370,7 +357,6 @@ uint32_t ai_get_node_size(ai_handle handle) {
 //   ai_get_activations_size
 // =======================================================
 uint32_t ai_get_activations_size(ai_handle handle) {
-
   if (handle == NULL) {
     return 0;
   }
@@ -382,7 +368,6 @@ uint32_t ai_get_activations_size(ai_handle handle) {
 //   ai_get_params_size
 // =======================================================
 uint32_t ai_get_params_size(ai_handle handle) {
-
   if (handle == NULL) {
     return 0;
   }
@@ -394,7 +379,6 @@ uint32_t ai_get_params_size(ai_handle handle) {
 //   ai_get_activations
 // =======================================================
 ai_ptr ai_get_activations(ai_handle handle) {
-
   if (handle == NULL) {
     return 0;
   }
@@ -406,7 +390,6 @@ ai_ptr ai_get_activations(ai_handle handle) {
 //   ai_get_params
 // =======================================================
 const ai_ptr ai_get_params(ai_handle handle) {
-
   if (handle == NULL) {
     return NULL;
   }
@@ -418,7 +401,6 @@ const ai_ptr ai_get_params(ai_handle handle) {
 //   ai_get_quantization
 // =======================================================
 const ai_quantization_info * ai_get_quantization(ai_tensor * tensor) {
-
   if (tensor == NULL) {
     return NULL;
   }

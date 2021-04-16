@@ -46,14 +46,13 @@ TVMBackendAllocWorkspace(
   int dtype_code_hint,
   int dtype_bits_hint
 ) {
-
   void * ptr = NULL;
-  assert (nbytes > 0);
+  assert(nbytes > 0);
 
 #ifdef __arm__
-  ptr = malloc (nbytes);
+  ptr = malloc(nbytes);
 #else //_x86_
-  ptr = malloc (nbytes);
+  ptr = malloc(nbytes);
 #endif
 
   return ptr;
@@ -73,17 +72,17 @@ TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
 // ====================================================
 void TVMAPISetLastError(const char * msg) {
   if (g_last_error) {
-    free (g_last_error);
+    free(g_last_error);
   }
 
-  g_last_error = malloc (strlen(msg)+1);
-  strcpy (g_last_error, msg);
+  g_last_error = malloc(strlen(msg)+1);
+  strcpy(g_last_error, msg);
 }
 
 // ====================================================
 //   TVMGetLastError
 // ====================================================
 const char * TVMGetLastError(void) {
-  assert (g_last_error);
+  assert(g_last_error);
   return g_last_error;
 }
