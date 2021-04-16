@@ -37,7 +37,7 @@ namespace runtime {
 
 struct Registry::Manager {
   // map storing the functions.
-  // We delibrately used raw pointer
+  // We deliberately used raw pointer
   // This is because PackedFunc can contain callbacks into the host languge(python)
   // and the resource can become invalid because of indeterminstic order of destruction and forking.
   // The resources will only be recycled during program exit.
