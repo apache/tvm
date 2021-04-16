@@ -46,14 +46,38 @@ namespace tvm {
 namespace runtime {
 namespace metal {
 /*!
+ * \brief Structure for error handling in queues
+ */
+class Stream {
+ public:
+  explicit Stream(id<MTLDevice> device) : error_happened_(false) {
+    queue_ = [device newCommandQueue];
+  }
+  ~Stream() { [queue_ release]; }
+  id<MTLCommandBuffer> GetCommandBuffer() {
+    id<MTLCommandBuffer> cb = [queue_ commandBuffer];
+    [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
+      if (buffer.status == MTLCommandBufferStatusError) SetErrorStatus();
+    }];
+    return cb;
+  }
+  bool HasErrorHappened() { return error_happened_; }
+
+ private:
+  void SetErrorStatus() { error_happened_ = true; }
+  // Queue
+  id<MTLCommandQueue> queue_;
+  // Check if error happened in one previous run
+  bool error_happened_;
+};
+
+/*!
  * \brief Process global Metal workspace.
  */
 class MetalWorkspace final : public DeviceAPI {
  public:
   // the devices
   std::vector<id<MTLDevice> > devices;
-  // the queues
-  std::vector<id<MTLCommandQueue> > queues;
   // Warp size constant
   std::vector<int> warp_size;
   // Whether it is initialized.
@@ -62,13 +86,6 @@ class MetalWorkspace final : public DeviceAPI {
   std::mutex mutex;
   // Destructor
   ~MetalWorkspace();
-  // Get command queue for given device.
-  id<MTLCommandQueue> GetCommandQueue(Device dev) {
-    ICHECK_EQ(dev.device_type, kDLMetal);
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
-        << "Invalid Metal device_id=" << dev.device_id;
-    return queues[dev.device_id];
-  }
   // Get device for given device
   id<MTLDevice> GetDevice(Device dev) {
     ICHECK_EQ(dev.device_type, kDLMetal);
@@ -84,9 +101,13 @@ class MetalWorkspace final : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
   void FreeDataSpace(Device dev, void* ptr) final;
+  TVMStreamHandle CreateStream(Device dev) final;
+  void FreeStream(Device dev, TVMStreamHandle stream) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void SetStream(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
+
   // get the global workspace
   static MetalWorkspace* Global();
 
@@ -94,6 +115,10 @@ class MetalWorkspace final : public DeviceAPI {
   void CopyDataFromTo(const void* from, size_t from_size, void* to, size_t to_size, size_t size,
                       Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
+
+ private:
+  // Pointers to default allocated streams
+  std::vector<Stream*> default_streams_;
 };
 
 /*! \brief Thread local workspace */
@@ -101,6 +126,8 @@ class MetalThreadEntry {
  public:
   /*! \brief The current device */
   Device device;
+  /*! \brief The current stream */
+  std::vector<Stream*> stream;
   /*! \brief The shared buffer used for copy. */
   std::vector<id<MTLBuffer> > temp_buffer_;
   /*! \brief workspace pool */

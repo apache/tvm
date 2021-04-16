@@ -297,8 +297,20 @@ class MinRPCServer {
         this->SyscallDevFreeData(values, tcodes, num_args);
         break;
       }
+      case RPCCode::kDevCreateStream: {
+        this->SyscallDevCreateStream(values, tcodes, num_args);
+        break;
+      }
+      case RPCCode::kDevFreeStream: {
+        this->SyscallDevFreeStream(values, tcodes, num_args);
+        break;
+      }
       case RPCCode::kDevStreamSync: {
         this->SyscallDevStreamSync(values, tcodes, num_args);
+        break;
+      }
+      case RPCCode::kDevSetStream: {
+        this->SyscallDevSetStream(values, tcodes, num_args);
         break;
       }
       case RPCCode::kCopyAmongRemote: {
@@ -444,6 +456,39 @@ class MinRPCServer {
     }
   }
 
+  void SyscallDevCreateStream(TVMValue* values, int* tcodes, int num_args) {
+    MINRPC_CHECK(num_args == 1);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
+
+    DLDevice dev = values[0].v_device;
+    void* handle;
+
+    int call_ecode = TVMStreamCreate(dev.device_type, dev.device_id, &handle);
+
+    if (call_ecode == 0) {
+      this->ReturnHandle(handle);
+    } else {
+      this->ReturnLastTVMError();
+    }
+  }
+
+  void SyscallDevFreeStream(TVMValue* values, int* tcodes, int num_args) {
+    MINRPC_CHECK(num_args == 2);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
+    MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
+
+    DLDevice dev = values[0].v_device;
+    void* handle = values[1].v_handle;
+
+    int call_ecode = TVMStreamFree(dev.device_type, dev.device_id, handle);
+
+    if (call_ecode == 0) {
+      this->ReturnVoid();
+    } else {
+      this->ReturnLastTVMError();
+    }
+  }
+
   void SyscallDevStreamSync(TVMValue* values, int* tcodes, int num_args) {
     MINRPC_CHECK(num_args == 2);
     MINRPC_CHECK(tcodes[0] == kDLDevice);
@@ -453,6 +498,23 @@ class MinRPCServer {
     void* handle = values[1].v_handle;
 
     int call_ecode = TVMSynchronize(dev.device_type, dev.device_id, handle);
+
+    if (call_ecode == 0) {
+      this->ReturnVoid();
+    } else {
+      this->ReturnLastTVMError();
+    }
+  }
+
+  void SyscallDevSetStream(TVMValue* values, int* tcodes, int num_args) {
+    MINRPC_CHECK(num_args == 2);
+    MINRPC_CHECK(tcodes[0] == kDLDevice);
+    MINRPC_CHECK(tcodes[1] == kTVMOpaqueHandle);
+
+    DLDevice dev = values[0].v_device;
+    void* handle = values[1].v_handle;
+
+    int call_ecode = TVMSetStream(dev.device_type, dev.device_id, handle);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
