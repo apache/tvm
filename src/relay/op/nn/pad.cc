@@ -25,6 +25,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/elemwise.h>
 #include <tvm/topi/nn.h>
 
 #include <vector>
@@ -44,7 +45,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
   // NOTE: Discard "const" qualifier here.
   PadAttrs* params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
 
-  Layout ret;
+  Layout ret_data, ret_pad_value;
   // If new_in_layouts are defined, this code tries to modify the layout.
   bool is_layout_modified = new_in_layouts.defined();
   if (new_in_layouts.defined()) {
@@ -95,7 +96,8 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     // If the above conditions satisfied, we can set the newly created pad_width and use the new
     // layout.
     if (is_layout_modified) {
-      ret = new_in_layouts[0];
+      ret_data = new_in_layouts[0];
+      ret_pad_value = new_in_layouts[1];
       params->pad_width = new_pad_width;
     }
   }
@@ -103,13 +105,14 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
   if (!is_layout_modified) {
     if (old_in_layouts.defined()) {
       ICHECK_EQ(old_in_layouts.size(), 2);
-      ret = old_in_layouts[0];
+      ret_data = old_in_layouts[0];
+      ret_pad_value = old_in_layouts[1];
     } else {
-      ret = Layout::Undef();
+      ret_data = Layout::Undef();
+      ret_pad_value = Layout::Undef();
     }
   }
-
-  return Array<Array<Layout>>{{ret, new_in_layouts[0]}, {ret, new_in_layouts[0]}};
+  return Array<Array<Layout>>{{ret_data, ret_pad_value}, {ret_data, ret_pad_value}};
 }
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -171,7 +174,8 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
   for (size_t i = 0; i < pad_width.size(); ++i) {
     pad_after.push_back(pad_width[i][1]);
   }
-  const PrimExpr& pad_value = inputs[1](Array<PrimExpr>());
+  te::Tensor cast_pad_value = topi::cast(inputs[1], inputs[0]->dtype);
+  const PrimExpr& pad_value = cast_pad_value(Array<PrimExpr>());
   return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after, pad_value, "T_pad",
                                      topi::kElementWise, param->pad_mode)};
 }
