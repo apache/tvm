@@ -307,7 +307,7 @@ inline void Dismantle(const Expr& expr) {
  * Non-recursive destructor
  */
 
-inline Call::~Call() {
+Call::~Call() {
   // attempt to dismantle if referenced one or zero times
   if (this->use_count() < 2) {
     if (this->as<CallNode>() && this->as<CallNode>()->args.size()) {
