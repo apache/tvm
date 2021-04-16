@@ -70,14 +70,12 @@ label_map_url = os.path.join(repo_base, label_map)
 
 # Target settings
 # Use these commented settings to build for cuda.
-# target = 'cuda'
-# target_host = 'llvm'
+# target = tvm.target.Target("cuda", host="llvm")
 # layout = "NCHW"
-# ctx = tvm.gpu(0)
-target = "llvm"
-target_host = "llvm"
+# dev = tvm.gpu(0)
+target = tvm.target.Target("llvm", host="llvm")
 layout = None
-ctx = tvm.cpu(0)
+dev = tvm.cpu(0)
 
 ######################################################################
 # Download required files
@@ -145,17 +143,17 @@ print("Tensorflow protobuf imported to relay frontend.")
 #   lib: target library which can be deployed on target with TVM runtime.
 
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    lib = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now we can try deploying the compiled model on target.
 
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 dtype = "uint8"
-m = graph_runtime.GraphModule(lib["default"](ctx))
+m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
 m.set_input("DecodeJpeg/contents", tvm.nd.array(x.astype(dtype)))
 # execute

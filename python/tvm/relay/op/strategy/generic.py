@@ -17,11 +17,12 @@
 """Definition of generic operator strategy."""
 # pylint: disable=invalid-name,unused-argument
 import logging
-
 import re
-from tvm import topi, _ffi, te, ir
-from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
+
+from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
+from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
+
 from .. import op as _op
 
 logger = logging.getLogger("strategy")
@@ -745,13 +746,15 @@ def dense_pack_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, need_out_dtype=False):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
         args = [inputs[0], inputs[1], out_type.shape]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        if need_out_dtype:
+            args.append(out_type.dtype)
         return [topi_compute(*args)]
 
     return _compute_batch_matmul
@@ -999,10 +1002,6 @@ def wrap_compute_nms(topi_compute):
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[3]
         iou_threshold = inputs[4]
-        if attrs.max_output_size is not None:
-            max_output_size = attrs.max_output_size
-        if attrs.iou_threshold is not None:
-            iou_threshold = get_const_float(attrs.iou_threshold)
         return_indices = bool(get_const_int(attrs.return_indices))
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
@@ -1053,6 +1052,30 @@ def nms_strategy(attrs, inputs, out_type, target):
         wrap_compute_nms(topi.vision.non_max_suppression),
         wrap_topi_schedule(topi.generic.schedule_nms),
         name="nms.generic",
+    )
+    return strategy
+
+
+def wrap_compute_all_class_nms(topi_compute):
+    """wrap all class nms topi compute"""
+
+    def _compute_nms(attrs, inputs, out_type):
+        max_output_size = inputs[2]
+        iou_threshold = inputs[3]
+        score_threshold = inputs[4]
+        return topi_compute(inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold)
+
+    return _compute_nms
+
+
+@override_native_generic_func("all_class_non_max_suppression_strategy")
+def all_class_nms_strategy(attrs, inputs, out_type, target):
+    """all class nms generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_all_class_nms(topi.vision.all_class_non_max_suppression),
+        wrap_topi_schedule(topi.generic.schedule_nms),
+        name="all_class_nms.generic",
     )
     return strategy
 
@@ -1463,13 +1486,13 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-def wrap_compute_cumsum(topi_compute):
-    """Wrap cumsum topi compute"""
+def wrap_compute_scanop(topi_compute):
+    """Wrap scanop style topi compute"""
 
-    def _compute_cumsum(attrs, inputs, _):
+    def _compute_scanop(attrs, inputs, _):
         return [topi_compute(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
 
-    return _compute_cumsum
+    return _compute_scanop
 
 
 @override_native_generic_func("cumsum_strategy")
@@ -1477,9 +1500,21 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumsum(topi.cumsum),
+        wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("cumprod_strategy")
+def cumprod_strategy(attrs, inputs, out_type, target):
+    """cumprod generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.cumprod),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="cumprod.generic",
     )
     return strategy
 

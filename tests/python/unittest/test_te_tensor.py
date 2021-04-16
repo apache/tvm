@@ -110,6 +110,24 @@ def test_tensor_reduce():
     assert str(C_loaded) == str(C)
 
 
+def test_tensor_reduce_multiout_with_cond():
+    def fcombine(x, y):
+        return x[0] + y[0], x[1] + y[1]
+
+    def fidentity(t0, t1):
+        return tvm.tir.const(0, t0), tvm.tir.const(1, t1)
+
+    mysum = te.comm_reducer(fcombine, fidentity, name="mysum")
+
+    m = te.var("m")
+    n = te.var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="int32")
+    k = te.reduce_axis((0, n), "k")
+    cond = te.floormod(k, 2) == 0
+    T0, T1 = te.compute((m,), lambda i: mysum((idx[i, k], val[i, k]), axis=k, where=cond), name="T")
+
+
 def test_tensor_compute1():
     m = 1024
     factor = 16
@@ -384,21 +402,24 @@ def test_tensor_scalar():
 
 
 if __name__ == "__main__":
+    test_tensor()
     test_rank_zero()
-    test_tensor_inputs()
-    test_tensor_reduce_multi_axis()
     test_conv1d()
     test_tensor_slice()
-    test_tensor()
+    test_tensor_reduce_multi_axis()
+    test_tensor_comm_reducer()
+    test_tensor_comm_reducer_overload()
+    test_tensor_reduce()
+    test_tensor_reduce_multiout_with_cond()
     test_tensor_compute1()
     test_tensor_compute2()
-    test_tensor_reduce()
     test_tensor_scan()
     test_scan_multi_out()
     test_extern()
     test_extern_multi_out()
     test_tuple_inputs()
     test_tuple_with_different_deps()
+    test_tensor_inputs()
     test_tensor_pool()
-    test_tensor_scalar()
     test_tensor_scalar_mixed()
+    test_tensor_scalar()

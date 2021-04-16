@@ -20,28 +20,28 @@
 
 #include <cassert>
 
-#include "utvm_graph_runtime.h"
+#include "utvm_graph_executor.h"
 
 void* UTVMRuntimeCreate(const char* json, size_t json_len, void* module) {
-  return new tvm::micro::MicroGraphRuntime(std::string(json, json + json_len),
-                                           reinterpret_cast<tvm::micro::DSOModule*>(module));
+  return new tvm::micro::MicroGraphExecutor(std::string(json, json + json_len),
+                                            reinterpret_cast<tvm::micro::DSOModule*>(module));
 }
 
 void UTVMRuntimeDestroy(void* handle) {
-  delete reinterpret_cast<tvm::micro::MicroGraphRuntime*>(handle);
+  delete reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle);
 }
 
 void UTVMRuntimeSetInput(void* handle, int index, void* tensor) {
-  reinterpret_cast<tvm::micro::MicroGraphRuntime*>(handle)->SetInput(
+  reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle)->SetInput(
       index, reinterpret_cast<DLTensor*>(tensor));
 }
 
 void UTVMRuntimeRun(void* handle) {
-  reinterpret_cast<tvm::micro::MicroGraphRuntime*>(handle)->Run();
+  reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle)->Run();
 }
 
 void UTVMRuntimeGetOutput(void* handle, int index, void* tensor) {
-  reinterpret_cast<tvm::micro::MicroGraphRuntime*>(handle)->CopyOutputTo(
+  reinterpret_cast<tvm::micro::MicroGraphExecutor*>(handle)->CopyOutputTo(
       index, reinterpret_cast<DLTensor*>(tensor));
 }
 void* UTVMRuntimeDSOModuleCreate(const char* so, size_t so_len) {

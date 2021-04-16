@@ -252,8 +252,8 @@ def test_gemm(N, L, M, dtype, layout):
 if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
     raise Exception("skip building this tutorial because cuda is not enabled..")
 
-ctx = tvm.gpu()
-if not nvcc.have_tensorcore(ctx.compute_version):
+dev = tvm.gpu()
+if not nvcc.have_tensorcore(dev.compute_version):
     raise Exception("the gpu has no tensorcore, skipping...")
 
 M, N, L = 512, 32, 512
@@ -385,14 +385,14 @@ def tune_and_evaluate(M, N, L, dtype, layout):
                 for k in range(32):
                     b_np[i, j] = b_np[i, j] | ((b_np_int[i, j * 32 + k] & 0xF) << (31 - k))
 
-    c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), ctx=ctx)
-    a_tvm = tvm.nd.array(a_np, ctx=ctx)
-    b_tvm = tvm.nd.array(b_np, ctx=ctx)
+    c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), device=dev)
+    a_tvm = tvm.nd.array(a_np, device=dev)
+    b_tvm = tvm.nd.array(b_np, device=dev)
     func(a_tvm, b_tvm, c_tvm)
 
     tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-3)
 
-    evaluator = func.time_evaluator(func.entry_name, ctx, number=100)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=100)
     print("Time cost of this operator: %f" % evaluator(a_tvm, b_tvm, c_tvm).mean)
 
 

@@ -25,7 +25,7 @@ import json
 
 import tvm
 import tvm.relay as relay
-from tvm.contrib import utils, ndk, graph_runtime as runtime
+from tvm.contrib import utils, ndk, graph_executor as runtime
 from tvm.contrib.download import download_testdata, download
 
 target = "llvm -mtriple=arm64-linux-android"

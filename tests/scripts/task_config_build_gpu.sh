@@ -34,7 +34,7 @@ echo set\(USE_NNPACK ON\) >> config.cmake
 echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_GRAPH_RUNTIME ON\) >> config.cmake
+echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_STACKVM_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake

@@ -89,20 +89,20 @@ def verify_conv2d_nchw(
 
         tvm.testing.assert_allclose(ow_tile, out_width)
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
+        print("Running on target: %s" % target)
 
-        if "cudnn" in device:
+        if "cudnn" in target:
             fcompute, fschedule = topi.cuda.conv2d_cudnn, topi.cuda.schedule_conv2d_cudnn
         else:
-            fcompute, fschedule = tvm.topi.testing.get_conv2d_nchw_implement(device)
+            fcompute, fschedule = tvm.topi.testing.get_conv2d_nchw_implement(target)
 
-        with tvm.target.Target(device):
-            if "cudnn" in device:
+        with tvm.target.Target(target):
+            if "cudnn" in target:
                 C = fcompute(
                     A, W, (stride, stride), padding, (dilation, dilation), 1, "NCHW", dtype
                 )
@@ -114,19 +114,19 @@ def verify_conv2d_nchw(
                 C = topi.nn.relu(C)
             s = fschedule([C])
 
-            if "llvm" in device:
+            if "llvm" in target:
                 verify_workload_padding()
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
 
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -135,19 +135,19 @@ def verify_conv2d_nchw(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device)
+    for target, dev in tvm.testing.enabled_targets():
+        with autotvm.tophub.context(target):  # load tophub pre-tuned parameters
+            check_target(target)
 
     if use_cudnn:
-        check_device("cuda -model=unknown -libs=cudnn")
+        check_target("cuda -model=unknown -libs=cudnn")
 
 
 @tvm.testing.uses_gpu

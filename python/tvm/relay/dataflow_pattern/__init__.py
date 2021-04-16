@@ -47,7 +47,10 @@ class DFPattern(Node):
     """Base class of all Patterns."""
 
     def __call__(self, *args):
-        return CallPattern(self, list(args))
+        args = list(args)
+        if len(args) == 1 and args[0] is None:
+            args = None
+        return CallPattern(self, args)
 
     def __or__(self, other):
         return AltPattern(self, other)

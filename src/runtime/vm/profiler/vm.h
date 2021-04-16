@@ -52,8 +52,7 @@ class VirtualMachineDebug : public VirtualMachine {
                     const std::vector<ObjectRef>& args) final;
 
   std::unordered_map<Index, std::string> packed_index_map_;
-  std::unordered_map<Index, std::vector<Timer>> op_timers_;
-  std::unordered_map<Index, int> op_invokes_;
+  profiling::Profiler prof_;
 };
 
 }  // namespace vm

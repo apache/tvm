@@ -57,7 +57,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 import org.apache.tvm.TVMType;
 import org.apache.tvm.TVMValue;
 import org.json.JSONException;
@@ -111,7 +111,7 @@ public class Camera2BasicFragment extends Fragment {
     private AppCompatTextView mInfoView;
     private ListView mModelView;
     private AssetManager assetManager;
-    private Module graphRuntimeModule;
+    private Module graphExecutorModule;
     private JSONObject labels;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private PreviewView previewView;
@@ -187,21 +187,21 @@ public class Camera2BasicFragment extends Fragment {
     private String[] inference(float[] chw) {
         NDArray inputNdArray = NDArray.empty(new long[]{1, IMG_CHANNEL, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE}, new TVMType("float32"));
         inputNdArray.copyFrom(chw);
-        Function setInputFunc = graphRuntimeModule.getFunction("set_input");
+        Function setInputFunc = graphExecutorModule.getFunction("set_input");
         setInputFunc.pushArg(INPUT_NAME).pushArg(inputNdArray).invoke();
         // release tvm local variables
         inputNdArray.release();
         setInputFunc.release();
 
         // get the function from the module(run it)
-        Function runFunc = graphRuntimeModule.getFunction("run");
+        Function runFunc = graphExecutorModule.getFunction("run");
         runFunc.invoke();
         // release tvm local variables
         runFunc.release();
 
         // get the function from the module(get output data)
         NDArray outputNdArray = NDArray.empty(new long[]{1, 1000}, new TVMType("float32"));
-        Function getOutputFunc = graphRuntimeModule.getFunction("get_output");
+        Function getOutputFunc = graphExecutorModule.getFunction("get_output");
         getOutputFunc.pushArg(OUTPUT_INDEX).pushArg(outputNdArray).invoke();
         float[] output = outputNdArray.asFloatArray();
         // release tvm local variables
@@ -272,8 +272,8 @@ public class Camera2BasicFragment extends Fragment {
     @Override
     public void onDestroy() {
         // release tvm local variables
-        if (null != graphRuntimeModule)
-            graphRuntimeModule.release();
+        if (null != graphExecutorModule)
+            graphExecutorModule.release();
         super.onDestroy();
     }
 
@@ -516,7 +516,7 @@ public class Camera2BasicFragment extends Fragment {
     }
 
     /*
-       Load precompiled model on TVM graph runtime and init the system.
+       Load precompiled model on TVM graph executor and init the system.
     */
     private class LoadModelAsyncTask extends AsyncTask<Void, Void, Integer> {
 
@@ -571,9 +571,9 @@ public class Camera2BasicFragment extends Fragment {
                 return -1;//failure
             }
 
-            Log.i(TAG, "creating java tvm context...");
-            // create java tvm context
-            TVMContext tvmCtx = EXE_GPU ? TVMContext.opencl() : TVMContext.cpu();
+            Log.i(TAG, "creating java tvm device...");
+            // create java tvm device
+            Device tvmDev = EXE_GPU ? Device.opencl() : Device.cpu();
 
             Log.i(TAG, "loading compiled functions...");
             Log.i(TAG, libCacheFilePath);
@@ -581,26 +581,26 @@ public class Camera2BasicFragment extends Fragment {
             Module modelLib = Module.load(libCacheFilePath);
 
 
-            // get global function module for graph runtime
-            Log.i(TAG, "getting graph runtime create handle...");
+            // get global function module for graph executor
+            Log.i(TAG, "getting graph executor create handle...");
 
-            Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
-            Log.i(TAG, "creating graph runtime...");
+            Function runtimeCreFun = Function.getFunction("tvm.graph_executor.create");
+            Log.i(TAG, "creating graph executor...");
 
-            Log.i(TAG, "ctx type: " + tvmCtx.deviceType);
-            Log.i(TAG, "ctx id: " + tvmCtx.deviceId);
+            Log.i(TAG, "device type: " + tvmDev.deviceType);
+            Log.i(TAG, "device id: " + tvmDev.deviceId);
 
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
-                    .pushArg(tvmCtx.deviceType)
-                    .pushArg(tvmCtx.deviceId)
+                    .pushArg(tvmDev.deviceType)
+                    .pushArg(tvmDev.deviceId)
                     .invoke();
 
             Log.i(TAG, "as module...");
-            graphRuntimeModule = runtimeCreFunRes.asModule();
-            Log.i(TAG, "getting graph runtime load params handle...");
+            graphExecutorModule = runtimeCreFunRes.asModule();
+            Log.i(TAG, "getting graph executor load params handle...");
             // get the function from the module(load parameters)
-            Function loadParamFunc = graphRuntimeModule.getFunction("load_params");
+            Function loadParamFunc = graphExecutorModule.getFunction("load_params");
             Log.i(TAG, "loading params...");
             loadParamFunc.pushArg(modelParams).invoke();
             // release tvm local variables

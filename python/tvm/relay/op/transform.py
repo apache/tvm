@@ -18,11 +18,11 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
+from ...tir import expr as _expr
+from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-from ..expr import TupleWrapper, const, Constant, Expr, Tuple
-from ...tir import expr as _expr
 
 
 def cast(data, dtype):
@@ -1539,9 +1539,9 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
 
-    exclusive : int, optional
-        If set to 1 will return exclusive sum in which the first element is not
-        included. In other terms, if set to 1, the j-th output element would be
+    exclusive : bool, optional
+        If true will return exclusive sum in which the first element is not
+        included. In other terms, if true, the j-th output element would be
         the sum of the first (j-1) elements. Otherwise, it would be the sum of
         the first j elements.
 
@@ -1575,6 +1575,61 @@ def cumsum(data, axis=None, dtype=None, exclusive=None):
         -> [1, 1, 2, 2, 3, 4, 4]
     """
     return _make.cumsum(data, axis, dtype, exclusive)
+
+
+def cumprod(data, axis=None, dtype=None, exclusive=None):
+    """Numpy style cumprod op. Return the cumulative inclusive product of the elements along
+    a given axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative product is computed. The default (None) is to compute
+        the cumprod over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are multiplied.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : bool, optional
+        If true will return exclusive product in which the first element is not
+        included. In other terms, if true, the j-th output element would be
+        the product of the first (j-1) elements. Otherwise, it would be the product of
+        the first j elements. The product of zero elements will be 1.
+
+    Returns
+    -------
+    result : relay.Expr
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+
+    Examples
+    --------
+    .. code-block:: python
+        a = [[1,2,3], [4,5,6]]
+
+        cumprod(a)  # if axis is not provided, cumprod is done over the flattened input.
+        -> [ 1,  2,  6, 24, 120, 720]
+
+        cumprod(a, dtype="float32")
+        -> [  1.,  2.,  6., 24., 120., 720.]
+
+        cumprod(a, axis=0)  # multiply over rows for each of the 3 columns
+        -> [[1, 2, 3],
+            [4, 10, 18]]
+
+        cumprod(a, axis=1)
+        -> [[ 1,  2,  6],
+            [ 4,  20, 120]]
+
+        a = [1, 1, 1, 0, 1, 1, 0]  # a is a boolean array
+        cumprod(a, dtype=int32)  # dtype should be provided to get the expected results
+        -> [1, 1, 1, 0, 0, 0, 0]
+    """
+    return _make.cumprod(data, axis, dtype, exclusive)
 
 
 def unique(data, is_sorted=True, return_counts=False):

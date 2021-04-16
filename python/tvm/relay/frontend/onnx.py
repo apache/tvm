@@ -29,6 +29,7 @@ from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from .. import qnn as _qnn
 from .. import vision as _vision
 from .. import loops as _loops
 from .. import ty as _ty
@@ -397,7 +398,7 @@ def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", d
     # pad N and C with zeros
     pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
 
-    return _op.nn.pad(data, pad, _op.const(0.0), pad_type)
+    return _op.nn.pad(data, fold_constant(pad), _op.const(0.0), pad_type)
 
 
 class Conv(OnnxOpConverter):
@@ -809,7 +810,6 @@ class Pad(OnnxOpConverter):
 
         pad_width_expr = fold_constant(_op.transpose(_op.reshape(pads, (2, -1))))
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-
         if not pad_mode in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
@@ -1254,6 +1254,23 @@ class Slice(OnnxOpConverter):
         )
 
 
+def normalize_gather_indices(data, indices, axis):
+    """Make sure gather indicies aren't negative"""
+    ind_dtype = infer_type(indices).checked_type.dtype
+    # Normalize the indices to a positive range
+    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+    cond = fold_constant(indices < _op.const(0, ind_dtype))
+    if isinstance(cond, _expr.Constant):
+        val = cond.data.asnumpy()
+        if val.size == 1:
+            cond = val.item()
+            if cond:
+                indices = indices + s
+            return indices
+    indices = _op.where(cond, indices + s, indices)
+    return indices
+
+
 class Gather(OnnxOpConverter):
     """Operator converter for Gather."""
 
@@ -1262,10 +1279,7 @@ class Gather(OnnxOpConverter):
         axis = attr.get("axis", 0)
         data = inputs[0]
         indices = inputs[1]
-        ind_dtype = infer_type(indices).checked_type.dtype
-        # Normalize the indices to a positive range
-        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
-        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
+        indices = normalize_gather_indices(data, indices, axis)
         return _op.take(data, indices, axis)
 
 
@@ -1277,10 +1291,7 @@ class GatherElements(OnnxOpConverter):
         data = inputs[0]
         indices = inputs[1]
         axis = attr.get("axis", 0)
-        ind_dtype = infer_type(indices).checked_type.dtype
-        # Normalize the indices to a positive range
-        s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
-        indices = _op.where(indices < _op.const(0, ind_dtype), indices + s, indices)
+        indices = normalize_gather_indices(data, indices, axis)
         return _op.gather(data, axis, indices)
 
 
@@ -1618,7 +1629,14 @@ class Constant(OnnxOpConverter):
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
             raise tvm.errors.OpAttributeRequired("no value in Constant")
-        np_value = get_numpy(attr.pop("value"))
+        value = attr.pop("value")
+        # Constants may rarely have string types. These are likely exported
+        # from other frameworks and not actually used in TVM. We'll just use
+        # a zero valued constant for compatibility.
+        if isinstance(value, bytes):
+            np_value = np.asarray([0]).astype("int64")
+        else:
+            np_value = get_numpy(value)
         dtype = np_value.dtype.name
         value = _expr.const(np_value, dtype)
         return value
@@ -2438,25 +2456,12 @@ class NonMaxSuppression(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        """
-        High level note: ONNX implements what TF calls combined_non_max_suppression
-        It passes in scores for each box for every class in the output and expects boxes to be
-        analyzed for each class independently
-
-        It also asks for the data to be returned in a particular format.
-
-        To support these, we implement a series of lops:
-        The first loop splits over class number, performs NMS, and collects the outputs.
-        The second (nested) loop takes the outputs and transforms them into the format ONNX wants
-        """
         # Get parameter values
         boxes = inputs[0]
         scores = inputs[1]
         max_output_boxes_per_class = inputs[2]
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
-
-        dtype = infer_type(boxes).checked_type.dtype
 
         if "center_point_box" in attr:
             if attr["center_point_box"] != 0:
@@ -2480,226 +2485,150 @@ class NonMaxSuppression(OnnxOpConverter):
         iou_threshold = conditionally_squeeze_scalar(iou_threshold)
         score_threshold = conditionally_squeeze_scalar(score_threshold)
 
-        ## prepare utility constants
-        zero = _op.const(np.array([0]), dtype="int64")
-        one = _op.const(np.array([1]), dtype="int64")
-        two = _op.const(np.array([2]), dtype="int64")
+        nms_out = _op.vision.all_class_non_max_suppression(
+            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+        )
+
         three = _op.const(np.array([3]), dtype="int64")
-        three_ones = _op.const(np.array([1, 1, 1]), dtype="int64")
-        four_ones = _op.const(np.array([1, 1, 1, 1]), dtype="int64")
+        begin = _op.const(np.array([0, 0]), dtype="int64")
+        end = _op.concatenate([nms_out[1], three], axis=0)
+        strides = _op.const(np.array([1, 1]), dtype="int64")
+        return _op.strided_slice(nms_out[0], begin, end, strides)
 
-        ## First loop: split by class and perform NMS
-        # Create Loop Vars
-        i = _expr.var("i", shape=(1,), dtype="int64")
-        scores_var = _expr.var("scores_var", shape=(_ty.Any(), _ty.Any(), _ty.Any()), dtype=dtype)
-        boxes_var = _expr.var("boxes_var", shape=(_ty.Any(), _ty.Any(), 4), dtype=dtype)
-        max_output_boxes_per_class_var = _expr.var(
-            "max_output_boxes_per_class_var", shape=(), dtype="int64"
+
+class ATen(OnnxOpConverter):
+    """Operator converter for Pytorch ATen ops."""
+
+    @classmethod
+    def _op_dispatch(cls, operator, inputs, attr, params):
+        op_map = {
+            "size": cls._size,
+            "arange": cls._arange,
+            "reshape": cls._reshape,
+            "embedding_bag": cls._embedding_bag,
+        }
+        assert operator in op_map, "Operator %s is not supported." % operator
+        return op_map[operator](inputs, attr, params)
+
+    @classmethod
+    def _size(cls, inputs, attr, params):
+        return _op.take(
+            _op.shape_of(inputs[0], dtype="int64"),
+            _expr.const(-1, dtype="int64"),
+            axis=0,
+            mode="wrap",
         )
-        iou_threshold_var = _expr.var("iou_threshold_var", shape=(), dtype="float32")
-        score_threshold_var = _expr.var("score_threshold_var", shape=(), dtype="float32")
-        B = _expr.var("B", shape=(1,), dtype="int64")
-        C = _expr.var("C", shape=(1,), dtype="int64")
-        S = _expr.var("S", shape=(1,), dtype="int64")
-        # Outputs of first loop should be padded nms values shape (B, C, S, 3)
-        onnx_out = _expr.var("onnx_out", shape=(_ty.Any(), _ty.Any(), _ty.Any(), 3), dtype="int64")
-        # and sizes of valid outputs, shape (B, C, 1)
-        nms_size_out = _expr.var("nms_size_out", shape=(_ty.Any(), _ty.Any(), 1), dtype="int64")
 
-        def _first_cond(
-            i,
-            scores,
-            boxes,
-            B,
-            C,
-            S,
-            max_output_boxes_per_class,
-            iou_threshold,
-            score_threshold,
-            onnx_out,
-            nms_size_out,
-        ):
-            # Loop over classes, end when i == C
-            return _op.take(_op.less(i, C), _expr.const(0))
+    @classmethod
+    def _arange(cls, inputs, attr, params):
+        return _op.arange(inputs[0], inputs[1], inputs[2], dtype="int64")
 
-        def _first_body(
-            i,
-            scores,
-            boxes,
-            B,
-            C,
-            S,
-            max_output_boxes_per_class,
-            iou_threshold,
-            score_threshold,
-            onnx_out,
-            nms_size_out,
-        ):
-            # slice to get current class
-            begin = _op.concatenate([zero, i, zero], axis=0)
-            end = _op.concatenate([B, i + one, S], axis=0)
-            class_scores = _op.strided_slice(scores, begin, end, three_ones)
-            class_scores = _op.expand_dims(_op.squeeze(class_scores, [1]), -1, 1)
-            # combine scores and boxes
-            data = _op.concatenate([class_scores, boxes], axis=-1)
+    @classmethod
+    def _reshape(cls, inputs, attr, params):
+        return _op.reshape(inputs[0], inputs[1])
 
-            # get valid counts
-            ct, data, indices = _op.vision.get_valid_counts(
-                data, score_threshold=score_threshold, id_index=-1, score_index=0
-            )
-            # reason why using get_valid_counts is for inference performance
-            # ONNX NMS doesn't have parameter top_k
-            top_k = -1
-            # ONNX doesn't have class id for nms input
-            score_index = 0
-            # perform nms on current class
-            nms_ret = _op.vision.non_max_suppression(
-                data=data,
-                valid_count=ct,
-                indices=indices,
-                max_output_size=max_output_boxes_per_class,
-                iou_threshold=iou_threshold,
-                force_suppress=True,
-                top_k=top_k,
-                coord_start=1,
-                score_index=score_index,
-                id_index=-1,
-                return_indices=True,
-                invalid_to_bottom=False,
-            )
-            # partially prepare ONNX output format by labeling batch_num, class_id
-            nms_padded_out = _op.expand_dims(nms_ret[0], -1, 1)
-            batch_num = _op.expand_dims(_op.arange(_op.squeeze(B, [0]), dtype="int64"), -1, 1)
-            batch_num = _op.broadcast_to(batch_num, shape_of(nms_ret[0], dtype="int64"))
-            batch_num = _op.expand_dims(batch_num, -1, 1)
-            class_num = _op.broadcast_to(i, shape_of(nms_padded_out, dtype="int64"))
-            new_onnx_out = _op.concatenate(
-                [batch_num, class_num, _op.cast(nms_padded_out, "int64")], -1
-            )
-            new_onnx_out = _op.expand_dims(new_onnx_out, 1, 1)
-            # store valid nms outputs for this class
-            nms_size = _op.cast(nms_ret[1], "int64")
-            nms_size = _op.expand_dims(nms_size, 1, 1)
-            return [
-                i + one,
-                scores,
-                boxes,
-                B,
-                C,
-                S,
-                max_output_boxes_per_class,
-                iou_threshold,
-                score_threshold,
-                _op.concatenate([onnx_out, new_onnx_out], axis=1),
-                _op.concatenate([nms_size_out, nms_size], axis=1),
-            ]
+    @classmethod
+    def _embedding_bag(cls, inputs, attr, params):
+        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
 
-        # create the first loop
-        first_loop = _loops.while_loop(
-            _first_cond,
+        mode = attr.get("mode", 1)
+        reduction_fn = mode_map[mode]
+        weights, indices, offsets = inputs[0], inputs[1], inputs[2]
+        offsets_shape = _op.shape_of(offsets, dtype="int64")
+        indices_shape = _op.stack(
             [
-                i,
-                scores_var,
-                boxes_var,
-                B,
-                C,
-                S,
-                max_output_boxes_per_class_var,
-                iou_threshold_var,
-                score_threshold_var,
-                onnx_out,
-                nms_size_out,
+                _op.take(offsets_shape, _expr.const(0, dtype="int64")),
+                _expr.const(-1, dtype="int64"),
             ],
-            _first_body,
+            axis=0,
+        )
+        indices = _op.reshape(indices, indices_shape)
+        embedding = _op.take(weights, indices.astype("int64"), axis=0)
+        rembedding = reduction_fn(embedding, axis=1)
+        # EmbeddingBag has 4 outputs for some reason despite only one ever being used.
+        # Fill the rest with 0s.
+        unused_output = _expr.const(0, dtype="float32")
+        return _expr.TupleWrapper(
+            _expr.Tuple((rembedding, unused_output, unused_output, unused_output)), 4
         )
 
-        ## Second loop slices outputs of the first loop for valid boxes and
-        ##  concats in the order ONNX wants
-        # Second inner Loop Vars
-        i = _expr.var("i", shape=(1,), dtype="int64")
-        j = _expr.var("j", shape=(1,), dtype="int64")
-        B = _expr.var("B", shape=(1,), dtype="int64")
-        C = _expr.var("C", shape=(1,), dtype="int64")
-        # Outputs of first loop should be padded nms values shape (B, C, 3)
-        onnx_out = _expr.var("onnx_out", shape=(_ty.Any(), _ty.Any(), _ty.Any(), 3), dtype="int64")
-        # and sizes of valid outputs, shape (B, C, 1)
-        nms_size_out = _expr.var("nms_size_out", shape=(_ty.Any(), _ty.Any(), 1), dtype="int64")
-        out = _expr.var("out", shape=(_ty.Any(), 3), dtype="int64")
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        operator = attr.get("operator", None).decode("utf-8")
+        assert operator, "ATen Operator not found"
+        return cls._op_dispatch(operator, inputs, attr, params)
 
-        def _inner_cond(i, j, C, onnx_out, nms_size, out):
-            # inner loop over number of classes
-            return _op.take(_op.less(j, C), _expr.const(0))
 
-        def _inner_body(i, j, C, onnx_out, nms_size, out):
-            # slice to get current batch and class for valid box indicator
-            start = _op.concatenate([i, j + one, zero], axis=0)
-            end = _op.concatenate([i + one, j + two, one], axis=0)
-            num_valid_boxes = _op.reshape(_op.strided_slice(nms_size, start, end, three_ones), [1])
-            # slice to get current batch, class, and valid outputs
-            start = _op.concatenate([i, j + one, zero, zero], axis=0)
-            end = _op.concatenate([i + one, j + two, num_valid_boxes, three], axis=0)
-            new_out = _op.squeeze(_op.strided_slice(onnx_out, start, end, four_ones), [0, 1])
-            return i, j + one, C, onnx_out, nms_size, _op.concatenate([out, new_out], axis=0)
+class QuantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
 
-        inner_loop = _loops.while_loop(
-            _inner_cond, [i, j, C, onnx_out, nms_size_out, out], _inner_body
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        out_dtype = infer_type(zp).checked_type.dtype
+        return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), 0, out_dtype)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        out_dtype = infer_type(zp).checked_type.dtype
+        axis = attr.get("axis", 1)
+        return _qnn.op.quantize(data, scale, _op.cast(zp, "int32"), axis, out_dtype)
+
+
+class DequantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), 0)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        data, scale, zp = inputs
+        axis = attr.get("axis", 1)
+        return _qnn.op.dequantize(data, scale, _op.cast(zp, "int32"), axis)
+
+
+class DynamicQuantizeLinear(OnnxOpConverter):
+    """Operator converter for QuantizeLinear."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        """This op is deprecated an only supports uint8"""
+        data = inputs[0]
+        data_dtype = infer_type(data).checked_type.dtype
+        zero = _op.const(0, dtype=data_dtype)
+        maximum = _op.maximum(zero, _op.max(data))
+        minimum = _op.minimum(zero, _op.min(data))
+        scale = (maximum - minimum) / _op.const(255, dtype=data_dtype)
+        zp = zero - _op.min(data) / scale
+        zp = _op.cast(_op.round(_op.clip(zp, 0, 255)), "uint8")
+        return _expr.TupleWrapper(
+            _expr.Tuple(
+                [_qnn.op.quantize(data, scale, _op.cast(zp, "int32"), 0, "uint8"), scale, zp]
+            ),
+            size=3,
         )
 
-        # Second Outer Loop Vars
-        i = _expr.var("i", shape=(1,), dtype="int64")
-        j = _expr.var("j", shape=(1,), dtype="int64")
-        B = _expr.var("B", shape=(1,), dtype="int64")
-        C = _expr.var("C", shape=(1,), dtype="int64")
-        # Outputs of first loop should be padded nms values shape (B, C, 3)
-        onnx_out = _expr.var("onnx_out", shape=(_ty.Any(), _ty.Any(), _ty.Any(), 3), dtype="int64")
-        # and sizes of valid outputs, shape (B, C, 1)
-        nms_size_out = _expr.var("nms_size_out", shape=(_ty.Any(), _ty.Any(), 1), dtype="int64")
-        out = _expr.var("out", shape=(_ty.Any(), 3), dtype="int64")
 
-        def _outer_cond(i, B, C, onnx_out, nms_size_out, out):
-            # Outer loop is over batch size
-            return _op.take(_op.less(i, B), _expr.const(0))
+class BitShift(OnnxOpConverter):
+    """Operator converter for NonZero"""
 
-        def _outer_body(i, B, C, onnx_out, nms_size_out, out):
-            # Outer loop just calls inner loop
-            init_count = _op.const(np.array([0]), dtype="int64")
-            inner_loop_vals = inner_loop(i, init_count, C, onnx_out, nms_size_out, out)
-            return i + one, B, C, onnx_out, nms_size_out, _expr.TupleGetItem(inner_loop_vals, 5)
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) != 2:
+            raise ValueError("Bitshift expects 2 inputs")
 
-        # Create the second loop
-        outer_loop = _loops.while_loop(
-            _outer_cond, [i, B, C, onnx_out, nms_size_out, out], _outer_body
-        )
-
-        # Call the first loop, perform NMS
-        B, C, S = _op.split(shape_of(scores, dtype="int64"), 3)
-        init_count = _op.const(np.array([0]), dtype="int64")
-        init_onnx_out = _op.const([1], dtype="int64")
-        init_onnx_out = _op.broadcast_to(init_onnx_out, _op.concatenate([B, one, S, three], 0))
-        init_nms_size_out = _op.const([1], dtype="int64")
-        init_nms_size_out = _op.broadcast_to(init_nms_size_out, _op.concatenate([B, one, one], 0))
-        loop_vals = first_loop(
-            init_count,
-            scores,
-            boxes,
-            B,
-            C,
-            S,
-            max_output_boxes_per_class,
-            iou_threshold,
-            score_threshold,
-            init_onnx_out,
-            init_nms_size_out,
-        )
-        onnx_output = _expr.TupleGetItem(loop_vals, 9)
-        nms_size_output = _expr.TupleGetItem(loop_vals, 10)
-
-        # Call the second loop, rework outputs into correct form
-        init_count = _op.const(np.array([0]).astype("int64"), dtype="int64")
-        init_out = _op.const(np.array([1, 1, 1]).reshape([1, 3]).astype("int64"), dtype="int64")
-        loop_vals = outer_loop(init_count, B, C, onnx_output, nms_size_output, init_out)
-        loop_out = _expr.TupleGetItem(loop_vals, 5)
-        return _op.strided_slice(loop_out, [1, 0], shape_of(loop_out), [1, 1])
+        direction = attr.get("direction", "LEFT").decode("ascii")
+        if direction == "LEFT":
+            out = _op.left_shift(*inputs)
+        elif direction == "RIGHT":
+            out = _op.right_shift(*inputs)
+        else:
+            raise ValueError("Unsupported Shift Direction: " + direction)
+        return out
 
 
 # compatible operators that do NOT require any conversion.
@@ -2716,6 +2645,7 @@ def _get_convert_map(opset):
         # defs/experimental
         "Identity": Renamer("copy"),
         "Affine": Affine.get_converter(opset),
+        "BitShift": BitShift.get_converter(opset),
         "ThresholdedRelu": ThresholdedRelu.get_converter(opset),
         "ScaledTanh": ScaledTanh.get_converter(opset),
         "ParametricSoftplus": ParametricSoftPlus.get_converter(opset),
@@ -2865,6 +2795,12 @@ def _get_convert_map(opset):
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
+        # Torch ATen Dispatcher.
+        "ATen": ATen.get_converter(opset),
+        # Quantization
+        "QuantizeLinear": QuantizeLinear.get_converter(opset),
+        "DequantizeLinear": DequantizeLinear.get_converter(opset),
+        "DynamicQuantizeLinear": DynamicQuantizeLinear.get_converter(opset),
     }
 
 
@@ -2898,7 +2834,8 @@ class GraphProto:
         self._renames = {}
         self._num_input = 0
         self._num_param = 0
-        self._shape = shape if shape else {}
+        self._shape = shape.copy() if shape else {}
+        self._input_names = []
         self._dtype = dtype
         self.opset = None
         self._freeze_params = freeze_params
@@ -2980,8 +2917,9 @@ class GraphProto:
                 continue
             else:
                 self._num_input += 1
+                self._input_names.append(i_name)
                 if i_name in self._shape:
-                    i_shape = self._shape.pop(i_name)
+                    i_shape = self._shape[i_name]
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (
@@ -2996,11 +2934,13 @@ class GraphProto:
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
-        assert (
-            len(self._shape) == 0
-        ), "User specified the shape for inputs that weren't found in the graph: " + str(
-            self._shape
-        )
+        # Only check user inputs in the outer-most graph scope.
+        if self._old_manager is None:
+            assert all(
+                [name in self._input_names for name in self._shape.keys()]
+            ), "User specified the shape for inputs that weren't found in the graph: " + str(
+                self._shape
+            )
         # get list of unsupported ops
         convert_map = _get_convert_map(opset)
         unsupported_ops = set()
@@ -3038,6 +2978,32 @@ class GraphProto:
                 outputs_num = 1
             else:
                 outputs_num = len(op)
+            if outputs_num > 1:
+                # ONNX supports optional outputs for some nodes.
+                # This block searches for missing outputs in the ONNX graph
+                # and removes any unneeded ops
+                valid_outputs = [False] * outputs_num
+                for i, output in enumerate(node_output):
+                    if output != "":
+                        valid_outputs[i] = True
+                # If we have outputs ONNX isn't expecting, we need to drop them
+                if not all(valid_outputs):
+                    tup = op.astuple()
+                    # TupleWrapper can also wrap ops with TupleType outputs
+                    if isinstance(tup, _expr.Tuple):
+                        # For tuples, we extract the fields instead of using GetTupleItem
+                        outputs = [tup.fields[i] for i, valid in enumerate(valid_outputs) if valid]
+                    else:
+                        # For call nodes, we need to GetTupleItem
+                        outputs = [op[i] for i, valid in enumerate(valid_outputs) if valid]
+                    # Create the new op with valid outputs
+                    if len(outputs) == 1:
+                        op = outputs[0]
+                    else:
+                        op = _expr.TupleWrapper(outputs, len(outputs))
+                    # Drop invalid outputs for the onnx node
+                    outputs_num = len(outputs)
+                    node_output = [output for output in node_output if output != ""]
             assert (
                 len(node_output) == outputs_num
             ), "Number of output mismatch {} vs {} in {}.".format(
@@ -3201,7 +3167,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
-            except onnx.onnx_cpp2py_export.checker.ValidationError as e:  # pylint: disable=c-extension-no-member
+            except Exception as e:  # pylint: disable=c-extension-no-member, broad-except
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:

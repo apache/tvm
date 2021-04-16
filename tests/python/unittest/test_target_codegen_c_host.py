@@ -36,12 +36,12 @@ def test_add():
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         fadd = m["test_fadd"]
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -81,12 +81,12 @@ def test_add_pipeline():
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         fadd = m["test_fadd_pipeline"]
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -109,10 +109,10 @@ def test_reinterpret():
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         fadd = m["test_reinterpret"]
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.randint(-(2 ** 30), 2 ** 30, size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.randint(-(2 ** 30), 2 ** 30, size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fadd(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), (2 + a.asnumpy()).view("float32"))
 
@@ -133,10 +133,10 @@ def test_ceil():
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         fceil = m["test_ceil"]
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fceil(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), (np.ceil(a.asnumpy()).view("float32")))
 
@@ -157,10 +157,10 @@ def test_floor():
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         ffloor = m["test_floor"]
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         ffloor(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), (np.floor(a.asnumpy()).view("float32")))
 
@@ -181,10 +181,10 @@ def test_round():
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         fround = m["test_round"]
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fround(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), (np.round(a.asnumpy()).view("float32")))
 

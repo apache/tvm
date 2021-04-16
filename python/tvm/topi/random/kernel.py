@@ -430,14 +430,14 @@ def threefry_split(gen):
     )
 
 
-def threefry_test_wrapping(target, ctx):
+def threefry_test_wrapping(target, device):
     """Test that unsigned arithmetic wraps on overflow.
 
     Parameters
     ----------
     target : tvm.target.Target
         Target to run against
-    ctx : tvm.runtime.TVMContext
+    device : tvm.runtime.Device
         Context to run the test on
 
     Returns
@@ -463,6 +463,6 @@ def threefry_test_wrapping(target, ctx):
         [out.shape], [], lambda ins, outs: gen_ir(outs[0]), dtype="uint64", out_buffers=[out]
     )
     s = tvm.te.create_schedule([f.op])
-    out_ary = tvm.nd.array(np.ones((1,), "uint64"), ctx)
+    out_ary = tvm.nd.array(np.ones((1,), "uint64"), device)
     tvm.build(s, [f], target=target)(out_ary)
     return out_ary.asnumpy()[0] == 0
