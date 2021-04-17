@@ -129,6 +129,15 @@ int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream
   return 0;
 }
 
+int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out) {
+  out = NULL;
+  return 0;
+}
+
+int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) { return 0; }
+
+int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) { return 0; }
+
 int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) { return 0; }
 
 static TVMMutableFuncRegistry global_func_registry;
