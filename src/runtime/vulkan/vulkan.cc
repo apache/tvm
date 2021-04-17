@@ -245,7 +245,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     const auto& vctx = context(dev.device_id);
     auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    return CreateBuffer(vctx, nbytes, usage, vctx.staging_mtype_index);
+    return CreateBuffer(vctx, nbytes, usage, vctx.compute_mtype_index);
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
