@@ -45,7 +45,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
   // NOTE: Discard "const" qualifier here.
   PadAttrs* params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
 
-  Layout ret_data, ret_pad_value;
+  Layout ret_data;
   // If new_in_layouts are defined, this code tries to modify the layout.
   bool is_layout_modified = new_in_layouts.defined();
   if (new_in_layouts.defined()) {
@@ -97,7 +97,6 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     // layout.
     if (is_layout_modified) {
       ret_data = new_in_layouts[0];
-      ret_pad_value = new_in_layouts[1];
       params->pad_width = new_pad_width;
     }
   }
@@ -106,13 +105,14 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     if (old_in_layouts.defined()) {
       ICHECK_EQ(old_in_layouts.size(), 2);
       ret_data = old_in_layouts[0];
-      ret_pad_value = old_in_layouts[1];
     } else {
       ret_data = Layout::Undef();
-      ret_pad_value = Layout::Undef();
     }
   }
-  return Array<Array<Layout>>{{ret_data, ret_pad_value}, {ret_data, ret_pad_value}};
+
+  // The pad value is always a scalar
+  Layout ret_pad_value = Layout("1");
+  return Array<Array<Layout>>{{ret_data, ret_pad_value}, {ret_data}};
 }
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
