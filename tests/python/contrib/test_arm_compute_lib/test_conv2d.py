@@ -17,18 +17,17 @@
 """Arm Compute Library integration conv2d tests."""
 
 import numpy as np
-
 import tvm
 from tvm import relay
 
 from test_arm_compute_lib.infrastructure import (
-    skip_runtime_test,
-    skip_codegen_test,
+    Device,
     build_and_run,
+    skip_codegen_test,
+    skip_runtime_test,
     verify,
     verify_codegen,
 )
-from test_arm_compute_lib.infrastructure import Device
 
 
 def _get_model(
@@ -426,7 +425,7 @@ def test_codegen_conv2d():
         exp_codegen = _get_expected_codegen(
             *args, has_bias=composite[1], has_activation=composite[2]
         )
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, 1, tvm_ops=1)
 
 
 def test_qnn_conv2d():
@@ -600,7 +599,7 @@ def test_codegen_qnn_conv2d():
         exp_codegen = _get_expected_codegen(
             *args, has_bias=composite[1], has_activation=composite[2]
         )
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, 1, tvm_ops=1)
 
 
 if __name__ == "__main__":

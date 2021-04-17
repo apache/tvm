@@ -17,11 +17,13 @@
 
 """Ethos-N integration conv2d tests"""
 
-import numpy as np
 import math
+
+import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib.ethosn import ethosn_available
+
 from . import infrastructure as tei
 
 
@@ -176,7 +178,9 @@ def test_conv2d():
             )
             for npu in [False, True]:
                 mod = tei.make_module(model, params)
-                outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+                outputs.append(
+                    tei.build_and_run(mod, inputs, 1, params, npu=npu, expected_host_ops=1)
+                )
 
             tei.verify(outputs, 1)
 
