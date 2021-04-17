@@ -193,11 +193,23 @@ def _get_expected_codegen(
     groups,
     dtype,
     channels,
+    has_pad=False,
     has_bias=False,
     has_activation=False,
 ):
     if len(padding) == 2:
         padding = (padding[0], padding[1], padding[0], padding[1])
+
+    # If an explicit relay pad op occurs before conv, don't have the pad in the conv
+    if has_pad:
+        shape = (
+            shape[0],
+            shape[1] + padding[0] + padding[1],
+            shape[2] + padding[2] + padding[3],
+            shape[3],
+        )
+        padding = (0, 0, 0, 0)
+
     output_height = ((shape[1] - kernel_h + padding[0] + padding[2]) / strides[0]) + 1
     output_width = ((shape[2] - kernel_w + padding[1] + padding[3]) / strides[1]) + 1
     output_shape = (1, int(output_height), int(output_width), channels)
@@ -423,9 +435,9 @@ def test_codegen_conv2d():
             has_activation=composite[2],
         )
         exp_codegen = _get_expected_codegen(
-            *args, has_bias=composite[1], has_activation=composite[2]
+            *args, has_pad=composite[0], has_bias=composite[1], has_activation=composite[2]
         )
-        verify_codegen(func, exp_codegen, 1, tvm_ops=1)
+        verify_codegen(func, exp_codegen, 1, tvm_ops=int(composite[0]))
 
 
 def test_qnn_conv2d():
@@ -597,9 +609,9 @@ def test_codegen_qnn_conv2d():
             has_activation=composite[2],
         )
         exp_codegen = _get_expected_codegen(
-            *args, has_bias=composite[1], has_activation=composite[2]
+            *args, has_pad=composite[0], has_bias=composite[1], has_activation=composite[2]
         )
-        verify_codegen(func, exp_codegen, 1, tvm_ops=1)
+        verify_codegen(func, exp_codegen, 1, tvm_ops=int(composite[0]))
 
 
 if __name__ == "__main__":
