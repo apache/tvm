@@ -45,6 +45,42 @@ static constexpr const int kVulkanMaxNumDevice = 8;
 /*! \brief TVM Vulkan binary pack magic number */
 static constexpr const int kVulkanModuleMagic = 0x02700027;
 
+struct VulkanBuffer {
+  VkBuffer buffer{VK_NULL_HANDLE};
+  VkDeviceMemory memory{VK_NULL_HANDLE};
+};
+
+/*! \brief A struct to represent Vulkan buffers backed by host visible memory */
+struct VulkanHostVisibleBuffer {
+  // A device where the buffer is allocated
+  VkDevice device{nullptr};
+  // Vulkan buffer and memory
+  VulkanBuffer* vk_buf{nullptr};
+  // The corresponding pointer to the host memory
+  void* host_addr{nullptr};
+  // The size of the buffer in bytes
+  size_t size{0};
+};
+
+using VulkanStagingBuffer = VulkanHostVisibleBuffer;
+using VulkanUniformBuffer = VulkanHostVisibleBuffer;
+
+void DeleteHostVisibleBuffer(VulkanHostVisibleBuffer* buf) {
+  if (buf && buf->vk_buf) {
+    if (buf->host_addr != nullptr) {
+      vkUnmapMemory(buf->device, buf->vk_buf->memory);
+    }
+    if (buf->vk_buf->memory != VK_NULL_HANDLE) {
+      vkFreeMemory(buf->device, buf->vk_buf->memory, nullptr);
+    }
+    if (buf->vk_buf->buffer != VK_NULL_HANDLE) {
+      vkDestroyBuffer(buf->device, buf->vk_buf->buffer, nullptr);
+    }
+    buf->host_addr = nullptr;
+    delete buf->vk_buf;
+  }
+}
+
 class VulkanThreadEntry {
  public:
   VulkanThreadEntry();
@@ -60,19 +96,7 @@ class VulkanThreadEntry {
     pool.reset();
     streams_.clear();
     for (const auto& kv : staging_buffers_) {
-      if (!kv.second) {
-        continue;
-      }
-      auto& buf = *(kv.second);
-      if (buf.host_addr != nullptr) {
-        vkUnmapMemory(buf.device, buf.memory);
-      }
-      if (buf.memory != VK_NULL_HANDLE) {
-        vkFreeMemory(buf.device, buf.memory, nullptr);
-      }
-      if (buf.buffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(buf.device, buf.buffer, nullptr);
-      }
+      DeleteHostVisibleBuffer(kv.second.get());
     }
   }
 
@@ -80,15 +104,13 @@ class VulkanThreadEntry {
   std::unique_ptr<WorkspacePool> pool;
   VulkanStream* Stream(size_t device_id);
   VulkanStagingBuffer* StagingBuffer(int device_id, size_t size);
+  void AllocateUniformBuffer(int device_id, size_t size);
+  VulkanUniformBuffer* GetUniformBuffer(int device_id, size_t size);
 
  private:
   std::unordered_map<size_t, std::unique_ptr<VulkanStream>> streams_;
   std::unordered_map<size_t, std::unique_ptr<VulkanStagingBuffer>> staging_buffers_;
-};
-
-struct VulkanBuffer {
-  VkBuffer buffer{VK_NULL_HANDLE};
-  VkDeviceMemory memory{VK_NULL_HANDLE};
+  std::unordered_map<size_t, std::unique_ptr<VulkanUniformBuffer>> uniform_buffers_;
 };
 
 struct VulkanPipeline {
@@ -100,9 +122,106 @@ struct VulkanPipeline {
   VkPipelineLayout pipeline_layout{VK_NULL_HANDLE};
   VkPipeline pipeline{VK_NULL_HANDLE};
   VkDescriptorUpdateTemplateKHR descriptor_update_template{VK_NULL_HANDLE};
+  bool use_ubo{false};
 };
 
 typedef dmlc::ThreadLocalStore<VulkanThreadEntry> VulkanThreadStore;
+
+uint32_t FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
+                        VkMemoryPropertyFlags req_prop) {
+  VkBuffer buffer;
+  VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
+
+  VkMemoryRequirements mem_reqs;
+  vkGetBufferMemoryRequirements(vctx.device, buffer, &mem_reqs);
+  uint32_t type_bits = mem_reqs.memoryTypeBits;
+  VkPhysicalDeviceMemoryProperties phy_mem_prop;
+  vkGetPhysicalDeviceMemoryProperties(vctx.phy_device, &phy_mem_prop);
+  for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
+    if ((type_bits & 1) == 1 &&
+        (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
+      return i;
+    }
+    type_bits >>= 1;
+  }
+  LOG(FATAL) << "Requested memory type not found";
+  return 0;
+}
+
+VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes,
+                                        VkBufferUsageFlags usage) {
+  VkBufferCreateInfo info;
+  info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  info.pNext = nullptr;
+  info.flags = 0;
+  info.size = nbytes;
+  info.queueFamilyIndexCount = 1;
+  info.pQueueFamilyIndices = &(vctx.queue_family_index);
+  info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  info.usage = usage;
+  return info;
+}
+
+VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
+                           uint32_t mem_type_index) {
+  auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
+  // create buffer
+  VkBuffer buffer;
+  VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
+
+  // bind to memory
+  bool dedicated_allocation = false;
+  VkMemoryRequirements2KHR req2;
+
+  if (vctx.get_buffer_memory_requirements_2_functions) {
+    VkBufferMemoryRequirementsInfo2KHR req_info2;
+    req_info2.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2_KHR;
+    req_info2.pNext = 0;
+    req_info2.buffer = buffer;
+
+    req2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR;
+    req2.pNext = 0;
+
+    VkMemoryDedicatedRequirementsKHR dedicated_req;
+    dedicated_req.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR;
+    dedicated_req.pNext = 0;
+    req2.pNext = &dedicated_req;
+
+    vctx.get_buffer_memory_requirements_2_functions->vkGetBufferMemoryRequirements2KHR(
+        vctx.device, &req_info2, &req2);
+    dedicated_allocation =
+        dedicated_req.requiresDedicatedAllocation || dedicated_req.prefersDedicatedAllocation;
+  }
+
+  VkDeviceMemory memory;
+  if (!dedicated_allocation) {
+    VkMemoryAllocateInfo minfo;
+    minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    minfo.pNext = nullptr;
+    minfo.allocationSize = info.size;
+    minfo.memoryTypeIndex = mem_type_index;
+    VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
+  } else {
+    VkMemoryAllocateInfo minfo;
+    minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    minfo.pNext = nullptr;
+    minfo.allocationSize = req2.memoryRequirements.size;
+    minfo.memoryTypeIndex = mem_type_index;
+
+    VkMemoryDedicatedAllocateInfoKHR mdinfo;
+    mdinfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+    mdinfo.pNext = 0;
+    mdinfo.image = 0;
+    mdinfo.buffer = buffer;
+    minfo.pNext = &mdinfo;
+    VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
+  }
+  VULKAN_CALL(vkBindBufferMemory(vctx.device, buffer, memory, 0));
+  VulkanBuffer* pbuf = new VulkanBuffer();
+  pbuf->memory = memory;
+  pbuf->buffer = buffer;
+  return pbuf;
+}
 
 class VulkanDeviceAPI final : public DeviceAPI {
  public:
@@ -124,70 +243,9 @@ class VulkanDeviceAPI final : public DeviceAPI {
       nbytes = 1;
     }
     const auto& vctx = context(dev.device_id);
-    VkBufferCreateInfo info;
-    info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    info.pNext = nullptr;
-    info.flags = 0;
-    info.size = nbytes;
-    info.queueFamilyIndexCount = 1;
-    info.pQueueFamilyIndices = &(vctx.queue_family_index);
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+    auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    // create buffer
-    VkBuffer buffer;
-    VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
-    // bind to memory
-    VkBufferMemoryRequirementsInfo2KHR req_info2;
-    req_info2.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2_KHR;
-    req_info2.pNext = 0;
-    req_info2.buffer = buffer;
-
-    VkMemoryRequirements2KHR req2;
-    req2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR;
-    req2.pNext = 0;
-
-    VkMemoryDedicatedRequirementsKHR dedicated_req;
-    dedicated_req.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR;
-    dedicated_req.pNext = 0;
-    req2.pNext = &dedicated_req;
-
-    bool dedicated_allocation = false;
-    if (vctx.get_buffer_memory_requirements_2_functions) {
-      vctx.get_buffer_memory_requirements_2_functions->vkGetBufferMemoryRequirements2KHR(
-          vctx.device, &req_info2, &req2);
-      dedicated_allocation =
-          dedicated_req.requiresDedicatedAllocation || dedicated_req.prefersDedicatedAllocation;
-    }
-
-    VkDeviceMemory memory;
-    if (!dedicated_allocation) {
-      VkMemoryAllocateInfo minfo;
-      minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-      minfo.pNext = nullptr;
-      minfo.allocationSize = nbytes;
-      minfo.memoryTypeIndex = vctx.compute_mtype_index;
-      VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
-    } else {
-      VkMemoryAllocateInfo minfo;
-      minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-      minfo.pNext = nullptr;
-      minfo.allocationSize = req2.memoryRequirements.size;
-      minfo.memoryTypeIndex = vctx.compute_mtype_index;
-
-      VkMemoryDedicatedAllocateInfoKHR mdinfo;
-      mdinfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
-      mdinfo.pNext = 0;
-      mdinfo.image = 0;
-      mdinfo.buffer = buffer;
-      minfo.pNext = &mdinfo;
-      VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
-    }
-    VULKAN_CALL(vkBindBufferMemory(vctx.device, buffer, memory, 0));
-    VulkanBuffer* pbuf = new VulkanBuffer();
-    pbuf->memory = memory;
-    pbuf->buffer = buffer;
-    return pbuf;
+    return CreateBuffer(vctx, nbytes, usage, vctx.staging_mtype_index);
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
@@ -252,14 +310,15 @@ class VulkanDeviceAPI final : public DeviceAPI {
             copy_info.srcOffset = from_offset;
             copy_info.dstOffset = 0;
             copy_info.size = size;
-            vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, temp->buffer, 1, &copy_info);
+            vkCmdCopyBuffer(state->cmd_buffer_, from_buf->buffer, temp->vk_buf->buffer, 1,
+                            &copy_info);
           });
       VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
       if (!vctx.coherent_staging) {
         VkMappedMemoryRange mrange;
         mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
         mrange.pNext = nullptr;
-        mrange.memory = temp->memory;
+        mrange.memory = temp->vk_buf->memory;
         mrange.offset = 0;
         mrange.size = VK_WHOLE_SIZE;  // size;
         VULKAN_CALL(vkInvalidateMappedMemoryRanges(vctx.device, 1, &mrange));
@@ -277,14 +336,14 @@ class VulkanDeviceAPI final : public DeviceAPI {
         VkMappedMemoryRange mrange;
         mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
         mrange.pNext = nullptr;
-        mrange.memory = temp->memory;
+        mrange.memory = temp->vk_buf->memory;
         mrange.offset = 0;
         mrange.size = VK_WHOLE_SIZE;  // size;
         VULKAN_CALL(vkFlushMappedMemoryRanges(vctx.device, 1, &mrange));
       }
 
       VulkanThreadEntry::ThreadLocal()
-          ->Stream(dev_from.device_id)
+          ->Stream(dev_to.device_id)
           ->Launch([&](VulkanStreamState* state) {
             // 0: barrier(host->transfer)
             VkMemoryBarrier barrier_info;
@@ -300,11 +359,12 @@ class VulkanDeviceAPI final : public DeviceAPI {
             copy_info.srcOffset = 0;
             copy_info.dstOffset = to_offset;
             copy_info.size = size;
-            vkCmdCopyBuffer(state->cmd_buffer_, temp->buffer, to_buf->buffer, 1, &copy_info);
+            vkCmdCopyBuffer(state->cmd_buffer_, temp->vk_buf->buffer, to_buf->buffer, 1,
+                            &copy_info);
           });
       // TODO(tulloch): should we instead make the staging buffer a property of the
       // Stream? This would allow us to elide synchronizations here.
-      VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
+      VulkanThreadEntry::ThreadLocal()->Stream(dev_to.device_id)->Synchronize();
     } else {
       LOG(FATAL) << "Expect copy from/to Vulkan or between Vulkan"
                  << ", from=" << from_dev_type << ", to=" << to_dev_type;
@@ -794,11 +854,12 @@ class VulkanModuleNode final : public runtime::ModuleNode {
       return cp;
     }
     // Create new pipeline
-    auto pe = std::shared_ptr<VulkanPipeline>(new VulkanPipeline());
+    auto pe = std::make_shared<VulkanPipeline>();
     {
       // create shader
       auto sit = smap_.find(func_name);
       ICHECK(sit != smap_.end());
+      pe->use_ubo = sit->second.flag & (1 << ShaderMetaDataFlagMask::kUseUBO);
       const std::vector<uint32_t>& data = sit->second.data;
       VkShaderModuleCreateInfo shader_cinfo;
       shader_cinfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -812,35 +873,47 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     std::vector<VkDescriptorUpdateTemplateEntryKHR> arg_template;
     uint32_t num_pod = 0, num_buffer = 0;
 
+    auto push_arg_info = [&arg_binding, &arg_template](uint32_t binding,
+                                                       VkDescriptorType desc_type) {
+      {
+        VkDescriptorSetLayoutBinding bd;
+        bd.binding = binding;
+        bd.descriptorType = desc_type;
+        bd.descriptorCount = 1;
+        bd.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bd.pImmutableSamplers = nullptr;
+        arg_binding.push_back(bd);
+      }
+      {
+        VkDescriptorUpdateTemplateEntryKHR tpl;
+        tpl.dstBinding = binding;
+        tpl.dstArrayElement = 0;
+        tpl.descriptorCount = 1;
+        tpl.descriptorType = desc_type;
+        tpl.offset = binding * sizeof(VkDescriptorBufferInfo);
+        tpl.stride = sizeof(VkDescriptorBufferInfo);
+        arg_template.push_back(tpl);
+      }
+    };
+
     {
       auto fit = fmap_.find(func_name);
       ICHECK(fit != fmap_.end());
       for (DLDataType arg_type : fit->second.arg_types) {
         if (arg_type.code == kTVMOpaqueHandle) {
-          {
-            VkDescriptorSetLayoutBinding bd;
-            bd.binding = num_buffer;
-            bd.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            bd.descriptorCount = 1;
-            bd.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-            bd.pImmutableSamplers = nullptr;
-            arg_binding.push_back(bd);
-          }
-          {
-            VkDescriptorUpdateTemplateEntryKHR tpl;
-            tpl.dstBinding = num_buffer;
-            tpl.dstArrayElement = 0;
-            tpl.descriptorCount = 1;
-            tpl.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            tpl.offset = num_buffer * sizeof(VkDescriptorBufferInfo);
-            tpl.stride = sizeof(VkDescriptorBufferInfo);
-            arg_template.push_back(tpl);
-          }
+          push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
           ++num_buffer;
         } else {
           ++num_pod;
         }
       }
+    }
+
+    size_t nbytes_scalars = num_pod * sizeof(ArgUnion64);
+    if (pe->use_ubo) {
+      // Use UBO instead of push constants
+      push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+      VulkanThreadEntry::ThreadLocal()->AllocateUniformBuffer(device_id, nbytes_scalars);
     }
 
     {
@@ -894,7 +967,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     playout_cinfo.setLayoutCount = 1;
     playout_cinfo.pSetLayouts = &(pe->descriptor_set_layout);
 
-    if (num_pack_args != 0) {
+    if (0 < nbytes_scalars && !pe->use_ubo) {
       playout_cinfo.pushConstantRangeCount = 1;
       playout_cinfo.pPushConstantRanges = &crange;
       ICHECK_LE(crange.size, vctx.phy_device_prop.limits.maxPushConstantsSize);
@@ -990,55 +1063,62 @@ Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
 
 VulkanThreadEntry* VulkanThreadEntry::ThreadLocal() { return VulkanThreadStore::Get(); }
 
-VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
-  if (!staging_buffers_[device_id]) {
-    staging_buffers_[device_id] = std::unique_ptr<VulkanStagingBuffer>(new VulkanStagingBuffer());
+VulkanHostVisibleBuffer* GetOrAllocate(
+    int device_id, size_t size, VkBufferUsageFlags usage, uint32_t mem_type_index,
+    std::unordered_map<size_t, std::unique_ptr<VulkanHostVisibleBuffer>>* buffers_ptr,
+    bool sync_before_realloc = false) {
+  auto& buffers = *buffers_ptr;
+  if (!buffers[device_id]) {
+    buffers[device_id] = std::make_unique<VulkanHostVisibleBuffer>();
   }
-  auto& buf = *(staging_buffers_[device_id]);
+
+  auto& buf = *(buffers[device_id]);
   if (buf.device != nullptr && buf.size < size) {
     // free previous buffer
-    if (buf.host_addr != nullptr) {
-      vkUnmapMemory(buf.device, buf.memory);
+    if (sync_before_realloc) {
+      // For the deferred execution mode, we need to make sure that old tasks that use
+      // the older, smaller buffer get finished
+      // Synchronization on staging buffers is done after host to device memory copy
+      // For UBO, we sync here before we reallocate a larger buffer, to minimize synchronization
+      // points
+      VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Synchronize();
     }
-    if (buf.memory != VK_NULL_HANDLE) {
-      vkFreeMemory(buf.device, buf.memory, nullptr);
-    }
-    if (buf.buffer != VK_NULL_HANDLE) {
-      vkDestroyBuffer(buf.device, buf.buffer, nullptr);
-    }
-    buf.host_addr = nullptr;
-    buf.memory = VK_NULL_HANDLE;
-    buf.buffer = VK_NULL_HANDLE;
+    DeleteHostVisibleBuffer(&buf);
   }
+
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
 
   if (buf.device == nullptr) {
     buf.device = vctx.device;
   }
-  if (buf.memory == VK_NULL_HANDLE) {
-    // allocate the stagging buffer memory if necessary
-    VkBufferCreateInfo info;
-    info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    info.pNext = nullptr;
-    info.flags = 0;
-    info.size = size;
-    info.queueFamilyIndexCount = 1;
-    info.pQueueFamilyIndices = &(vctx.queue_family_index);
-    info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &(buf.buffer)));
-    VkMemoryAllocateInfo minfo;
-    minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    minfo.pNext = nullptr;
-    minfo.allocationSize = size;
-    minfo.memoryTypeIndex = vctx.staging_mtype_index;
-    VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &(buf.memory)));
-    VULKAN_CALL(vkBindBufferMemory(vctx.device, (buf.buffer), buf.memory, 0));
-    VULKAN_CALL(vkMapMemory(vctx.device, buf.memory, 0, size, 0, &(buf.host_addr)));
+  if (buf.host_addr == nullptr) {
+    buf.vk_buf = CreateBuffer(vctx, size, usage, mem_type_index);
+    VULKAN_CALL(vkMapMemory(vctx.device, buf.vk_buf->memory, 0, size, 0, &(buf.host_addr)));
     buf.size = size;
   }
-  memset(buf.host_addr, 0, size);
   return &buf;
+}
+
+VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size) {
+  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+  return GetOrAllocate(device_id, size, usage, vctx.staging_mtype_index, &staging_buffers_);
+}
+
+void VulkanThreadEntry::AllocateUniformBuffer(int device_id, size_t size) {
+  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  auto prop = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  auto info = MakeBufferCreateInfo(vctx, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+  auto mem_type_index = FindMemoryType(vctx, info, prop);
+  GetOrAllocate(device_id, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, mem_type_index,
+                &uniform_buffers_, true);
+}
+
+VulkanUniformBuffer* VulkanThreadEntry::GetUniformBuffer(int device_id, size_t size) {
+  auto& buf = uniform_buffers_[device_id];
+  ICHECK(buf);
+  ICHECK_GE(buf->size, size);
+  return buf.get();
 }
 
 VulkanThreadEntry::VulkanThreadEntry()
@@ -1076,6 +1156,16 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     binfo.range = VK_WHOLE_SIZE;
     descriptor_buffers[i] = binfo;
   }
+  const size_t nbytes_scalars = num_pack_args_ * sizeof(ArgUnion64);
+  if (pipeline->use_ubo) {
+    auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+    CHECK(ubo->host_addr) << "The UBO host buffer is not allocated";
+    VkDescriptorBufferInfo binfo;
+    binfo.buffer = ubo->vk_buf->buffer;
+    binfo.offset = 0;
+    binfo.range = VK_WHOLE_SIZE;
+    descriptor_buffers.push_back(binfo);
+  }
   if (vctx.UseImmediate()) {
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     VulkanThreadEntry::ThreadLocal()->Stream(device_id)->Launch([&](VulkanStreamState* state) {
@@ -1084,11 +1174,16 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       vctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
-      if (num_pack_args_ != 0) {
+
+      if (pipeline->use_ubo) {
+        auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+        memcpy(ubo->host_addr, pack_args, nbytes_scalars);
+      } else if (num_pack_args_ > 0) {
         vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, num_pack_args_ * sizeof(ArgUnion64),
                            pack_args);
       }
+
       vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
       VkMemoryBarrier barrier_info;
       barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -1115,24 +1210,36 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       write_descriptor_sets[i].dstBinding = i;
       write_descriptor_sets[i].dstArrayElement = 0;
       write_descriptor_sets[i].descriptorCount = 1;
-      write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
       write_descriptor_sets[i].pImageInfo = 0;
       write_descriptor_sets[i].pBufferInfo = &(descriptor_buffers[i]);
       write_descriptor_sets[i].pTexelBufferView = 0;
+
+      if (pipeline->use_ubo && i == write_descriptor_sets.size() - 1) {
+        // The last binding is for UBO
+        write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      } else {
+        write_descriptor_sets[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+      }
     }
     vkUpdateDescriptorSets(vctx.device, write_descriptor_sets.size(), write_descriptor_sets.data(),
                            0, 0);
   };
-  const auto& deferred_kernel = [pipeline, wl, pack_args_storage](VulkanStreamState* state) {
+  const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
+                                 device_id](VulkanStreamState* state) {
     vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
     vkCmdBindDescriptorSets(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                             pipeline->pipeline_layout, 0, 1, &(pipeline->descriptor_set), 0,
                             nullptr);
-    if (pack_args_storage.size() != 0) {
+
+    if (pipeline->use_ubo) {
+      auto ubo = VulkanThreadEntry::ThreadLocal()->GetUniformBuffer(device_id, nbytes_scalars);
+      memcpy(ubo->host_addr, pack_args_storage.data(), nbytes_scalars);
+    } else if (num_pack_args_ > 0) {
       vkCmdPushConstants(state->cmd_buffer_, pipeline->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                          0, pack_args_storage.size() * sizeof(ArgUnion64),
                          pack_args_storage.data());
     }
+
     vkCmdDispatch(state->cmd_buffer_, wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
     VkMemoryBarrier barrier_info;
     barrier_info.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;

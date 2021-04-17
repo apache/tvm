@@ -477,16 +477,17 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     TVMArgs args = RecvPackedSeq();
 
     this->SwitchToState(kWaitForAsyncCallback);
-    GetServingSession()->AsyncCallFunc(reinterpret_cast<void*>(call_handle), args.values,
-                                       args.type_codes, args.size(),
-                                       [this](RPCCode status, TVMArgs args) {
-                                         if (status == RPCCode::kException) {
-                                           this->ReturnException(args.values[0].v_str);
-                                         } else {
-                                           this->ReturnPackedSeq(args);
-                                         }
-                                         this->SwitchToState(kRecvPacketNumBytes);
-                                       });
+    GetServingSession()->AsyncCallFunc(
+        reinterpret_cast<void*>(call_handle), args.values, args.type_codes, args.size(),
+        [this](RPCCode status, TVMArgs args) {
+          if (status == RPCCode::kException) {
+            this->ReturnException(args.values[0].v_str);
+          } else {
+            ValidateArguments(args.values, args.type_codes, args.size());
+            this->ReturnPackedSeq(args);
+          }
+          this->SwitchToState(kRecvPacketNumBytes);
+        });
   }
 
   void HandleInitServer() {
@@ -637,7 +638,7 @@ RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncod
         if (handler_->CanCleanShutdown()) {
           return RPCCode::kShutdown;
         } else {
-          LOG(FATAL) << "Channel closes before we get neded bytes";
+          LOG(FATAL) << "Channel closes before we get needed bytes";
         }
       }
     }
@@ -794,7 +795,7 @@ void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, const TVMValue* arg_v
   handler_->SendPackedSeq(arg_values, arg_type_codes, num_args, true);
 
   code = HandleUntilReturnEvent(true, encode_return);
-  ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
+  ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);
 }
 
 void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
@@ -920,6 +921,24 @@ void RPCCopyAmongRemote(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
   handler->GetDeviceAPI(dev)->CopyDataFromTo(from, to, stream);
 }
 
+void RPCDevCreateStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  void* data = handler->GetDeviceAPI(dev)->CreateStream(dev);
+  *rv = data;
+}
+
+void RPCDevFreeStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  TVMStreamHandle stream = args[1];
+  handler->GetDeviceAPI(dev)->FreeStream(dev, stream);
+}
+
+void RPCDevSetStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  TVMStreamHandle stream = args[1];
+  handler->GetDeviceAPI(dev)->SetStream(dev, stream);
+}
+
 void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
   // Event handler sit at clean state at this point.
   switch (code) {
@@ -945,8 +964,17 @@ void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
     case RPCCode::kDevFreeData:
       SysCallHandler(RPCDevFreeData);
       break;
+    case RPCCode::kDevCreateStream:
+      SysCallHandler(RPCDevCreateStream);
+      break;
+    case RPCCode::kDevFreeStream:
+      SysCallHandler(RPCDevFreeStream);
+      break;
     case RPCCode::kDevStreamSync:
       this->HandleSyscallStreamSync();
+      break;
+    case RPCCode::kDevSetStream:
+      SysCallHandler(RPCDevSetStream);
       break;
     case RPCCode::kCopyAmongRemote:
       SysCallHandler(RPCCopyAmongRemote);
@@ -1033,8 +1061,20 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     endpoint_->SysCallRemote(RPCCode::kCopyAmongRemote, from, to, stream);
   }
 
+  TVMStreamHandle CreateStream(Device dev) final {
+    return endpoint_->SysCallRemote(RPCCode::kDevCreateStream, dev);
+  }
+
+  void FreeStream(Device dev, TVMStreamHandle stream) final {
+    endpoint_->SysCallRemote(RPCCode::kDevFreeStream, dev, stream);
+  }
+
   void StreamSync(Device dev, TVMStreamHandle stream) final {
     endpoint_->SysCallRemote(RPCCode::kDevStreamSync, dev, stream);
+  }
+
+  void SetStream(Device dev, TVMStreamHandle stream) final {
+    endpoint_->SysCallRemote(RPCCode::kDevSetStream, dev, stream);
   }
 
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing) final { return this; }

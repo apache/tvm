@@ -30,10 +30,14 @@
 
 #include <string>
 
+#include "../../runtime/pack_args.h"
+#include "../../runtime/vulkan/vulkan_common.h"
+#include "../../runtime/vulkan/vulkan_shader.h"
+
 namespace tvm {
 namespace codegen {
 
-std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
+runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
@@ -66,16 +70,28 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   spirv::Value func_ptr = builder_->NewFunction();
   builder_->StartFunction(func_ptr);
 
-  // All the POD arguments are passed in through PushConstant
+  runtime::VulkanShader shader;
+
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
       value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
-    spirv::Value ptr = builder_->DeclarePushConstant(value_types);
-    for (size_t i = 0; i < pod_args.size(); ++i) {
-      spirv::Value value = builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
-      var_map_[pod_args[i].get()] = value;
+    if (pod_args.size() * sizeof(runtime::ArgUnion64) <= runtime::vulkan::kMaxPushConstantsBytes) {
+      spirv::Value ptr = builder_->DeclarePushConstant(value_types);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value =
+            builder_->GetPushConstant(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
+    } else {
+      shader.flag |= 1 << runtime::vulkan::ShaderMetaDataFlagMask::kUseUBO;
+      // If we need to pass more arguments than push constants could handle, we use UBO.
+      spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, num_buffer);
+      for (size_t i = 0; i < pod_args.size(); ++i) {
+        spirv::Value value = builder_->GetUniform(ptr, value_types[i], static_cast<uint32_t>(i));
+        var_map_[pod_args[i].get()] = value;
+      }
     }
   }
   this->VisitStmt(f->body);
@@ -85,7 +101,8 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
 
   builder_->CommitKernelFunction(func_ptr, name);
 
-  return builder_->Finalize();
+  shader.data = builder_->Finalize();
+  return shader;
 }
 
 void CodeGenSPIRV::InitFuncState() {

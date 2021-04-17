@@ -127,7 +127,7 @@ def drive_compile(args):
         None,
         args.tuning_records,
         args.desired_layout,
-        args.disabled_pass,
+        args.disable_pass,
     )
 
     if dumps:

@@ -23,7 +23,7 @@ from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
 from ..utils import ceil_div, swap
-from ..math import cast
+from ..math import cast, ceil_log2
 
 
 def _schedule_sort(outs):
@@ -238,9 +238,7 @@ def _sort_common(
         return out
 
     # Sort the lower levels of the merge using odd-even sort, it's fast for small inputs
-    lower_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(block_size, "float64"))), "int64"
-    )
+    lower_lim = ceil_log2(block_size)
 
     _odd_even_sort(
         ib,
@@ -254,9 +252,7 @@ def _sort_common(
         values_swap,
     )
 
-    upper_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
-    )
+    upper_lim = ceil_log2(size)
 
     def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
         first = ib.allocate("int64", (1,), name="first", scope="local")
@@ -739,7 +735,7 @@ def sort_thrust(data, axis=-1, is_ascend=1):
     return out
 
 
-def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
+def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -756,6 +752,11 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
 
     dtype : string, optional
         DType of the output indices.
+
+    ret_type : string, optional
+        The return type [both, indices].
+        "both": return both sorted data and indices.
+        "indices": return sorted indices only.
 
     Returns
     -------
@@ -774,7 +775,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
     indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
     indices_swap_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_swap_buf", data_alignment=8)
 
-    out = te.extern(
+    outs = te.extern(
         [data.shape, data.shape, data.shape, data.shape],
         [data],
         lambda ins, outs: sort_ir(
@@ -789,16 +790,19 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
         out_buffers=[value_buf, indices_buf, value_swap_buf, indices_swap_buf],
         name="argsort_gpu",
         tag="argsort_gpu",
-    )[1]
+    )
 
     if axis != ndim - 1:
         axes = swap(list(range(ndim)), axis)
-        out = transpose(out, axes)
+        outs = [transpose(out, axes) for out in outs]
 
-    return out
+    if ret_type == "indices":
+        return outs[1]
+
+    return outs[0], outs[1]
 
 
-def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32"):
+def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -816,12 +820,17 @@ def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32"):
     dtype : string, optional
         DType of the output indices.
 
+    ret_type : string, optional
+        The return type [both, indices].
+        "both": return both sorted data and indices.
+        "indices": return sorted indices only.
+
     Returns
     -------
     out : tvm.te.Tensor
         The output of this function.
     """
-    return topk_thrust(data, 0, axis, "indices", is_ascend, dtype)
+    return topk_thrust(data, 0, axis, ret_type, is_ascend, dtype)
 
 
 def schedule_sort(outs):

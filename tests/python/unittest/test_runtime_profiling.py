@@ -33,7 +33,7 @@ def test_vm(target, dev):
     vm = profiler_vm.VirtualMachineProfiler(exe, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile([data], func_name="main")
+    report = vm.profile(data, func_name="main")
     assert "fused_nn_softmax" in report
     assert "Total time" in report
 
