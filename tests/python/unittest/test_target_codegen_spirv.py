@@ -104,6 +104,16 @@ def test_pushconstants():
 
     check_mod(mod, x_np, res_np)
 
+    # One 64 bit and one 32 bit constants
+    dtype = "int32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], relay.cumsum(x))
+    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
+    res_np = np.cumsum(x_np)
+
+    check_mod(mod, x_np, res_np)
+
 
 def test_unique():
     if not tvm.testing.device_enabled("vulkan"):
