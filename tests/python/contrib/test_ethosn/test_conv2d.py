@@ -176,10 +176,20 @@ def test_conv2d():
                 out_channels,
                 weight_format,
             )
+
+            # Whether an explicit call to nn.pad was called before the conv
+            use_explicit_pad_op = pad == "op" or pad == "both"
             for npu in [False, True]:
                 mod = tei.make_module(model, params)
                 outputs.append(
-                    tei.build_and_run(mod, inputs, 1, params, npu=npu, expected_host_ops=1)
+                    tei.build_and_run(
+                        mod,
+                        inputs,
+                        1,
+                        params,
+                        npu=npu,
+                        expected_host_ops=1 if use_explicit_pad_op else 0,
+                    )
                 )
 
             tei.verify(outputs, 1)

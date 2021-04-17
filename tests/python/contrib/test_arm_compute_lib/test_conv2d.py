@@ -437,7 +437,7 @@ def test_codegen_conv2d():
         exp_codegen = _get_expected_codegen(
             *args, has_pad=composite[0], has_bias=composite[1], has_activation=composite[2]
         )
-        verify_codegen(func, exp_codegen, 1, tvm_ops=int(composite[0]))
+        verify_codegen(func, exp_codegen, 1, tvm_ops=1 if composite[0] else 0)
 
 
 def test_qnn_conv2d():
@@ -611,7 +611,7 @@ def test_codegen_qnn_conv2d():
         exp_codegen = _get_expected_codegen(
             *args, has_pad=composite[0], has_bias=composite[1], has_activation=composite[2]
         )
-        verify_codegen(func, exp_codegen, 1, tvm_ops=int(composite[0]))
+        verify_codegen(func, exp_codegen, 1, tvm_ops=1 if composite[0] else 0)
 
 
 if __name__ == "__main__":
