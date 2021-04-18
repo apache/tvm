@@ -179,6 +179,12 @@ Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
 TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 /*!
+ * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the workspace size to be calculated
+ */
+TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func);
+
+/*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
  *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.

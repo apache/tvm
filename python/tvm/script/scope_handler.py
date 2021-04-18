@@ -80,8 +80,8 @@ class WithScopeHandler(ScopeHandler):
         self.def_symbol = def_symbol
 
     @staticmethod
-    def get_optional_var_names(node, context):
-        """Get list of names from ast.With's optional_vars"""
+    def get_optional_vars(node, context):
+        """Get a list ast.With's optional_vars"""
         assert isinstance(
             node, ast.With
         ), f"WithScopeHandler expected ast.With but got {type(node)}"
@@ -93,13 +93,13 @@ class WithScopeHandler(ScopeHandler):
                         f"Invalid optional var definition, expected Var but got {type(var)}",
                         node.span,
                     )
-            var_names = [var.id.name for var in node.lhs]
+            vars = node.lhs
         else:
             context.report_error(
                 f"Invalid optional var definition, expected list of Var but got {type(node.lhs)}",
                 node.span,
             )
-        return var_names
+        return vars
 
 
 @register
@@ -127,12 +127,14 @@ class Allocate(WithScopeHandler):
     ):
         # define buffer vars in symbol table
         if isinstance(node, ast.With):
-            names = WithScopeHandler.get_optional_var_names(node, context)
-            if len(names) != 1:
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
                 context.report_error("Unexpected number of vars", node.span)
-            name = names[0]
+            name = vars[0].id.name
+            var_span = vars[0].id.span
         elif isinstance(node, ast.Assign):
             name = node.lhs.id.name
+            var_span = node.lhs.id.span
         else:
             raise Exception("Internal Bug")
 
@@ -141,7 +143,7 @@ class Allocate(WithScopeHandler):
             buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
-        setup_buffer_var(*arg_list, span=tvm_span_from_synr(node.lhs.id.span))
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
         context.update_symbol(name, self.buffer_var, node)
 
 
@@ -347,8 +349,8 @@ class Block(WithScopeHandler):
             node, ast.With
         ), f"BlockScopeHandler expected to work on ast.With but got {type(node)}"
 
-        var_names = WithScopeHandler.get_optional_var_names(node, context)
-        self.block_vars = [tvm.te.var(name) for name in var_names]
+        vars = WithScopeHandler.get_optional_vars(node, context)
+        self.block_vars = [tvm.te.var(var.id.name) for var in vars]
         for block_var in self.block_vars:
             context.update_symbol(block_var.name, block_var, node)
 
