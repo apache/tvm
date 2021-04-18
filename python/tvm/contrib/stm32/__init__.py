@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Module container of STM32 code generator."""
+
 from .emitter import CodeEmitter, get_input_tensor_name, get_output_tensor_name
 from .ai_runner import AiRunner
 from .ai_runner import AiRunnerCallback
 from .ai_runner import AiRunnerSession
-

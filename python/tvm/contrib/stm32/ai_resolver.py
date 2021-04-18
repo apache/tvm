@@ -31,26 +31,28 @@ Expected syntax for driver description/options for the connection
 
 import os
 
-_DEFAULT_DOMAIN = 'serial'
-_FILE_DOMAIN = 'file'
+_DEFAULT_DOMAIN = "serial"
+_FILE_DOMAIN = "file"
 
-def _default_resolver(domain, desc=None):
+
+def _default_resolver(domain, desc=None):  # pylint: disable=unused-argument
     """Default resolver function"""
-    if domain == _DEFAULT_DOMAIN or domain == None:
+    # if domain == _DEFAULT_DOMAIN or domain == None:
+    if domain in (_DEFAULT_DOMAIN, None):
         return True
     return False
 
 
 def _default_create(parent, desc):
     """Default create function"""
-    from .serial_hw_drv import SerialHwDriver
-    from .pb_mgr_drv import AiPbMsg
+    from .serial_hw_drv import SerialHwDriver  # pylint: disable=import-outside-toplevel
+    from .pb_mgr_drv import AiPbMsg  # pylint: disable=import-outside-toplevel
 
     return AiPbMsg(parent, SerialHwDriver()), desc
 
 
 _DRIVERS = {
-    _DEFAULT_DOMAIN : (_default_resolver, _default_create),  # default
+    _DEFAULT_DOMAIN: (_default_resolver, _default_create),  # default
 }
 
 
@@ -64,18 +66,17 @@ def ai_runner_resolver(parent, desc):
 
     if desc is not None and isinstance(desc, str):
         desc = desc.strip()
-        split_ = desc.split(':')
+        split_ = desc.split(":")
         nb_elem = len(split_)
 
         domain = None
         # only valid file or directory is passed
-        if os.path.isfile(desc) or os.path.isdir(desc)\
-            or os.path.isdir(os.path.dirname(desc)):
+        if os.path.isfile(desc) or os.path.isdir(desc) or os.path.isdir(os.path.dirname(desc)):
             domain = _FILE_DOMAIN
         # domain is considered
         elif nb_elem >= 1 and len(split_[0]) > 0:
             domain = split_[0].lower()
-            desc = desc[len(domain + ':'):]
+            desc = desc[len(domain + ":") :]
         # ':' is passed as first character
         elif len(split_[0]) == 0:
             domain = _DEFAULT_DOMAIN
@@ -88,5 +89,5 @@ def ai_runner_resolver(parent, desc):
         err_msg_ = f'invalid/unsupported "{domain}:{desc}" descriptor'
         return None, err_msg_
 
-    else:
-        return _DRIVERS[_DEFAULT_DOMAIN][1](parent, desc)
+    # else:
+    return _DRIVERS[_DEFAULT_DOMAIN][1](parent, desc)

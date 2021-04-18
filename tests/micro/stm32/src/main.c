@@ -17,16 +17,15 @@
  * under the License.
  */
 
+#include <inttypes.h>
+#include <math.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <inttypes.h>
-#include <stdarg.h>
-#include <math.h>
+#include <string.h>
 
-#include "ai_runtime_api.h" 
-
+#include "ai_runtime_api.h"
 #include "network.h"
 #include "network_data.h"
 
@@ -39,31 +38,29 @@ extern ai_model_info network_network;
 // Dummy: for the runtime
 //
 uint32_t __models_section_start__ = (uint32_t)&network_network;
-uint32_t __models_section_end__ = (uint32_t)&network_network+sizeof(ai_model_info);
+uint32_t __models_section_end__ = (uint32_t)&network_network + sizeof(ai_model_info);
 
-static ai_model_info * _model_p = &network_network;
+static ai_model_info* _model_p = &network_network;
 
 //
-// Global handle to reference the instantiated NN 
+// Global handle to reference the instantiated NN
 //
 static ai_handle _network = AI_HANDLE_NULL;
 
-static uint8_t LoadInputImg (const char * filename, ai_tensor * input);
-static int32_t quantize_val (float val, ai_quantization_info * quant);
-static float dequantize_val (int32_t val, ai_quantization_info * quant);
+static uint8_t LoadInputImg(const char* filename, ai_tensor* input);
+static int32_t quantize_val(float val, ai_quantization_info* quant);
+static float dequantize_val(int32_t val, ai_quantization_info* quant);
 
 // =================================================================
 //   Convert_Fixed_To_Float
 // =================================================================
-static float Convert_Fixed_To_Float (uint8_t data, int8_t fl)
-{
+static float Convert_Fixed_To_Float(uint8_t data, int8_t fl) {
   uint8_t val = data;
   float x;
   if (fl >= 0) {
-    x = ((float)val)/(float)(1<<fl);
-  }
-  else {
-    x = ((float)val)/(float)(1>>fl);
+    x = ((float)val) / (float)(1 << fl);
+  } else {
+    x = ((float)val) / (float)(1 >> fl);
   }
   return x;
 }
@@ -71,8 +68,7 @@ static float Convert_Fixed_To_Float (uint8_t data, int8_t fl)
 // =======================================================
 //    error
 // =======================================================
-static void error (const char * fmt, ...)
-{
+static void error(const char* fmt, ...) {
   va_list vp;
   char emsg[512];
   int32_t loc = 0;
@@ -80,30 +76,25 @@ static void error (const char * fmt, ...)
   //
   // Prepare main error message:
   //
-  va_start (vp, fmt);
-  loc += vsprintf (&emsg[loc], fmt, vp);
-  va_end (vp);
+  va_start(vp, fmt);
+  loc += vsprintf(&emsg[loc], fmt, vp);
+  va_end(vp);
 
-  //fputs (emsg, stderr);
-  //fflush (stderr);
-  
-  fprintf (stderr, " #### Error: %s.\n", emsg);
-  
+  // fputs (emsg, stderr);
+  // fflush (stderr);
+
+  fprintf(stderr, " #### Error: %s.\n", emsg);
+
   exit(-1);
 }
 
 // ==================================================
 //   aiLogErr
 // ==================================================
-static void aiLogErr (
-  const char * fct,
-  const char * msg
-)
-{
+static void aiLogErr(const char* fct, const char* msg) {
   if (fct) {
-    printf ("E: AI error: %s - %s\r\n", fct, msg);
-  }
-  else {
+    printf("E: AI error: %s - %s\r\n", fct, msg);
+  } else {
     printf("E: AI error - %s\r\n", msg);
   }
 }
@@ -111,13 +102,8 @@ static void aiLogErr (
 // ==================================================
 //   aiPrintLayoutBuffer
 // ==================================================
-static void aiPrintLayoutBuffer (
-  const char *msg, 
-  int idx,
-  ai_tensor * tensor
-)
-{
-  DLTensor * dltensor = &tensor->dltensor;
+static void aiPrintLayoutBuffer(const char* msg, int idx, ai_tensor* tensor) {
+  DLTensor* dltensor = &tensor->dltensor;
   DLDataType dtype = dltensor->dtype;
 
   printf("%s[%d] ", msg, idx);
@@ -129,7 +115,7 @@ static void aiPrintLayoutBuffer (
     printf(" -- TODO: quantization info \n");
   }
 
-  int32_t size = get_tensor_size (tensor);
+  int32_t size = get_tensor_size(tensor);
   printf(" %d bytes, shape=(", size);
   for (int i = 0; i < dltensor->ndim; ++i) {
     printf("%d,", (int32_t)dltensor->shape[i]);
@@ -140,14 +126,11 @@ static void aiPrintLayoutBuffer (
 // ==================================================
 //   aiPrintNetworkInfo
 // ==================================================
-static void aiPrintNetworkInfo (
-  ai_model_info * nn
-)
-{
-  const char * name = nn->name;
-  const char * datetime = nn->datetime;
-  const char * revision = nn->revision;
-  const char * tool_version = nn->tool_version;
+static void aiPrintNetworkInfo(ai_model_info* nn) {
+  const char* name = nn->name;
+  const char* datetime = nn->datetime;
+  const char* revision = nn->revision;
+  const char* tool_version = nn->tool_version;
 
   uint32_t n_nodes = nn->n_nodes;
   uint32_t n_inputs = nn->n_inputs;
@@ -159,7 +142,7 @@ static void aiPrintNetworkInfo (
   printf("Network configuration...\r\n");
   printf(" Model name         : %s\r\n", name);
   printf(" Compile datetime     : %s\r\n", datetime);
-  //printf(" Runtime revision   : %d.%d.%d\r\n",
+  // printf(" Runtime revision   : %d.%d.%d\r\n",
   //          report->runtime_version.major,
   //          report->runtime_version.minor,
   //          report->runtime_version.micro);
@@ -174,11 +157,10 @@ static void aiPrintNetworkInfo (
 // ======================================================
 //   aiInit
 // ======================================================
-static int aiInit (void)
-{
+static int aiInit(void) {
   ai_status err = AI_STATUS_OK;
 
-  const char * nn_name = AI_MODEL_name(_model_p);
+  const char* nn_name = AI_MODEL_name(_model_p);
   uint32_t n_inputs = AI_MODEL_n_inputs(_model_p);
   uint32_t n_outputs = AI_MODEL_n_outputs(_model_p);
   uint32_t activations_size = AI_MODEL_activations_size(_model_p);
@@ -186,37 +168,40 @@ static int aiInit (void)
   ai_ptr built_in_activations = AI_MODEL_activations(_model_p);
 
   //
-  // Creating the network 
+  // Creating the network
   //
-  printf ("Creating the network \"%s\"..\r\n", nn_name);
+  printf("Creating the network \"%s\"..\r\n", nn_name);
 
   err = ai_create(_model_p, built_in_activations, &_network);
   if (err != AI_STATUS_OK) {
-    const char * msg = ai_get_error (_network);
+    const char* msg = ai_get_error(_network);
     aiLogErr("ai_create", msg);
     return -1;
   }
 
   //
-  // Query the created network to get relevant info from it 
+  // Query the created network to get relevant info from it
   //
   aiPrintNetworkInfo(_model_p);
 
-  const ai_ptr params = ai_get_params (_network);
-  ai_ptr activations = ai_get_activations (_network);
+  const ai_ptr params = ai_get_params(_network);
+  ai_ptr activations = ai_get_activations(_network);
 
-  printf("Weights buffer     : 0x%08x %d bytes)\r\n", (unsigned int)params, (unsigned int)params_size);
-  printf("Activation buffer  : 0x%08x (%d bytes) %s\r\n", (unsigned int)activations, (unsigned int)activations_size, ((uint32_t)activations & (uint32_t)0xFF000000)?"internal":"external");
+  printf("Weights buffer     : 0x%08x %d bytes)\r\n", (unsigned int)params,
+         (unsigned int)params_size);
+  printf("Activation buffer  : 0x%08x (%d bytes) %s\r\n", (unsigned int)activations,
+         (unsigned int)activations_size,
+         ((uint32_t)activations & (uint32_t)0xFF000000) ? "internal" : "external");
 
   printf("Inputs:\r\n");
   for (int i = 0; i < n_inputs; i++) {
-    ai_tensor * input = ai_get_input (_network, i);
+    ai_tensor* input = ai_get_input(_network, i);
     aiPrintLayoutBuffer("   I", i, input);
   }
 
   printf("Outputs:\r\n");
   for (int i = 0; i < n_outputs; i++) {
-    ai_tensor * output = ai_get_output (_network, i);
+    ai_tensor* output = ai_get_output(_network, i);
     aiPrintLayoutBuffer("   O", i, output);
   }
 
@@ -226,14 +211,13 @@ static int aiInit (void)
 // ======================================================
 //   aiDeInit
 // ======================================================
-static void aiDeInit (void)
-{
+static void aiDeInit(void) {
   ai_status err = AI_STATUS_OK;
 
-  printf ("Releasing the network(s)...\r\n");
+  printf("Releasing the network(s)...\r\n");
 
   if (ai_destroy(_network) != AI_STATUS_OK) {
-    const char * err = ai_get_error(_network);
+    const char* err = ai_get_error(_network);
     aiLogErr("ai_destroy", err);
   }
   _network = AI_HANDLE_NULL;
@@ -243,37 +227,35 @@ static void aiDeInit (void)
 // =================================================================
 //   argmax
 //
-//   Description  : return argument of table maximum value 
-//   Argument     : Vector_db *vec: table 
+//   Description  : return argument of table maximum value
+//   Argument     : Vector_db *vec: table
 //   Return Value : int: index of max value
 // =================================================================
-static uint8_t argmax (int8_t * vec, uint32_t num)
-{
-  uint32_t     i;
-  uint8_t arg  = 0;
-  int8_t imax = vec[0];	  
+static uint8_t argmax(int8_t* vec, uint32_t num) {
+  uint32_t i;
+  uint8_t arg = 0;
+  int8_t imax = vec[0];
   for (i = 1; i < num; i++) {
     imax = (imax > vec[i]) ? imax : vec[i];
     if (imax == vec[i]) {
-      arg  = i;
-    }  
+      arg = i;
+    }
   }
-  return(arg);
+  return (arg);
 }
 
 // ======================================================
 //   aiRun
 // ======================================================
-static int aiRun (void)
-{
+static int aiRun(void) {
   ai_status err = AI_STATUS_OK;
-  
+
   //
   // Inputs
   //
-  ai_tensor * input = ai_get_input(_network, 0);
+  ai_tensor* input = ai_get_input(_network, 0);
   if (input == NULL) {
-    const char * err = ai_get_error(_network);
+    const char* err = ai_get_error(_network);
     aiLogErr("ai_run", err);
     return -1;
   }
@@ -281,9 +263,9 @@ static int aiRun (void)
   //
   // Outputs
   //
-  ai_tensor * output = ai_get_output(_network, 0);
+  ai_tensor* output = ai_get_output(_network, 0);
   if (output == NULL) {
-    const char * err = ai_get_error(_network);
+    const char* err = ai_get_error(_network);
     aiLogErr("ai_run", err);
     return -1;
   }
@@ -294,29 +276,28 @@ static int aiRun (void)
     return -1;
   }
 
-  uint32_t elts = get_tensor_elts (output);
+  uint32_t elts = get_tensor_elts(output);
 
   char outfile_name[128];
-  sprintf (outfile_name, "%s/tvm_results.txt", BUILD_PATH);
-  FILE * outfile = fopen (outfile_name, "w");
-  
-  for (int i=0; i <=9; i++) {
+  sprintf(outfile_name, "%s/tvm_results.txt", BUILD_PATH);
+  FILE* outfile = fopen(outfile_name, "w");
 
+  for (int i = 0; i <= 9; i++) {
     char image[128];
 
-    sprintf (image, "%s/0%d.raw", IMAGE_PATH, i);
-    printf ("Loading input image %s ... \n", image);
-    if (LoadInputImg (image, input) != 0) {
-      error ("Loading image %s\n", image);
+    sprintf(image, "%s/0%d.raw", IMAGE_PATH, i);
+    printf("Loading input image %s ... \n", image);
+    if (LoadInputImg(image, input) != 0) {
+      error("Loading image %s\n", image);
     }
 
     //
     // Run the inference
     //
-    printf ("Running the network\r\n");
+    printf("Running the network\r\n");
 
     if (ai_run(_network) != AI_STATUS_OK) {
-      const char * err = ai_get_error(_network);
+      const char* err = ai_get_error(_network);
       aiLogErr("ai_run", err);
       return -1;
     }
@@ -325,49 +306,46 @@ static int aiRun (void)
       //
       // Floating point model
       //
-      float * probabilities = (float*)output->dltensor.data;
+      float* probabilities = (float*)output->dltensor.data;
       for (int i = 0; i < elts; i++) {
-	float val = probabilities[i];
-	//printf (" -- probability[%d] = %g \n", i, val);
-	fprintf (outfile, "%g ", val);
+        float val = probabilities[i];
+        // printf (" -- probability[%d] = %g \n", i, val);
+        fprintf(outfile, "%g ", val);
       }
-      
-    }
-    else {
+
+    } else {
       //
       // Quantized model
       //
       if (out_dtype.code == kDLInt) {
-	int8_t * probabilities = (int8_t *)output->dltensor.data;
-	for (int i = 0; i < elts; i++) {
-	  int8_t qval = probabilities[i];
-	  //printf (" -- probability[%d] = %d \n", i, qval);
-	  float val = dequantize_val (qval, output->quant);
-	  fprintf (outfile, "%g ", val);
-	}
-      }
-      else {
-	uint8_t * probabilities = (uint8_t *)output->dltensor.data;
-	for (int i = 0; i < elts; i++) {
-	  uint8_t qval = probabilities[i];
-	  //printf (" -- probability[%d] = %d \n", i, qval);
-	  float val = dequantize_val (qval, output->quant);
-	  fprintf (outfile, "%g ", val);
-	}
+        int8_t* probabilities = (int8_t*)output->dltensor.data;
+        for (int i = 0; i < elts; i++) {
+          int8_t qval = probabilities[i];
+          // printf (" -- probability[%d] = %d \n", i, qval);
+          float val = dequantize_val(qval, output->quant);
+          fprintf(outfile, "%g ", val);
+        }
+      } else {
+        uint8_t* probabilities = (uint8_t*)output->dltensor.data;
+        for (int i = 0; i < elts; i++) {
+          uint8_t qval = probabilities[i];
+          // printf (" -- probability[%d] = %d \n", i, qval);
+          float val = dequantize_val(qval, output->quant);
+          fprintf(outfile, "%g ", val);
+        }
       }
     }
-    fprintf (outfile, "\n");
+    fprintf(outfile, "\n");
   }
-  fclose (outfile);
-  
-  return 0;  
+  fclose(outfile);
+
+  return 0;
 }
 
 // =================================================================
 //   quantize_val
 // =================================================================
-static int32_t quantize_val (float val, ai_quantization_info * quant)
-{
+static int32_t quantize_val(float val, ai_quantization_info* quant) {
   float new_val;
   float input_scale = quant->scale[0];
   int32_t input_zero_point = quant->zero_point[0];
@@ -378,8 +356,7 @@ static int32_t quantize_val (float val, ai_quantization_info * quant)
 // =================================================================
 //   dequantize_val
 // =================================================================
-static float dequantize_val (int32_t val, ai_quantization_info * quant)
-{
+static float dequantize_val(int32_t val, ai_quantization_info* quant) {
   float new_val;
   float output_scale = quant->scale[0];
   int32_t output_zero_point = quant->zero_point[0];
@@ -390,11 +367,7 @@ static float dequantize_val (int32_t val, ai_quantization_info * quant)
 // =================================================================
 //   LoadInputImg
 // =================================================================
-uint8_t LoadInputImg (
-  const char * filename,
-  ai_tensor * input
-)
-{
+uint8_t LoadInputImg(const char* filename, ai_tensor* input) {
   DLDataType dtype = input->dltensor.dtype;
 
   if (dtype.lanes > 1) {
@@ -406,35 +379,35 @@ uint8_t LoadInputImg (
     printf("E: Double float inputs are not supported ...\r\n");
     return -1;
   }
-  
-  FILE * file = fopen(filename, "r");
+
+  FILE* file = fopen(filename, "r");
   if (file == NULL) {
-    printf ("== File %s not found\n", filename);
+    printf("== File %s not found\n", filename);
     return (-1);
   }
 
   //
   // Find file size
   //
-  fseek(file, 0L, SEEK_END); 
-  size_t img_size = ftell(file); 
+  fseek(file, 0L, SEEK_END);
+  size_t img_size = ftell(file);
   (void)fseek(file, 0L, SEEK_SET);
 
-  //printf ("== Image size = %d\n", img_size);
+  // printf ("== Image size = %d\n", img_size);
 
-  uint8_t * image = (uint8_t *)malloc(img_size);
+  uint8_t* image = (uint8_t*)malloc(img_size);
   size_t size = fread(image, 1, img_size, file);
   if (size != img_size) {
     perror("fread");
-    printf ("== Problem reading %s\n", filename);
+    printf("== Problem reading %s\n", filename);
     return (-1);
   }
 
   fclose(file);
 
   uint32_t x;
-  uint8_t * p = image;
-  uint8_t * pg = (uint8_t*)input->dltensor.data;
+  uint8_t* p = image;
+  uint8_t* pg = (uint8_t*)input->dltensor.data;
 
   for (x = 0; x < img_size; x++) {
     uint8_t val = p[x];
@@ -444,45 +417,42 @@ uint8_t LoadInputImg (
     float nval = ((float)val) / 255.0;
     if (input->quant != NULL) {
       if (dtype.code == kDLInt) {
-	int8_t qval = quantize_val (nval, input->quant);
-	*pg = qval;
-	pg += sizeof(int8_t);
+        int8_t qval = quantize_val(nval, input->quant);
+        *pg = qval;
+        pg += sizeof(int8_t);
+      } else {
+        uint8_t qval = quantize_val(nval, input->quant);
+        *pg = qval;
+        pg += sizeof(uint8_t);
       }
-      else {
-	uint8_t qval = quantize_val (nval, input->quant);
-	*pg = qval;
-	pg += sizeof(uint8_t);
-      }
-    }
-    else {
+    } else {
       *(float*)pg = nval;
       pg += sizeof(float);
     }
   }
 
   free(image);
-  
+
   return 0;
 }
 
 // ======================================================
 //   main
 // ======================================================
-int main (int argc ,char* argv[]) 
-{
+int main(int argc, char* argv[]) {
   int status;
 
   status = aiInit();
   if (status != 0) {
-    printf ("Error initializing.\n");
+    printf("Error initializing.\n");
   }
 
-  status = aiRun ();
+  status = aiRun();
   if (status != 0) {
-    printf ("Error running.\n");
+    printf("Error running.\n");
   }
 
   aiDeInit();
 
-  return(0);
+  return (0);
 }

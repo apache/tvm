@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=invalid-name
+
 """
 Serial Low Level or Hw Driver
 """
@@ -35,10 +37,11 @@ def serial_device_discovery():
     comports = serial.tools.list_ports.comports()
     dev_list = []
     for com in comports:
-        elem = {'type': 'serial',
-                'device': com.device,
-                'desc': com.description,
-                'hwid': com.hwid,
+        elem = {
+            "type": "serial",
+            "device": com.device,
+            "desc": com.description,
+            "hwid": com.hwid,
         }
         dev_list.append(elem)
 
@@ -48,8 +51,8 @@ def serial_device_discovery():
 def serial_get_com_settings(desc):
     """
     Parse the desc parameter to retreive the COM id and the baudrate.
-    Can be a "str" or directly an "int" if only the baudrate is passed. 
-    
+    Can be a "str" or directly an "int" if only the baudrate is passed.
+
     Example:
 
         'COM7:115200'      ->  'COM7'  115200
@@ -57,7 +60,7 @@ def serial_get_com_settings(desc):
         ':921600           ->   None   921600
         'COM6'             ->   COM6   115200
         ':COM6             ->   COM6   115200
-    
+
     """
 
     # default values
@@ -70,7 +73,7 @@ def serial_get_com_settings(desc):
     if desc is None or not isinstance(desc, str):
         return port_, baud_
 
-    desc = desc.split(':')
+    desc = desc.split(":")
     for _d in desc:
         if _d:
             try:
@@ -95,9 +98,9 @@ class SerialHwDriver(AiHwDriver):
     def get_config(self):
         """"Return a dict with used configuration"""
         return {
-            'device' : self._device,
-            'baudrate': self._baudrate,
-            }
+            "device": self._device,
+            "baudrate": self._baudrate,
+        }
 
     def _open(self, device, baudrate, timeout, dry_run=False):
         """Open the COM port"""
@@ -110,9 +113,9 @@ class SerialHwDriver(AiHwDriver):
                 _RETRY -= 1
                 if not _RETRY:
                     if not dry_run:
-                        raise HwIOError('{}'.format(_e))
-                    else:
-                        return None
+                        raise HwIOError("{}".format(_e))
+                    # else:
+                    return None
                 t.sleep(0.2)
             else:
                 break
@@ -123,31 +126,33 @@ class SerialHwDriver(AiHwDriver):
         if device is None:
             devices = serial_device_discovery()
         else:
-            devices = [{ 'device': device}]
+            devices = [{"device": device}]
         for dev in devices:
             dry_run = dev != devices[-1]
-            hdl_ = self._open(dev['device'], baudrate, timeout, dry_run=dry_run)
+            hdl_ = self._open(dev["device"], baudrate, timeout, dry_run=dry_run)
             if hdl_:
                 self._hdl = hdl_
                 self._hdl.reset_input_buffer()
                 self._hdl.reset_output_buffer()
-                self._device = dev['device']
+                self._device = dev["device"]
                 self._baudrate = baudrate
                 t.sleep(0.2)
-                if hasattr(self._parent, 'is_alive') and self._parent.is_alive():
-                   return
+                if hasattr(self._parent, "is_alive") and self._parent.is_alive():
+                    return
                 self._hdl.close()
                 self._hdl = None
                 if not dry_run:
-                    raise HwIOError('{} - {}:{}'.format('Invalid firmware', dev['device'], baudrate))
-        return None
+                    raise HwIOError(
+                        "{} - {}:{}".format("Invalid firmware", dev["device"], baudrate)
+                    )
+        # return None
 
     def _connect(self, desc=None, **kwargs):
         """Open a connection"""
 
         dev_, baud_ = serial_get_com_settings(desc)
-        baud_ = kwargs.get('baudrate', baud_)
-        timeout_ = kwargs.get('timeout', 0.001)
+        baud_ = kwargs.get("baudrate", baud_)
+        timeout_ = kwargs.get("timeout", 0.001)
 
         self._discovery(dev_, baud_, timeout_)
 
@@ -167,14 +172,13 @@ class SerialHwDriver(AiHwDriver):
     def _write(self, data, timeout=0):
         """Write data to the connected device"""
         return self._hdl.write(data)
-    
+
     def short_desc(self):
         """Report a human description of the connection state"""
-        desc = 'SERIAL:' + str(self._device) + ':' + str(self._baudrate)
-        desc += ':connected' if self.is_connected else ':not connected'
+        desc = "SERIAL:" + str(self._device) + ":" + str(self._baudrate)
+        desc += ":connected" if self.is_connected else ":not connected"
         return desc
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-

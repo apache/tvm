@@ -64,15 +64,12 @@ endif
 #
 MODEL_PATH_NO_SLASH = $(realpath -s ${MODEL_PATH})
 C_SOURCES := $(wildcard ${MODEL_PATH_NO_SLASH}/*.c)
-#C_SOURCES := $(wildcard ${MODEL_PATH_NO_SLASH}/codegen/host/src/*.c)
 
 #
 # TVM sources
 #
 C_SOURCES += $(TVM_PATH)/src/runtime/stm32/runtime.c
-#C_SOURCES += $(MODEL_PATH)/runtime-config/aot/src/runtime.c
 C_SOURCES += $(TVM_PATH)/src/runtime/stm32/ai_runtime_api.c
-#C_SOURCES += $(MODEL_PATH)/runtime-config/aot/src/ai_runtime_api.c
 
 #
 # Application C sources
@@ -215,10 +212,7 @@ C_INCLUDES += -I$(TVM_PATH)/include \
 	      -I$(TVM_PATH)/include/tvm/runtime \
 	      -I$(TVM_PATH)/src/runtime/stm32
 
-#C_INCLUDES += -I$(MODEL_PATH)/runtime-config/aot/include
-
 C_INCLUDES += -I$(MODEL_PATH)
-#C_INCLUDES += -I$(MODEL_PATH)/codegen/host/src
 
 # C includes
 

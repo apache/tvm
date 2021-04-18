@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=undefined-loop-variable
+
 """
 AI runner
 """
@@ -37,6 +39,7 @@ import numpy as np
 
 class AiRunnerError(Exception):
     """Base exceptions for errors raised by AIRunner"""
+
     error = 800
     idx = 0
 
@@ -48,46 +51,55 @@ class AiRunnerError(Exception):
         return self.error + self.idx
 
     def __str__(self):
-        _mess = ''
+        _mess = ""
         if self.mess is not None:
-            _mess = '{}'.format(self.mess)
+            _mess = "{}".format(self.mess)
         else:
-            _mess = type(self).__doc__.split('\n')[0]
-        _msg = 'E{}({}): {}'.format(self.code(),
-                                      type(self).__name__,
-                                      _mess)
+            _mess = type(self).__doc__.split("\n")[0]
+        _msg = "E{}({}): {}".format(self.code(), type(self).__name__, _mess)
         return _msg
+
 
 class HwIOError(AiRunnerError):
     """Low-level IO error"""
+
     idx = 1
+
 
 class NotInitializedMsgError(AiRunnerError):
     """Message is not fully initialized"""
+
     idx = 2
+
 
 class InvalidMsgError(AiRunnerError, ValueError):
     """Message is not correctly formatted"""
+
     idx = 3
+
 
 class InvalidParamError(AiRunnerError):
     """Invali parameter"""
+
     idx = 4
+
 
 class NotConnectedError(AiRunnerError):
     """STM AI run-time is not connected"""
+
     idx = 10
 
 
 def get_logger(name, debug=False, verbosity=0):
-    
+    """get_logger"""
     if name is None:
-        return logging.getLogger('_DummyLogger_')     # without configuring dummy before.
+        # without configuring dummy before.
+        return logging.getLogger("_DummyLogger_")
 
     logger = logging.getLogger(name)
 
     if logger.hasHandlers():
-        # logger 'name' already created 
+        # logger 'name' already created
         return logger
 
     if debug:
@@ -101,7 +113,7 @@ def get_logger(name, debug=False, verbosity=0):
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(_lvl)
     # formatter = logging.Formatter('%(name)-12s:%(levelname)-7s: %(message)s')
-    formatter = logging.Formatter('%(name)s:%(levelname)s: %(message)s')
+    formatter = logging.Formatter("%(name)s:%(levelname)s: %(message)s")
     console.setFormatter(formatter)
     logger.addHandler(console)
     logger.propagate = False
@@ -126,7 +138,7 @@ def generate_rnd(types, shapes, batch_size=4, rng=np.random.RandomState(42)):
             high = np.iinfo(type_).max
             low = np.iinfo(type_).min
             #  “discrete uniform” distribution
-            in_ = rng.randint(low=low, high=high+1, size=shape_)
+            in_ = rng.randint(low=low, high=high + 1, size=shape_)
         else:
             # uniformly distributed over the half-open interval [low, high)
             in_ = rng.uniform(low=-1.0, high=1.0, size=shape_)
@@ -138,15 +150,17 @@ def generate_rnd(types, shapes, batch_size=4, rng=np.random.RandomState(42)):
 
 class AiHwDriver(ABC):
     """Base class to handle the LL IO COM functions"""
+
     def __init__(self, parent=None):
         self._parent = parent
         self._hdl = None
-        return
+        # return
 
     @property
     def is_connected(self):
-        return True if self._hdl else False 
-    
+        # return True if self._hdl else False
+        return self._hdl
+
     def set_parent(self, parent):
         self._parent = parent
 
@@ -188,18 +202,19 @@ class AiHwDriver(ABC):
         raise NotConnectedError()
 
     def short_desc(self):
-        return 'UNDEFINED'
+        return "UNDEFINED"
 
 
 class AiRunnerDriver(ABC):
     """Base class interface for an AI Runner driver"""
+
     def __init__(self, parent):
-        if not hasattr(parent, 'get_logger'):
-            raise InvalidParamError('Invalid parent type, get_logger() attr is expected')
+        if not hasattr(parent, "get_logger"):
+            raise InvalidParamError("Invalid parent type, get_logger() attr is expected")
         self._parent = parent
         self._logger = parent.get_logger()
-        self._logger.debug('creating {} object'.format(self.__class__.__name__))
-        return
+        self._logger.debug("creating {} object".format(self.__class__.__name__))
+        # return
 
     @abstractmethod
     def connect(self, desc=None, **kwargs):
@@ -214,13 +229,13 @@ class AiRunnerDriver(ABC):
     @abstractmethod
     def disconnect(self):
         """Disconnect to the stm.ai run-time"""
-        pass
+        # pass
 
     @abstractmethod
     def discover(self, flush=False):
         """Return list of available networks"""
         return []
-    
+
     @abstractmethod
     def get_info(self, name=None):
         """Get c-network details (including runtime)"""
@@ -231,9 +246,10 @@ class AiRunnerDriver(ABC):
         """Invoke the c-network with a given input (sample mode)"""
         return [], dict()
 
-    def check_inputs(self, inputs, name):
+    def check_inputs(self, inputs, name):  # pylint: disable=unused-argument
         """Specific function to check the inputs"""
         return False
+
 
 class AiRunnerSession:
     """
@@ -244,14 +260,15 @@ class AiRunnerSession:
         """Constructor"""
         self._parent = None
         self._name = name
-        return
-    
+        # return
+
     def __str__(self):
         return self.name
-    
+
     @property
     def is_active(self):
-        return True if self._parent else False
+        # return True if self._parent else False
+        return self._parent
 
     @property
     def name(self):
@@ -286,7 +303,7 @@ class AiRunnerSession:
     def invoke(self, inputs, **kwargs):
         """Invoke the c-network"""
         if self._parent:
-            kwargs.pop('name', None)
+            kwargs.pop("name", None)
             return self._parent.invoke(inputs, name=self.name, **kwargs)
         return list(), dict()
 
@@ -294,12 +311,14 @@ class AiRunnerSession:
         """Summary model & runtime infos"""
         if self._parent:
             return self._parent.summary(name=self.name, print_fn=print_fn)
+        return None
 
 
 class AiRunnerCallback:
     """
     Abstract base class used to build new callbacks
     """
+
     def __init__(self):
         pass
 
@@ -338,6 +357,7 @@ class AiRunnerCallback:
 
         """
 
+
 class AiRunner:
     """
     AI Runner interface for stm.ai runtime.
@@ -362,11 +382,15 @@ class AiRunner:
         if logger is None:
             logger = get_logger(self.__class__.__name__, debug, verbosity)
         self._logger = logger
-        self._logger.debug('creating {} object'.format(self.__class__.__name__))
+        self._logger.debug(
+            #'creating {} object'.format(self.__class__.__name__))
+            "creating %s object",
+            self.__class__.__name__,
+        )
 
     def get_logger(self):
         return self._logger
-    
+
     def __str__(self):
         return self.short_desc()
 
@@ -374,7 +398,7 @@ class AiRunner:
     def is_connected(self):
         """Indicate if the associated runtime is connected"""
         return False if not self._drv else self._drv.is_connected
-    
+
     def _check_name(self, name):
         """Return a valid c-network name"""
         if not self._names:
@@ -392,21 +416,21 @@ class AiRunner:
         """Get model details (including runtime infos)"""
         name_ = self._check_name(name)
         return self._drv.get_info(name_) if name_ else dict()
-    
+
     @property
     def name(self):
         """Return default network name (first)"""
         return self._check_name(None)
-    
+
     def get_input_infos(self, name=None):
         """Get model input details"""
         info_ = self.get_info(name)
-        return info_['inputs'] if info_ else list()
+        return info_["inputs"] if info_ else list()
 
     def get_output_infos(self, name=None):
         """Get model output details"""
         info_ = self.get_info(name)
-        return info_['outputs'] if info_ else list()
+        return info_["outputs"] if info_ else list()
 
     def _align_requested_mode(self, mode):
         """Align requested mode with drv capabilities"""
@@ -429,79 +453,80 @@ class AiRunner:
         in_desc = self.get_input_infos(name)
 
         if len(inputs) != len(in_desc):
-            msg = 'Input number is inconsistent {} instead {}'.format(len(inputs), len(in_desc))
+            msg = "Input number is inconsistent {} instead {}".format(len(inputs), len(in_desc))
             raise HwIOError(msg)
 
         for idx, ref in enumerate(in_desc):
-            in_shape = (ref['shape'][0],) + inputs[idx].shape[1:]
-            if inputs[idx].dtype != ref['type']:
-                msg = 'invalid dtype - {} instead {}'.format(inputs[idx].dtype,
-                                                             ref['type'])
-                msg += ' for the input #{}'.format(idx + 1)
+            in_shape = (ref["shape"][0],) + inputs[idx].shape[1:]
+            if inputs[idx].dtype != ref["type"]:
+                msg = "invalid dtype - {} instead {}".format(inputs[idx].dtype, ref["type"])
+                msg += " for the input #{}".format(idx + 1)
                 raise InvalidParamError(msg)
-            if in_shape != ref['shape']:
-                msg = 'invalid shape - {} instead {}'.format(in_shape,
-                                                             ref['shape'])
-                msg += ' for the input #{}'.format(idx + 1)
+            if in_shape != ref["shape"]:
+                msg = "invalid shape - {} instead {}".format(in_shape, ref["shape"])
+                msg += " for the input #{}".format(idx + 1)
                 raise InvalidParamError(msg)
 
     def invoke(self, inputs, **kwargs):
         """Invoke the c-network (batch mode)"""
-        import tqdm
+        import tqdm  # pylint: disable=import-outside-toplevel
 
-        name_ = self._check_name(kwargs.pop('name', None))
-        
+        name_ = self._check_name(kwargs.pop("name", None))
+
         if name_ is None:
             return list(), dict()
-        
+
         if not isinstance(inputs, list):
             inputs = [inputs]
 
         self._check_inputs(inputs, name_)
 
-        callback = kwargs.pop('callback', None)  # AiRunnerCallback())
-        mode = self._align_requested_mode(kwargs.pop('mode', AiRunner.Mode.IO_ONLY))
-        disable_pb = kwargs.pop('disable_pb', False) or callback
+        callback = kwargs.pop("callback", None)  # AiRunnerCallback())
+        mode = self._align_requested_mode(kwargs.pop("mode", AiRunner.Mode.IO_ONLY))
+        disable_pb = kwargs.pop("disable_pb", False) or callback
 
         batch_size = inputs[0].shape[0]
         profiler = {
-            'info': dict(),
-            'c_durations': [],  # Inference time by sample w/o cb by node if enabled
-            'c_nodes': [],
-            'debug': {
-                'exec_times' : [], # real inference time by sample with cb by node overhead 
-                'host_duration' : 0.0,  # host execution time (on whole batch)
+            "info": dict(),
+            "c_durations": [],  # Inference time by sample w/o cb by node if enabled
+            "c_nodes": [],
+            "debug": {
+                "exec_times": [],  # real inference time by sample with cb by node overhead
+                "host_duration": 0.0,  # host execution time (on whole batch)
             },
         }
 
         start_time = t.perf_counter()
         outputs = []
-        pb = None
+        pb_ = None
         for batch in range(batch_size):
-            if not pb and not disable_pb and (t.perf_counter() - start_time) > 1:
-                pb = tqdm.tqdm(total=batch_size, file=sys.stdout,
-                       unit_scale=False,  #  desc='Running..',
-                       leave=False)
-                pb.update(batch)
-            elif pb:
-                pb.update(1)
+            if not pb_ and not disable_pb and (t.perf_counter() - start_time) > 1:
+                pb_ = tqdm.tqdm(
+                    total=batch_size,
+                    file=sys.stdout,
+                    unit_scale=False,  # desc='Running..',
+                    leave=False,
+                )
+                pb_.update(batch)
+            elif pb_:
+                pb_.update(1)
             s_inputs = [np.expand_dims(in_[batch], axis=0) for in_ in inputs]
             if callback:
                 callback.on_sample_begin(batch)
-            s_outputs, s_dur = self._drv.invoke_sample(s_inputs, name=name_,
-                                                       profiler=profiler, mode=mode,
-                                                       callback=callback)
+            s_outputs, s_dur = self._drv.invoke_sample(
+                s_inputs, name=name_, profiler=profiler, mode=mode, callback=callback
+            )
             if batch == 0:
                 outputs = s_outputs
             else:
                 for idx, out_ in enumerate(s_outputs):
                     outputs[idx] = np.append(outputs[idx], out_, axis=0)
             if callback:
-                callback.on_sample_end(batch, s_outputs, logs = {'dur': s_dur })
-        profiler['debug']['host_duration'] = (t.perf_counter() - start_time) * 1000.0
-        profiler['info'] = self.get_info(name_)
-        if pb:
-            pb.close()
+                callback.on_sample_end(batch, s_outputs, logs={"dur": s_dur})
+        profiler["debug"]["host_duration"] = (t.perf_counter() - start_time) * 1000.0
+        profiler["info"] = self.get_info(name_)
+        if pb_:
+            pb_.close()
 
         return outputs, profiler
 
@@ -513,10 +538,9 @@ class AiRunner:
         if name_ is None:
             return []
         info_ = self.get_input_infos(name_)
-        return generate_rnd([t_['type'] for t_ in info_],
-                            [s_['shape'] for s_ in info_],
-                            batch_size,
-                            rng=rng)
+        return generate_rnd(
+            [t_["type"] for t_ in info_], [s_["shape"] for s_ in info_], batch_size, rng=rng
+        )
 
     @property
     def names(self):
@@ -538,21 +562,21 @@ class AiRunner:
 
     def short_desc(self):
         if self.is_connected:
-            desc_ = '{} {}'.format(self._drv.short_desc(), self.names)
+            desc_ = "{} {}".format(self._drv.short_desc(), self.names)
             return desc_
-        return 'not connected'
+        return "not connected"
 
     def connect(self, desc=None, **kwargs):
         """Connect to a given runtime defined by desc"""
-        from .ai_resolver import ai_runner_resolver
+        from .ai_resolver import ai_runner_resolver  # pylint: disable=import-outside-toplevel
 
         self._logger.debug("connect(desc='%s')", str(desc))
         self._release()
-    
+
         self._drv, desc = ai_runner_resolver(self, desc)
         self._logger.debug("desc for the driver: '%s'", str(desc))
 
-        if self._drv == None:
+        if self._drv is None:
             self._logger.error(desc)
             return False
 
@@ -568,7 +592,7 @@ class AiRunner:
             msg_ = 'binding with runtime "{}" has failed\n {}'.format(desc, str(exc_))
             self._logger.error(msg_)
             self._release()
-        
+
         return self.is_connected
 
     def session(self, name=None):
@@ -596,40 +620,46 @@ class AiRunner:
         if dict_info:
 
             def _attr(attr, val):
-                print_fn('{:20s} : {}'.format(str(attr), str(val)))
+                print_fn("{:20s} : {}".format(str(attr), str(val)))
 
             def _tens_to_str(val):
-                ext_ = ''
-                if val['scale']:
-                    ext_ = ', scale={}, zp={}'.format(val['scale'], val['zero_point'])
-                if in_.get('from_act', False):
-                    ext_ += ', (allocated in activations buffer)'
-                _attr(val['name'], '{}, {}{}'.format(val['shape'], val['type'], ext_))
+                ext_ = ""
+                if val["scale"]:
+                    ext_ = ", scale={}, zp={}".format(val["scale"], val["zero_point"])
+                if in_.get("from_act", False):
+                    ext_ += ", (allocated in activations buffer)"
+                _attr(val["name"], "{}, {}{}".format(val["shape"], val["type"], ext_))
 
-            print_fn('\nSummary "{}" - {}'.format(dict_info['name'], self._names))
-            print_fn('-' * 80)
-            _attr('inputs/outputs', '{}/{}'.format(len(dict_info['inputs']), len(dict_info['outputs'])))
-            for in_ in dict_info['inputs']:
+            print_fn('\nSummary "{}" - {}'.format(dict_info["name"], self._names))
+            print_fn("-" * 80)
+            _attr(
+                "inputs/outputs",
+                "{}/{}".format(len(dict_info["inputs"]), len(dict_info["outputs"])),
+            )
+            for in_ in dict_info["inputs"]:
                 _tens_to_str(in_)
-            for out_ in dict_info['outputs']:
+            for out_ in dict_info["outputs"]:
                 _tens_to_str(out_)
-            _attr('n_nodes', dict_info['n_nodes'])
-            _attr('compile_datetime', dict_info.get('compile_datetime', 'undefined'))
-            _attr('model_datetime', dict_info.get('model_datetime', 'undefined'))
+            _attr("n_nodes", dict_info["n_nodes"])
+            _attr("compile_datetime", dict_info.get("compile_datetime", "undefined"))
+            _attr("model_datetime", dict_info.get("model_datetime", "undefined"))
             if level:
-                _attr('activations', dict_info['activations'])
-                _attr('weights', dict_info['weights'])
-                _attr('macc', dict_info['macc'] if dict_info['macc'] > 1 else 'n.a.')
-            print_fn('-' * 80)
-            _attr('runtime', '{} {}.{}.{}'.format(dict_info['runtime']['name'],
-                                                  *dict_info['runtime']['version']))
-            _attr('capabilities', [str(n) for n in dict_info['runtime']['capabilities']])
-            for key, value in dict_info['device'].items():
+                _attr("activations", dict_info["activations"])
+                _attr("weights", dict_info["weights"])
+                _attr("macc", dict_info["macc"] if dict_info["macc"] > 1 else "n.a.")
+            print_fn("-" * 80)
+            _attr(
+                "runtime",
+                "{} {}.{}.{}".format(
+                    dict_info["runtime"]["name"], *dict_info["runtime"]["version"]
+                ),
+            )
+            _attr("capabilities", [str(n) for n in dict_info["runtime"]["capabilities"]])
+            for key, value in dict_info["device"].items():
                 _attr(key, value)
-            print_fn('-' * 80)
-            print_fn('')
+            print_fn("-" * 80)
+            print_fn("")
 
 
-if __name__ == '__main__':
-   pass
-
+if __name__ == "__main__":
+    pass
