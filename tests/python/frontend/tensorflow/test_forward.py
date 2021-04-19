@@ -315,6 +315,7 @@ def _test_pooling(input_shape, **kwargs):
             kwargs["data_format"] = "NCHW"
             _test_pooling_iteration(input_shape, **kwargs)
 
+
 def _test_pooling_dynamic(input_shape, np_shape, **kwargs):
     """ Pooling with dynamic height and width dimensions. """
     x = -np.arange(np.prod(np_shape), dtype=np.float32).reshape(np_shape) - 1
@@ -329,6 +330,7 @@ def _test_pooling_dynamic(input_shape, np_shape, **kwargs):
             out_name = "avg_pool:0"
 
         compare_tf_with_tvm(x, "Placeholder:0", out_name, mode="vm", ignore_in_shape=True)
+
 
 @tvm.testing.uses_gpu
 def test_forward_pooling():
