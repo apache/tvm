@@ -547,3 +547,16 @@ def LowerInitBlock():
         The result pass
     """
     return _ffi_api.LowerInitBlock()
+
+
+def PlanAndUpdateBufferAllocationLocation():
+    """Locate the buffer allocation to the exact position (usually is
+    the lca of buffer access). This pass will inject opaque block
+    with alloc_buffers at the allocation site.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.PlanAndUpdateBufferAllocationLocation()
