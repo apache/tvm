@@ -369,8 +369,28 @@ def test_tensorize_tensor_compute_op():
     assert stmt.body.body.loop_var.name == C.op.axis[0].var.name
 
 
+def test_tensorize_reuse_compute():
+    def get_compute_args():
+        l = 2
+        a = tvm.te.placeholder([l], name="a")
+        b = tvm.te.placeholder([l], name="b")
+        return a, b, tvm.te.compute([l], lambda i: a[i] + b[i])
+
+    a, b, c = get_compute_args()
+
+    def get_intrin():
+        def _intrin_func(ins, outs):
+            return tvm.tir.call_packed("fakeadd", ins[0], ins[1], outs[0])
+        return tvm.te.decl_tensor_intrin(c.op, _intrin_func)
+
+    s = tvm.te.create_schedule([c.op])
+    s[c].tensorize(c.op.axis[0], get_intrin())
+    tvm.lower(s, (a, b, c))
+
+
 if __name__ == "__main__":
     test_tensorize_vadd()
     test_tensorize_matmul()
     test_tensorize_op()
     test_tensorize_tensor_compute_op()
+    test_tensorize_reuse_compute()

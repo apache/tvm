@@ -327,6 +327,9 @@ void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
   ana.Bind(compute_intrin_iter_space);
 
   for (size_t i = 0; i < body.size(); ++i) {
+    if (self->body[i].same_as(intrin_compute->body[i])) {
+      continue;
+    }
     PrimExpr lhs = ana.Simplify(body[i]);
     // run substitution because the intrin body could depend on outer loop vars.
     PrimExpr rhs = ana.Simplify(Substitute(intrin_compute->body[i], value_map));
