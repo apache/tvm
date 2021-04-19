@@ -401,19 +401,19 @@ Report Profiler::Report(bool aggregate, bool sort) {
     global_times.emplace_back(p.first, p.second->SyncAndGetElapsedNanos() / 1e3);
   }
 
+  double overall_time = 0;
+  for (auto p : global_times) {
+    overall_time = std::max(overall_time, p.second);
+  }
+
   std::unordered_map<String, Map<String, ObjectRef>> overall;
   for (auto p : global_times) {
     std::unordered_map<String, ObjectRef> row;
     row["Name"] = String("Total");
     row["Duration (us)"] = ObjectRef(make_object<DurationNode>(p.second));
-    row["Percent"] = ObjectRef(make_object<PercentNode>(100));
+    row["Percent"] = ObjectRef(make_object<PercentNode>(p.second / overall_time * 100));
     row["Device"] = String(DeviceString(p.first));
     overall[DeviceString(p.first)] = row;
-  }
-
-  double overall_time = 0;
-  for (auto p : global_times) {
-    overall_time = std::max(overall_time, p.second);
   }
 
   std::vector<Map<String, ObjectRef>> rows;
