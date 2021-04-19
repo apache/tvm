@@ -39,6 +39,11 @@
 #include "object_internal.h"
 #include "runtime_base.h"
 
+#ifdef JUST_TESTIN_CI
+    fmt.Println("hello from jekins"); // wait this isn't golang
+#endif
+
+
 namespace tvm {
 namespace runtime {
 
