@@ -930,8 +930,8 @@ class Selu(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get("alpha", 1.6732))
-        gamma = float(attr.get("gamma", 1.0507))
+        alpha = float(attr.get("alpha", 1.67326319217681884765625))
+        gamma = float(attr.get("gamma", 1.05070102214813232421875))
         return _expr.const(gamma) * (
             _expr.const(-alpha) * _op.nn.relu(_expr.const(1.0) - _op.exp(inputs[0]))
             + _op.nn.relu(inputs[0])
@@ -946,6 +946,20 @@ class ScaledTanh(OnnxOpConverter):
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
         return _op.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
+
+
+class Shrink(OnnxOpConverter):
+    """Operator converter for Shrink."""
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        x = inputs[0]
+        dtype = infer_type(x).checked_type.dtype
+        lambd = _op.const(attr.get("lambd", 0.5), dtype=dtype)
+        bias = _op.const(attr.get("bias", 0.0), dtype=dtype)
+
+        zeros = _op.zeros_like(x)
+        return _op.where(x < -lambd, x + bias, zeros) + _op.where(x > lambd, x - bias, zeros)
 
 
 class Softsign(OnnxOpConverter):
@@ -1146,8 +1160,9 @@ class Unsqueeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        for axes in attr["axes"]:
-            inputs[0] = _op.expand_dims(inputs[0], axis=axes, num_newaxis=1)
+        axes = sorted(attr["axes"])
+        for axis in axes:
+            inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
         return inputs[0]
 
 
@@ -1545,10 +1560,7 @@ class Softmax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # set default value when axis is not set in the model
-        if "axis" not in attr:
-            attr["axis"] = 1
-        axis = attr["axis"]
+        axis = attr.get("axis", 1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
@@ -1564,10 +1576,7 @@ class LogSoftmax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # set default value when axis is not set in the model
-        if "axis" not in attr:
-            attr["axis"] = 1
-        axis = attr["axis"]
+        axis = attr.get("axis", 1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
@@ -1577,6 +1586,40 @@ class LogSoftmax(OnnxOpConverter):
         e = _op.exp(x - m)
         s = _op.sum(e, axes, keepdims=True)
         return x - m - _op.log(s)
+
+
+class Hardmax(OnnxOpConverter):
+    """Operator converter for Hardmax."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get("axis", 1)
+        ndim = len(infer_shape(inputs[0]))
+        if axis < 0:
+            axis += ndim
+        dtype = infer_type(inputs[0]).checked_type.dtype
+
+        if axis == 0:
+            pre = _op.const([1], "int64")
+        else:
+            pre = _op.prod(
+                _op.strided_slice(shape_of(inputs[0]), [0], [axis], [1]), axis=0, keepdims=True
+            )
+        post = _op.prod(
+            _op.strided_slice(shape_of(inputs[0]), [axis], [2147483647], [1]), axis=0, keepdims=True
+        )
+        newshape = _op.concatenate([pre, post], axis=0)
+        x = _op.reshape(inputs[0], fold_constant(newshape))
+        argmax = _op.argmax(x, axis=1)
+        onehot = _op.one_hot(
+            argmax,
+            _op.const(1.0, dtype),
+            _op.const(0.0, dtype),
+            fold_constant(_op.take(shape_of(x), _op.const([1], "int64"))),
+            1,
+            dtype,
+        )
+        return _op.reshape(onehot, shape_of(inputs[0]))
 
 
 class OneHot(OnnxOpConverter):
@@ -2717,7 +2760,8 @@ def _get_convert_map(opset):
         "Softmax": Softmax.get_converter(opset),
         "LogSoftmax": LogSoftmax.get_converter(opset),
         "OneHot": OneHot.get_converter(opset),
-        # 'Hardmax'
+        "Hardmax": Hardmax.get_converter(opset),
+        "Shrink": Shrink.get_converter(opset),
         "Softsign": Softsign.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
