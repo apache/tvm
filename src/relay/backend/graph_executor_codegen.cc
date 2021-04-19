@@ -51,14 +51,6 @@ using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
 using TargetsMap = std::unordered_map<int, Target>;
 
-/*! \brief Lowered outputs */
-struct LoweredOutput {
-  std::string graph_json;
-  Map<String, IRModule> lowered_funcs;
-  Array<tvm::runtime::Module> external_mods;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-};
-
 /*! \brief Node types */
 enum GraphNodeType {
   kGraphNop,
@@ -637,6 +629,9 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.external_mods;
       });
+    } else if (name == "get_metadata") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});
     }

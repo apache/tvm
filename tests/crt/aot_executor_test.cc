@@ -20,7 +20,7 @@
 #include <dlpack/dlpack.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/aot_executor.h>
+#include <tvm/runtime/crt/internal/aot_executor/aot_executor.h>
 
 int test_run_func(TVMValue* args, int* arg_type_ids, int num_args, TVMValue* out_ret_value,
                   int* out_ret_tcode, void* resource_handle) {

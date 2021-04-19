@@ -179,7 +179,9 @@ class BuiltinLower : public StmtExprMutator {
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
-      return MakeCallPacked(op);
+      return MakeCallPacked(op, true);
+    } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
+      return MakeCallPacked(op, false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallTracePacked(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
@@ -256,7 +258,7 @@ class BuiltinLower : public StmtExprMutator {
     return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
   }
   // call packed.
-  PrimExpr MakeCallPacked(const CallNode* op) {
+  PrimExpr MakeCallPacked(const CallNode* op, bool use_string_lookup) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -298,8 +300,11 @@ class BuiltinLower : public StmtExprMutator {
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
 
-    // call_packed_lowered needs to do the type casting properly
-    return Call(op->dtype, builtin::tvm_call_packed_lowered(), packed_args);
+    if (use_string_lookup) {
+      return Call(op->dtype, builtin::tvm_call_packed_lowered(), packed_args);
+    } else {
+      return Call(op->dtype, builtin::tvm_call_cpacked_lowered(), packed_args);
+    }
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {

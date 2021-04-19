@@ -18,7 +18,6 @@
  */
 
 /*!
- * \file include/tvm/runtime/crt/aot_executor.h
  * \brief TVM Executor for the Ahead-of-Time Runtime
  *
  * AOT models are described by the TVM model descriptor format
@@ -47,8 +46,8 @@
  * }
  */
 
-#ifndef TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
-#define TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_AOT_EXECUTOR_AOT_EXECUTOR_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_AOT_EXECUTOR_AOT_EXECUTOR_H_
 
 #include <stdint.h>
 #include <tvm/runtime/c_backend_api.h>
@@ -81,4 +80,4 @@ tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** 
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_AOT_EXECUTOR_AOT_EXECUTOR_H_

@@ -40,8 +40,7 @@ namespace codegen {
  * \param target TVM target.
  */
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               tvm::Target target,
-                                               runtime::AOTMetadata aot_metadata);
+                                               tvm::Target target, runtime::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

@@ -18,8 +18,6 @@
 from abc import abstractmethod
 import warnings
 
-from tvm import tir
-
 from ..._ffi.base import string_types
 from ..._ffi.registry import get_global_func
 from ...runtime import ndarray
@@ -52,11 +50,6 @@ class ExecutorFactoryModule:
         """ Return the generated library"""
         raise NotImplementedError
 
-    @abstractmethod
-    def get_internal_repr(self):
-        """ Return the internal representation used to execute the network"""
-        raise NotImplementedError
-
     def __getitem__(self, item):
         print(item)
         return self.module.__getitem__(item)
@@ -85,9 +78,8 @@ class ExecutorFactoryModule:
 class AOTExecutorFactoryModule(ExecutorFactoryModule):
     """AOT executor factory module.
 
-    Parameters
+    Attributes
     ----------
-    runner_function : the PrimFunc containing of the TIR main executor function.
     target : tvm.Target
         The Target used to build this module.
     libmod : tvm.Module
@@ -98,29 +90,19 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         The parameters of module
     """
 
-    def __init__(self, ir_mod, target, runner_function, libmod, libmod_name, params):
-        assert isinstance(runner_function, tir.PrimFunc)
-        args = []
-        for k, v in params.items():
-            args.append(k)
-            args.append(ndarray.array(v))
-
+    def __init__(self, ir_mod, target, libmod, libmod_name, params):
         self.ir_mod = ir_mod
         self.target = target
-        self.runner_func = runner_function
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
         self.iter_cnt = 0
 
-    # Sometimes we want to get params explicitly.
-    # For example, we want to save its params value to
-    # an independent file.
     def get_params(self):
         return self.params
 
     def get_internal_repr(self):
-        return self.runner_func
+        return None
 
     def get_lib(self):
         return self.lib
@@ -130,7 +112,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     """Graph executor factory module.
     This is a module of graph executor factory
 
-    Parameters
+    Attributes
     ----------
     graph_json_str : the json graph to be deployed in json format output by graph compiler.
         The graph can contain operator(tvm_op) that points to the name of

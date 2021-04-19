@@ -38,7 +38,7 @@ from tvm.contrib import graph_executor
 from tvm.micro import export_model_library_format
 from tvm.relay import testing
 
-from infra import *
+from aot_test_utils import *
 
 
 def test_conv_with_params():
@@ -70,7 +70,7 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     output_list = generate_ref_data(mod, inputs, params)
 
     input_list = [input_data]
-    verify_source(mod, input_list, output_list, params)
+    compile_and_run(mod, input_list, output_list, params)
 
 
 def test_add_with_params():
@@ -87,7 +87,7 @@ def test_add_with_params():
     output_list = generate_ref_data(func, inputs, params)
 
     input_list = [y_in]
-    verify_source(func, input_list, output_list, params)
+    compile_and_run(func, input_list, output_list, params)
 
 
 def test_conv2d():
@@ -132,7 +132,7 @@ def test_conv2d():
     for mod, inputs, out_shape in [conv2d_direct(), group_conv2d()]:
         output_list = generate_ref_data(mod, inputs)
         input_list = [inputs["data"], inputs["weight"]]
-        verify_source(mod, input_list, output_list)
+        compile_and_run(mod, input_list, output_list)
 
 
 def test_concatenate():
@@ -151,7 +151,7 @@ def test_concatenate():
 
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["x"], inputs["y"], inputs["z"]]
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_nested_tuples():
@@ -167,14 +167,14 @@ def test_nested_tuples():
     inputs = {"x": x_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [x_data]
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_tuple_getitem():
     func = relay.Function([], relay.TupleGetItem(relay.Tuple([relay.const(1), relay.const(2)]), 0))
     output_list = generate_ref_data(func, {})
     input_list = []
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_id():
@@ -184,7 +184,7 @@ def test_id():
     inputs = {"x": one}
     output_list = generate_ref_data(ident, inputs)
     input_list = [one]
-    verify_source(ident, input_list, output_list)
+    compile_and_run(ident, input_list, output_list)
 
 
 def test_add_const():
@@ -192,7 +192,7 @@ def test_add_const():
     func = relay.Function([], two)
     output_list = generate_ref_data(func, {})
     input_list = []
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_mul_param():
@@ -204,7 +204,7 @@ def test_mul_param():
     inputs = {"x": x_data, "y": y_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["x"], inputs["y"]]
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_subtract():
@@ -215,7 +215,7 @@ def test_subtract():
     inputs = {"i": i_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["i"]]
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_tuple_output():
@@ -230,7 +230,7 @@ def test_tuple_output():
     inputs = {"x": x_data}
     output_list = generate_ref_data(func, inputs)
     input_list = [inputs["x"]]
-    verify_source(func, input_list, output_list)
+    compile_and_run(func, input_list, output_list)
 
 
 def test_mobilenet():
@@ -240,7 +240,7 @@ def test_mobilenet():
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
     input_list = [inputs["data"]]
-    verify_source(mod, input_list, output_list, params)
+    compile_and_run(mod, input_list, output_list, params)
 
 
 if __name__ == "__main__":

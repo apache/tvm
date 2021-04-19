@@ -29,7 +29,7 @@ CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
 
 
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
-	-I$(TVM_ROOT)/include/tvm/runtime/crt \
+	-I$(TVM_ROOT)/src/runtime/crt/include \
 	-I$(TVM_ROOT)/src/runtime/crt/host \
 	-I$(TVM_ROOT)/include \
 	-I$(DMLC_CORE)/include \
@@ -47,7 +47,7 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/tvm_executor.o  $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/aot_executor.o  $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
@@ -59,7 +59,7 @@ $(build_dir)/lib0.o: $(build_dir)/../codegen/host/src/lib0.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/tvm_executor.o: $(TVM_ROOT)/src/runtime/crt/aot_executor/aot_executor.c
+$(build_dir)/aot_executor.o: $(TVM_ROOT)/src/runtime/crt/aot_executor/aot_executor.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
@@ -67,7 +67,7 @@ $(build_dir)/stack_allocator.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_allocat
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/aot_backend_api.c
+$(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_api.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
@@ -77,4 +77,3 @@ cleanall:
 	$(QUIET)rm -rf $(build_dir)
 # Don't define implicit rules; they tend to match on logical target names that aren't targets (i.e. bundle_static)
 .SUFFIXES:
-.DEFAULT: ethosu_test_runner

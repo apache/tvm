@@ -40,10 +40,8 @@ namespace codegen {
 
 CodeGenCHost::CodeGenCHost() { module_name_ = GetUniqueName("__tvm_module_ctx"); }
 
-void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool is_aot_executor,
-                        std::string target_str) {
+void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str) {
   emit_asserts_ = emit_asserts;
-  is_aot_executor_ = is_aot_executor;
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
@@ -214,13 +212,31 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
   this->stream << "}\n";
 }
 
-void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, PrimExpr values,
-                                 int num_args) {
+void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_args) {
   this->PrintIndent();
-  std::string stack_value = "stack_value";
-  if (const VarNode* stack_value_var = values.as<VarNode>()) {
-    stack_value = stack_value_var->name_hint;
-  }
+  std::string ret_val = GetUniqueName("ret_val");
+  std::string ret_type_code = GetUniqueName("ret_type_code");
+  this->stream << "TVMValue " << ret_val << ";\n";
+  this->PrintIndent();
+  this->stream << "int " << ret_type_code << ";\n";
+  this->PrintIndent();
+  this->stream << "if (TVMFuncCall(" << packed_func_name << ", "
+               << "(TVMValue*) stack_value"
+               << ", "
+               << "(int*) stack_tcode"
+               << ", " << num_args << ", "
+               << "&" << ret_val << ", "
+               << "&" << ret_type_code << ") != 0) {\n";
+  int func_call_scope = this->BeginScope();
+  this->PrintIndent();
+  this->stream << "return -1;\n";
+  this->EndScope(func_call_scope);
+  this->PrintIndent();
+  this->stream << "}\n";
+}
+
+void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_args) {
+  this->PrintIndent();
   std::string ret_val = GetUniqueName("ret_val");
   std::string ret_type_code = GetUniqueName("ret_type_code");
   this->stream << "TVMValue " << ret_val << ";\n";
@@ -228,19 +244,13 @@ void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, PrimExpr v
   this->stream << "int " << ret_type_code << ";\n";
   this->PrintIndent();
 
-  if (is_aot_executor_) {
-    this->stream << "if (" << packed_func_name << "( "
-                 << "(TVMValue*) " << stack_value;
-  } else {
-    this->stream << "if (TVMFuncCall(" << packed_func_name << ", "
-                 << "(TVMValue*) stack_value";
-  }
-  this->stream << ", "
+  this->stream << "if (" << packed_func_name << "( "
+               << "(TVMValue*) stack_value "
+               << ", "
                << "(int*) stack_tcode"
                << ", " << num_args << ", "
-               << "&" << ret_val << ", ";
-  this->stream << "&" << ret_type_code;
-  this->stream << (is_aot_executor_ ? ", NULL" : "") << ") != 0) {\n";
+               << "&" << ret_val << ", "
+               << "&" << ret_type_code << ", NULL) != 0){\n";
 
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
@@ -248,6 +258,29 @@ void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, PrimExpr v
   this->EndScope(func_call_scope);
   this->PrintIndent();
   this->stream << "}\n";
+}
+
+CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op) {
+  const StringImmNode* s = op->args[0].as<StringImmNode>();
+  ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
+  int64_t begin = op->args[3].as<IntImmNode>()->value;
+  int64_t end = op->args[4].as<IntImmNode>()->value;
+  int64_t num_args = end - begin;
+  ICHECK_GE(num_args, 0);
+  std::string func_name = s->value;
+  // NOTE: cannot rely on GetUnique for global decl_stream declarations
+  // because it is reset between AddFunction().
+  std::string packed_func_name = func_name + "_packed";
+  std::string unique_name;
+  auto it = declared_globals_.find(packed_func_name);
+  if (it != declared_globals_.end()) {
+    unique_name = it->second;
+  } else {
+    unique_name = GetUniqueName(packed_func_name);
+    declared_globals_[packed_func_name] = unique_name;
+    decl_stream << "static void* " << unique_name << " = NULL;\n";
+  }
+  return {func_name, unique_name, num_args};
 }
 
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
@@ -274,30 +307,12 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
     os << stack_name;
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    const StringImmNode* s = op->args[0].as<StringImmNode>();
-    ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
-    int64_t begin = op->args[3].as<IntImmNode>()->value;
-    int64_t end = op->args[4].as<IntImmNode>()->value;
-    int64_t num_args = end - begin;
-    ICHECK_GE(num_args, 0);
-    std::string func_name = s->value;
-    // NOTE: cannot rely on GetUnique for global decl_stream declarations
-    // because it is reset between AddFunction().
-    std::string packed_func_name = func_name + "_packed";
-    std::string unique_name;
-    auto it = declared_globals_.find(packed_func_name);
-    if (it != declared_globals_.end()) {
-      unique_name = it->second;
-    } else {
-      unique_name = GetUniqueName(packed_func_name);
-      declared_globals_[packed_func_name] = unique_name;
-      decl_stream << "static void* " << unique_name << " = NULL;\n";
-    }
-    if (!is_aot_executor_) {
-      this->PrintGetFuncFromBackend(func_name, unique_name);
-    }
-    this->PrintFuncCall(unique_name, num_args);
-
+    auto function_info = GetFunctionInfo(op);
+    this->PrintGetFuncFromBackend(function_info.func_name, function_info.func_name_packed);
+    this->PrintFuncCall(function_info.func_name, function_info.num_args);
+  } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
+    auto function_info = GetFunctionInfo(op);
+    this->PrintFuncCallC(function_info.func_name, function_info.num_args);
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
@@ -346,14 +361,11 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 }
 
 runtime::Module BuildCHost(IRModule mod, Target target) {
-  bool is_aot_executor =
-      (target->GetAttr<String>("executor").value_or(kTvmExecutorGraph) == kTvmExecutorAot);
-
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
   CodeGenCHost cg;
-  cg.Init(output_ssa, emit_asserts, is_aot_executor, target->str());
+  cg.Init(output_ssa, emit_asserts, target->str());
 
   Map<String, LinkedParam> linked_params;
   bool found_linked_params = false;
@@ -373,14 +385,13 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     }
     // Make sure that the executor function is the last one to be code generated so that all the
     // symbols are available to tvm_run_func
-    if (is_aot_executor) {
-      auto fun_name = std::string(kv.first->name_hint);
-      const bool is_aot_executor_fn =
-          (fun_name.rfind(::tvm::runtime::symbol::tvm_run_func_prefix, 0) == 0);
-      if (is_aot_executor_fn) {
-        aot_executor_fn = Downcast<PrimFunc>(kv.second);
-        continue;
-      }
+    auto fun_name = std::string(kv.first->name_hint);
+    const bool is_aot_executor_fn =
+        (fun_name.rfind(::tvm::runtime::symbol::tvm_run_func_prefix, 0) == 0);
+
+    if (is_aot_executor_fn) {
+      aot_executor_fn = Downcast<PrimFunc>(kv.second);
+      continue;
     }
 
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
@@ -393,10 +404,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.LinkParameters(linked_params);
   }
 
-  if (is_aot_executor) {
-    ICHECK(aot_executor_fn.defined())
-        << "When using aot executor the executor function "
-        << ::tvm::runtime::symbol::tvm_lookup_linked_param << " should be defined";
+  if (aot_executor_fn.defined()) {
     cg.AddFunction(aot_executor_fn);
   }
 

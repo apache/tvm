@@ -25,9 +25,8 @@
  * \param context Context information to be passed through to operators
  * \return tvm_status_t containing success or errors from the model run
  */
-#include "tvm/runtime/crt/aot_executor.h"
-
-#include "tvm/runtime/c_runtime_api.h"
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/internal/aot_executor/aot_executor.h>
 
 tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** outputs) {
   static DLDevice fake_device = {kDLCPU, 0};

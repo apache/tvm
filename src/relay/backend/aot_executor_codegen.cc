@@ -35,7 +35,6 @@
 #include <string>
 #include <vector>
 
-#include "../../runtime/meta_data.h"
 #include "compile_engine.h"
 #include "utils.h"
 
@@ -47,15 +46,6 @@ using IntegerArray = Array<Integer>;
 using ShapeVector = std::vector<std::vector<int64_t>>;
 using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using TargetsMap = std::unordered_map<int, Target>;
-
-/*! \brief Lowered outputs */
-struct AOTLoweredOutput {
-  tir::PrimFunc runner_func;
-  Map<String, IRModule> lowered_funcs;
-  Array<tvm::runtime::Module> external_mods;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-  runtime::AOTMetadata aot_metadata;
-};
 
 class AotReturnSidVisitor : public ExprVisitor {
  public:
@@ -117,18 +107,6 @@ class AOTCodegen : public ExprVisitor {
   }
 
   /*!
-   * \brief Utility function to allocate memory for storage identifiers
-   * \param  memory_size_byte size in bytes of the allocation
-   * \return PrimExpr representing the allocated memory
-   */
-  PrimExpr AllocateBackendMemory(int memory_size_byte) {
-    // TODO(giuseros): use tir::Allocate instead of TVMBackendAllocWorkspace
-    // to enable unified memory planning
-    static const Op& op = Op::Get("tir.TVMBackendAllocWorkspace");
-    return tvm::tir::Call(DataType::Handle(), op, {1, 0, memory_size_byte, 2, 8});
-  }
-
-  /*!
    * \brief Utility function to convert a concrete integer to a PrimExpr.
    * \param num the number to convert
    * \return PrimExpr representing num
@@ -141,7 +119,7 @@ class AOTCodegen : public ExprVisitor {
   /*!
    * \brief Return a vector of variables that represents the sids for the given Relay Expr
    */
-  std::vector<tir::Var> pack_sid(Expr expr) {
+  std::vector<tir::Var> PackSid(Expr expr) {
     Array<IntegerArray> sids = storage_device_map_[expr];
     std::vector<tir::Var> sid_vars;
 
@@ -157,7 +135,7 @@ class AOTCodegen : public ExprVisitor {
         continue;
       }
       // Pack the sid inside the TVMValue
-      auto sid_array = te::Var(make_string("sid_", sid, "_value"), DataType::Handle());
+      auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
       auto sid_value = sids_table_[sid];
       tvm::PrimExpr set_tensor =
           tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
@@ -173,17 +151,17 @@ class AOTCodegen : public ExprVisitor {
    * \param expr Relay Expression assicated with the parameter
    * \return Variable that represents the DLTensor associated with the parameters
    */
-  tir::Var pack_param(Expr expr) {
+  tir::Var PackParam(Expr expr) {
     // TODO(giuseros): Using call_extern to call into lookup_linked_param. This is because the
     // builtin::ret is not supported yet in the c target. Once return is supported we can use
     // tvm_call_packed_lowered().
     int param_sid = param_storage_ids_[params_by_expr_[expr]];
     auto lookup_linked_param_fn = tir::StringImm(::tvm::runtime::symbol::tvm_lookup_linked_param);
-    auto param_array = te::Var(make_string("param_", param_sid, "_array"), DataType::Handle());
+    auto param_array = te::Var(MakeString("param_", param_sid, "_array"), DataType::Handle());
 
     // Compose the lookup_call using a local stack
     Array<tir::Stmt> lookup_call;
-    auto param_var = te::Var(make_string("param_", param_sid, "_value"), DataType::Handle());
+    auto param_var = te::Var(MakeString("param_", param_sid, "_value"), DataType::Handle());
     auto ret_var = te::Var("ret_value", DataType::Handle());
     auto ret_code = te::Var("ret_value", DataType::Handle());
 
@@ -216,7 +194,7 @@ class AOTCodegen : public ExprVisitor {
   /*!
    * brief Given an expression return the variable(s) associated with that expression
    */
-  std::vector<te::Var> find_expr(Expr arg) {
+  std::vector<te::Var> FindExpr(Expr arg) {
     auto input_iter = std::find(input_vars_.begin(), input_vars_.end(), arg);
     if (input_iter != input_vars_.end()) {
       // Input variable
@@ -224,45 +202,47 @@ class AOTCodegen : public ExprVisitor {
       return {main_signature_[main_index]};
     } else if (params_by_expr_.find(arg) != params_by_expr_.end()) {
       // Parameter of the network
-      return {pack_param(arg)};
+      return {PackParam(arg)};
     } else {
       // Storage identifier (i.e., intermediate memory)
-      return pack_sid(arg);
+      return PackSid(arg);
     }
   }
 
   /*!
    * brief Call a function with a given name
    */
-  void func_call(Call call, std::string func_name) {
+  void CreateFuncCall(Call call, std::string func_name) {
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
-    std::vector<tir::Stmt> func_call_stmts;
+    std::vector<tir::Stmt> CreateFuncCall_stmts;
 
     // Pack the inputs
     for (Expr arg : call->args) {
-      auto var_arg = find_expr(arg);
+      auto var_arg = FindExpr(arg);
       args.push_back(var_arg[0]);
     }
 
     auto ret_expr = Downcast<Expr>(call);
 
     // Pack the return(s) value. A call node can produce multiple outputs
-    for (const auto& var : pack_sid(ret_expr)) {
+    for (const auto& var : PackSid(ret_expr)) {
       args.push_back(var);
     }
 
     // Use tvm_call_packed to execute the function
-    func_call_stmts.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_packed(), args)));
-    tir::Stmt body = tir::SeqStmt(func_call_stmts);
+    CreateFuncCall_stmts.push_back(tir::Evaluate(
+        tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_cpacked(), args)));
+    tir::Stmt body = tir::SeqStmt(CreateFuncCall_stmts);
     stmts_.push_back(body);
   }
 
   /*!
    * brief Copy a variable to the output. This function is mainly used in edge cases
    * when we want to return an input or a parameter.
+   * TODO(giuseros): we should try to avoid unnecessary copy to the output, e.g., in a
+   * copy-on-write fashion.
    */
-  void copy_to_output(te::Var out, te::Var in, size_t size) {
+  void CopyToOutput(te::Var out, te::Var in, size_t size) {
     auto retval_get = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
                                      {in, 0, tir::builtin::kArrData});
 
@@ -285,7 +265,7 @@ class AOTCodegen : public ExprVisitor {
    * Utility function to string together different arguments
    */
   template <typename... Args>
-  std::string make_string(Args const&... args) {
+  std::string MakeString(Args const&... args) {
     std::ostringstream ss;
     using List = int[];
     (void)List{0, ((void)(ss << args), 0)...};
@@ -328,7 +308,7 @@ class AOTCodegen : public ExprVisitor {
       UpdateConstants(func, &params_);
 
       // Generate the TIR function call
-      func_call(GetRef<Call>(op), ext_func->func_name);
+      CreateFuncCall(GetRef<Call>(op), ext_func->func_name);
     }
 
     ICHECK_GE(storage_device_map_.count(expr), 0);
@@ -360,7 +340,7 @@ class AOTCodegen : public ExprVisitor {
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
 
     // Generate the TIR function call
-    func_call(GetRef<Call>(op), lowered_func->func_name);
+    CreateFuncCall(GetRef<Call>(op), lowered_func->func_name);
   }
 
   void VisitExpr_(const VarNode* op) override {
@@ -374,8 +354,8 @@ class AOTCodegen : public ExprVisitor {
                                  static_cast<int>((sids[0][0].as<IntImmNode>())->value));
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
-      auto var_expr = find_expr(expr);
-      copy_to_output(main_signature_[input_vars_.size() + output_index], var_expr[0], sids[2][0]);
+      auto var_expr = FindExpr(expr);
+      CopyToOutput(main_signature_[input_vars_.size() + output_index], var_expr[0], sids[2][0]);
     }
   }
 
@@ -395,8 +375,7 @@ class AOTCodegen : public ExprVisitor {
                                  static_cast<int>((sids[0][0].as<IntImmNode>())->value));
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
-      copy_to_output(main_signature_[input_vars_.size() + output_index], pack_param(expr),
-                     sids[2][0]);
+      CopyToOutput(main_signature_[input_vars_.size() + output_index], PackParam(expr), sids[2][0]);
     }
   }
 
@@ -418,7 +397,7 @@ class AOTCodegen : public ExprVisitor {
   void VisitExpr_(const IfNode* op) override { throw std::invalid_argument("if not supported"); }
   void VisitExpr_(const FunctionNode* op) override {
     ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
-        << "Only functions supported by custom codegen";
+        << "FunctionNode only supported by custom codegen";
   }
   void VisitExpr_(const RefCreateNode* op) override {
     throw std::invalid_argument("reference not supported");
@@ -460,10 +439,10 @@ class AOTCodegen : public ExprVisitor {
           continue;
         }
 
-        // TODO(giuseros): we should allocate this one time outside the PrimFunc
-        // so we dont' pay the price of allocation for every inference
+        // TODO(giuseros): we should allocate this once outside the PrimFunc
+        // so we don't pay the price of allocation for every inference
         if (!allocated[sid]) {
-          body = tir::LetStmt(sids_table_[sid], AllocateBackendMemory(size), body);
+          body = tir::Allocate(sids_table_[sid], DataType::Int(8), {size}, tir::const_true(), body);
         }
         allocated[sid] = true;
       }
@@ -473,9 +452,13 @@ class AOTCodegen : public ExprVisitor {
     body = tir::AttrStmt(PrimExpr(), tvm::tir::attr::device_type, 1, body);
     body = tir::AttrStmt(PrimExpr(), tvm::tir::attr::device_id, 0, body);
 
+    // Define the PrimFunc attributes
+    Map<String, ObjectRef> dict_attrs;
+    dict_attrs.Set("global_symbol", runtime::String(runtime::symbol::tvm_run_func_prefix));
+
     // Make the PrimFunc
     return tir::PrimFunc(main_signature_, body, VoidType(), Map<tir::Var, tir::Buffer>(),
-                         DictAttrs(dict_attrs_));
+                         DictAttrs(dict_attrs));
   }
 
  protected:
@@ -489,8 +472,6 @@ class AOTCodegen : public ExprVisitor {
   TargetsMap targets_;
   /*! \brief target host */
   Target target_host_;
-  /*! PrimFunc attributes */
-  Map<String, ObjectRef> dict_attrs_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -509,14 +490,8 @@ class AOTCodegen : public ExprVisitor {
   std::unordered_map<int, te::Var> sids_table_;
   /*! \brief lowered funcs */
   std::unordered_map<std::string, IRModule> lowered_funcs_;
-  /*! \brief name map */
-  std::unordered_map<std::string, size_t> name_map_;
   /*! \brief compile engine */
   CompileEngine compile_engine_;
-  /*! \brief GraphPlanMemory module */
-  runtime::Module graph_plan_memory_module_;
-  /*! \brief the IR module stored which represents the executor program */
-  Map<String, IRModule> tir_module_;
   /*! \brief the set of statements that make the program */
   std::vector<tir::Stmt> stmts_;
   /*! \brief the list of return sids (note that the function might return more then one output */
@@ -528,10 +503,9 @@ class AOTCodegen : public ExprVisitor {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
     target_host_ = target_host;
-    dict_attrs_.Set("global_symbol", runtime::String("tvm__run_func"));
   }
 
-  AOTLoweredOutput Codegen(relay::Function func) {
+  LoweredOutput Codegen(relay::Function func) {
     // Get the module, storage map and token sizes
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
@@ -539,13 +513,13 @@ class AOTCodegen : public ExprVisitor {
     int input_index = 0;
     for (auto input : func->params) {
       input_vars_.push_back(input);
-      main_signature_.push_back(tir::Var(make_string("input_", input_index), DataType::Handle()));
+      main_signature_.push_back(tir::Var(MakeString("input_", input_index), DataType::Handle()));
     }
 
     // Define the storage allocator ids
     for (auto kv : storage_device_map_) {
       for (const auto& sid : kv.second[0]) {
-        te::Var sid_var(make_string("sid_", sid), DataType::Handle());
+        te::Var sid_var(MakeString("sid_", sid), PointerType(PrimType(DataType::Int(8))));
         sids_table_[sid] = sid_var;
       }
     }
@@ -553,13 +527,13 @@ class AOTCodegen : public ExprVisitor {
     // Find the return sid
     return_sid_ = AotReturnSidVisitor(storage_device_map_).FindReturnSid(func);
     for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
-      main_signature_.push_back(tir::Var(make_string("output_", output_index), DataType::Handle()));
+      main_signature_.push_back(tir::Var(MakeString("output_", output_index), DataType::Handle()));
     }
 
     VisitExpr(func->body);
 
     auto prim_func = CreateMainFunc(func->params.size());
-    AOTLoweredOutput ret;
+    LoweredOutput ret;
 
     ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
     for (auto param : params_) {
@@ -588,8 +562,7 @@ class AOTCodegen : public ExprVisitor {
       ret.lowered_funcs.Set(target_host_str, IRModule(symbol_map));
     }
 
-    ret.runner_func = prim_func;
-    ret.aot_metadata = runtime::AOTMetadata(input_vars_.size(), return_sid_.size());
+    ret.metadata = runtime::Metadata(input_vars_.size(), return_sid_.size());
     return ret;
   }
 };
@@ -600,22 +573,17 @@ class AOTCodegenModule : public runtime::ModuleNode {
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 3) << "The expected of arguments are: "
-                                    << "runtime::Module mod and Map<int, Target> targets";
+        ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
+                                    << "runtime::Module mod and  Map<int, Target> targets";
         void* mod = args[0];
-        Map<Integer, tvm::Target> tmp = args[1];
-        tvm::Target target_host = args[2];
-        init(mod, tmp, target_host);
+        Map<Integer, tvm::Target> targets = args[1];
+        init(mod, targets);
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
         this->output_ = codegen(func);
       });
-    } else if (name == "get_runner_function") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = get_runner_function();
-      });  // c; });
     } else if (name == "list_params_name") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = list_params_name(); });
@@ -635,9 +603,9 @@ class AOTCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_external_modules") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_external_modules(); });
-    } else if (name == "get_aot_metadata") {
+    } else if (name == "get_metadata") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_aot_metadata(); });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = output_.metadata; });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});
     }
@@ -646,10 +614,14 @@ class AOTCodegenModule : public runtime::ModuleNode {
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
 
  private:
-  void init(void* mod, Map<Integer, tvm::Target> tmp, Target target_host) {
+  void init(void* mod, Map<Integer, tvm::Target> tmp) {
     TargetsMap targets;
+    Target target_host;
     for (const auto& it : tmp) {
       auto dev_type = it.first.as<tir::IntImmNode>();
+      if (!target_host.defined() && it.second->kind->device_type == kDLCPU) {
+        target_host = it.second;
+      }
       ICHECK(dev_type);
       targets[dev_type->value] = it.second;
     }
@@ -657,9 +629,7 @@ class AOTCodegenModule : public runtime::ModuleNode {
         std::make_shared<AOTCodegen>(reinterpret_cast<runtime::Module*>(mod), targets, target_host);
   }
 
-  AOTLoweredOutput codegen(Function func) { return this->codegen_->Codegen(func); }
-
-  tir::PrimFunc get_runner_function() { return this->output_.runner_func; }
+  LoweredOutput codegen(Function func) { return this->codegen_->Codegen(func); }
 
   Array<runtime::String> list_params_name() {
     Array<runtime::String> ret;
@@ -685,10 +655,8 @@ class AOTCodegenModule : public runtime::ModuleNode {
 
   Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 
-  runtime::AOTMetadata get_aot_metadata() { return output_.aot_metadata; }
-
   std::shared_ptr<AOTCodegen> codegen_;
-  AOTLoweredOutput output_;
+  LoweredOutput output_;
 };
 
 runtime::Module CreateAOTCodegenMod() {

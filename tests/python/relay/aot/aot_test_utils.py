@@ -14,15 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-This module provides infrastructure to verify the correctness of
-the command stream produced.
-Currently it will invoke vela to generate a vela-optimized tflite
-in which the command stream is contained as a custom operator.
-This class include methods to parse the custom operator to extract
-the command stream and perform an equivalency check for single operator
-test cases.
-"""
+
 import tflite
 import os
 import io
@@ -38,11 +30,9 @@ import tarfile
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.op.contrib import get_pattern_table
 from tvm.contrib import utils, graph_executor
 from tvm.relay.backend import compile_engine
 from tvm.contrib import utils
-from tvm.contrib import graph_runtime
 from tvm.micro import export_model_library_format
 
 
@@ -72,8 +62,8 @@ def create_main(test_name, input_list, output_list, output_path):
     raw_path = file_path.with_suffix(".c").resolve()
     with open(raw_path, "w") as main_file:
         main_file.write("#include <stdio.h>\n")
-        main_file.write('#include "aot_executor.h"\n')
-        main_file.write('#include "stack_allocator.h"\n')
+        main_file.write('#include "tvm/runtime/crt/internal/aot_executor/aot_executor.h"\n')
+        main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
         main_file.write("#define WORKSPACE_SIZE (16384*1024)\n")
         main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
 
@@ -98,7 +88,9 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
 void  TVMPlatformAbort(tvm_crt_error_t code) { }
 
 void TVMLogf(const char* msg, ...) { }
-      
+
+TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
+     
         """
         )
         main_file.write("int main(){\n")
@@ -158,7 +150,7 @@ def create_header_file(tensor_name, npy_data, output_path):
         header_file.write("};\n\n")
 
 
-def verify_source(mod, input_list, output_list, params=None):
+def compile_and_run(mod, input_list, output_list, params=None):
     """
     This method verifies the generated source
     """

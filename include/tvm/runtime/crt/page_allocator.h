@@ -72,8 +72,8 @@ struct MemoryManagerInterface {
  * \param page_size_bytes_log2 log2 of the page size, in bytes.
  * \return kTvmErrorNoError on success.
  */
-tvm_crt_error_t MemoryManagerCreate(MemoryManagerInterface** manager, uint8_t* memory_pool,
-                                    size_t memory_pool_size_bytes, size_t page_size_bytes_log2);
+tvm_crt_error_t PageMemoryManagerCreate(MemoryManagerInterface** manager, uint8_t* memory_pool,
+                                        size_t memory_pool_size_bytes, size_t page_size_bytes_log2);
 
 #ifdef __cplusplus
 }  // extern "C"

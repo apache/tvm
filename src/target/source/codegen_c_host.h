@@ -38,7 +38,7 @@ namespace codegen {
 class CodeGenCHost final : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts, bool is_aot_executor, std::string target_str);
+  void Init(bool output_ssa, bool emit_asserts, std::string target_str);
 
   void AddFunction(const PrimFunc& f);
 
@@ -62,6 +62,15 @@ class CodeGenCHost final : public CodeGenC {
   Array<String> GetFunctionNames() { return function_names_; }
 
  private:
+  /* \brief Internal structure to store information about function calls */
+  struct FunctionInfo {
+    /* \brief function name */
+    std::string func_name;
+    /* packed name of the function */
+    std::string func_name_packed;
+    /* number of arguments required by the function */
+    int64_t num_args;
+  };
   std::string module_name_;
   /* \brief mapping global packed func to the unique name */
   std::unordered_map<std::string, std::string> declared_globals_;
@@ -69,10 +78,11 @@ class CodeGenCHost final : public CodeGenC {
   Array<String> function_names_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
-  bool is_aot_executor_;
 
+  FunctionInfo GetFunctionInfo(const CallNode* op);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
-  void PrintFuncCall(const std::string& packed_func_name, PrimExpr values, int num_args);
+  void PrintFuncCall(const std::string& packed_func_name, int num_args);
+  void PrintFuncCallC(const std::string& packed_func_name, int num_args);
 
   /*!
    * \brief Print ternary conditional operator implementing binary `op`

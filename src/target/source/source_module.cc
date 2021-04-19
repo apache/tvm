@@ -130,8 +130,8 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
-                               Target target, runtime::AOTMetadata aot_metadata)
-      : fmt_(fmt), func_names_(func_names), target_(target), aot_metadata_(aot_metadata) {
+                               Target target, runtime::Metadata metadata)
+      : fmt_(fmt), func_names_(func_names), target_(target), metadata_(metadata) {
     CreateSource();
   }
   const char* type_key() const { return "c"; }
@@ -159,7 +159,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   std::string fmt_;
   Array<String> func_names_;
   Target target_;
-  runtime::AOTMetadata aot_metadata_;
+  runtime::Metadata metadata_;
 
   void CreateFuncRegistry() {
     code_ << "#include <tvm/runtime/crt/module.h>\n";
@@ -193,7 +193,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   void GenerateAOTDescriptor() {
-    code_ << "#include \"aot_executor.h\"\n";
+    code_ << "#include \"tvm/runtime/crt/internal/aot_executor/aot_executor.h\"\n";
     code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\"\n";
@@ -203,8 +203,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
              "out_type_code, void* resource_handle);\n";
     code_ << "const tvm_model_t network = {\n"
           << "    .run_func = &" << ::tvm::runtime::symbol::tvm_run_func_prefix << ",\n"
-          << "    .num_input_tensors = " << aot_metadata_->num_inputs << ",\n"
-          << "    .num_output_tensors = " << aot_metadata_->num_outputs << ", \n"
+          << "    .num_input_tensors = " << metadata_->num_inputs << ",\n"
+          << "    .num_output_tensors = " << metadata_->num_outputs << ", \n"
           << "};\n";
   }
 
@@ -213,7 +213,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
-    if (target_->GetAttr<String>("executor").value_or("graph_runtime") == "aot") {
+    if (target_->GetAttr<String>("executor").value_or(kTvmExecutorGraph) == kTvmExecutorAot) {
       GenerateAOTDescriptor();
     }
     code_ << ";";
@@ -221,7 +221,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               runtime::AOTMetadata aot_metadata) {
+                                               runtime::Metadata metadata) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -232,7 +232,7 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
       }
     }
   }
-  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, aot_metadata);
+  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, metadata);
   auto csrc_metadata_module = runtime::Module(n);
   for (const auto& mod : modules) {
     csrc_metadata_module.Import(mod);
@@ -304,7 +304,7 @@ TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
 TVM_REGISTER_GLOBAL("runtime.CreateCSourceCrtMetadataModule")
     .set_body_typed([](const Array<runtime::Module>& modules, Target target) {
       // Note that we don't need metadata when we compile a single operator
-      return CreateCSourceCrtMetadataModule(modules, target, runtime::AOTMetadata());
+      return CreateCSourceCrtMetadataModule(modules, target, runtime::Metadata());
     });
 
 }  // namespace codegen

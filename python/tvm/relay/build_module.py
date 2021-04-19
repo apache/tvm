@@ -78,7 +78,6 @@ class BuildModule(object):
     def __init__(self):
         self.mod = _build_module._BuildModule()
         self._get_graph_json = self.mod["get_graph_json"]
-        self._get_runner_function = self.mod["get_runner_function"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
         self._optimize = self.mod["optimize"]
@@ -113,6 +112,7 @@ class BuildModule(object):
 
         Returns
         -------
+<<<<<<< HEAD
         graph_json : str
             The json string that can be accepted by graph executor.
 
@@ -121,6 +121,10 @@ class BuildModule(object):
 
         params : dict
             The parameters of the final graph.
+=======
+        factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
+            The runtime factory for the TVM executor.
+>>>>>>> f65012308... Addressing comments - 3
         """
         target = _update_target(target)
         target, target_host = Target.check_and_update_host_consist(
@@ -147,11 +151,7 @@ class BuildModule(object):
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        internal_repr = (
-            self._get_runner_function()
-            if self.get_executor_type() == "aot"
-            else self.get_graph_json()
-        )
+        internal_repr = self.get_graph_json() if self.get_executor_type() == "graph" else None
 
         return internal_repr, mod, params
 
@@ -261,8 +261,22 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     Returns
     -------
+<<<<<<< HEAD
     factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
             The runtime factory for the TVM graph executor.
+=======
+    internal_repr : str or tir.PrimFunc
+        The internal representation the executor uses to execute the
+        network. Can be a string representing the json graph (if we are
+        building for graph executor) or the PrimFunc representing the
+        AOT runner function
+
+    mod : tvm.Module
+        The module containing necessary libraries.
+
+    params : dict
+        The parameters of the final graph.
+>>>>>>> f65012308... Addressing comments - 3
     """
     # pylint: enable=line-too-long
     # fmt: on
@@ -301,14 +315,14 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
         if bld_mod.get_executor_type() == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
-                ir_mod, target, internal_repr, runtime_mod, mod_name, params
+                ir_mod, target, runtime_mod, mod_name, params
             )
         elif bld_mod.get_executor_type() == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
                 ir_mod, target, internal_repr, runtime_mod, mod_name, params
             )
         else:
-            assert False, "Executor not supported"
+            assert False, "Executor " + bld_mod.get_executor_type() + " not supported"
 
         return executor_factory
 

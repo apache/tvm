@@ -41,9 +41,9 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Structure used by the AOT to fill the tvm_module_t structure
+ * \brief Structure that can be optionally used by the executor codegen
  */
-class AOTMetadataNode : public Object {
+class MetadataNode : public Object {
  public:
   /*! \brief number of inputs of the main function */
   int num_inputs = 1;
@@ -51,24 +51,24 @@ class AOTMetadataNode : public Object {
   int num_outputs = 1;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "AOTMetadataObj";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AOTMetadataNode, Object);
+  static constexpr const char* _type_key = "MetadataObj";
+  TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, Object);
 };
 
 /*!
- * \brief Managed reference to AOTMetadataNode.
+ * \brief Managed reference to MetadataNode.
  */
-class AOTMetadata : public ObjectRef {
+class Metadata : public ObjectRef {
  public:
-  TVM_DLL AOTMetadata(int num_inputs, int num_outputs) {
-    auto n = make_object<AOTMetadataNode>();
+  TVM_DLL Metadata(int num_inputs, int num_outputs) {
+    auto n = make_object<MetadataNode>();
     n->num_inputs = num_inputs;
     n->num_outputs = num_outputs;
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(AOTMetadata, ObjectRef, AOTMetadataNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AOTMetadataNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Metadata, ObjectRef, MetadataNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MetadataNode);
 };
 
 /*!
