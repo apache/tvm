@@ -15,19 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=undefined-loop-variable
-
 """
 AI runner
 """
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
-__author__ = "Jean-Michel Delorme"
-__copyright__ = "Copyright (c) 2021, STMicroelectronics"
-__license__ = "Limited License Agreement - SLA0069"
-
 
 import sys
 from abc import ABC, abstractmethod
@@ -626,7 +619,7 @@ class AiRunner:
                 ext_ = ""
                 if val["scale"]:
                     ext_ = ", scale={}, zp={}".format(val["scale"], val["zero_point"])
-                if in_.get("from_act", False):
+                if val.get("from_act", False):
                     ext_ += ", (allocated in activations buffer)"
                 _attr(val["name"], "{}, {}{}".format(val["shape"], val["type"], ext_))
 

@@ -161,14 +161,6 @@ def extract_tflite_quantization(model):
 
     return quantization_info
 
-
-# ==================================================================
-#   fix_model_name
-# ==================================================================
-# def fix_model_name (name):
-#    fixed_name = re.sub('[^0-9a-zA-Z_]+', '_', name)
-#    return fixed_name.lower()
-
 # ==================================================================
 #   __main__
 # ==================================================================
@@ -201,8 +193,6 @@ if __name__ == "__main__":
         model_name = model_file_ext[0]
     else:
         model_name = args.name
-
-    # model_name = fix_model_name(model_name)
 
     if not target_dir:
         target_dir = model_file_ext[0] + "_gen"

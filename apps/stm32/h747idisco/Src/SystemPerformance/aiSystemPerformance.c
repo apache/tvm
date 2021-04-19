@@ -278,8 +278,8 @@ static int aiTestPerformance(int idx)
         return -1;
       }
 
-      // Compute input tensor size in bytes
-      uint32_t size = get_tensor_size (input_tensor);
+      // Compute input tensor size - elements
+      uint32_t size = get_tensor_elts (input_tensor);
       int8_t * in_data = (int8_t*)input->data;
 
       for (int i = 0; i < size; ++i) {
@@ -308,6 +308,36 @@ static int aiTestPerformance(int idx)
     tend = cyclesCounterEnd();
 
     MON_ALLOC_DISABLE();
+
+#if 0
+    //
+    // Check outputs
+    //
+    for (int ii = 0; ii < n_outputs; ii++) {
+      ai_tensor * output_tensor = ai_get_output(handle, ii);
+      DLTensor * output = &output_tensor->dltensor;
+      if (output == NULL) {
+        printf("E: corrupted outputs ...\r\n");
+        HAL_Delay(100);
+        return -1;
+      }
+
+      DLDataType dtype = output->dtype;
+      uint32_t size = get_tensor_elts (output_tensor);
+      int8_t * out_data = (int8_t*)output->data;
+      printf (" == output[%d]: [", ii);
+      for (int i = 0; i < size; ++i) {
+	if (dtype.code == kDLFloat) {
+          printf ("%g ", *(float *)(out_data + i * 4));
+        }
+        else {
+          printf ("%d ", out_data[i]);
+        }
+      }
+      printf ("]\r\n");
+
+    } // outputs
+#endif // 9
 
     if (tend < tmin)
       tmin = tend;

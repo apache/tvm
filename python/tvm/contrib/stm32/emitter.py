@@ -216,10 +216,10 @@ class CodeEmitter(object):
             main application is responsible for allocating the activations
             storage. Default: True.
 
-        include_feeds:
+        include_inputs/include_outputs:
             The Emitter allocates the storage for the input/output data.
             This storage is shared with the activations and placed in the
-            specific activations data section. If Falsr, the main
+            specific activations data section. If False, the main
             application is responsible for allocating the input/output
             data storage. Default: True.
 
@@ -712,8 +712,20 @@ class CodeEmitter(object):
             #
             # Map -> Python Dict
             #
+            tmp_dict = {}
             for (k, v) in params.items():
-                params_dict[k] = v
+                tmp_dict[k] = v
+
+            #
+            # Sort params for debugging
+            #
+            for k in sorted (tmp_dict.keys()):
+                params_dict[k] = tmp_dict[k]
+                # print (f'== {k}: type={type(params_dict[k])}')
+
+            # with open("OUT.lib.params","w") as outf:
+            #    outf.write(str(params_dict))
+            
 
         src_dir = os.path.join(extract_path, "codegen", "host", "src")
         # List of strings from Model Library Format C files
@@ -754,8 +766,20 @@ class CodeEmitter(object):
             except AttributeError:
                 raise ValueError("Type %s is not supported" % type(graph))
 
+        #
+        # Sort params for debugging
+        #
+        params_dict = {}
+        tmp_params = module.get_params()
+        for k in sorted (tmp_params.keys()):
+            params_dict[k] = tmp_params[k]
+            # print (f'== {k}: type={type(params_dict[k])}')
+
+        # with open("OUT.mod.params","w") as outf:
+        #        outf.write(str(params_dict))
+            
         self.graph_ = json.loads(graph)
-        self.params_ = module.get_params()
+        self.params_ = params_dict  # module.get_params()
         self.lib_ = module.get_lib()
 
         self._parse_model(quantization)
