@@ -62,6 +62,7 @@ def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc,
 def get_iny_inx(
     y, x, image_height, image_width, target_height, target_width, coordinate_transformation_mode
 ):
+    """ Infer input x,y from output x,y with various coordinate transformation methods """
     scale_y = te.div(image_height.astype("float"), target_height.astype("float"))
     scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
     if coordinate_transformation_mode == "half_pixel":
@@ -475,7 +476,6 @@ def resize_bicubic(
 
     target_width : integer
         The target resized image width
-
 
     boxes : tvm.te.Tensor, optional
         A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
