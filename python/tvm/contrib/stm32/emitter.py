@@ -719,13 +719,8 @@ class CodeEmitter(object):
             #
             # Sort params for debugging
             #
-            for k in sorted (tmp_dict.keys()):
+            for k in sorted(tmp_dict.keys()):
                 params_dict[k] = tmp_dict[k]
-                # print (f'== {k}: type={type(params_dict[k])}')
-
-            # with open("OUT.lib.params","w") as outf:
-            #    outf.write(str(params_dict))
-            
 
         src_dir = os.path.join(extract_path, "codegen", "host", "src")
         # List of strings from Model Library Format C files
@@ -771,13 +766,9 @@ class CodeEmitter(object):
         #
         params_dict = {}
         tmp_params = module.get_params()
-        for k in sorted (tmp_params.keys()):
+        for k in sorted(tmp_params.keys()):
             params_dict[k] = tmp_params[k]
-            # print (f'== {k}: type={type(params_dict[k])}')
 
-        # with open("OUT.mod.params","w") as outf:
-        #        outf.write(str(params_dict))
-            
         self.graph_ = json.loads(graph)
         self.params_ = params_dict  # module.get_params()
         self.lib_ = module.get_lib()
