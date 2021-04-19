@@ -31,7 +31,7 @@ namespace runtime {
 constexpr const char* kRPCProtocolVer = "0.8.0";
 
 // When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
-const uint64_t kRPCMaxTransferSizeBytesDefault = 128 * 1024;
+const uint64_t kRPCMaxTransferSizeBytesDefault = UINT64_MAX;
 
 /*! \brief The RPC code */
 enum class RPCCode : int {
