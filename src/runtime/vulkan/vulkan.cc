@@ -22,6 +22,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 #include <array>
 #include <cstring>

@@ -150,7 +150,16 @@ RPC_SESS_MASK = 128
 
 
 class Device(ctypes.Structure):
-    """TVM device strucure."""
+    """TVM device strucure.
+
+    Typically constructed using convenience function
+    :meth:`tvm.runtime.device`.
+
+    Exposes uniform interface to device-specific APIs such as CUDA or
+    OpenCL.  Some properties may return None depending on whether an
+    API exposes that particular property.
+
+    """
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -205,22 +214,67 @@ class Device(ctypes.Structure):
 
     @property
     def exist(self):
-        """Whether this device exist."""
+        """Whether this device exists.
+
+        Returns True if TVM has support for the device, if the
+        physical device is present, and the device is accessible
+        through appropriate drivers (e.g. cuda/vulkan).
+
+        Returns
+        -------
+        exist : bool
+            True if the device exists
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 0) != 0
 
     @property
     def max_threads_per_block(self):
-        """Maximum number of threads on each block."""
+        """Maximum number of threads on each block.
+
+        Returns device value for cuda, metal, rocm, opencl, and vulkan
+        devices.  Returns remote device value for RPC devices.
+        Returns None for all other devices.
+
+        Returns
+        -------
+        max_threads_per_block : int or None
+            The number of threads on each block
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 1)
 
     @property
     def warp_size(self):
-        """Number of threads that executes in concurrent."""
+        """Number of threads that execute concurrently.
+
+        Returns device value for for cuda, rocm, and vulkan.  Returns
+        1 for metal and opencl devices, regardless of the physical
+        device.  Returns remote device value for RPC devices.  Returns
+        None for all other devices.
+
+        Returns
+        -------
+        warp_size : int or None
+            Number of threads that execute concurrently
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 2)
 
     @property
     def max_shared_memory_per_block(self):
-        """Total amount of shared memory per block in bytes."""
+        """Total amount of shared memory per block in bytes.
+
+        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns remote device value for RPC devices.  Returns None for
+        all other devices.
+
+        Returns
+        -------
+        max_shared_memory_per_block : int or None
+            Total amount of shared memory per block in bytes
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 3)
 
     @property
@@ -230,9 +284,13 @@ class Device(ctypes.Structure):
         Returns maximum API version (e.g. CUDA/OpenCL/Vulkan)
         supported by the device.
 
+        Returns device value for cuda, rocm, opencl, and
+        vulkan. Returns remote device value for RPC devices.  Returns
+        None for all other devices.
+
         Returns
         -------
-        version : str
+        version : str or None
             The version string in `major.minor` format.
 
         """
@@ -240,27 +298,65 @@ class Device(ctypes.Structure):
 
     @property
     def device_name(self):
-        """Return the string name of device."""
+        """Return the vendor-specific name of device.
+
+        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns remote device value for RPC devices.  Returns None for
+        all other devices.
+
+        Returns
+        -------
+        device_name : str or None
+            The name of the device.
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 5)
 
     @property
     def max_clock_rate(self):
-        """Return the max clock frequency of device."""
+        """Return the max clock frequency of device (kHz).
+
+        Returns device value for cuda, rocm, and opencl.  Returns
+        remote device value for RPC devices.  Returns None for all
+        other devices.
+
+        Returns
+        -------
+        max_clock_rate : int or None
+            The maximum clock frequency of the device (kHz)
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 6)
 
     @property
     def multi_processor_count(self):
-        """Return the number of compute units of device."""
+        """Return the number of compute units in the device.
+
+        Returns device value for cuda, rocm, and opencl.  Returns
+        remote device value for RPC devices.  Returns None for all
+        other devices.
+
+        Returns
+        -------
+        multi_processor_count : int or None
+            Thee number of compute units in the device
+
+        """
         return self._GetDeviceAttr(self.device_type, self.device_id, 7)
 
     @property
     def max_thread_dimensions(self):
         """Return the maximum size of each thread axis
 
+        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns remote device value for RPC devices.  Returns None for
+        all other devices.
+
         Returns
         -------
-        dims: List of int
+        dims: List of int, or None
             The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
+
         """
         return json.loads(self._GetDeviceAttr(self.device_type, self.device_id, 8))
 
@@ -271,9 +367,13 @@ class Device(ctypes.Structure):
         For example, CUDA_VERSION for cuda or VK_HEADER_VERSION for
         Vulkan.
 
+        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns remote device value for RPC devices.  Returns None for
+        all other devices.
+
         Returns
         -------
-        version : int
+        version : int or None
             The version of the SDK
 
         """
@@ -286,10 +386,15 @@ class Device(ctypes.Structure):
         Returns driver vendor's internal version number.
         (e.g. "450.408.256" for nvidia-driver-450)
 
+        Returns device value for opencl and vulkan.  Returns remote
+        device value for RPC devices.  Returns None for all other
+        devices.
+
         Returns
         -------
-        version : str
+        version : str or None
             The version string in `major.minor.patch` format.
+
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 12)
 
