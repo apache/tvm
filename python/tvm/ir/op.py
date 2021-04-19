@@ -168,7 +168,7 @@ def register_op_intrin_lowering(
         assert isinstance(target, str)
         if not isinstance(myf, PackedFuncBase):
             myf = convert_to_tvm_func(myf)
-        _ffi_api.RegisterOpLowerIntrinsic(op_name, myf.handle, target, level, override)
+        _ffi_api.RegisterOpLowerIntrinsic(op_name, myf, target, level, override)
         return myf
 
     if f:

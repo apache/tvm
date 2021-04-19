@@ -125,8 +125,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
     });
 
 TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
-    .set_body_typed([](String name, TVMFunctionHandle f, String target = "default", int plevel = 10,
-                       int can_override = 0) {
+    .set_body_typed([](String name, PackedFunc f, String target, int plevel, int can_override) {
       if (Op::HasAttrMap(target + ".FLowerIntrinsic") &&
           OpRegistry::Global()->Get(name) != nullptr &&
           Op::GetAttrMap<FLowerIntrinsic>(target + ".FLowerIntrinsic").count(Op::Get(name))) {
@@ -134,7 +133,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
                              << ".FlowerIntrinsic is already registered";
       }
       tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<FLowerIntrinsic>(
-          target + ".FLowerIntrinsic", *static_cast<FLowerIntrinsic*>(f), plevel);
+          target + ".FLowerIntrinsic", f, plevel);
     });
 
 // helper to get internal dev function in objectref.
