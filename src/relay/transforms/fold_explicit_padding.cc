@@ -45,7 +45,7 @@ class SimplifyConvPad {
   SimplifyConvPad() {
     x_ = IsWildcard();
     w_ = IsWildcard();
-    pad_ = IsOp("nn.pad")({x_});
+    pad_ = IsOp("nn.pad")({x_, IsWildcard()});
     conv1d_ = IsOp("nn.conv1d");
     conv2d_ = IsOp("nn.conv2d");
     conv3d_ = IsOp("nn.conv3d");
@@ -122,9 +122,8 @@ class SimplifyConvPad {
     Array<Expr> args = pad_node->args;
 
     // Possibly perform more optimizations if the pad_value is 0
-    Expr pad_value = args[1];
-    Constant zero_scalar = MakeConstantScalar(DataType::Float(64), 0);
-    if (param->pad_mode == "constant" && IsEqualScalar(pad_value, zero_scalar)) {
+    const ConstantNode* pad_value = args[1].as<ConstantNode>();
+    if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
       Attrs attrs;
       if (node_map.count(conv1d_)) {
         attrs = GetAttrs(param, call_node->attrs.as<Conv1DAttrs>());
