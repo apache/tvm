@@ -134,7 +134,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
                              << ".FlowerIntrinsic is already registered";
       }
       tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<FLowerIntrinsic>(
-          target + ".FLowerIntrinsic", *static_cast<tvm::runtime::PackedFunc*>(f), plevel);
+          target + ".FLowerIntrinsic", *static_cast<FLowerIntrinsic*>(f), plevel);
     });
 
 // helper to get internal dev function in objectref.

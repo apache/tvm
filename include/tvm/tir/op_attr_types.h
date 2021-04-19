@@ -34,7 +34,6 @@
 
 namespace tvm {
 namespace tir {
-using namespace runtime;
 /*!
  * \brief Global symbol of the op after lowering.
  */
@@ -46,9 +45,14 @@ using TGlobalSymbol = String;
 using TVectorizable = bool;
 
 /*!
- * \brief The intrinsic lowering function for given OP.
+ * \brief The intrinsic lowering function for given op.
  */
-using FLowerIntrinsic = PackedFunc;
+using FLowerIntrinsic = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+
+/*!
+ * \brief The legalization function for given tir op.
+ */
+using FLegalize = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 
 /*!
  * \brief The effect type of the call.
