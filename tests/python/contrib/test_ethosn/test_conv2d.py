@@ -17,13 +17,11 @@
 
 """Ethos-N integration conv2d tests"""
 
-import math
-
 import numpy as np
+import math
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib.ethosn import ethosn_available
-
 from . import infrastructure as tei
 
 
