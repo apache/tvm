@@ -509,13 +509,6 @@ def resize_bicubic(
         The computed result with type out_dtype
     """
 
-    def _cubic_kernel(A, B, C, D, t):
-        a = -(alpha * (D - A) + (alpha + 2) * (C - B))
-        b = 2 * alpha * (C - A) + 3 * (C - B) + alpha * (D - B)
-        c = -alpha * (C - A)
-        d = B
-        return a * t * t * t + b * t * t + c * t + d
-
     def _cast_output(value, data_dtype="float32", out_dtype=None):
         if out_dtype:
             dtype = out_dtype
@@ -574,11 +567,33 @@ def resize_bicubic(
             )
 
     # Interpolate bicubically
-    col0 = _cubic_kernel(*p[0], xfract)
-    col1 = _cubic_kernel(*p[1], xfract)
-    col2 = _cubic_kernel(*p[2], xfract)
-    col3 = _cubic_kernel(*p[3], xfract)
-    value = _cubic_kernel(col0, col1, col2, col3, yfract)
+    def _cubic_spline_weights(t):
+        t2 = t * t
+        t3 = t * t * t
+        w1 = alpha * (t3 - 2 * t2 + t)
+        w2 = (alpha + 2) * t3 - (3 + alpha) * t2 + 1
+        w3 = -(alpha + 2) * t3 + (3 + 2 * alpha) * t2 - alpha * t
+        w4 = -alpha * t3 + alpha * t2
+        return [w1, w2, w3, w4]
+
+    def _cubic_kernel(inputs, w):
+        return sum([a_i * w_i for a_i, w_i in zip(inputs, w)])
+
+    wx = _cubic_spline_weights(xfract)
+    wy = _cubic_spline_weights(yfract)
+    if exclude_outside:
+        for i in range(4):
+            wx[i] = te.if_then_else(te.any(xint - 1 + i < 0, xint + i > image_width), 0.0, wx[i])
+            wy[i] = te.if_then_else(te.any(yint - 1 + i < 0, yint + i > image_height), 0.0, wy[i])
+        sum_wx = sum(wx)
+        sum_wy = sum(wy)
+        wx = [w / sum_wx for w in wx]
+        wy = [w / sum_wy for w in wy]
+    col0 = _cubic_kernel(p[0], wx)
+    col1 = _cubic_kernel(p[1], wx)
+    col2 = _cubic_kernel(p[2], wx)
+    col3 = _cubic_kernel(p[3], wx)
+    value = _cubic_kernel([col0, col1, col2, col3], wy)
 
     # use extrapolation_value if in_y/in_x is out of boundary
     if extrapolation_value is not None:
