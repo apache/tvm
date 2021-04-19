@@ -395,7 +395,7 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
     "\n"
     "---------------------------------------------------------------\n"
     "An error occurred during the execution of TVM.\n"
-    "For more information, please see: https://tvm.apache.org/docs/errors.html
+    "For more information, please see: https://tvm.apache.org/docs/errors.html\n"
     "---------------------------------------------------------------\n";
 
 template <typename X, typename Y>
