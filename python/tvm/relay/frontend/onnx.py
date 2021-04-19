@@ -1589,7 +1589,7 @@ class LogSoftmax(OnnxOpConverter):
 
 
 class Hardmax(OnnxOpConverter):
-    """Operator converter for Softmax."""
+    """Operator converter for Hardmax."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
