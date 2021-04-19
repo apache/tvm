@@ -151,7 +151,7 @@ Timer DefaultTimer(Device dev);
 
 namespace profiling {
 
-/*! \brief Data collected from a profiling run. Includes per-call metrics and overall metrics.
+/*! \brief Data collected from a profiling run. Includes per-call metrics and per-device metrics.
  */
 class ReportNode : public Object {
  public:
@@ -165,15 +165,15 @@ class ReportNode : public Object {
   Array<Map<String, ObjectRef>> calls;
   /*! \brief Metrics collected for the entire run of the model on a per-device basis.
    *
-   * `overall` is indexed by device name then metric.
+   * `device_metrics` is indexed by device name then metric.
    *
    * These metrics may be larger than the sum of the same metric in `calls`
    * because these metrics include the overhead of the executor.
    */
-  Map<String, Map<String, ObjectRef>> overall;
+  Map<String, Map<String, ObjectRef>> device_metrics;
   /*! \brief Output `calls` in CSV format.
    *
-   * Note that this does not include `overall` metrics, it only includes per-call metrics.
+   * Note that this does not include `device_metrics`, it only includes per-call metrics.
    */
   String AsCSV() const;
   /*! \brief Create a human readable table of profiling metrics.
@@ -191,11 +191,12 @@ class ReportNode : public Object {
 
 class Report : public ObjectRef {
  public:
-  /*! Construct a Report from a set of calls (with associated metrics) and overall metrics.
+  /*! Construct a Report from a set of calls (with associated metrics) and per-device metrics.
    * \param calls Function calls and associated metrics.
-   * \param overall Per-device metrics for overall execution.
+   * \param device_metrics Per-device metrics for overall execution.
    */
-  explicit Report(Array<Map<String, ObjectRef>> calls, Map<String, Map<String, ObjectRef>> overall);
+  explicit Report(Array<Map<String, ObjectRef>> calls,
+                  Map<String, Map<String, ObjectRef>> device_metrics);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
 };
 

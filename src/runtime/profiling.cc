@@ -298,8 +298,8 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
   aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
   aggregated_calls.push_back(col_sums);
 
-  // overall metrics
-  for (auto p : overall) {
+  // per-device metrics
+  for (auto p : device_metrics) {
     Map<String, ObjectRef> metrics = p.second;
     metrics.Set("Name", String("Total"));
     aggregated_calls.push_back(metrics);
@@ -406,14 +406,14 @@ Report Profiler::Report(bool aggregate, bool sort) {
     overall_time = std::max(overall_time, p.second);
   }
 
-  std::unordered_map<String, Map<String, ObjectRef>> overall;
+  std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
   for (auto p : global_times) {
     std::unordered_map<String, ObjectRef> row;
     row["Name"] = String("Total");
     row["Duration (us)"] = ObjectRef(make_object<DurationNode>(p.second));
     row["Percent"] = ObjectRef(make_object<PercentNode>(p.second / overall_time * 100));
     row["Device"] = String(DeviceString(p.first));
-    overall[DeviceString(p.first)] = row;
+    device_metrics[DeviceString(p.first)] = row;
   }
 
   std::vector<Map<String, ObjectRef>> rows;
@@ -428,13 +428,14 @@ Report Profiler::Report(bool aggregate, bool sort) {
     rows.push_back(row);
   }
 
-  return profiling::Report(rows, overall);
+  return profiling::Report(rows, device_metrics);
 }
 
-Report::Report(Array<Map<String, ObjectRef>> calls, Map<String, Map<String, ObjectRef>> overall) {
+Report::Report(Array<Map<String, ObjectRef>> calls,
+               Map<String, Map<String, ObjectRef>> device_metrics) {
   auto node = make_object<ReportNode>();
   node->calls = std::move(calls);
-  node->overall = std::move(overall);
+  node->device_metrics = std::move(device_metrics);
   data_ = std::move(node);
 }
 

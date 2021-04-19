@@ -31,7 +31,7 @@ class Report(Object):
     calls : Array[Dict[str, Object]]
         Per-call profiling metrics (function name, runtime, device, ...).
 
-    overall : Dict[Device, Dict[str, Object]]
+    device_metrics : Dict[Device, Dict[str, Object]]
         Per-device metrics collected over the entire run.
     """
 

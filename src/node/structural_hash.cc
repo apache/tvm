@@ -502,7 +502,7 @@ TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
 struct ReportNodeTrait {
   static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
     attrs->Visit("calls", &report->calls);
-    attrs->Visit("overall", &report->overall);
+    attrs->Visit("device_metrics", &report->device_metrics);
   }
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
