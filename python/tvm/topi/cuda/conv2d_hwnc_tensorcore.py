@@ -186,7 +186,12 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     """Schedule tensorcore template"""
     packed_data, packed_kernel = s[Conv].op.input_tensors
     ic, kh, kw, ii = s[Conv].op.reduce_axis
-    pad_data = s[packed_data].op.input_tensors[0]
+
+    if isinstance(packed_data.op, tvm.te.ComputeOp) and "pad" in packed_data.op.tag:
+        pad_data = packed_data
+        packed_data = pad_data.op.input_tensors[0]
+    else:
+        pad_data = packed_data
 
     block_x = te.thread_axis("blockIdx.x")
     block_y = te.thread_axis("blockIdx.y")
@@ -196,7 +201,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     thread_z = te.thread_axis("threadIdx.z")
 
     # Designate the memory hierarchy
-    AS = s.cache_read(packed_data, "shared", [Conv])
+    AS = s.cache_read(pad_data, "shared", [Conv])
     WS = s.cache_read(packed_kernel, "shared", [Conv])
     AF = s.cache_read(AS, "wmma.matrix_a", [Conv])
     WF = s.cache_read(WS, "wmma.matrix_b", [Conv])
@@ -207,32 +212,30 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
         ConvS = s.cache_read(ConvF, "shared", [Conv])
         OL = ConvS
     else:
+        s[Conv].compute_inline()
         output = s.outputs[0].output(0)
         s[Conv].set_scope("shared")
         OL = Conv
 
     out_dtype = Conv.dtype
 
-    if isinstance(packed_kernel.op, te.tensor.ComputeOp) and packed_kernel.name == "packed_kernel":
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            s[packed_kernel].pragma(s[packed_kernel].op.axis[0], "debug_skip_region")
-        else:
-            with Target("cuda"):
-                schedule_injective_from_existing(s, packed_kernel)
-
-    if isinstance(pad_data.op, te.tensor.ComputeOp) and "pad" in pad_data.op.tag:
-        s[pad_data].compute_inline()
-        data = pad_data.op.input_tensors[0]
-
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # skip this part during tuning to make recrods accurate
-            # this part will be pre-computed during NNVM's pre-compute optimization pass
-            s[pad_data].pragma(s[pad_data].op.axis[0], "debug_skip_region")
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        # skip this part during tuning to make recrods accurate
+        # this part will be pre-computed during NNVM's pre-compute optimization pass
+        s[packed_data].pragma(s[packed_data].op.axis[0], "debug_skip_region")
+        s[packed_kernel].pragma(s[packed_kernel].op.axis[0], "debug_skip_region")
     else:
-        data = pad_data
-        s[data].compute_inline()
+        if (
+            isinstance(packed_kernel.op, te.tensor.ComputeOp)
+            and packed_kernel.name == "packed_kernel"
+        ):
+            schedule_injective_from_existing(s, packed_kernel)
+        schedule_injective_from_existing(s, packed_data)
 
-    data_dtype = data.dtype
+    if pad_data != packed_data:
+        s[pad_data].compute_inline()
+
+    data_dtype = pad_data.dtype
     kernel_dtype = packed_kernel.dtype
 
     # Schedule for autotvm
@@ -241,7 +244,6 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     cfg.define_knob("warp_row_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("warp_col_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("chunk", [1, 2, 4, 8])
-    cfg.define_knob("fuse_pack", [0, 1])
     cfg.define_knob("split_block_k_nums", [1, 2, 4, 8, 16, 32])
     cfg.define_knob("vector_ws", [1, 8])
     cfg.define_knob("vector_as", [1, 8, 16])
@@ -254,14 +256,6 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     vector_as = cfg["vector_as"].val
     vector_ws = cfg["vector_ws"].val
     split_block_k_nums = cfg["split_block_k_nums"].val
-    fuse_pack = cfg["fuse_pack"].val
-
-    if not fuse_pack:
-        s[packed_data].compute_inline()
-    else:
-        with Target("cuda"):
-            schedule_injective_from_existing(s, packed_data)
-    s[packed_data].compute_inline()
 
     if data_dtype in ["int4", "uint4"]:
         wmma_m = wmma_n = 8
