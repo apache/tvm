@@ -184,8 +184,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    if (expr.same_as(GetRef<PrimExpr>(op)))
-      return expr;
+    if (expr.same_as(GetRef<PrimExpr>(op))) return expr;
     op = expr.as<ReduceNode>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
