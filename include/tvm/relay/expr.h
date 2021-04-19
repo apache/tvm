@@ -30,7 +30,9 @@
 #include <tvm/ir/op.h>
 
 #include <functional>
+#include <stack>
 #include <string>
+#include <utility>
 
 #include "./base.h"
 #include "./type.h"
@@ -292,6 +294,11 @@ class CallNode : public ExprNode {
 
 class Call : public Expr {
  public:
+  /*!
+   * \brief The destructor
+   */
+  ~Call();
+
   /*!
    * \brief The constructor
    * \param op The operator will be invoked.
