@@ -1362,7 +1362,7 @@ def _test_upsampling(layout, method, align_corners=False):
     for target, dev in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", device=dev, target=target)
         out = executor.evaluate(func)(data)
-        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=2e-5)
 
 
 @tvm.testing.uses_gpu

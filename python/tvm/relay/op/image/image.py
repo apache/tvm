@@ -26,7 +26,7 @@ def resize(
     layout="NCHW",
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
-    rounding_method="round",
+    rounding_method="",
     bicubic_alpha=-0.5,
     bicubic_exclude=0,
     out_dtype=None,

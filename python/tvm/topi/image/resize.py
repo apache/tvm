@@ -99,7 +99,7 @@ def resize_nearest_neighbor(
     extrapolation_value=None,
     layout="NCHW",
     coordinate_transformation_mode="align_corners",
-    rounding_method="round",
+    rounding_method="",
     out_dtype=None,
 ):
 
@@ -161,6 +161,11 @@ def resize_nearest_neighbor(
     output : out_dtype
         The computed result with type out_dtype
     """
+    if rounding_method == "":
+        if coordinate_transformation_mode == "align_corners":
+            rounding_method = "round"
+        else:
+            rounding_method = "floor"
 
     def _cast_output(value, data_dtype="float32", out_dtype=None):
         if out_dtype:
@@ -616,7 +621,7 @@ def resize(
     layout="NCHW",
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
-    rounding_method="round",
+    rounding_method="",
     bicubic_alpha=-0.5,
     bicubic_exclude=0,
     out_dtype=None,
