@@ -4128,6 +4128,14 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+"""
+  The following parameterized tests loads the tests that ONNX ships as
+  serialized ONNX files, inputs, and outputs. The goal of this test
+  is to ensure the ONNX importer is in line with the ONNX specification.
+  To allow these tests to run in CI before all pass, a number of tests that
+  are not yet supported are skipped.
+"""
+
 from onnx import numpy_helper
 
 f = onnx.__file__
@@ -4159,13 +4167,6 @@ unsupported_onnx_tests = [
     "test_eyelike_populate_off_main_diagonal/",
     "test_eyelike_with_dtype/",
     "test_eyelike_without_dtype/",
-    "test_hardmax_axis_0/",
-    "test_hardmax_axis_1/",
-    "test_hardmax_axis_2/",
-    "test_hardmax_default_axis/",
-    "test_hardmax_example/",
-    "test_hardmax_negative_axis/",
-    "test_hardmax_one_hot/",
     "test_isinf_negative/",
     "test_isinf_positive/",
     "test_matmulinteger/",
@@ -4209,13 +4210,8 @@ unsupported_onnx_tests = [
     "test_scan9_sum/",
     "test_scan_sum/",
     "test_scatternd/",
-    "test_selu_default/",
-    "test_shrink_hard/",
-    "test_shrink_soft/",
     "test_simple_rnn_defaults/",
     "test_simple_rnn_with_initial_bias/",
-    "test_slice_neg_steps/",
-    "test_slice_start_out_of_bounds/",
     "test_strnormalizer_export_monday_casesensintive_lower/",
     "test_strnormalizer_export_monday_casesensintive_nochangecase/",
     "test_strnormalizer_export_monday_casesensintive_upper/",
@@ -4235,7 +4231,6 @@ unsupported_onnx_tests = [
     "test_unique_sorted_with_axis_3d/",
     "test_unique_sorted_with_negative_axis/",
     "test_unique_sorted_without_axis/",
-    "test_unsqueeze_unsorted_axes/",
     "test_upsample_nearest/",
 ]
 
