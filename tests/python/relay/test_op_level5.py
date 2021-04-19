@@ -69,7 +69,7 @@ def test_resize():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-4)
 
     for method in ["nearest_neighbor", "bilinear"]:
-        for coord_trans in ["asymmetric"]: # TOPI testing function only support asymmetric
+        for coord_trans in ["asymmetric"]:  # TOPI testing function only support asymmetric
             for layout in ["NHWC", "NCHW"]:
                 verify_resize((1, 4, 4, 4), 2, method, layout, coord_trans)
                 verify_resize((2, 8, 17, 20), 3, method, layout, coord_trans)
