@@ -381,6 +381,7 @@ def test_tensorize_reuse_compute():
     def get_intrin():
         def _intrin_func(ins, outs):
             return tvm.tir.call_packed("fakeadd", ins[0], ins[1], outs[0])
+
         return tvm.te.decl_tensor_intrin(c.op, _intrin_func)
 
     s = tvm.te.create_schedule([c.op])

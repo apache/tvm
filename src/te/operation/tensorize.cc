@@ -184,6 +184,8 @@ class TensorIntrinMatcher final : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const ReduceNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    if (expr.same_as(GetRef<PrimExpr>(op)))
+      return expr;
     op = expr.as<ReduceNode>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
@@ -216,6 +218,9 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     Array<Tensor> inputs = self->InputTensors();
     ICHECK_EQ(inputs.size(), intrin->inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
+      if (inputs[i].same_as(intrin->inputs[i])) {
+        continue;
+      }
       InputEntry e;
       e.tensor = intrin->inputs[i];
       e.region = Array<Range>(in_region.at(inputs[i]));
@@ -251,6 +256,9 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     for (size_t i = axis_start; i < self->axis.size(); ++i) {
       IterVar iv = self->axis[i];
       IterVar target_iv = intrin_compute->axis[i - axis_start];
+      if (iv.same_as(target_iv)) {
+        continue;
+      }
       Range r = out_dom.at(iv);
       var_remap_[iv->var.get()] = target_iv->var + r->min;
       axis_remap_[iv] = target_iv;
@@ -270,6 +278,9 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     for (size_t i = axis_start; i < self->reduce_axis.size(); ++i) {
       IterVar iv = self->reduce_axis[i];
       IterVar target_iv = intrin_compute->reduce_axis[i - axis_start];
+      if (iv.same_as(target_iv)) {
+        continue;
+      }
       Range r = out_dom.at(iv);
       var_remap_[iv->var.get()] = target_iv->var + r->min;
       axis_remap_[iv] = target_iv;
@@ -327,7 +338,7 @@ void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
   ana.Bind(compute_intrin_iter_space);
 
   for (size_t i = 0; i < body.size(); ++i) {
-    if (self->body[i].same_as(intrin_compute->body[i])) {
+    if (body[i].same_as(intrin_compute->body[i])) {
       continue;
     }
     PrimExpr lhs = ana.Simplify(body[i]);
