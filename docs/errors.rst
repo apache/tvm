@@ -16,8 +16,8 @@
     under the License.
 
 
-TVM Errors
-==========
+What do to when encountering TVM Errors
+=======================================
 
 When running TVM, you may encounter an error message like:
 
