@@ -47,15 +47,14 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/lib0.o  $(build_dir)/lib1.o $(build_dir)/aot_executor.o  $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
+source_libs= $(wildcard $(build_dir)/../codegen/host/src/lib*.c)
+lib_objs =$(source_libs:.c=.o) 
+
+$(build_dir)/aot_test_runner: $(build_dir)/test.c  $(build_dir)/aot_executor.o  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
-$(build_dir)/lib1.o: $(build_dir)/../codegen/host/src/lib1.c
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
-
-$(build_dir)/lib0.o: $(build_dir)/../codegen/host/src/lib0.c
+$(build_dir)/%.o: $(build_dir)/../codegen/host/src/%.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 

@@ -93,7 +93,7 @@ class AotReturnSidVisitor : public ExprVisitor {
 };
 
 /*! \brief Code generator for AOT executor */
-class AOTCodegen : public ExprVisitor {
+class AOTExecutorCodegen : public ExprVisitor {
  protected:
   /*!
    * \brief Utility function to allocate a DLTensor or TVMValue
@@ -309,6 +309,7 @@ class AOTCodegen : public ExprVisitor {
 
       // Generate the TIR function call
       CreateFuncCall(GetRef<Call>(op), ext_func->func_name);
+      return;
     }
 
     ICHECK_GE(storage_device_map_.count(expr), 0);
@@ -498,7 +499,7 @@ class AOTCodegen : public ExprVisitor {
   IntegerArray return_sid_;
 
  public:
-  AOTCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
+  AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
       : mod_(mod), return_sid_() {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
@@ -567,9 +568,9 @@ class AOTCodegen : public ExprVisitor {
   }
 };
 
-class AOTCodegenModule : public runtime::ModuleNode {
+class AOTExecutorCodegenModule : public runtime::ModuleNode {
  public:
-  AOTCodegenModule() {}
+  AOTExecutorCodegenModule() {}
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -625,8 +626,8 @@ class AOTCodegenModule : public runtime::ModuleNode {
       ICHECK(dev_type);
       targets[dev_type->value] = it.second;
     }
-    codegen_ =
-        std::make_shared<AOTCodegen>(reinterpret_cast<runtime::Module*>(mod), targets, target_host);
+    codegen_ = std::make_shared<AOTExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
+                                                    targets, target_host);
   }
 
   LoweredOutput codegen(Function func) { return this->codegen_->Codegen(func); }
@@ -655,17 +656,17 @@ class AOTCodegenModule : public runtime::ModuleNode {
 
   Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 
-  std::shared_ptr<AOTCodegen> codegen_;
+  std::shared_ptr<AOTExecutorCodegen> codegen_;
   LoweredOutput output_;
 };
 
-runtime::Module CreateAOTCodegenMod() {
-  auto ptr = make_object<AOTCodegenModule>();
+runtime::Module CreateAOTExecutorCodegenMod() {
+  auto ptr = make_object<AOTExecutorCodegenModule>();
   return runtime::Module(ptr);
 }
 
-TVM_REGISTER_GLOBAL("relay.build_module._GraphAOTCodegen")
-    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = CreateAOTCodegenMod(); });
+TVM_REGISTER_GLOBAL("relay.build_module._AOTExecutorCodegen")
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = CreateAOTExecutorCodegenMod(); });
 
 }  // namespace backend
 }  // namespace relay

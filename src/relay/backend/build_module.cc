@@ -57,6 +57,8 @@ struct ExecutorCodegen {
 
   void Codegen(const Function& func) { CallFunc("codegen", func); }
 
+  virtual void UpdateOutput(BuildOutput* ret) = 0;
+
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
     auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
@@ -88,6 +90,7 @@ struct ExecutorCodegen {
   }
 
   runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
+  virtual ~ExecutorCodegen() {}
 
  protected:
   tvm::runtime::Module mod;
@@ -104,11 +107,14 @@ struct ExecutorCodegen {
   }
 };
 
-struct AOTCodegen : public ExecutorCodegen {
+struct AOTCodegen : ExecutorCodegen {
   AOTCodegen() {
-    auto pf = GetPackedFunc("relay.build_module._GraphAOTCodegen");
+    auto pf = GetPackedFunc("relay.build_module._AOTExecutorCodegen");
     mod = (*pf)();
   }
+
+  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = ""; }
+
   ~AOTCodegen() {}
 };
 
@@ -116,16 +122,32 @@ struct AOTCodegen : public ExecutorCodegen {
  * \brief GraphCodegen module wrapper
  *
  */
-struct GraphCodegen : public ExecutorCodegen {
- public:
+struct GraphCodegen : ExecutorCodegen {
   GraphCodegen() {
     auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
     mod = (*pf)();
   }
+  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = GetJSON(); }
 
   std::string GetJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
-  ~GraphCodegen();
+
+  ~GraphCodegen() {}
 };
+
+/*!
+ * \brief Executor codegen factory function
+ */
+std::unique_ptr<ExecutorCodegen> MakeExecutorCodegen(String executor_str) {
+  std::unique_ptr<ExecutorCodegen> ret;
+  if (executor_str == kTvmExecutorGraph) {
+    ret = std::make_unique<GraphCodegen>();
+  } else if (executor_str == kTvmExecutorAot) {
+    ret = std::make_unique<AOTCodegen>();
+  } else {
+    CHECK(false) << "Executor " << executor_str << " not supported";
+  }
+  return ret;
+}
 
 /*!
  * \brief Relay build module
@@ -499,20 +521,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Generate code for the updated function.
     const String executor_str =
         target_host->GetAttr<String>("executor").value_or(kTvmExecutorGraph);
-    if (executor_str == kTvmExecutorGraph) {
-      executor_codegen_ = std::unique_ptr<ExecutorCodegen>(new GraphCodegen());
-    } else {
-      executor_codegen_ = std::unique_ptr<ExecutorCodegen>(new AOTCodegen());
-    }
-
+    executor_codegen_ = MakeExecutorCodegen(executor_str);
     executor_codegen_->Init(nullptr, targets_);
     executor_codegen_->Codegen(func);
-
-    if (executor_str == kTvmExecutorGraph) {
-      ret_.graph_json = reinterpret_cast<GraphCodegen*>(executor_codegen_.get())->GetJSON();
-    } else {
-      ret_.graph_json = "";
-    }
+    executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
