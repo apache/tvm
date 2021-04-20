@@ -148,7 +148,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
     def save_executor_config(self):
-        return self.internal_repr
+        return self.graph_json
 
     def get_params(self):
         return self.params

@@ -251,8 +251,15 @@ def compile_model(
         source = str(mod) if source_type == "relay" else lib.get_source(source_type)
         dumps[source_type] = source
 
+<<<<<<< HEAD
     # Create a new tvmc model package object from the graph definition.
     package_path = tvmc_model.export_package(graph_module, package_path, cross, export_format)
+=======
+    # TODO we need to update this return to use the updated graph module APIs
+    #      as these getter functions will be deprecated in the next release (@leandron)
+    return graph_module.get_graph_json(), graph_module.get_lib(), graph_module.get_params(), dumps
+
+>>>>>>> 99ce0408b... fix tests - 2
 
     # Write dumps to file.
     if dumps:

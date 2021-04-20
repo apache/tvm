@@ -89,6 +89,7 @@ def _build_memory_map(graph_json):
     graph = json.loads(graph_json)
 
     seen_storage_ids = set()
+    memory_map = []
     for node_id, storage_id in enumerate(graph["attrs"]["storage_id"][1]):
         if storage_id in seen_storage_ids:
             continue
