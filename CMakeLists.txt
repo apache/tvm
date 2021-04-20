@@ -375,6 +375,7 @@ if(USE_PROFILER)
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
     PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_EXECUTOR_DEBUG")
 
+
   file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
@@ -387,6 +388,12 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
   include(CTest)
   include(GoogleTest)
 endif()
+
+if(USE_SUBGRAPH_EXECUTOR)
+    message(STATUS "Build with Subgraph Executor support...")
+  file(GLOB RUNTIME_SUBGRAPH_SRCS src/runtime/subgraph/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_SUBGRAPH_SRCS})
+endif(USE_SUBGRAPH_EXECUTOR)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
