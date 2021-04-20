@@ -25,3 +25,5 @@ from . import runner
 from .frontends import load_model as load
 from .compiler import compile_model as compile
 from .runner import run_module as run
+from .autotuner import tune_model as tune
+from .model import TVMCModel, TVMCPackage, TVMCResult

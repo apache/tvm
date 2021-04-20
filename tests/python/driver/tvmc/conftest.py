@@ -41,7 +41,7 @@ def download_and_untar(model_url, model_sub_path, temp_dir):
     return os.path.join(temp_dir, model_sub_path)
 
 
-def get_sample_compiled_module(target_dir):
+def get_sample_compiled_module(target_dir, package_filename):
     """Support function that returns a TFLite compiled module"""
     base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
     model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
@@ -51,8 +51,10 @@ def get_sample_compiled_module(target_dir):
         temp_dir=target_dir,
     )
 
-    mod, params = tvmc.frontends.load_model(model_file)
-    return tvmc.compiler.compile_model(mod, params, target="llvm")
+    tvmc_model = tvmc.frontends.load_model(model_file)
+    return tvmc.compiler.compile_model(
+        tvmc_model, target="llvm", package_path=os.path.join(target_dir, package_filename)
+    )
 
 
 # PyTest fixtures
@@ -129,7 +131,18 @@ def onnx_resnet50():
 
 
 @pytest.fixture(scope="session")
-def tflite_compiled_module_as_tarfile(tmpdir_factory):
+def onnx_mnist():
+    base_url = "https://github.com/onnx/models/raw/master/vision/classification/mnist/model"
+    file_to_download = "mnist-1.onnx"
+    model_file = download_testdata(
+        "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
+    )
+
+    return model_file
+
+
+@pytest.fixture(scope="session")
+def tflite_compiled_model(tmpdir_factory):
 
     # Not all CI environments will have TFLite installed
     # so we need to safely skip this fixture that will
@@ -143,12 +156,7 @@ def tflite_compiled_module_as_tarfile(tmpdir_factory):
         return ""
 
     target_dir = tmpdir_factory.mktemp("data")
-    graph, lib, params, _ = get_sample_compiled_module(target_dir)
-
-    module_file = os.path.join(target_dir, "mock.tar")
-    tvmc.compiler.save_module(module_file, graph, lib, params)
-
-    return module_file
+    return get_sample_compiled_module(target_dir, "mock.tar")
 
 
 @pytest.fixture(scope="session")
