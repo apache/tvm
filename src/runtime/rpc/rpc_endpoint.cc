@@ -980,7 +980,9 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   void CopyToRemote(void* local_from_bytes, DLTensor* remote_to, uint64_t nbytes) final {
     RPCCode code = RPCCode::kCopyToRemote;
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_to, code, nbytes);
-    const uint64_t block_size = GetRPCMaxTransferSize() - overhead;
+    uint64_t rpc_max_size = GetRPCMaxTransferSize();
+    ICHECK_GT(rpc_max_size - overhead, 0) << "CopyToRemote: Invalid block size!";
+    const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
     const uint64_t num_blocks = nbytes / block_size;
     void* from_bytes;
@@ -1004,7 +1006,9 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   void CopyFromRemote(DLTensor* remote_from, void* local_to_bytes, uint64_t nbytes) final {
     RPCCode code = RPCCode::kCopyFromRemote;
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_from, code, nbytes);
-    const uint64_t block_size = GetRPCMaxTransferSize() - overhead;
+    uint64_t rpc_max_size = GetRPCMaxTransferSize();
+    ICHECK_GT(rpc_max_size - overhead, 0) << "CopyFromRemote: Invalid block size!";
+    const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
     const uint64_t num_blocks = nbytes / block_size;
     void* to_bytes;
@@ -1079,12 +1083,6 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   bool IsLocalSession() const final { return false; }
 
  private:
-  void RPCMaxTransferRemoteReturnValue(TVMArgs args) {
-    // Use args[1] as return value, args[0] is tcode
-    // Look at RPCWrappedFunc in src/runtime/rpc/rpc_module.cc
-    rpc_chunk_max_size_bytes_ = (int64_t)args[1];
-  }
-
   uint64_t GetRPCMaxTransferSize() {
     if (rpc_chunk_max_size_bytes_ > 0) {
       return (uint64_t)rpc_chunk_max_size_bytes_;
@@ -1094,8 +1092,14 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     if (rpc_func == nullptr) {
       rpc_chunk_max_size_bytes_ = (int64_t)kRPCMaxTransferSizeBytesDefault;
     } else {
-      CallFunc(rpc_func, nullptr, nullptr, 0,
-               [this](TVMArgs args) { RPCMaxTransferRemoteReturnValue(args); });
+      CallFunc(rpc_func, nullptr, nullptr, 0, [this](TVMArgs args) {
+        // Use args[1] as return value, args[0] is tcode
+        // Look at RPCWrappedFunc in src/runtime/rpc/rpc_module.cc
+        rpc_chunk_max_size_bytes_ = (int64_t)args[1];
+        ICHECK_GT(rpc_chunk_max_size_bytes_, 0)
+            << "RPC max transfer size is <= 0! (remote value = " << rpc_chunk_max_size_bytes_
+            << ")";
+      });
     }
     return (uint64_t)rpc_chunk_max_size_bytes_;
   }

@@ -210,6 +210,7 @@ inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
  * \param to DLTensor to copy.
  * \param code RPCCode for this transfer.
  * \param nbytes Number of bytes to transfer.
+ * \return The remote-copy packet overhead size.
  */
 uint64_t RemoteCopyCalculatePacketOverheadSize(DLTensor* tensor, RPCCode code, uint64_t nbytes);
 
