@@ -741,6 +741,7 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
 Expr TypeInferencer::Infer(GlobalVar var, Function function) {
   // Set the current function being type checked.
   this->current_func_ = var;
+
   // Step 1: Populate the constraints.
   GetType(function);
 
