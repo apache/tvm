@@ -129,10 +129,10 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
       if (Op::HasAttrMap(target + ".FLowerIntrinsic") &&
           OpRegistry::Global()->Get(name) != nullptr &&
           Op::GetAttrMap<FLowerIntrinsic>(target + ".FLowerIntrinsic").count(Op::Get(name))) {
-        ICHECK(can_override) << "Op " << name << "'s intrinsic lowering function " << target
+        CHECK(can_override) << "Op " << name << "'s intrinsic lowering function " << target
                              << ".FlowerIntrinsic is already registered";
       }
-      tvm::OpRegEntry::RegisterOrGet(name).set_name().set_attr<FLowerIntrinsic>(
+      tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
           target + ".FLowerIntrinsic", f, plevel);
     });
 

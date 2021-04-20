@@ -19,6 +19,7 @@
 
 import tvm
 from tvm import te
+from tvm.ir import register_intrin_lowering
 
 
 def gemm_4x4_int8_int8_int32(M, N, K, unroll, in_type):
@@ -1054,6 +1055,6 @@ def _q_multiply_shift_arm(op):
     return tvm.tir.Select(s < 0, out_1, out_2)
 
 
-tvm.ir.op.register_op_intrin_lowering(
+register_intrin_lowering(
     "tir.q_multiply_shift", target="llvm.aarch64", f=_q_multiply_shift_arm, override=True
 )

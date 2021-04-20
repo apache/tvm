@@ -16,6 +16,7 @@
 # under the License.
 """Target dependent intrinsic registration."""
 import tvm._ffi
+from tvm.ir import register_intrin_lowering
 from tvm.tir import call_pure_extern
 
 
@@ -37,7 +38,7 @@ def _rule_float_suffix(op):
 
     See Also
     --------
-    tvm.ir.op.register_op_intrin_lowering : The registration function for intrinsic lowering rule.
+    register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
     name = op.op.name
     assert name.startswith("tir.")
@@ -68,7 +69,7 @@ def _rule_float_direct(op):
 
     See Also
     --------
-    tvm.ir.op.register_op_intrin_lowering : The registration function for intrinsic lowering rule.
+    register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
     if str(op.dtype).startswith("float"):
         return call_pure_extern(op.dtype, op.op.name[4:], *op.args)
@@ -76,10 +77,6 @@ def _rule_float_direct(op):
 
 
 # opencl pattern for exp
-tvm.ir.op.register_op_intrin_lowering(
-    "tir.exp", target="opencl", f=_rule_float_direct, override=True
-)
+register_intrin_lowering("tir.exp", target="opencl", f=_rule_float_direct, override=True)
 # default pattern for exp
-tvm.ir.op.register_op_intrin_lowering(
-    "tir.exp", target="default", f=_rule_float_suffix, override=True
-)
+register_intrin_lowering("tir.exp", target="default", f=_rule_float_suffix, override=True)

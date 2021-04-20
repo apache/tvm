@@ -23,6 +23,7 @@ import json
 import copy
 import tvm
 from tvm import te
+from tvm.ir import register_intrin_lowering
 from . import intrin
 
 
@@ -292,7 +293,7 @@ def mem_info_acc_buffer():
 
 
 # TVM Op related registration
-@tvm.ir.op.register_op_intrin_lowering("tir.vta.coproc_sync", "default")
+@register_intrin_lowering("tir.vta.coproc_sync", "default")
 def coproc_sync(op):
     _ = op
     return tvm.tir.call_extern(
@@ -303,14 +304,14 @@ def coproc_sync(op):
     )
 
 
-@tvm.ir.op.register_op_intrin_lowering("tir.vta.coproc_dep_push", "default")
+@register_intrin_lowering("tir.vta.coproc_dep_push", "default")
 def coproc_dep_push(op):
     return tvm.tir.call_extern(
         "int32", "VTADepPush", get_env().dev.command_handle, op.args[0], op.args[1]
     )
 
 
-@tvm.ir.op.register_op_intrin_lowering("tir.vta.coproc_dep_pop", "default")
+@register_intrin_lowering("tir.vta.coproc_dep_pop", "default")
 def coproc_dep_pop(op):
     return tvm.tir.call_extern(
         "int32", "VTADepPop", get_env().dev.command_handle, op.args[0], op.args[1]
