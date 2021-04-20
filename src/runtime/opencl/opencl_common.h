@@ -40,6 +40,17 @@
  */
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
+/* Newer releases of OpenCL header files (after May 2018) work with
+ * any OpenCL version, with an application's target version
+ * specified. Setting the target version disables APIs from after that
+ * version, and sets appropriate USE_DEPRECATED macros.  The above
+ * macro for CL_USE_DEPRECATED_OPENCL_1_2_APIS is still needed in case
+ * we are compiling against the earlier version-specific OpenCL header
+ * files.  This also allows us to expose the OpenCL version through
+ * tvm.runtime.Device.
+ */
+#define CL_TARGET_OPENCL_VERSION 120
+
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
