@@ -44,10 +44,11 @@ def kill_child_processes(pid):
 
     try:
         parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
     except psutil.NoSuchProcess:
         return
 
-    for process in parent.children(recursive=True):
+    for process in children:
         try:
             process.kill()
         except psutil.NoSuchProcess:

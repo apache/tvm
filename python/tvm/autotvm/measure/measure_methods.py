@@ -404,7 +404,6 @@ class LocalRunner(RPCRunner):
             port=9000,
             port_end=10000,
             key=device_key,
-            use_popen=True,
             silent=True,
             tracker_addr=(tracker.host, tracker.port),
         )
