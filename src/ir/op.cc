@@ -130,10 +130,10 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
           OpRegistry::Global()->Get(name) != nullptr &&
           Op::GetAttrMap<FLowerIntrinsic>(target + ".FLowerIntrinsic").count(Op::Get(name))) {
         CHECK(can_override) << "Op " << name << "'s intrinsic lowering function " << target
-                             << ".FlowerIntrinsic is already registered";
+                            << ".FlowerIntrinsic is already registered";
       }
-      tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
-          target + ".FLowerIntrinsic", f, plevel);
+      tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
+                                                                     plevel);
     });
 
 // helper to get internal dev function in objectref.
