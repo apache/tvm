@@ -53,6 +53,15 @@ def wrap_topi_schedule(topi_schedule):
     return wrapper
 
 
+def wrap_topi_compute(topi_compute):
+    """Wrap TOPI compute which doesn't use attrs"""
+
+    def wrapper(attrs, inputs, out_type):
+        return [topi_compute(*inputs)]
+
+    return wrapper
+
+
 def get_conv2d_in_channels(data_shape, data_layout):
     """Get conv2d input channels"""
     data_shape = get_const_tuple(data_shape)

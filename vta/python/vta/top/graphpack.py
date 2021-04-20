@@ -423,7 +423,7 @@ class ExprPack(ExprMutator):
                 self.start_pack and call.op == op.op.get("cast") and input_types[0].dtype == "int32"
             ):
                 cast = relay.Call(op.op.get("cast"), [args[0]], call.attrs)
-                return relay.Call(op.op.get("copy"), [cast])
+                return cast
             elif call.op == self.pad:
                 pad_width = call.attrs.pad_width
                 if len(pad_width) == 6:
