@@ -58,7 +58,8 @@ def list_shape_of(tensor, ndim):
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if isinstance(input1d, tvm.tir.Any) and stride1d != 1:
         raise tvm.error.OpAttributeUnImplemented(
-            "SAME padding is not supported in combination with dynamic height or width when stride is not 1."
+            "SAME padding is not supported in combination with dynamic height or width when stride"
+            " is not 1."
         )
     if stride1d == 1 or input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
