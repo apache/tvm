@@ -77,9 +77,9 @@ def _rule_float_direct(op):
 
 # opencl pattern for exp
 tvm.ir.op.register_op_intrin_lowering(
-    "tir.exp", f=_rule_float_direct, target="opencl", override=True
+    "tir.exp", target="opencl", f=_rule_float_direct, override=True
 )
 # default pattern for exp
 tvm.ir.op.register_op_intrin_lowering(
-    "tir.exp", f=_rule_float_suffix, target="default", override=True
+    "tir.exp", target="default", f=_rule_float_suffix, override=True
 )

@@ -112,7 +112,7 @@ def my_cuda_math_rule(op):
         return op
 
 
-tvm.ir.op.register_op_intrin_lowering("tir.exp", f=my_cuda_math_rule, target="cuda", override=True)
+tvm.ir.op.register_op_intrin_lowering("tir.exp", target="cuda", f=my_cuda_math_rule, override=True)
 ######################################################################
 # Register the rule to TVM with override option to override existing rule.
 # Notice the difference between the printed code from previous one:
@@ -149,7 +149,7 @@ def my_cuda_mylog_rule(op):
 # new op registration is triggered by registering an attribute of the op
 tvm.ir.register_op_attr("tir.mylog", "TCallEffectKind", tvm.tir.CallEffectKind.Pure)
 tvm.ir.op.register_op_intrin_lowering(
-    "tir.mylog", f=my_cuda_mylog_rule, target="cuda", override=True
+    "tir.mylog", target="cuda", f=my_cuda_mylog_rule, override=True
 )
 
 n = te.var("n")

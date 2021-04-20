@@ -1055,5 +1055,5 @@ def _q_multiply_shift_arm(op):
 
 
 tvm.ir.op.register_op_intrin_lowering(
-    "tir.q_multiply_shift", f=_q_multiply_shift_arm, target="llvm.aarch64", override=True
+    "tir.q_multiply_shift", target="llvm.aarch64", f=_q_multiply_shift_arm, override=True
 )

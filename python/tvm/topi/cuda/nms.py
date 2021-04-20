@@ -52,11 +52,11 @@ def opencl_atomic_add_rule(op):
 
 
 tvm.ir.op.register_op_intrin_lowering(
-    "tir.atomic_add", f=cuda_atomic_add_rule, target="cuda", override=True
+    "tir.atomic_add", target="cuda", f=cuda_atomic_add_rule, override=True
 )
 
 tvm.ir.op.register_op_intrin_lowering(
-    "tir.atomic_add", f=opencl_atomic_add_rule, target="opencl", override=True
+    "tir.atomic_add", target="opencl", f=opencl_atomic_add_rule, override=True
 )
 
 
