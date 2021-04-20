@@ -103,6 +103,29 @@ def keras_resnet50(tmpdir_factory):
 
 
 @pytest.fixture(scope="session")
+def keras_simple(tmpdir_factory):
+    try:
+        from tensorflow import keras
+    except ImportError:
+        # not all environments provide TensorFlow, so skip this fixture
+        # if that is that case.
+        return ""
+
+    model_file_name = "{}/{}".format(tmpdir_factory.mktemp("data"), "simple_conv.h5")
+    model = keras.Sequential(
+        [
+            keras.layers.InputLayer(input_shape=[32, 32, 3], batch_size=1),
+            keras.layers.Conv2D(8, kernel_size=(3, 3)),
+            keras.layers.Flatten(),
+            keras.layers.Dense(64),
+        ]
+    )
+    model.save(model_file_name)
+
+    return model_file_name
+
+
+@pytest.fixture(scope="session")
 def pytorch_resnet18(tmpdir_factory):
     try:
         import torch

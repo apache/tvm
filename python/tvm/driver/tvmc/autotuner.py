@@ -374,8 +374,7 @@ def tune_model(
         The path to the produced tuning log file.
     """
     target, extra_targets = common.target_from_cli(target)
-    if target_host is not None:
-        target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source
     # model is fixed. For now, creating a clone avoids the issue.
     mod = deepcopy(tvmc_model.mod)

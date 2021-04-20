@@ -20,26 +20,26 @@ import os
 from tvm.driver.tvmc.main import _main
 
 
-def test_tvmc_cl_workflow(onnx_mnist, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir = tmpdir_factory.mktemp("data")
 
     # Test model tuning
-    log_path = os.path.join(tmpdir, "mnist-autotuner_records.json")
+    log_path = os.path.join(tmpdir, "keras-autotuner_records.json")
     tuning_str = (
         f"tvmc tune --target llvm --output {log_path} "
-        f"--trials 5 --enable-autoscheduler {onnx_mnist}"
+        f"--trials 2 --enable-autoscheduler {keras_simple}"
     )
     tuning_args = tuning_str.split(" ")[1:]
     _main(tuning_args)
     assert os.path.exists(log_path)
 
     # Test model compilation
-    package_path = os.path.join(tmpdir, "mnist-tvm.tar")
+    package_path = os.path.join(tmpdir, "keras-tvm.tar")
     compile_str = (
         f"tvmc compile --target llvm --tuning-records {log_path} "
-        f"--output {package_path} {onnx_mnist}"
+        f"--output {package_path} {keras_simple}"
     )
     compile_args = compile_str.split(" ")[1:]
     _main(compile_args)

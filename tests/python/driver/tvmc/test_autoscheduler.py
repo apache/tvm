@@ -44,7 +44,7 @@ def _autoscheduler_test_helper(model, tmpdir_name, early_stopping=1, prior_recor
         prior_records=prior_records,
         early_stopping=early_stopping,
         enable_autoscheduler=True,
-        trials=5,
+        trials=2,
         hardware_params=hardware_params,
     )
 
@@ -59,10 +59,10 @@ def _autoscheduler_test_helper(model, tmpdir_name, early_stopping=1, prior_recor
     return log_file
 
 
-def test_get_tuning_tasks(onnx_mnist):
-    pytest.importorskip("onnx")
+def test_get_tuning_tasks(keras_simple):
+    pytest.importorskip("tensorflow")
 
-    tasks, weights = _get_tasks(onnx_mnist)
+    tasks, weights = _get_tasks(keras_simple)
     expected_task_type = auto_scheduler.SearchTask
 
     assert type(tasks) is list
@@ -70,25 +70,25 @@ def test_get_tuning_tasks(onnx_mnist):
     assert all([type(x) is expected_task_type for x in tasks]) is True
 
 
-def test_tune_tasks(onnx_mnist, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tune_tasks(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _autoscheduler_test_helper(onnx_mnist, tmpdir_name)
+    _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
 
-def test_tune_tasks__tuning_records(onnx_mnist, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    output_log_phase_1 = _autoscheduler_test_helper(onnx_mnist, tmpdir_name)
+    output_log_phase_1 = _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
     # Exercises transfer learning by making sure a previous log exists
-    _autoscheduler_test_helper(onnx_mnist, tmpdir_name, prior_records=output_log_phase_1)
+    _autoscheduler_test_helper(keras_simple, tmpdir_name, prior_records=output_log_phase_1)
 
 
-def test_tune_tasks__no_early_stopping(onnx_mnist, tmpdir_factory):
-    pytest.importorskip("onnx")
+def test_tune_tasks__no_early_stopping(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _autoscheduler_test_helper(onnx_mnist, tmpdir_name, early_stopping=None)
+    _autoscheduler_test_helper(keras_simple, tmpdir_name, early_stopping=None)

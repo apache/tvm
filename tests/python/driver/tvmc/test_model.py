@@ -23,11 +23,11 @@ from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCModel, TVMCPackage, TVMCResult
 
 
-def test_tvmc_workflow(onnx_mnist):
-    pytest.importorskip("onnx")
+def test_tvmc_workflow(keras_simple):
+    pytest.importorskip("tensorflow")
 
-    tvmc_model = tvmc.load(onnx_mnist)
-    tuning_records = tvmc.tune(tvmc_model, target="llvm", enable_autoscheduler=True, trials=5)
+    tvmc_model = tvmc.load(keras_simple)
+    tuning_records = tvmc.tune(tvmc_model, target="llvm", enable_autoscheduler=True, trials=2)
     tvmc_package = tvmc.compile(tvmc_model, tuning_records=tuning_records, target="llvm")
     result = tvmc.run(tvmc_package, device="cpu")
     assert type(tvmc_model) is TVMCModel
@@ -39,14 +39,14 @@ def test_tvmc_workflow(onnx_mnist):
     assert "output_0" in result.outputs.keys()
 
 
-def test_save_load_model(onnx_mnist, tmpdir_factory):
+def test_save_load_model(keras_simple, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir = tmpdir_factory.mktemp("data")
-    tvmc_model = tvmc.load(onnx_mnist)
+    tvmc_model = tvmc.load(keras_simple)
 
     # Create tuning artifacts
-    tvmc.tune(tvmc_model, target="llvm", trials=4)
+    tvmc.tune(tvmc_model, target="llvm", trials=2)
 
     # Create package artifacts
     tvmc.compile(tvmc_model, target="llvm")

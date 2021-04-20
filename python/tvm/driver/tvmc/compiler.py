@@ -200,8 +200,7 @@ def compile_model(
         mod = common.convert_graph_layout(mod, desired_layout)
 
     tvm_target, extra_targets = common.target_from_cli(target)
-    if target_host is not None:
-        tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
+    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
