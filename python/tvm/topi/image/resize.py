@@ -685,6 +685,13 @@ def resize(
     else:
         raise ValueError("%s layout is not supported." % layout)
 
+    if isinstance(size, tuple):
+        size = list(size)
+
+    for i in range(2):
+        if isinstance(size[i], int):
+            size[i] = tvm.tir.IntImm("int32", size[i])
+
     def _nearest_neighbor(*indices):
         return resize_nearest_neighbor(
             indices,

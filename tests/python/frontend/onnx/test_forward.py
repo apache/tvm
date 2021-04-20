@@ -3386,7 +3386,9 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name="resize_test")
 
-        verify_with_ort(model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True)
+        verify_with_ort(
+            model, [ishape], [oshape], use_vm=True, opset=11, freeze_params=True, atol=2e-5
+        )
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
