@@ -20,7 +20,7 @@
 ===========================
 
 In this document we will go over the steps needed to register a new TVM operator 
-in relay using this PR which adds a `cumulative product`_ operation as an example.  
+in Relay. We will be following this PR which adds a `cumulative product`_ operation as an example.  
 The PR itself builds upon another PR which adds a `cumulative sum`_ operation.
 
 .. _cumulative product: https://github.com/apache/tvm/pull/7722
@@ -32,8 +32,8 @@ Registering a new operator requires a few steps:
 2. Write a type relation for your operation to integrate into Relay's type system. 
 3. Use the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's arity, type, and other hints for the compiler 
 4. Write how the operator is computed 
-5. Register the compute, strategy with the relay operator
-6. Defining a C++ function to produce a call node for the operator and registering a Python API hook for the function
+5. Register the compute, schedule with the relay operator
+6. Define a C++ function to produce a call node for the operator and registering a Python API hook for the function
 7. Wrapping the above Python API hook in a neater interface
 8. Writing tests for the new relay operator 
 
@@ -73,24 +73,9 @@ Ultimately we want to create an operator whose interface can be seen clearly in 
         result : relay.Expr
             The result has the same size as data, and the same shape as data if axis is not None.
             If axis is None, the result is a 1-d array.
-        Examples
-        --------
-        .. code-block:: python
-            a = [[1,2,3], [4,5,6]]
-            cumprod(a)  # if axis is not provided, cumprod is done over the flattened input.
-            -> [ 1,  2,  6, 24, 120, 720]
-            cumprod(a, dtype="float32")
-            -> [  1.,  2.,  6., 24., 120., 720.]
-            cumprod(a, axis=0)  # multiply over rows for each of the 3 columns
-            -> [[1, 2, 3],
-                [4, 10, 18]]
-            cumprod(a, axis=1)
-            -> [[ 1,  2,  6],
-                [ 4,  20, 120]]
-            a = [1, 1, 1, 0, 1, 1, 0]  # a is a boolean array
-            cumprod(a, dtype=int32)  # dtype should be provided to get the expected results
-            -> [1, 1, 1, 0, 0, 0, 0]
         """
+
+A similiar interface exists for ``cumsum()``.
 
 Therefore, when defining our attributes in ``include/tvm/relay/attrs/transform.h`` we choose the axis, 
 accumulation dtype, and exclusivity of the operation as appropriate fields for the struct.
@@ -124,7 +109,7 @@ relation for an operator can enforce all the necessary typing rules
 (namely by inspecting the input types) in addition to computing the
 output type.
 
-Type relation for the cumulative product and sum can be found in 
+Type relation for the cumulative product and sum operators can be found in 
 ``src/relay/op/tensor/transform.cc``:
 
 .. code:: c++
@@ -195,20 +180,20 @@ Once again we add this to ``src/relay/op/tensor/transform.cc``:
         .add_type_rel("Cumprod", ScanopRel)
         .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
-In this case the ``TOpPattern`` is a hint to the compiler on the pattern of computation which might be
+In this case the ``TOpPattern`` is a hint to the compiler on the pattern of computation the operator does, which might be
 useful for reordering loops and fusing operators. ``kOpaque`` tells TVM not to not bother trying to fuse this operator. 
 
 4. Defining the Compute of the Operation
 ----------------------------------------
 
-While we've now defined the interface for the operation we still have not 
-told TVM how to perform the calculation for cumulative sum and product. 
+While we've now defined the interface for the operation but still have not 
+told TVM how to perform the actual calculations for cumulative sum and product. 
 
 Writing this code is outside the scope of the tutorial. For now, we assume
 we have a well tested implementation for the operation's compute. For 
 more details on how to do this, we recommend looking up the tutorials
 on `tensor expressions`_, `TVM's operator inventory (topi)`_ and looking at the 
-example compute for cumulative operations found in `python/tvm/topi/scan.py`_ and 
+examples cumulative sum and product found in `python/tvm/topi/scan.py`_ and 
 `python/tvm/topi/cuda/scan.py`_. In the case of our cumulative sum and product operations 
 we write things directly in `TIR`_ which is the representation where tensor expressions 
 and topi will lower into.
@@ -226,10 +211,10 @@ After you have implemented how your function can be computed we now need to glue
 relay operation. Within TVM this means not only defining the computation, but also the schedule 
 for an operation. A strategy is a method which picks which computation and which schedule
 to use. For example, for 2D convolutions we might recognize we are doing a depthwise convolution
-and dispatch to a more efficient computation and schedule. In our case however we have 
+and dispatch to a more efficient computation and schedule as a result. In our case however we have 
 no such need except for dispatching between our CPU and GPU implementations. In 
 ``python/tvm/relay/op/strategy/generic.py`` and ``python/tvm/relay/op/strategy/cuda.py`` we 
-add:
+add the following strategies:
 
 .. code:: python
 
@@ -288,7 +273,7 @@ add:
         )
         return strategy
         
-Where in each strategy we define the compute we wrote and the schedule to use.
+Where in each strategy we define the compute we wrote and the schedule to use within ``add_implementation()``.
 We finally link the strategy and compute with the defined relay operator in ``python/tvm/relay/op/_transform.py``:
 
 .. code:: python
@@ -318,7 +303,8 @@ case we tell TVM the output shape will be the same as the input shape.
 
 6. Creating a Relay Call Node and Exposing a Python Hook
 --------------------------------------------------------
-This step requires simply writing a function that takes
+We now have a working operation and now just need to properly call it 
+via a Relay Call Node. This step requires simply writing a function that takes
 the arguments to the operator (as Relay expressions) and
 returning a call node to the operator (i.e., the node that
 should be placed into the Relay AST where the call to the
@@ -398,10 +384,17 @@ before producing the call node:
 8. Writing Unit Tests!
 ----------------------
 This is self explanatory! Some example unit tests can be found in
-``tests/python/relay/test_op_level3.py``.
+`tests/python/relay/test_op_level3.py`_ for our cumulative sum 
+and product operators.
+
+.. _tests/python/relay/test_op_level3.py: https://github.com/apache/tvm/blob/main/tests/python/relay/test_op_level3.py
+
+
+Other Topics
+------------
 
 Gradient Operators
-------------------
+~~~~~~~~~~~~~~~~~~
 
 Gradient operators are important for writing differentiable programs in
 Relay. While it is the case that Relay's autodiff algorithm can differentiate
@@ -503,10 +496,3 @@ order to register the gradient.
         // Set other attributes
         // ...
         .set_attr<FPrimalGradient>("FPrimalGradient", MultiplyGrad);
-
-Summary
--------
-
-- A TVM operator can be registered in Relay using a relation to express the appropriate type information.
-- Using an operator in Relay requires a function to produce a call node for the operator.
-- It is best to have a simple Python wrapper for producing the call node.
