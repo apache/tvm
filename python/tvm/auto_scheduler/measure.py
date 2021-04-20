@@ -560,7 +560,6 @@ class LocalRPCMeasureContext:
             port=self.tracker.port,
             port_end=10000,
             key=device_key,
-            use_popen=True,
             silent=True,
             tracker_addr=(self.tracker.host, self.tracker.port),
         )

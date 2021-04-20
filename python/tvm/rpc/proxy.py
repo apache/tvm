@@ -537,7 +537,7 @@ class PopenProxyServerState(object):
         self.thread.start()
 
 
-def _popen_start_server(
+def _popen_start_proxy_server(
     host,
     port=9091,
     port_end=9199,
@@ -570,7 +570,7 @@ def _popen_start_server(
 class Proxy(object):
     """Start RPC proxy server on a seperate process.
 
-    Python implementation based on multi-processing.
+    Python implementation based on PopenWorker.
 
     Parameters
     ----------
@@ -618,7 +618,7 @@ class Proxy(object):
         self.proc = PopenWorker()
         # send the function
         self.proc.send(
-            _popen_start_server,
+            _popen_start_proxy_server,
             [
                 host,
                 port,
