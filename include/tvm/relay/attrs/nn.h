@@ -1044,13 +1044,10 @@ struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
 
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
-  double pad_value;
   Array<Array<Integer>> pad_width;
   std::string pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
-    TVM_ATTR_FIELD(pad_value).set_default(0.0).describe(
-        "The value used for padding when mode is 'constant'.");
     TVM_ATTR_FIELD(pad_width).describe(
         "Number of values padded to the edges of each axis, "
         "in the format of ((before_1, after_1), ..., (before_N, after_N))");
