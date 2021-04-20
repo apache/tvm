@@ -163,6 +163,7 @@ def verify_resize3d(
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
 
+
 @tvm.testing.uses_gpu
 def test_resize3d():
     # Trilinear
