@@ -15,8 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _relay-add-op: Adding an Operator to Relay
+.. _relay-add-op: 
 
+Adding an Operator to Relay
 ===========================
 
 In this document we will go over the steps needed to register a new TVM operator 
