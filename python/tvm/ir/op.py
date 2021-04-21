@@ -120,6 +120,7 @@ def register_op_attr(op_name, attr_key, value=None, level=10):
 def register_intrin_lowering(
     op_name,
     target,
+    *,
     f=None,
     level=10,
     override=False,
