@@ -882,32 +882,6 @@ TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
   }
 });
 
-TVM_REGISTER_GLOBAL("node.LargeUIntImm").set_body_typed(LargeUIntImm);
-
-TVM_REGISTER_GLOBAL("tir.min_value").set_body_typed(min_value);
-
-TVM_REGISTER_GLOBAL("tir.max_value").set_body_typed(max_value);
-
-TVM_REGISTER_GLOBAL("tir.abs").set_body_typed(tvm::abs);
-
-TVM_REGISTER_GLOBAL("tir.isnan").set_body_typed(tvm::isnan);
-
-TVM_REGISTER_GLOBAL("tir.isfinite").set_body_typed(tvm::isfinite);
-
-TVM_REGISTER_GLOBAL("tir.isinf").set_body_typed(tvm::isinf);
-
-TVM_REGISTER_GLOBAL("tir.floor").set_body_typed(tvm::floor);
-
-TVM_REGISTER_GLOBAL("tir.ceil").set_body_typed(tvm::ceil);
-
-TVM_REGISTER_GLOBAL("tir.round").set_body_typed(tvm::round);
-
-TVM_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
-
-TVM_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
-
-TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
-
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \
   TVM_REGISTER_GLOBAL("tir." #Node).set_body_typed([](PrimExpr a, PrimExpr b, Span span) { \
