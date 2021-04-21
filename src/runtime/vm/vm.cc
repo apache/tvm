@@ -142,11 +142,21 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     });
   } else if (name == "get_output") {
     return TypedPackedFunc<NDArray(int64_t)>([this](int64_t index) {
-      return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
+      if (this->return_register_.as<ADTObj>()) {
+        return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
+      } else {
+        return Downcast<NDArray>(this->return_register_);
+      }
     });
   } else if (name == "get_num_outputs") {
-    return TypedPackedFunc<int64_t(void)>(
-        [this]() -> int64_t { return Downcast<ADT>(this->return_register_).size(); });
+    return TypedPackedFunc<int64_t(void)>([this]() -> int64_t {
+      // single output is an NDArray not an ADT
+      if (this->return_register_.as<ADTObj>()) {
+        return Downcast<ADT>(this->return_register_).size();
+      } else {
+        return 1;
+      }
+    });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size() % 3, 0);
