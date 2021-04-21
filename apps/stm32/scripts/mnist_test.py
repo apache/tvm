@@ -36,7 +36,7 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 from tensorflow import keras
 
-from tvm.contrib.stm32 import AiRunner
+from ai_runner import AiRunner
 
 _DEFAULT = "serial"
 

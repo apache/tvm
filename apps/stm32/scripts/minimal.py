@@ -24,7 +24,7 @@ Minimal example - Invoke a model with the random data
 import sys
 import argparse
 from statistics import mean
-from tvm.contrib.stm32 import AiRunner
+from ai_runner import AiRunner
 
 _DEFAULT = "serial"
 
