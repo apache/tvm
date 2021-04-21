@@ -81,6 +81,7 @@ class LocalBuilder(Builder):
     build_func: callable or str
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
+        If id 'stackvm', use function for stackvm
         If is callable, use it as custom build function, expect lib_format field.
     """
 
@@ -459,8 +460,8 @@ class _WrappedBuildFunc:
 
     Parameters
     ----------
-    build_func : The compilation function
-        We expect fcompile to contain an attr "output_format"
+    build_func : The compilation function, optional
+        We expect fcompile to contain an attr "output_format" or None.
 
     Returns
     -------
