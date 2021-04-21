@@ -154,10 +154,10 @@ def compile_and_run(mod, input_list, output_list, params=None):
     """
     This method verifies the generated source
     """
-    target = "c -runtime=c --link-params --executor=aot"
+    target = "c -runtime=c --link-params"
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, target_host=target, params=params)
+        lib = tvm.relay.build(mod, target, target_host=target, params=params, executor="aot")
 
     tmp_path = utils.tempdir()
     tmp_dir = tmp_path.temp_dir

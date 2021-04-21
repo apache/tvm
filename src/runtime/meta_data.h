@@ -37,6 +37,12 @@
 
 #include "runtime_base.h"
 
+/*! \brief Value used to indicate the graph executor. */
+static constexpr const char* kTvmExecutorGraph = "graph";
+
+/*! \brief Value used to indicate the aot executor. */
+static constexpr const char* kTvmExecutorAot = "aot";
+
 namespace tvm {
 namespace runtime {
 
@@ -49,6 +55,8 @@ class MetadataNode : public Object {
   int num_inputs = 1;
   /*! \brief number of outputs of the main function */
   int num_outputs = 1;
+  /*! \brief the executor to be used to run the model */
+  String executor;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "MetadataObj";
@@ -60,10 +68,11 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(int num_inputs, int num_outputs) {
+  TVM_DLL Metadata(int num_inputs, int num_outputs, String executor = kTvmExecutorGraph) {
     auto n = make_object<MetadataNode>();
     n->num_inputs = num_inputs;
     n->num_outputs = num_outputs;
+    n->executor = executor;
     data_ = std::move(n);
   }
 

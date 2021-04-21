@@ -83,9 +83,8 @@ class BuildModule(object):
         self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
-        self._get_executor_type = self.mod["get_executor_type"]
 
-    def build(self, mod, target=None, target_host=None, params=None):
+    def build(self, mod, target=None, target_host=None, params=None, executor="graph"):
         """
         Parameters
         ----------
@@ -109,6 +108,11 @@ class BuildModule(object):
         params : dict of str to NDArray
             Input parameters to the graph that do not change
             during inference time. Used for constant folding.
+
+        executor: str[Optional]
+            The type of executor to be used in order to run the model:
+            - If "graph" is specified, then the graph_executor will be used
+            - If "aot" is specified, then the aot_executor will be used
 
         Returns
         -------
@@ -145,13 +149,13 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        self._build(mod, target, target_host)
+        self._build(mod, target, target_host, executor)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        internal_repr = self.get_graph_json() if self.get_executor_type() == "graph" else None
+        internal_repr = self.get_graph_json() if executor == "graph" else None
 
         return internal_repr, mod, params
 
@@ -209,10 +213,6 @@ class BuildModule(object):
             ret[key] = value.data
         return ret
 
-    def get_executor_type(self):
-        """ Return the executor TVM is building for """
-        return self._get_executor_type()
-
 
 @register_func("tvm.relay.module_export_library")
 def _module_export(module, file_name):  # fcompile, addons, kwargs?
@@ -229,7 +229,7 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     return build(mod, target, params=params, mod_name=mod_name).module
 
 
-def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
+def build(ir_mod, target=None, target_host=None, params=None, mod_name="default", executor="graph"):
     # fmt: off
     # pylint: disable=line-too-long
     """Helper function that builds a Relay function to run on TVM graph executor.
@@ -258,6 +258,11 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     mod_name: Optional[str]
         The module name we will build
+
+    executor: Optional[str]
+        The type of executor to be used in order to run the model:
+            - If "graph" is specified, then the graph_executor will be used
+            - If "aot" is specified, then the aot_executor will be used
 
     Returns
     -------
@@ -311,18 +316,20 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        internal_repr, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
+        internal_repr, runtime_mod, params = bld_mod.build(
+            mod=ir_mod, target=target, params=params, executor=executor
+        )
 
-        if bld_mod.get_executor_type() == "aot":
+        if executor == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod, target, runtime_mod, mod_name, params
             )
-        elif bld_mod.get_executor_type() == "graph":
+        elif executor == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
                 ir_mod, target, internal_repr, runtime_mod, mod_name, params
             )
         else:
-            assert False, "Executor " + bld_mod.get_executor_type() + " not supported"
+            assert False, "Executor " + executor + " not supported"
 
         return executor_factory
 

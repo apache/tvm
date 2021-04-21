@@ -119,7 +119,7 @@ TEST(Relay, BuildModule) {
   targets.Set(0, llvm_tgt);
   auto relay_mod = tvm::IRModule::FromExpr(func);
   ICHECK(relay_mod.defined()) << "Module must be defined";
-  build_f(relay_mod, targets, llvm_tgt);
+  build_f(relay_mod, targets, llvm_tgt, "graph");
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run

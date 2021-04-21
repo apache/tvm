@@ -170,8 +170,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 3);
-        this->Build(args[0], args[1], args[2]);
+        ICHECK_EQ(args.num_args, 4);
+        this->Build(args[0], args[1], args[2], args[3]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -198,17 +198,6 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1], this->params_);
-      });
-    } else if (name == "get_executor_type") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        const String executor_str = kTvmExecutorGraph;
-
-        auto target_host = GetTargetHost();
-        if (target_host.defined()) {
-          target_host->GetAttr<String>("executor").value_or(kTvmExecutorGraph);
-        }
-
-        *rv = executor_str;
       });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
@@ -278,10 +267,12 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target Target device
    * \param target_host Host target device
    */
-  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host,
+             const String executor) {
     // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
+    executor_ = executor;
     CheckAndUpdateHostConsistency(&targets_, &target_host_);
     BuildRelay(mod, params_);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
@@ -522,9 +513,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     auto func = Downcast<Function>(relay_module->Lookup("main"));
 
     // Generate code for the updated function.
-    const String executor_str =
-        target_host->GetAttr<String>("executor").value_or(kTvmExecutorGraph);
-    executor_codegen_ = MakeExecutorCodegen(executor_str);
+    executor_codegen_ = MakeExecutorCodegen(executor_);
     executor_codegen_->Init(nullptr, targets_);
     executor_codegen_->Codegen(func);
     executor_codegen_->UpdateOutput(&ret_);
@@ -598,6 +587,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */
   BuildOutput ret_;
+  /*! \brief Executor used to execute the graph */
+  String executor_;
 };
 
 runtime::Module RelayBuildCreate() {

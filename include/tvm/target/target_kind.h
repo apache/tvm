@@ -140,12 +140,6 @@ static constexpr const char* kTvmRuntimeCpp = "c++";
 /*! \brief Value used with --runtime in target specs to indicate the C runtime. */
 static constexpr const char* kTvmRuntimeCrt = "c";
 
-/*! \brief Value used with --executor in target specs to indicate the graph executor. */
-static constexpr const char* kTvmExecutorGraph = "graph";
-
-/*! \brief Value used with --executor in target specs to indicate the aot executor. */
-static constexpr const char* kTvmExecutorAot = "aot";
-
 /*!
  * \brief Helper structure to register TargetKind
  * \sa TVM_REGISTER_TARGET_KIND
