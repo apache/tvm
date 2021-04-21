@@ -747,7 +747,9 @@ def log_softmax(data, axis=-1):
     return _make.log_softmax(data, axis)
 
 
-def max_pool1d(data, pool_size=(1,), strides=(1,), padding=(0,), layout="NCW", ceil_mode=False):
+def max_pool1d(
+    data, pool_size=(1,), strides=(1,), dilation=(1,), padding=(0,), layout="NCW", ceil_mode=False
+):
     r"""1D maximum pooling operator.
 
     This operator takes data as input and does 1D max value calculation
@@ -791,11 +793,17 @@ def max_pool1d(data, pool_size=(1,), strides=(1,), padding=(0,), layout="NCW", c
     if isinstance(strides, int):
         strides = (strides,)
     padding = get_pad_tuple1d(padding)
-    return _make.max_pool1d(data, pool_size, strides, padding, layout, ceil_mode)
+    return _make.max_pool1d(data, pool_size, strides, dilation, padding, layout, ceil_mode)
 
 
 def max_pool2d(
-    data, pool_size=(1, 1), strides=(1, 1), padding=(0, 0), layout="NCHW", ceil_mode=False
+    data,
+    pool_size=(1, 1),
+    strides=(1, 1),
+    dilation=(1, 1),
+    padding=(0, 0),
+    layout="NCHW",
+    ceil_mode=False,
 ):
     r"""2D maximum pooling operator.
 
@@ -848,11 +856,17 @@ def max_pool2d(
     if isinstance(strides, int):
         strides = (strides, strides)
     padding = get_pad_tuple2d(padding)
-    return _make.max_pool2d(data, pool_size, strides, padding, layout, ceil_mode)
+    return _make.max_pool2d(data, pool_size, strides, dilation, padding, layout, ceil_mode)
 
 
 def max_pool3d(
-    data, pool_size=(1, 1, 1), strides=(1, 1, 1), padding=(0, 0, 0), layout="NCDHW", ceil_mode=False
+    data,
+    pool_size=(1, 1, 1),
+    strides=(1, 1, 1),
+    dilation=(1, 1, 1),
+    padding=(0, 0, 0),
+    layout="NCDHW",
+    ceil_mode=False,
 ):
     r"""3D maximum pooling operator.
 
@@ -898,13 +912,14 @@ def max_pool3d(
     if isinstance(strides, int):
         strides = (strides, strides, strides)
     padding = get_pad_tuple3d(padding)
-    return _make.max_pool3d(data, pool_size, strides, padding, layout, ceil_mode)
+    return _make.max_pool3d(data, pool_size, strides, dilation, padding, layout, ceil_mode)
 
 
 def avg_pool1d(
     data,
     pool_size=(1,),
     strides=(1,),
+    dilation=(1,),
     padding=(0,),
     layout="NCW",
     ceil_mode=False,
@@ -956,13 +971,16 @@ def avg_pool1d(
     if isinstance(strides, int):
         strides = (strides,)
     padding = get_pad_tuple1d(padding)
-    return _make.avg_pool1d(data, pool_size, strides, padding, layout, ceil_mode, count_include_pad)
+    return _make.avg_pool1d(
+        data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
+    )
 
 
 def avg_pool2d(
     data,
     pool_size=(1, 1),
     strides=(1, 1),
+    dilation=(1, 1),
     padding=(0, 0),
     layout="NCHW",
     ceil_mode=False,
@@ -1023,13 +1041,16 @@ def avg_pool2d(
     if isinstance(strides, int):
         strides = (strides, strides)
     padding = get_pad_tuple2d(padding)
-    return _make.avg_pool2d(data, pool_size, strides, padding, layout, ceil_mode, count_include_pad)
+    return _make.avg_pool2d(
+        data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
+    )
 
 
 def avg_pool3d(
     data,
     pool_size=(1, 1, 1),
     strides=(1, 1, 1),
+    dilation=(1, 1, 1),
     padding=(0, 0, 0),
     layout="NCDHW",
     ceil_mode=False,
@@ -1082,11 +1103,20 @@ def avg_pool3d(
     if isinstance(strides, int):
         strides = (strides, strides, strides)
     padding = get_pad_tuple3d(padding)
-    return _make.avg_pool3d(data, pool_size, strides, padding, layout, ceil_mode, count_include_pad)
+    return _make.avg_pool3d(
+        data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
+    )
 
 
 def max_pool2d_grad(
-    out_grad, data, pool_size=(1, 1), strides=(1, 1), padding=(0, 0), layout="NCHW", ceil_mode=False
+    out_grad,
+    data,
+    pool_size=(1, 1),
+    strides=(1, 1),
+    dilation=(1, 1),
+    padding=(0, 0),
+    layout="NCHW",
+    ceil_mode=False,
 ):
     r"""Gradient of 2D maximum pooling operator.
 
@@ -1120,7 +1150,9 @@ def max_pool2d_grad(
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.max_pool2d_grad(out_grad, data, pool_size, strides, padding, layout, ceil_mode)
+    return _make.max_pool2d_grad(
+        out_grad, data, pool_size, strides, dilation, padding, layout, ceil_mode
+    )
 
 
 def avg_pool2d_grad(
@@ -1128,6 +1160,7 @@ def avg_pool2d_grad(
     data,
     pool_size=(1, 1),
     strides=(1, 1),
+    dilation=(1, 1),
     padding=(0, 0),
     layout="NCHW",
     ceil_mode=False,
@@ -1169,7 +1202,7 @@ def avg_pool2d_grad(
         The computed result.
     """
     return _make.avg_pool2d_grad(
-        out_grad, data, pool_size, strides, padding, layout, ceil_mode, count_include_pad
+        out_grad, data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
     )
 
 

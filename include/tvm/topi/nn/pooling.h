@@ -420,9 +420,9 @@ inline bool find_width(const std::string& layout, int* width_axis) {
  * \return The output tensor in the same layout
  */
 inline Tensor pool(const Tensor& x, const Array<PrimExpr>& kernel_size,
-                   const Array<PrimExpr>& stride_size, const Array<PrimExpr>& padding_size,
-                   PoolType pool_type, bool ceil_mode, const std::string& layout = "NCHW",
-                   bool count_include_pad = true) {
+                   const Array<PrimExpr>& stride_size, const Array<PrimExpr>& dilation_size,
+                   const Array<PrimExpr>& padding_size, PoolType pool_type, bool ceil_mode,
+                   const std::string& layout = "NCHW", bool count_include_pad = true) {
   int height_axis = -1, width_axis = -1;
   ICHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
   return pool_impl(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode, height_axis,
@@ -673,9 +673,9 @@ inline Tensor global_pool(const Tensor& x, PoolType pool_type, const std::string
  * \return The output tensor in same layout order
  */
 inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
-                           const Array<PrimExpr>& stride_size, const Array<PrimExpr>& padding_size,
-                           PoolType pool_type, bool ceil_mode, const std::vector<int>& axis,
-                           bool count_include_pad) {
+                           const Array<PrimExpr>& stride_size, const Array<PrimExpr>& dilation_size,
+                           const Array<PrimExpr>& padding_size, PoolType pool_type, bool ceil_mode,
+                           const std::vector<int>& axis, bool count_include_pad) {
   int k_size = kernel_size.size();
   int x_size = x->shape.size();
   ICHECK_EQ(stride_size.size(), k_size) << "Pooling stride_size must have same elements as kernel";
@@ -686,6 +686,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
   Array<IterVar> daxis;
   std::vector<PrimExpr> kernel(k_size);
   std::vector<PrimExpr> stride(k_size);
+  std::vector<PrimExpr> dilation(k_size);
   std::vector<PrimExpr> pad_head(k_size);
   std::vector<PrimExpr> pad_tail(k_size);
   Array<PrimExpr> pad_before(std::vector<PrimExpr>(x_size, 0));
@@ -701,6 +702,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     int ii = axis[i];
     kernel[i] = cast(DataType::Int(32), kernel_size[i]);
     stride[i] = cast(DataType::Int(32), stride_size[i]);
+    dilation[i] = cast(DataType::Int(32), dilation_size[i]);
     pad_head[i] = cast(DataType::Int(32), padding_size[i]);
     pad_tail[i] = cast(DataType::Int(32), padding_size[i + k_size]);
     const int64_t* padding0 = as_const_int(pad_head[i]);
@@ -825,14 +827,14 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
  * \return The output tensor in the same layout
  */
 inline Tensor pool1d(const Tensor& x, const Array<PrimExpr>& kernel_size,
-                     const Array<PrimExpr>& stride_size, const Array<PrimExpr>& padding_size,
-                     PoolType pool_type, bool ceil_mode, const std::string& layout = "NCW",
-                     bool count_include_pad = true) {
+                     const Array<PrimExpr>& stride_size, const Array<PrimExpr>& dilation_size,
+                     const Array<PrimExpr>& padding_size, PoolType pool_type, bool ceil_mode,
+                     const std::string& layout = "NCW", bool count_include_pad = true) {
   int width_axis = -1;
   ICHECK(find_width(layout, &width_axis)) << "Unsupported layout " << layout;
   std::vector<int> axis = {width_axis};
-  return pool_impl_nd(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode, axis,
-                      count_include_pad);
+  return pool_impl_nd(x, kernel_size, stride_size, dilation_size, padding_size, pool_type,
+                      ceil_mode, axis, count_include_pad);
 }
 
 /*!
@@ -866,15 +868,15 @@ inline Tensor pool1d(const Tensor& x, const Array<PrimExpr>& kernel_size,
  * \return The output tensor in the same layout
  */
 inline Tensor pool3d(const Tensor& x, const Array<PrimExpr>& kernel_size,
-                     const Array<PrimExpr>& stride_size, const Array<PrimExpr>& padding_size,
-                     PoolType pool_type, bool ceil_mode, const std::string& layout = "NCDHW",
-                     bool count_include_pad = true) {
+                     const Array<PrimExpr>& stride_size, const Array<PrimExpr>& dilation_size,
+                     const Array<PrimExpr>& padding_size, PoolType pool_type, bool ceil_mode,
+                     const std::string& layout = "NCDHW", bool count_include_pad = true) {
   int depth_axis = -1, height_axis = -1, width_axis = -1;
   ICHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
       << "Unsupported layout " << layout;
   std::vector<int> axis = {depth_axis, height_axis, width_axis};
-  return pool_impl_nd(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode, axis,
-                      count_include_pad);
+  return pool_impl_nd(x, kernel_size, stride_size, dilation_size, padding_size, pool_type,
+                      ceil_mode, axis, count_include_pad);
 }
 
 }  // namespace nn
