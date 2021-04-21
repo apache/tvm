@@ -2508,7 +2508,7 @@ class NonMaxSuppression(OnnxOpConverter):
 
         boxes_dtype = infer_type(boxes).checked_type.dtype
 
-        if "center_point_box" in attr:
+        if attr.get("center_point_box", 0) != 0:
             xc, yc, w, h = _op.split(boxes, 4, axis=2)
             half_w = w / _expr.const(2.0, boxes_dtype)
             half_h = h / _expr.const(2.0, boxes_dtype)
