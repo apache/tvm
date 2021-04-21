@@ -123,6 +123,7 @@ class SimplifyTranspose : public DFPatternRewrite {
 
     Call trans_call = Downcast<Call>(post);
 
+    // Try to fuse any rank changing layout transformations
     if (auto layout_trans = FoldRankChangingLayoutTrans(x, trans_call)) {
       if (auto attr = layout_trans.value()->attrs.as<LayoutTransformAttrs>()) {
         // Prune any trivial layout transformation
@@ -174,13 +175,20 @@ class SimplifyTranspose : public DFPatternRewrite {
     return x;
   }
 
-  String PermuteLayout(const String& layout, std::vector<int> axes) const {
+  String PermuteLayout(const String& layout, std::vector<int> axes_order) const {
     std::string new_layout{};
     std::string old_layout{layout};
-    for (auto axis : axes) {
+    ICHECK_EQ(axes_order.size(), layout.size())
+        << "Number of axes must match the number of named axes in the layout to permute: length("
+        << old_layout << ") != " << axes_order.size();
+    std::stringstream order;
+    for (auto axis : axes_order) {
       new_layout += old_layout[axis];
+      order << axis << ", ";
     }
-    return String(new_layout);
+    DLOG(INFO) << "Using transpose axes order {" << order.str()
+               << "} to permute layout: " << old_layout << " to " << new_layout;
+    return new_layout;
   }
 
   struct RankChangingLayoutDescriptor {
@@ -234,26 +242,33 @@ class SimplifyTranspose : public DFPatternRewrite {
    * \param The pattern root; the second of two consecutive Transpose/LayoutTransform ops
    */
   Optional<Call> FoldRankChangingLayoutTrans(const Expr& data, const Call& call) const {
+    // Check to see if either the first or second call in matched pattern
+    // is a rank changing layout transform. If so, return a descriptor containing
+    // the layouts and any additional transpose or layout transform op.
     auto desc = GetRankChangeDescriptor(call);
     if (desc == nullptr) {
+      // No rank changing layout transform
       return Optional<Call>{nullptr};
     }
 
     Optional<Expr> output_layout_trans;
+    // Fuse a rank increasing layout transform and a preceeding transpose
     if (desc->src_layout->axes.size() < desc->dst_layout->axes.size()) {
       auto axes = GetTransposeAxisOrder(desc->other_transform, desc->src_layout->axes.size());
+      // Calculate the reverse axis order and apply to the source layout
       std::vector<int> inverse(axes.size());
       for (size_t i = 0; i < axes.size(); i++) {
         inverse[axes[i]] = i;
       }
-      String new_layout = PermuteLayout(std::string(desc->src_layout->name), inverse);
+      String new_layout = PermuteLayout(desc->src_layout->name, inverse);
       output_layout_trans = MakeLayoutTransform(data, new_layout, desc->dst_layout->name);
+      // Fuse a rank descreasing layout transform followed by a transpose
     } else if (desc->src_layout->axes.size() > desc->dst_layout->axes.size()) {
       auto axes = GetTransposeAxisOrder(desc->other_transform, desc->dst_layout->axes.size());
-      String new_layout = PermuteLayout(std::string(desc->dst_layout->name), axes);
+      String new_layout = PermuteLayout(desc->dst_layout->name, axes);
       output_layout_trans = MakeLayoutTransform(data, desc->src_layout->name, new_layout);
+      // Fuse two back-to-back layout transformations which change rank
     } else if (desc->other_transform->attrs.as<LayoutTransformAttrs>()) {
-      // Fuse two consecutive layout transforms
       output_layout_trans =
           MakeLayoutTransform(data, desc->src_layout->name, desc->dst_layout->name);
     }
