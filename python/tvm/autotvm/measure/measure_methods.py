@@ -489,9 +489,7 @@ class _WrappedBuildFunc:
         tic = time.time()
         try:
             output_format = "stackvm" if self.build_func is None else self.build_func.output_format
-            filename = os.path.join(
-                tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), output_format)
-            )
+            filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), output_format))
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
             func.export_library(filename, self.build_func)
