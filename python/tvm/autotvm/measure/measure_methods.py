@@ -92,6 +92,8 @@ class LocalBuilder(Builder):
                 build_func = tar.tar
             elif build_func == "ndk":
                 build_func = ndk.create_shared
+            elif build_func == "stackvm":
+                build_func = None
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
@@ -467,7 +469,7 @@ class _WrappedBuildFunc:
     """
 
     def __init__(self, build_func):
-        if not hasattr(build_func, "output_format"):
+        if build_func is not None and not hasattr(build_func, "output_format"):
             raise AttributeError("Expect build_func to have the attribute output_format.")
         self.build_func = build_func
 
@@ -485,8 +487,9 @@ class _WrappedBuildFunc:
         """
         tic = time.time()
         try:
+            output_format = "stackvm" if self.build_func is None else self.build_func.output_format
             filename = os.path.join(
-                tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
+                tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), output_format)
             )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
