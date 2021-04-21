@@ -344,9 +344,9 @@ def test_dense_conv2d_rewrite():
     n, c, h, w = 1, 16, 64, 64
     data = relay.var("data", relay.TensorType((n, c, h, w)))
     inp = relay.var("inp", relay.TensorType((n, c * h * w)))
-    weight_T = relay.const(np.random.random((n, c * h * w)), dtype='float32')
-    bias = relay.const(np.random.random((n,)), dtype='float32')
-    conv_w = relay.const(np.random.random((16, 16, 3, 3)), dtype='float32')
+    weight_T = relay.const(np.random.random((n, c * h * w)), dtype="float32")
+    bias = relay.const(np.random.random((n,)), dtype="float32")
+    conv_w = relay.const(np.random.random((16, 16, 3, 3)), dtype="float32")
 
     dense_o = relay.nn.dense(inp, weight_T)
     linear_o = relay.nn.bias_add(dense_o, bias)
