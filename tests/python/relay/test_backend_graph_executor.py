@@ -133,15 +133,14 @@ def test_plan_memory():
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()
-    storage_sizes = set()
+    storage_sizes = {}
     for k, v in smap.items():
         assert len(v) == 3
         for x in v[0]:
             storage_ids.add(x.value)
+            storage_sizes[x.value] = v[2]
         for x in v[1]:
             device_types.add(x.value)
-        for x in v[2]:
-            storage_sizes.add(x.value)
 
     # Current rule requires vars have unique storage id
     # because we don't do inplace, we will need another
