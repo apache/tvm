@@ -182,22 +182,22 @@ Once again we add this to ``src/relay/op/tensor/transform.cc``:
         .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 In this case the ``TOpPattern`` is a hint to the compiler on the pattern of computation the operator does, which might be
-useful for reordering loops and fusing operators. ``kOpaque`` tells TVM not to not bother trying to fuse this operator. 
+useful for fusing operators. ``kOpaque`` tells TVM to not bother trying to fuse this operator. 
 
 4. Defining the Compute of the Operation
 ----------------------------------------
 
-While we've now defined the interface for the operation but still have not 
-told TVM how to perform the actual calculations for cumulative sum and product. 
+While we've now defined the interface for our operations we still need to define 
+how to perform the actual calculations for cumulative sum and product. 
 
 Writing this code is outside the scope of the tutorial. For now, we assume
 we have a well tested implementation for the operation's compute. For 
 more details on how to do this, we recommend looking up the tutorials
 on `tensor expressions`_, `TVM's operator inventory (topi)`_ and looking at the 
-examples cumulative sum and product found in `python/tvm/topi/scan.py`_ and 
-`python/tvm/topi/cuda/scan.py`_. In the case of our cumulative sum and product operations 
-we write things directly in `TIR`_ which is the representation where tensor expressions 
-and topi will lower into.
+example cumulative sum and product implementations found in `python/tvm/topi/scan.py`_ 
+and the gpu versions in `python/tvm/topi/cuda/scan.py`_. In the case of our cumulative 
+sum and product operations we write things directly in `TIR`_ which is the 
+representation where tensor expressions and topi will lower into.
 
 .. _tensor expressions: https://tvm.apache.org/docs/tutorials/get_started/tensor_expr_get_started.html
 .. _TVM's operator inventory (topi): https://tvm.apache.org/docs/tutorials/topi/intro_topi.html
@@ -208,7 +208,7 @@ and topi will lower into.
 5. Hooking up Compute and Strategy with Relay
 ---------------------------------------------
 
-After you have implemented how your function can be computed we now need to glue it to our 
+After you have implemented your compute function we now need to glue it to our 
 relay operation. Within TVM this means not only defining the computation, but also the schedule 
 for an operation. A strategy is a method which picks which computation and which schedule
 to use. For example, for 2D convolutions we might recognize we are doing a depthwise convolution
@@ -340,7 +340,7 @@ the arguments to the call node, as below. In ``src/relay/op/tensor/transform.cc`
 
     TVM_REGISTER_GLOBAL("relay.op._make.cumsum").set_body_typed(MakeCumprod);
 
-Where TVM_REGISTER_GLOBAL exposes the ``MakeCumsum`` and ``MakeCumprod`` functions
+Where ``TVM_REGISTER_GLOBAL`` exposes the ``MakeCumsum`` and ``MakeCumprod`` functions
 in Python via ``relay.op._make.cumsum(...)`` and ``relay.op._make.cumsum(...)``.
 
 7. Including a Cleaner Python API Hook
