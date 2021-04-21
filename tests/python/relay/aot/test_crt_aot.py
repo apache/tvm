@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tflite
 import os
 import io
 import struct

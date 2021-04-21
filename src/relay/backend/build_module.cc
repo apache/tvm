@@ -201,9 +201,12 @@ class RelayBuildModule : public runtime::ModuleNode {
       });
     } else if (name == "get_executor_type") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        const String executor_str = kTvmExecutorGraph;
+
         auto target_host = GetTargetHost();
-        const String executor_str =
-            target_host->GetAttr<String>("executor").value_or(kTvmExecutorGraph);
+        if (target_host.defined()) {
+          target_host->GetAttr<String>("executor").value_or(kTvmExecutorGraph);
+        }
 
         *rv = executor_str;
       });
