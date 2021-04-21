@@ -130,13 +130,11 @@ class DebugResult(object):
         # cleanup existing tensors before dumping
         self._cleanup_tensors()
         eid = 0
-        order = 0
         output_tensors = {}
-        for node, time in zip(self._nodes_list, self._time_list):
+        for node in self._nodes_list:
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
-                order += time[0]
-                key = node["name"] + "_" + str(j) + "__" + str(order)
+                key = node["name"] + "____" + str(j)
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
 

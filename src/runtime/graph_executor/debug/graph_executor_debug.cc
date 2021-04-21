@@ -230,6 +230,28 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
+   * \brief Run debugger to a specific node and return result.
+   *
+   * This method will do a partial run of the the graph
+   * from begining upto the index-th node and return output of index-th node.
+   * This is costly operation and suggest to use only for debug porpose.
+   *
+   * \param index: The index of the node.
+   * \param eid The Entry id of the op.
+   * \return Node output array.
+   */
+  NDArray RunLayerGetOutput(int index, int eid) {
+    ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
+
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (op_execs_[i]) op_execs_[i]();
+      if (static_cast<int>(i) == index) break;
+    }
+
+    return data_entry_[entry_id(index, eid)];
+  }
+
+  /*!
    * \brief Profile execution time of the module.
    *
    * We run the entire module while recording overall and per-op timing
@@ -293,6 +315,10 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       } else {
         this->DebugGetNodeOutput(args[0], args[1]);
       }
+    });
+  } else if (name == "run_layer_get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->RunLayerGetOutput(args[0], args[1]);
     });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

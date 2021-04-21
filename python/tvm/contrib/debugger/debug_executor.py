@@ -19,6 +19,7 @@
 import os
 import tempfile
 import shutil
+import logging
 import tvm._ffi
 
 from tvm._ffi.base import string_types
@@ -100,6 +101,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_path = None
         self._get_output_by_layer = module["get_output_by_layer"]
         self._run_individual = module["run_individual"]
+        self._run_layer_get_output = module["run_layer_get_output"]
         self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
@@ -184,6 +186,19 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 out_tensor = array(out_tensor)
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
+    def _run_per_layer(self):
+        """Execute up to each node and each debug output will be
+        copied to the buffer.
+
+        """
+        for i, node in enumerate(self.debug_datum.get_graph_nodes()):
+            num_outputs = self.debug_datum.get_graph_node_output_num(node)
+            for j in range(num_outputs):
+                logging.info("running: output=%d of node_name: %s", j, node["name"])
+                out_tensor = self._run_layer_get_output(i, j)
+                out_tensor = array(out_tensor)
+                self.debug_datum._output_tensor_list.append(out_tensor)
+
     def debug_get_output(self, node, out=None):
         """Run graph up to node and get the output to out
 
@@ -197,22 +212,26 @@ class GraphModuleDebug(graph_executor.GraphModule):
         """
         if isinstance(node, str):
             output_tensors = self.debug_datum.get_output_tensors()
+            if not output_tensors:
+                raise RuntimeError(f"Output Tensors are empty. First, run _run_per_layer().")
             try:
                 out = output_tensors[node]
             except KeyError:
                 node_list = output_tensors.keys()
-                raise RuntimeError(
-                    "Node " + node + " not found, available nodes are: " + str(node_list) + "."
-                )
+                raise RuntimeError(f"Node {node} not found, available nodes are: {str(node_list)}.")
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list
+            if not output_tensors:
+                raise RuntimeError(f"Tensor list is empty. First, run _run_per_layer().")
+            if node > len(output_tensors):
+                raise RuntimeError(f"Node index {node} is out of range.")
             out = output_tensors[node]
         else:
-            raise RuntimeError("Require node index or name only.")
+            raise RuntimeError(f"Require node index or name only.")
         return out
 
-    def run(self, **input_dict):
-        """Run forward execution of the graph with debug
+    def get_per_layer_outputs(self, **input_dict):
+        """Run graph up to every layer and dump the output result
 
         Parameters
         ----------
@@ -222,14 +241,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
         if input_dict:
             self.set_input(**input_dict)
 
-        # Step 1. Execute the graph
-        self._run_debug()
+        # Step 1. Execute the graph for each node and save output tensor.
+        self._run_per_layer()
         # Step 2. Dump the output tensors to the dump folder
         self.debug_datum.dump_output_tensor()
-        # Step 3. Dump the Chrome trace to the dump folder
-        self.debug_datum.dump_chrome_trace()
-        # Step 4. Display the collected information
-        self.debug_datum.display_debug_result()
 
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)
