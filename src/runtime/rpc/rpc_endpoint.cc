@@ -981,7 +981,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     RPCCode code = RPCCode::kCopyToRemote;
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_to, code, nbytes);
     uint64_t rpc_max_size = GetRPCMaxTransferSize();
-    ICHECK_GT(rpc_max_size - overhead, 0) << "CopyToRemote: Invalid block size!";
+    ICHECK_GT(rpc_max_size, overhead) << "CopyToRemote: Invalid block size!";
     const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
     const uint64_t num_blocks = nbytes / block_size;
@@ -1007,7 +1007,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     RPCCode code = RPCCode::kCopyFromRemote;
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_from, code, nbytes);
     uint64_t rpc_max_size = GetRPCMaxTransferSize();
-    ICHECK_GT(rpc_max_size - overhead, 0) << "CopyFromRemote: Invalid block size!";
+    ICHECK_GT(rpc_max_size, overhead) << "CopyFromRemote: Invalid block size!";
     const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
     const uint64_t num_blocks = nbytes / block_size;
