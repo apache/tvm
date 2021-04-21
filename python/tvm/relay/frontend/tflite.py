@@ -597,13 +597,18 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
         # size - 1-D int32 Tensor of 2 elements: new_height, new_width
         target_size = tuple(self.get_tensor_value(input_tensors[1]))
 
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        if method == "bilinear":
+        bilinear_method = method == "bilinear"
+        if bilinear_method:
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
@@ -617,9 +622,13 @@ class OperatorConverter(object):
 
         # Use layout NHWC
         coord_trans = "align_corners" if align_corners else "asymmetric"
+        if bilinear_method and input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize(
             in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
+        if bilinear_method and output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_resize_bilinear(self, op):
