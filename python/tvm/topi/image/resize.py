@@ -69,11 +69,11 @@ def get_iny_inx(
         in_y = (y + 0.5) * scale_y - 0.5
         in_x = (x + 0.5) * scale_x - 0.5
     elif coordinate_transformation_mode == "align_corners":
-        in_y = y * (image_height - 1).astype("float") / (target_height - 1)
-        in_x = x * (image_width - 1).astype("float") / (target_width - 1)
+        in_y = (image_height - 1).astype("float") / (target_height - 1) * y
+        in_x = (image_width - 1).astype("float") / (target_width - 1) * x
     elif coordinate_transformation_mode == "asymmetric":
-        in_y = y * scale_y
-        in_x = x * scale_x
+        in_y = scale_y * y
+        in_x = scale_x * x
     elif coordinate_transformation_mode == "pytorch_half_pixel":
         in_y = te.if_then_else(target_height > 1, (y + 0.5) * scale_y - 0.5, 0.0)
         in_x = te.if_then_else(target_width > 1, (x + 0.5) * scale_x - 0.5, 0.0)
