@@ -30,6 +30,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/vm/bytecode.h>
 
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>

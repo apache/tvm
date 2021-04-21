@@ -38,6 +38,7 @@
 #include <tvm/te/operation.h>
 
 #include <iostream>
+#include <map>
 #include <memory>
 #include <string>
 #include <tuple>
