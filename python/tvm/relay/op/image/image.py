@@ -26,6 +26,9 @@ def resize(
     layout="NCHW",
     method="bilinear",
     coordinate_transformation_mode="half_pixel",
+    rounding_method="",
+    bicubic_alpha=-0.5,
+    bicubic_exclude=0,
     out_dtype=None,
 ):
     """Image resize operator.
@@ -58,6 +61,16 @@ def resize(
         Refer to the ONNX Resize operator specification for details.
         [half_pixel, align_corners, asymmetric]
 
+    rounding_method: string, optional
+        indicates how to find the "nearest" pixel in nearest_neighbor method
+        [round, floor, ceil]
+
+    bicubic_alpha: float
+        Spline Coefficient for Bicubic Interpolation
+
+    bicubic_exclude: int
+            Flag to exclude exterior of the image during bicubic interpolation
+
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
 
@@ -70,9 +83,27 @@ def resize(
         size = list(size.data.asnumpy().astype("int32"))
     if isinstance(size, Expr):
         return _dyn_make.resize(
-            data, size, layout, method, coordinate_transformation_mode, out_dtype
+            data,
+            size,
+            layout,
+            method,
+            coordinate_transformation_mode,
+            rounding_method,
+            bicubic_alpha,
+            bicubic_exclude,
+            out_dtype,
         )
-    return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
+    return _make.resize(
+        data,
+        size,
+        layout,
+        method,
+        coordinate_transformation_mode,
+        rounding_method,
+        bicubic_alpha,
+        bicubic_exclude,
+        out_dtype,
+    )
 
 
 def resize3d(
@@ -151,7 +182,7 @@ def crop_and_resize(
         A 1-D tensor of shape [num_boxes], box_ind[i] specifies the data that
         the i-th box refers to.
 
-    crop_size : Tuple of Expr
+    crop_size : Tuple of PrimExpr
         The target size to which each box will be resized.
 
     layout : str, optional
