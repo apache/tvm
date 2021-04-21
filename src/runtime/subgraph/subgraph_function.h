@@ -18,9 +18,10 @@
  */
 #ifndef TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_
 #define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_
-#include "subgraph_data.h"
 #include <memory>
 #include <vector>
+
+#include "subgraph_data.h"
 
 using namespace std;
 using namespace tvm::runtime;
@@ -32,6 +33,6 @@ inline void subgraph_queue_push(QUEUE* queue, Array<NDArray> arrays);
 bool subgraph_queue_poll(QUEUE* queue, RuntimeData* runtimeData);
 bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes,
                    const bool sync = false);
-void subgraph_stop(const SHARED_RUNTIME_VEC &runtimes);
+void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes);
 
 #endif  // TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_

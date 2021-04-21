@@ -20,18 +20,19 @@
 #define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_STRUCT_H_
 #include <assert.h>
 #include <sched.h>
-#include <unistd.h>
+#include <string.h>
 #include <sys/syscall.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
-#include <string.h>
+#include <tvm/runtime/packed_func.h>
+#include <unistd.h>
+
 #include <condition_variable>
-#include <thread>
-#include <mutex>
-#include <vector>
-#include <string>
 #include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
 #define SLOT slot_t<>
 #define SUB_Q_SIZE 1024
 // #define SERIALIZE
@@ -80,7 +81,7 @@ class subgraphData {
  private:
   void ResetDataList(size_t num) {
     if (max_num < num) {
-      for (int i = 0; i < max_num; i++) {
+      for (size_t i = 0; i < max_num; i++) {
         TVMArrayFree(dataList[i]);
       }
 
@@ -115,7 +116,7 @@ class subgraphData {
     num = dlArray.size();
     ResetDataList(num);
 
-    for (int i = 0; i < num; i++) {
+    for (size_t i = 0; i < num; i++) {
       CreateCopyFrom(const_cast<const DLTensor*>(dlArray[i].operator->()), &dataList[i],
                      device_type, device_id);
     }
@@ -133,7 +134,7 @@ class subgraphData {
     num = dlTensors.size();
     ResetDataList(num);
 
-    for (int i = 0; i < num; i++) {
+    for (size_t i = 0; i < num; i++) {
       CreateCopyFrom(dlTensors[i], &dataList[i], device_type, device_id);
     }
     return;
@@ -143,7 +144,7 @@ class subgraphData {
     num = dlNum;
     ResetDataList(num);
 
-    for (int i = 0; i < num; i++) {
+    for (size_t i = 0; i < num; i++) {
       auto dlTensor = const_cast<DLTensor*>(dlTensors[i]);
       CreateCopyFrom(dlTensor, &dataList[i], device_type, device_id);
     }
@@ -156,8 +157,8 @@ class subgraphData {
   subgraphData(void) : num(0), max_num(0), dataList(nullptr) {}
 };
 
-template<int device_type = kDLCPU, int device_id = 0>
-class slot_t{
+template <int device_type = kDLCPU, int device_id = 0>
+class slot_t {
  public:
   bool bExit = false;
   subgraphData data;
@@ -185,13 +186,12 @@ class slot_t{
   }
 };
 
-template<int device_type = kDLCPU, int device_id = 0>
+template <int device_type = kDLCPU, int device_id = 0>
 class subgraphOutputData {
  public:
   explicit subgraphOutputData(vector<NDArray>* datas) : datas_(datas) { ; }
   subgraphOutputData& operator=(const slot_t<device_type, device_id>& slot) {
-    size_t num = slot.data.num;
-    assert(datas_->size() >= num);
+    assert(datas_->size() >= slot.data.num);
     for (size_t i = 0; i < slot.data.num; i++) {
       auto dlTensor = slot.data.dataList[i];
       (*datas_)[i].CopyFrom(dlTensor);
@@ -203,8 +203,8 @@ class subgraphOutputData {
   vector<NDArray>* datas_;
 };
 
-template<typename SLOT_TYPE = SLOT, int QLEN = 1024>
-class squeue{
+template <typename SLOT_TYPE = SLOT, int QLEN = 1024>
+class squeue {
  public:
   size_t len;
   volatile size_t head;
@@ -214,7 +214,7 @@ class squeue{
 };
 typedef squeue<SLOT> QUEUE;
 
-class RuntimeFunction{
+class RuntimeFunction {
  public:
   DLTensor* dlLocal = nullptr;
   Module module_;
@@ -307,9 +307,8 @@ class RuntimeData {
   shared_ptr<RuntimeFunction> runtimePtr;
   template <typename type>
   void ImportData(type dlTensors, size_t inputsLen) {
-    size_t num = runtimePtr->NumInputs();
-    assert(num >= inputsLen);
-    for (int i = 0; i < inputsLen; i++) {
+    assert(runtimePtr->NumInputs() >= inputsLen);
+    for (size_t i = 0; i < inputsLen; i++) {
       /*
        * Use SetInput which have logic to handle
        * cross device memory copy to set input data.
@@ -361,7 +360,6 @@ class RuntimeItem {
   void Run(void) { runtimePtr->Run(); }
 
   bool waitPipeLineData(bool bPollSuc) {
-    bool ret = false;
     /*
        wait input data ready.
        */
@@ -388,13 +386,12 @@ class RuntimeItem {
   Array<NDArray> GetOutput(void) {
     Array<NDArray> outputs;
     size_t outputsNum = runtimePtr->NumOutputs();
-    for (int i = 0; i < outputsNum; i++) {
+    for (size_t i = 0; i < outputsNum; i++) {
       auto output = runtimePtr->GetOutput(i);
       outputs.push_back(output);
     }
     return outputs;
   }
 };
-
 
 #endif  //  TVM_RUNTIME_SUBGRAPH_SUBGRAPH_STRUCT_H_

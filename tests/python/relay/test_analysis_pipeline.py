@@ -35,6 +35,7 @@ def run_module(mod, dev, target, dname, data):
     output = m.get_output(0).asnumpy()
     return output
 
+
 def get_network():
     dshape = (3, 3)
     mvalue1 = np.full((1), 5).astype("float32")
@@ -67,7 +68,7 @@ mods = pipeline_graph(mod["main"], pl)
 #Prepare batch data for pipeline feeding
 """
 datas = []
-for i in range(len(pl) +1):
+for i in range(len(pl) + 1):
     datas.append(np.full(dshape, 3 + i).astype("float32"))
 
 """
@@ -97,7 +98,7 @@ with relay.build_config(opt_level=3):
         lib, dev = relay.build(mods[0], "cuda"), tvm.gpu()
     else:
         lib, dev = relay.build(mods[0], "llvm"), tvm.cpu()
-    sub_mod.append({"lib":lib, "dev":dev})
+    sub_mod.append({"lib": lib, "dev": dev})
 
     """
     #Build second subgraph, append module and device into
@@ -107,19 +108,19 @@ with relay.build_config(opt_level=3):
         lib, dev = relay.build(mods[1], "cuda"), tvm.gpu()
     else:
         lib, dev = relay.build(mods[1], "llvm"), tvm.cpu()
-    sub_mod.append({"lib":lib, "dev":dev})
+    sub_mod.append({"lib": lib, "dev": dev})
 
     """
     #third subgraph
     """
     lib = relay.build(mods[2], "llvm")
-    sub_mod.append({"lib":lib, "dev":tvm.cpu()})
+    sub_mod.append({"lib": lib, "dev": tvm.cpu()})
 
     """
     #last subgraph
     """
     lib = relay.build(mods[3], "llvm")
-    sub_mod.append({"lib":lib, "dev":tvm.cpu()})
+    sub_mod.append({"lib": lib, "dev": tvm.cpu()})
 
 """
 #Create subgraph executor
@@ -149,4 +150,4 @@ smod.stop()
 #Verify result
 """
 for i in range(len(datas)):
-    tvm.testing.assert_allclose(outs[i],sub_outputs[i])
+    tvm.testing.assert_allclose(outs[i], sub_outputs[i])

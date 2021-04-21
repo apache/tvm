@@ -20,15 +20,16 @@
 #define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_DATA_H_
 #define EXPORT __attribute__((visibility("default")))
 #define IMPORT
+#include <condition_variable>
 #include <cstddef>
 #include <mutex>
 #include <thread>
-#include <condition_variable>
+
 #include "subgraph_struct.h"
 #ifdef __cplusplus
 
 #if defined(__x86_64)
-#define read_barrier()  __asm__ __volatile__("":::"memory")
+#define read_barrier() __asm__ __volatile__("" ::: "memory")
 #else
 #define dsb(opt) asm volatile("dsb " #opt : : : "memory")
 #define read_barrier() dsb(st)

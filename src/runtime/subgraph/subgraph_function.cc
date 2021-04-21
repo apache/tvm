@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "subgraph_function.h"
+
 #include <utility>
 using namespace tvm::runtime;
 
@@ -24,8 +25,10 @@ void subgraph_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
   QUEUE* curQueue = curRunItem->queue;
   QUEUE* nextQueue = curRunItem->next->queue;
 
-  auto id = std::this_thread::get_id();
-
+  /*
+   * Wait at beginning, then only do wait once last time data poll failed,
+   * the loop would break after an exit notification get received.
+   */
   bool suc = false;
   while (curRunItem->waitPipeLineData(suc)) {
     suc = subgraph_queue_poll(curQueue, &curRunItem->rData);
@@ -46,7 +49,7 @@ void subgraph_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
 }
 
 thread* subgraph_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
-  for (int i = 1; i < runtimes->size(); i++) {
+  for (size_t i = 1; i < runtimes->size(); i++) {
     (*runtimes)[i]->t = move(thread(subgraph_pipeline_run, i, (*runtimes)[i]));
   }
   return NULL;
@@ -86,7 +89,7 @@ bool subgraph_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
 
 void subgraph_run_serial(const SHARED_RUNTIME_VEC runtimes) {
   runtimes[0]->Run();
-  for (int i = 1; i < runtimes.size(); i++) {
+  for (size_t i = 1; i < runtimes.size(); i++) {
     int oNum = runtimes[i - 1]->runtimePtr->NumOutputs();
     for (int j = 0; j < oNum; j++) {
       auto o = runtimes[i - 1]->runtimePtr->GetOutput(j);
@@ -114,8 +117,10 @@ bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, 
   QUEUE* queue = firstRuntime->queue;
 #ifndef SERIALIZE
   bool suc = false;
-  if (firstRuntime->waitPipeLineData(suc || !synch)) {
-    subgraphOutputData<> outputData(output);
+  subgraphOutputData<> outputData(output);
+  suc = q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
+  if (!suc) {
+    firstRuntime->waitPipeLineData(!synch);
     suc = q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
     cout << "run done suc is " << suc << endl;
   }
@@ -126,7 +131,7 @@ bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, 
 #endif
 }
 
-void subgraph_stop(const SHARED_RUNTIME_VEC &runtimes) {
+void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes) {
   cout << __FUNCTION__ << endl;
   runtimes.front()->notifyNextExit();
 }

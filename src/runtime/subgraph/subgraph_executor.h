@@ -24,10 +24,11 @@
  */
 #ifndef TVM_RUNTIME_SUBGRAPH_SUBGRAPH_EXECUTOR_H_
 #define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_EXECUTOR_H_
-#include "subgraph_function.h"
-#include <string>
 #include <memory>
+#include <string>
 #include <vector>
+
+#include "subgraph_function.h"
 
 namespace tvm {
 namespace runtime {
@@ -99,8 +100,8 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
   Array<NDArray> GetOutput(bool syncPoll = true);
 
  protected:
-    std::vector<NDArray> output_entry_;
-    std::vector<shared_ptr<RuntimeItem>> runtimes;
+  std::vector<NDArray> output_entry_;
+  std::vector<shared_ptr<RuntimeItem>> runtimes;
 };
 }  // namespace runtime
 }  // namespace tvm

@@ -21,6 +21,7 @@
  * \file subgraph_runtime.cc
  */
 #include "subgraph_executor.h"
+
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -33,11 +34,7 @@ void SubGraphRuntime::Stop() { subgraph_stop(runtimes); }
 /*!
  * \brief Run all the operations one by one.
  */
-void SubGraphRuntime::Run() {
-  // setup the array and requirements.
-  int graphNum = runtimes.size();
-  subgraph_run(runtimes, true);
-}
+void SubGraphRuntime::Run() { subgraph_run(runtimes, true); }
 
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules) {
   subgraph_init(modules, &runtimes);
@@ -172,7 +169,7 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
   } else if (name == "stop") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Stop();});
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Stop(); });
   } else {
     return PackedFunc();
   }
