@@ -270,6 +270,9 @@ class OpRegEntry {
    *  an higher priority level attribute
    *  will replace lower priority level attribute.
    *  Must be bigger than 0.
+   * \param can_override Whether to explicitly allow
+   *  overriding the attribute, any non-zero value
+   *  implies allowance and 0 means disallowance.
    *
    *  Cannot set with same plevel twice in the code.
    *
