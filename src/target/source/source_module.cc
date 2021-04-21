@@ -213,7 +213,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
-    if (metadata_->executor == kTvmExecutorAot) {
+    if (metadata_.defined() && metadata_->executor == kTvmExecutorAot) {
       GenerateAOTDescriptor();
     }
     code_ << ";";
