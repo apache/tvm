@@ -277,7 +277,7 @@ class OpRegEntry {
    */
   template <typename ValueType>
   inline OpRegEntry& set_attr(const std::string& attr_name,  // NOLINT(*)
-                              const ValueType& value, int plevel = 10);
+                              const ValueType& value, int plevel = 10, int can_override = 0);
 
   /*!
    * \brief Resets an attr of the registry.
@@ -311,7 +311,8 @@ class OpRegEntry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value,
+                          int plevel, int can_override = 0);
 };
 
 /*!
@@ -461,11 +462,11 @@ inline OpRegEntry& OpRegEntry::set_support_level(int32_t n) {  // NOLINT(*)
 
 template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
-    const std::string& attr_name, const ValueType& value, int plevel) {
+    const std::string& attr_name, const ValueType& value, int plevel, int can_override) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   runtime::TVMRetValue rv;
   rv = value;
-  UpdateAttr(attr_name, rv, plevel);
+  UpdateAttr(attr_name, rv, plevel, can_override);
   return *this;
 }
 

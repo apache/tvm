@@ -71,8 +71,8 @@ void OpRegEntry::reset_attr(const std::string& attr_name) {
   OpRegistry::Global()->ResetAttr(attr_name, op_);
 }
 
-void OpRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
-  OpRegistry::Global()->UpdateAttr(key, op_, value, plevel);
+void OpRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel, int can_override) {
+  OpRegistry::Global()->UpdateAttr(key, op_, value, plevel, can_override);
 }
 
 // Frontend APIs
@@ -133,7 +133,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
                             << ".FlowerIntrinsic is already registered";
       }
       tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
-                                                                     plevel);
+                                                                     plevel, can_override);
     });
 
 // helper to get internal dev function in objectref.
