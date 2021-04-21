@@ -2402,15 +2402,12 @@ def verify_conv(
             auto_pad=auto_pad,
         )
     else:
+        ## autopadding with unset attributes
         node = helper.make_node(
             "Conv",
             inputs=["x", "W"],
             outputs=["y"],
-            kernel_shape=kernel_shape,
             # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            # groups=1
             pads=padding,
         )
 

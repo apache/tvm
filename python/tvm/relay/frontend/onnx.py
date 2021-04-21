@@ -368,8 +368,8 @@ def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", d
         ),
         dtype="int64",
     )
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
     # get input shape
+    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
 
     # set up integer constants
     zero = _op.const(0, dtype="int64")
@@ -410,12 +410,24 @@ class Conv(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+
+        kernel_type = infer_type(inputs[1])
+        kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = kernel_shapes[0][2:]
+
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
-                data = autopad(data, attr["strides"], attr["kernel_shape"], attr["dilations"], ndim)
+                data = autopad(
+                    data,
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    ndim,
+                )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
@@ -424,7 +436,6 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
-
         out = AttrCvt(
             op_name=dimension_picker("conv"),
             transforms={
@@ -469,9 +480,9 @@ class ConvTranspose(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
-                    attr["strides"],
+                    attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
-                    attr["dilations"],
+                    attr.get("dilations", [1] * (ndim - 2)),
                     ndim,
                     deconv=True,
                 )
