@@ -24,10 +24,9 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 #define TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 
-#include <set>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "codegen_c.h"
 #include "tvm/target/codegen.h"

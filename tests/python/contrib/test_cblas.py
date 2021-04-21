@@ -59,7 +59,8 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         dev = tvm.cpu(0)
         name = "test_matmul_add"
         f = tvm.build(s, [A, B, D, bias], target, name=name)
-        if target == "c": f = compile(f, name)
+        if target == "c":
+            f = compile(f, name)
         a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
         d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
@@ -191,7 +192,8 @@ def verify_batch_matmul(
         dev = tvm.cpu(0)
         name = "test_batch_matmul"
         f = tvm.build(s, [A, B, D], target, name=name)
-        if target == "c": f = compile(f, name)
+        if target == "c":
+            f = compile(f, name)
         a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
         d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), dev)

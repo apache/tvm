@@ -964,7 +964,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
       std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
-      if (kind == builtin::kArrShape || kind == builtin::kArrStrides) {
+      if (kind == builtin::kArrStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";
       } else if (kind == builtin::kArrDeviceType) {

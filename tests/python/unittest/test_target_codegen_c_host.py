@@ -204,11 +204,10 @@ def test_call_packed():
     def check_global_packed_func():
         fname = "fake.func"
         A, body = fake_func(fname)
-
         func1 = tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "func1")
         B, body = fake_func()
         func2 = tvm.tir.PrimFunc([B], body).with_attr("global_symbol", "func2")
-        mod = tvm.IRModule({"fake_func1": func1, "fake_func2": func2,})
+        mod = tvm.IRModule({"fake_func1": func1, "fake_func2": func2})
         fcode = tvm.build(mod, None, "c")
         src = fcode.get_source()
 
