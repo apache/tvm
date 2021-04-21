@@ -1516,32 +1516,74 @@ def test_forward_reshape():
 # ------
 
 
-def _test_resize(tf_resize_op, data, align_corners):
+def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=False):
     """ One iteration of Resize """
-
-    assert len(data) == 2
-
     # Test with tensor and constant
     with tf.Graph().as_default():
-        images_tensor = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name="in")
-        size = ops.convert_to_tensor(data[1], dtype=data[1].dtype)
-        out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
-        compare_tflite_with_tvm([data[0]], ["in:0"], [images_tensor], [out_tensor])
+        images_tensor = array_ops.placeholder(shape=images_data.shape, dtype="float32", name="in")
+        size = ops.convert_to_tensor(size_data, dtype=size_data.dtype)
+
+        if quantized:
+            images_tensor_q = tf.quantization.fake_quant_with_min_max_args(
+                images_tensor, min=-3, max=2, name="in"
+            )
+            input_range = {"in": (-3, 2)}
+            out_tensor = tf_resize_op(
+                images=images_tensor_q, size=size, align_corners=align_corners
+            )
+            out_tensor = tf.quantization.fake_quant_with_min_max_args(
+                out_tensor, min=-3, max=2, name="out_tensor"
+            )
+
+            compare_tflite_with_tvm(
+                [images_data],
+                ["in:0"],
+                [images_tensor],
+                [out_tensor],
+                quantized=True,
+                input_range=input_range,
+            )
+        else:
+            out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
+            compare_tflite_with_tvm([images_data], ["in:0"], [images_tensor], [out_tensor])
 
 
 def test_all_resize():
     """ Resize """
-    data = [np.random.rand(1, 16, 16, 3).astype("float32"), np.array([8, 8], dtype=np.int32)]
+    images_data = np.random.uniform(0, 255, (1, 16, 16, 3))
+    images_data_float32 = images_data.astype(np.float32)
+    images_data_uint8 = images_data.astype(np.uint8)
+    size_data = np.array([8, 8]).astype("int32")
     ### RESIZE_BILINEAR
-    _test_resize(tf.image.resize_bilinear, data, align_corners=False)
-    _test_resize(tf.image.resize_bilinear, data, align_corners=True)
+    _test_resize(
+        tf.image.resize_bilinear,
+        images_data_float32,
+        size_data,
+        align_corners=False,
+        quantized=False,
+    )
+    _test_resize(
+        tf.image.resize_bilinear,
+        images_data_float32,
+        size_data,
+        align_corners=True,
+        quantized=False,
+    )
+    _test_resize(
+        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=False, quantized=True
+    )
+    _test_resize(
+        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=True, quantized=True
+    )
     ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
     # According to topi resize.h
     # Align corners not supported for nearest neighbour
     from tflite.BuiltinOperator import BuiltinOperator
 
     if "RESIZE_NEAREST_NEIGHBOR" in dir(BuiltinOperator()):
-        _test_resize(tf.image.resize_nearest_neighbor, data, align_corners=False)
+        _test_resize(
+            tf.image.resize_nearest_neighbor, images_data_float32, size_data, align_corners=False
+        )
 
 
 #######################################################################
