@@ -1500,6 +1500,7 @@ def verify_any_where(
 @tvm.testing.uses_gpu
 def test_any_where():
     verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
     verify_any_where(any_dims(1), any_dims(1), (5,), (5,), (5,), (5,))
     verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (5,), (5,))
     verify_any_where((5,), any_dims(1), any_dims(1), (5,), (5,), (5,))
@@ -1513,8 +1514,7 @@ def test_any_where():
     )
 
 
-# TODO(kevinthesun): enable gpu test when Thrust is available in ci.
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
     x0 = relay.var("x0", relay.ty.TensorType((1, relay.Any(), 6), "float32"))
     x1 = relay.var("x1", relay.ty.TensorType((1,), "int32"))
@@ -1558,7 +1558,6 @@ def test_non_max_suppression():
         mod,
         [np_indices_result, np_valid_box_count],
         only_vm=False,
-        disable_targets=["nvptx"],
     )
 
     np_data = np.zeros((1, 0, 6)).astype("float32")
@@ -1573,9 +1572,106 @@ def test_non_max_suppression():
         mod,
         [np_indices_result, np_valid_box_count],
         only_vm=False,
-        disable_targets=["nvptx"],
+    )
+
+
+@tvm.testing.uses_gpu
+def test_all_class_non_max_suppression():
+    def verify_all_class_non_max_suppression(
+        boxes_np,
+        scores_np,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected_indices,
+    ):
+        batch_size = boxes_np.shape[0]
+        num_classes = scores_np.shape[1]
+        num_boxes = relay.Any()
+        boxes = relay.var("boxes", relay.ty.TensorType((batch_size, num_boxes, 4), "float32"))
+        scores = relay.var("scores", relay.ty.TensorType((batch_size, num_classes, num_boxes), "float32"))
+
+        nms_out = relay.vision.all_class_non_max_suppression(
+            boxes,
+            scores,
+            max_output_boxes_per_class,
+            iou_threshold,
+            score_threshold,
+        )
+
+        three = relay.const(np.array([3]), dtype="int64")
+        begin = relay.const(np.array([0, 0]), dtype="int64")
+        end = relay.op.concatenate([nms_out[1], three], axis=0)
+        strides = relay.const(np.array([1, 1]), dtype="int64")
+        out = relay.op.strided_slice(nms_out[0], begin, end, strides)
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([boxes, scores], out)
+
+        check_result([boxes_np, scores_np], mod, [expected_indices])
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.95, 0.95],
+                [0.5, 0.5, 0.96, 0.96],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+        ]
+    ).astype("float32")
+
+    scores = np.array(
+        [
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+        ]
+    ).astype("float32")
+
+    max_output_boxes_per_class = 2
+    iou_threshold = 0.8
+    score_threshold = 0.0
+
+    expected = np.array(
+        [[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 2], [1, 0, 4], [1, 0, 1], [1, 1, 4], [1, 1, 1]]
+    )
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, -0.1, 1.0, 0.9],
+                [0.0, 10.0, 1.0, 11.0],
+                [0.0, 10.1, 1.0, 11.1],
+                [0.0, 100.0, 1.0, 101.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.9, 0.75, 0.6, 0.95, 0.5, 0.3]]]).astype(np.float32)
+    max_output_boxes_per_class = 3
+    iou_threshold = 0.5
+    score_threshold = 0.4
+
+    expected = np.array([[0, 0, 3], [0, 0, 0]])
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
     )
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_all_class_non_max_suppression()
