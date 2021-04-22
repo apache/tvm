@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument, unused-variable
 """max_pool1d and avg_pool1d in python"""
 import math
+
 import numpy as np
 
 
@@ -24,6 +25,7 @@ def pool1d_ncw_python(
     np_data,
     kernel,
     strides,
+    dilation,
     padding,
     out_shape,
     pool_type,

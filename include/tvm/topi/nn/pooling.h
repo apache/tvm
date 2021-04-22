@@ -538,7 +538,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     pad_tail[i] = cast(DataType::Int(32), padding_size[i + k_size]);
     const int64_t* padding0 = as_const_int(pad_head[i]);
     const int64_t* padding1 = as_const_int(pad_tail[i]);
-    do_pad = (do_pad) ? do_pad : ((padding0 && *padding0) || (padding1 && *padding1));
+    do_pad = do_pad || (padding0 && *padding0) || (padding1 && *padding1);
 
     if (ceil_mode) {
       // Additional padding to ensure we do ceil instead of floor when
@@ -552,9 +552,10 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     pad_after.Set(ii, pad_tail[i]);
 
     arith::Analyzer analyzer;
-    auto out_dim = analyzer.Simplify(
-        indexdiv(data_shape[ii] - kernel[i] + pad_head[i] + pad_tail[i], stride[i]) + 1);
 
+    PrimExpr numerator =
+        data_shape[ii] - (kernel[i] - 1) * dilation[i] - 1 + pad_head[i] + pad_tail[i];
+    auto out_dim = analyzer.Simplify(indexdiv(numerator, stride[i]) + 1);
     out_shape.Set(ii, out_dim);
   }
 
@@ -568,9 +569,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
 
           for (int i = 0; i < k_size; i++) {
             int ii = axis[i];
-            indices.Set(ii, output[ii] * stride[i] + daxis[i]);
+            indices.Set(ii, output[ii] * stride[i] + daxis[i] * dilation[i]);
           }
-
           return tvm::max(temp(indices), daxis);
         },
         "tensor", "pool_max");
@@ -587,7 +587,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
 
           for (int i = 0; i < k_size; i++) {
             int ii = axis[i];
-            indices.Set(ii, output[ii] * stride[i] + daxis[i]);
+            indices.Set(ii, output[ii] * stride[i] + daxis[i] * dilation[i]);
           }
           return tvm::sum(temp(indices), daxis);
         },
@@ -600,24 +600,36 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
           Array<PrimExpr> indices;
           for (const Var& var : output) indices.push_back(var);
           if (count_include_pad) {
-            auto kernel_size = make_const(DataType::Int(32), 1);
+            auto num_el = make_const(DataType::Int(32), 1);
             for (int i = 0; i < k_size; i++) {
-              kernel_size *= kernel[i];
+              num_el *= kernel[i];
             }
-            return div(pool_sum(indices), kernel_size);
+            return div(pool_sum(indices), num_el);
           } else {
             std::vector<PrimExpr> start(k_size);
             std::vector<PrimExpr> end(k_size);
-            auto kernel_size = make_const(DataType::Int(32), 1);
+            auto num_el = make_const(DataType::Int(32), 1);
             for (int i = 0; i < k_size; i++) {
               int ii = axis[i];
+
+              // Let start and end contain the first and last index of our Tensor
+              // along the relevant dimension we use in our calculation.
+              // Assume indices -1, -2 represent the padding before (tail) and
+              // len(arr), len(arr) + 1 represent the padding after (head).
               start[i] = output[ii] * stride[i] - pad_head[i];
-              end[i] = min(start[i] + kernel[i], data_shape[ii]);
-              start[i] = max(start[i], make_const(DataType::Int(32), 0));
-              kernel_size *= (end[i] - start[i]);
+              end[i] = start[i] + (kernel[i] - 1) * dilation[i];
+
+              // if start[i] < 0, e.g. we start on a tail padded number this will be a positive
+              // number that represents the number of steps along the dilated kernel to reach a
+              // non-padded value. Otherwise this should be 0.
+              PrimExpr jumps_to_non_pad = (dilation[i] - 1 - start[i]) / dilation[i];
+              jumps_to_non_pad = max(jumps_to_non_pad, make_const(DataType::Int(32), 0));
+
+              end[i] = min(end[i], data_shape[ii] - 1);
+              num_el *= (end[i] - (start[i] + dilation[i] * jumps_to_non_pad)) / dilation[i] + 1;
             }
 
-            PrimExpr divide_factor = max(kernel_size, make_const(DataType::Int(32), 1));
+            PrimExpr divide_factor = max(num_el, make_const(DataType::Int(32), 1));
             return div(pool_sum(indices), divide_factor);
           }
         },
@@ -697,10 +709,10 @@ inline Tensor pool1d(const Tensor& x, const Array<PrimExpr>& kernel_size,
  *
  * \return The output tensor in the same layout
  */
-inline Tensor pool(const Tensor& x, const Array<PrimExpr>& kernel_size,
-                   const Array<PrimExpr>& stride_size, const Array<PrimExpr>& dilation_size,
-                   const Array<PrimExpr>& padding_size, PoolType pool_type, bool ceil_mode,
-                   const std::string& layout = "NCHW", bool count_include_pad = true) {
+inline Tensor pool2d(const Tensor& x, const Array<PrimExpr>& kernel_size,
+                     const Array<PrimExpr>& stride_size, const Array<PrimExpr>& dilation_size,
+                     const Array<PrimExpr>& padding_size, PoolType pool_type, bool ceil_mode,
+                     const std::string& layout = "NCHW", bool count_include_pad = true) {
   int height_axis = -1, width_axis = -1;
   ICHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
   std::vector<int> axis = {height_axis, width_axis};

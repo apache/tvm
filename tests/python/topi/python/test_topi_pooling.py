@@ -17,14 +17,13 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Test code for pooling"""
 import math
+
 import numpy as np
 import tvm
-from tvm import te
-from tvm import topi
 import tvm.testing
 import tvm.topi.testing
+from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
-import tvm.testing
 
 _pool_schedule = {
     "generic": topi.generic.schedule_pool,
@@ -46,7 +45,7 @@ _pool_grad_schedule = {
 }
 
 
-def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
+def verify_pool2d(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
     """verify function of pool"""
     iw = ih
     kw = kh
@@ -54,10 +53,11 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
     pt, pl, pb, pr = padding
     layout = "NCHW"
     A = te.placeholder((n, ic, ih, iw), name="A")
-    B = topi.nn.pool(
+    B = topi.nn.pool2d(
         A,
         kernel=[kh, kw],
         stride=[sh, sw],
+        dilation=[1, 1],
         padding=padding,
         pool_type=pool_type,
         ceil_mode=ceil_mode,
@@ -131,10 +131,11 @@ def verify_pool_grad(
     sw = sh
     pt, pl, pb, pr = padding
     A = te.placeholder((n, ic, ih, iw), name="A")
-    B = topi.nn.pool(
+    B = topi.nn.pool2d(
         A,
         kernel=[kh, kw],
         stride=[sh, sw],
+        dilation=[1, 1],
         padding=padding,
         pool_type=pool_type,
         ceil_mode=ceil_mode,
@@ -199,21 +200,21 @@ def verify_pool_grad(
 
 
 @tvm.testing.uses_gpu
-def test_pool():
+def test_pool2d():
     """test cases of pool"""
-    verify_pool(1, 256, 32, 2, 2, [0, 0, 0, 0], "avg", False, True)
-    verify_pool(1, 256, 31, 3, 3, [1, 2, 1, 2], "avg", False, True)
-    verify_pool(1, 256, 32, 2, 2, [1, 2, 1, 2], "avg", False, False)
-    verify_pool(1, 256, 31, 4, 4, [3, 3, 3, 3], "avg", False, False)
-    verify_pool(1, 256, 31, 4, 4, [0, 0, 0, 0], "avg", False, False)
-    verify_pool(1, 256, 32, 2, 2, [0, 0, 0, 0], "max", False)
-    verify_pool(1, 256, 31, 3, 3, [2, 1, 2, 1], "max", False)
-    verify_pool(1, 256, 31, 3, 3, [2, 1, 2, 1], "max", True)
+    verify_pool2d(1, 256, 32, 2, 2, [0, 0, 0, 0], "avg", False, True)
+    verify_pool2d(1, 256, 31, 3, 3, [1, 2, 1, 2], "avg", False, True)
+    verify_pool2d(1, 256, 32, 2, 2, [1, 2, 1, 2], "avg", False, False)
+    verify_pool2d(1, 256, 31, 4, 4, [3, 3, 3, 3], "avg", False, False)
+    verify_pool2d(1, 256, 31, 4, 4, [0, 0, 0, 0], "avg", False, False)
+    verify_pool2d(1, 256, 32, 2, 2, [0, 0, 0, 0], "max", False)
+    verify_pool2d(1, 256, 31, 3, 3, [2, 1, 2, 1], "max", False)
+    verify_pool2d(1, 256, 31, 3, 3, [2, 1, 2, 1], "max", True)
 
-    verify_pool(1, 256, 31, 3, 3, [2, 1, 0, 3], "avg", False, True)
-    verify_pool(1, 256, 32, 2, 2, [0, 3, 2, 1], "avg", False, False)
-    verify_pool(1, 256, 31, 3, 3, [1, 0, 3, 2], "max", False)
-    verify_pool(1, 256, 31, 3, 3, [3, 2, 1, 0], "max", True)
+    verify_pool2d(1, 256, 31, 3, 3, [2, 1, 0, 3], "avg", False, True)
+    verify_pool2d(1, 256, 32, 2, 2, [0, 3, 2, 1], "avg", False, False)
+    verify_pool2d(1, 256, 31, 3, 3, [1, 0, 3, 2], "max", False)
+    verify_pool2d(1, 256, 31, 3, 3, [3, 2, 1, 0], "max", True)
 
 
 @tvm.testing.uses_gpu
@@ -347,11 +348,13 @@ def verify_pool3d(
     input_shape = (n, ic, id, ih, iw)
     kernel = [kd, kh, kw]
     stride = [sd, sh, sw]
+    dilation = [1, 1, 1]
     A = te.placeholder(input_shape, name="A")
     B = topi.nn.pool3d(
         A,
         kernel=kernel,
         stride=stride,
+        dilation=dilation,
         padding=padding,
         pool_type=pool_type,
         ceil_mode=ceil_mode,
@@ -364,7 +367,15 @@ def verify_pool3d(
 
     input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
     ref_np = tvm.topi.testing.pool3d_ncdhw_python(
-        input_np, kernel, stride, padding, output_shape, pool_type, count_include_pad, ceil_mode
+        input_np,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        output_shape,
+        pool_type,
+        count_include_pad,
+        ceil_mode,
     )
 
     def check_target(target, dev):
@@ -408,11 +419,13 @@ def verify_pool1d(
     input_shape = (n, ic, iw)
     kernel = [kw]
     stride = [sw]
+    dilation = [1]
     A = te.placeholder(input_shape, name="A")
     B = topi.nn.pool1d(
         A,
         kernel=kernel,
         stride=stride,
+        dilation=dilation,
         padding=padding,
         pool_type=pool_type,
         ceil_mode=ceil_mode,
@@ -425,7 +438,15 @@ def verify_pool1d(
 
     input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
     ref_np = tvm.topi.testing.pool1d_ncw_python(
-        input_np, kernel, stride, padding, output_shape, pool_type, count_include_pad, ceil_mode
+        input_np,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        output_shape,
+        pool_type,
+        count_include_pad,
+        ceil_mode,
     )
 
     def check_target(target, dev):
@@ -463,8 +484,8 @@ def test_pool1d():
 
 
 if __name__ == "__main__":
-    test_pool()
     test_pool1d()
+    test_pool2d()
     test_pool3d()
     test_pool_grad()
     test_global_pool()

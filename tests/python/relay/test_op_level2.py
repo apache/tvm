@@ -1059,6 +1059,29 @@ def _test_global_pool1d(opfunc, reffunc):
 
 @tvm.testing.uses_gpu
 def test_pool1d():
+    def _test_pool1d(opfunc, pool_size=(2,), strides=(2,), padding=(0, 0), dtype="float32"):
+        n, c, w = te.var("n"), 10, 224
+        x = relay.var("x", relay.TensorType((n, c, w), "float32"))
+        y = opfunc(x, pool_size=(1,))
+        assert "pool_size=" in y.astext()
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, 10, 224), "float32")
+        # test execution
+        dshape = (1, 3, 32)
+        for shape_dtype in ["int32", "int64"]:
+            x = relay.var("x", shape=[tvm.tir.IntImm(shape_dtype, x) for x in dshape], dtype=dtype)
+            pool_type = "max" if "max" in str(opfunc) else "avg"
+            y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
+            func = relay.Function([x], y)
+            data = np.random.uniform(size=dshape).astype(dtype)
+            ref_res = tvm.topi.testing.pool1d_ncw_python(
+                data, (2,), (2,), (1,), (0, 0), (1, 3, 16), pool_type, False
+            )
+            for target, dev in tvm.testing.enabled_targets():
+                intrp1 = relay.create_executor("graph", device=dev, target=target)
+                op_res1 = intrp1.evaluate(func)(data)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
     _test_pool1d(relay.nn.max_pool1d)
     _test_pool1d(relay.nn.max_pool1d, dtype="int32")
     _test_pool1d(relay.nn.max_pool1d, pool_size=2, strides=2, padding=0)
@@ -1099,8 +1122,9 @@ def test_pool3d():
                 out_shape, f_out_shape
             )
             data = np.random.uniform(size=dshape).astype(dtype)
+            dilation = [1, 1, 1]
             ref_res = tvm.topi.testing.pool3d_ncdhw_python(
-                data, pool_size, strides, padding, out_shape, pool_type, False
+                data, pool_size, strides, dilation, padding, out_shape, pool_type, False
             )
             for target, dev in tvm.testing.enabled_targets():
                 intrp1 = relay.create_executor("graph", device=dev, target=target)

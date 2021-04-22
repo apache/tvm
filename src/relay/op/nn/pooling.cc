@@ -167,11 +167,11 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{topi::nn::pool(inputs[0], pool_size, strides, dilation, padding, mode,
-                                            ceil_mode, layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<te::Tensor>{topi::nn::pool(inputs[0], pool_size, strides, dilation, padding, mode,
-                                            ceil_mode, layout.name())};
+    return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name())};
   }
 }
 
