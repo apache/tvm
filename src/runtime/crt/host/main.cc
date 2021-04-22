@@ -136,9 +136,12 @@ int main(int argc, char** argv) {
            "failed to register GraphExecutor TVMModule");
 #endif
 
-  if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
-                            0)) {
-    fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
+  int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
+                                    (TVMFunctionHandle)&testonly_reset_server, 0);
+  if (error) {
+    fprintf(stderr,
+            "utvm runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
+            error);
     return 2;
   }
 
