@@ -104,6 +104,10 @@ elseif(PYTHON)
       find_library(__cma_lib NAMES cma PATH /usr/lib)
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
       file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/de10nano/*.cc ${VTA_HW_PATH}/src/*.cc)
+    elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
+      file(GLOB FOCL_SRC ${VTA_HW_PATH}/src/oclfpga/*.cc)
+      list(APPEND FPGA_RUNTIME_SRCS ${FOCL_SRC})
+      list(APPEND FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/vmem/virtual_memory.cc ${VTA_HW_PATH}/src/vmem/virtual_memory.h)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
@@ -123,6 +127,10 @@ elseif(PYTHON)
       target_include_directories(vta SYSTEM PUBLIC 3rdparty)
       target_include_directories(vta SYSTEM PUBLIC
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
+    elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
+      target_include_directories(vta PUBLIC 3rdparty)
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+      target_link_libraries(vta -lOpenCL)
     endif()
   endif()
 

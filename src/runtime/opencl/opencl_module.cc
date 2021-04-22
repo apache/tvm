@@ -65,7 +65,7 @@ class OpenCLWrappedFunc {
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], void_args[i]));
     }
-    cl_command_queue queue = w_->GetQueue(t->context);
+    cl_command_queue queue = w_->GetQueue(t->device);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
@@ -186,7 +186,7 @@ void OpenCLModuleNode::Init() {
 cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                                           const std::string& func_name, const KTRefEntry& e) {
   std::lock_guard<std::mutex> lock(build_lock_);
-  int device_id = t->context.device_id;
+  int device_id = t->device.device_id;
   if (!device_built_flag_[device_id]) {
     // create program
     if (fmt_ == "cl") {

@@ -18,10 +18,10 @@
 """Neural network operations."""
 from tvm.relay import expr
 
-from . import _make
+from ...expr import Constant, Expr, const
 from ..dyn.nn import _make as _dyn_make
+from . import _make
 from .utils import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
-from ...expr import const, Expr, Constant
 
 
 def conv1d(
@@ -1606,15 +1606,11 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     result : tvm.relay.Expr
         The computed result.
     """
-    if isinstance(pad_value, Constant):
-        pad_value = pad_value.data.asnumpy().item()
     if isinstance(pad_width, Constant):
         pad_width = [list(i) for i in pad_width.data.asnumpy()]
-    if isinstance(pad_width, Expr) or (isinstance(pad_value, Expr)):
-        if not isinstance(pad_width, Expr):
-            pad_width = const(list(pad_width))
-        if not isinstance(pad_value, Expr):
-            pad_value = const(pad_value)
+    if not isinstance(pad_value, Expr):
+        pad_value = const(pad_value)
+    if isinstance(pad_width, Expr):
         return _dyn_make.pad(data, pad_width, pad_value, pad_mode)
     return _make.pad(data, pad_width, pad_value, pad_mode)
 
@@ -2038,7 +2034,7 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
     return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
 
 
-def batch_matmul(x, y):
+def batch_matmul(x, y, out_dtype=""):
     r"""
     Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
     in batch.
@@ -2055,12 +2051,15 @@ def batch_matmul(x, y):
     y : tvm.relay.Expr
         The second input.
 
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision batch matmul
+
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(x, y)
+    return _make.batch_matmul(x, y, out_dtype)
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements

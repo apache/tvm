@@ -26,8 +26,8 @@ import tempfile
 import numpy as np
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_runtime as runtime
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib import graph_executor as runtime
+from tvm.contrib.debugger import debug_executor
 from tvm.relay import load_param_dict
 
 from . import common
@@ -77,7 +77,7 @@ def add_run_parser(subparsers):
         "--profile",
         action="store_true",
         help="generate profiling data from the runtime execution. "
-        "Using --profile requires the Graph Runtime Debug enabled on TVM. "
+        "Using --profile requires the Graph Executor Debug enabled on TVM. "
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated.",
     )
@@ -107,13 +107,18 @@ def drive_run(args):
 
     rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
 
+    try:
+        inputs = np.load(args.inputs) if args.inputs else {}
+    except IOError as ex:
+        raise TVMCException("Error loading inputs file: %s" % ex)
+
     outputs, times = run_module(
         args.FILE,
-        rpc_hostname,
-        rpc_port,
-        args.rpc_key,
-        inputs_file=args.inputs,
-        device=args.device,
+        args.device,
+        hostname=rpc_hostname,
+        port=rpc_port,
+        rpc_key=args.rpc_key,
+        inputs=inputs,
         fill_mode=args.fill_mode,
         repeat=args.repeat,
         profile=args.profile,
@@ -221,7 +226,7 @@ def generate_tensor_data(shape, dtype, fill_mode):
     return tensor
 
 
-def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
+def make_inputs_dict(shape_dict, dtype_dict, inputs=None, fill_mode="random"):
     """Make the inputs dictionary for a graph.
 
     Use data from 'inputs' where specified. For input tensors
@@ -230,13 +235,13 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
 
     Parameters
     ----------
-    inputs_file : str
-        Path to a .npz file containing the inputs.
     shape_dict : dict
         Shape dictionary - {input_name: tuple}.
     dtype_dict : dict
         dtype dictionary - {input_name: dtype}.
-    fill_mode : str
+    inputs : dict, optional
+        A dictionary that maps input names to numpy values.
+    fill_mode : str, optional
         The fill-mode to use when generating tensor data.
         Can be either "zeros", "ones" or "random".
 
@@ -247,10 +252,8 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
     """
     logger.debug("creating inputs dict")
 
-    try:
-        inputs = np.load(inputs_file) if inputs_file else {}
-    except IOError as ex:
-        raise TVMCException("Error loading inputs file: %s" % ex)
+    if inputs is None:
+        inputs = {}
 
     # First check all the keys in inputs exist in the graph
     for input_name in inputs:
@@ -287,16 +290,16 @@ def make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode):
 
 def run_module(
     module_file,
-    hostname,
+    device,
+    hostname=None,
     port=9090,
     rpc_key=None,
-    device=None,
-    inputs_file=None,
+    inputs=None,
     fill_mode="random",
     repeat=1,
     profile=False,
 ):
-    """Run a compiled graph runtime module locally or remotely with
+    """Run a compiled graph executor module locally or remotely with
     optional input values.
 
     If input tensors are not specified explicitly, they can be filled
@@ -306,18 +309,18 @@ def run_module(
     ----------
     module_file : str
         The path to the module file (a .tar file).
-    hostname : str
+    device: str,
+        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        session, local or remote).
+    hostname : str, optional
         The hostname of the target device on which to run.
     port : int, optional
         The port of the target device on which to run.
     rpc_key : str, optional
         The tracker key of the target device. If this is set, it
         will be assumed that remote points to a tracker.
-    device: str, optional
-        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
-        session, local or remote).
-    inputs_file : str, optional
-        Path to an .npz file containing the inputs.
+    inputs : dict, optional
+        A dictionary that maps input names to numpy values.
     fill_mode : str, optional
         The fill-mode to use when generating data for input tensors.
         Valid options are "zeros", "ones" and "random".
@@ -361,25 +364,25 @@ def run_module(
         # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
         logger.debug("device is %s", device)
         if device == "gpu":
-            ctx = session.gpu()
+            dev = session.gpu()
         elif device == "cl":
-            ctx = session.cl()
+            dev = session.cl()
         else:
             assert device == "cpu"
-            ctx = session.cpu()
+            dev = session.cpu()
 
         if profile:
             logger.debug("creating runtime with profiling enabled")
-            module = debug_runtime.create(graph, lib, ctx, dump_root="./prof")
+            module = debug_executor.create(graph, lib, dev, dump_root="./prof")
         else:
             logger.debug("creating runtime with profiling disabled")
-            module = runtime.create(graph, lib, ctx)
+            module = runtime.create(graph, lib, dev)
 
         logger.debug("load params into the runtime module")
         module.load_params(params)
 
         shape_dict, dtype_dict = get_input_info(graph, params)
-        inputs_dict = make_inputs_dict(inputs_file, shape_dict, dtype_dict, fill_mode)
+        inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
 
         logger.debug("setting inputs to the module")
         module.set_input(**inputs_dict)
@@ -390,7 +393,7 @@ def run_module(
             module.run()
 
         # create the module time evaluator (returns a function)
-        timer = module.module.time_evaluator("run", ctx, 1, repeat=repeat)
+        timer = module.module.time_evaluator("run", dev, 1, repeat=repeat)
         # call the evaluator function to invoke the module and save execution times
         prof_result = timer()
         # collect a list of execution times from the profiling results
@@ -440,7 +443,7 @@ def format_times(times):
     This has the effect of producing a small table that looks like:
 
         Execution time summary:
-        mean (s)   max (s)    min (s)    std (s)
+        mean (ms)   max (ms)    min (ms)    std (ms)
         0.14310    0.16161    0.12933    0.01004
 
     Parameters
@@ -455,13 +458,14 @@ def format_times(times):
     """
 
     # timestamps
-    mean_ts = np.mean(times)
-    std_ts = np.std(times)
-    max_ts = np.max(times)
-    min_ts = np.min(times)
+    mean_ts = np.mean(times) * 1000
+    std_ts = np.std(times) * 1000
+    max_ts = np.max(times) * 1000
+    min_ts = np.min(times) * 1000
 
     header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-        "mean (s)", "max (s)", "min (s)", "std (s)"
+        "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
     )
-    stats = "{0:^10.5f} {1:^10.5f} {2:^10.5f} {3:^10.5f}".format(mean_ts, max_ts, min_ts, std_ts)
+    stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(mean_ts, max_ts, min_ts, std_ts)
+
     return "%s\n%s\n" % (header, stats)

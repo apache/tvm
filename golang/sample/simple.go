@@ -49,7 +49,7 @@ func main() {
 
 
     // Allocate Array for inputs and outputs.
-    // Allocation by explicit type and context.
+    // Allocation by explicit type and device.
     tshapeIn  := []int64{4}
     inX, _ := gotvm.Empty(tshapeIn, "float32", gotvm.CPU(0))
 

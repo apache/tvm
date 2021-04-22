@@ -122,7 +122,7 @@ def bitserial_dense(
     return matmul
 
 
-@autotvm.register_topi_schedule("biserial_dense.x86")
+@autotvm.register_topi_schedule("bitserial_dense.x86")
 def schedule_bitserial_dense(cfg, outs):
     """Schedule for bitserial_dense.
 

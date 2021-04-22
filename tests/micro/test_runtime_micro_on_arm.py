@@ -19,7 +19,7 @@ import os
 import numpy as np
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime, utils
+from tvm.contrib import graph_executor, utils
 from tvm import relay
 import tvm.micro as micro
 from tvm.micro import create_micro_mod
@@ -36,7 +36,7 @@ TARGET = "micro_dev"
 
 
 def relay_micro_build(func, dev_config, params=None):
-    """Create a graph runtime module with a micro device context from a Relay function.
+    """Create a graph executor module with a micro device context from a Relay function.
 
     Parameters
     ----------
@@ -52,7 +52,7 @@ def relay_micro_build(func, dev_config, params=None):
     Return
     ------
     mod : tvm.runtime.Module
-        graph runtime module for the target device
+        graph executor module for the target device
     """
     with tvm.transform.PassContext(
         disabled_pass={"FuseOps"}, config={"tir.disable_vectorize": True}
@@ -60,7 +60,7 @@ def relay_micro_build(func, dev_config, params=None):
         graph, c_mod, params = relay.build(func, target=TARGET, params=params)
     micro_mod = micro.create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)
-    mod = graph_runtime.create(graph, micro_mod, ctx)
+    mod = graph_executor.create(graph, micro_mod, ctx)
     mod.set_input(**params)
     return mod
 
@@ -171,8 +171,8 @@ def test_workspace_add():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 2.0)
 
 
-def test_graph_runtime():
-    """Test a program which uses the graph runtime."""
+def test_graph_executor():
+    """Test a program which uses the graph executor."""
     if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
@@ -347,9 +347,9 @@ if __name__ == "__main__":
     print()
     print("finished workspace add test")
     input("[press enter to continue]")
-    test_graph_runtime()
+    test_graph_executor()
     print()
-    print("finished graph runtime test")
+    print("finished graph executor test")
     input("[press enter to continue]")
     test_conv2d()
     print()

@@ -201,8 +201,8 @@ class ExprDeviceAnnot(ExprMutator):
     """
 
     def __init__(self, start=-1, end=-1):
-        self.ext_ctx = tvm.context("ext_dev")
-        self.cpu_ctx = tvm.context("cpu")
+        self.ext_dev = tvm.device("ext_dev")
+        self.cpu_dev = tvm.device("cpu")
         self.cast = op.op.get("cast")
         self.counter = -1
         self.start = start
@@ -217,12 +217,12 @@ class ExprDeviceAnnot(ExprMutator):
         self.counter += 1
         if self.counter == self.start:
             ret = relay.Call(call.op, args, call.attrs)
-            ret = relay.annotation.on_device(ret, self.ext_ctx)
+            ret = relay.annotation.on_device(ret, self.ext_dev)
             return ret
 
         if self.counter == self.end:
             ret = relay.Call(call.op, args, call.attrs)
-            ret = relay.annotation.on_device(ret, self.cpu_ctx)
+            ret = relay.annotation.on_device(ret, self.cpu_dev)
             return ret
 
         if self.counter > self.start and self.counter < self.end:
@@ -232,7 +232,7 @@ class ExprDeviceAnnot(ExprMutator):
             if self.is_float_op(call):
                 return ret
 
-            return relay.annotation.on_device(ret, self.ext_ctx)
+            return relay.annotation.on_device(ret, self.ext_dev)
 
         return relay.Call(self.visit(call.op), args, call.attrs)
 
@@ -423,7 +423,7 @@ class ExprPack(ExprMutator):
                 self.start_pack and call.op == op.op.get("cast") and input_types[0].dtype == "int32"
             ):
                 cast = relay.Call(op.op.get("cast"), [args[0]], call.attrs)
-                return relay.Call(op.op.get("copy"), [cast])
+                return cast
             elif call.op == self.pad:
                 pad_width = call.attrs.pad_width
                 if len(pad_width) == 6:

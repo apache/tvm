@@ -33,38 +33,38 @@ namespace runtime {
 
 class VTADeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(TVMContext ctx) final {}
+  void SetDevice(Device dev) final {}
 
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == kExist) {
       *rv = 1;
     }
   }
 
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final {
     return VTABufferAlloc(size);
   }
 
-  void FreeDataSpace(TVMContext ctx, void* ptr) final { VTABufferFree(ptr); }
+  void FreeDataSpace(Device dev, void* ptr) final { VTABufferFree(ptr); }
 
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     int kind_mask = 0;
-    if (ctx_from.device_type != kDLCPU) {
+    if (dev_from.device_type != kDLCPU) {
       kind_mask |= 2;
     }
-    if (ctx_to.device_type != kDLCPU) {
+    if (dev_to.device_type != kDLCPU) {
       kind_mask |= 1;
     }
     VTABufferCopy(from, from_offset, to, to_offset, size, kind_mask);
   }
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {}
+  void StreamSync(Device dev, TVMStreamHandle stream) final {}
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
 
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void FreeWorkspace(Device dev, void* data) final;
 
   static VTADeviceAPI* Global() {
     static VTADeviceAPI* inst = new VTADeviceAPI();
@@ -76,12 +76,12 @@ struct VTAWorkspacePool : public WorkspacePool {
   VTAWorkspacePool() : WorkspacePool(kDLExtDev, VTADeviceAPI::Global()) {}
 };
 
-void* VTADeviceAPI::AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) {
-  return dmlc::ThreadLocalStore<VTAWorkspacePool>::Get()->AllocWorkspace(ctx, size);
+void* VTADeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  return dmlc::ThreadLocalStore<VTAWorkspacePool>::Get()->AllocWorkspace(dev, size);
 }
 
-void VTADeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
-  dmlc::ThreadLocalStore<VTAWorkspacePool>::Get()->FreeWorkspace(ctx, data);
+void VTADeviceAPI::FreeWorkspace(Device dev, void* data) {
+  dmlc::ThreadLocalStore<VTAWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
 // Register device api with override.

@@ -536,3 +536,27 @@ def HoistIfThenElse(variant=None):
         return _ffi_api.HoistIfThenElseBasic()
     elif variant is None:
         return _ffi_api.HoistIfThenElse()
+
+
+def LowerInitBlock():
+    """Lower block init stmt into IfThenElse stmts
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerInitBlock()
+
+
+def PlanAndUpdateBufferAllocationLocation():
+    """Locate the buffer allocation to the exact position (usually is
+    the lca of buffer access). This pass will inject opaque block
+    with alloc_buffers at the allocation site.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.PlanAndUpdateBufferAllocationLocation()

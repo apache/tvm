@@ -27,7 +27,7 @@ from torch.nn import Module
 from torch.nn import functional as F
 import tvm
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
 from packaging import version as package_version
@@ -163,7 +163,9 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
                 return est
 
 
-def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5):
+def verify_model(
+    model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
+):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if isinstance(model_name, str):
@@ -207,9 +209,9 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
-            relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+            relay_model = graph_executor.create(relay_graph, relay_lib, dev)
             relay_model.set_input(**relay_params)
             for name, inp in compiled_input.items():
                 relay_model.set_input(name, inp)
@@ -220,6 +222,20 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
+
+    if expected_ops:
+
+        def visit(op):
+            if isinstance(op, tvm.ir.op.Op):
+                if op.name in expected_ops:
+                    expected_ops.remove(op.name)
+
+        tvm.relay.analysis.post_order_visit(mod["main"].body, visit)
+
+        if expected_ops:
+            msg = "TVM Relay do not contain expected ops {}"
+            raise AssertionError(msg.format(expected_ops))
+
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
@@ -2198,9 +2214,9 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
 
     for tgt in targets:
         print("Running on target", tgt)
-        ctx = tvm.context(tgt, 0)
+        dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
+        executor = relay.create_executor("vm", mod=mod, device=dev, target=tgt)
         evaluator = executor.evaluate()
 
         # Inference
@@ -3351,17 +3367,24 @@ def test_forward_matmul():
     # matrix x matrix
     tensor1 = torch.randn(10, 4)
     tensor2 = torch.randn(4, 10)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(10, 4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
     # batched matrix x broadcasted matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # broadcasted matrix x batched matrix
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(3, 4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(1, 12, 14, 64)
@@ -3636,8 +3659,8 @@ def test_forward_pretrained_bert_base_uncased():
     # Execute on TVM
     # --------------
 
-    ctx = tvm.context(target, 0)
-    relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+    dev = tvm.device(target, 0)
+    relay_model = graph_executor.create(relay_graph, relay_lib, dev)
     relay_model.set_input(**relay_params)
     relay_model.set_input(input_1, tokens_tensor)
     relay_model.set_input(input_2, segments_tensors)

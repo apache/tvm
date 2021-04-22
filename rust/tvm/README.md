@@ -17,7 +17,7 @@
 
 # TVM
 
-This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/tvm).
+This crate provides an idiomatic Rust API for [Apache TVM](https://github.com/apache/tvm).
 The code works on **Stable Rust** and is tested against `rustc 1.47`.
 
 You can find the API Documentation [here](https://tvm.apache.org/docs/api/rust/tvm/index.html).
@@ -37,7 +37,7 @@ The Rust bindings are composed of a few crates:
 - The [tvm_rt](https://tvm.apache.org/docs/api/rust/tvm_rt/index.html) crate which exposes Rust
   bindings to the TVM runtime APIs.
 - The [tvm_sys] crate which provides raw bindings and linkage to the TVM C++ library.
-- The [tvm_graph_rt] crate which implements a version of the TVM graph runtime in Rust vs. C++.
+- The [tvm_graph_rt] crate which implements a version of the TVM graph executor in Rust vs. C++.
 
 These crates have been recently refactored and reflect a much different philosophy than
 previous bindings, as well as much increased support for more of the TVM API including
@@ -52,3 +52,7 @@ and usage is welcome and encouraged. If you want to discuss design issues check 
 Please follow the TVM [install](https://tvm.apache.org/docs/install/index.html) instructions, `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
 
 *Note:* To run the end-to-end examples and tests, `tvm` and `topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed individually.
+
+### Disclaimers
+
+*Apache TVM is a top level project from the Apache software foundation. Please refer to the official Apache TVM website for Apache source releases. Apache TVM, Apache, the Apache feather, and the Apache TVM project logo are either trademarks or registered trademarks of the Apache Software Foundation.*

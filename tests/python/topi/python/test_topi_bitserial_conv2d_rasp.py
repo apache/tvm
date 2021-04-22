@@ -67,7 +67,7 @@ def verify_bitserial_conv2d_nhwc(
     matches = re.findall("vpadd", assembly)
     assert len(matches) > 0
 
-    ctx = tvm.context(device, 0)
+    dev = tvm.device(device, 0)
     if "arm" not in os.uname()[4]:
         print("Skipped running code, not an arm device")
         return
@@ -89,9 +89,9 @@ def verify_bitserial_conv2d_nhwc(
         return a_np, w_np, b_np
 
     a_np, w_np, b_np = get_ref_data()
-    a = tvm.nd.array(a_np, ctx)
-    w = tvm.nd.array(w_np, ctx)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+    a = tvm.nd.array(a_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     func = tvm.build(s, [A, W, B], device)
 
     func(a, w, b)

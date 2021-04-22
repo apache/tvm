@@ -82,7 +82,7 @@ class RandomEngine {
 
     ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
-    if (data->ctx.device_type == kDLCPU) {
+    if (data->device.device_type == kDLCPU) {
       std::uniform_real_distribution<float> uniform_dist(low, high);
       std::generate_n(static_cast<float*>(data->data), size,
                       [&]() { return uniform_dist(rnd_engine_); });
@@ -106,7 +106,7 @@ class RandomEngine {
 
     ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
-    if (data->ctx.device_type == kDLCPU) {
+    if (data->device.device_type == kDLCPU) {
       std::normal_distribution<float> normal_dist(loc, scale);
       std::generate_n(static_cast<float*>(data->data), size,
                       [&]() { return normal_dist(rnd_engine_); });
@@ -121,7 +121,7 @@ class RandomEngine {
       size *= data->shape[i];
     }
 
-    if (data->ctx.device_type == kDLCPU) {
+    if (data->device.device_type == kDLCPU) {
       FillData(data, size);
     } else {
       runtime::NDArray local = runtime::NDArray::Empty(

@@ -132,9 +132,9 @@ class TVMScriptParser(Transformer):
         ast.BuiltinOp.Div: tvm.tir.Div,
         ast.BuiltinOp.FloorDiv: tvm.tir.FloorDiv,
         ast.BuiltinOp.Mod: tvm.tir.FloorMod,
-        ast.BuiltinOp.BitOr: operator.or_,
-        ast.BuiltinOp.BitAnd: operator.and_,
-        ast.BuiltinOp.BitXor: operator.xor,
+        ast.BuiltinOp.BitOr: lambda lhs, rhs, span: operator.or_(lhs, rhs),
+        ast.BuiltinOp.BitAnd: lambda lhs, rhs, span: operator.and_(lhs, rhs),
+        ast.BuiltinOp.BitXor: lambda lhs, rhs, span: operator.xor(lhs, rhs),
         ast.BuiltinOp.GT: tvm.tir.GT,
         ast.BuiltinOp.GE: tvm.tir.GE,
         ast.BuiltinOp.LT: tvm.tir.LT,
@@ -146,8 +146,8 @@ class TVMScriptParser(Transformer):
     }
 
     _unaryop_maker = {
-        ast.BuiltinOp.USub: operator.neg,
-        ast.BuiltinOp.Invert: operator.invert,
+        ast.BuiltinOp.USub: lambda rhs, span: operator.neg(rhs),
+        ast.BuiltinOp.Invert: lambda rhs, span: operator.invert(rhs),
         ast.BuiltinOp.Not: tvm.tir.Not,
     }
 

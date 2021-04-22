@@ -35,16 +35,46 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 
 /*!
- * \brief Macro helper for exception throwing.
+ * \brief Macro helper to force a function not to be inlined.
+ * It is only used in places that we know not inlining is good,
+ * e.g. some logging functions.
+ */
+#if defined(_MSC_VER)
+#define TVM_NO_INLINE __declspec(noinline)
+#else
+#define TVM_NO_INLINE __attribute__((noinline))
+#endif
+
+/*!
+ * \brief Macro helper to force a function to be inlined.
+ * It is only used in places that we know inline is important,
+ * e.g. some template expansion cases.
  */
 #ifdef _MSC_VER
-#define TVM_THROW_EXCEPTION noexcept(false) __declspec(noreturn)
+#define TVM_ALWAYS_INLINE __forceinline
 #else
+#define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
+#endif
+
+/*!
+ * \brief Macro helper for exception throwing.
+ */
 #define TVM_THROW_EXCEPTION noexcept(false)
+
+/*!
+ * \brief Whether or not enable backtrace logging during a
+ *        fatal error.
+ *
+ * \note TVM won't depend on LIBBACKTRACE or other exec_info
+ *       library when this option is disabled.
+ */
+#ifndef TVM_LOG_STACK_TRACE
+#define TVM_LOG_STACK_TRACE 1
 #endif
 
 /*!
@@ -53,6 +83,15 @@
  */
 #ifndef TVM_USE_LIBBACKTRACE
 #define TVM_USE_LIBBACKTRACE 0
+#endif
+
+/*!
+ * \brief Whether or not customize the logging output.
+ *  If log customize is enabled, the user must implement
+ *  tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl.
+ */
+#ifndef TVM_LOG_CUSTOMIZE
+#define TVM_LOG_CUSTOMIZE 0
 #endif
 
 // a technique that enables overriding macro names on the number of parameters. This is used
@@ -152,14 +191,16 @@ TVM_DLL std::string Backtrace();
 /*! \brief Base error type for TVM. Wraps a string message. */
 class Error : public ::dmlc::Error {  // for backwards compatibility
  public:
-  /*! \brief Construct an error.
+  /*!
+   * \brief Construct an error.
    * \param s The message to be displayed with the error.
    */
   explicit Error(const std::string& s) : ::dmlc::Error(s) {}
 };
 
-/*! \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
- * contains a backtrace of where it occured.
+/*!
+ * \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
+ * contains a backtrace of where it occurred.
  */
 class InternalError : public Error {
  public:
@@ -214,51 +255,28 @@ class InternalError : public Error {
   std::string full_message_;  // holds the full error string
 };
 
+/*! \brief Internal implementation */
 namespace detail {
-#ifndef TVM_LOG_CUSTOMIZE
+// Provide support for customized logging.
+#if TVM_LOG_CUSTOMIZE
+/*!
+ * \brief Custom implementations of LogFatal.
+ *
+ * \sa TVM_LOG_CUSTOMIZE
+ */
+TVM_DLL void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
 
-/*! \brief Class to accumulate an error message and throw it. Do not use
+/*!
+ * \brief Custom implementations of LogMessage.
+ *
+ * \sa TVM_LOG_CUSTOMIZE
+ */
+TVM_DLL void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
+
+/*!
+ * \brief Class to accumulate an error message and throw it. Do not use
  * directly, instead use LOG(FATAL).
  */
-class LogFatal {
- public:
-  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-#ifdef _MSC_VER
-#pragma disagnostic push
-#pragma warning(disable : 4722)
-#endif
-  ~LogFatal() noexcept(false) { throw InternalError(file_, lineno_, stream_.str()); }
-#ifdef _MSC_VER
-#pragma disagnostic pop
-#endif
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-  std::string file_;
-  int lineno_;
-};
-
-/*! \brief Class to accumulate an log message. Do not use directly, instead use
- * LOG(INFO), LOG(WARNING), LOG(ERROR).
- */
-class LogMessage {
- public:
-  LogMessage(const std::string& file, int lineno) {
-    std::time_t t = std::time(nullptr);
-    stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
-            << ": ";
-  }
-  ~LogMessage() { std::cerr << stream_.str() << std::endl; }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-};
-#else
-// Custom implementations of LogFatal and LogMessage that allow the user to
-// override handling of the message. The user must implement LogFatalImpl and LogMessageImpl
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
 class LogFatal {
  public:
   LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
@@ -271,7 +289,10 @@ class LogFatal {
   int lineno_;
 };
 
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
+/*!
+ * \brief Class to accumulate an log message. Do not use directly, instead use
+ * LOG(INFO), LOG(WARNING), LOG(ERROR).
+ */
 class LogMessage {
  public:
   LogMessage(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
@@ -281,6 +302,61 @@ class LogMessage {
  private:
   std::string file_;
   int lineno_;
+  std::ostringstream stream_;
+};
+
+#else
+
+/*!
+ * \brief Class to accumulate an error message and throw it. Do not use
+ * directly, instead use LOG(FATAL).
+ * \note The `LogFatal` class is designed to be an empty class to reduce stack size usage.
+ * To play this trick, we use the thread-local storage to store its internal data.
+ */
+class LogFatal {
+ public:
+  TVM_NO_INLINE LogFatal(const char* file, int lineno) { GetEntry().Init(file, lineno); }
+#ifdef _MSC_VER
+#pragma disagnostic push
+#pragma warning(disable : 4722)
+#endif
+  ~LogFatal() TVM_THROW_EXCEPTION { GetEntry().Finalize(); }
+#ifdef _MSC_VER
+#pragma disagnostic pop
+#endif
+  std::ostringstream& stream() { return GetEntry().stream_; }
+
+ private:
+  struct Entry {
+    void Init(const char* file, int lineno) {
+      this->stream_.str("");
+      this->file_ = file;
+      this->lineno_ = lineno;
+    }
+    TVM_NO_INLINE dmlc::Error Finalize() { throw InternalError(file_, lineno_, stream_.str()); }
+    std::ostringstream stream_;
+    std::string file_;
+    int lineno_;
+  };
+
+  TVM_DLL TVM_NO_INLINE static Entry& GetEntry();
+};
+
+/*!
+ * \brief Class to accumulate an log message. Do not use directly, instead use
+ * LOG(INFO), LOG(WARNING), LOG(ERROR).
+ */
+class LogMessage {
+ public:
+  LogMessage(const std::string& file, int lineno) {
+    std::time_t t = std::time(nullptr);
+    stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
+            << ": ";
+  }
+  TVM_NO_INLINE ~LogMessage() { std::cerr << stream_.str() << std::endl; }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
   std::ostringstream stream_;
 };
 #endif
@@ -316,19 +392,33 @@ inline bool DebugLoggingEnabled() {
 }
 
 constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
+    "\n"
     "---------------------------------------------------------------\n"
     "An internal invariant was violated during the execution of TVM.\n"
     "Please read TVM's error reporting guidelines.\n"
     "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
     "---------------------------------------------------------------\n";
 
-// Inline _Pragma in macros does not work reliably on old version of MVSC and
+template <typename X, typename Y>
+std::unique_ptr<std::string> LogCheckFormat(const X& x, const Y& y) {
+  std::ostringstream os;
+  os << " (" << x << " vs. " << y << ") ";  // CHECK_XX(x, y) requires x and y can be serialized to
+                                            // string. Use CHECK(x OP y) otherwise.
+  // no std::make_unique until c++14
+  return std::unique_ptr<std::string>(new std::string(os.str()));
+}
+
+// Inline _Pragma in macros does not work reliably on old version of MSVC and
 // GCC. We wrap all comparisons in a function so that we can use #pragma to
 // silence bad comparison warnings.
-#define TVM_CHECK_FUNC(name, op)                                   \
-  template <typename A, typename B>                                \
-  DMLC_ALWAYS_INLINE bool LogCheck##name(const A& a, const B& b) { \
-    return a op b;                                                 \
+#define TVM_CHECK_FUNC(name, op)                                                          \
+  template <typename X, typename Y>                                                       \
+  TVM_ALWAYS_INLINE std::unique_ptr<std::string> LogCheck##name(const X& x, const Y& y) { \
+    if (x op y) return nullptr;                                                           \
+    return LogCheckFormat(x, y);                                                          \
+  }                                                                                       \
+  TVM_ALWAYS_INLINE std::unique_ptr<std::string> LogCheck##name(int x, int y) {           \
+    return LogCheck##name<int, int>(x, y);                                                \
   }
 
 #pragma GCC diagnostic push
@@ -345,18 +435,18 @@ TVM_CHECK_FUNC(_NE, !=)
 #define LOG(level) LOG_##level
 #define LOG_FATAL ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()
 #define LOG_INFO ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream()
-#define LOG_ERROR (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "error: ")
-#define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "warning: ")
+#define LOG_ERROR (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "Error: ")
+#define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "Warning: ")
 
-#define TVM_CHECK_BINARY_OP(name, op, x, y)                     \
-  if (!::tvm::runtime::detail::LogCheck##name(x, y))            \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-      << "Check failed: " << #x " " #op " " #y << ": "
+#define TVM_CHECK_BINARY_OP(name, op, x, y)                                \
+  if (auto __tvm__log__err = ::tvm::runtime::detail::LogCheck##name(x, y)) \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()            \
+      << "Check failed: " << #x " " #op " " #y << *__tvm__log__err << ": "
 
 #define CHECK(x)                                                \
   if (!(x))                                                     \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-      << "Check failed: " #x << " == false: "
+      << "Check failed: (" #x << ") is false: "
 
 #define CHECK_LT(x, y) TVM_CHECK_BINARY_OP(_LT, <, x, y)
 #define CHECK_GT(x, y) TVM_CHECK_BINARY_OP(_GT, >, x, y)
@@ -417,17 +507,17 @@ TVM_CHECK_FUNC(_NE, !=)
 
 #define TVM_ICHECK_INDENT "  "
 
-#define ICHECK_BINARY_OP(name, op, x, y)                                  \
-  if (!::tvm::runtime::detail::LogCheck##name(x, y))                      \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()           \
-      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
-      << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
+#define ICHECK_BINARY_OP(name, op, x, y)                                   \
+  if (auto __tvm__log__err = ::tvm::runtime::detail::LogCheck##name(x, y)) \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()            \
+      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl  \
+      << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << *__tvm__log__err << ": "
 
 #define ICHECK(x)                                                                 \
   if (!(x))                                                                       \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()                   \
       << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << TVM_ICHECK_INDENT \
-      << "Check failed: " #x << " == false: "
+      << "Check failed: (" #x << ") is false: "
 
 #define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
 #define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)

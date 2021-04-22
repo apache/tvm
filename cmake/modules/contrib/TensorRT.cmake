@@ -55,5 +55,5 @@ if(USE_TENSORRT_RUNTIME)
     list(APPEND RUNTIME_SRCS ${RUNTIME_TENSORRT_SRCS})
 
     # Set defines
-    add_definitions(-DTVM_GRAPH_RUNTIME_TENSORRT)
+    add_definitions(-DTVM_GRAPH_EXECUTOR_TENSORRT)
 endif()

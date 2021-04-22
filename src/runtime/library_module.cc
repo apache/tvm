@@ -99,6 +99,28 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
 #undef TVM_INIT_CONTEXT_FUNC
 }
 
+Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
+  std::string loadkey = "runtime.module.loadbinary_";
+  std::string fkey = loadkey + type_key;
+  const PackedFunc* f = Registry::Get(fkey);
+  if (f == nullptr) {
+    std::string loaders = "";
+    for (auto name : Registry::ListNames()) {
+      if (name.find(loadkey, 0) == 0) {
+        if (loaders.size() > 0) {
+          loaders += ", ";
+        }
+        loaders += name.substr(loadkey.size());
+      }
+    }
+    LOG(FATAL) << "Binary was created using " << type_key
+               << " but a loader of that name is not registered. Available loaders are " << loaders
+               << ". Perhaps you need to recompile with this runtime enabled.";
+  }
+
+  return (*f)(static_cast<void*>(stream));
+}
+
 /*!
  * \brief Load and append module blob to module list
  * \param mblob The module blob.
@@ -133,25 +155,7 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
       ICHECK(stream->Read(&import_tree_row_ptr));
       ICHECK(stream->Read(&import_tree_child_indices));
     } else {
-      std::string loadkey = "runtime.module.loadbinary_";
-      std::string fkey = loadkey + tkey;
-      const PackedFunc* f = Registry::Get(fkey);
-      if (f == nullptr) {
-        std::string loaders = "";
-        for (auto name : Registry::ListNames()) {
-          if (name.rfind(loadkey, 0) == 0) {
-            if (loaders.size() > 0) {
-              loaders += ", ";
-            }
-            loaders += name.substr(loadkey.size());
-          }
-        }
-        ICHECK(f != nullptr)
-            << "Binary was created using " << tkey
-            << " but a loader of that name is not registered. Available loaders are " << loaders
-            << ". Perhaps you need to recompile with this runtime enabled.";
-      }
-      Module m = (*f)(static_cast<void*>(stream));
+      auto m = LoadModuleFromBinary(tkey, stream);
       modules.emplace_back(m);
     }
   }

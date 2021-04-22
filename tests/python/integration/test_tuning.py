@@ -30,6 +30,7 @@ from tvm import te
 
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
+from tvm.target import Target
 
 import tvm.testing
 
@@ -131,18 +132,16 @@ def teardown_module():
 
 
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
     """return a sample task for testing"""
     task = autotvm.task.create(
-        "testing/conv2d_no_batching",
-        args=(1, 7, 7, 512, 512, 3, 3),
-        target=target,
-        target_host=target_host,
+        "testing/conv2d_no_batching", args=(1, 7, 7, 512, 512, 3, 3), target=target
     )
     return task, target
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl")
-def test_tuning_gpu(target, ctx):
+def test_tuning_gpu(target, dev):
     # init task
     task, target = get_sample_task(target, None)
     logging.info("task config space: %s", task.config_space)

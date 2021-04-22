@@ -18,11 +18,11 @@
 # under the License.
 
 #
-# Execute command within a docker container
+# Build a docker container and optionally execute command within a it
 #
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                [--net=host] [--cache-from <IMAGE_NAME>] <COMMAND>
+#                [--net=host] [--cache-from <IMAGE_NAME>] [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
 #                 e.g. "ci_cpu", "ci_gpu"
@@ -37,7 +37,7 @@
 # IMAGE_NAME: An image to be as a source for cached layers when building the
 #             Docker image requested.
 #
-# COMMAND: Command to be executed in the docker container
+# COMMAND (optional): Command to be executed in the docker container
 #
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -90,12 +90,12 @@ fi
 COMMAND=("$@")
 
 # Validate command line arguments.
-if [ "$#" -lt 1 ] || [ ! -e "${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}" ]; then
+if [ ! -e "${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}" ]; then
     supported_container_types=$( ls -1 ${SCRIPT_DIR}/Dockerfile.* | \
         sed -n 's/.*Dockerfile\.\([^\/]*\)/\1/p' | tr '\n' ' ' )
       echo "Usage: $(basename $0) CONTAINER_TYPE COMMAND"
       echo "       CONTAINER_TYPE can be one of [${supported_container_types}]"
-      echo "       COMMAND is a command (with arguments) to run inside"
+      echo "       COMMAND (optional) is a command (with arguments) to run inside"
       echo "               the container."
       exit 1
 fi
@@ -164,25 +164,29 @@ if [[ $? != "0" ]]; then
     exit 1
 fi
 
-# Run the command inside the container.
-echo "Running '${COMMAND[@]}' inside ${DOCKER_IMG_SPEC}..."
+if [[ -n ${COMMAND} ]]; then
 
-# By default we cleanup - remove the container once it finish running (--rm)
-# and share the PID namespace (--pid=host) so the process inside does not have
-# pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
-echo ${DOCKER_BINARY}
-${DOCKER_BINARY} run --rm --pid=host \
-    -v ${WORKSPACE}:/workspace \
-    -w /workspace \
-    -e "CI_BUILD_HOME=/workspace" \
-    -e "CI_BUILD_USER=$(id -u -n)" \
-    -e "CI_BUILD_UID=$(id -u)" \
-    -e "CI_BUILD_GROUP=$(id -g -n)" \
-    -e "CI_BUILD_GID=$(id -g)" \
-    -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
-    -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
-    ${CUDA_ENV}\
-    ${CI_DOCKER_EXTRA_PARAMS[@]} \
-    ${DOCKER_IMG_SPEC} \
-    bash --login docker/with_the_same_user \
-    ${COMMAND[@]}
+    # Run the command inside the container.
+    echo "Running '${COMMAND[@]}' inside ${DOCKER_IMG_SPEC}..."
+
+    # By default we cleanup - remove the container once it finish running (--rm)
+    # and share the PID namespace (--pid=host) so the process inside does not have
+    # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
+    echo ${DOCKER_BINARY}
+    ${DOCKER_BINARY} run --rm --pid=host \
+        -v ${WORKSPACE}:/workspace \
+        -w /workspace \
+        -e "CI_BUILD_HOME=/workspace" \
+        -e "CI_BUILD_USER=$(id -u -n)" \
+        -e "CI_BUILD_UID=$(id -u)" \
+        -e "CI_BUILD_GROUP=$(id -g -n)" \
+        -e "CI_BUILD_GID=$(id -g)" \
+        -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
+        -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
+        ${CUDA_ENV}\
+        ${CI_DOCKER_EXTRA_PARAMS[@]} \
+        ${DOCKER_IMG_SPEC} \
+        bash --login docker/with_the_same_user \
+        ${COMMAND[@]}
+
+fi

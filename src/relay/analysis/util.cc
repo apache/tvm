@@ -370,7 +370,7 @@ std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body) {
 
 template <typename T>
 bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
-  ICHECK_EQ(tensor->ctx.device_type, kDLCPU);
+  ICHECK_EQ(tensor->device.device_type, kDLCPU);
   ICHECK(tensor->strides == nullptr);
   ICHECK_EQ(tensor->byte_offset, 0);
   const T* data = static_cast<const T*>(tensor->data);

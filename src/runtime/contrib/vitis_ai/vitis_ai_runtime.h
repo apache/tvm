@@ -62,14 +62,14 @@ class VitisAIRuntime : public ModuleNode {
    * \param symbol_name The name of the function.
    * \param xgraph_str serialized XGraph representation
    * \param const_names The names of each constant in the sub-graph.
-   * \param target The Vitis-AI device target (e.g. DPUCADX8G, DPUCZDX8G).
+   * \param dpu_target The Vitis-AI DPU target identifier (e.g. DPUCADX8G, DPUCZDX8G-zcu104).
    * \param build_dir The directory to be used for Vitis-AI build files.
    * \param work_dir The directory to be used for Vitis-AI work files.
    * \param export_rt_mod_path The path to the file to be used for exporting the
    *        PyXIR runtime module.
    */
   VitisAIRuntime(const std::string& symbol_name, const std::string& xgraph_str,
-                 const Array<String> const_names, const std::string& target,
+                 const Array<String> const_names, const std::string& dpu_target,
                  const std::string& build_dir, const std::string& work_dir,
                  const std::string& export_runtime_module_path);
 

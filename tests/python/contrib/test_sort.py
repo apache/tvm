@@ -48,13 +48,13 @@ def test_sort():
         [[3, 4, 4], [2, 3, 3], [1, 2, 2], [0, 1, 1], [4, 0, 0]],
     ]
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     target = "llvm"
     s = te.create_schedule(out.op)
     f = tvm.build(s, [data, sort_num, out], target)
-    a = tvm.nd.array(np.array(input).astype(data.dtype), ctx)
-    b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), ctx)
-    c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), ctx)
+    a = tvm.nd.array(np.array(input).astype(data.dtype), dev)
+    b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
+    c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), np.array(sorted_index).astype(out.dtype), rtol=1e-5)
 
@@ -76,7 +76,7 @@ def test_sort_np():
         name="sort_tensor",
     )
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     target = "llvm"
     s = te.create_schedule(out.op)
     f = tvm.build(s, [data, sort_num, out], target)
@@ -84,9 +84,9 @@ def test_sort_np():
     np_data = np.random.uniform(size=dshape)
     np_out = np.argsort(np_data, axis=axis)
     sort_num_input = np.full(reduced_shape, dshape[axis])
-    a = tvm.nd.array(np.array(np_data).astype(data.dtype), ctx)
-    b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), ctx)
-    c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), ctx)
+    a = tvm.nd.array(np.array(np_data).astype(data.dtype), dev)
+    b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
+    c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), np_out, rtol=1e-5)
 
@@ -103,7 +103,7 @@ def test_sort_by_key_gpu():
 
         with tvm.target.Target(target):
             keys_out, values_out = sort_by_key(keys, values)
-            ctx = tvm.context(target)
+            dev = tvm.device(target)
             s = te.create_schedule([keys_out.op, values_out.op])
             f = tvm.build(s, [keys, values, keys_out, values_out], target)
 
@@ -111,10 +111,10 @@ def test_sort_by_key_gpu():
             values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
             keys_np_out = np.zeros(keys_np.shape, np.int32)
             values_np_out = np.zeros(values_np.shape, np.int32)
-            keys_in = tvm.nd.array(keys_np, ctx)
-            values_in = tvm.nd.array(values_np, ctx)
-            keys_out = tvm.nd.array(keys_np_out, ctx)
-            values_out = tvm.nd.array(values_np_out, ctx)
+            keys_in = tvm.nd.array(keys_np, dev)
+            values_in = tvm.nd.array(values_np, dev)
+            keys_out = tvm.nd.array(keys_np_out, dev)
+            values_out = tvm.nd.array(values_np_out, dev)
             f(keys_in, values_in, keys_out, values_out)
 
             ref_keys_out = np.sort(keys_np)
