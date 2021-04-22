@@ -50,7 +50,7 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   for (auto arg : call->args) {
     new_args.push_back(arg);
   }
-  
+
   return Call(call->dtype, builtin::call_pure_extern(), new_args);
 }
 
@@ -96,11 +96,10 @@ using tir::FLowerIntrinsic;
 
 // dummy because we don't have the activemask
 TVM_REGISTER_OP("tir.tvm_warp_activemask")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               [](const PrimExpr& e)->PrimExpr {
-                                 PrimExpr zero = tir::make_zero(DataType::Int(32));
-                                 return zero;
-                               });
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      PrimExpr zero = tir::make_zero(DataType::Int(32));
+      return zero;
+    });
 
 TVM_REGISTER_OP("tir.tvm_warp_shuffle")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
