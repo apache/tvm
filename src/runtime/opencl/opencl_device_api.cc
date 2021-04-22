@@ -29,6 +29,9 @@ namespace tvm {
 namespace runtime {
 namespace cl {
 
+std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name);
+std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name);
+
 OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() { return OpenCLThreadEntry::ThreadLocal(); }
 
 OpenCLWorkspace* OpenCLWorkspace::Global() {
@@ -72,20 +75,27 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = static_cast<int64_t>(value);
       break;
     }
-    case kComputeVersion:
-      return;
-    case kDeviceName: {
-      char value[128] = {0};
-      OPENCL_CALL(
-          clGetDeviceInfo(devices[index], CL_DEVICE_NAME, sizeof(value) - 1, value, nullptr));
-      *rv = std::string(value);
+    case kComputeVersion: {
+      // String returned is "OpenCL $MAJOR.$MINOR $VENDOR_INFO".  To
+      // match other implementations, we want to return "$MAJOR.$MINOR"
+      std::string ret = GetDeviceInfo(devices[index], CL_DEVICE_VERSION);
+
+      const size_t version_start = 7;  // Length of initial "OpenCL " prefix to skip
+      const size_t version_end = ret.find(' ', version_start);
+      *rv = ret.substr(version_start, version_end - version_start);
       break;
     }
+      return;
+    case kDeviceName:
+      *rv = GetDeviceInfo(devices[index], CL_DEVICE_NAME);
+      break;
     case kMaxClockRate: {
       cl_uint value;
       OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint),
                                   &value, nullptr));
-      *rv = static_cast<int32_t>(value);
+      // OpenCL returns the clock rate in MHz, while CUDA/ROCm return the
+      // clock rate in kHz.  Converting to the same units for each.
+      *rv = static_cast<int32_t>(value * 1000);
       break;
     }
     case kMultiProcessorCount: {
@@ -109,8 +119,17 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       return;
     case kGcnArch:
       return;
-    case kApiVersion:
-      return;
+    case kApiVersion: {
+      *rv = CL_TARGET_OPENCL_VERSION;
+      break;
+    }
+    case kDriverVersion: {
+      char value[128] = {0};
+      OPENCL_CALL(
+          clGetDeviceInfo(devices[index], CL_DRIVER_VERSION, sizeof(value) - 1, value, nullptr));
+      *rv = std::string(value);
+      break;
+    }
   }
 }
 
