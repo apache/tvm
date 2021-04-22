@@ -509,13 +509,13 @@ class GlobalAveragePool(OnnxOpConverter):
         rank = len(infer_shape(inputs[0]))
         if rank == 3:
             return _op.nn.global_avg_pool1d(inputs[0])
-        elif rank == 4:
+        if rank == 4:
             return _op.nn.global_avg_pool2d(inputs[0])
-        elif rank == 5:
+        if rank == 5:
             return _op.nn.global_avg_pool3d(inputs[0])
         raise NotImplementedError(
-            "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD.",
-            (rank - 2),
+            "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+            % (rank - 2),
         )
 
 
@@ -527,13 +527,13 @@ class GlobalMaxPool(OnnxOpConverter):
         rank = len(infer_shape(inputs[0]))
         if rank == 3:
             return _op.nn.global_max_pool1d(inputs[0])
-        elif rank == 4:
+        if rank == 4:
             return _op.nn.global_max_pool2d(inputs[0])
-        elif rank == 5:
+        if rank == 5:
             return _op.nn.global_max_pool3d(inputs[0])
         raise NotImplementedError(
-            "Global max pooling is only implemented for 1D, 2D, and 3D kernels, got %dD.",
-            (rank - 2),
+            "Global max pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+            % (rank - 2),
         )
 
 
