@@ -955,6 +955,18 @@ def nms_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@all_class_nms_strategy.register(["cuda", "gpu"])
+def all_class_nms_strategy_cuda(attrs, inputs, out_type, target):
+    """all class nms cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_all_class_nms(topi.cuda.all_class_non_max_suppression),
+        wrap_topi_schedule(topi.cuda.schedule_nms),
+        name="all_class_nms.cuda",
+    )
+    return strategy
+
+
 @roi_align_strategy.register(["cuda", "gpu"])
 def roi_align_strategy_cuda(attrs, inputs, out_type, target):
     """roi_align cuda strategy"""

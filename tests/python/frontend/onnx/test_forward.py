@@ -2830,6 +2830,44 @@ def test_pooling():
         )
 
 
+def verify_global_pooling(x_shape, mode):
+    out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
+
+    if mode == "max":
+        node_type = "GlobalMaxPool"
+    elif mode == "average":
+        node_type = "GlobalAveragePool"
+    else:
+        raise ValueError("Pool method {} is not supported.".format(mode))
+
+    pool_node = helper.make_node(node_type, inputs=["x"], outputs=["y"])
+
+    graph = helper.make_graph(
+        [pool_node],
+        "global_pooling_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="global_pooling_test")
+    verify_with_ort(model, [x_shape], [out_shape], use_vm=False, convert_to_static=True)
+
+
+@tvm.testing.uses_gpu
+def test_global_pooling():
+    # Test each pooling mode across all N-D inputs.
+    for mode in ["average", "max"]:
+        # 1D Pooling (NCW)
+        verify_global_pooling([1, 8, 8], mode)
+        verify_global_pooling([4, 1, 4], mode)
+        # 2D Pooling (NCHW)
+        verify_global_pooling([1, 8, 8, 8], mode)
+        verify_global_pooling([4, 1, 6, 4], mode)
+        # 3D Pooling (NCDHW)
+        verify_global_pooling([1, 8, 6, 8, 8], mode)
+        verify_global_pooling([4, 1, 2, 6, 4], mode)
+
+
 def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
     x_np = np.random.uniform(-100.0, 100.0, x_shape).astype(dtype)
     y_np = np.random.uniform(-100.0, 100.0, y_shape).astype(dtype)
@@ -3579,7 +3617,7 @@ def test_roi_align():
     # ONNX implementation of roi_align with max mode is incorrect, so we don't compare outputs here.
 
 
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
     def verify_nms(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
@@ -4128,6 +4166,14 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+"""
+  The following parameterized tests loads the tests that ONNX ships as
+  serialized ONNX files, inputs, and outputs. The goal of this test
+  is to ensure the ONNX importer is in line with the ONNX specification.
+  To allow these tests to run in CI before all pass, a number of tests that
+  are not yet supported are skipped.
+"""
+
 from onnx import numpy_helper
 
 f = onnx.__file__
@@ -4159,13 +4205,6 @@ unsupported_onnx_tests = [
     "test_eyelike_populate_off_main_diagonal/",
     "test_eyelike_with_dtype/",
     "test_eyelike_without_dtype/",
-    "test_hardmax_axis_0/",
-    "test_hardmax_axis_1/",
-    "test_hardmax_axis_2/",
-    "test_hardmax_default_axis/",
-    "test_hardmax_example/",
-    "test_hardmax_negative_axis/",
-    "test_hardmax_one_hot/",
     "test_isinf_negative/",
     "test_isinf_positive/",
     "test_matmulinteger/",
@@ -4176,31 +4215,17 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
-    "test_nonmaxsuppression_center_point_box_format/",
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
     "test_range_float_type_positive_delta_expanded/",
     "test_range_int32_type_negative_delta_expanded/",
-    "test_resize_downsample_scales_cubic/",
-    "test_resize_downsample_scales_cubic_A_n0p5_exclude_outside/",
-    "test_resize_downsample_scales_cubic_align_corners/",
-    "test_resize_downsample_scales_linear/",
-    "test_resize_downsample_scales_nearest/",
-    "test_resize_downsample_sizes_cubic/",
-    "test_resize_downsample_sizes_linear_pytorch_half_pixel/",
-    "test_resize_downsample_sizes_nearest/",
-    "test_resize_downsample_sizes_nearest_tf_half_pixel_for_nn/",
     "test_resize_tf_crop_and_resize/",
-    "test_resize_upsample_scales_cubic/",
-    "test_resize_upsample_scales_cubic_A_n0p5_exclude_outside/",
-    "test_resize_upsample_scales_cubic_align_corners/",
-    "test_resize_upsample_scales_cubic_asymmetric/",
-    "test_resize_upsample_scales_linear/",
-    "test_resize_upsample_sizes_cubic/",
+    ## For these three tests, ONNX 1.6.0 has incorrect graphs, they pass with ONNX 1.7.0
     "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
     "test_resize_upsample_sizes_nearest_floor_align_corners/",
     "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric/",
+    # ----
     "test_reversesequence_batch/",
     "test_reversesequence_time/",
     "test_rnn_seq_length/",
@@ -4209,13 +4234,8 @@ unsupported_onnx_tests = [
     "test_scan9_sum/",
     "test_scan_sum/",
     "test_scatternd/",
-    "test_selu_default/",
-    "test_shrink_hard/",
-    "test_shrink_soft/",
     "test_simple_rnn_defaults/",
     "test_simple_rnn_with_initial_bias/",
-    "test_slice_neg_steps/",
-    "test_slice_start_out_of_bounds/",
     "test_strnormalizer_export_monday_casesensintive_lower/",
     "test_strnormalizer_export_monday_casesensintive_nochangecase/",
     "test_strnormalizer_export_monday_casesensintive_upper/",
@@ -4235,7 +4255,6 @@ unsupported_onnx_tests = [
     "test_unique_sorted_with_axis_3d/",
     "test_unique_sorted_with_negative_axis/",
     "test_unique_sorted_without_axis/",
-    "test_unsqueeze_unsorted_axes/",
     "test_upsample_nearest/",
 ]
 

@@ -131,13 +131,11 @@ Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
   uint32_t indim = old_in_shapes[0].size();
   auto r_axes = GetReduceAxes(indim, params->axis, params->exclude);
 
-  Layout ret = Layout::Undef();
-  if (new_in_layouts.defined() && r_axes.size()) {
-    // Adapt to new layout. The axis has to change. Record original reduce axes. Convert to the
-    // modified layout axes.
-    ICHECK_EQ(new_in_layouts.size(), 1);
-    ICHECK_EQ(old_in_layouts.size(), 1);
+  Layout inferred_in = Layout::Undef();
+  Layout inferred_out = Layout::Undef();
 
+  // Infer [in_layout, out_layout, new_r_axes] from old_in_layout or new_in_layout
+  auto infer = [&](const Layout& layout) {
     // 1) Collect the original axes
     std::unordered_set<std::string> old_r_dims;
     for (auto r_axis : r_axes) {
@@ -146,9 +144,10 @@ Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
 
     // 2) Collect the new axes by walking new_layout.
     tvm::Array<tvm::Integer> new_r_axes;
-    std::string new_layout_string = "";
+    std::string inferred_in_string = "";
+    std::string inferred_out_string = "";
     int axis_index = 0;
-    for (auto iter_var : new_in_layouts[0]->axes) {
+    for (auto iter_var : layout->axes) {
       const auto& layout_axis = LayoutAxis::Get(iter_var);
       const std::string& layout_dim = layout_axis.name();
       if (old_r_dims.count(layout_dim)) {
@@ -156,21 +155,40 @@ Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
       }
       // Collect only the primal axis.
       if (layout_axis.IsPrimal()) {
-        new_layout_string += layout_dim;
+        if (!old_r_dims.count(layout_dim) || params->keepdims) {
+          inferred_out_string += layout_dim;
+        }
+        inferred_in_string += layout_dim;
         axis_index++;
       }
     }
 
     // 3) Set the new axis and layout.
-    ret = Layout(new_layout_string);
+    return std::make_tuple(Layout(inferred_in_string), Layout(inferred_out_string), new_r_axes);
+  };
+
+  std::string new_layout_string;
+  Array<Integer> new_r_axes;
+
+  if (new_in_layouts.defined() && r_axes.size()) {
+    // Adapt to new layout. The axis has to change. Record original reduce axes. Convert to the
+    // modified layout axes.
+    ICHECK_EQ(new_in_layouts.size(), 1);
+    ICHECK_EQ(old_in_layouts.size(), 1);
+
+    // Get inferred_in and inferred_out from new_in_layout.
+    std::tie(inferred_in, inferred_out, new_r_axes) = infer(new_in_layouts[0]);
     params->axis = new_r_axes;
   } else if (old_in_layouts.defined()) {
-    // If the new layout is undefined, set the old layout as the inferred layout.
     ICHECK_EQ(old_in_layouts.size(), 1);
-    ret = old_in_layouts[0];
+
+    // If the new layout is undefined, get inferred_in and inferred_out from old_in_layout.
+    if (old_in_layouts[0].defined()) {
+      std::tie(inferred_in, inferred_out, std::ignore) = infer(old_in_layouts[0]);
+    }
   }
 
-  return Array<Array<Layout>>{{ret}, {ret}};
+  return Array<Array<Layout>>{{inferred_in}, {inferred_out}};
 }
 
 template <typename F>

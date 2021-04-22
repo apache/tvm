@@ -35,6 +35,11 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
+const int kMaxPushConstantsBytes = 128;
+
+/*! \brief A mask used when we attach additional information to shaders */
+enum ShaderMetaDataFlagMask { kUseUBO = 0 };
+
 inline const char* VKGetErrorString(VkResult error) {
   switch (error) {
     case VK_SUCCESS:
@@ -103,14 +108,6 @@ struct VulkanDescriptorTemplateKHRFunctions {
 
 struct VulkanGetBufferMemoryRequirements2Functions {
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
-};
-
-struct VulkanStagingBuffer {
-  VkDevice device{nullptr};
-  VkBuffer buffer{VK_NULL_HANDLE};
-  VkDeviceMemory memory{VK_NULL_HANDLE};
-  void* host_addr{nullptr};
-  size_t size{0};
 };
 
 struct VulkanContext {

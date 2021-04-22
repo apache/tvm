@@ -42,7 +42,7 @@ namespace vm {
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "profile") {
-    return TypedPackedFunc<String(String)>([sptr_to_self, this](String arg_name) {
+    return TypedPackedFunc<profiling::Report(String)>([sptr_to_self, this](String arg_name) {
       std::vector<Device> devices;
       for (auto dev : devices_) {
         if (dev.device_type > 0) {

@@ -18,15 +18,13 @@
 """
 import numpy as np
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm import relay
+import tvm.testing
+import tvm.topi.testing
+from tvm import autotvm, relay, te
+from tvm.contrib import utils
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.contrib import utils
-import tvm.topi.testing
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
-import tvm.testing
 
 
 @tvm.testing.uses_gpu
@@ -1009,37 +1007,66 @@ def test_pool2d():
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
 
+def _test_pool1d(opfunc, pool_size=(2,), strides=(2,), padding=(0, 0), dtype="float32"):
+    n, c, w = te.var("n"), 10, 224
+    x = relay.var("x", relay.TensorType((n, c, w), "float32"))
+    y = opfunc(x, pool_size=(1,))
+    assert "pool_size=" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, 10, 224), "float32")
+    # test execution
+    dshape = (1, 3, 32)
+    for shape_dtype in ["int32", "int64"]:
+        x = relay.var("x", shape=[tvm.tir.IntImm(shape_dtype, x) for x in dshape], dtype=dtype)
+        pool_type = "max" if "max" in str(opfunc) else "avg"
+        y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = tvm.topi.testing.pool1d_ncw_python(
+            data, (2,), (2,), (0, 0), (1, 3, 16), pool_type, False
+        )
+        for target, dev in tvm.testing.enabled_targets():
+            intrp1 = relay.create_executor("graph", device=dev, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+
+def _test_global_pool1d(opfunc, reffunc):
+    n, c, w = te.size_var("n"), te.size_var("c"), 224
+    x = relay.var("x", relay.TensorType((n, w, c), "float32"))
+    y = opfunc(x, layout="NWC")
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, 1, c), "float32")
+
+    n, c, w = te.size_var("n"), te.size_var("c"), te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, w), "float32"))
+    y = opfunc(x)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, 1), "float32")
+    # test execution
+    dtype = "float32"
+    dshape = (1, 1024, 7)
+    x = relay.var("x", shape=dshape)
+    y = opfunc(x)
+    func = relay.Function([x], y)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    ref_res = reffunc(data, axis=(2,), keepdims=True)
+    for target, dev in tvm.testing.enabled_targets():
+        intrp1 = relay.create_executor("graph", device=dev, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+
 @tvm.testing.uses_gpu
 def test_pool1d():
-    def _test_pool1d(opfunc, pool_size=(2,), strides=(2,), padding=(0, 0), dtype="float32"):
-        n, c, w = te.var("n"), 10, 224
-        x = relay.var("x", relay.TensorType((n, c, w), "float32"))
-        y = opfunc(x, pool_size=(1,))
-        assert "pool_size=" in y.astext()
-        yy = run_infer_type(y)
-        assert yy.checked_type == relay.TensorType((n, 10, 224), "float32")
-        # test execution
-        dshape = (1, 3, 32)
-        for shape_dtype in ["int32", "int64"]:
-            x = relay.var("x", shape=[tvm.tir.IntImm(shape_dtype, x) for x in dshape], dtype=dtype)
-            pool_type = "max" if "max" in str(opfunc) else "avg"
-            y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
-            func = relay.Function([x], y)
-            data = np.random.uniform(size=dshape).astype(dtype)
-            ref_res = tvm.topi.testing.pool1d_ncw_python(
-                data, (2,), (2,), (0, 0), (1, 3, 16), pool_type, False
-            )
-            for target, dev in tvm.testing.enabled_targets():
-                intrp1 = relay.create_executor("graph", device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
-
     _test_pool1d(relay.nn.max_pool1d)
     _test_pool1d(relay.nn.max_pool1d, dtype="int32")
     _test_pool1d(relay.nn.max_pool1d, pool_size=2, strides=2, padding=0)
     _test_pool1d(relay.nn.avg_pool1d)
     _test_pool1d(relay.nn.avg_pool1d, dtype="int32")
     _test_pool1d(relay.nn.avg_pool1d, pool_size=2, strides=2, padding=0)
+    _test_global_pool1d(relay.nn.global_max_pool1d, np.max)
+    _test_global_pool1d(relay.nn.global_avg_pool1d, np.mean)
 
 
 @tvm.testing.uses_gpu
@@ -1197,6 +1224,30 @@ def test_pad_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n + (-2), c + (-4), h + (-2), w + 8), "float32")
 
+    # dealing with dynamic vals
+    n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
+    t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.nn.pad(
+        t, ((1, 1), (2, 2), (3, 3), (4, 4)), pad_value=relay.var("pad_value", "float32")
+    )
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
+
+
+def _get_numpy_pad(dshape, data, pad, pad_value=0):
+    mod_pad = []
+    for axis, (pad_x, pad_y) in enumerate(pad):
+        indices = range(dshape[axis])
+        if pad_x < 0:
+            indices = indices[abs(pad_x) :]
+            pad_x = 0
+        if pad_y < 0:
+            indices = indices[:pad_y]
+            pad_y = 0
+        data = np.take(data, indices, axis)
+        mod_pad.append((pad_x, pad_y))
+    return np.pad(data, tuple(mod_pad), "constant", constant_values=pad_value)
+
 
 @tvm.testing.uses_gpu
 def test_pad_run():
@@ -1209,24 +1260,35 @@ def test_pad_run():
             y = relay.nn.pad(x, pad)
             func = relay.Function([x], y)
             data = np.random.uniform(size=dshape).astype(dtype)
-            mod_pad = []
-            mod_data = data
-            for axis, (pad_x, pad_y) in enumerate(pad):
-                indices = range(dshape[axis])
-                if pad_x < 0:
-                    indices = indices[abs(pad_x) :]
-                    pad_x = 0
-                if pad_y < 0:
-                    indices = indices[:pad_y]
-                    pad_y = 0
-                mod_data = np.take(mod_data, indices, axis)
-                mod_pad.append((pad_x, pad_y))
-
-            ref_res = np.pad(mod_data, tuple(mod_pad), "constant")
+            ref_res = _get_numpy_pad(dshape, data, pad)
             for target, dev in tvm.testing.enabled_targets():
                 intrp1 = relay.create_executor("graph", device=dev, target=target)
                 op_res1 = intrp1.evaluate(func)(data)
                 tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_run("float32")
+    _test_run("int32")
+
+
+@tvm.testing.uses_gpu
+def test_pad_run_dynamic_pad_value():
+    def _test_run(dtype):
+        dshape = (4, 6, 3, 5)
+        pad = ((-1, -1), (2, -2), (0, -2), (4, 4))
+
+        data = relay.var("data", shape=dshape, dtype=dtype)
+        pad_value = relay.var("pad_value", dtype)
+        pad_data = relay.nn.pad(data, pad, pad_value=pad_value)
+        f = relay.Function([data, pad_value], pad_data)
+
+        data_arr = np.random.uniform(-10, 10, size=dshape).astype(dtype)
+        pad_value_arr = 2.0
+        ref_res = _get_numpy_pad(dshape, data_arr, pad, pad_value=pad_value_arr)
+
+        for target, dev in tvm.testing.enabled_targets():
+            intrp = relay.create_executor(kind="graph", device=dev, target=target)
+            result = intrp.evaluate(f)(data_arr, pad_value_arr)
+            tvm.testing.assert_allclose(result.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
     _test_run("int32")
@@ -1766,6 +1828,7 @@ if __name__ == "__main__":
     test_flatten_infer_type()
     test_pad_infer_type()
     test_pad_run()
+    test_pad_run_dynamic_pad_value()
     test_conv3d_transpose_infer_type()
     test_conv3d_transpose_ncdhw_run()
     test_conv2d_transpose_infer_type()

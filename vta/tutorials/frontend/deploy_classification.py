@@ -52,13 +52,14 @@ from matplotlib import pyplot as plt
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_executor, utils, download
+from tvm.contrib import graph_executor, utils, download, graph_runtime
 from tvm.contrib.debugger import debug_executor
 from tvm.relay import transform
 
 import vta
 from vta.testing import simulator
 from vta.top import graph_pack
+
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -99,7 +100,7 @@ assert model in pack_dict
 # When target is 'pynq', reconfigure FPGA and runtime.
 # Otherwise, if target is 'sim', execute locally.
 
-if env.TARGET not in ["sim", "tsim"]:
+if env.TARGET not in ["sim", "tsim", "intelfocl"]:
 
     # Get remote from tracker node if environment variable is set.
     # To set up the tracker, you'll need to follow the "Auto-tuning
@@ -130,6 +131,10 @@ if env.TARGET not in ["sim", "tsim"]:
 # In simulation mode, host the RPC server locally.
 else:
     remote = rpc.LocalSession()
+
+    if env.TARGET in ["intelfocl"]:
+        # program intelfocl aocx
+        vta.program_fpga(remote, bitstream="vta.bitstream")
 
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
@@ -178,6 +183,7 @@ with autotvm.tophub.context(target):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
             assert env.BLOCK_IN == env.BLOCK_OUT
+            # do device annotation if target is intelfocl or sim
             relay_prog = graph_pack(
                 mod["main"],
                 env.BATCH,
@@ -185,6 +191,7 @@ with autotvm.tophub.context(target):
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
                 stop_name=pack_dict[model][1],
+                device_annot=(env.TARGET == "intelfocl" or env.TARGET == "sim"),
             )
     else:
         relay_prog = mod["main"]
@@ -196,8 +203,13 @@ with autotvm.tophub.context(target):
                 relay_prog, target=target, params=params, target_host=env.target_host
             )
     else:
+        if env.TARGET == "intelfocl" or env.TARGET == "sim":
+            # multiple targets to run both on cpu and vta
+            target = {"cpu": env.target_vta_cpu, "ext_dev": target}
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-            lib = relay.build(relay_prog, target=target, params=params, target_host=env.target_host)
+            graph, lib, params = relay.build(
+                relay_prog, target=target, params=params, target_host=env.target_host
+            )
 
     # Measure Relay build time
     build_time = time.time() - build_start
@@ -209,8 +221,12 @@ with autotvm.tophub.context(target):
     remote.upload(temp.relpath("graphlib.tar"))
     lib = remote.load_module("graphlib.tar")
 
-    # Graph executor
-    m = graph_executor.GraphModule(lib["default"](ctx))
+    if env.TARGET == "intelfocl" or env.TARGET == "sim":
+        ctxes = [remote.ext_dev(0), remote.cpu(0)]
+        m = graph_runtime.create(graph, lib, ctxes)
+    else:
+        # Graph runtime
+        m = graph_runtime.create(graph, lib, ctx)
 
 ######################################################################
 # Perform image classification inference
@@ -241,6 +257,7 @@ image = image[np.newaxis, :]
 image = np.repeat(image, env.BATCH, axis=0)
 
 # Set the network parameters and inputs
+m.set_input(**params)
 m.set_input("data", image)
 
 # Perform inference and gather execution statistics

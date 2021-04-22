@@ -185,6 +185,8 @@ class MetalWrappedFunc {
     @autoreleasepool {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
+      auto stream = static_cast<metal::Stream*>(t->stream[device_id]);
+      if (stream->HasErrorHappened()) return;
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
@@ -192,8 +194,7 @@ class MetalWrappedFunc {
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
-      id<MTLCommandQueue> queue = w_->GetCommandQueue(t->device);
-      id<MTLCommandBuffer> cb = [queue commandBuffer];
+      id<MTLCommandBuffer> cb = stream->GetCommandBuffer();
       id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
       [encoder setComputePipelineState:scache_[device_id]];
       for (size_t i = 0; i < num_buffer_args_; ++i) {

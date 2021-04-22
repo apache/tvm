@@ -19,3 +19,4 @@
 
 from .block_scope import BlockScope, Dependency, DepKind, StmtSRef
 from .state import ScheduleDebugMask, ScheduleState
+from .schedule import LoopRV, BlockRV, IntRV, RAND_VAR_TYPE, Schedule

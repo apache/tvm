@@ -32,7 +32,7 @@ from tvm.contrib.download import download_testdata
 
 try:
     tf_compat_v1 = tf.compat.v1
-except ImportError:
+except (ImportError, AttributeError):
     tf_compat_v1 = tf
 
 ######################################################################

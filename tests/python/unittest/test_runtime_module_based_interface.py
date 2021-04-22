@@ -262,7 +262,7 @@ def test_mod_export():
 
         from tvm import rpc
 
-        server = rpc.Server("localhost", use_popen=True, port=9094)
+        server = rpc.Server("localhost", port=9094)
         remote = rpc.connect(server.host, server.port)
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)

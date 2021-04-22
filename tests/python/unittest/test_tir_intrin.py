@@ -142,9 +142,47 @@ def test_ldexp():
     )
 
 
+def test_clz():
+    def clz_np(x, dtype):
+        ceil_log2 = np.ceil(np.log2(x)).astype(dtype)
+        bits = int(dtype[-2:])
+        clz = bits - ceil_log2
+        clz[np.bitwise_and(x, x - 1) == 0] -= 1
+        return clz
+
+    for target in ["llvm", "vulkan"]:
+        if not tvm.testing.device_enabled("vulkan"):
+            continue
+
+        for dtype in ["int32", "int64"]:
+            m = te.var("m")
+            A = te.placeholder((m,), name="A", dtype=dtype)
+            B = te.compute((m,), lambda *i: tvm.tir.clz(A(*i)), name="B")
+            s = te.create_schedule(B.op)
+
+            if target == "vulkan":
+                bx, tx = s[B].split(B.op.axis[0], factor=64)
+
+                s[B].bind(bx, te.thread_axis("blockIdx.x"))
+                s[B].bind(tx, te.thread_axis("threadIdx.x"))
+
+            f = tvm.build(s, [A, B], target)
+            dev = tvm.device(target, 0)
+            n = 10
+
+            for high in [10, 100, 1000, 10000, 100000, 1000000]:
+                a_np = np.random.randint(1, high=high, size=(n,)).astype(dtype)
+                a = tvm.nd.array(a_np, dev)
+                b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)
+                f(a, b)
+                ref = clz_np(a_np, dtype)
+                np.testing.assert_equal(b.asnumpy(), ref)
+
+
 if __name__ == "__main__":
     test_nearbyint()
     test_unary_intrin()
     test_round_intrinsics_on_int()
     test_binary_intrin()
     test_ldexp()
+    test_clz()

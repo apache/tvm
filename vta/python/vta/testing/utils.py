@@ -32,7 +32,7 @@ def run(run_func):
     """
     env = get_env()
 
-    if env.TARGET in ["sim", "tsim"]:
+    if env.TARGET in ["sim", "tsim", "intelfocl"]:
         # Talk to local RPC if necessary to debug RPC server.
         # Compile vta on your host with make at the root.
         # Make sure TARGET is set to "sim" in the config.json file.

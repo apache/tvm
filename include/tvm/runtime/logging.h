@@ -394,9 +394,8 @@ inline bool DebugLoggingEnabled() {
 constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
     "\n"
     "---------------------------------------------------------------\n"
-    "An internal invariant was violated during the execution of TVM.\n"
-    "Please read TVM's error reporting guidelines.\n"
-    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
+    "An error occurred during the execution of TVM.\n"
+    "For more information, please see: https://tvm.apache.org/docs/errors.html\n"
     "---------------------------------------------------------------\n";
 
 template <typename X, typename Y>

@@ -33,7 +33,7 @@ def test_basic(dev, target):
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     res = vm.profile(tvm.nd.array(data), func_name="main")
-    assert "softmax" in res
+    assert "softmax" in str(res)
 
 
 if __name__ == "__main__":

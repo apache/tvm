@@ -213,6 +213,7 @@ def compare_tf_with_tvm(
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
     targets=None,
+    ignore_in_shape=False,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -259,6 +260,7 @@ def compare_tf_with_tvm(
                 opt_level=opt_level,
                 mode=mode,
                 cuda_layout=cuda_layout,
+                ignore_in_shape=ignore_in_shape,
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
@@ -314,6 +316,22 @@ def _test_pooling(input_shape, **kwargs):
             _test_pooling_iteration(input_shape, **kwargs)
 
 
+def _test_pooling_dynamic(input_shape, np_shape, **kwargs):
+    """ Pooling with dynamic height and width dimensions. """
+    x = -np.arange(np.prod(np_shape), dtype=np.float32).reshape(np_shape) - 1
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype="float32")
+        nn_ops.pool(in_data, **kwargs)
+
+        if kwargs["pooling_type"] == "MAX":
+            out_name = "max_pool:0"
+        else:
+            out_name = "avg_pool:0"
+
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, mode="vm", ignore_in_shape=True)
+
+
 @tvm.testing.uses_gpu
 def test_forward_pooling():
     """ Pooling """
@@ -345,6 +363,16 @@ def test_forward_pooling():
             pooling_type=pool_type,
             dilation_rate=[1, 1, 1],
             strides=[2, 2, 2],
+        )
+
+        _test_pooling_dynamic(
+            input_shape=[1, None, None, 3],
+            np_shape=[1, 32, 32, 3],
+            window_shape=[2, 2],
+            padding="SAME",
+            pooling_type=pool_type,
+            dilation_rate=[1, 1],
+            strides=[1, 1],
         )
 
         # test cases for max_pool3d & avg_pool3d with layout NCDHW

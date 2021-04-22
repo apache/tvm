@@ -277,7 +277,7 @@ class GraphExecutorDebug : public GraphExecutor {
    *
    * \returns A table of per-op runtimes and total times.
    */
-  String Profile() {
+  profiling::Report Profile() {
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {
       GraphExecutor::Run();
@@ -350,7 +350,7 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else if (name == "profile") {
-    return TypedPackedFunc<String()>([sptr_to_self, this]() { return this->Profile(); });
+    return TypedPackedFunc<profiling::Report()>([sptr_to_self, this]() { return this->Profile(); });
   } else {
     return GraphExecutor::GetFunction(name, sptr_to_self);
   }

@@ -91,9 +91,17 @@ class ConvertTransformMemorizer : public TransformMemorizer {
       auto desired_layouts = operator->()->desired_layouts_;
       if (desired_layouts.find(op->name) != desired_layouts.end()) {
         tvm::Array<tvm::te::Tensor> tinfos;
-        for (auto expr : ref_call->args) {
-          auto ttype = expr->type_as<TensorTypeNode>();
-          tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+        for (auto& expr : ref_call->args) {
+          if (expr->checked_type()->IsInstance<TupleTypeNode>()) {
+            auto tuple_ttype_node = expr->type_as<TupleTypeNode>();
+            for (auto& ttype : tuple_ttype_node->fields) {
+              auto ttype_node = ttype.as<TensorTypeNode>();
+              tinfos.push_back(tvm::te::placeholder(ttype_node->shape, ttype_node->dtype));
+            }
+          } else {
+            auto ttype = expr->type_as<TensorTypeNode>();
+            tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+          }
         }
 
         Array<String> op_desired_layouts = desired_layouts.at(op->name);

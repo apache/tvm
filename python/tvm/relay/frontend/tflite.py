@@ -597,13 +597,18 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
         # size - 1-D int32 Tensor of 2 elements: new_height, new_width
         target_size = tuple(self.get_tensor_value(input_tensors[1]))
 
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        if method == "bilinear":
+        bilinear_method = method == "bilinear"
+        if bilinear_method:
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
@@ -617,9 +622,13 @@ class OperatorConverter(object):
 
         # Use layout NHWC
         coord_trans = "align_corners" if align_corners else "asymmetric"
+        if bilinear_method and input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize(
             in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
+        if bilinear_method and output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_resize_bilinear(self, op):
@@ -1882,9 +1891,12 @@ class OperatorConverter(object):
                 # bias tensor type should be INT32 (quantization) or FLOAT32
                 assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
                 bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-                bias_expr = self.exp_tab.new_const(
-                    self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
-                )
+                if self.has_expr(bias_tensor.tensor_idx):
+                    bias_expr = self.get_expr(bias_tensor.tensor_idx)
+                else:
+                    bias_expr = self.exp_tab.new_const(
+                        self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+                    )
                 out = _op.nn.bias_add(out, bias_expr)
 
         # Finally if the dense is quantized. Add a requantize at the end.
@@ -2852,11 +2864,18 @@ class OperatorConverter(object):
         # weights tensor type should be UINT8 (quantization) or FLOAT32
         assert weights_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
-        weight_value_ohwi = self.get_tensor_value(weights_tensor)
-        # Relay kernel_layout should be OIHW
-        # Relay weights layout should be different from kernel_layout - it should be IOHW
-        weight_value_iohw = np.transpose(weight_value_ohwi, (3, 0, 1, 2))
-        weight_expr_iohw = self.exp_tab.new_const(weight_value_iohw, dtype=weight_tensor_type_str)
+
+        if self.has_expr(weights_tensor.tensor_idx):
+            weight_expr_iohw = self.get_expr(weights_tensor.tensor_idx)
+            weight_expr_iohw = _op.transpose(weight_expr_iohw, axes=(3, 0, 1, 2))
+        else:
+            weight_value_ohwi = self.get_tensor_value(weights_tensor)
+            # Relay kernel_layout should be OIHW
+            # Relay weights layout should be different from kernel_layout - it should be IOHW
+            weight_value_iohw = np.transpose(weight_value_ohwi, (3, 0, 1, 2))
+            weight_expr_iohw = self.exp_tab.new_const(
+                weight_value_iohw, dtype=weight_tensor_type_str
+            )
 
         # Output shape value
         output_shape_value = self.get_tensor_value(output_shape_tensor)
@@ -2912,9 +2931,12 @@ class OperatorConverter(object):
             # bias tensor type should be INT32 (quantization) or FLOAT32
             assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(
-                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
-            )
+            if self.has_expr(bias_tensor.tensor_idx):
+                bias_expr = self.get_expr(bias_tensor.tensor_idx)
+            else:
+                bias_expr = self.exp_tab.new_const(
+                    self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+                )
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 

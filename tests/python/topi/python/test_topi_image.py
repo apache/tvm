@@ -92,12 +92,8 @@ def test_resize():
     # Scale NHWC + Align Corners
     verify_resize(6, 32, 64, 64, 20, 20, "NHWC")
     for method in ["nearest_neighbor", "bilinear"]:
-        for coord_trans in ["asymmetric", "half_pixel", "align_corners"]:
+        for coord_trans in ["asymmetric"]:  # TOPI testing function only support asymmetric
             for layout in ["NCHW", "NHWC"]:
-                # TODO: When topi test has an option for align corners and nearest neighbor that
-                # produces correct results, re-enable it.
-                if coord_trans == "align_corners" and method == "nearest_neighbor":
-                    continue
                 verify_resize(4, 16, 32, 32, 50, 50, layout, coord_trans, method=method)
 
 

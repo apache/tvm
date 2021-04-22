@@ -103,6 +103,8 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = CUDA_VERSION;
         return;
       }
+      case kDriverVersion:
+        return;
     }
     *rv = value;
   }
