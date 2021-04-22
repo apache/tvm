@@ -114,51 +114,46 @@ TVM_REGISTER_OP("tir.round")
 
 TVM_REGISTER_OP("tir.rsqrt")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& args, TVMRetValue* rv) {
-                                 PrimExpr e = args[0];
+                               [](const PrimExpr& e)->PrimExpr {
                                  const CallNode* call = e.as<CallNode>();
                                  ICHECK(call != nullptr);
                                  auto one = make_const(call->args[0].dtype(), 1);
-                                 *rv = one / sqrt(call->args[0]);
-                               }));
+                                 return one / sqrt(call->args[0]);
+                               });
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.sigmoid")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& args, TVMRetValue* rv) {
-                                 PrimExpr e = args[0];
+                               [](const PrimExpr& e)->PrimExpr {
                                  const CallNode* call = e.as<CallNode>();
                                  ICHECK(call != nullptr);
                                  auto one = make_const(call->args[0].dtype(), 1);
-                                 *rv = one / (one + exp(-call->args[0]));
-                               }));
+                                 return one / (one + exp(-call->args[0]));
+                               });
 
 TVM_REGISTER_OP("tir.isfinite")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& args, TVMRetValue* rv) {
-                                 PrimExpr e = args[0];
+                               [](const PrimExpr& e)->PrimExpr {
                                  const CallNode* call = e.as<CallNode>();
                                  ICHECK(call != nullptr);
-                                 *rv = isfinite(call->args[0]);
-                               }));
+                                 return isfinite(call->args[0]);
+                               });
 
 TVM_REGISTER_OP("tir.isinf")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& args, TVMRetValue* rv) {
-                                 PrimExpr e = args[0];
+                               [](const PrimExpr& e)->PrimExpr {
                                  const CallNode* call = e.as<CallNode>();
                                  ICHECK(call != nullptr);
-                                 *rv = isinf(call->args[0]);
-                               }));
+                                 return isinf(call->args[0]);
+                               });
 
 TVM_REGISTER_OP("tir.q_multiply_shift")
     .set_attr<FLowerIntrinsic>(
-        "default.FLowerIntrinsic", PackedFunc([](const TVMArgs& args, TVMRetValue* rv) {
+        "default.FLowerIntrinsic", [](const PrimExpr& e)->PrimExpr {
           using tir::make_const;
 
-          PrimExpr e = args[0];
           const tir::CallNode* call = e.as<tir::CallNode>();
           ICHECK(call != nullptr);
 
@@ -186,7 +181,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
             int exp_val = get_int_value(s) - 1;
             if (exp_val > 0) {
               // power of 2 is greater than 0, apply left shift.
-              *rv = x << exp;
+              return x << exp;
             } else {
               // power of 2 is less than 0, round and then apply right shift.
               DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
@@ -194,7 +189,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
               exp = -exp;
               PrimExpr rounding_factor = one << (exp - 1);
               PrimExpr rounded_t = x + rounding_factor;
-              *rv = rounded_t >> exp;
+              return rounded_t >> exp;
             }
           } else {
             // Only int32 types are supported (any number of lanes is allowed)
@@ -228,9 +223,9 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
 
             // 6) The fixed point multiplication keeps the value in int32 range. Casting back to
             // int32.
-            *rv = cast(lp_dtype, x);
+            return cast(lp_dtype, x);
           }
-        }));
+        });
 
 }  // namespace intrin
 }  // namespace codegen
