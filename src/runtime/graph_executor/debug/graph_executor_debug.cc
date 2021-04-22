@@ -179,13 +179,6 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
-   * \brief Run each operation and get the output.
-   * \param index The index of op which needs to be returned.
-   * \param eid The Entry id of the op.
-   */
-  NDArray GetOutputByLayer(int index, int eid) { return data_entry_[entry_id(index, eid)]; }
-
-  /*!
    * \brief GetFunction Get the function based on input.
    * \param name The function which needs to be invoked.
    * \param sptr_to_self Packed function pointer.
@@ -208,28 +201,6 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
-   * \brief Copy index-th node to data_out.
-   *
-   * This method will do a partial run of the the graph
-   * from begining upto the index-th node and return output of index-th node.
-   * This is costly operation and suggest to use only for debug porpose.
-   *
-   * \param index: The  index of the node.
-   * \param data_out the node data.
-   */
-  void DebugGetNodeOutput(int index, DLTensor* data_out) {
-    ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
-    uint32_t eid = index;
-
-    for (size_t i = 0; i < op_execs_.size(); ++i) {
-      if (op_execs_[i]) op_execs_[i]();
-      if (static_cast<int>(i) == index) break;
-    }
-
-    data_entry_[eid].CopyTo(data_out);
-  }
-
-  /*!
    * \brief Execute network to a specific node and return result.
    *
    * This method will do a partial run of the the graph
@@ -243,7 +214,7 @@ class GraphExecutorDebug : public GraphExecutor {
   NDArray ExecuteNodeGetOutput(int index, int eid) {
     ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
 
-    for (size_t i = 0; i <= static_cast<size_t>(index); ++i) {
+    for (size_t i = 0; i <= static_cast<size_t>(index); i++) {
       if (op_execs_[i]) op_execs_[i]();
     }
 
@@ -319,19 +290,7 @@ class GraphExecutorDebug : public GraphExecutor {
 PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
-  if (name == "get_output_by_layer") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetOutputByLayer(args[0], args[1]);
-    });
-  } else if (name == "debug_get_output") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      if (String::CanConvertFrom(args[0])) {
-        this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
-      } else {
-        this->DebugGetNodeOutput(args[0], args[1]);
-      }
-    });
-  } else if (name == "exectue_node_get_output") {
+  if (name == "exectue_node_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->ExecuteNodeGetOutput(args[0], args[1]);
     });
