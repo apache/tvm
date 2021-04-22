@@ -4215,7 +4215,6 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
-    "test_nonmaxsuppression_center_point_box_format/",
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",

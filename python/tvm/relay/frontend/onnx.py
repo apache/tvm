@@ -2543,11 +2543,17 @@ class NonMaxSuppression(OnnxOpConverter):
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
 
-        if "center_point_box" in attr:
-            if attr["center_point_box"] != 0:
-                raise NotImplementedError(
-                    "Only support center_point_box = 0 in ONNX NonMaxSuprresion"
-                )
+        boxes_dtype = infer_type(boxes).checked_type.dtype
+
+        if attr.get("center_point_box", 0) != 0:
+            xc, yc, w, h = _op.split(boxes, 4, axis=2)
+            half_w = w / _expr.const(2.0, boxes_dtype)
+            half_h = h / _expr.const(2.0, boxes_dtype)
+            x1 = xc - half_w
+            x2 = xc + half_w
+            y1 = yc - half_h
+            y2 = yc + half_h
+            boxes = _op.concatenate([y1, x1, y2, x2], axis=2)
 
         if iou_threshold is None:
             iou_threshold = _expr.const(0.0, dtype="float32")
