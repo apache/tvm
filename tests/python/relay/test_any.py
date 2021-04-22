@@ -1589,7 +1589,9 @@ def test_all_class_non_max_suppression():
         num_classes = scores_np.shape[1]
         num_boxes = relay.Any()
         boxes = relay.var("boxes", relay.ty.TensorType((batch_size, num_boxes, 4), "float32"))
-        scores = relay.var("scores", relay.ty.TensorType((batch_size, num_classes, num_boxes), "float32"))
+        scores = relay.var(
+            "scores", relay.ty.TensorType((batch_size, num_classes, num_boxes), "float32")
+        )
 
         nms_out = relay.vision.all_class_non_max_suppression(
             boxes,
@@ -1614,16 +1616,9 @@ def test_all_class_non_max_suppression():
         [
             [
                 [0.0, 0.0, 0.3, 0.3],
-                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.4, 0.4],
                 [0.0, 0.0, 0.5, 0.5],
                 [0.5, 0.5, 0.9, 0.9],
-                [0.5, 0.5, 1.0, 1.0],
-            ],
-            [
-                [0.0, 0.0, 0.3, 0.3],
-                [0.0, 0.0, 0.4, 0.4],
-                [0.5, 0.5, 0.95, 0.95],
-                [0.5, 0.5, 0.96, 0.96],
                 [0.5, 0.5, 1.0, 1.0],
             ],
         ]
@@ -1631,18 +1626,15 @@ def test_all_class_non_max_suppression():
 
     scores = np.array(
         [
-            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
-            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.8, 0.2, 0.6, 0.3, 0.9]],
         ]
     ).astype("float32")
 
     max_output_boxes_per_class = 2
     iou_threshold = 0.8
-    score_threshold = 0.0
+    score_threshold = 0.4
 
-    expected = np.array(
-        [[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 2], [1, 0, 4], [1, 0, 1], [1, 1, 4], [1, 1, 1]]
-    )
+    expected = np.array([[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 0]])
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
@@ -1652,20 +1644,32 @@ def test_all_class_non_max_suppression():
         [
             [
                 [0.0, 0.0, 1.0, 1.0],
-                [0.0, 0.1, 1.0, 1.1],
-                [0.0, -0.1, 1.0, 0.9],
-                [0.0, 10.0, 1.0, 11.0],
-                [0.0, 10.1, 1.0, 11.1],
-                [0.0, 100.0, 1.0, 101.0],
+                [0.0, 0.1, 0.9, 1.2],
             ]
         ]
     ).astype(np.float32)
-    scores = np.array([[[0.9, 0.75, 0.6, 0.95, 0.5, 0.3]]]).astype(np.float32)
-    max_output_boxes_per_class = 3
-    iou_threshold = 0.5
+    scores = np.array([[[0.2, 0.3], [0.3, 0.2]]]).astype(np.float32)
+    iou_threshold = 0.3
+    score_threshold = 0.15
+
+    expected = np.array([[0, 0, 1], [0, 1, 0]])
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    # zero box detection case
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.2]]]).astype(np.float32)
     score_threshold = 0.4
 
-    expected = np.array([[0, 0, 3], [0, 0, 0]])
+    expected = np.zeros((0, 3))
 
     verify_all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
@@ -1673,5 +1677,4 @@ def test_all_class_non_max_suppression():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_all_class_non_max_suppression()
+    pytest.main([__file__])
