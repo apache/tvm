@@ -60,7 +60,7 @@ struct CollectAttrs : public AttrVisitor {
 class LabelOpsMutator : public MixedModeMutator {
  private:
   std::unordered_map<std::string, ObjectRef> body_attrs;
-  Expr VisitExpr_(const FunctionNode* op) {
+  Expr VisitExpr_(const FunctionNode* op) final {
     // body_attrs collects attrs from Calls in the body of this Function. Reset
     // it so we only get attrs from this Function.
     body_attrs = {};
@@ -78,7 +78,7 @@ class LabelOpsMutator : public MixedModeMutator {
     return std::move(f);
   }
 
-  Expr Rewrite_(const CallNode* op, const Expr& post) {
+  Expr Rewrite_(const CallNode* op, const Expr& post) final {
     auto updated = MixedModeMutator::Rewrite_(op, post);
     if (op->attrs.defined()) {
       CollectAttrs collect;
