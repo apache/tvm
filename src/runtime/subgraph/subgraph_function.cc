@@ -40,17 +40,14 @@ void subgraph_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
 
     auto output = curRunItem->GetOutput();
     subgraph_queue_push(nextQueue, output);
-    cout << num << " subgraph run..." << endl;
     curRunItem->notifyDataReadyToNext();
   }
   curRunItem->notifyNextExit();
-
-  cout << "end " << __FUNCTION__ << " num " << num << endl;
 }
 
 thread* subgraph_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
   for (size_t i = 1; i < runtimes->size(); i++) {
-    (*runtimes)[i]->t = move(thread(subgraph_pipeline_run, i, (*runtimes)[i]));
+    (*runtimes)[i]->t = thread(subgraph_pipeline_run, i, (*runtimes)[i]);
   }
   return NULL;
 }
@@ -72,9 +69,7 @@ void subgraph_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
       (*runtimes)[i]->next = (*runtimes)[0];
     }
   }
-#ifndef SERIALIZE
   subgraph_pipeline_init(runtimes);
-#endif
   return;
 }
 
@@ -87,24 +82,7 @@ bool subgraph_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
   return q_poll<SLOT, RuntimeData>(queue, runtimeData);
 }
 
-void subgraph_run_serial(const SHARED_RUNTIME_VEC runtimes) {
-  runtimes[0]->Run();
-  for (size_t i = 1; i < runtimes.size(); i++) {
-    int oNum = runtimes[i - 1]->runtimePtr->NumOutputs();
-    for (int j = 0; j < oNum; j++) {
-      auto o = runtimes[i - 1]->runtimePtr->GetOutput(j);
-      DLTensor* ptr = const_cast<DLTensor*>(o.operator->());
-      runtimes[i]->runtimePtr->SetInput(j, ptr);
-    }
-    runtimes[i]->Run();
-  }
-}
-
-void subgraph_run(const SHARED_RUNTIME_VEC& runtimes, bool synch) {
-#ifdef SERIALIZE
-  subgraph_run_serial(runtimes);
-  return;
-#endif
+void subgraph_run(const SHARED_RUNTIME_VEC& runtimes) {
   shared_ptr<RuntimeItem> runtime = runtimes.front();
   runtime->Run();
   subgraph_queue_push(runtime->next->queue, runtime->GetOutput());
@@ -112,26 +90,24 @@ void subgraph_run(const SHARED_RUNTIME_VEC& runtimes, bool synch) {
   return;
 }
 
-bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, const bool synch) {
+bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, const bool bSynch) {
   shared_ptr<RuntimeItem> firstRuntime = runtimes.front();
   QUEUE* queue = firstRuntime->queue;
-#ifndef SERIALIZE
   bool suc = false;
   subgraphOutputData<> outputData(output);
   suc = q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
-  if (!suc) {
-    firstRuntime->waitPipeLineData(!synch);
+  while (!suc && bSynch) {
+    /*
+     * If get exit notify then break.
+     */
+    if (!firstRuntime->waitPipeLineData(!bSynch)) {
+      break;
+    }
     suc = q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
-    cout << "run done suc is " << suc << endl;
   }
   return suc;
-#else
-  subgraphOutputData<> outputData(output);
-  return q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
-#endif
 }
 
 void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes) {
-  cout << __FUNCTION__ << endl;
   runtimes.front()->notifyNextExit();
 }

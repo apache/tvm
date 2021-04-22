@@ -35,7 +35,6 @@
 #include <vector>
 #define SLOT slot_t<>
 #define SUB_Q_SIZE 1024
-// #define SERIALIZE
 using namespace tvm::runtime;
 using namespace std;
 // thread control struction, for single consumer single producer mode
@@ -72,7 +71,6 @@ class TControl {
     notify();
     if (t->joinable()) {
       t->join();
-      cout << "exit_notify suc" << endl;
     }
   }
 };

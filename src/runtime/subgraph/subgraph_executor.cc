@@ -34,7 +34,7 @@ void SubGraphRuntime::Stop() { subgraph_stop(runtimes); }
 /*!
  * \brief Run all the operations one by one.
  */
-void SubGraphRuntime::Run() { subgraph_run(runtimes, true); }
+void SubGraphRuntime::Run() { subgraph_run(runtimes); }
 
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules) {
   subgraph_init(modules, &runtimes);
@@ -111,17 +111,11 @@ NDArray SubGraphRuntime::GetInput(const std::string& name, int mIndx) const {
  */
 Array<NDArray> SubGraphRuntime::GetOutput(bool syncPoll) {
   Array<NDArray> nd;
-#ifdef SERIALIZE
-  auto gruntime = runtimes.back();
-  nd.push_back(gruntime->runtimePtr->GetOutput(0));
-  DLTensor* dt = const_cast<DLTensor*>(nd.back().operator->());
-#else
   if (subgraph_poll(&output_entry_, runtimes, syncPoll)) {
     for (auto output : output_entry_) {
       nd.push_back(output);
     }
   }
-#endif
   return nd;
 }
 

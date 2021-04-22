@@ -28,11 +28,11 @@ using namespace tvm::runtime;
 typedef vector<shared_ptr<RuntimeItem>> SHARED_RUNTIME_VEC;
 
 void subgraph_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes);
-void subgraph_run(const SHARED_RUNTIME_VEC& runtimes, bool synch = false);
+void subgraph_run(const SHARED_RUNTIME_VEC& runtimes);
 inline void subgraph_queue_push(QUEUE* queue, Array<NDArray> arrays);
 bool subgraph_queue_poll(QUEUE* queue, RuntimeData* runtimeData);
 bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes,
-                   const bool sync = false);
+                   const bool bSync = false);
 void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes);
 
 #endif  // TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_
