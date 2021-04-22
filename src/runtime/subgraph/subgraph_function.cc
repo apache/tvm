@@ -108,6 +108,4 @@ bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, 
   return suc;
 }
 
-void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes) {
-  runtimes.front()->notifyNextExit();
-}
+void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes) { runtimes.front()->notifyNextExit(); }
