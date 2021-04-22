@@ -62,6 +62,10 @@ struct ExecutorCodegen {
 
   virtual void UpdateOutput(BuildOutput* ret) = 0;
 
+  Map<String, FunctionInfo> GetFunctionMetadata() {
+    return CallFunc<Map<String, FunctionInfo>>("get_function_metadata", nullptr);
+  }
+
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
     auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
@@ -196,6 +200,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->executor_codegen_->GetExternalModules();
+      });
+    } else if (name == "get_function_metadata") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->executor_codegen_->GetFunctionMetadata();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

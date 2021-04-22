@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Backend codegen modules for relay."""
-from . import compile_engine
-from . import utils
+"""FFI APIs for tvm.relay.backend"""
+import tvm._ffi
+
+
+tvm._ffi._init_api("relay.backend", __name__)

@@ -14,6 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Backend codegen modules for relay."""
-from . import compile_engine
-from . import utils
+"""The utility functions and classes for relay backend compilation"""
+from tvm.runtime import Object
+from . import _ffi_api
+
+
+class FunctionInfo(Object):
+    """A data structure to hold metadata of relay primitive functions"""
+
+    def __init__(self, dummy):
+        self.__init_handle_by_constructor__(_ffi_api.FunctionInfo, dummy)
+
+    def set_workspace_size(self, target, size):
+        _ffi_api._FunctionInfo_SetWorkspaceSize(self, target, size)
