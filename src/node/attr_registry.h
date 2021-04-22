@@ -95,7 +95,7 @@ class AttrRegistry {
    * \param plevel The support level.
    */
   void UpdateAttr(const String& attr_name, const KeyType& key, runtime::TVMRetValue value,
-                  int plevel, int can_override = 0) {
+                  int plevel) {
     using runtime::TVMRetValue;
     std::lock_guard<std::mutex> lock(mutex_);
     auto& op_map = attrs_[attr_name];
@@ -109,7 +109,7 @@ class AttrRegistry {
       op_map->data_.resize(index + 1, std::make_pair(TVMRetValue(), 0));
     }
     std::pair<TVMRetValue, int>& p = op_map->data_[index];
-    ICHECK(can_override || p.second != plevel)
+    ICHECK(p.second != plevel)
         << "Attribute " << attr_name << " of " << key->AttrRegistryName()
         << " is already registered with same plevel=" << plevel;
     ICHECK(value.type_code() != kTVMNullptr) << "Registered packed_func is Null for " << attr_name

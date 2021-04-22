@@ -76,6 +76,6 @@ def _rule_float_direct(op):
 
 
 # opencl pattern for exp
-register_intrin_lowering("tir.exp", target="opencl", f=_rule_float_direct, override=True)
+register_intrin_lowering("tir.exp", target="opencl", f=_rule_float_direct, level=100)
 # default pattern for exp
-register_intrin_lowering("tir.exp", target="default", f=_rule_float_suffix, override=True)
+register_intrin_lowering("tir.exp", target="default", f=_rule_float_suffix, level=100)

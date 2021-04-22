@@ -123,7 +123,6 @@ def register_intrin_lowering(
     *,
     f=None,
     level=10,
-    override=False,
 ):
     """Register Op lowering function
 
@@ -141,9 +140,6 @@ def register_intrin_lowering(
     level : int
         The priority level
 
-    override: boolean optional
-        Whether override existing entry.
-
     Returns
     -------
     fregister : function
@@ -152,7 +148,7 @@ def register_intrin_lowering(
 
     def _register(f):
         """internal register function"""
-        _ffi_api.RegisterOpLowerIntrinsic(op_name, f, target, level, override)
+        _ffi_api.RegisterOpLowerIntrinsic(op_name, f, target, level)
         return f
 
     return _register(f) if f is not None else _register
