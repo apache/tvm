@@ -45,6 +45,9 @@ reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
 reg.register_strategy("vision.non_max_suppression", strategy.nms_strategy)
 reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
 
+reg.register_strategy("vision.all_class_non_max_suppression", strategy.all_class_nms_strategy)
+reg.register_pattern("vision.all_class_non_max_suppression", OpPattern.OPAQUE)
+
 
 @script
 def _get_valid_counts_shape_func(data_shape):
@@ -83,6 +86,22 @@ def nms_shape_func(attrs, inputs, _):
     if attrs.return_indices:
         return _nms_shape_func(inputs[0])
     return [topi.math.identity(inputs[0])]
+
+
+@script
+def _all_class_nms_shape_func(boxes_shape, scores_shape):
+    out_shape = output_tensor((2,), "int64")
+    count_shape = output_tensor((1,), "int64")
+
+    out_shape[0] = boxes_shape[0] * scores_shape[1] * boxes_shape[1]
+    out_shape[1] = 3
+    count_shape[0] = int64(1)
+    return out_shape, count_shape
+
+
+@reg.register_shape_func("vision.all_class_non_max_suppression", False)
+def all_class_nms_shape_func(attrs, inputs, _):
+    return _all_class_nms_shape_func(inputs[0], inputs[1])
 
 
 @script

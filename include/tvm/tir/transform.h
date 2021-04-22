@@ -346,6 +346,20 @@ TVM_DLL Pass PointerValueTypeRewrite();
  */
 TVM_DLL Pass HoistIfThenElse();
 
+/*!
+ * \brief Lower block init stmt into IfThenElse stmts
+ * \return The pass.
+ */
+TVM_DLL Pass LowerInitBlock();
+
+/*!
+ * \brief Locate the buffer allocation to the exact position (usually is
+ *        the lca of buffer access). This pass will inject opaque block
+ *        with alloc_buffers at the allocation site.
+ * \return The pass.
+ */
+TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

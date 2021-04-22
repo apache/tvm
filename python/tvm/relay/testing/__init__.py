@@ -133,8 +133,8 @@ def check_grad(
     if test_inputs is None:
         test_inputs = inputs
 
-    for target, ctx in enabled_targets():
-        intrp = relay.create_executor(ctx=ctx, target=target)
+    for target, dev in enabled_targets():
+        intrp = relay.create_executor(device=dev, target=target)
 
         # Get analytic gradients.
         _, grads = intrp.evaluate(bwd_func)(*inputs)

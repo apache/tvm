@@ -29,7 +29,7 @@ logger = logging.getLogger("TensorRT")
 
 
 def is_tensorrt_runtime_enabled():
-    """Check if the TensorRT graph runtime is present.
+    """Check if the TensorRT graph executor is present.
     Returns
     -------
     ret: bool

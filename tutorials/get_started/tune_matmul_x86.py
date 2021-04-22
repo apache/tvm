@@ -150,18 +150,18 @@ b_np = np.random.uniform(size=(L, M)).astype(np.float32)
 c_np = np.random.uniform(size=(N, M)).astype(np.float32)
 out_np = a_np.dot(b_np) + c_np
 
-ctx = tvm.cpu()
-a_tvm = tvm.nd.array(a_np, ctx=ctx)
-b_tvm = tvm.nd.array(b_np, ctx=ctx)
-c_tvm = tvm.nd.array(c_np, ctx=ctx)
-out_tvm = tvm.nd.empty(out_np.shape, ctx=ctx)
+dev = tvm.cpu()
+a_tvm = tvm.nd.array(a_np, device=dev)
+b_tvm = tvm.nd.array(b_np, device=dev)
+c_tvm = tvm.nd.array(c_np, device=dev)
+out_tvm = tvm.nd.empty(out_np.shape, device=dev)
 func(a_tvm, b_tvm, c_tvm, out_tvm)
 
 # Check results
 np.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 
 # Evaluate execution time.
-evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
+evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)
 print(
     "Execution time of this operator: %.3f ms"
     % (np.median(evaluator(a_tvm, b_tvm, c_tvm, out_tvm).results) * 1000)

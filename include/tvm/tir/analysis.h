@@ -172,6 +172,27 @@ TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constrain
 Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
                                                 const Map<Var, Buffer>& buffer_var_map);
 
+/*!
+ * \brief Calculate the expresion complexity based on number of symbols it contains.
+ * \param expr The expr to be calculated.
+ */
+TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
+
+/*!
+ * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the workspace size to be calculated
+ */
+TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func);
+
+/*!
+ * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
+ *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
+ *        The LCA may be a For loop or a Block.
+ * \param func The PrimFunc to be detected.
+ * \return The Map from buffer to the LCA of all access to it.
+ */
+TVM_DLL Map<Buffer, Stmt> DetectBufferAccessLCA(const PrimFunc& func);
+
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
 namespace transform {

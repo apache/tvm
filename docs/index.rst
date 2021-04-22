@@ -25,7 +25,7 @@ Get Started
 -----------
 
 - Follow the :doc:`instructions <install/index>` to install TVM.
-- Checkout the :doc:`tutorials <tutorials/index>`.
+- Checkout the :doc:`Getting Started with TVM Tutorial <tutorials/index>`.
 
 For Developers
 --------------

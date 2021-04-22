@@ -94,7 +94,7 @@ This process helps us to divide the original problem into two sub-problems:
 We use the low-level tir phase to compile and optimize each sub-functions. For specific targets, we may also directly go to the target translation
 phase and use external code generators.
 
-There are a few different ways(in relay/backend) to handle the calls into the overall execution problem. For simple models with known shapes and no control flow, we can lower to a graph runtime that stores the execution structure in a graph. We also support a virtual machine backend for dynamic executions. Finally, we plan to support ahead of time compilation that compiles the high-level execution structure into the executable and generated primitive functions. All of these execution modes are encapsulated by a unified **runtime.Module** interface, which we will discuss in the latter part of the guide.
+There are a few different ways(in relay/backend) to handle the calls into the overall execution problem. For simple models with known shapes and no control flow, we can lower to a graph executor that stores the execution structure in a graph. We also support a virtual machine backend for dynamic executions. Finally, we plan to support ahead of time compilation that compiles the high-level execution structure into the executable and generated primitive functions. All of these execution modes are encapsulated by a unified **runtime.Module** interface, which we will discuss in the latter part of the guide.
 
 **tir/transform** contains transformation passes for TIR level functions. Many tir passes serve the purpose of lowering. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones, and to decorate the function entry to meet the runtime calling convention. Of course, there are also optimizations passes, such as access index simplification and dead code elimination.
 
@@ -144,7 +144,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], ctx=tvm.gpu(0))
+    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.gpu(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(a)
     print(a.asnumpy())

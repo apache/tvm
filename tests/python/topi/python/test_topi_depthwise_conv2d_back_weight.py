@@ -54,7 +54,7 @@ def verify_depthwise_conv2d_back_weight(
     schedule = schedule_depthwise_conv2d_backward_weight_nhwc(Weight_grad)
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -101,11 +101,11 @@ def verify_depthwise_conv2d_back_weight(
 
         (out_grad_np, input_np, weight_grad_np) = get_ref_data()
 
-        out_grad_tvm = tvm.nd.array(out_grad_np, ctx)
-        input_tvm = tvm.nd.array(input_np, ctx)
-        weight_grad_tvm = tvm.nd.array(np.zeros(shape=fshape, dtype=dtype), ctx)
+        out_grad_tvm = tvm.nd.array(out_grad_np, dev)
+        input_tvm = tvm.nd.array(input_np, dev)
+        weight_grad_tvm = tvm.nd.array(np.zeros(shape=fshape, dtype=dtype), dev)
         # launch the kernel
-        timer = f.time_evaluator(f.entry_name, ctx, number=1)
+        timer = f.time_evaluator(f.entry_name, dev, number=1)
         tcost = timer(input_tvm, out_grad_tvm, weight_grad_tvm).mean
         tvm.testing.assert_allclose(weight_grad_np, weight_grad_tvm.asnumpy(), rtol=1e-4)
 

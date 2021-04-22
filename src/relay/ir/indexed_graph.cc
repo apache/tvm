@@ -242,8 +242,10 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
     void VisitDFPattern_(const CallPatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->op, graph_.node_map_[GetRef<DFPattern>(op)]);
-      for (auto arg : op->args) {
-        VisitDFPattern(arg, graph_.node_map_[GetRef<DFPattern>(op)]);
+      if (op->args.defined()) {
+        for (auto arg : op->args) {
+          VisitDFPattern(arg, graph_.node_map_[GetRef<DFPattern>(op)]);
+        }
       }
     }
 
@@ -262,8 +264,10 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
     void VisitDFPattern_(const ExprPatternNode* op, NodePtr parent) override {}
 
     void VisitDFPattern_(const FunctionPatternNode* op, NodePtr parent) override {
-      for (auto param : op->params) {
-        VisitDFPattern(param, graph_.node_map_[GetRef<DFPattern>(op)]);
+      if (op->params.defined()) {
+        for (auto param : op->params) {
+          VisitDFPattern(param, graph_.node_map_[GetRef<DFPattern>(op)]);
+        }
       }
       VisitDFPattern(op->body, graph_.node_map_[GetRef<DFPattern>(op)]);
     }
@@ -277,8 +281,10 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
     }
 
     void VisitDFPattern_(const TuplePatternNode* op, NodePtr parent) override {
-      for (auto field : op->fields) {
-        VisitDFPattern(field, graph_.node_map_[GetRef<DFPattern>(op)]);
+      if (op->fields.defined()) {
+        for (auto field : op->fields) {
+          VisitDFPattern(field, graph_.node_map_[GetRef<DFPattern>(op)]);
+        }
       }
     }
 

@@ -221,7 +221,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<WhileNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const WhileNode*>(node.get());
       p->PrintIndent();
-      p->stream << "while(" << op->condition << "){\n";
+      p->stream << "while(" << op->condition << ") {\n";
       p->indent += 2;
       p->Print(op->body);
       p->indent -= 2;
@@ -781,7 +781,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* op = static_cast<const BlockNode*>(node.get());
       p->PrintIndent();
       PrintBlockTitle(op, p);
-      p->stream << "{\n";
+      p->stream << " {\n";
       p->indent += 2;
 
       // Print block elements (e.g. reads/writes, etc)
@@ -820,7 +820,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* block_op = op->block.get();
       p->PrintIndent();
       PrintBlockTitle(block_op, p);
-      p->stream << "{\n";
+      p->stream << " {\n";
       p->indent += 2;
 
       // Print binding iter_values

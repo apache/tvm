@@ -19,7 +19,7 @@
 import numpy as np
 
 
-def batch_matmul(x, y):
+def batch_matmul(x, y, out_dtype=None):
     """batch_matmul operator implemented in numpy.
 
     Parameters
@@ -30,6 +30,9 @@ def batch_matmul(x, y):
     y : numpy.ndarray
         3-D with shape [batch, N, K]
 
+    out_dtype: string, optional
+        Specify the dtype of output
+
     Returns
     -------
     out : numpy.ndarray
@@ -38,7 +41,10 @@ def batch_matmul(x, y):
     XB, M, _ = x.shape
     YB, N, _ = y.shape
     batch = max(XB, YB)
-    out = np.zeros((batch, M, N)).astype(x.dtype)
+    dtype = x.dtype if out_dtype is None else out_dtype
+    out = np.zeros((batch, M, N)).astype(dtype)
     for i in range(batch):
-        out[i] = np.dot(x[i if XB != 1 else 0], y[i if YB != 1 else 0].T)
+        out[i] = np.dot(
+            x[i if XB != 1 else 0].astype(dtype), y[i if YB != 1 else 0].T.astype(dtype)
+        )
     return out

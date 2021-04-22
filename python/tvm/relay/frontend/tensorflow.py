@@ -56,7 +56,12 @@ def list_shape_of(tensor, ndim):
 
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
-    if input1d % stride1d == 0:
+    if isinstance(input1d, tvm.tir.Any) and stride1d != 1:
+        raise tvm.error.OpAttributeUnImplemented(
+            "SAME padding is not supported in combination with dynamic height or width when stride"
+            " is not 1."
+        )
+    if stride1d == 1 or input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
     else:
         pad = max(kernel1d - (input1d % stride1d), 0)
@@ -3851,11 +3856,11 @@ class GraphProto(object):
     @staticmethod
     def _set_span(sym, node_name):
         span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
-        if isinstance(sym, _expr.Call):
+        if isinstance(sym, _expr.Call) and sym.span is None:
             sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
         elif isinstance(sym, _expr.TupleWrapper):
             tuple_value = sym.tuple_value
-            if isinstance(tuple_value, _expr.Call):
+            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
                 tuple_value = _expr.Call(
                     tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
                 )

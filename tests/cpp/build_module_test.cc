@@ -163,16 +163,16 @@ TEST(BuildModule, Heterogeneous) {
     pc[i] = i - 1.0;
   }
 
-  // Initialize graph runtime.
+  // Initialize graph executor.
   int cpu_dev_ty = static_cast<int>(kDLCPU);
   int cpu_dev_id = 0;
   int gpu_dev_ty = static_cast<int>(kDLGPU);
   int gpu_dev_id = 0;
 
-  const runtime::PackedFunc* graph_runtime =
-      tvm::runtime::Registry::Get("tvm.graph_runtime.create");
+  const runtime::PackedFunc* graph_executor =
+      tvm::runtime::Registry::Get("tvm.graph_executor.create");
   runtime::Module mod =
-      (*graph_runtime)(json, module, cpu_dev_ty, cpu_dev_id, gpu_dev_ty, gpu_dev_id);
+      (*graph_executor)(json, module, cpu_dev_ty, cpu_dev_id, gpu_dev_ty, gpu_dev_id);
 
   // test FFI for module.
   auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {

@@ -739,6 +739,21 @@ struct ObjectPtrEqual {
   ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
   using ContainerType = ObjectName;
 
+/*
+ * \brief Define object reference methods that is both not nullable and mutable.
+ *
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
+  ObjectName* get() const { return operator->(); }                                          \
+  static constexpr bool _type_is_nullable = false;                                          \
+  using ContainerType = ObjectName;
+
 /*!
  * \brief Define CopyOnWrite function in an ObjectRef.
  * \param ObjectName The Type of the Node.

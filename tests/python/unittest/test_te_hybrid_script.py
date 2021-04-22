@@ -32,7 +32,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
         assert isinstance(val, (tvm.tir.IntImm,))
         return val.value
 
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     op = None
 
     if sch is None:
@@ -50,7 +50,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
         if isinstance(i, te.tensor.Tensor):
             shape = [tvm_val_2_py_val(j) for j in i.shape]
             emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
-            nd_args.append(tvm.nd.array(emu_args[-1], ctx))
+            nd_args.append(tvm.nd.array(emu_args[-1], dev))
         elif isinstance(i, tvm.tir.Var):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
@@ -68,7 +68,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
     for i in range(op.num_outputs):
         output = op.output(i)
         shape = [tvm_val_2_py_val(j) for j in output.shape]
-        nd_args.append(tvm.nd.array(numpy.zeros(shape).astype(output.dtype), ctx))
+        nd_args.append(tvm.nd.array(numpy.zeros(shape).astype(output.dtype), dev))
         out_tensors.append(nd_args[-1])
 
     ref_data = func(*emu_args)

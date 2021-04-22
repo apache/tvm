@@ -43,29 +43,29 @@ def create_exec(f, target="llvm", params=None):
         return executable
 
 
-def get_serialized_output(mod, *data, params=None, target="llvm", ctx=tvm.cpu()):
+def get_serialized_output(mod, *data, params=None, target="llvm", device=tvm.cpu()):
     exe = create_exec(mod, target, params=params)
     code, lib = exe.save()
     des_exec = _vm.Executable.load_exec(code, lib)
-    des_vm = _vm.VirtualMachine(des_exec, ctx)
+    des_vm = _vm.VirtualMachine(des_exec, device)
     result = des_vm.run(*data)
     return result
 
 
 def run_network(mod, params, dtype="float32"):
-    def get_vm_output(mod, data, params, target, ctx, dtype="float32"):
-        ex = relay.create_executor("vm", mod=mod, ctx=ctx)
+    def get_vm_output(mod, data, params, target, device, dtype="float32"):
+        ex = relay.create_executor("vm", mod=mod, device=device)
         result = ex.evaluate()(data, **params)
         return result.asnumpy().astype(dtype)
 
     data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype(dtype)
     target = "llvm"
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
-    tvm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params, target, ctx, dtype)
+    tvm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params, target, dev, dtype)
     vm_out = get_serialized_output(
-        mod, tvm.nd.array(data.astype(dtype)), params=params, target=target, ctx=ctx
+        mod, tvm.nd.array(data.astype(dtype)), params=params, target=target, device=dev
     )
     tvm.testing.assert_allclose(vm_out.asnumpy().astype(dtype), tvm_out, rtol=1e-5, atol=1e-5)
 
@@ -311,8 +311,8 @@ def test_dynamic_bcast():
     x_data = np.random.uniform(size=(1, 2)).astype(dtype)
     y_data = np.random.uniform(size=(3, 2)).astype(dtype)
     res_np = np.add(x_data, y_data)
-    for target, ctx in testing.enabled_targets():
-        res = get_serialized_output(mod, *(x_data, y_data), target=target, ctx=ctx)
+    for target, dev in testing.enabled_targets():
+        res = get_serialized_output(mod, *(x_data, y_data), target=target, device=dev)
         tvm.testing.assert_allclose(res.asnumpy(), res_np)
 
 
