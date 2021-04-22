@@ -1512,6 +1512,24 @@ def test_any_where():
         any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
     )
 
+    # Test scalar where in a dynamically shaped graph
+    x = relay.var("x", shape=any_dims(1), dtype="int64")
+    y = relay.var("y", shape=any_dims(2), dtype="float32")
+
+    left = relay.take(x, relay.const(1, dtype="int32")) + relay.const(4, "int64")
+    right = relay.const(4, "int64")
+    where = relay.where(relay.const(False, "bool"), left, right)
+    z = relay.take(y, where, axis=1)
+
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x, y], z)
+
+    x_np = np.random.randn(2).astype("int64")
+    y_np = np.random.randn(2, 6).astype("float32")
+    expected = y_np[:, 4]
+
+    check_result([x_np, y_np], mod, expected)
+
 
 @tvm.testing.uses_gpu
 def test_non_max_suppression():
