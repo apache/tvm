@@ -33,8 +33,7 @@
 namespace tvm {
 namespace codegen {
 
-inline void DispatchPureExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
-  PrimExpr e = args[0];
+inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
@@ -54,77 +53,77 @@ inline void DispatchPureExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   for (auto arg : call->args) {
     new_args.push_back(arg);
   }
-  *rv = Call(call->dtype, builtin::call_pure_extern(), new_args);
+  return Call(call->dtype, builtin::call_pure_extern(), new_args);
 }
 
 namespace llvm {
 using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.floor")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.ceil")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.round")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.trunc")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.fabs")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.exp2")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.exp10")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.log2")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.log10")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.sqrt")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.cosh")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExternLibDevice));
+                                                     DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.sinh")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tir.atan")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", PackedFunc(DispatchPureExternLibDevice));
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 }  // namespace llvm
 }  // namespace codegen

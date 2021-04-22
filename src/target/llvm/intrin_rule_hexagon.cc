@@ -29,44 +29,44 @@ namespace llvm {
 using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>));
+    "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
 TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>));
+    "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>));
+    "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
 TVM_REGISTER_OP("tir.sqrt")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
 TVM_REGISTER_OP("tir.ceil")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
 TVM_REGISTER_OP("tir.trunc")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
 TVM_REGISTER_OP("tir.fabs")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 1>));
+    "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 1>);
 
 TVM_REGISTER_OP("tir.ctpop")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
 }  // namespace llvm
 }  // namespace codegen

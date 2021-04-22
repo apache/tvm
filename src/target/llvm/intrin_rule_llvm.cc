@@ -34,14 +34,14 @@ using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.prefetch")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMIntrin<::llvm::Intrinsic::prefetch, 4>));
+                               DispatchLLVMIntrin<::llvm::Intrinsic::prefetch, 4>);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>));
+    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
 TVM_REGISTER_OP("tir.exp2")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
 
 // TODO(tvm-team): migrate the legalization transformations as a separate
 //                 set of rules in TIR that can be shared across backends.
@@ -60,46 +60,46 @@ TVM_REGISTER_OP("tir.exp10")
                                }));
 
 TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>));
+    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>));
+    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
 TVM_REGISTER_OP("tir.log2")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 
 TVM_REGISTER_OP("tir.log10")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>);
 
 TVM_REGISTER_OP("tir.sqrt")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
 TVM_REGISTER_OP("tir.ceil")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
 TVM_REGISTER_OP("tir.trunc")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
 TVM_REGISTER_OP("tir.fabs")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
 
 TVM_REGISTER_OP("tir.nearbyint")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
@@ -123,11 +123,11 @@ TVM_REGISTER_OP("tir.tanh")
                                }));
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>));
+    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
 
 TVM_REGISTER_OP("tir.popcount")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>));
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
 TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
@@ -140,7 +140,7 @@ TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
     }));
 
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>));
+    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
 TVM_REGISTER_OP("tir.cosh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
@@ -160,7 +160,7 @@ TVM_REGISTER_OP("tir.cosh")
                                }));
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc(DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>));
+    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
 TVM_REGISTER_OP("tir.sinh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",

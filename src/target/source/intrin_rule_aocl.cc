@@ -31,78 +31,70 @@ namespace intrin {
 using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.floor")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.ceil")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.trunc")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.fabs")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.round")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.sqrt")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.popcount")
-    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.floor")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.ceil")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.trunc")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.fabs")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.round")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.sqrt")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.popcount")
-    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 }  // namespace intrin
 }  // namespace codegen

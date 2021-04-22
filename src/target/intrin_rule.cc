@@ -32,106 +32,85 @@ namespace intrin {
 using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.log2")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.log10")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.log1p")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.atan")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.atanh")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.atan2")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.acos")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.cosh")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.acosh")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.asin")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.sinh")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.asinh")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.hypot")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.nextafter")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.copysign")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.ldexp")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.sqrt")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.floor")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.ceil")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.round")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                               PackedFunc(DispatchPureExtern<FloatSuffix>));
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.rsqrt")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
@@ -144,7 +123,7 @@ TVM_REGISTER_OP("tir.rsqrt")
                                }));
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<FloatSuffix>));
+                                                     DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tir.sigmoid")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",

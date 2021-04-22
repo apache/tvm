@@ -32,69 +32,68 @@ namespace intrin {
 using tir::FLowerIntrinsic;
 
 TVM_REGISTER_OP("tir.floor")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.ceil")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.trunc")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.fabs")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.round")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp2")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp10")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.log2")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.log10")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.sqrt")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.popcount")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.fmod")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.sinh")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     PackedFunc(DispatchPureExtern<Direct>));
+                                                     DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.cosh")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchPureExtern<Direct>));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 // There is no warp shuffle instruction in standard OpenCL
 // When shuffle is used, we assume it is intel's shuffle extension
-static void DispatchIntelShuffle(const TVMArgs& args, TVMRetValue* rv) {
-  PrimExpr e = args[0];
+static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
   ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
@@ -102,11 +101,11 @@ static void DispatchIntelShuffle(const TVMArgs& args, TVMRetValue* rv) {
   ICHECK(analyzer.CanProve(call->args[3] == call->args[4]))
       << "Intel warp shuffle dose not support width != warp_size";
   Array<PrimExpr> opencl_args{{StringImm("intel_sub_group_shuffle"), call->args[1], call->args[2]}};
-  *rv = Call(call->dtype, builtin::call_pure_extern(), opencl_args);
+  return Call(call->dtype, builtin::call_pure_extern(), opencl_args);
 }
 
 TVM_REGISTER_OP("tir.tvm_warp_shuffle")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", PackedFunc(DispatchIntelShuffle));
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchIntelShuffle);
 
 }  // namespace intrin
 }  // namespace codegen
