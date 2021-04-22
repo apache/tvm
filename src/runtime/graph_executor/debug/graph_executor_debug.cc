@@ -201,6 +201,16 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
+   * \brief Get number of outputs of the node.
+   * \param index The index of the node.
+   * \return The number of outputs.
+   */
+  size_t GetNodeNumOfOutputs(size_t index) {
+    if (nodes_[index].op_type != "tvm_op") return 1;
+    return static_cast<size_t>(nodes_[index].param.num_outputs);
+  }
+
+  /*!
    * \brief Execute network to a specific node and return result.
    *
    * This method will do a partial run of the the graph
@@ -235,6 +245,26 @@ class GraphExecutorDebug : public GraphExecutor {
     ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
     if (op_execs_[index]) op_execs_[index]();
     return data_entry_[entry_id(index, eid)];
+  }
+
+  /*!
+   * \brief Execute full network and store each layer outputs.
+   *
+   * This method will execute a full network and store layer
+   * outputs along execution.
+   *
+   * \return All node outputs.
+   */
+  Array<NDArray> RunAndGetLayersOutputs() {
+    Array<NDArray> results;
+    for (size_t i = 0; i < op_execs_.size(); i++) {
+      if (op_execs_[i]) op_execs_[i]();
+
+      for (size_t j = 0; j < GetNodeNumOfOutputs(i); j++) {
+        results.push_back(data_entry_[entry_id(i, j)].CopyTo({kDLCPU, 0}));
+      }
+    }
+    return results;
   }
 
   /*!
@@ -298,6 +328,10 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->ExecuteNextNodeGetOutput(args[0], args[1]);
     });
+  } else if (name == "run_get_layers_outputs") {
+  return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    *rv = this->RunAndGetLayersOutputs();
+  });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       int number = args[0];

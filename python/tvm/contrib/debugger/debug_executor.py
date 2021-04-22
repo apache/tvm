@@ -102,6 +102,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._run_individual = module["run_individual"]
         self._execute_node_get_output = module["exectue_node_get_output"]
         self._execute_next_node_get_output = module["exectue_next_node_get_output"]
+        self.run_get_layers_outputs = module["run_get_layers_outputs"]
         self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
