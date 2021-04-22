@@ -1500,7 +1500,6 @@ def verify_any_where(
 @tvm.testing.uses_gpu
 def test_any_where():
     verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
-    verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
     verify_any_where(any_dims(1), any_dims(1), (5,), (5,), (5,), (5,))
     verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (5,), (5,))
     verify_any_where((5,), any_dims(1), any_dims(1), (5,), (5,), (5,))

@@ -1018,6 +1018,7 @@ def where_shape_func(attrs, inputs, _):
     """
     Shape func for where.
     """
+
     def ensure_tensor(tensor):
         if len(tensor.shape) == 0:
             return topi.full((1,), "int64", 1)
