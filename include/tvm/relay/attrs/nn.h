@@ -766,9 +766,7 @@ struct AdaptivePool1DAttrs : public tvm::AttrsNode<AdaptivePool1DAttrs> {
   std::string layout;
 
   TVM_DECLARE_ATTRS(AdaptivePool1DAttrs, "relay.attrs.AdaptivePool1DAttrs") {
-    TVM_ATTR_FIELD(output_size)
-        .set_default(Array<IndexExpr>({}))
-        .describe("Output width.");
+    TVM_ATTR_FIELD(output_size).set_default(Array<IndexExpr>({})).describe("Output width.");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"

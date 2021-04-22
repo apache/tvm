@@ -360,8 +360,7 @@ bool AdaptivePool1DRel(const Array<Type>& types, int num_inputs, const Attrs& at
     return false;
   }
   const auto dshape = data->shape;
-  ICHECK_GE(dshape.size(), 1U)
-      << "Pool2D only support input >= 1-D: input must have width";
+  ICHECK_GE(dshape.size(), 1U) << "Pool2D only support input >= 1-D: input must have width";
   const auto* param = attrs.as<AdaptivePool1DAttrs>();
   ICHECK(param != nullptr);
 
@@ -378,7 +377,7 @@ bool AdaptivePool1DRel(const Array<Type>& types, int num_inputs, const Attrs& at
     output_width = dshape[widx];
   } else {
     output_width = output_size[0];
-  } 
+  }
 
   oshape.Set(widx, output_width);
 
@@ -411,8 +410,8 @@ Array<te::Tensor> AdaptivePool1DCompute(const Attrs& attrs, const Array<te::Tens
   } else {
     output_width = output_size[0];
   }
-  return Array<te::Tensor>{topi::nn::adaptive_pool1d(
-      inputs[0], Array<IndexExpr>{output_width}, mode, layout.name())};
+  return Array<te::Tensor>{
+      topi::nn::adaptive_pool1d(inputs[0], Array<IndexExpr>{output_width}, mode, layout.name())};
 }
 
 // relay.nn.adaptive_avg_pool1d
