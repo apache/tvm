@@ -28,12 +28,7 @@
 #include "subgraph_struct.h"
 #ifdef __cplusplus
 
-#if defined(__x86_64)
-#define read_barrier() __asm__ __volatile__("" ::: "memory")
-#else
-#define dsb(opt) asm volatile("dsb " #opt : : : "memory")
-#define read_barrier() dsb(st)
-#endif
+#define read_barrier() std::atomic_thread_fence(std::memory_order_acquire)
 
 template <typename SLOT_TYPE = SLOT>
 squeue<SLOT_TYPE>* createQueue(squeue<SLOT_TYPE>* q, size_t size) {
