@@ -2830,6 +2830,44 @@ def test_pooling():
         )
 
 
+def verify_global_pooling(x_shape, mode):
+    out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
+
+    if mode == "max":
+        node_type = "GlobalMaxPool"
+    elif mode == "average":
+        node_type = "GlobalAveragePool"
+    else:
+        raise ValueError("Pool method {} is not supported.".format(mode))
+
+    pool_node = helper.make_node(node_type, inputs=["x"], outputs=["y"])
+
+    graph = helper.make_graph(
+        [pool_node],
+        "global_pooling_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="global_pooling_test")
+    verify_with_ort(model, [x_shape], [out_shape], use_vm=False, convert_to_static=True)
+
+
+@tvm.testing.uses_gpu
+def test_global_pooling():
+    # Test each pooling mode across all N-D inputs.
+    for mode in ["average", "max"]:
+        # 1D Pooling (NCW)
+        verify_global_pooling([1, 8, 8], mode)
+        verify_global_pooling([4, 1, 4], mode)
+        # 2D Pooling (NCHW)
+        verify_global_pooling([1, 8, 8, 8], mode)
+        verify_global_pooling([4, 1, 6, 4], mode)
+        # 3D Pooling (NCDHW)
+        verify_global_pooling([1, 8, 6, 8, 8], mode)
+        verify_global_pooling([4, 1, 2, 6, 4], mode)
+
+
 def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
     x_np = np.random.uniform(-100.0, 100.0, x_shape).astype(dtype)
     y_np = np.random.uniform(-100.0, 100.0, y_shape).astype(dtype)
