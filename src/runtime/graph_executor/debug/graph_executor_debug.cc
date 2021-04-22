@@ -329,9 +329,9 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       *rv = this->ExecuteNextNodeGetOutput(args[0], args[1]);
     });
   } else if (name == "run_get_layers_outputs") {
-  return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-    *rv = this->RunAndGetLayersOutputs();
-  });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->RunAndGetLayersOutputs();
+    });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       int number = args[0];

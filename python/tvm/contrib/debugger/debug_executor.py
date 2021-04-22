@@ -227,6 +227,18 @@ class GraphModuleDebug(graph_executor.GraphModule):
             output_tensors.append(out)
         return output_tensors
 
+    def _run_debug(self):
+        """Execute the node specified with index will be executed.
+        Each debug output will be copied to the buffer
+        Time consumed for each execution will be set as debug output.
+
+        """
+        # Get timing.
+        self.debug_datum._time_list = [[float(t)] for t in self.run_individual(10, 1, 1)]
+
+        # Get outputs.
+        self._run_per_layer()
+
     def debug_get_output(self, node, out=None):
         """Get output of node from output tensor list
 
@@ -257,6 +269,26 @@ class GraphModuleDebug(graph_executor.GraphModule):
         else:
             raise RuntimeError(f"Require node index or name only.")
         return out
+
+    def run(self, **input_dict):
+        """Run forward execution of the graph with debug
+
+        Parameters
+        ----------
+        input_dict : dict of str to NDArray
+            List of input values to be feed to
+        """
+        if input_dict:
+            self.set_input(**input_dict)
+
+        # Step 1. Execute the graph
+        self._run_debug()
+        # Step 2. Dump the output tensors to the dump folder
+        self.debug_datum.dump_output_tensor()
+        # Step 3. Dump the Chrome trace to the dump folder
+        self.debug_datum.dump_chrome_trace()
+        # Step 4. Display the collected information
+        self.debug_datum.display_debug_result()
 
     def get_per_layer_outputs(self, **input_dict):
         """Run graph up to every layer and dump the output result

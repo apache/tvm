@@ -534,7 +534,7 @@ def test_debug_graph_executor():
         None,
     )
     debug_g_mod.set_input("data", data)
-    debug_g_mod.get_per_layer_outputs()
+    debug_g_mod.run()
     out = debug_g_mod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
