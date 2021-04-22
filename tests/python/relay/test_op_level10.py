@@ -439,18 +439,30 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc):
             tvm.testing.assert_allclose(relay_out.asnumpy(), np_out, rtol=1e-5, atol=1e-5)
 
 
+def verify_adaptive_pool1d(dshape, out_size, pool_type, layout="NCW", dtype="float32"):
+    opfunc = relay.nn.adaptive_avg_pool1d if pool_type == "avg" else relay.nn.adaptive_max_pool1d
+    verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
+
+
 def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
     opfunc = relay.nn.adaptive_avg_pool2d if pool_type == "avg" else relay.nn.adaptive_max_pool2d
     verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
 
 
-def verify_adaptive_pool3d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+def verify_adaptive_pool3d(dshape, out_size, pool_type, layout="NCDHW", dtype="float32"):
     opfunc = relay.nn.adaptive_avg_pool3d if pool_type == "avg" else relay.nn.adaptive_max_pool3d
     verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
 
 
 @tvm.testing.uses_gpu
 def test_adaptive_pool():
+    verify_adaptive_pool1d((1, 9, 224), (1), "max")
+    verify_adaptive_pool1d((1, 3, 224), (3), "avg")
+    verify_adaptive_pool1d((1, 3, 224), (3), "avg", dtype="int32")
+    verify_adaptive_pool1d((1, 14, 78), (13), "max")
+    verify_adaptive_pool1d((1, 5, 97), (96), "avg")
+    verify_adaptive_pool1d((1, 224, 3), (1), "max", layout="NWC")
+    verify_adaptive_pool1d((1, 3, 224), (3), "avg", layout="NWC")
     verify_adaptive_pool2d((1, 9, 224, 224), (1, 1), "max")
     verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg")
     verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg", dtype="int32")

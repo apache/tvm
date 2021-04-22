@@ -2964,6 +2964,94 @@ def space_to_depth(data, block_size, layout="NCHW"):
     return _make.space_to_depth(data, block_size, layout)
 
 
+def adaptive_max_pool1d(data, output_size=None, layout="NCW"):
+    r"""1D adaptive max pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 1D max value calculation
+    across each window represented by W.
+
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input height and width will be used
+        as output height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size) for any input (NCW).
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    output_size : tuple of int. optional
+        Output height and width.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [] or output_size
+    if isinstance(output_size, int):
+        output_size = [output_size]
+    return _make.adaptive_max_pool1d(data, output_size, layout)
+
+
+def adaptive_avg_pool1d(data, output_size=None, layout="NCW"):
+    r"""1D adaptive average pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 1D average value calculation
+    across each window represented by W.
+
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input height and width will be used
+        as output width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size) for any input (NCW).
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    output_size : tuple of int. optional
+        Output height and width.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [] or output_size
+    if isinstance(output_size, int):
+        output_size = [output_size]
+    return _make.adaptive_avg_pool1d(data, output_size, layout)
+
+
 def adaptive_max_pool2d(data, output_size=None, layout="NCHW"):
     r"""2D adaptive max pooling operator. This operator is experimental.
 
@@ -3140,6 +3228,71 @@ def adaptive_avg_pool3d(data, output_size=None, layout="NCDHW"):
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool3d(data, output_size, layout)
+
+
+def global_max_pool1d(data, layout="NCW"):
+    r"""1D global maximum pooling operator.
+
+    This operator takes data as input and does 1D max value calculation
+    across each window represented by W.
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, w)
+    .. math::
+
+        \mbox{out}(b, c, 1)  = \max_{n=0, \ldots, w} \mbox{data}(b, c, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1]
+    return _make.adaptive_max_pool1d(data, output_size, layout)
+
+
+def global_avg_pool1d(data, layout="NCW"):
+    r"""1D global average pooling operator.
+
+    This operator takes data as input and does 1D average value calculation
+    across each window represented by W.
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, w)
+
+    .. math::
+
+        \mbox{out}(b, c, 1)  = \frac{1}{w} \sum_{n=0}^{w-1} \mbox{data}(b, c, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1]
+    return _make.adaptive_avg_pool1d(data, output_size, layout)
 
 
 def global_max_pool3d(data, layout="NCDHW"):

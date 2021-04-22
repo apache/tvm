@@ -614,6 +614,21 @@ inline Tensor adaptive_pool3d(const Tensor& x, const Array<PrimExpr>& output_siz
 }
 
 /*!
+ * \brief Adaptively perform pooling on one dimensional data.
+ *        See the two dimensional version above for details.
+ * \param x The input tensor
+ * \param output_size Vector of one int: {output_width}
+ * \param pool_type The type of pooling operator
+ * \param layout The input layout. The default is "NCW".
+ */
+inline Tensor adaptive_pool1d(const Tensor& x, const Array<PrimExpr>& output_size,
+                              PoolType pool_type, const std::string& layout = "NCW") {
+  int width_axis = -1;
+  ICHECK(find_width(layout, &width_axis)) << "Unsupported layout " << layout;
+  return adaptive_pool_impl(x, output_size, pool_type, {width_axis});
+}
+
+/*!
  * \brief Perform global pooling on height and width dimension of data.
  *        It decides the height and width dimension according to the layout string,
  *        in which 'W' and 'H' means width and height respectively.
