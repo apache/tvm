@@ -120,6 +120,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = HIP_VERSION;
         return;
       }
+      case kDriverVersion:
+        return;
     }
     *rv = value;
   }

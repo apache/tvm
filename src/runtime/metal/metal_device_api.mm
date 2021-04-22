@@ -77,6 +77,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         return;
       case kApiVersion:
         return;
+      case kDriverVersion:
+        return;
     }
   }
 }
