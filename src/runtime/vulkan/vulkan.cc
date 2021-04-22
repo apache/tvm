@@ -22,6 +22,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 #include <array>
 #include <cstring>
@@ -469,11 +470,12 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     }
     case kDeviceName:
-      return;
+      *rv = std::string(phy_prop.deviceName);
+      break;
     case kMaxClockRate:
-      return;
+      break;
     case kMultiProcessorCount:
-      return;
+      break;
     case kExist:
       break;
     case kMaxThreadDimensions: {
@@ -487,11 +489,20 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     }
     case kMaxRegistersPerBlock:
-      return;
+      break;
     case kGcnArch:
-      return;
+      break;
     case kApiVersion:
-      return;
+      *rv = VK_HEADER_VERSION;
+      break;
+    case kDriverVersion: {
+      int64_t value = phy_prop.driverVersion;
+      std::ostringstream os;
+      os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
+         << VK_VERSION_PATCH(value);
+      *rv = os.str();
+      break;
+    }
   }
 }
 
