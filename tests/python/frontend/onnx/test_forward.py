@@ -2390,16 +2390,20 @@ def verify_conv(
             # groups=1
         )
     elif padding is None:
+        ## autopadding with unset default attributes
+        kwargs = {}
+        if not all([s == 1 for s in strides]):
+            kwargs["strides"] = strides
+        if not all([d == 1 for d in dilations]):
+            kwargs["dilations"] = dilations
+
         node = helper.make_node(
             "Conv",
             inputs=["x", "W"],
             outputs=["y"],
-            kernel_shape=kernel_shape,
             # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            # groups=1
             auto_pad=auto_pad,
+            **kwargs,
         )
     else:
         node = helper.make_node(
