@@ -236,6 +236,34 @@ bool RelayTextPrinter::AlwaysInline(const Expr& expr) {
          expr.as<VarNode>() || expr.as<ConstructorNode>();
 }
 
+Doc RelayTextPrinter::VisitLeaf(const Expr& expr) {
+  if (!CheckVisited(expr)) {
+    Doc result = ExprFunctor<Doc(const Expr&)>::VisitExpr(expr);
+    // Add if not added after visiting
+    if (!CheckVisited(expr)) {
+      memo_[expr] = result;
+    } else {
+      result_memo_[expr] = result;
+    }
+    return result;
+  }
+  return memo_[expr];
+}
+
+bool RelayTextPrinter::CheckVisited(const Expr& expr) { return (memo_.count(expr)); }
+
+Doc RelayTextPrinter::VisitExpr(const Expr& expr) {
+  auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
+  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
+
+  if (fcheck_visited(expr)) {
+    return memo_[expr];
+  } else {
+    ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
+    return memo_[expr];
+  }
+}
+
 //------------------------------------
 // Overload of Expr printing functions
 //------------------------------------
@@ -251,9 +279,6 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
   if (try_inline) {
     inline_expr |= IsUnique(expr);
   }
-
-  auto it = memo_.find(expr);
-  if (it != memo_.end()) return it->second;
 
   Doc printed_expr;
 
@@ -277,13 +302,19 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
   if (expr.as<VarNode>()) {
     // This is our first time visiting the var and we hit the VarNode case
     // in the visitor. Thus the variable is free.
-    doc_stack_.back() << "free_var " << printed_expr << ";" << Doc::NewLine();
+    if (var_memo_.insert(expr).second && result_memo_.count(expr)) {
+      doc_stack_.back() << "free_var " << result_memo_[expr] << ";" << Doc::NewLine();
+    }
     // Memoization is done in AllocVar.
     return memo_[expr];
   } else if (inline_expr) {
     memo_[expr] = printed_expr;
     return printed_expr;
   } else {
+    // Already exists. Reuse
+    if (!var_memo_.insert(expr).second) {
+      return memo_[expr];
+    }
     Doc temp_var = AllocTemp();
     memo_[expr] = temp_var;
     doc_stack_.back() << temp_var << " = " << printed_expr << ";" << Doc::NewLine();
