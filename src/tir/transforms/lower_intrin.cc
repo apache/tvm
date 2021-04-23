@@ -58,8 +58,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
 
     for (const std::string& pattern : patterns_)
-        if (Op::HasAttrMap(pattern))
-          lower_intrin_maps_.push_back(Op::GetAttrMap<FLowerIntrinsic>(pattern));
+      if (Op::HasAttrMap(pattern))
+        lower_intrin_maps_.push_back(Op::GetAttrMap<FLowerIntrinsic>(pattern));
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {

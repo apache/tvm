@@ -46,17 +46,16 @@ TVM_REGISTER_OP("tir.exp2")
 // TODO(tvm-team): migrate the legalization transformations as a separate
 //                 set of rules in TIR that can be shared across backends.
 TVM_REGISTER_OP("tir.exp10")
-    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               [](const PrimExpr& e) -> PrimExpr {
-                                 using tir::make_const;
-                                 using tir::make_zero;
-                                 const tir::CallNode* call = e.as<tir::CallNode>();
-                                 ICHECK(call != nullptr);
-                                 const PrimExpr& x = call->args[0];
-                                 PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
-                                 PrimExpr ret = exp(x * ln10);
-                                 return ret;
-                               });
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      using tir::make_zero;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
+      PrimExpr ret = exp(x * ln10);
+      return ret;
+    });
 
 TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
@@ -101,24 +100,23 @@ TVM_REGISTER_OP("tir.nearbyint")
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               [](const PrimExpr& e) -> PrimExpr {
-                                 using tir::make_const;
-                                 using tir::make_zero;
-                                 const tir::CallNode* call = e.as<tir::CallNode>();
-                                 ICHECK(call != nullptr);
-                                 const PrimExpr& x = call->args[0];
-                                 PrimExpr one = make_const(x.dtype(), 1);
-                                 PrimExpr two = make_const(x.dtype(), 2);
-                                 PrimExpr neg_two = make_const(x.dtype(), -2);
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      using tir::make_zero;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr one = make_const(x.dtype(), 1);
+      PrimExpr two = make_const(x.dtype(), 2);
+      PrimExpr neg_two = make_const(x.dtype(), -2);
 
-                                 PrimExpr exp_neg2x = exp(neg_two * x);
-                                 PrimExpr exp_pos2x = exp(two * x);
+      PrimExpr exp_neg2x = exp(neg_two * x);
+      PrimExpr exp_pos2x = exp(two * x);
 
-                                 PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
-                                 PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-                                 return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
-                               });
+      PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
+      PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
+      return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
+    });
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
@@ -127,52 +125,51 @@ TVM_REGISTER_OP("tir.popcount")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
-TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
-      PrimExpr tan_x = sin(x) / cos(x);
-      return tan_x;
-    });
+TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                                                     [](const PrimExpr& e) -> PrimExpr {
+                                                       const tir::CallNode* call =
+                                                           e.as<tir::CallNode>();
+                                                       ICHECK(call != nullptr);
+                                                       const PrimExpr& x = call->args[0];
+                                                       PrimExpr tan_x = sin(x) / cos(x);
+                                                       return tan_x;
+                                                     });
 
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
 TVM_REGISTER_OP("tir.cosh")
-    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               [](const PrimExpr& e) -> PrimExpr {
-                                 using tir::make_const;
-                                 using tir::make_zero;
-                                 const tir::CallNode* call = e.as<tir::CallNode>();
-                                 ICHECK(call != nullptr);
-                                 const PrimExpr& x = call->args[0];
-                                 PrimExpr two = make_const(x.dtype(), 2);
-                                 PrimExpr neg_one = make_const(x.dtype(), -1);
-                                 PrimExpr exp_negx = exp(neg_one * x);
-                                 PrimExpr exp_posx = exp(x);
-                                 PrimExpr ret = (exp_posx + exp_negx) / two;
-                                 return ret;
-                               });
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      using tir::make_zero;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr two = make_const(x.dtype(), 2);
+      PrimExpr neg_one = make_const(x.dtype(), -1);
+      PrimExpr exp_negx = exp(neg_one * x);
+      PrimExpr exp_posx = exp(x);
+      PrimExpr ret = (exp_posx + exp_negx) / two;
+      return ret;
+    });
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
 TVM_REGISTER_OP("tir.sinh")
-    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               [](const PrimExpr& e) -> PrimExpr {
-                                 using tir::make_const;
-                                 using tir::make_zero;
-                                 const tir::CallNode* call = e.as<tir::CallNode>();
-                                 ICHECK(call != nullptr);
-                                 const PrimExpr& x = call->args[0];
-                                 PrimExpr two = make_const(x.dtype(), 2);
-                                 PrimExpr neg_one = make_const(x.dtype(), -1);
-                                 PrimExpr exp_negx = exp(neg_one * x);
-                                 PrimExpr exp_posx = exp(x);
-                                 PrimExpr ret = (exp_posx - exp_negx) / two;
-                                 return ret;
-                               });
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      using tir::make_zero;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr two = make_const(x.dtype(), 2);
+      PrimExpr neg_one = make_const(x.dtype(), -1);
+      PrimExpr exp_negx = exp(neg_one * x);
+      PrimExpr exp_posx = exp(x);
+      PrimExpr ret = (exp_posx - exp_negx) / two;
+      return ret;
+    });
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
