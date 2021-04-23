@@ -47,7 +47,6 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   decl_stream << "#define TVM_EXPORTS\n";
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
-
   decl_stream << "#include <math.h>\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
@@ -309,7 +308,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     auto function_info = GetFunctionInfo(op);
     this->PrintGetFuncFromBackend(function_info.func_name, function_info.func_name_packed);
-    this->PrintFuncCall(function_info.func_name, function_info.num_args);
+    this->PrintFuncCall(function_info.func_name_packed, function_info.num_args);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
     auto function_info = GetFunctionInfo(op);
     this->PrintFuncCallC(function_info.func_name, function_info.num_args);

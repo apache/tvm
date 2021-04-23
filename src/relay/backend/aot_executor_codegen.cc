@@ -563,7 +563,8 @@ class AOTExecutorCodegen : public ExprVisitor {
       ret.lowered_funcs.Set(target_host_str, IRModule(symbol_map));
     }
 
-    ret.metadata = runtime::Metadata(input_vars_.size(), return_sid_.size(), kTvmExecutorAot);
+    ret.metadata =
+        runtime::Metadata(input_vars_.size(), return_sid_.size(), runtime::kTvmExecutorAot);
     return ret;
   }
 };

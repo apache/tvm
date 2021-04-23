@@ -16,17 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 // LINT_C_FILE
-
 #include <tvm/runtime/crt/stack_allocator.h>
+#ifdef TVM_CRT_DEBUG
+#include <tvm/runtime/crt/logging.h>
+#endif
 
 void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes) {
   uint32_t offset_bytes = (~nbytes + 1) & (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1);
   uint8_t* current_alloc = tvm_runtime_workspace->next_alloc;
   uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
   uint8_t* workspace_end = tvm_runtime_workspace->workspace + tvm_runtime_workspace->workspace_size;
-
+#ifdef TVM_CRT_DEBUG
+  *((uint32_t*) next_alloc) = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES) ^ STACK_ALLOCATOR_TAG;
+  next_alloc += 4;
+#endif
   if (next_alloc > workspace_end) {
     return NULL;
   }
@@ -36,6 +40,11 @@ void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_
 }
 
 tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr) {
+#ifdef TVM_CRT_DEBUG
+  uint32_t tag = *(((uint32_t*) tvm_runtime_workspace->next_alloc ) - 1);
+  uint32_t nbytes = (tvm_runtime_workspace->next_alloc - (uint8_t*)ptr);
+  CHECK_EQ(tag, nbytes^STACK_ALLOCATOR_TAG, "tag did not match");
+#endif
   tvm_runtime_workspace->next_alloc = ptr;
   return 0;
 }

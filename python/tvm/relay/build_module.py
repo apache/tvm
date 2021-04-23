@@ -155,9 +155,9 @@ class BuildModule(object):
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        internal_repr = self.get_graph_json() if executor == "graph" else None
+        executor_config = self.get_graph_json() if executor == "graph" else None
 
-        return internal_repr, mod, params
+        return executor_config, mod, params
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -267,6 +267,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     Returns
     -------
 <<<<<<< HEAD
+<<<<<<< HEAD
     factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
             The runtime factory for the TVM graph executor.
 =======
@@ -275,6 +276,11 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         network. Can be a string representing the json graph (if we are
         building for graph executor) or the PrimFunc representing the
         AOT runner function
+=======
+    executor_config : str
+        The internal configuration the executor uses to execute the
+        network.
+>>>>>>> db667146e... addressing comments - 6
 
     mod : tvm.Module
         The module containing necessary libraries.
@@ -316,7 +322,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        internal_repr, runtime_mod, params = bld_mod.build(
+        executor_config, runtime_mod, params = bld_mod.build(
             mod=ir_mod, target=target, params=params, executor=executor
         )
 
@@ -326,7 +332,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             )
         elif executor == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, internal_repr, runtime_mod, mod_name, params
+                ir_mod, target, executor_config, runtime_mod, mod_name, params
             )
         else:
             assert False, "Executor " + executor + " not supported"

@@ -133,7 +133,7 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
     """
     tempdir = utils.tempdir()
     is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
-    memory_map = [] if is_aot else _build_memory_map(mod.get_internal_repr())
+    memory_map = [] if is_aot else _build_memory_map(mod.get_excecutor_config())
     runtime = ["aot"] if is_aot else ["graph"]
 
     metadata = {
@@ -165,7 +165,7 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
         graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
         os.makedirs(graph_config_dir_path)
         with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
-            f.write(mod.save_executor_config())
+            f.write(mod.get_executor_config())
 
     with tarfile.open(file_name, "w") as tar_f:
 

@@ -30,6 +30,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/meta_data.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
 
@@ -40,13 +41,14 @@
 #include <utility>
 #include <vector>
 
-#include "../../runtime/meta_data.h"
-
 namespace tvm {
 namespace relay {
 namespace backend {
 
-/*! \brief Lowered outputs */
+/*!
+ *  \brief Executor generator artifacts. Those artifacts  are subsequently
+ *  used by the relay build process.
+ */
 struct LoweredOutput {
   std::string graph_json;
   Map<String, IRModule> lowered_funcs;

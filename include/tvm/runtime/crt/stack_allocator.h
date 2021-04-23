@@ -25,6 +25,9 @@
 
 #include "error_codes.h"
 
+#define STACK_ALLOCATOR_TAG 0xabcd1234
+#define STACK_ALLOCATOR_TAG_SIZE_BYTES 4
+
 /*! Memory alignment for allocator */
 
 #ifndef TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES

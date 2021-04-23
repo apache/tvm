@@ -139,9 +139,9 @@ struct GraphCodegen : ExecutorCodegen {
  */
 std::unique_ptr<ExecutorCodegen> MakeExecutorCodegen(String executor_str) {
   std::unique_ptr<ExecutorCodegen> ret;
-  if (executor_str == kTvmExecutorGraph) {
+  if (executor_str == runtime::kTvmExecutorGraph) {
     ret = std::make_unique<GraphCodegen>();
-  } else if (executor_str == kTvmExecutorAot) {
+  } else if (executor_str == runtime::kTvmExecutorAot) {
     ret = std::make_unique<AOTCodegen>();
   } else {
     CHECK(false) << "Executor " << executor_str << " not supported";
@@ -587,7 +587,11 @@ class RelayBuildModule : public runtime::ModuleNode {
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */
   BuildOutput ret_;
-  /*! \brief Executor used to execute the graph */
+  /*!
+   * \brief Executor used to execute the model:
+   * - graph: use the json graph executor
+   * - aot: use the aot executor
+   */
   String executor_;
 };
 

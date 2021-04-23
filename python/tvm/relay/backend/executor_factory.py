@@ -30,7 +30,7 @@ class ExecutorFactoryModule:
     """
 
     @abstractmethod
-    def get_internal_repr(self):
+    def get_excecutor_config(self):
         """Common function to return the internal representation
         the executor relies upon to execute the network
         """
@@ -69,7 +69,7 @@ class ExecutorFactoryModule:
         if self.iter_cnt > 2:
             raise StopIteration
 
-        objs = [self.get_internal_repr(), self.lib, self.params]
+        objs = [self.get_excecutor_config(), self.lib, self.params]
         obj = objs[self.iter_cnt]
         self.iter_cnt += 1
         return obj
@@ -101,7 +101,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     def get_params(self):
         return self.params
 
-    def get_internal_repr(self):
+    def get_excecutor_config(self):
         return None
 
     def get_lib(self):
@@ -147,16 +147,13 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
-    def save_executor_config(self):
-        return self.graph_json
-
     def get_params(self):
         return self.params
 
     def get_graph_json(self):
         return self.graph_json
 
-    def get_internal_repr(self):
+    def get_excecutor_config(self):
         return self.graph_json
 
     def get_lib(self):

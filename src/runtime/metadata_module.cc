@@ -28,14 +28,13 @@
  * codegen and runtimes.
  */
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstdint>
 #include <sstream>
-
-#include "meta_data.h"
 
 namespace tvm {
 namespace runtime {

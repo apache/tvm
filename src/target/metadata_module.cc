@@ -21,12 +21,12 @@
  * \file metadata_module.cc
  * \brief Defines functions that build MetadataModules for C++ and C runtimes.
  */
-
 #include "metadata_module.h"
+
+#include <tvm/runtime/meta_data.h>
 
 #include <vector>
 
-#include "../runtime/meta_data.h"
 #include "llvm/llvm_module.h"
 #include "source/source_module.h"
 

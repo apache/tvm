@@ -179,7 +179,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
-      return MakeCallPacked(op, true);
+      return MakeCallPacked(op, /* use_string_lookup */ true);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
       return MakeCallPacked(op, false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
@@ -300,11 +300,9 @@ class BuiltinLower : public StmtExprMutator {
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
 
-    if (use_string_lookup) {
-      return Call(op->dtype, builtin::tvm_call_packed_lowered(), packed_args);
-    } else {
-      return Call(op->dtype, builtin::tvm_call_cpacked_lowered(), packed_args);
-    }
+    auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
+                                          : builtin::tvm_call_cpacked_lowered();
+    return Call(op->dtype, builtin_call, packed_args);
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {

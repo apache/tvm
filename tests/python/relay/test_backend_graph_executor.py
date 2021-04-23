@@ -149,6 +149,12 @@ def test_plan_memory():
     assert len(device_types) == 1
     assert len(storage_sizes) == 4
 
+    # Check the specific size of each sid
+    assert storage_sizes[0][0] == 40
+    assert storage_sizes[1][0] == 4
+    assert storage_sizes[2][0] == 4
+    assert storage_sizes[3][0] == 40
+
 
 def test_reshape_nop():
     # test that reshape can be turned into nop
