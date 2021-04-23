@@ -100,9 +100,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_root = dump_root
         self._dump_path = None
         self._run_individual = module["run_individual"]
-        self._execute_node_get_output = module["exectue_node_get_output"]
+        self._debug_get_node_output = module["debug_get_node_output"]
         self._execute_next_node_get_output = module["exectue_next_node_get_output"]
-        self.run_get_layers_outputs = module["run_get_layers_outputs"]
+        self._run_get_layers_outputs = module["run_get_layers_outputs"]
         self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
@@ -200,33 +200,6 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 out_tensor = self._execute_next_node(i, j)
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
-    def execute_node(self, node_name):
-        """Execute network up to this node.
-        Return the outputs of this node.
-
-        Parameters
-        ----------
-        node_index : str
-            The node name
-        """
-        node_index = None
-        selected_node = None
-        for i, node in enumerate(self.debug_datum.get_graph_nodes()):
-            if node["name"] == node_name:
-                selected_node = node
-                node_index = i
-                break
-        if not node_index:
-            raise AttributeError("Node name is not valid.")
-
-        num_outputs = self.debug_datum.get_graph_node_output_num(selected_node)
-        output_tensors = []
-        for j in range(num_outputs):
-            out = self._execute_node_get_output(node_index, j)
-            out = array(out)
-            output_tensors.append(out)
-        return output_tensors
-
     def _run_debug(self):
         """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
@@ -240,7 +213,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._run_per_layer()
 
     def debug_get_output(self, node, out=None):
-        """Get output of node from output tensor list
+        """Run graph up to node and get the output to out
 
         Parameters
         ----------
@@ -251,24 +224,19 @@ class GraphModuleDebug(graph_executor.GraphModule):
             The output array container
         """
         if isinstance(node, str):
-            output_tensors = self.debug_datum.get_output_tensors()
-            if not output_tensors:
-                raise RuntimeError(f"Output Tensors are empty. First, run _run_per_layer().")
-            try:
-                out = output_tensors[node]
-            except KeyError:
-                node_list = output_tensors.keys()
-                raise RuntimeError(f"Node {node} not found, available nodes are: {str(node_list)}.")
+            node_index = None
+            for i, graph_node in enumerate(self.debug_datum.get_graph_nodes()):
+                if graph_node["name"] == node:
+                    node_index = i
+                    break
+            if not node_index:
+                raise AttributeError(f"Could not find a node named {node} in this graph.")
         elif isinstance(node, int):
-            output_tensors = self.debug_datum._output_tensor_list
-            if not output_tensors:
-                raise RuntimeError(f"Tensor list is empty. First, run _run_per_layer().")
-            if node > len(output_tensors):
-                raise RuntimeError(f"Node index {node} is out of range.")
-            out = output_tensors[node]
+            node_index = node
         else:
             raise RuntimeError(f"Require node index or name only.")
-        return out
+
+        out = self._debug_get_node_output(node_index)
 
     def run(self, **input_dict):
         """Run forward execution of the graph with debug

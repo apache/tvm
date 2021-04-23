@@ -205,7 +205,7 @@ class GraphExecutorDebug : public GraphExecutor {
    * \param index The index of the node.
    * \return The number of outputs.
    */
-  size_t GetNodeNumOfOutputs(size_t index) {
+  size_t NodeGetNumOutputs(size_t index) {
     if (nodes_[index].op_type != "tvm_op") return 1;
     return static_cast<size_t>(nodes_[index].param.num_outputs);
   }
@@ -218,17 +218,19 @@ class GraphExecutorDebug : public GraphExecutor {
    * This is costly operation and suggest to use only for debug porpose.
    *
    * \param index: The index of the node.
-   * \param eid The Entry id of the op.
    * \return Node output array.
    */
-  NDArray ExecuteNodeGetOutput(int index, int eid) {
+  Array<NDArray> DebugGetNodeOutput(int index) {
     ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
+    Array<NDArray> results;
 
     for (size_t i = 0; i <= static_cast<size_t>(index); i++) {
       if (op_execs_[i]) op_execs_[i]();
     }
-
-    return data_entry_[entry_id(index, eid)];
+    for (size_t j = 0; j < NodeGetNumOutputs(index); j++) {
+      results.push_back(data_entry_[entry_id(index, j)].CopyTo({kDLCPU, 0}));
+    }
+    return results;
   }
 
   /*!
@@ -255,14 +257,16 @@ class GraphExecutorDebug : public GraphExecutor {
    *
    * \return All node outputs.
    */
-  Array<NDArray> RunAndGetLayersOutputs() {
-    Array<NDArray> results;
+  Array<Array<NDArray>> RunAndGetLayersOutputs() {
+    Array<Array<NDArray>> results;
     for (size_t i = 0; i < op_execs_.size(); i++) {
+      Array<NDArray> node_outputs;
       if (op_execs_[i]) op_execs_[i]();
 
-      for (size_t j = 0; j < GetNodeNumOfOutputs(i); j++) {
-        results.push_back(data_entry_[entry_id(i, j)].CopyTo({kDLCPU, 0}));
+      for (size_t j = 0; j < NodeGetNumOutputs(i); j++) {
+        node_outputs.push_back(data_entry_[entry_id(i, j)].CopyTo({kDLCPU, 0}));
       }
+      results.push_back(node_outputs);
     }
     return results;
   }
@@ -320,9 +324,9 @@ class GraphExecutorDebug : public GraphExecutor {
 PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
-  if (name == "exectue_node_get_output") {
+  if (name == "debug_get_node_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->ExecuteNodeGetOutput(args[0], args[1]);
+      *rv = this->DebugGetNodeOutput(args[0]);
     });
   } else if (name == "exectue_next_node_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
