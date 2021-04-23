@@ -759,7 +759,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
-  os << "((make_int" << op->lanes << ")(";
+  os << "(make_int" << op->lanes << "(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
