@@ -47,17 +47,16 @@ TVM_REGISTER_OP("tir.exp2")
 //                 set of rules in TIR that can be shared across backends.
 TVM_REGISTER_OP("tir.exp10")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
+                               [](const PrimExpr& e) -> PrimExpr {
                                  using tir::make_const;
                                  using tir::make_zero;
-                                 PrimExpr e = targs[0];
                                  const tir::CallNode* call = e.as<tir::CallNode>();
                                  ICHECK(call != nullptr);
                                  const PrimExpr& x = call->args[0];
                                  PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
                                  PrimExpr ret = exp(x * ln10);
-                                 *rv = ret;
-                               }));
+                                 return ret;
+                               });
 
 TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
@@ -103,10 +102,9 @@ TVM_REGISTER_OP("tir.nearbyint")
 
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
+                               [](const PrimExpr& e) -> PrimExpr {
                                  using tir::make_const;
                                  using tir::make_zero;
-                                 PrimExpr e = targs[0];
                                  const tir::CallNode* call = e.as<tir::CallNode>();
                                  ICHECK(call != nullptr);
                                  const PrimExpr& x = call->args[0];
@@ -119,8 +117,8 @@ TVM_REGISTER_OP("tir.tanh")
 
                                  PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
                                  PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-                                 *rv = tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
-                               }));
+                                 return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
+                               });
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
@@ -130,24 +128,22 @@ TVM_REGISTER_OP("tir.popcount")
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
 TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
-      PrimExpr e = targs[0];
+    "llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr tan_x = sin(x) / cos(x);
-      *rv = tan_x;
-    }));
+      return tan_x;
+    });
 
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
 TVM_REGISTER_OP("tir.cosh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
+                               [](const PrimExpr& e) -> PrimExpr {
                                  using tir::make_const;
                                  using tir::make_zero;
-                                 PrimExpr e = targs[0];
                                  const tir::CallNode* call = e.as<tir::CallNode>();
                                  ICHECK(call != nullptr);
                                  const PrimExpr& x = call->args[0];
@@ -156,18 +152,17 @@ TVM_REGISTER_OP("tir.cosh")
                                  PrimExpr exp_negx = exp(neg_one * x);
                                  PrimExpr exp_posx = exp(x);
                                  PrimExpr ret = (exp_posx + exp_negx) / two;
-                                 *rv = ret;
-                               }));
+                                 return ret;
+                               });
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
 TVM_REGISTER_OP("tir.sinh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
+                               [](const PrimExpr& e) -> PrimExpr {
                                  using tir::make_const;
                                  using tir::make_zero;
-                                 PrimExpr e = targs[0];
                                  const tir::CallNode* call = e.as<tir::CallNode>();
                                  ICHECK(call != nullptr);
                                  const PrimExpr& x = call->args[0];
@@ -176,12 +171,11 @@ TVM_REGISTER_OP("tir.sinh")
                                  PrimExpr exp_negx = exp(neg_one * x);
                                  PrimExpr exp_posx = exp(x);
                                  PrimExpr ret = (exp_posx - exp_negx) / two;
-                                 *rv = ret;
-                               }));
+                                 return ret;
+                               });
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", PackedFunc([](const TVMArgs& targs, TVMRetValue* rv) {
-      PrimExpr e = targs[0];
+    "llvm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
       ICHECK_EQ(call->args.size(), 1);
@@ -192,8 +186,8 @@ TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
       cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
       // LLVM requires that the return type must match the first argument type
       auto clz = tir::Call(call->args[0]->dtype, tir::builtin::call_llvm_intrin(), cargs);
-      *rv = cast(call->dtype, clz);
-    }));
+      return cast(call->dtype, clz);
+    });
 
 }  // namespace llvm
 }  // namespace codegen
