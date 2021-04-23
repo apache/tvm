@@ -28,8 +28,9 @@ void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_
   uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
   uint8_t* workspace_end = tvm_runtime_workspace->workspace + tvm_runtime_workspace->workspace_size;
 #ifdef TVM_CRT_DEBUG
-  *((uint32_t*) next_alloc) = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES) ^ STACK_ALLOCATOR_TAG;
-  next_alloc += 4;
+  const uint32_t total_size = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES);
+  *((uint32_t*)next_alloc) = total_size ^ STACK_ALLOCATOR_TAG;
+  next_alloc += STACK_ALLOCATOR_TAG_SIZE_BYTES;
 #endif
   if (next_alloc > workspace_end) {
     return NULL;
@@ -41,9 +42,9 @@ void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_
 
 tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr) {
 #ifdef TVM_CRT_DEBUG
-  uint32_t tag = *(((uint32_t*) tvm_runtime_workspace->next_alloc ) - 1);
-  uint32_t nbytes = (tvm_runtime_workspace->next_alloc - (uint8_t*)ptr);
-  CHECK_EQ(tag, nbytes^STACK_ALLOCATOR_TAG, "tag did not match");
+  uint32_t tag = *(((uint32_t*)tvm_runtime_workspace->next_alloc) - 1);
+  uint32_t total_size = (tvm_runtime_workspace->next_alloc - (uint8_t*)ptr);
+  CHECK_EQ(tag, total_size ^ STACK_ALLOCATOR_TAG, "tag did not match");
 #endif
   tvm_runtime_workspace->next_alloc = ptr;
   return 0;
