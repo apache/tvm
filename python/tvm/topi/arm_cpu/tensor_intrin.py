@@ -1056,5 +1056,5 @@ def _q_multiply_shift_arm(op):
 
 
 register_intrin_lowering(
-    "tir.q_multiply_shift", target="llvm.aarch64", f=_q_multiply_shift_arm, level=100
+    "tir.q_multiply_shift", target="llvm.aarch64", f=_q_multiply_shift_arm, level=99
 )

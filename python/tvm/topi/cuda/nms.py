@@ -52,9 +52,9 @@ def opencl_atomic_add_rule(op):
     raise RuntimeError("only support int32")
 
 
-register_intrin_lowering("tir.atomic_add", target="cuda", f=cuda_atomic_add_rule, level=100)
+register_intrin_lowering("tir.atomic_add", target="cuda", f=cuda_atomic_add_rule, level=99)
 
-register_intrin_lowering("tir.atomic_add", target="opencl", f=opencl_atomic_add_rule, level=100)
+register_intrin_lowering("tir.atomic_add", target="opencl", f=opencl_atomic_add_rule, level=99)
 
 
 def atomic_add(x, y):
