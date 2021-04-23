@@ -30,7 +30,7 @@ class ExecutorFactoryModule:
     """
 
     @abstractmethod
-    def get_excecutor_config(self):
+    def get_executor_config(self):
         """Common function to return the internal representation
         the executor relies upon to execute the network
         """
@@ -38,11 +38,7 @@ class ExecutorFactoryModule:
 
     @abstractmethod
     def get_params(self):
-        """
-        Sometimes we want to get params explicitly.
-        For example, we want to save its params value to
-        an independent file.
-        """
+        """Return the compiled parameters."""
         raise NotImplementedError
 
     @abstractmethod
@@ -51,7 +47,6 @@ class ExecutorFactoryModule:
         raise NotImplementedError
 
     def __getitem__(self, item):
-        print(item)
         return self.module.__getitem__(item)
 
     def __iter__(self):
@@ -69,7 +64,7 @@ class ExecutorFactoryModule:
         if self.iter_cnt > 2:
             raise StopIteration
 
-        objs = [self.get_excecutor_config(), self.lib, self.params]
+        objs = [self.get_executor_config(), self.lib, self.params]
         obj = objs[self.iter_cnt]
         self.iter_cnt += 1
         return obj
@@ -101,7 +96,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     def get_params(self):
         return self.params
 
-    def get_excecutor_config(self):
+    def get_executor_config(self):
         return None
 
     def get_lib(self):
@@ -153,7 +148,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     def get_graph_json(self):
         return self.graph_json
 
-    def get_excecutor_config(self):
+    def get_executor_config(self):
         return self.graph_json
 
     def get_lib(self):

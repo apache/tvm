@@ -30,7 +30,6 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
-#include <tvm/runtime/meta_data.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
 
@@ -40,6 +39,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "../../runtime/meta_data.h"
 
 namespace tvm {
 namespace relay {

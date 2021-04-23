@@ -181,7 +181,7 @@ class BuiltinLower : public StmtExprMutator {
     if (op->op.same_as(builtin::tvm_call_packed())) {
       return MakeCallPacked(op, /* use_string_lookup */ true);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
-      return MakeCallPacked(op, false);
+      return MakeCallPacked(op, /* use_string_lookup */ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallTracePacked(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {

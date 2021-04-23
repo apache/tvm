@@ -26,7 +26,7 @@
 #include <tvm/relay/op_strategy.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
-#include <tvm/runtime/meta_data.h>
+#include <tvm/runtime/executor_info.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

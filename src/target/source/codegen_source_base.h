@@ -25,7 +25,6 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
-#include <tvm/runtime/meta_data.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -34,6 +33,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "../../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
