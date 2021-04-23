@@ -20,7 +20,6 @@
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.target import Target
 from tvm.topi.cuda.injective import schedule_injective_from_existing
 from ..utils import get_const_tuple, traverse_inline, simplify, tag
 from ..nn.pad import pad
