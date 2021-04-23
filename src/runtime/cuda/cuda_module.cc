@@ -24,7 +24,6 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/registry.h>
 
 #include <array>
@@ -34,6 +33,7 @@
 #include <vector>
 
 #include "../file_utils.h"
+#include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "cuda_common.h"

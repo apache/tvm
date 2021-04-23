@@ -24,13 +24,14 @@
 #ifndef TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 #define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 
-#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/module.h>
 
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "../meta_data.h"
 
 namespace tvm {
 namespace runtime {

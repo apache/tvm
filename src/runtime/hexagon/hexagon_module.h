@@ -21,7 +21,6 @@
 #define TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/module.h>
 
 #include <array>
@@ -29,6 +28,8 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+
+#include "../meta_data.h"
 
 namespace tvm {
 namespace runtime {

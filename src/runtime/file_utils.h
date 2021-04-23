@@ -25,10 +25,11 @@
 #define TVM_RUNTIME_FILE_UTILS_H_
 
 #include <tvm/runtime/container.h>
-#include <tvm/runtime/meta_data.h>
 
 #include <string>
 #include <unordered_map>
+
+#include "meta_data.h"
 
 namespace tvm {
 namespace runtime {

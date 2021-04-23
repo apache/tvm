@@ -23,7 +23,6 @@
 #include "rocm_module.h"
 
 #include <hip/hip_runtime_api.h>
-#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/registry.h>
 
 #include <array>
@@ -33,6 +32,7 @@
 #include <vector>
 
 #include "../file_utils.h"
+#include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "rocm_common.h"
