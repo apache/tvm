@@ -23,6 +23,7 @@
 #include <android/log.h>
 #endif
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/registry.h>
 
 #include <memory>
@@ -32,7 +33,6 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../meta_data.h"
 
 namespace tvm {
 namespace runtime {

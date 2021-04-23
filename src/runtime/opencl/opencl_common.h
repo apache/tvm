@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -64,7 +65,6 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../workspace_pool.h"

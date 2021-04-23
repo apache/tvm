@@ -22,13 +22,13 @@
  */
 #include "metal_module.h"
 #include <dmlc/memory_io.h>
+#include <tvm/runtime/meta_data.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <array>
 #include <mutex>
 #include <string>
 #include "../file_utils.h"
-#include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "metal_common.h"

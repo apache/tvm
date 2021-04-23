@@ -20,10 +20,11 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 
+#include <tvm/runtime/meta_data.h>
+
 #include <string>
 #include <unordered_map>
 
-#include "../meta_data.h"
 #include "vulkan_shader.h"
 
 namespace tvm {
