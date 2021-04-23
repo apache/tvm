@@ -125,6 +125,10 @@ class DebugResult(object):
                 eid += 1
         return output_tensors
 
+    def update_output_tensors(self, tensors):
+        """Update output tensors list"""
+        self._output_tensor_list = tensors
+
     def dump_output_tensor(self):
         """Dump the outputs to a temporary folder, the tensors are in numpy format"""
         # cleanup existing tensors before dumping

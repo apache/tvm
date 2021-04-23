@@ -101,7 +101,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_path = None
         self._run_individual = module["run_individual"]
         self._debug_get_node_output = module["debug_get_node_output"]
-        self._execute_next_node_get_output = module["exectue_next_node_get_output"]
+        self._execute_next_node_get_output = module["execute_next_node_get_output"]
         self._run_get_layers_outputs = module["run_get_layers_outputs"]
         self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
@@ -193,12 +193,14 @@ class GraphModuleDebug(graph_executor.GraphModule):
         copied to the buffer.
 
         """
+        output_tensors = []
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 logging.info("running: output=%d of node_name: %s", j, node["name"])
-                out_tensor = self._execute_next_node(i, j)
-                self.debug_datum._output_tensor_list.append(out_tensor)
+                output_tensors.append(self._execute_next_node(i, j))
+
+        self.debug_datum.update_output_tensors(output_tensors)
 
     def _run_debug(self):
         """Execute the node specified with index will be executed.
@@ -229,7 +231,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 if graph_node["name"] == node:
                     node_index = i
                     break
-            if not node_index:
+            else:
                 raise AttributeError(f"Could not find a node named {node} in this graph.")
         elif isinstance(node, int):
             node_index = node
@@ -257,22 +259,6 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self.debug_datum.dump_chrome_trace()
         # Step 4. Display the collected information
         self.debug_datum.display_debug_result()
-
-    def get_per_layer_outputs(self, **input_dict):
-        """Run graph up to every layer and dump the output result
-
-        Parameters
-        ----------
-        input_dict : dict of str to NDArray
-            List of input values to be feed to
-        """
-        if input_dict:
-            self.set_input(**input_dict)
-
-        # Step 1. Execute the graph for each node and save output tensor.
-        self._run_per_layer()
-        # Step 2. Dump the output tensors to the dump folder
-        self.debug_datum.dump_output_tensor()
 
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)

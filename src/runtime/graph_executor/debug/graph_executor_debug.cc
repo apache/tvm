@@ -239,14 +239,14 @@ class GraphExecutorDebug : public GraphExecutor {
    * This method will execute next node assuming
    * previous nodes has been executed and return output of index-th node.
    *
-   * \param index: The index of the node.
-   * \param eid The Entry id of the op.
+   * \param node_ind: The index of the node.
+   * \param out_ind The output index.
    * \return Node output array.
    */
-  NDArray ExecuteNextNodeGetOutput(int index, int eid) {
-    ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
-    if (op_execs_[index]) op_execs_[index]();
-    return data_entry_[entry_id(index, eid)];
+  NDArray ExecuteNextNodeGetOutput(int node_ind, int out_ind) {
+    ICHECK_LT(static_cast<size_t>(node_ind), op_execs_.size());
+    if (op_execs_[node_ind]) op_execs_[node_ind]();
+    return data_entry_[entry_id(node_ind, out_ind)];
   }
 
   /*!
@@ -328,7 +328,7 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->DebugGetNodeOutput(args[0]);
     });
-  } else if (name == "exectue_next_node_get_output") {
+  } else if (name == "execute_next_node_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->ExecuteNextNodeGetOutput(args[0], args[1]);
     });
