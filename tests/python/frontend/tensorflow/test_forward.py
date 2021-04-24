@@ -3620,7 +3620,7 @@ def test_forward_logical():
 
 
 #######################################################################
-# Where, Select, SelectV2
+# Where, Select
 # -------------
 def test_forward_where():
     """ Where: return elements depending on conditions"""
