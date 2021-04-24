@@ -15,52 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target dependent intrinsic registration."""
-import tvm._ffi
+from tvm.ir import register_intrin_lowering
 from tvm.tir import call_pure_extern
-
-
-# Intrinsic rule related code
-def register_intrin_rule(target, intrin, f=None, override=False):
-    """Register an intrinsic function generation rule.
-
-    Intrinsic generation rules are callback functions for
-    code generator to get device specific calls.
-    This function simply translates to.
-
-    :code:`register_func("tvm.intrin.rule.%s.%s" % (target, intrin), f, override)`
-
-    TVM may already pre-register intrinsic rules in the backend.
-    However, user can use this function to change the intrinsic translation
-    behavior or add new intrinsic rules during runtime.
-
-    Parameters
-    ----------
-    target : str
-        The name of codegen target.
-
-    intrin : str
-        The name of the intrinsic.
-
-    f : function, optional
-        The function to be registered.
-
-    override: boolean optional
-        Whether override existing entry.
-
-    Returns
-    -------
-    fregister : function
-        Register function if f is not specified.
-
-    Examples
-    --------
-    The following code registers exp expansion rule for opencl.
-
-    .. code-block:: python
-
-        register_intrin_rule("opencl", "exp", my_exp_rule, override=True)
-    """
-    return tvm._ffi.register_func("tvm.intrin.rule.%s.%s" % (target, intrin), f, override)
 
 
 def _rule_float_suffix(op):
@@ -81,7 +37,7 @@ def _rule_float_suffix(op):
 
     See Also
     --------
-    register_intrin_rule : The registration function for intrin rule.
+    register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
     name = op.op.name
     assert name.startswith("tir.")
@@ -112,7 +68,7 @@ def _rule_float_direct(op):
 
     See Also
     --------
-    register_intrin_rule : The registration function for intrin rule.
+    register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
     if str(op.dtype).startswith("float"):
         return call_pure_extern(op.dtype, op.op.name[4:], *op.args)
@@ -120,6 +76,6 @@ def _rule_float_direct(op):
 
 
 # opencl pattern for exp
-register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)
+register_intrin_lowering("tir.exp", target="opencl", f=_rule_float_direct, level=99)
 # default pattern for exp
-register_intrin_rule("default", "exp", _rule_float_suffix, override=True)
+register_intrin_lowering("tir.exp", target="default", f=_rule_float_suffix, level=99)
