@@ -19,6 +19,7 @@
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
+from collections import deque
 
 # Numpy support
 import numpy as np
@@ -1778,7 +1779,6 @@ def _broadcast_args():
         s0 = list(s0.asnumpy().reshape([-1]))
         s1 = list(s1.asnumpy().reshape([-1]))
         s0_size, s1_size = len(s0), len(s1)
-        from collections import deque
 
         out = deque([])
         for i in range(1, min(s0_size, s1_size) + 1):
