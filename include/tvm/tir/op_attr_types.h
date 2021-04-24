@@ -28,11 +28,12 @@
 #ifndef TVM_TIR_OP_ATTR_TYPES_H_
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace tir {
-
 /*!
  * \brief Global symbol of the op after lowering.
  */
@@ -42,6 +43,16 @@ using TGlobalSymbol = String;
  * \brief Whether the op is overloaded for vector form.
  */
 using TVectorizable = bool;
+
+/*!
+ * \brief The intrinsic lowering function for given op.
+ */
+using FLowerIntrinsic = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+
+/*!
+ * \brief The legalization function for given tir op.
+ */
+using FLegalize = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 
 /*!
  * \brief The effect type of the call.
