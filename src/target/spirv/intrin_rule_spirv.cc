@@ -55,8 +55,8 @@ PrimExpr CallGLSLIntrin(PrimExpr e) {
 }
 
 template <unsigned id>
-inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
-  *rv = CallGLSLIntrin<id>(targs[0]);
+inline PrimExpr DispatchGLSLPureIntrin(const PrimExpr& e) {
+  return CallGLSLIntrin<id>(e);
 }
 
 TVM_REGISTER_OP("tir.floor")
@@ -110,11 +110,11 @@ TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
         auto int32 = DataType::Int(32);
         PrimExpr arg_hi32 = tvm::tir::Cast(int32, arg >> 32);
         PrimExpr arg_lo32 = tvm::tir::Cast(int32, arg);
-        PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(targs[0], {arg_hi32});
-        PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(targs[0], {arg_lo32});
+        PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
+        PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
         msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
       } else if (arg.dtype().bits() == 32) {
-        msb = CallGLSLIntrin<GLSLstd450FindUMsb>(targs[0]);
+        msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
       } else {
         LOG(FATAL) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
       }
