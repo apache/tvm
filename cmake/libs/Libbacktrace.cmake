@@ -21,7 +21,16 @@ ExternalProject_Add(project_libbacktrace
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace
   BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace
   CONFIGURE_COMMAND "${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace/configure"
-                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace" --with-pic
+                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
+                    --with-pic
+                    "CC=${CMAKE_C_COMPILER}"
+                    "CFLAGS=${CMAKE_C_FLAGS}"
+                    "LDFLAGS=${CMAKE_EXE_LINKER_FLAGS}"
+                    "CPP=${CMAKE_C_COMPILER} -E"
+                    "NM=${CMAKE_NM}"
+                    "STRIP=${CMAKE_STRIP}"
+                    "CPPFLAGS=${CMAKE_C_FLAGS}"
+                    "--host=${MACHINE_NAME}"
   INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
   BUILD_COMMAND make
   INSTALL_COMMAND make install
