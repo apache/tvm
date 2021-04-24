@@ -16,9 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-DOWNLOAD_DIR={$1}
+DOWNLOAD_DIR=$1
 
-west init --mr v2.5-branch $DOWNLOAD_DIR
-cd $DOWNLOAD_DIR
+west init --mr v2.5-branch ${DOWNLOAD_DIR}
+cd ${DOWNLOAD_DIR}
 west update
 west zephyr-export
