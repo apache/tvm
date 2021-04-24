@@ -42,28 +42,42 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {
-    patterns_.push_back("tvm.intrin.rule." + target + ".");
+    std::vector<std::string> patterns_;
+    patterns_.push_back(target + ".FLowerIntrinsic");
 
     bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
     if (is_llvm_aarch64) {
-      patterns_.push_back("tvm.intrin.rule." + target + "." + "aarch64.");
+      patterns_.push_back(target + ".aarch64.FLowerIntrinsic");
     }
 
-    patterns_.push_back("tvm.intrin.rule.default.");
-    fma_ = runtime::Registry::Get(patterns_[0] + "fma");
+    patterns_.push_back("default.FLowerIntrinsic");
+
+    fma_ = runtime::Registry::Get("tvm.intrin.rule." + target + ".fma");
     if (target == "stackvm") {
       support_bitwise_op_ = false;
     }
+
+    for (const std::string& pattern : patterns_)
+      if (Op::HasAttrMap(pattern))
+        lower_intrin_maps_.push_back(Op::GetAttrMap<FLowerIntrinsic>(pattern));
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      // Still use legacy string based rewriting
-      // TODO(tvm-team): migrate the pattern application from global function look up
-      // to an OpAttrMap<PackedFunc>
-      std::string name = ptr_op->name;
-      PrimExpr r = ApplyPattern(name, GetRef<PrimExpr>(op));
-      if (r.defined()) return r;
+      for (const auto& f_lower_intrin_map : lower_intrin_maps_) {
+        FLowerIntrinsic f = f_lower_intrin_map.get(GetRef<Op>(ptr_op), nullptr);
+        if (f != nullptr) {
+          PrimExpr e = GetRef<PrimExpr>(op);
+          PrimExpr r = f(e);
+          ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+          if (!r.same_as(e)) {
+            r = this->VisitExpr(r);
+            if (r.defined()) {
+              return r;
+            }
+          }
+        }
+      }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
@@ -266,32 +280,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  PrimExpr ApplyPattern(std::string name, const PrimExpr& e) {
-    if (name.compare(0, 4, "tir.") == 0) {
-      name = name.substr(4);
-    }
-
-    for (size_t i = 0; i < patterns_.size(); ++i) {
-      std::string& p = patterns_[i];
-      size_t psize = p.length();
-      p.resize(psize + name.length());
-      name.copy(&p[0] + psize, name.length());
-      const runtime::PackedFunc* f = runtime::Registry::Get(p);
-      p.resize(psize);
-      // if pattern exists.
-      if (f != nullptr) {
-        PrimExpr r = (*f)(e);
-        ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
-        if (!r.same_as(e)) {
-          return this->VisitExpr(r);
-        }
-      }
-    }
-    return PrimExpr();
-  }
-
   // patterns
-  std::vector<std::string> patterns_;
+  std::vector<OpAttrMap<FLowerIntrinsic>> lower_intrin_maps_;
   const PackedFunc* fma_{nullptr};
   bool support_bitwise_op_{true};
 };
