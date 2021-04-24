@@ -33,19 +33,25 @@ namespace spirv {
 using tir::FLowerIntrinsic;
 
 // num_signature means number of arguments used to query signature
-
 template <unsigned id>
-PrimExpr CallGLSLIntrin(const PrimExpr& e) {
+PrimExpr CallGLSLIntrin(PrimExpr e, const Array<PrimExpr>& args) {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
 
-  for (PrimExpr arg : call->args) {
+  for (PrimExpr arg : args) {
     cargs.push_back(arg);
   }
   return tir::Call(call->dtype, tir::builtin::call_spirv_pure_glsl450(), cargs);
+}
+
+template <unsigned id>
+PrimExpr CallGLSLIntrin(PrimExpr e) {
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  ICHECK(call != nullptr);
+  return CallGLSLIntrin<id>(e, call->args);
 }
 
 template <unsigned id>
@@ -98,7 +104,20 @@ TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
       ICHECK(call != nullptr);
       ICHECK_EQ(call->args.size(), 1);
       PrimExpr arg = call->args[0];
-      PrimExpr msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
+      PrimExpr msb;
+      if (arg.dtype().bits() == 64) {
+        // SPIR-V FindUMsb intrinsic only supports 32 bit input
+        auto int32 = DataType::Int(32);
+        PrimExpr arg_hi32 = tvm::tir::Cast(int32, arg >> 32);
+        PrimExpr arg_lo32 = tvm::tir::Cast(int32, arg);
+        PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
+        PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
+        msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
+      } else if (arg.dtype().bits() == 32) {
+        msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
+      } else {
+        LOG(FATAL) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
+      }
       return PrimExpr(arg.dtype().bits() - 1) - msb;
     });
 

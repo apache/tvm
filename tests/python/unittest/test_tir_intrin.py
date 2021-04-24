@@ -170,7 +170,12 @@ def test_clz():
             dev = tvm.device(target, 0)
             n = 10
 
-            for high in [10, 100, 1000, 10000, 100000, 1000000]:
+            highs = [10, 100, 1000, 10000, 100000, 1000000]
+
+            if dtype == "int64":
+                highs.append((1 << 63) - 1)
+
+            for high in highs:
                 a_np = np.random.randint(1, high=high, size=(n,)).astype(dtype)
                 a = tvm.nd.array(a_np, dev)
                 b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)

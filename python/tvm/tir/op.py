@@ -758,7 +758,8 @@ def clz(x):
     Parameters
     ----------
     x : PrimExpr
-        Input argument. The result is undefined if the input is 0.
+        Input 32 or 64 bit integer.
+        The result is undefined if the input is 0.
 
     Returns
     -------
