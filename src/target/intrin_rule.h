@@ -55,8 +55,7 @@ struct Direct {
 
 // Call pure extern function.
 template <typename T>
-inline void DispatchPureExtern(const TVMArgs& args, TVMRetValue* rv) {
-  PrimExpr e = args[0];
+inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
   // Use string based dispatch to extern for backward compact
@@ -72,9 +71,9 @@ inline void DispatchPureExtern(const TVMArgs& args, TVMRetValue* rv) {
     for (auto arg : call->args) {
       new_args.push_back(arg);
     }
-    *rv = Call(call->dtype, tir::builtin::call_pure_extern(), new_args);
+    return Call(call->dtype, builtin::call_pure_extern(), new_args);
   } else {
-    *rv = e;
+    return e;
   }
 }
 
