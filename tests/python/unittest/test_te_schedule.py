@@ -321,6 +321,33 @@ def test_legalize_invalid_attach():
     assert isinstance(stmt, tvm.tir.stmt.For)
 
 
+def test_compute_at():
+    def add():
+        shape = (16, 16)
+        A = tvm.te.compute(shape, lambda *i: 1.0, name="A")
+        B = tvm.te.compute(shape, lambda *i: 2.0, name="B")
+        C = tvm.te.compute(shape, lambda *i: A(*i) + B(*i), name="C")
+        return A, B, C
+
+    def invalid_compute_at_self():
+        A, B, C = add()
+        s = tvm.te.create_schedule(C.op)
+        s[C].compute_at(s[C], C.op.axis[0])
+        with pytest.raises(RuntimeError):
+            tvm.lower(s, [A, B], simple_mode=True)
+
+    def invalid_compute_at_loop():
+        A, B, C = add()
+        s = tvm.te.create_schedule(C.op)
+        s[A].compute_at(s[C], C.op.axis[0])
+        s[C].compute_at(s[A], A.op.axis[0])
+        with pytest.raises(RuntimeError):
+            tvm.lower(s, [C], simple_mode=True)
+
+    invalid_compute_at_self()
+    invalid_compute_at_loop()
+
+
 if __name__ == "__main__":
     test_singleton()
     test_pragma()
@@ -338,3 +365,4 @@ if __name__ == "__main__":
     test_vectorize()
     test_vectorize_commreduce()
     test_legalize_invalid_attach()
+    test_compute_at()
