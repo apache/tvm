@@ -18,11 +18,7 @@
 """Dummy StackVM build function."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
-import os
 import shutil
-import subprocess
-from . import utils
-from .._ffi.base import py_str
 
 
 def stackvm(output, files):
@@ -40,7 +36,7 @@ def stackvm(output, files):
     if len(files) == 0:
         raise RuntimeError("StackVM artifact must be provided")
     if len(files) > 1:
-        "Unexpected multiple StackVM artifacts"
+        raise RuntimeError("Unexpected multiple StackVM artifacts")
 
     shutil.copy(files[0], output)
 
