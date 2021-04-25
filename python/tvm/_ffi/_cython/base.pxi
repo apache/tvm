@@ -170,3 +170,27 @@ cdef inline void* c_handle(object handle):
     cdef unsigned long long v_ptr
     v_ptr = handle.value
     return <void*>(v_ptr)
+
+
+# python env API
+cdef extern from "Python.h":
+    void PyErr_Clear()
+    int PyErr_CheckSignals()
+
+cdef extern from "tvm/runtime/c_backend_api.h":
+    int TVMBackendRegisterEnvCAPI(const char* name, void* ptr)
+
+cdef _init_env_api():
+    # Initialize env api for signal handling
+    # so backend can call tvm::runtime::EnvCheckSignals to check
+    # signal when executing a long running function.
+    #
+    # This feature is only enabled in cython for now due to problems of calling
+    # these functions in ctypes.
+    #
+    # When the functions are not registered, the signals will be handled
+    # only when the FFI function returns.
+    CALL(TVMBackendRegisterEnvCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
+    CALL(TVMBackendRegisterEnvCAPI(c_str("PyErr_Clear"), <void*>PyErr_Clear))
+
+_init_env_api()

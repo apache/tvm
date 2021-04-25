@@ -52,6 +52,45 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief Check if signals have been sent to the process and if so
+ *  invoke the registered signal handler in the frontend environment.
+ *
+ *  When runnning TVM in another langugage(python), the signal handler
+ *  may not be immediately executed, but instead the signal is marked
+ *  in the interpreter state(to ensure non-blocking of the signal handler).
+ *
+ *  This function can be explicitly invoked to check the cached signal
+ *  and run the related processing if a signal is marked.
+ *
+ *  Invoke this function periodically in a long running C++ function
+ *  to check if KeyboardInterrupt happens in a python execution environment.
+ *
+ *  Not inserting this function will not cause any correctness
+ *  issue, but will delay the KeyboardInterrupt until the function returns
+ *  to the python side. So this function is not needed in most API
+ *  functions can finish quickly in a reasonable amount of time.
+ *
+ * \code
+ *
+ * int check_signal_every_kiter = 10;
+ *
+ * for (int iter = 0; iter < very_large_number; ++iter) {
+ *   if (iter % check_signal_every_kiter == 0) {
+ *     tvm::runtime::EnvCheckSignals();
+ *   }
+ *   // do work here
+ * }
+ *
+ * \endcode
+ *
+ * \note This function is a nop when no signal checking function is registered.
+ *
+ * \throws This function throws approperiate exception if an error happens,
+ *         otherwise it returns normally.
+ */
+TVM_DLL void EnvCheckSignals();
+
 /*! \brief Registry for global function */
 class Registry {
  public:
