@@ -39,7 +39,7 @@ import tvm.ir.transform
 from tvm import nd, rpc as _rpc
 from tvm.error import TVMError
 from tvm.driver import build
-from tvm.contrib import nvcc, ndk, tar
+from tvm.contrib import nvcc, ndk, tar, stackvm
 from tvm.target import Target
 
 from ..utils import get_const_tuple
@@ -94,7 +94,7 @@ class LocalBuilder(Builder):
             elif build_func == "ndk":
                 build_func = ndk.create_shared
             elif build_func == "stackvm":
-                build_func = None
+                build_func = stackvm.stackvm
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
@@ -460,8 +460,8 @@ class _WrappedBuildFunc:
 
     Parameters
     ----------
-    build_func : The compilation function, optional
-        We expect fcompile to contain an attr "output_format" or None.
+    build_func : The compilation function
+        We expect fcompile to contain an attr "output_format".
 
     Returns
     -------
@@ -470,7 +470,7 @@ class _WrappedBuildFunc:
     """
 
     def __init__(self, build_func):
-        if build_func is not None and not hasattr(build_func, "output_format"):
+        if not hasattr(build_func, "output_format"):
             raise AttributeError("Expect build_func to have the attribute output_format.")
         self.build_func = build_func
 
@@ -488,8 +488,9 @@ class _WrappedBuildFunc:
         """
         tic = time.time()
         try:
-            output_format = "stackvm" if self.build_func is None else self.build_func.output_format
-            filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), output_format))
+            filename = os.path.join(
+                tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
+            )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
             func.export_library(filename, self.build_func)
