@@ -44,5 +44,6 @@ def stackvm(output, files):
 
     shutil.copy(files[0], output)
 
+
 # assign output format
 stackvm.output_format = "stackvm"
