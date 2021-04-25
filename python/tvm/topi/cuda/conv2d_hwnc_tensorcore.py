@@ -20,6 +20,7 @@
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.target import Target
 from tvm.topi.cuda.injective import schedule_injective_from_existing
 from ..utils import get_const_tuple, traverse_inline, simplify, tag
 from ..nn.pad import pad
@@ -224,12 +225,13 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
         s[packed_data].pragma(s[packed_data].op.axis[0], "debug_skip_region")
         s[packed_kernel].pragma(s[packed_kernel].op.axis[0], "debug_skip_region")
     else:
-        if (
-            isinstance(packed_kernel.op, te.tensor.ComputeOp)
-            and packed_kernel.name == "packed_kernel"
-        ):
-            schedule_injective_from_existing(s, packed_kernel)
-        schedule_injective_from_existing(s, packed_data)
+        with Target("cuda"):
+            if (
+                isinstance(packed_kernel.op, te.tensor.ComputeOp)
+                and packed_kernel.name == "packed_kernel"
+            ):
+                schedule_injective_from_existing(s, packed_kernel)
+            schedule_injective_from_existing(s, packed_data)
 
     if pad_data != packed_data:
         s[pad_data].compute_inline()
