@@ -23,8 +23,9 @@ from ..scatter import _verify_scatter_nd_inputs
 def scatter_nd(data, indices, updates, mode):
     """Scatter elements from a n-dimension array.
 
-    Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), indices with shape
-    (M, Y_0, ..., Y_{K-1}), and output with shape (X_0, X_1, ..., X_{N-1}), scatter_nd computes
+    Given updates with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), indices with shape
+    (M, Y_0, ..., Y_{K-1}), and output copied from data with shape (X_0, X_1, ..., X_{N-1}),
+    scatter_nd computes
 
     .. code-block::
 
@@ -34,9 +35,9 @@ def scatter_nd(data, indices, updates, mode):
                x_M,
                ...,
                x_{N-1}
-              ] = data[y_0, ..., y_{K-1}, x_M, ..., x_{N-1}]
+              ] = f(output[...], updates[y_0, ..., y_{K-1}, x_M, ..., x_{N-1}])
 
-    all other entries in the output are 0. Repeated indices are summed.
+    where the update function f is determinted by the mode.
 
     Parameters
     ----------
@@ -50,7 +51,9 @@ def scatter_nd(data, indices, updates, mode):
         The updates to apply at the Indices
 
     mode : string
-        The update mode for the algorith, either "update" or "add"
+        The update mode for the algorithm, either "update" or "add"
+        If update, the update values will replace the input data
+        If add, the update values will be added to the input data
 
     Returns
     -------
@@ -100,7 +103,7 @@ def scatter_nd(data, indices, updates, mode):
                 elif mode == "add":
                     out[index] += updates[i * fused_updates_dimension + j]
                 else:
-                    raise NotImplementedError("scatter_nd mode not supported:", mode)
+                    raise NotImplementedError("scatter_nd mode not in [update, add]:", mode)
 
         return ib.get()
 
