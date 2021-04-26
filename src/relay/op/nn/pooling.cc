@@ -825,7 +825,6 @@ Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<te::Tensor>&
   ICHECK_EQ(inputs.size(), 2);
   auto pool_size = param->pool_size;
   auto strides = param->strides;
-  auto dilation = param->dilation;
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
@@ -867,11 +866,10 @@ Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<te::Tensor>&
 // MaxPool2DGrad
 Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
                        Array<IndexExpr> strides, Array<IndexExpr> padding,
-                       Array<IndexExpr> dilation, String layout, bool ceil_mode) {
+                       String layout, bool ceil_mode) {
   auto attrs = make_object<MaxPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
-  attrs->dilation = std::move(dilation);
   attrs->padding = std::move(padding);
   attrs->layout = std::move(layout);
   attrs->ceil_mode = ceil_mode;
@@ -915,12 +913,11 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
 // AvgPool2DGrad
 Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
                        Array<IndexExpr> strides, Array<IndexExpr> padding,
-                       Array<IndexExpr> dilation, String layout, bool ceil_mode,
+                       String layout, bool ceil_mode,
                        bool count_include_pad) {
   auto attrs = make_object<AvgPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
-  attrs->dilation = std::move(dilation);
   attrs->padding = std::move(padding);
   attrs->layout = std::move(layout);
   attrs->ceil_mode = ceil_mode;

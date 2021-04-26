@@ -122,7 +122,7 @@ TVM_REGISTER_GLOBAL("topi.nn.pool1d").set_body([](TVMArgs args, TVMRetValue* rv)
 
 TVM_REGISTER_GLOBAL("topi.nn.pool2d").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = nn::pool2d(args[0], args[1], args[2], args[3], args[4],
-                 static_cast<nn::PoolType>(static_cast<int>(args[5])), args[6], args[7], args[8]);
+                   static_cast<nn::PoolType>(static_cast<int>(args[5])), args[6], args[7], args[8]);
 });
 
 TVM_REGISTER_GLOBAL("topi.nn.pool3d").set_body([](TVMArgs args, TVMRetValue* rv) {
