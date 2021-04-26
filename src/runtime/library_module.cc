@@ -149,8 +149,8 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib, runtime::Modul
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
     ICHECK(stream->Read(&tkey));
-    // Currently, _lib is for DSOModule, but we
-    // need to be handled specially
+    // "_lib" serves as a placeholder in the module import tree to indicate where
+    // to place the DSOModule
     if (tkey == "_lib") {
       auto dso_module = Module(make_object<LibraryModuleNode>(lib));
       *dso_ctx_addr = dso_module.operator->();
@@ -186,7 +186,8 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib, runtime::Modul
         module_import_addr->emplace_back(modules[child_index]);
       }
     }
-    ICHECK(!modules.empty());
+
+    ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
     // invariance: root module is always at location 0.
     // The module order is collected via DFS
     *root_module = modules[0];

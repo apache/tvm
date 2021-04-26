@@ -83,9 +83,9 @@ class ModuleSerializer {
     stream->Write(sz);
 
     for (const auto& group : mod_group_vec_) {
-      CHECK_NE(group.size(), 0);
+      ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
       if (!DSOExportable(group[0])) {
-        ICHECK_EQ(group.size(), 1U);
+        ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->type_key();
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
@@ -161,9 +161,12 @@ class ModuleSerializer {
     if (dso_exportable_boundary.size() == 0) return;
 
     // create the slot for dso exportable modules
+    // This index is chosen so that all the DSO's parents are
+    // allocated before this index, and children will be allocated after
     uint64_t dso_module_index = module_index++;
     mod_group_vec_.emplace_back(std::vector<runtime::ModuleNode*>());
 
+    // restart visiting the stack using elements in dso exportable boundary
     stack = std::move(dso_exportable_boundary);
 
     // Phase 1: expand the children of dso modules.
@@ -202,9 +205,12 @@ class ModuleSerializer {
 
       // Check cycles due to merging dso exportable modules.
       if (child_indices.size() != 0) {
+        // The index is supposed to follow the topological order.
         CHECK_LT(parent_index, child_indices[0])
             << "RuntimeError: Cannot export due to multiple dso-exportables "
-            << "that cannot be merged without creating a cycle in the import tree";
+            << "that cannot be merged without creating a cycle in the import tree. "
+            << "Related module keys: parent=" << mod_group_vec_[parent_index][0]->type_key()
+            << ", child=" << mod_group_vec_[child_indices[0]][0]->type_key();
       }
       // insert the child indices
       import_tree_child_indices_.insert(import_tree_child_indices_.end(), child_indices.begin(),
