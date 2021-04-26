@@ -133,7 +133,7 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
     """
     tempdir = utils.tempdir()
     is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
-    memory_map = [] if is_aot else _build_memory_map(mod.get_excecutor_config())
+    memory_map = [] if is_aot else _build_memory_map(mod.get_executor_config())
     runtime = ["aot"] if is_aot else ["graph"]
 
     metadata = {
