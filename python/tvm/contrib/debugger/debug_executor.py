@@ -198,7 +198,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
-                logging.info("running node=%d, output_ind=%d, with node_name: %s", i, j, node["name"])
+                logging.info(
+                    "running node=%d, output_ind=%d, with node_name: %s", i, j, node["name"]
+                )
                 output_tensors.append(self._execute_next_node(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
