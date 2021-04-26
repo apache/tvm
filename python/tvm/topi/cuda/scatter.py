@@ -18,6 +18,7 @@
 """Scatter operator """
 import tvm
 from tvm import te, autotvm
+from ..scatter import _verify_scatter_nd_inputs
 from ..generic import schedule_extern
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust
@@ -755,6 +756,7 @@ def scatter_nd(data, indices, updates, mode):
     -------
     ret : tvm.te.Tensor
     """
+    _verify_scatter_nd_inputs(data, indices, updates)
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         ib = tvm.tir.ir_builder.create()

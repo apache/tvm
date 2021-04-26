@@ -17,6 +17,7 @@
 """Scatter operators for x86"""
 import tvm
 from tvm import te
+from ..scatter import _verify_scatter_nd_inputs
 
 
 def scatter_nd(data, indices, updates, mode):
@@ -55,6 +56,7 @@ def scatter_nd(data, indices, updates, mode):
     -------
     ret : tvm.te.Tensor
     """
+    _verify_scatter_nd_inputs(data, indices, updates)
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
