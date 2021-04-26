@@ -16,30 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 
+#include "platform.cc"
 /*
  * Tests allocations are properly aligned when allocated
  */
 TEST(AOTMemory, Allocate) {
-  static uint8_t model_memory[80];
+  static uint8_t model_memory[96];
   tvm_workspace_t tvm_runtime_workspace;
 
-  StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
+  StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 96);
 
   void* block_one = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
   ASSERT_EQ(block_one, &model_memory[0]);
 
   void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 2);
-  ASSERT_EQ(block_two, &model_memory[16]);
+  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   void* two_blocks = StackMemoryManager_Allocate(&tvm_runtime_workspace, 24);
-  ASSERT_EQ(two_blocks, &model_memory[32]);
+  ASSERT_EQ(two_blocks, &model_memory[32 + 2 * STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   void* block_three = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
-  ASSERT_EQ(block_three, &model_memory[64]);
+  ASSERT_EQ(block_three, &model_memory[64 + 3 * STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 }
 
 /*
@@ -54,15 +54,15 @@ TEST(AOTMemory, Free) {
   ASSERT_EQ(block_one, &model_memory[0]);
 
   void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
-  ASSERT_EQ(block_two, &model_memory[16]);
+  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
   ASSERT_EQ(0, StackMemoryManager_Free(&tvm_runtime_workspace, block_two));
 
   void* two_blocks = StackMemoryManager_Allocate(&tvm_runtime_workspace, 2);
-  ASSERT_EQ(two_blocks, &model_memory[16]);
+  ASSERT_EQ(two_blocks, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
   ASSERT_EQ(0, StackMemoryManager_Free(&tvm_runtime_workspace, two_blocks));
 
   void* block_three = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
-  ASSERT_EQ(block_three, &model_memory[16]);
+  ASSERT_EQ(block_three, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 }
 
 /*
@@ -77,10 +77,28 @@ TEST(AOTMemory, OverAllocate) {
   ASSERT_EQ(block_one, &model_memory[0]);
 
   void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
-  ASSERT_EQ(block_two, &model_memory[16]);
+  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
 
   void* two_blocks = StackMemoryManager_Allocate(&tvm_runtime_workspace, 64);
   ASSERT_EQ(two_blocks, (void*)NULL);
+}
+
+/*
+ * Test for out-of-order memory deallocation
+ */
+TEST(AOTMemory, FreeOutOfOrder) {
+  static uint8_t model_memory[80];
+  tvm_workspace_t tvm_runtime_workspace;
+  StackMemoryManager_Init(&tvm_runtime_workspace, model_memory, 80);
+
+  void* block_one = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  ASSERT_EQ(block_one, &model_memory[0]);
+
+  void* block_two = StackMemoryManager_Allocate(&tvm_runtime_workspace, 1);
+  ASSERT_EQ(block_two, &model_memory[16 + STACK_ALLOCATOR_TAG_SIZE_BYTES]);
+
+  ASSERT_EXIT(StackMemoryManager_Free(&tvm_runtime_workspace, block_one),
+              ::testing::ExitedWithCode(2), "");
 }
 
 int main(int argc, char** argv) {
