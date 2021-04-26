@@ -24,7 +24,6 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
-from tvm.runtime.ndarray import array
 from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
@@ -183,10 +182,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
             The node index
         Return
         ------
-        output_tensors : ndarray
+        output_tensors : Array<NDarray>
             Array of output tensors
         """
-        output_tensors = array(self._execute_next_node_get_output(node_index))
+        output_tensors = self._execute_next_node_get_output(node_index)
         return output_tensors
 
     def _run_per_layer(self):
@@ -198,7 +197,6 @@ class GraphModuleDebug(graph_executor.GraphModule):
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             logging.info("running node=%d with node_name: %s", i, node["name"])
             output_tensors.append(self._execute_next_node(i))
-
         self.debug_datum.update_output_tensors(output_tensors)
 
     def _run_debug(self):

@@ -218,7 +218,7 @@ class GraphExecutorDebug : public GraphExecutor {
    * This is costly operation and suggest to use only for debug porpose.
    *
    * \param index: The index of the node.
-   * \return Node output array.
+   * \return Node outputs array.
    */
   Array<NDArray> DebugGetNodeOutput(int index) {
     ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
@@ -240,17 +240,17 @@ class GraphExecutorDebug : public GraphExecutor {
    * previous nodes has been executed and return output of index-th node.
    *
    * \param node_ind: The index of the node.
-   * \return Node output array.
+   * \return Node outputs array.
    */
   Array<NDArray> ExecuteNextNodeGetOutputs(int node_ind) {
     ICHECK_LT(static_cast<size_t>(node_ind), op_execs_.size());
+    Array<NDArray> node_outputs;
     if (op_execs_[node_ind]) op_execs_[node_ind]();
-    Array<NDArray> results;
 
     for (size_t j = 0; j < NodeGetNumOutputs(node_ind); j++) {
-      results.push_back(data_entry_[entry_id(node_ind, j)].CopyTo({kDLCPU, 0}));
+      node_outputs.push_back(data_entry_[entry_id(node_ind, j)].CopyTo({kDLCPU, 0}));
     }
-    return results;
+    return node_outputs;
   }
 
   /*!

@@ -20,7 +20,7 @@ import json
 import os
 import numpy as np
 import tvm
-
+from tvm.ir.container import Array
 
 GRAPH_DUMP_FILE_NAME = "_tvmdbg_graph_dump.json"
 CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
@@ -126,8 +126,18 @@ class DebugResult(object):
         return output_tensors
 
     def update_output_tensors(self, tensors):
-        """Update output tensors list"""
-        self._output_tensor_list = tensors
+        """Update output tensors list
+
+        Parameters
+        ----------
+        tensors : list[Array<NDArray>] / Array<Array<NDArray>>
+        """
+        if not isinstance(tensors, (Array, list)):
+            AttributeError("Tensor with incorrect type.")
+        
+        for node in tensors:
+            for output_array in node:
+                self._output_tensor_list.append(output_array)
 
     def dump_output_tensor(self):
         """Dump the outputs to a temporary folder, the tensors are in numpy format"""
