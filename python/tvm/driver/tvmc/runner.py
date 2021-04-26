@@ -33,6 +33,7 @@ from . import common
 from .model import TVMCPackage, TVMCResult
 from .common import TVMCException
 from .main import register_parser
+from .result_utils import get_top_results
 
 
 # pylint: disable=invalid-name
@@ -136,7 +137,7 @@ def drive_run(args):
         print(stat_table)
 
     if args.print_top:
-        top_results = result.get_top_results(args.print_top)
+        top_results = get_top_results(result, args.print_top)
         # print here is intentional
         print(top_results)
 

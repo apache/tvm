@@ -19,6 +19,7 @@ import numpy as np
 
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCResult
+from tvm.driver.tvmc.result_utils import get_top_results
 
 
 def test_generate_tensor_data_zeros():
@@ -60,7 +61,7 @@ def test_get_top_results_keep_results():
     fake_outputs = {"output_0": np.array([[1, 2, 3, 4], [5, 6, 7, 8]])}
     fake_result = TVMCResult(outputs=fake_outputs, times=None)
     number_of_results_wanted = 3
-    sut = fake_result.get_top_results(number_of_results_wanted)
+    sut = get_top_results(fake_result, number_of_results_wanted)
 
     expected_number_of_lines = 2
     assert len(sut) == expected_number_of_lines
@@ -85,7 +86,7 @@ def test_run_tflite_module__with_profile__valid_input(tflite_compiled_model, ima
     )
 
     # collect the top 5 results
-    top_5_results = result.get_top_results(5)
+    top_5_results = get_top_results(result, 5)
     top_5_ids = top_5_results[0]
 
     # IDs were collected from this reference:

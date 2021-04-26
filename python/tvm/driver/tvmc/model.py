@@ -333,31 +333,6 @@ class TVMCResult(object):
 
         return "%s\n%s\n" % (header, stats)
 
-    def get_top_results(self, max_results: int):
-        """Return the top n results from the output tensor.
-
-        This function is primarily for image classification and will
-        not necessarily generalize.
-
-        Parameters
-        ----------
-        max_results : int
-            Number of results to return
-
-        Returns
-        -------
-        top_results : np.array
-            Results array of shape (2, n).
-            The first row is the indices and the second is the values.
-
-        """
-        output = np.copy(self.outputs["output_0"])
-        sorted_labels = output.argsort()[0][-max_results:][::-1]
-        output.sort()
-        sorted_values = output[0][-max_results:][::-1]
-        top_results = np.array([sorted_labels, sorted_values])
-        return top_results
-
     def get_output(self, name: str):
         """A helper function to grab one of the outputs by name.
 
