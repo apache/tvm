@@ -172,7 +172,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         # init the debug dumping environment
         self.debug_datum = debug_result.DebugResult(graph_json, self._dump_path)
 
-    def _execute_next_node(self, node_index):
+    def _execute_next_node(self, node_index, output_index):
         """Execute node assuming all previous nodes has been executed.
         Return the output of this node.
 
@@ -180,12 +180,14 @@ class GraphModuleDebug(graph_executor.GraphModule):
         ----------
         node_index : int
             The node index
+        output_index: int
+            The node output index
         Return
         ------
         output_tensors : Array<NDarray>
             Array of output tensors
         """
-        output_tensors = self._execute_next_node_get_output(node_index)
+        output_tensors = self._execute_next_node_get_output(node_index, output_index)
         return output_tensors
 
     def _run_per_layer(self):
@@ -195,8 +197,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
         """
         output_tensors = []
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
-            logging.info("running node=%d with node_name: %s", i, node["name"])
-            output_tensors.append(self._execute_next_node(i))
+            num_outputs = self.debug_datum.get_graph_node_output_num(node)
+            for j in range(num_outputs):
+                logging.info("running node=%d, output_ind=%d, with node_name: %s", i, j, node["name"])
+                output_tensors.append(self._execute_next_node(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
     def _run_debug(self):

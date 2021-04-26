@@ -240,17 +240,13 @@ class GraphExecutorDebug : public GraphExecutor {
    * previous nodes has been executed and return output of index-th node.
    *
    * \param node_ind: The index of the node.
+   * \param output_ind: The output index of this node.
    * \return Node outputs array.
    */
-  Array<NDArray> ExecuteNextNodeGetOutputs(int node_ind) {
+  NDArray ExecuteNextNodeGetOutputs(int node_ind, int output_ind) {
     ICHECK_LT(static_cast<size_t>(node_ind), op_execs_.size());
-    Array<NDArray> node_outputs;
     if (op_execs_[node_ind]) op_execs_[node_ind]();
-
-    for (size_t j = 0; j < NodeGetNumOutputs(node_ind); j++) {
-      node_outputs.push_back(data_entry_[entry_id(node_ind, j)].CopyTo({kDLCPU, 0}));
-    }
-    return node_outputs;
+    return data_entry_[entry_id(node_ind, output_ind)].CopyTo({kDLCPU, 0});
   }
 
   /*!
@@ -356,7 +352,7 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
     });
   } else if (name == "execute_next_node_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->ExecuteNextNodeGetOutputs(args[0]);
+      *rv = this->ExecuteNextNodeGetOutputs(args[0], args[1]);
     });
   } else if (name == "run_get_layers_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
