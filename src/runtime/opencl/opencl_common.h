@@ -322,6 +322,21 @@ class OpenCLThreadEntry {
   // get the global workspace
   static OpenCLThreadEntry* ThreadLocal();
 };
+
+/*! \brief OpenCL runtime buffer structure with tracked memory layout */
+struct OpenCLBuffer {
+  enum class MemoryLayout {
+    kGlobalRowMajor,
+    kTexture2DActivation,
+    kTexture2DWeight,
+    kUndefined,
+  };
+  OpenCLBuffer() = default;
+  OpenCLBuffer(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
+  static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
+  cl_mem buffer{nullptr};
+  MemoryLayout layout{MemoryLayout::kGlobalRowMajor};
+};
 }  // namespace cl
 
 // Module to support thread-safe multi-device execution.
