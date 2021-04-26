@@ -59,6 +59,7 @@ struct CollectAttrs : public AttrVisitor {
  */
 class LabelOpsMutator : public MixedModeMutator {
  private:
+  using MixedModeMutator::VisitExpr_;
   std::unordered_map<std::string, ObjectRef> body_attrs;
   Expr VisitExpr_(const FunctionNode* op) final {
     // body_attrs collects attrs from Calls in the body of this Function. Reset
