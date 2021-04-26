@@ -134,7 +134,7 @@ class DebugResult(object):
         """
         if not isinstance(tensors, (Array, list)):
             AttributeError("Tensor with incorrect type.")
-        
+
         for node in tensors:
             for output_array in node:
                 self._output_tensor_list.append(output_array)
