@@ -49,7 +49,7 @@ public class GraphModule {
     fgetInput = module.getFunction("get_input");
     fgetOutput = module.getFunction("get_output");
     try {
-      fdebugGetOutput = module.getFunction("debug_get_output");
+      fdebugGetOutput = module.getFunction("debug_get_node_output");
     } catch (IllegalArgumentException ignored) {
       // ignore
     }
@@ -139,28 +139,13 @@ public class GraphModule {
 
   /**
    * Run graph up to node and get the output to out.
-   * @param node The node name.
-   * @param out The output array container.
-   * @return out.
-   */
-  public NDArray debugGetOutput(String node, NDArray out) {
-    if (fdebugGetOutput != null) {
-      fdebugGetOutput.pushArg(node).pushArg(out).invoke();
-    } else {
-      throw new RuntimeException("Please compile runtime with USE_GRAPH_EXECUTOR_DEBUG = 0");
-    }
-    return out;
-  }
-
-  /**
-   * Run graph up to node and get the output to out.
    * @param node The node index.
-   * @param out The output array container.
-   * @return out.
+   * @return out The output array container.
    */
-  public NDArray debugGetOutput(int node, NDArray out) {
+  public NDArray debugGetOutput(int node) {
+    Array<NDArray> out;
     if (fdebugGetOutput != null) {
-      fdebugGetOutput.pushArg(node).pushArg(out).invoke();
+      out = fdebugGetOutput.pushArg(node).pushArg(out).invoke();
     } else {
       throw new RuntimeException("Please compile runtime with USE_GRAPH_EXECUTOR_DEBUG = 0");
     }
