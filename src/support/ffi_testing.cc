@@ -81,11 +81,6 @@ TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue
   *ret = dev;
 });
 
-TVM_REGISTER_GLOBAL("rpc.test.addone").set_body([](TVMArgs args, TVMRetValue* ret) {
-  int x = args[0];
-  *ret = x + 1;
-});
-
 TVM_REGISTER_GLOBAL("rpc.test.strcat").set_body([](TVMArgs args, TVMRetValue* ret) {
   std::stringstream ss;
   std::string s1 = args[0];
