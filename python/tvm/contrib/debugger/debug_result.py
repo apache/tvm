@@ -20,7 +20,6 @@ import json
 import os
 import numpy as np
 import tvm
-from tvm.ir.container import Array
 
 GRAPH_DUMP_FILE_NAME = "_tvmdbg_graph_dump.json"
 CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
