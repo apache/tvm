@@ -34,7 +34,6 @@ import logging
 import threading
 import multiprocessing
 import time
-import tvm._ffi
 import errno
 import tvm._ffi
 
@@ -335,7 +334,7 @@ class PopenRPCServerState(object):
                     self.port = my_port
                     break
                 except socket.error as sock_err:
-                    if sock_err.errno in [98, 48]:
+                    if sock_err.errno in [errno.EADDRINUSE]:
                         continue
                     raise sock_err
             if not self.port:
