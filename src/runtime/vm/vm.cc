@@ -145,6 +145,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       if (this->return_register_.as<ADTObj>()) {
         return Downcast<NDArray>(Downcast<ADT>(this->return_register_)[index]);
       } else {
+        CHECK_EQ(index, 0) << "VM output contains only one item, but you are trying to get the "
+                           << index << "th.";
         return Downcast<NDArray>(this->return_register_);
       }
     });
