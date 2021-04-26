@@ -130,18 +130,13 @@ class DebugResult(object):
 
         Parameters
         ----------
-        tensors : list[NDArray] / Array<Array<NDArray>>
+        tensors : list[NDArray]
         """
-        if not isinstance(tensors, (Array, list)):
-            AttributeError("Tensor with incorrect type.")
+        if not isinstance(tensors, list):
+            AttributeError("tensors with incorrect type.")
 
-        if isinstance(tensors, list):
-            for output_array in tensors:
-                self._output_tensor_list.append(output_array)
-        else:
-            for node in tensors:
-                for output_array in node:
-                    self._output_tensor_list.append(output_array)
+        for output_array in tensors:
+            self._output_tensor_list.append(output_array)
 
     def dump_output_tensor(self):
         """Dump the outputs to a temporary folder, the tensors are in numpy format"""

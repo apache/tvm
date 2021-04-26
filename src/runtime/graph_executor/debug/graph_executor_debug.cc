@@ -211,29 +211,6 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
-   * \brief Execute network to a specific node and return result.
-   *
-   * This method will do a partial run of the the graph
-   * from begining upto the index-th node and return output of index-th node.
-   * This is costly operation and suggest to use only for debug porpose.
-   *
-   * \param index: The index of the node.
-   * \return Node outputs array.
-   */
-  Array<NDArray> DebugGetNodeOutput(int index) {
-    ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
-    Array<NDArray> results;
-
-    for (size_t i = 0; i <= static_cast<size_t>(index); i++) {
-      if (op_execs_[i]) op_execs_[i]();
-    }
-    for (size_t j = 0; j < NodeGetNumOutputs(index); j++) {
-      results.push_back(data_entry_[entry_id(index, j)].CopyTo({kDLCPU, 0}));
-    }
-    return results;
-  }
-
-  /*!
    * \brief Execute next node in the network.
    *
    * This method will execute next node assuming
@@ -247,28 +224,6 @@ class GraphExecutorDebug : public GraphExecutor {
     ICHECK_LT(static_cast<size_t>(node_ind), op_execs_.size());
     if (op_execs_[node_ind]) op_execs_[node_ind]();
     return data_entry_[entry_id(node_ind, output_ind)].CopyTo({kDLCPU, 0});
-  }
-
-  /*!
-   * \brief Execute full network and store each layer outputs.
-   *
-   * This method will execute a full network and store layer
-   * outputs along execution.
-   *
-   * \return All node outputs.
-   */
-  Array<Array<NDArray>> RunAndGetLayersOutputs() {
-    Array<Array<NDArray>> results;
-    for (size_t i = 0; i < op_execs_.size(); i++) {
-      Array<NDArray> node_outputs;
-      if (op_execs_[i]) op_execs_[i]();
-
-      for (size_t j = 0; j < NodeGetNumOutputs(i); j++) {
-        node_outputs.push_back(data_entry_[entry_id(i, j)].CopyTo({kDLCPU, 0}));
-      }
-      results.push_back(node_outputs);
-    }
-    return results;
   }
 
   /*!
@@ -346,25 +301,17 @@ class GraphExecutorDebug : public GraphExecutor {
 PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
-  if (name == "debug_get_node_output") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->DebugGetNodeOutput(args[0]);
-    });
-  } else if (name == "execute_next_node_get_output") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->ExecuteNextNodeGetOutputs(args[0], args[1]);
-    });
-  } else if (name == "run_get_layers_outputs") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->RunAndGetLayersOutputs();
-    });
-  } else if (name == "debug_get_output") {
+  if (name == "debug_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
         this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
       } else {
         this->DebugGetNodeOutput(args[0], args[1]);
       }
+    });
+  } else if (name == "execute_next_node_get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->ExecuteNextNodeGetOutputs(args[0], args[1]);
     });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
