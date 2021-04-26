@@ -94,7 +94,7 @@ class LocalBuilder(Builder):
             elif build_func == "ndk":
                 build_func = ndk.create_shared
             elif build_func == "stackvm":
-                build_func = stackvm.stackvm
+                build_func = stackvm.build
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)

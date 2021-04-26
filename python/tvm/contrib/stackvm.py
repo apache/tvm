@@ -21,7 +21,7 @@ from __future__ import absolute_import as _abs
 import shutil
 
 
-def stackvm(output, files):
+def build(output, files):
     """Simply copy StackVM output to the destination.
 
     Parameters
@@ -42,4 +42,4 @@ def stackvm(output, files):
 
 
 # assign output format
-stackvm.output_format = "stackvm"
+build.output_format = "stackvm"
