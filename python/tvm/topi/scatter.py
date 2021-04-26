@@ -199,30 +199,31 @@ def scatter(data, indices, updates, axis=0):
     raise ValueError("scatter only support for 1-4 dimensions")
 
 
-def _verify_scatter_nd_inputs(data, indices, shape):
-    mdim = int(indices.shape[0])
-    assert mdim <= len(shape), (
-        f"The first dimension of the indices ({mdim}) must be less than or equal to "
-        f"the length of the shape of the output ({len(shape)})."
-    )
-    for i in range(len(indices.shape) - 1):
-        assert indices.shape[i + 1] == data.shape[i], (
-            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
-            f"data[{i}] ({data.shape[i]})."
-        )
-    for i in range(mdim, len(shape)):
-        data_ind = i - mdim + len(indices.shape) - 1
-        assert data.shape[data_ind] == shape[i], (
-            f"Dimension of data[{data_ind}] ({data.shape[data_ind]}) must equal dimension "
-            f"of out_shape[{i}] ({shape[i]})."
-        )
+# TODO(mbrookhart): move to type rel
+# def _verify_scatter_nd_inputs(data, indices, shape):
+#    mdim = int(indices.shape[0])
+#    assert mdim <= len(shape), (
+#        f"The first dimension of the indices ({mdim}) must be less than or equal to "
+#        f"the length of the shape of the output ({len(shape)})."
+#    )
+#    for i in range(len(indices.shape) - 1):
+#        assert indices.shape[i + 1] == data.shape[i], (
+#            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
+#            f"data[{i}] ({data.shape[i]})."
+#        )
+#    for i in range(mdim, len(shape)):
+#        data_ind = i - mdim + len(indices.shape) - 1
+#        assert data.shape[data_ind] == shape[i], (
+#            f"Dimension of data[{data_ind}] ({data.shape[data_ind]}) must equal dimension "
+#            f"of out_shape[{i}] ({shape[i]})."
+#        )
+#
+#    assert (
+#        "int" in indices.dtype
+#    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
 
-    assert (
-        "int" in indices.dtype
-    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
 
-
-def scatter_nd(data, indices, shape):
+def scatter_nd(data, indices, updates, mode):
     """Scatter elements from a n-dimension array.
 
     Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), indices with shape
@@ -248,29 +249,30 @@ def scatter_nd(data, indices, shape):
     indices : tvm.te.Tensor
         The indices of the values to extract.
 
-    shape : Sequence[int]
-        The output shape. This must be specified because it cannot be inferred.
+    updates : tvm.te.Tensor
+        The updates to apply at the Indices
+
+    mode : string
+        The update mode for the algorith, either "update" or "add"
 
     Returns
     -------
     ret : tvm.te.Tensor
     """
-    _verify_scatter_nd_inputs(data, indices, shape)
 
-    def gen_ir(data_ptr, indices_ptr, out_ptr):
+    def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         ib = ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
         indices = ib.buffer_ptr(indices_ptr)
+        updates = ib.buffer_ptr(updates_ptr)
         out = ib.buffer_ptr(out_ptr)
 
-        # zero data
-        # TODO(tkonolige): could we use topi.full to zero it instead?
         fused_shape = 1
-        for i in shape:
+        for i in data.shape:
             fused_shape *= i
         with ib.for_range(0, fused_shape) as i:
-            out[i] = Cast(data_ptr.dtype, 0)
+            out[i] = data[i]
 
         # We combine all the indices dimensions but the first one into a single
         # dimension so we can iterate it in single loop instead of an arbitrary
@@ -300,15 +302,20 @@ def scatter_nd(data, indices, shape):
                         )
                     )
                     offset *= shape[l]
-                out[index] += data[i * fused_data_dimension + j]
+                if mode == "add":
+                    out[index] += updates[i * fused_data_dimension + j]
+                elif mode == "update":
+                    out[index] = updates[i * fused_data_dimension + j]
+                else:
+                    raise NotImplementedError("scatter_nd mode not supported:", mode)
 
         return ib.get()
 
     out_buf = decl_buffer(shape, data.dtype, "out_buf")
     return extern(
         [shape],
-        [data, indices],
-        lambda ins, outs: gen_ir(ins[0], ins[1], outs[0]),
+        [data, indices, updates],
+        lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
         dtype=data.dtype,
         out_buffers=[out_buf],
         name="scatter_nd_generic",
