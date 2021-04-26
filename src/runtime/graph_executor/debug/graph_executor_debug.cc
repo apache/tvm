@@ -222,7 +222,17 @@ class GraphExecutorDebug : public GraphExecutor {
    */
   NDArray ExecuteNextNodeGetOutputs(int node_ind, int output_ind) {
     ICHECK_LT(static_cast<size_t>(node_ind), op_execs_.size());
-    if (op_execs_[node_ind]) op_execs_[node_ind]();
+
+    // Reset execution.
+    if (node_ind < 0) {
+      last_executed_node_ = -1;
+      return NDArray();
+    }
+
+    if (node_ind > last_executed_node_) {
+      if (op_execs_[node_ind]) op_execs_[node_ind]();
+      last_executed_node_ = node_ind;
+    }
     return data_entry_[entry_id(node_ind, output_ind)].CopyTo({kDLCPU, 0});
   }
 
@@ -291,6 +301,9 @@ class GraphExecutorDebug : public GraphExecutor {
     prof.Stop();
     return prof.Report();
   }
+
+ private:
+  int last_executed_node_ = -1;
 };
 
 /*!
