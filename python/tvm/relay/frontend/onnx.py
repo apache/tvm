@@ -1336,7 +1336,9 @@ class ScatterND(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         indices_dim = len(infer_shape(inputs[1]))
         axes = list(range(indices_dim))
-        return _op.scatter_nd(inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update")
+        return _op.scatter_nd(
+            inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update"
+        )
 
 
 class Greater(OnnxOpConverter):

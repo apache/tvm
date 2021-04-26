@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Scatter operator"""
-from ..tir import decl_buffer, ir_builder, Cast, AssertStmt, StringImm, Evaluate
+from ..tir import decl_buffer, ir_builder, AssertStmt, StringImm, Evaluate
 from ..te import extern, hybrid
 
 
