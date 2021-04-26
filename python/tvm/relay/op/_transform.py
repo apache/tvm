@@ -145,7 +145,7 @@ _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 @_reg.register_compute("scatter_nd")
 def compute_scatter_nd(attrs, inputs, output_type):
     """Compute definition of scatter_nd"""
-    return [topi.scatter_nd(inputs[0], inputs[1], attrs.out_shape)]
+    return [topi.scatter_nd(inputs[0], inputs[1], inputs[2], attrs.mode)]
 
 
 _reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
