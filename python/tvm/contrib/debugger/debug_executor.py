@@ -101,7 +101,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._run_individual = module["run_individual"]
         self._debug_get_output = module["debug_get_output"]
         self._execute_node = module["execute_node"]
-        self._get_output = module["get_output"]
+        self._get_node_output = module["get_node_output"]
         self._profile = module["profile"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
@@ -203,7 +203,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 logging.info(
                     "running node=%d, output_ind=%d, with node_name: %s", i, j, node["name"]
                 )
-                output_tensors.append(self._get_output(i, j))
+                output_tensors.append(self._get_node_output(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
     def _run_debug(self):

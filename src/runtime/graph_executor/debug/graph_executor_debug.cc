@@ -239,7 +239,7 @@ class GraphExecutorDebug : public GraphExecutor {
    * \param out_ind: The index of the output.
    * \return Output array.
    */
-  NDArray GetOutput(int node, int out_ind) {
+  NDArray GetNodeOutput(int node, int out_ind) {
     ICHECK_EQ(node, last_executed_node_);
     ICHECK_LT(entry_id(node, out_ind), data_entry_.size());
     return data_entry_[entry_id(node, out_ind)].CopyTo({kDLCPU, 0});
@@ -334,9 +334,9 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
   } else if (name == "execute_node") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->ExecuteNode(args[0]); });
-  } else if (name == "get_output") {
+  } else if (name == "get_node_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetOutput(args[0], args[1]);
+      *rv = this->GetNodeOutput(args[0], args[1]);
     });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
