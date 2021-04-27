@@ -409,13 +409,10 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
         if "spatial_bitserial_conv_nhwc" in op.tag:
             output = op.output(0)
             conv_out = op.input_tensors[0]
             kernel_vec = conv_out.op.input_tensors[0]
-            kernel_q = kernel_vec.op.input_tensors[0]
             data_vec = conv_out.op.input_tensors[1]
             data_q = data_vec.op.input_tensors[0]
             data = data_q.op.input_tensors[0]
