@@ -983,7 +983,7 @@ class PyTorchOpConverter:
             else:
                 conv_op = _op.nn.conv1d_transpose
             output_padding = tuple(inputs[7])
-            additional_arguments['output_padding'] = output_padding
+            additional_arguments["output_padding"] = output_padding
 
         else:
             if len(kernel_size) == 3:
