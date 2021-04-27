@@ -494,6 +494,7 @@ inline Tensor global_pool(const Tensor& x, PoolType pool_type, const std::string
  * \param x The input tensor
  * \param kernel_size Vector of N ints
  * \param stride_size Vector of N ints
+ * \param dilation_size Vector of N ints
  * \param padding_size Vector of N*2 ints [head_pad_d1, head_pad_d2, ...,
  *        head_pad_dN, tail_pad_d1, tail_pad_d2, ..., tail_pad_dN]
  * \param pool_type The type of pooling operator
@@ -649,9 +650,10 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
  *        while NCW16w is not.
  *        See \a layout for more information of the layout string convention.
  * \param x The input tensor.
- * \param kernel_size Vector of three ints: {kernel_width}
- * \param stride_size Vector of three ints: {stride_width}
- * \param padding_size Vector of six ints: {head_pad_width, tail_pad_width}
+ * \param kernel_size Vector of one int: {kernel_width}
+ * \param stride_size Vector of one int: {stride_width}
+ * \param dilation_size Vector of one int: {dilation_width}
+ * \param padding_size Vector of two ints: {head_pad_width, tail_pad_width}
  * \param pool_type The type of pooling operator
  * \param ceil_mode Whether to use ceil when calculating the output size
  * \param layout The input layout. Pooling supports any layout as long as 'W' appears.
@@ -691,6 +693,7 @@ inline Tensor pool1d(const Tensor& x, const Array<PrimExpr>& kernel_size,
  * \param x The input tensor.
  * \param kernel_size Vector of two ints: {kernel_height, kernel_width}
  * \param stride_size Vector of two ints: {stride_height, stride_width}
+ * \param dilation_size Vector of two ints: {dilation_height, dilation_width}
  * \param padding_size Vector of two ints: {padding_height, padding_width}
  * \param pool_type The type of pooling operator
  * \param ceil_mode Whether to use ceil when calculating the output size
@@ -731,6 +734,7 @@ inline Tensor pool2d(const Tensor& x, const Array<PrimExpr>& kernel_size,
  * \param x The input tensor.
  * \param kernel_size Vector of three ints: {kernel_depth, kernel_height, kernel_width}
  * \param stride_size Vector of three ints: {stride_depth, stride_height, stride_width}
+ * \param dilation_size Vector of three ints: {dilation_depth, dilation_height, dilation_width}
  * \param padding_size Vector of six ints: {head_pad_depth, head_pad_height, head_pad_width,
  *        tail_pad_depth, tail_pad_height, tail_pad_width}
  * \param pool_type The type of pooling operator

@@ -1,6 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name, unused-argument, unused-variable
+"""Ground truth max and average pooling operators in python."""
 import itertools
 import math
-from typing import *
+from typing import List, Tuple
 
 import numpy as np
 import tvm
@@ -14,6 +32,14 @@ def get_slice(
     strides: Tuple[int],
     dilation: Tuple[int],
 ) -> List[slice]:
+    """
+    Programmatically create a slice object of the right dimensions for pad_np.
+
+    We assume pad_np's first two dimensions are not spatial and are not touched by the pad.
+
+    pad_np[slice] should give the elements of the data that a pool operation will use for the
+    step given in dim_coord.
+    """
     slices = [slice(None)] * spatial_dimensions
 
     for nd in range(spatial_dimensions):
@@ -36,6 +62,7 @@ def pad_tensor(
     padding_after: List[int],
     dtype: str,
 ) -> np.array:
+    """Pad the spatial dimensions of the given array."""
     orig_shape = list(np_arr.shape)
     padded_shape = list(np_arr.shape)
     n = len(orig_shape)
@@ -53,17 +80,18 @@ def pad_tensor(
 
 
 def poolnd_python(
-    np_data,
-    kernel,
-    strides,
-    dilation,
-    padding_before,
-    padding_after,
-    pool_type,
-    count_include_pad=True,
-    ceil_mode=False,
-    dtype="float32",
-):
+    np_data: np.array,
+    kernel: Tuple[int],
+    strides: Tuple[int],
+    dilation: Tuple[int],
+    padding_before: Tuple[int],
+    padding_after: Tuple[int],
+    pool_type: str,
+    count_include_pad: bool = True,
+    ceil_mode: bool = False,
+    dtype: str = "float32",
+) -> np.array:
+    """Ground truth pooling operator impelmented in numpy."""
     out_shape = [np_data.shape[0], np_data.shape[1]]
     for dim in range(2, len(np_data.shape)):
         i = dim - 2
@@ -84,7 +112,7 @@ def poolnd_python(
             out_shape.append(int(math.floor(val) + 1))
     out_shape = tuple(out_shape)
 
-    # Create a padded array, and a boolean mask showing which values are padded values and which are not
+    # Create a padded array, and a boolean mask showing which values are padded values
     pad_value = 0
     if pool_type == "max" and not count_include_pad:
         pad_value = tvm.te.min_value(dtype).value
