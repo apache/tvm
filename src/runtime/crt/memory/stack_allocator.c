@@ -31,6 +31,9 @@ void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_
   uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
   uint8_t* workspace_end = tvm_runtime_workspace->workspace + tvm_runtime_workspace->workspace_size;
 #ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
+  if (next_alloc + STACK_ALLOCATOR_TAG_SIZE_BYTES > workspace_end) {
+    return NULL;
+  }
   const uint32_t total_size = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES);
   *((uint32_t*)next_alloc) = total_size ^ STACK_ALLOCATOR_TAG;
   next_alloc += STACK_ALLOCATOR_TAG_SIZE_BYTES;

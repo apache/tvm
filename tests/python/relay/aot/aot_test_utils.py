@@ -61,6 +61,7 @@ def create_main(test_name, input_list, output_list, output_path):
     raw_path = file_path.with_suffix(".c").resolve()
     with open(raw_path, "w") as main_file:
         main_file.write("#include <stdio.h>\n")
+        main_file.write("#include <math.h>\n")
         main_file.write('#include "tvm/runtime/crt/internal/aot_executor/aot_executor.h"\n')
         main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
         main_file.write("#define WORKSPACE_SIZE (16384*1024)\n")
@@ -108,11 +109,18 @@ TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int ove
         main_file.write("tvm_runtime_run(&network, inputs, outputs);")
 
         for i in range(0, len(output_list)):
+            is_real_dtype = output_list[i].dtype == "float32"
             main_file.write("for (int i = 0; i<output_data%i_len; i++){\n" % i)
-            main_file.write(
-                'if (output_data%s[i]!=expected_output_data%s[i]){printf("ko\\n");return -1;}\n'
-                % (i, i)
-            )
+            if is_real_dtype:
+                main_file.write(
+                    'if (fabs(output_data%s[i]-expected_output_data%s[i]) > 0.001f){printf("ko\\n");return -1;}\n'
+                    % (i, i)
+                )
+            else:
+                main_file.write(
+                    'if (output_data%s[i]!=expected_output_data%s[i]){printf("ko\\n");return -1;}\n'
+                    % (i, i)
+                )
             main_file.write("}\n")
 
         main_file.write('printf("ok\\n");')

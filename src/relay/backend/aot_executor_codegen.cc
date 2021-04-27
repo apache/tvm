@@ -43,8 +43,6 @@ namespace relay {
 namespace backend {
 
 using IntegerArray = Array<Integer>;
-using ShapeVector = std::vector<std::vector<int64_t>>;
-using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using TargetsMap = std::unordered_map<int, Target>;
 
 class AotReturnSidVisitor : public ExprVisitor {
