@@ -146,8 +146,22 @@ def test_tensorize_vadd():
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [x, y, z])
 
+    def check_compute_reuse():
+        x, y, z = add(32)
+
+        def _intrin_vadd():
+            def _intrin_func(ins, outs):
+                return tvm.tir.call_packed("vadd", ins[0], ins[1], outs[0])
+
+            return tvm.te.decl_tensor_intrin(z.op, _intrin_func)
+
+        s = tvm.te.create_schedule(z.op)
+        s[z].tensorize(z.op.axis[0], _intrin_vadd())
+        tvm.lower(s, [x, y, z])
+
     check(128, 16)
     check_cache_write(129, 16)
+    check_compute_reuse()
 
 
 def test_tensorize_matmul():

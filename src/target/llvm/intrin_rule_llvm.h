@@ -38,8 +38,7 @@ namespace tvm {
 namespace codegen {
 // num_signature means number of arguments used to query signature
 template <unsigned id, int num_signature>
-inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
-  PrimExpr e = targs[0];
+inline PrimExpr DispatchLLVMPureIntrin(const PrimExpr& e) {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
@@ -50,12 +49,11 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), cargs);
+  return tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), cargs);
 }
 
 template <unsigned id, int num_signature>
-inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
-  PrimExpr e = targs[0];
+inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
@@ -65,7 +63,7 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, tir::builtin::call_llvm_intrin(), cargs);
+  return tir::Call(call->dtype, tir::builtin::call_llvm_intrin(), cargs);
 }
 
 }  // namespace codegen

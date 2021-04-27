@@ -21,51 +21,74 @@
  * \file intrin_rule_metal.cc
  * \brief Metal intrinsic rules.
  */
+#include <tvm/tir/op_attr_types.h>
+
 #include "../intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
+using tir::FLowerIntrinsic;
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.floor").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.floor")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.ceil").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.ceil")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.trunc").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.trunc")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fabs").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.fabs")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.round").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.round")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
+                                                     DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp2").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.exp2")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp10").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.exp10")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
+                                                     DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log2").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.log2")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log10").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.log10")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.tanh").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.tanh")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sqrt").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.sqrt")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.pow").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
+                                                     DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.popcount").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.popcount")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fmod").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.fmod")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sin").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
+                                                     DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sinh").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.sinh")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.cos").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
+                                                     DispatchPureExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.cosh").set_body(DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tir.cosh")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 }  // namespace intrin
 }  // namespace codegen

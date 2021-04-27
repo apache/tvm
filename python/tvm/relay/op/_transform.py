@@ -1018,9 +1018,15 @@ def where_shape_func(attrs, inputs, _):
     """
     Shape func for where.
     """
-    cond_shape = inputs[0]
-    x_shape = inputs[1]
-    y_shape = inputs[2]
+
+    def ensure_tensor(tensor):
+        if len(tensor.shape) == 0:
+            return topi.full((1,), "int64", 1)
+        return tensor
+
+    cond_shape = ensure_tensor(inputs[0])
+    x_shape = ensure_tensor(inputs[1])
+    y_shape = ensure_tensor(inputs[2])
 
     bcast_shape = _broadcast_shape_tensors(x_shape, y_shape)
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
