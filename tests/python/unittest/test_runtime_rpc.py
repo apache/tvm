@@ -321,7 +321,7 @@ def test_rpc_remote_module():
 def test_rpc_return_func():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
-    f1 = client.get_function("rpc.test.remote_func")
+    f1 = client.get_function("rpc.test.add_to_lhs")
     fadd = f1(10)
     assert fadd(12) == 22
 
