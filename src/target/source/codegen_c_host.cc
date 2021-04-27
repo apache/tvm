@@ -268,14 +268,17 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     // NOTE: cannot rely on GetUnique for global decl_stream declarations
     // because it is reset between AddFunction().
     std::string packed_func_name = func_name + "_packed";
-    if (declared_globals_.insert(packed_func_name).second) {
-      // Still reserve the name among unique names.
-      ICHECK(GetUniqueName(packed_func_name) == packed_func_name)
-          << "Expected name " << packed_func_name << " to not be taken";
-      decl_stream << "static void* " << packed_func_name << " = NULL;\n";
+    std::string unique_name;
+    auto it = declared_globals_.find(packed_func_name);
+    if (it != declared_globals_.end()) {
+      unique_name = it->second;
+    } else {
+      unique_name = GetUniqueName(packed_func_name);
+      declared_globals_[packed_func_name] = unique_name;
+      decl_stream << "static void* " << unique_name << " = NULL;\n";
     }
-    this->PrintGetFuncFromBackend(func_name, packed_func_name);
-    this->PrintFuncCall(packed_func_name, num_args);
+    this->PrintGetFuncFromBackend(func_name, unique_name);
+    this->PrintFuncCall(unique_name, num_args);
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";

@@ -444,6 +444,10 @@ def load_module(path, fmt=""):
     This function will automatically call
     cc.create_shared if the path is in format .o or .tar
     """
+    if os.path.isfile(path):
+        path = os.path.realpath(path)
+    else:
+        raise ValueError("cannot find file %s" % path)
 
     # c++ compiler/linker
     cc = os.environ.get("CXX", "g++")

@@ -39,7 +39,7 @@ import tvm.ir.transform
 from tvm import nd, rpc as _rpc
 from tvm.error import TVMError
 from tvm.driver import build
-from tvm.contrib import nvcc, ndk, tar
+from tvm.contrib import nvcc, ndk, tar, stackvm
 from tvm.target import Target
 
 from ..utils import get_const_tuple
@@ -81,6 +81,7 @@ class LocalBuilder(Builder):
     build_func: callable or str
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
+        If id 'stackvm', use function for stackvm
         If is callable, use it as custom build function, expect lib_format field.
     """
 
@@ -92,6 +93,8 @@ class LocalBuilder(Builder):
                 build_func = tar.tar
             elif build_func == "ndk":
                 build_func = ndk.create_shared
+            elif build_func == "stackvm":
+                build_func = stackvm.build
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
@@ -458,7 +461,7 @@ class _WrappedBuildFunc:
     Parameters
     ----------
     build_func : The compilation function
-        We expect fcompile to contain an attr "output_format"
+        We expect fcompile to contain an attr "output_format".
 
     Returns
     -------

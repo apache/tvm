@@ -21,6 +21,7 @@ import tvm
 from tvm import te
 from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
+from tvm.ir import register_intrin_lowering
 from tvm.tir import if_then_else
 from .sort import argsort, argsort_thrust
 from .scan import exclusive_scan
@@ -51,11 +52,9 @@ def opencl_atomic_add_rule(op):
     raise RuntimeError("only support int32")
 
 
-tvm.target.intrin.register_intrin_rule("cuda", "atomic_add", cuda_atomic_add_rule, override=True)
+register_intrin_lowering("tir.atomic_add", target="cuda", f=cuda_atomic_add_rule, level=99)
 
-tvm.target.intrin.register_intrin_rule(
-    "opencl", "atomic_add", opencl_atomic_add_rule, override=True
-)
+register_intrin_lowering("tir.atomic_add", target="opencl", f=opencl_atomic_add_rule, level=99)
 
 
 def atomic_add(x, y):

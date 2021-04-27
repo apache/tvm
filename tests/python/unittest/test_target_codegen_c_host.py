@@ -191,6 +191,42 @@ def test_round():
     check_c()
 
 
+def test_call_packed():
+    def fake_func(fname="fake.func"):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.pointer("float32", name="A")
+        fake_func1 = tvm.tir.call_packed(fname, A[0])
+
+        ib.emit(fake_func1)
+        body = ib.get()
+        return A, body
+
+    def check_global_packed_func():
+        fname = "fake.func"
+        A, body = fake_func(fname)
+        func1 = tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "func1")
+        B, body = fake_func()
+        func2 = tvm.tir.PrimFunc([B], body).with_attr("global_symbol", "func2")
+        mod = tvm.IRModule({"fake_func1": func1, "fake_func2": func2})
+        fcode = tvm.build(mod, None, "c")
+        src = fcode.get_source()
+
+        # there are two locations calling the packed func
+        assert src.count(fname) == 2
+
+        suffix = "_packed"
+        packed_func_name = fname + suffix
+        # func name will be standardized by GetUniqueName and not exists anymore
+        assert src.find(packed_func_name) == -1
+
+        packed_func_real_name = "_".join(fname.split(".")) + suffix
+        func_declaration = "static void* %s = NULL;" % packed_func_real_name
+        # src only has 1 valid declaration
+        assert src.count(func_declaration) == 1
+
+    check_global_packed_func()
+
+
 if __name__ == "__main__":
     test_add()
     test_add_pipeline()
@@ -198,3 +234,4 @@ if __name__ == "__main__":
     test_ceil()
     test_floor()
     test_round()
+    test_call_packed()

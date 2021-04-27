@@ -126,6 +126,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "global_scale=" << op->global_scale << ", ";
       p->stream << "weight_scale=" << op->weight_scale << ", ";
       p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
+      p->stream << "skip_dense_layer==" << op->skip_dense_layer << ", ";
       p->stream << "do_simulation==" << op->do_simulation << ", ";
       p->stream << "round_for_shift==" << op->round_for_shift << ", ";
       p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";
