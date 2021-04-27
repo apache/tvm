@@ -40,26 +40,29 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
+  template <typename ValueType>
+  inline std::vector<OpAttrMap<ValueType>> retrieve_attr_maps(
+      const std::string& type_name, const std::string& target, const std::string& mtriple) {
+    std::vector<std::string> patterns;
+    patterns.push_back(target + "." + type_name);
+    bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
+    if (is_llvm_aarch64) {
+      patterns.push_back(target + ".aarch64." + type_name);
+    }
+    patterns.push_back("default." + type_name);
+
+    std::vector<OpAttrMap<ValueType>> attr_maps;
+    for (const std::string& pattern : patterns)
+      if (Op::HasAttrMap(pattern))
+        attr_maps.push_back(Op::GetAttrMap<ValueType>(pattern));
+    return attr_maps;
+  }
+
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {
     std::vector<std::string> patterns_;
-    patterns_.push_back(target + ".FLowerIntrinsic");
-
-    bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
-    if (is_llvm_aarch64) {
-      patterns_.push_back(target + ".aarch64.FLowerIntrinsic");
-    }
-
-    patterns_.push_back("default.FLowerIntrinsic");
-
-    fma_ = runtime::Registry::Get("tvm.intrin.rule." + target + ".fma");
-    if (target == "stackvm") {
-      support_bitwise_op_ = false;
-    }
-
-    for (const std::string& pattern : patterns_)
-      if (Op::HasAttrMap(pattern))
-        lower_intrin_maps_.push_back(Op::GetAttrMap<FLowerIntrinsic>(pattern));
+    lower_intrin_maps_ = retrieve_attr_maps<FLowerIntrinsic>("FLowerIntrinsic", target, mtriple);
+    legalize_maps_ = retrieve_attr_maps<FLegalize>("FLegalize", target, mtriple);
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -70,6 +73,20 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           PrimExpr e = GetRef<PrimExpr>(op);
           PrimExpr r = f(e);
           ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+          if (!r.same_as(e)) {
+            r = this->VisitExpr(r);
+            if (r.defined()) {
+              return r;
+            }
+          }
+        }
+      }
+      for (const auto& f_legalize_map : legalize_maps_) {
+        FLowerIntrinsic f = f_legalize_map.get(GetRef<Op>(ptr_op), nullptr);
+        if (f != nullptr) {
+          PrimExpr e = GetRef<PrimExpr>(op);
+          PrimExpr r = f(e);
+          ICHECK(r.defined()) << "legalize rule must always return valid Expr";
           if (!r.same_as(e)) {
             r = this->VisitExpr(r);
             if (r.defined()) {
@@ -282,6 +299,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   // patterns
   std::vector<OpAttrMap<FLowerIntrinsic>> lower_intrin_maps_;
+  std::vector<OpAttrMap<FLegalize>> legalize_maps_;
   const PackedFunc* fma_{nullptr};
   bool support_bitwise_op_{true};
 };

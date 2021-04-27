@@ -112,24 +112,8 @@ TVM_REGISTER_OP("tir.ceil")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.rsqrt")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
-      auto one = make_const(call->args[0].dtype(), 1);
-      return one / sqrt(call->args[0]);
-    });
-
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.sigmoid")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
-      auto one = make_const(call->args[0].dtype(), 1);
-      return one / (one + exp(-call->args[0]));
-    });
 
 TVM_REGISTER_OP("tir.isfinite")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
@@ -145,8 +129,28 @@ TVM_REGISTER_OP("tir.isinf")
       return isinf(call->args[0]);
     });
 
+}  // namespace intrin
+namespace legalize {
+using namespace tir;
+
+TVM_REGISTER_OP("tir.rsqrt")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      const CallNode* call = e.as<CallNode>();
+      ICHECK(call != nullptr);
+      auto one = make_const(call->args[0].dtype(), 1);
+      return one / sqrt(call->args[0]);
+    });
+
+TVM_REGISTER_OP("tir.sigmoid")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      const CallNode* call = e.as<CallNode>();
+      ICHECK(call != nullptr);
+      auto one = make_const(call->args[0].dtype(), 1);
+      return one / (one + exp(-call->args[0]));
+    });
+
 TVM_REGISTER_OP("tir.q_multiply_shift")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
 
       const tir::CallNode* call = e.as<tir::CallNode>();
@@ -221,7 +225,6 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
         return cast(lp_dtype, x);
       }
     });
-
-}  // namespace intrin
+}  // namespace legalize
 }  // namespace codegen
 }  // namespace tvm
