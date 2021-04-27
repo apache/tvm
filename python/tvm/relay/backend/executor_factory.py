@@ -31,9 +31,7 @@ class ExecutorFactoryModule:
 
     @abstractmethod
     def get_executor_config(self):
-        """Common function to return the internal representation
-        the executor relies upon to execute the network
-        """
+        """ Return the internal configuration the executor uses to execute the network """
         raise NotImplementedError
 
     @abstractmethod

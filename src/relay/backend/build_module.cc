@@ -127,9 +127,9 @@ struct GraphCodegen : ExecutorCodegen {
     auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
     mod = (*pf)();
   }
-  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = GetJSON(); }
+  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = GetGraphJSON(); }
 
-  std::string GetJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
+  std::string GetGraphJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
 
   ~GraphCodegen() {}
 };
@@ -164,7 +164,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_graph_json") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetJSON(); });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetGraphJSON(); });
     } else if (name == "get_module") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
@@ -210,7 +210,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return const std::string graph_json
    */
-  const std::string& GetJSON() { return ret_.graph_json; }
+  const std::string& GetGraphJSON() { return ret_.graph_json; }
 
   /*!
    * \brief Get the Module object
