@@ -201,45 +201,54 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
-   * \brief Get number of outputs of the node.
-   * \param index The index of the node.
-   * \return The number of outputs.
+   * \brief Execute index-th node in the network.
+   *
+   * This method will do a partial run of the graph
+   * up to index-th node.
+   *
+   * \param node: The index of the node.
    */
-  size_t NodeGetNumOutputs(size_t index) {
-    if (nodes_[index].op_type != "tvm_op") return 1;
-    return static_cast<size_t>(nodes_[index].param.num_outputs);
+  void ExecuteNode(int node) {
+    ICHECK_LT(static_cast<size_t>(node), op_execs_.size());
+
+    int start_ind;
+    int end_ind;
+    if (node < last_executed_node_) {
+      start_ind = 0;
+      end_ind = node;
+    } else if (node > last_executed_node_) {
+      start_ind = last_executed_node_ + 1;
+      end_ind = node;
+    } else {
+      return;
+    }
+
+    for (int i=start_ind; i<=end_ind; i++) {
+      if (op_execs_[i]) op_execs_[i]();
+    }
+    last_executed_node_ = end_ind;
   }
 
   /*!
-   * \brief Execute next node in the network.
+   * \brief Returns index-th output of node.
    *
-   * This method will execute next node assuming
-   * previous nodes has been executed and return output of index-th node.
+   * This method will return index-th out_ind output
+   * of index-th node in the network.
    *
-   * \param node_ind: The index of the node.
-   * \param output_ind: The output index of this node.
-   * \return Node outputs array.
+   * \param node: The index of the node.
+   * \param out_ind: The index of the output.
+   * \return Output array.
    */
-  NDArray ExecuteNextNodeGetOutputs(int node_ind, int output_ind) {
-    ICHECK_LT(static_cast<size_t>(node_ind), op_execs_.size());
-
-    // Reset execution.
-    if (node_ind < 0) {
-      last_executed_node_ = -1;
-      return NDArray();
-    }
-
-    if (node_ind > last_executed_node_) {
-      if (op_execs_[node_ind]) op_execs_[node_ind]();
-      last_executed_node_ = node_ind;
-    }
-    return data_entry_[entry_id(node_ind, output_ind)].CopyTo({kDLCPU, 0});
+  NDArray GetOutput(int node, int out_ind) {
+    ICHECK_EQ(node, last_executed_node_);
+    ICHECK_LT(entry_id(node, out_ind), data_entry_.size());
+    return data_entry_[entry_id(node, out_ind)].CopyTo({kDLCPU, 0});
   }
 
   /*!
    * \brief Copy index-th node to data_out.
    *
-   * This method will do a partial run of the the graph
+   * This method will do a partial run of the graph
    * from begining upto the index-th node and return output of index-th node.
    * This is costly operation and suggest to use only for debug porpose.
    *
@@ -322,9 +331,13 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
         this->DebugGetNodeOutput(args[0], args[1]);
       }
     });
-  } else if (name == "execute_next_node_get_output") {
+  } else if (name == "execute_node") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->ExecuteNextNodeGetOutputs(args[0], args[1]);
+      this->ExecuteNode(args[0]);
+    });
+  } else if (name == "get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetOutput(args[0], args[1]);
     });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
