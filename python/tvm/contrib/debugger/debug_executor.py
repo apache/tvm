@@ -204,7 +204,6 @@ class GraphModuleDebug(graph_executor.GraphModule):
                     "running node=%d, output_ind=%d, with node_name: %s", i, j, node["name"]
                 )
                 output_tensors.append(self._get_output(i, j))
-        import pdb; pdb.set_trace()
         self.debug_datum.update_output_tensors(output_tensors)
 
     def _run_debug(self):

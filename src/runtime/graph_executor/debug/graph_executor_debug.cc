@@ -223,7 +223,7 @@ class GraphExecutorDebug : public GraphExecutor {
       return;
     }
 
-    for (int i=start_ind; i<=end_ind; i++) {
+    for (int i = start_ind; i <= end_ind; i++) {
       if (op_execs_[i]) op_execs_[i]();
     }
     last_executed_node_ = end_ind;
@@ -332,9 +332,8 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       }
     });
   } else if (name == "execute_node") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->ExecuteNode(args[0]);
-    });
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->ExecuteNode(args[0]); });
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetOutput(args[0], args[1]);
