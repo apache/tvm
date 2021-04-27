@@ -3,6 +3,7 @@ import math
 from typing import *
 
 import numpy as np
+import tvm
 
 
 def get_slice(
@@ -85,8 +86,8 @@ def poolnd_python(
 
     # Create a padded array, and a boolean mask showing which values are padded values and which are not
     pad_value = 0
-    if pool_type == "max":
-        pad_value = np_data.min()
+    if pool_type == "max" and not count_include_pad:
+        pad_value = tvm.te.min_value(dtype).value
     pad_data = pad_tensor(np_data, pad_value, padding_before, padding_after, dtype)
     pad_map = pad_tensor(np.ones_like(np_data), 0, padding_before, padding_after, "bool")
 
@@ -125,10 +126,7 @@ def poolnd_python(
         elif pool_type == "max":
             count_non_padded = np.sum(pad_map[np_index])
             # All padded values, default to 0
-            if count_non_padded == 0:
-                ret_np[output_slice] = 0
-            else:
-                ret_np[output_slice] = np.max(pad_data[np_index], axis=reduction_axis)
+            ret_np[output_slice] = np.max(pad_data[np_index], axis=reduction_axis)
         else:
             raise ValueError("Pool type {} is not supported".format(pool_type))
 
