@@ -170,15 +170,16 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         # TODO(tkonolige): seperate implementation for large block sizes
         ib = tvm.tir.ir_builder.create()
 
-        if tvm.target.Target.current(allow_none=False).kind.name == "rocm":
+        if tvm.target.Target.current(allow_none=False).kind.name == "cuda":
+            use_warp_storage = True
+        else:
             # TVMs warp shuffle intrinsics are slow on ROCM because they use
             # LDS (shared memory) to do the shuffling. Instead, we could use
             # ROCM's support for accessing neighboring threads memory, but we
             # those intrinsics aren't accessible from TVM. For now, we just use
-            # shared memory.
+            # shared memory. We also default to shared memory on platforms
+            # where we do not know how warp storage performs.
             use_warp_storage = False
-        else:
-            use_warp_storage = True
 
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         m = data.shape[1]
@@ -425,7 +426,7 @@ def pad_sparse_matrix(matrix, blocksize):
 def _alter_sparse_dense_layout(_attrs, inputs, _tinfos, _out_type):
     """With cuda, we modify use alter_op_layout to swap the default
     sparse_dense implementation for one that operates on a padded matrix. We
-    also padd the matrix.
+    also pad the matrix.
     """
     # TODO(ANSHUMAN87): Handle for sparse_lhs case too
     if (
