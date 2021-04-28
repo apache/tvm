@@ -276,6 +276,7 @@ class Pool(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
         input_shape = infer_shape(data)
+        input_dtype = infer_type(data).checked_type.dtype
         ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
@@ -293,7 +294,19 @@ class Pool(OnnxOpConverter):
                 else:
                     # Warning: Pool does not yet support dynamic shapes,
                     # one will need to run dynamic_to_static on this model after import
-                    data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
+                    if "int" in input_dtype:
+                        pad_val = np.iinfo(np.dtype(input_dtype)).min
+                    else:
+                        pad_val = np.finfo(np.dtype(input_dtype)).min
+                    data = autopad(
+                        data,
+                        attr.get("strides", [1] * (ndim - 2)),
+                        attr["kernel_shape"],
+                        [1] * ndim,
+                        ndim,
+                        pad_value=pad_val,
+                        mode=attr["auto_pad"],
+                    )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
@@ -356,7 +369,17 @@ class InstanceNorm(OnnxOpConverter):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
 
 
-def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", deconv=False):
+def autopad(
+    data,
+    strides,
+    kernel_shape,
+    dilations,
+    ndim,
+    pad_type="constant",
+    deconv=False,
+    mode="SAME_UPPER",
+    pad_value=0.0,
+):
     """
     Perform autopadding with dynamic input shapes
     """
@@ -391,14 +414,19 @@ def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", d
     pad_after = total_pad - pad_before
 
     # combine
-    pad = _op.concatenate(
-        [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
-    )
+    if "LOWER" in mode:
+        pad = _op.concatenate(
+            [_op.reshape(pad_after, [-1, 1]), _op.reshape(pad_before, [-1, 1])], axis=1
+        )
+    else:
+        pad = _op.concatenate(
+            [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
+        )
 
     # pad N and C with zeros
     pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
 
-    return _op.nn.pad(data, fold_constant(pad), _op.const(0.0), pad_type)
+    return _op.nn.pad(data, fold_constant(pad), _op.const(pad_value), pad_type)
 
 
 class Conv(OnnxOpConverter):
@@ -427,6 +455,7 @@ class Conv(OnnxOpConverter):
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
                     ndim,
+                    mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
@@ -485,6 +514,7 @@ class ConvTranspose(OnnxOpConverter):
                     attr.get("dilations", [1] * (ndim - 2)),
                     ndim,
                     deconv=True,
+                    mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
@@ -757,7 +787,14 @@ class LpPool(OnnxOpConverter):
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: LpPool does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
-                data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
+                data = autopad(
+                    data,
+                    attr["strides"],
+                    attr["kernel_shape"],
+                    [1] * ndim,
+                    ndim,
+                    mode=attr["auto_pad"],
+                )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":

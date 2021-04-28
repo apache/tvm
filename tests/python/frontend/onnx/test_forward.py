@@ -4213,8 +4213,6 @@ unsupported_onnx_tests = [
     "test_isinf_positive/",
     "test_matmulinteger/",
     "test_maxpool_2d_dilations/",
-    "test_maxpool_2d_same_lower/",
-    "test_maxpool_2d_same_upper/",
     "test_maxpool_with_argmax_2d_precomputed_pads/",
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
