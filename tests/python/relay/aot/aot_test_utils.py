@@ -78,11 +78,11 @@ def create_main(test_name, input_list, output_list, output_path):
         main_file.write(
             """
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-    (*out_ptr) = StackMemoryManager_Allocate(&app_workspace, num_bytes);
+    return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
 }
 
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-    StackMemoryManager_Free(&app_workspace,ptr);
+    return StackMemoryManager_Free(&app_workspace,ptr);
 }
 
 void  TVMPlatformAbort(tvm_crt_error_t code) { }

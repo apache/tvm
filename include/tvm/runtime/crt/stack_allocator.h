@@ -45,10 +45,11 @@ typedef struct {
   size_t workspace_size;  // Total number of bytes in the workspace
 } tvm_workspace_t;
 
-void StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace, uint8_t* g_aot_memory,
-                             size_t workspace_size);
+tvm_crt_error_t StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace,
+                                        uint8_t* g_aot_memory, size_t workspace_size);
 
-void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes);
+tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes,
+                                            void**);
 
 tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr);
 

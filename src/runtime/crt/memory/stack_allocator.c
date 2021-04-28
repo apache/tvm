@@ -22,28 +22,29 @@
 #include <tvm/runtime/crt/logging.h>
 #endif
 
-void* StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes) {
+tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes,
+                                            void** current_alloc) {
   // reserve bytes at the end of the allocation such that
   // next_alloc % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES == 0.
   uint32_t offset_bytes =
       (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - nbytes) & (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES - 1);
-  uint8_t* current_alloc = tvm_runtime_workspace->next_alloc;
-  uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
   uint8_t* workspace_end = tvm_runtime_workspace->workspace + tvm_runtime_workspace->workspace_size;
+  if (tvm_runtime_workspace->next_alloc + nbytes + offset_bytes > workspace_end) {
+    return kTvmErrorPlatformNoMemory;
+  }
+  (*current_alloc) = tvm_runtime_workspace->next_alloc;
+  uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
 #ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
   if (next_alloc + STACK_ALLOCATOR_TAG_SIZE_BYTES > workspace_end) {
-    return NULL;
+    return kTvmErrorPlatformNoMemory;
   }
   const uint32_t total_size = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES);
   *((uint32_t*)next_alloc) = total_size ^ STACK_ALLOCATOR_TAG;
   next_alloc += STACK_ALLOCATOR_TAG_SIZE_BYTES;
 #endif
-  if (next_alloc > workspace_end) {
-    return NULL;
-  }
 
   tvm_runtime_workspace->next_alloc = next_alloc;
-  return current_alloc;
+  return kTvmErrorNoError;
 }
 
 tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr) {
@@ -54,12 +55,13 @@ tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, 
   CHECK_EQ(expected_size, actual_size, "Deallocation not in FIFO ordering");
 #endif
   tvm_runtime_workspace->next_alloc = ptr;
-  return 0;
+  return kTvmErrorNoError;
 }
 
-void StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace, uint8_t* g_aot_memory,
-                             size_t workspace_size) {
+tvm_crt_error_t StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace,
+                                        uint8_t* g_aot_memory, size_t workspace_size) {
   tvm_runtime_workspace->next_alloc = g_aot_memory;
   tvm_runtime_workspace->workspace = g_aot_memory;
   tvm_runtime_workspace->workspace_size = workspace_size;
+  return kTvmErrorNoError;
 }
