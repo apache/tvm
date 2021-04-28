@@ -55,9 +55,11 @@ pip3 install west
 #EOF
 #chmod a+x /usr/local/bin/west
 
-west init --mr v2.5-branch /opt/zephyrproject
-cd /opt/zephyrproject
-west update
+# Init ZephyrProject
+ZEPHYR_PROJECT_PATH=/opt/zephyrproject
+ZEPHYR_INIT_SCRIPT=$(find -name "ubuntu_init_zephyr_project.sh")
+bash ${ZEPHYR_INIT_SCRIPT} ${ZEPHYR_PROJECT_PATH} v2.5-branch
+cd ${ZEPHYR_PROJECT_PATH}
 
 # This step is required because of the way docker/bash.sh works. It sets the user home directory to
 # /workspace (or the TVM root, anyhow), and this means that zephyr expects a ~/.cache directory to be
@@ -66,8 +68,6 @@ west update
 # artifacts aren't intended to be saved into the docker image.
 mkdir zephyr/.cache
 chmod o+rwx zephyr/.cache
-
-west zephyr-export
 
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt

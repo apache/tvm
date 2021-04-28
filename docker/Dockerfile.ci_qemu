@@ -62,6 +62,7 @@ RUN bash /install/ubuntu_install_qemu.sh
 
 # Zephyr SDK deps
 COPY install/ubuntu_install_zephyr.sh /install/ubuntu_install_zephyr.sh
+COPY install/ubuntu_init_zephyr_project.sh /install/ubuntu_init_zephyr_project.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
