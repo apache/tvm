@@ -29,7 +29,6 @@ ExternalProject_Add(project_libbacktrace
                     "CPP=${CMAKE_C_COMPILER} -E"
                     "NM=${CMAKE_NM}"
                     "STRIP=${CMAKE_STRIP}"
-                    "CPPFLAGS=${CMAKE_CXX_FLAGS}"
                     "--host=${MACHINE_NAME}"
   INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
   BUILD_COMMAND make
