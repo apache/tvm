@@ -65,12 +65,20 @@ class PassContext(tvm.runtime.Object):
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
 
+    pass_instrumentor : Optional[tvm.instrument.PassInstrumentor]
+        The pass instrumentor that collects pass instrument implementations
+
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
     """
 
     def __init__(
-        self, opt_level=2, required_pass=None, disabled_pass=None, trace=None, config=None
+        self,
+        opt_level=2,
+        required_pass=None,
+        disabled_pass=None,
+        pass_instrumentor=None,
+        config=None,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -82,7 +90,7 @@ class PassContext(tvm.runtime.Object):
 
         config = config if config else None
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassContext, opt_level, required, disabled, trace, config
+            _ffi_transform_api.PassContext, opt_level, required, disabled, pass_instrumentor, config
         )
 
     def __enter__(self):
@@ -189,6 +197,7 @@ def _wrap_class_module_pass(pass_cls, pass_info):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
             inst = pass_cls(*args, **kwargs)
+
             # it is important not to capture self to
             # avoid a cyclic dependency
             def _pass_func(mod, ctx):

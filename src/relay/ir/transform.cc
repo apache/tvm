@@ -130,10 +130,16 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
   ICHECK(mod.defined());
 
+  if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
+    DLOG(INFO) << "Skipping function pass : " << pass_info->name
+               << " with opt level: " << pass_info->opt_level;
+
+    pass_ctx->diag_ctx = previous;
+    return mod;
+  }
+
   DLOG(INFO) << "Executing function pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
-
-  pass_ctx.Trace(mod, pass_info, true);
 
   // Execute the pass function and return a new module.
   IRModule updated_mod =
@@ -159,7 +165,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
-  pass_ctx.Trace(updated_mod, pass_info, false);
+  pass_ctx.InstrumentAfterPass(updated_mod, pass_info);
 
   // TODO(@jroesch): move away from eager type checking for performance reasons
   // make issue.
