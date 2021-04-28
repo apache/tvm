@@ -324,6 +324,7 @@ class BufferStore : public Stmt {
                                Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
 /*!
@@ -991,13 +992,22 @@ class BufferRegion : public ObjectRef {
   TVM_DLL explicit BufferRegion(Buffer buffer, Array<Range> region);
 
   /*!
-   * \brief Create a BufferRegion which is full region of the given buffer..
+   * \brief Create a BufferRegion which is full region of the given buffer.
    * \param buffer The buffer to generate full BufferRegion.
    * \return The BufferRegion which covers all region of the given buffer
    */
   TVM_DLL static BufferRegion FullRegion(Buffer buffer);
 
+  /*!
+   * \brief Create a BufferRegion which is a single point of the given buffer.
+   * \param buffer The buffer to generate single point BufferRegion.
+   * \param indices The access point indices of the buffer
+   * \return The BufferRegion which is the single point of the given buffer.
+   */
+  TVM_DLL static BufferRegion FromPoint(Buffer buffer, Array<PrimExpr> indices);
+
   TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, ObjectRef, BufferRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 
 /*!
