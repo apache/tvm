@@ -74,9 +74,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
       ICHECK_EQ(im->imports().size(), 0U) << "Only support simply one-level hierarchy";
       std::string tkey = im->type_key();
       strm->Write(tkey);
-      LOG(INFO) << "save " << tkey;
       im->SaveToBinary(strm);
-      LOG(INFO) << "FInish save " << tkey;
     }
     SaveBinaryToFile(file_name, data);
   }
