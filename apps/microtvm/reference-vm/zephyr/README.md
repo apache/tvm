@@ -21,10 +21,16 @@ This directory contains setup files for Zephyr virtual machine used for testing 
 that are supported by [Zephyr Project](https://zephyrproject.org/).
 
 ## VM Information for Developers
-Zephyr VM is published under [tlcpack/microtvm-zephyr](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr).
+Zephyr VM is published under [tlcpack](https://app.vagrantup.com/tlcpack).
 Here is a list of different release versions and their tools.
 
-### [v0.0.4](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr/versions/0.0.4)
+### [microtvm-zephyr-2.5](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr-2.5/versions/0.0.1)
+
+- Zephyr [version 2.5.0]
+- Zephyr SDK [version 0.12.3]
+- nRFjProg [version 10.12.1]
+
+### [microtvm-zephyr-2.4](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr/versions/0.0.4)
 
 - Zephyr [version 2.4.0]
 - Zephyr SDK [version 0.11.3]

@@ -81,10 +81,8 @@ pip3 install --user -U west
 echo 'export PATH=$HOME/.local/bin:"$PATH"' >> ~/.profile
 source ~/.profile
 echo PATH=$PATH
-west init --mr v2.5.0 ~/zephyr
-cd ~/zephyr
-west update
-west zephyr-export
+REPO_ROOT=$(git rev-parse --show-toplevel)
+${REPO_ROOT}/docker/install/ubuntu_init_zephyr_project.sh ~/zephyr v2.5.0
 
 cd ~
 echo "Downloading zephyr SDK..."
