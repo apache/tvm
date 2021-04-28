@@ -17,13 +17,13 @@
 """ Support level5 operator test cases.
 """
 import math
+
 import numpy as np
 import tvm
-from tvm import te
-from tvm import relay
-from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
 import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te
+from tvm.relay.testing import run_infer_type
 
 
 def test_resize_infer_type():
@@ -671,10 +671,10 @@ def test_roi_align():
             print("test on", target)
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(np_data, np_rois)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=2e-4)
             intrp2 = relay.create_executor("debug", device=dev, target=target)
             op_res2 = intrp2.evaluate(func)(np_data, np_rois)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
+            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=2e-4)
 
     def verify_roi_align_nchw(
         data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode

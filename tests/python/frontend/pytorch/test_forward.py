@@ -16,21 +16,22 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """Unit tests for various models and operators"""
-from time import time
 import os
 import sys
-from scipy.stats import t as tdistr
+from time import time
+
 import numpy as np
 import torch
 import torchvision
+import tvm
+import tvm.testing
+from packaging import version as package_version
+from scipy.stats import t as tdistr
 from torch.nn import Module
 from torch.nn import functional as F
-import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
-import tvm.testing
-from packaging import version as package_version
 
 sys.setrecursionlimit(10000)
 
@@ -736,6 +737,7 @@ def test_forward_maxpool2d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[2, 2], dilation=[2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(), input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2).eval(), input_data)
 
@@ -774,6 +776,7 @@ def test_forward_maxpool1d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(), input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=2, dilation=[1]).eval(), input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(), input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=4, padding=2, stride=2).eval(), input_data)
 
@@ -792,6 +795,7 @@ def test_forward_maxpool3d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data)
 
@@ -3523,7 +3527,7 @@ def test_forward_pretrained_bert_base_uncased():
     """
 
     try:
-        from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+        from pytorch_pretrained_bert import BertForMaskedLM, BertTokenizer
     except:
         print("Torch pretrained bert package must be installed to run this script.")
         return

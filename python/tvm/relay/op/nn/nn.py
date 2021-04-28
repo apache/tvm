@@ -1108,7 +1108,7 @@ def avg_pool3d(
 
     dilation : int or tuple of int, optional
         The dilation of pooling.
-        
+
     padding : tuple of int, optional
         The padding for pooling.
 
