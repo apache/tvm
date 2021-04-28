@@ -834,7 +834,7 @@ def gather_nd_grad(orig, grad):
     Returns the gradient of gather_nd, which is simply scatter_nd.
     """
     data, indices = orig.args
-    return [scatter_nd(grad, indices, data.checked_type.concrete_shape), zeros_like(indices)]
+    return [scatter_nd(zeros_like(data), indices, grad, mode="add"), zeros_like(indices)]
 
 
 @register_gradient("reshape_like")
