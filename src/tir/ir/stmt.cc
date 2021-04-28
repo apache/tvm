@@ -646,6 +646,14 @@ BufferRegion BufferRegion::FullRegion(Buffer buffer) {
   return BufferRegion(buffer, region);
 }
 
+BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
+  Array<Range> region;
+  for (const PrimExpr& index : indices) {
+    region.push_back(Range::FromMinExtent(index, 1));
+  }
+  return BufferRegion(buffer, region);
+}
+
 TVM_REGISTER_GLOBAL("tir.BufferRegion").set_body_typed([](Buffer buffer, Array<Range> region) {
   return BufferRegion(buffer, region);
 });
