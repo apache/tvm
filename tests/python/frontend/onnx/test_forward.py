@@ -4351,6 +4351,181 @@ def test_aten():
     verify_embedding_bag(32, 2, [3, 3])
 
 
+def check_contain_qnn_op(graph_def, input_data, qnn_op_name):
+    class QnnOpChecker(relay.expr_functor.ExprVisitor):
+        def __init__(self, qnn_op_name):
+            relay.expr_functor.ExprVisitor.__init__(self)
+            self.valid = False
+            self.qnn_op_name = qnn_op_name
+
+        def visit_call(self, call):
+            if hasattr(call.op, "name") and call.op.name == self.qnn_op_name:
+                self.valid = True
+            super().visit_call(call)
+
+    input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
+    mod, params = relay.frontend.from_onnx(graph_def, shape_dict)
+
+    checker = QnnOpChecker(qnn_op_name)
+    checker.visit(mod["main"])
+    return checker.valid
+
+
+def get_quantize_node(input, output, zp_dtype, dequantize=False):
+    scale_name = output + "_scale"
+    zp_name = output + "_zp"
+
+    scale_node = make_constant_node(scale_name, TensorProto.FLOAT, (), [np.random.rand()])
+    if zp_dtype == TensorProto.INT8:
+        zp_node = make_constant_node(zp_name, TensorProto.INT8, (), [np.random.randint(-128, 127)])
+    else:
+        zp_node = make_constant_node(zp_name, zp_dtype, (), [np.random.randint(0, 255)])
+
+    quant_node = helper.make_node(
+        "DequantizeLinear" if dequantize is True else "QuantizeLinear",
+        inputs=[input, scale_name, zp_name],
+        outputs=[output],
+        axis=0,
+    )
+    return [scale_node, zp_node, quant_node]
+
+
+def test_quantized_conv2d():
+    def verify_quantized_conv2d(
+        x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, zp_dtype
+    ):
+        nodes = []
+        nodes.extend(get_quantize_node("x", "quant_x", zp_dtype))
+        nodes.extend(get_quantize_node("W", "quant_W", zp_dtype))
+        nodes.append(
+            helper.make_node(
+                "Conv",
+                inputs=["quant_x", "quant_W"],
+                outputs=["conv_out"],
+                kernel_shape=kernel_shape,
+                strides=strides,
+                dilations=dilations,
+                pads=padding,
+            )
+        )
+        nodes.extend(get_quantize_node("conv_out", "y", TensorProto.INT32, dequantize=True))
+
+        graph = helper.make_graph(
+            nodes,
+            "quantized_conv2d_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
+        )
+        model = helper.make_model(graph, producer_name="quantized_conv2d_test")
+
+        x_array = np.random.uniform(size=x_shape).astype("float32")
+        w_array = np.random.uniform(size=w_shape).astype("float32")
+
+        # onnxruntime can not run conv with int8 as input,
+        # so we only check if the expr contain qnn op, and run the mod in tvm
+        assert check_contain_qnn_op(model, [x_array, w_array], "qnn.conv2d") == True
+        get_tvm_output_with_vm(model, [x_array, w_array], target="llvm", device=tvm.cpu(0))
+
+    verify_quantized_conv2d(
+        (1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), (2, 2), (3, 3), (1, 1), (1, 1), TensorProto.INT8
+    )
+    verify_quantized_conv2d(
+        (1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), (0, 0), (3, 3), (1, 1), (1, 1), TensorProto.UINT8
+    )
+
+
+def test_quantized_gemm():
+    def verify_quantized_gemm(a_shape, b_shape, c_shape, zp_dtype):
+        out_shape = [a_shape[0], b_shape[1]]
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        b_array = np.random.uniform(size=b_shape).astype("float32")
+
+        nodes = []
+        input_names = ["quant_a", "quant_b"]
+        input_values = [a_array, b_array]
+        input_nodes = [
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ]
+        nodes.extend(get_quantize_node("a", "quant_a", zp_dtype))
+        nodes.extend(get_quantize_node("b", "quant_b", zp_dtype))
+
+        if c_shape is not None:
+            c_array = np.random.uniform(size=c_shape).astype("float32")
+            input_names.append("quant_c")
+            input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
+            input_values.append(c_array)
+            nodes.extend(get_quantize_node("c", "quant_c", TensorProto.INT32))
+
+        nodes.append(helper.make_node("Gemm", input_names, ["gemm_out"]))
+        nodes.extend(get_quantize_node("gemm_out", "out", TensorProto.INT32, dequantize=True))
+
+        graph = helper.make_graph(
+            nodes,
+            "quantized_gemm_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
+        model = helper.make_model(graph, producer_name="quanttized_gemm_test")
+
+        # onnxruntime can not run gemm with int8 as input,
+        # so we only check if the expr contain qnn op, and run the mod in tvm
+        assert check_contain_qnn_op(model, input_values, "qnn.dense") == True
+        get_tvm_output_with_vm(model, input_values, target="llvm", device=tvm.cpu(0))
+
+    verify_quantized_gemm(a_shape=(4, 8), b_shape=(8, 4), c_shape=None, zp_dtype=TensorProto.INT8)
+    verify_quantized_gemm(a_shape=(4, 8), b_shape=(8, 4), c_shape=(4,), zp_dtype=TensorProto.UINT8)
+
+
+def test_quantized_binary_ops():
+    in_shape = (1, 2, 3, 3)
+    out_shape = in_shape
+    dtype = "float32"
+
+    def verify_binary_op(op, x, y, zp_dtype):
+
+        nodes = []
+        nodes.extend(get_quantize_node("in1", "quant_in1", zp_dtype))
+        nodes.extend(get_quantize_node("in2", "quant_in2", zp_dtype))
+        nodes.append(helper.make_node(op, ["quant_in1", "quant_in2"], ["binary_out"]))
+        nodes.extend(get_quantize_node("binary_out", "out", TensorProto.INT32, dequantize=True))
+
+        graph = helper.make_graph(
+            nodes,
+            "_test",
+            inputs=[
+                helper.make_tensor_value_info("in1", TensorProto.FLOAT, x.shape),
+                helper.make_tensor_value_info("in2", TensorProto.FLOAT, y.shape),
+            ],
+            outputs=[
+                helper.make_tensor_value_info(
+                    "out", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], list(out_shape)
+                )
+            ],
+        )
+        model = helper.make_model(graph, producer_name="_test")
+
+        # onnxruntime can not run add, mul, substract with int8 as input,
+        # so we only check if the expr contain qnn op, and run the mod in tvm
+        qnn_op_maps = {"Add": "qnn.add", "Mul": "qnn.mul", "Sub": "qnn.subtract"}
+        assert check_contain_qnn_op(model, [x, y], qnn_op_maps[op]) == True
+        get_tvm_output_with_vm(model, [x, y], target="llvm", device=tvm.cpu(0))
+
+    x = np.random.uniform(size=in_shape).astype(dtype)
+    y = np.random.uniform(size=in_shape).astype(dtype)
+    z = np.random.uniform(size=(3,)).astype(dtype)
+
+    verify_binary_op("Add", x, y, TensorProto.INT8)
+    verify_binary_op("Add", x, z, TensorProto.UINT8)
+    verify_binary_op("Sub", x, y, TensorProto.UINT8)
+    verify_binary_op("Sub", x, z, TensorProto.INT8)
+    verify_binary_op("Mul", x, y, TensorProto.INT8)
+    verify_binary_op("Mul", x, z, TensorProto.UINT8)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4431,3 +4606,6 @@ if __name__ == "__main__":
     test_cumsum()
     test_wrong_input()
     test_aten()
+    test_quantized_conv2d()
+    test_quantized_gemm()
+    test_quantized_binary_ops()
