@@ -71,9 +71,9 @@ In the example :ref:`above <build-tvm-runtime-on-target-device>` the runtime lib
 compiled on a Raspberry Pi. Producing the runtime library can be done much faster on 
 hosts that have beefy processors (such as laptops, workstation) instead of target
 devices such as a Raspberry Pi. In-order to cross compile the runtime the toolchain
-for the target device must be installed. After installing the correct toolchain
-the main difference compared to compiling natively is to pass a bunch of command
-line argument to cmake that specify the compiler(s) to be used. For reference
+for the target device must be installed. After installing the correct toolchain,
+the main difference compared to compiling natively is to pass some additional command
+line argument to cmake that specify a toolchain to be used. For reference
 building the TVM runtime library on a modern laptop (using 8 threads) for ``aarch64``
 takes around 20 seconds vs ~10 min to build the runtime on a Raspberry Pi 4.
 

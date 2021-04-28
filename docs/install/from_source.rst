@@ -75,7 +75,7 @@ linux operating systems, execute (in a terminal):
 
 
 We use cmake to build the library.
-The configuration of TVM can be modified by `config.cmake` (and/or by passing cmake flags to the command line):
+The configuration of TVM can be modified by editing `config.cmake` and/or by passing cmake flags to the command line:
 
 
 - First, check the cmake in your system. If you do not have cmake,
