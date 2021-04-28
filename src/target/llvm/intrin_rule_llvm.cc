@@ -134,15 +134,13 @@ TVM_REGISTER_OP("tir.tanh")
       return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
     });
 
-TVM_REGISTER_OP("tir.tan").set_attr<FLegalize>("llvm.FLegalize",
-                                                     [](const PrimExpr& e) -> PrimExpr {
-                                                       const tir::CallNode* call =
-                                                           e.as<tir::CallNode>();
-                                                       ICHECK(call != nullptr);
-                                                       const PrimExpr& x = call->args[0];
-                                                       PrimExpr tan_x = sin(x) / cos(x);
-                                                       return tan_x;
-                                                     });
+TVM_REGISTER_OP("tir.tan").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  ICHECK(call != nullptr);
+  const PrimExpr& x = call->args[0];
+  PrimExpr tan_x = sin(x) / cos(x);
+  return tan_x;
+});
 
 TVM_REGISTER_OP("tir.cosh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
@@ -174,20 +172,19 @@ TVM_REGISTER_OP("tir.sinh")
       return ret;
     });
 
-TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>(
-    "llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
-      ICHECK_EQ(call->args.size(), 1);
-      Array<PrimExpr> cargs;
-      cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
-      cargs.push_back(IntImm(DataType::UInt(32), 2));
-      cargs.push_back(call->args[0]);
-      cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
-      // LLVM requires that the return type must match the first argument type
-      auto clz = tir::Call(call->args[0]->dtype, tir::builtin::call_llvm_intrin(), cargs);
-      return cast(call->dtype, clz);
-    });
+TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  ICHECK(call != nullptr);
+  ICHECK_EQ(call->args.size(), 1);
+  Array<PrimExpr> cargs;
+  cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
+  cargs.push_back(IntImm(DataType::UInt(32), 2));
+  cargs.push_back(call->args[0]);
+  cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
+  // LLVM requires that the return type must match the first argument type
+  auto clz = tir::Call(call->args[0]->dtype, tir::builtin::call_llvm_intrin(), cargs);
+  return cast(call->dtype, clz);
+});
 
 }  // namespace legalize
 }  // namespace llvm

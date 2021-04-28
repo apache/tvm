@@ -41,8 +41,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   template <typename ValueType>
-  inline std::vector<OpAttrMap<ValueType>> retrieve_attr_maps(
-      const std::string& type_name, const std::string& target, const std::string& mtriple) {
+  inline std::vector<OpAttrMap<ValueType>> retrieve_attr_maps(const std::string& type_name,
+                                                              const std::string& target,
+                                                              const std::string& mtriple) {
     std::vector<std::string> patterns;
     patterns.push_back(target + "." + type_name);
     bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
@@ -53,8 +54,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
     std::vector<OpAttrMap<ValueType>> attr_maps;
     for (const std::string& pattern : patterns)
-      if (Op::HasAttrMap(pattern))
-        attr_maps.push_back(Op::GetAttrMap<ValueType>(pattern));
+      if (Op::HasAttrMap(pattern)) attr_maps.push_back(Op::GetAttrMap<ValueType>(pattern));
     return attr_maps;
   }
 

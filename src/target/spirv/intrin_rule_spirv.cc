@@ -131,8 +131,8 @@ TVM_REGISTER_OP("tir.tanh")
 }  // namespace intrin
 
 namespace legalize {
-  using tir::FLegalize;
-  TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>(
+using tir::FLegalize;
+TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>(
     "vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
