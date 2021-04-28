@@ -218,6 +218,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
         return cast(lp_dtype, x);
       }
     });
+
 }  // namespace legalize
 }  // namespace codegen
 }  // namespace tvm
