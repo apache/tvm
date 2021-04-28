@@ -124,7 +124,8 @@ TVM_REGISTER_OP("tir.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);
-      return isinf(call->args[0]);
+      auto one = make_const(call->args[0].dtype(), 1);
+      return one / (one + exp(-call->args[0]));
     });
 
 TVM_REGISTER_OP("tir.isfinite")
