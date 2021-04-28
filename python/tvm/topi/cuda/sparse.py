@@ -236,7 +236,9 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
                 w_data.dtype, (rowlength_bi, bs_n, bs_k), name="w_data_cache", scope="warp"
             )
         else:
-            indices = ib.allocate(ni, w_indices.dtype, (rowlength_bi,), name="indices", scope="shared")
+            indices = ib.allocate(
+                ni, w_indices.dtype, (rowlength_bi,), name="indices", scope="shared"
+            )
             w_data_cache = ib.allocate(
                 w_data.dtype, (ni, rowlength_bi, bs_n, bs_k), name="w_data_cache", scope="shared"
             )
