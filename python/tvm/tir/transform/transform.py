@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Wrapping existing transformations."""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-import
 from . import _ffi_api
 from . import function_pass as _fpass
 from .inject_rolling_buffer import InjectRollingBuffer

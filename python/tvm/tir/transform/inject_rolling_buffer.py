@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Inject rolling buffers through a TIR transformation."""
+# pylint: disable=invalid-name,unused-argument,inconsistent-return-statements
+from collections import defaultdict
+
 import tvm
 from tvm import arith
-
-from collections import defaultdict
 
 
 def InjectRollingBuffer():
@@ -48,7 +50,7 @@ def InjectRollingBuffer():
 
         elif isinstance(stmt, tvm.tir.AttrStmt):
             if isinstance(stmt.node, tvm.tir.Buffer):
-                if stmt.attr_key == "rolling_buffer" and stmt.value.value == True:
+                if stmt.attr_key == "rolling_buffer" and stmt.value.value:
                     # If the attribute is indicating that a buffer should be a rolling
                     # buffer, then update the rolling_buffers set to include the bufffer
                     rolling_buffers.add(stmt.node)
