@@ -134,7 +134,7 @@ The ``file`` command can be used to query the architecture of the produced runti
 
 .. code-block:: bash
 
-   file file libtvm_runtime.so
+   file libtvm_runtime.so
    libtvm_runtime.so: ELF 64-bit LSB shared object, UCB RISC-V, version 1 (GNU/Linux), dynamically linked, BuildID[sha1]=e9ak845b3d7f2c126dab53632aea8e012d89477e, not stripped
 
     
