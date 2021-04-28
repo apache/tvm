@@ -126,10 +126,11 @@ struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
 };
 
 struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
-  Array<Integer> out_shape;
+  String mode;
 
   TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
-    TVM_ATTR_FIELD(out_shape).describe("Output shape of the scatter.");
+    TVM_ATTR_FIELD(mode).describe(
+        "Accumulation mode of the scatter, either \"update\" or \"add\".");
   }
 };
 
