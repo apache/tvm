@@ -310,8 +310,8 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
-def scatter_nd(data, indices, out_shape):
-    """Scatter values from an array.
+def scatter_nd(data, indices, updates, mode="update"):
+    """Scatter values from an array and update.
 
     See :py:func:`tvm.topi.scatter` for how data is scattered.
 
@@ -323,15 +323,18 @@ def scatter_nd(data, indices, out_shape):
     indices : relay.Expr
         The index locations to update.
 
-    out_shape : Union[Tuple[int], List[int]]
-        Output shape of the scatter.
+    updates : relay.Expr
+        The values to update.
+
+    mode : string
+        The accumulation mode for scatter. "update" or "add"
 
     Returns
     -------
     ret : relay.Expr
         The computed result.
     """
-    return _make.scatter_nd(data, indices, out_shape)
+    return _make.scatter_nd(data, indices, updates, mode)
 
 
 def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_end=None):
