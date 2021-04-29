@@ -54,7 +54,12 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
     std::vector<OpAttrMap<ValueType>> attr_maps;
     for (const std::string& pattern : patterns)
-      if (Op::HasAttrMap(pattern)) attr_maps.push_back(Op::GetAttrMap<ValueType>(pattern));
+      if (Op::HasAttrMap(pattern)) {
+        attr_maps.push_back(Op::GetAttrMap<ValueType>(pattern));
+        if (fma_ == nullptr && type_name == "FLowerIntrinsic") {
+          fma_ = (*attr_maps.rbegin()).get(Op::Get("tir.fma"), nullptr);
+        }
+      }
     return attr_maps;
   }
 
@@ -286,7 +291,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r = (*fma_)(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
+      PrimExpr r = fma_(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
@@ -300,7 +305,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   // patterns
   std::vector<OpAttrMap<FLowerIntrinsic>> lower_intrin_maps_;
   std::vector<OpAttrMap<FLegalize>> legalize_maps_;
-  const PackedFunc* fma_{nullptr};
+  // only intrinsic lowering function for tir.fma is supported now
+  FLowerIntrinsic fma_{nullptr};
   bool support_bitwise_op_{true};
 };
 
