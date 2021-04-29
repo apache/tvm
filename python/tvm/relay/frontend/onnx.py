@@ -1440,6 +1440,20 @@ class ScatterND(OnnxOpConverter):
         )
 
 
+class EyeLike(OnnxOpConverter):
+    """Operator converter for EyeLike."""
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        dtype = attr.get("mode", "float32")
+        in_dtype = infer_type(inputs[0]).checked_type.dtype
+        zeros = _op.zeros_like(inputs[0])
+        dim = infer_shape(zeros)[0]
+        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
+        ones = _op.full(_op.const(1), (dim,), dtype=in_dtype)
+        return _op.scatter_nd(zeros, _op.stack([indices, indices], axis=0), ones, "update")
+
+
 class Greater(OnnxOpConverter):
     """Operator logical greater."""
 
@@ -2991,6 +3005,7 @@ def _get_convert_map(opset):
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
+        "EyeLike": EyeLike.get_converter(opset),
         "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),
