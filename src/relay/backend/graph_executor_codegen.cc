@@ -380,6 +380,12 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
     }
 
+    // Reshape only op is guaranteed to be allocated to
+    // the same memory turning into a nop.
+    if (func->HasNonzeroAttr(attr::kReshapeOnly)) {
+      return GraphAddCallNode(op, "reshape_nop", "__nop");
+    }
+
     ICHECK_GE(storage_device_map_.count(expr), 0);
     auto& device_type = storage_device_map_[expr][1];
     auto call_dev_type = device_type[0]->value;

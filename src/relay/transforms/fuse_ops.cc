@@ -949,14 +949,29 @@ class FuseMutator : private MixedModeMutator {
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
     // If the function has no call, it is not a primitive function.
-    struct HasCallVisitor : ExprVisitor {
+    struct PropertyVisitor : ExprVisitor {
       bool has_call = false;
-      void VisitExpr_(const CallNode* op) final { has_call = true; }
+      bool reshape_only = true;
+      void VisitExpr_(const CallNode* op) final {
+        static const Op& reshape_op_ = Op::Get("reshape");
+        this->has_call = true;
+        if (!op->op.same_as(reshape_op_)) {
+          this->reshape_only = false;
+        }
+        // only visit until we find non-reshape
+        if (this->reshape_only) {
+          ExprVisitor::VisitExpr_(op);
+        }
+      }
     } visitor;
+
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
+    if (visitor.has_call && visitor.reshape_only) {
+      func = WithAttr(std::move(func), attr::kReshapeOnly, tvm::Integer(visitor.reshape_only));
+    }
     return Call(func, ginfo.arguments, Attrs());
   }
 
