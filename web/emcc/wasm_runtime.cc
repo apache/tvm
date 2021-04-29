@@ -42,7 +42,6 @@
 #include "src/runtime/object.cc"
 #include "src/runtime/profiling.cc"
 #include "src/runtime/registry.cc"
-#include "src/runtime/contrib/sort/sort.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
 #include "src/runtime/rpc/rpc_event_impl.cc"
