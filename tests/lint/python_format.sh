@@ -18,4 +18,3 @@
 
 
 ./tests/lint/git-black.sh HEAD~1
-./tests/lint/git-black.sh origin/master
