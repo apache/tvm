@@ -276,8 +276,14 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         args.push_back(tok);
       }
     }
+    // Under the flat-memory setting.
     // we can force aliasing the input and output of reshape
-    // and make it an nop
+    // to make it an nop. Note that this is not true
+    // for non-flat memory case. Given the current graph plan memory
+    // only works for flat memory case, we will go with this choice
+    //
+    // TODO(tvm-team) Update checks of flat memory enablement when we support
+    // opaque-nd memory planning to skip this path.
     if (IsReshape(op)) {
       ICHECK_EQ(args.size(), 1U);
       ReuseInputToken(op, args[0]);
