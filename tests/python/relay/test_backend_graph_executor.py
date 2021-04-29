@@ -151,7 +151,7 @@ def test_reshape_nop():
     # test that reshape can be turned into nop
     x = relay.var("x", shape=(10, 4))
     xx = relay.abs(x)
-    y = relay.reshape(xx, (40,))
+    y = relay.expand_dims(xx, axis=1)
     t0 = relay.reshape(y, (1, 40))
     t1 = relay.abs(y)
 
@@ -180,7 +180,9 @@ def test_reshape_nop():
     z1_np = np.sqrt(
         np.abs(
             x_data.reshape(
-                40,
+                10,
+                1,
+                4,
             )
         )
     )

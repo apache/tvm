@@ -948,21 +948,30 @@ class FuseMutator : private MixedModeMutator {
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
-    // If the function has no call, it is not a primitive function.
-    struct PropertyVisitor : ExprVisitor {
-      bool has_call = false;
-      bool reshape_only = true;
-      void VisitExpr_(const CallNode* op) final {
-        static const Op& reshape_op_ = Op::Get("reshape");
+    // Quickly check special properties of the fused function.
+    // A pass to check if the fused op contains only reshape ops.
+    class CheckReshapeOnly : public ExprVisitor {
+     public:
+      void VisitExpr_(const CallNode* cn) final {
         this->has_call = true;
-        if (!op->op.same_as(reshape_op_)) {
+        static auto freshape_op = Op::GetAttrMap<TReshapeOp>("TReshapeOp");
+
+        if (!freshape_op.get(cn->op, false)) {
           this->reshape_only = false;
         }
-        // only visit until we find non-reshape
-        if (this->reshape_only) {
-          ExprVisitor::VisitExpr_(op);
+
+        if (!this->reshape_only) return;
+        ExprVisitor::VisitExpr_(cn);
+      }
+
+      void VisitExpr_(const VarNode* vn) final {
+        if (!vn->type_annotation.defined() || !vn->type_annotation->IsInstance<TensorTypeNode>()) {
+          this->reshape_only = false;
         }
       }
+
+      bool reshape_only = true;
+      bool has_call = false;
     } visitor;
 
     visitor(body);
