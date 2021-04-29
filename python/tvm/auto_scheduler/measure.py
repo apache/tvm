@@ -886,7 +886,7 @@ def _timed_eval_func(
                     random_fill(empty_array)
                     args.append(empty_array)
             if task_inputs_count != len(task_input_names):
-                logger.warning(
+                raise RuntimeError(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
             dev.sync()
