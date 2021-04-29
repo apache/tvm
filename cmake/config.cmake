@@ -299,3 +299,6 @@ set(USE_LIBBACKTRACE AUTO)
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
 set(BUILD_STATIC_RUNTIME OFF)
+
+# Whether to compile with Android NNAPI
+set(USE_ANDROID_NNAPI OFF)
