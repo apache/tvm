@@ -93,8 +93,6 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
   TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
   TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendAllocTexture);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendFreeTexture);
   TVM_INIT_CONTEXT_FUNC(TVMBackendParallelLaunch);
   TVM_INIT_CONTEXT_FUNC(TVMBackendParallelBarrier);
 

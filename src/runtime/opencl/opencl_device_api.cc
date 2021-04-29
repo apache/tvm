@@ -187,7 +187,7 @@ void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   OPENCL_CALL(clReleaseMemObject(mptr));
 }
 
-void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
+cl_mem OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;

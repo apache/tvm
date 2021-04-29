@@ -74,7 +74,8 @@ class TexturePool::Pool {
         device->FreeDataSpace(ctx, best_mem->data);
         free_list_.erase(best_mem);
         new_mem.type = type_hint;
-        new_mem.data = device->AllocTexture(ctx, new_mem.x, new_mem.y, new_mem.type);
+        std::vector<int64_t> shape{int64_t(new_mem.y), int64_t(new_mem.x), 4};
+        new_mem.data = device->AllocDataSpace(ctx, shape.size(), shape.data(), new_mem.type, Optional<String>("texture"));
         e = new_mem;
       }
     }
@@ -82,7 +83,8 @@ class TexturePool::Pool {
     if (e.data == nullptr)
     {
       // create new block
-      e.data = device->AllocTexture(ctx, width, height, type_hint);
+      std::vector<int64_t> shape{int64_t(height), int64_t(width), 4};
+      e.data = device->AllocDataSpace(ctx, shape.size(), shape.data(), type_hint, Optional<String>("texture"));
       e.x = width;
       e.y = height;
       e.type = type_hint;
