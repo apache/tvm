@@ -537,15 +537,16 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     dilation[i] = cast(DataType::Int(32), dilation_size[i]);
     pad_head[i] = cast(DataType::Int(32), padding_size[i]);
     pad_tail[i] = cast(DataType::Int(32), padding_size[i + k_size]);
-    const int64_t* padding0 = as_const_int(pad_head[i]);
-    const int64_t* padding1 = as_const_int(pad_tail[i]);
-    do_pad = do_pad || (padding0 && *padding0) || (padding1 && *padding1);
 
     if (ceil_mode) {
       // Additional padding to ensure we do ceil instead of floor when
       // dividing by stride.
       pad_tail[i] += stride[i] - 1;
     }
+
+    const int64_t* padding0 = as_const_int(pad_head[i]);
+    const int64_t* padding1 = as_const_int(pad_tail[i]);
+    do_pad = do_pad || (padding0 && *padding0) || (padding1 && *padding1);
 
     daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i]), "rv" + std::to_string(i)));
 
