@@ -32,10 +32,10 @@ def test_nearbyint():
     A_rounded = te.compute((m,), lambda *i: tvm.tir.nearbyint(A(*i)), name="A")
     s = te.create_schedule(A_rounded.op)
     f = tvm.build(s, [A, A_rounded], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(high=100, size=n).astype(A.dtype), ctx)
-    a_rounded = tvm.nd.array(np.random.uniform(size=n).astype(A_rounded.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(high=100, size=n).astype(A.dtype), dev)
+    a_rounded = tvm.nd.array(np.random.uniform(size=n).astype(A_rounded.dtype), dev)
     f(a, a_rounded)
     # Note that numpys rint rounds to nearest integer with
     # ties to halfway is broken by rounding to even.
@@ -80,10 +80,10 @@ def test_unary_intrin():
         B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-5, rtol=1e-5)
 
@@ -108,11 +108,11 @@ def test_binary_intrin():
         C = te.compute((m,), lambda *i: tvm_intrin(A(*i), B(*i)), name="C")
         s = te.create_schedule(C.op)
         f = tvm.build(s, [A, B, C], "llvm")
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.asnumpy(), np_func(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5
@@ -131,15 +131,57 @@ def test_ldexp():
     C = te.compute((m,), lambda *i: tvm.tir.ldexp(A(*i), B(*i)), name="C")
     s = te.create_schedule(C.op)
     f = tvm.build(s, [A, B, C], "llvm")
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     n = 10
-    a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
-    b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), ctx)
-    c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+    a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), dev)
+    c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(
         c.asnumpy(), np.ldexp(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5
     )
+
+
+def test_clz():
+    def clz_np(x, dtype):
+        ceil_log2 = np.ceil(np.log2(x)).astype(dtype)
+        bits = int(dtype[-2:])
+        clz = bits - ceil_log2
+        clz[np.bitwise_and(x, x - 1) == 0] -= 1
+        return clz
+
+    for target in ["llvm", "vulkan"]:
+        if not tvm.testing.device_enabled("vulkan"):
+            continue
+
+        for dtype in ["int32", "int64"]:
+            m = te.var("m")
+            A = te.placeholder((m,), name="A", dtype=dtype)
+            B = te.compute((m,), lambda *i: tvm.tir.clz(A(*i)), name="B")
+            s = te.create_schedule(B.op)
+
+            if target == "vulkan":
+                bx, tx = s[B].split(B.op.axis[0], factor=64)
+
+                s[B].bind(bx, te.thread_axis("blockIdx.x"))
+                s[B].bind(tx, te.thread_axis("threadIdx.x"))
+
+            f = tvm.build(s, [A, B], target)
+            dev = tvm.device(target, 0)
+            n = 10
+
+            highs = [10, 100, 1000, 10000, 100000, 1000000]
+
+            if dtype == "int64":
+                highs.append((1 << 63) - 1)
+
+            for high in highs:
+                a_np = np.random.randint(1, high=high, size=(n,)).astype(dtype)
+                a = tvm.nd.array(a_np, dev)
+                b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)
+                f(a, b)
+                ref = clz_np(a_np, dtype)
+                np.testing.assert_equal(b.asnumpy(), ref)
 
 
 if __name__ == "__main__":
@@ -148,3 +190,4 @@ if __name__ == "__main__":
     test_round_intrinsics_on_int()
     test_binary_intrin()
     test_ldexp()
+    test_clz()

@@ -32,7 +32,7 @@ namespace tvm {
 namespace relay {
 
 // Creator of DependencyGraph
-class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
+class DependencyGraph::Creator : private MixedModeVisitor {
  public:
   explicit Creator(support::Arena* arena) : arena_(arena) {}
 
@@ -73,13 +73,13 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     return ret;
   }
 
-  void VisitExpr(const Expr& e) final {
+  void VisitLeaf(const Expr& e) override {
     if (visited_.count(e) == 0) {
       if (graph_.expr_node.count(e) == 0) {
         graph_.expr_node[e] = NewNode(false);
       }
       visited_.insert(e);
-      ExprFunctor<void(const Expr&)>::VisitExpr(e);
+      MixedModeVisitor::VisitLeaf(e);
       graph_.post_dfs_order.push_back(graph_.expr_node[e]);
     }
   }

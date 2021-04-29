@@ -132,7 +132,7 @@ class RPCEndpoint {
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_to The target context.
+   * \param dev_to The target device.
    * \param type_hint Hint of content data type.
    */
   void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes);
@@ -143,7 +143,7 @@ class RPCEndpoint {
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_from The source context.
+   * \param dev_from The source device.
    * \param type_hint Hint of content data type.
    */
   void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes);
@@ -204,6 +204,16 @@ template <typename... Args>
 inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
   return syscall_remote_(static_cast<int>(code), std::forward<Args>(args)...);
 }
+
+/*!
+ * \brief Calculates overhead size of a CopyToRemote packet.
+ * \param to DLTensor to copy.
+ * \param code RPCCode for this transfer.
+ * \param nbytes Number of bytes to transfer.
+ * \return The remote-copy packet overhead size.
+ */
+uint64_t RemoteCopyCalculatePacketOverheadSize(DLTensor* tensor, RPCCode code, uint64_t nbytes);
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_ENDPOINT_H_

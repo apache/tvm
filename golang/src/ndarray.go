@@ -243,10 +243,10 @@ func (parray Array) GetDType() (retVal string) {
     return
 }
 
-// GetCtx returns the number of dimentions in Array
-func (parray Array) GetCtx() (retVal Context) {
-    ret := ((*C.DLTensor)(unsafe.Pointer(parray))).ctx
-    retVal = *(*Context)(unsafe.Pointer(&ret))
+// GetDevice returns the number of dimentions in Array
+func (parray Array) GetDevice() (retVal Device) {
+    ret := ((*C.DLTensor)(unsafe.Pointer(parray))).device
+    retVal = *(*Device)(unsafe.Pointer(&ret))
     return
 }
 
@@ -289,12 +289,12 @@ func nativeTVMArrayAlloc(shape []int64, ndim int32,
 //
 //        `args[0]` is string for data type. Default value is 'float32'
 //
-//        `args[1]` is Context. Default value is '{KDLCPU, 0}'
+//        `args[1]` is Device. Default value is '{KDLCPU, 0}'
 //
 // returns pointer to Array on successful execution and error if any.
 func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
     typeName := "float32"
-    ctx := Context{KDLCPU, 0}
+    dev := Device{KDLCPU, 0}
 
     if len(shape) < 1 {
         err = fmt.Errorf("Invalid shape for Array creation: %v", len(shape))
@@ -305,8 +305,8 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
         switch val.(type) {
             case string:
                 typeName = args[i].(string)
-            case Context:
-                ctx = args[i].(Context)
+            case Device:
+                dev = args[i].(Device)
             default:
                 err = fmt.Errorf("Invalid Optional Argument Type: %T", val)
                 return
@@ -320,7 +320,7 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
     ndim := int32(len(shape))
     newArray, err := nativeTVMArrayAlloc(shape, ndim, int32(tvmType.code),
                                     int32(tvmType.bits), int32(tvmType.lanes),
-                                    ctx.DeviceType, ctx.DeviceID)
+                                    dev.DeviceType, dev.DeviceID)
     if err != nil {
         return
     }

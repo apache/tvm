@@ -1635,7 +1635,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * [topi] enable fp16 sort for arm (#4084)
 * Add OpenOCD Low-Level Device (RISC-V Support) (#3756)
 * Add wave 32 bc for AMD ROCm backend (#3984)
-* [RUTNIME] Support C++ RPC (#4281)
+* [RUNTIME] Support C++ RPC (#4281)
 * [TOPI][OP] Support Faster-RCNN Proposal OP on CPU (#4297)
 * [TVM][RUNTIME] A minimum example to generate external library wrappers for DSOModule (#4280)
 

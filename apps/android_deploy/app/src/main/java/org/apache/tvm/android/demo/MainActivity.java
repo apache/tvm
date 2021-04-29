@@ -56,7 +56,7 @@ import java.util.Vector;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 import org.apache.tvm.TVMValue;
 import org.apache.tvm.TVMType;
 
@@ -90,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView mImageView;
     private TextView mResultView;
     private AssetManager assetManager;
-    private Module graphRuntimeModule;
+    private Module graphExecutorModule;
     private Vector<String> labels = new Vector<String>();
 
     @Override
@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /*
-        Load precompiled model on TVM graph runtime and init the system.
+        Load precompiled model on TVM graph executor and init the system.
      */
     private class LoadModleAsyncTask extends AsyncTask<Void, Void, Integer> {
         ProgressDialog dialog = new ProgressDialog(MainActivity.this);
@@ -177,23 +177,23 @@ public class MainActivity extends AppCompatActivity {
                 return -1;//failure
             }
 
-            // create java tvm context
-            TVMContext tvmCtx = EXE_GPU ? TVMContext.opencl() : TVMContext.cpu();
+            // create java tvm device
+            Device tvmDev = EXE_GPU ? Device.opencl() : Device.cpu();
 
             // tvm module for compiled functions
             Module modelLib = Module.load(libCacheFilePath);
 
-            // get global function module for graph runtime
-            Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
+            // get global function module for graph executor
+            Function runtimeCreFun = Function.getFunction("tvm.graph_executor.create");
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
-                    .pushArg(tvmCtx.deviceType)
-                    .pushArg(tvmCtx.deviceId)
+                    .pushArg(tvmDev.deviceType)
+                    .pushArg(tvmDev.deviceId)
                     .invoke();
-            graphRuntimeModule = runtimeCreFunRes.asModule();
+            graphExecutorModule = runtimeCreFunRes.asModule();
 
             // get the function from the module(load parameters)
-            Function loadParamFunc = graphRuntimeModule.getFunction("load_params");
+            Function loadParamFunc = graphExecutorModule.getFunction("load_params");
             loadParamFunc.pushArg(modelParams).invoke();
 
             // release tvm local variables
@@ -224,14 +224,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /*
-        Execute prediction for processed decode input bitmap image content on TVM graph runtime.
+        Execute prediction for processed decode input bitmap image content on TVM graph executor.
      */
     private class ModelRunAsyncTask extends AsyncTask<Bitmap, Void, Integer> {
         ProgressDialog dialog = new ProgressDialog(MainActivity.this);
 
         @Override
         protected Integer doInBackground(Bitmap... bitmaps) {
-            if (null != graphRuntimeModule) {
+            if (null != graphExecutorModule) {
                 int count  = bitmaps.length;
                 for (int i = 0 ; i < count ; i++) {
                     long processingTimeMs = SystemClock.uptimeMillis();
@@ -283,7 +283,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.i(TAG, "set input data");
                     NDArray inputNdArray = NDArray.empty(new long[]{1, IMG_CHANNEL, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE}, new TVMType("float32"));;
                     inputNdArray.copyFrom(imgRgbTranValues);
-                    Function setInputFunc = graphRuntimeModule.getFunction("set_input");
+                    Function setInputFunc = graphExecutorModule.getFunction("set_input");
                     setInputFunc.pushArg(INPUT_NAME).pushArg(inputNdArray).invoke();
                     // release tvm local variables
                     inputNdArray.release();
@@ -291,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
 
                     // get the function from the module(run it)
                     Log.i(TAG, "run function on target");
-                    Function runFunc = graphRuntimeModule.getFunction("run");
+                    Function runFunc = graphExecutorModule.getFunction("run");
                     runFunc.invoke();
                     // release tvm local variables
                     runFunc.release();
@@ -299,7 +299,7 @@ public class MainActivity extends AppCompatActivity {
                     // get the function from the module(get output data)
                     Log.i(TAG, "get output data");
                     NDArray outputNdArray = NDArray.empty(new long[]{1, 1000}, new TVMType("float32"));
-                    Function getOutputFunc = graphRuntimeModule.getFunction("get_output");
+                    Function getOutputFunc = graphExecutorModule.getFunction("get_output");
                     getOutputFunc.pushArg(OUTPUT_INDEX).pushArg(outputNdArray).invoke();
                     float[] output = outputNdArray.asFloatArray();
                     // release tvm local variables
@@ -343,7 +343,7 @@ public class MainActivity extends AppCompatActivity {
                 dialog.dismiss();
             }
             if (status != 0) {
-                showDialog("Error", "Fail to predict image, GraphRuntime exception");
+                showDialog("Error", "Fail to predict image, GraphExecutor exception");
             }
         }
     }
@@ -351,8 +351,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         // release tvm local variables
-        if (null != graphRuntimeModule)
-            graphRuntimeModule.release();
+        if (null != graphExecutorModule)
+            graphExecutorModule.release();
         super.onDestroy();
     }
 

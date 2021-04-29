@@ -40,7 +40,7 @@ class MemoryManagerTest : public ::testing::Test {
     MemoryManagerCreate(&interface, memory_pool, kMemoryPoolSizeBytes, kPageSizeBytesLog);
     mgr = (MemoryManager*)interface;
     ASSERT_EQ(kNumUsablePages, mgr->ptable.max_pages);
-    ctx_ = {kDLCPU, 0};
+    dev_ = {kDLCPU, 0};
   }
 
   unsigned int AddressToPageNumber(void* a) {
@@ -52,7 +52,7 @@ class MemoryManagerTest : public ::testing::Test {
   uint8_t* memory_pool;
   MemoryManagerInterface* interface;
   MemoryManager* mgr;
-  DLContext ctx_;
+  DLDevice dev_;
 };
 
 #define EXPECT_PAGE(expected, actual) EXPECT_EQ(expected, AddressToPageNumber(actual))
@@ -64,7 +64,7 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
     void* ptrs[kNumUsablePages];
     for (size_t idx = 0; idx < kNumUsablePages; idx++) {
       void* a;
-      EXPECT_EQ(interface->Allocate(interface, 1, ctx_, &a), kTvmErrorNoError);
+      EXPECT_EQ(interface->Allocate(interface, 1, dev_, &a), kTvmErrorNoError);
       if (i == 0) {
         EXPECT_PAGE(idx, a);
       } else {
@@ -75,7 +75,7 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
     }
 
     for (int idx = kNumUsablePages - 1; idx >= 0; idx--) {
-      interface->Free(interface, ptrs[idx], ctx_);
+      interface->Free(interface, ptrs[idx], dev_);
       EXPECT_EQ(interface->vleak_size, idx);
     }
   }

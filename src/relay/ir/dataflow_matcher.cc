@@ -242,6 +242,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     }
     return false;
   };
+
   // logic
   auto watermark = matched_nodes_.size();
   if (const auto* call_node = expr.as<CallNode>()) {
@@ -253,13 +254,15 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
                                             const Array<Expr> expr_args) {
         bool matches = true;
         size_t i = 0;
-        if (pattern_args.size() == expr_args.size()) {
-          while (matches && i < pattern_args.size()) {
-            matches &= VisitDFPattern(pattern_args[i], expr_args[i]);
-            ++i;
+        if (pattern_args.defined()) {
+          if (pattern_args.size() == expr_args.size()) {
+            while (matches && i < pattern_args.size()) {
+              matches &= VisitDFPattern(pattern_args[i], expr_args[i]);
+              ++i;
+            }
+          } else {
+            matches = false;
           }
-        } else {
-          matches = false;
         }
         if (!matches) {
           ClearMap(watermark2);
@@ -381,14 +384,16 @@ bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr
   bool matches = false;
   if (const auto* func = expr.as<FunctionNode>()) {
     matches = true;
-    size_t i = 0;
-    if (op->params.size() == func->params.size()) {
-      while (matches && i < op->params.size()) {
-        matches &= VisitDFPattern(op->params[i], func->params[i]);
-        ++i;
+    if (op->params.defined()) {
+      size_t i = 0;
+      if (op->params.size() == func->params.size()) {
+        while (matches && i < op->params.size()) {
+          matches &= VisitDFPattern(op->params[i], func->params[i]);
+          ++i;
+        }
+      } else {
+        matches = false;
       }
-    } else {
-      matches = false;
     }
     if (matches) {
       matches &= VisitDFPattern(op->body, func->body);
@@ -409,12 +414,16 @@ bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const 
 bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_node = expr.as<TupleNode>()) {
-    if (op->fields.size() == tuple_node->fields.size()) {
-      matches = true;
-      size_t i = 0;
-      while (matches && i < op->fields.size()) {
-        matches &= VisitDFPattern(op->fields[i], tuple_node->fields[i]);
-        ++i;
+    matches = true;
+    if (op->fields.defined()) {
+      if (op->fields.size() == tuple_node->fields.size()) {
+        size_t i = 0;
+        while (matches && i < op->fields.size()) {
+          matches &= VisitDFPattern(op->fields[i], tuple_node->fields[i]);
+          ++i;
+        }
+      } else {
+        matches = false;
       }
     }
   }
@@ -657,7 +666,6 @@ class PatternGrouper {
     int var_number = 0;
 
     auto node_map = matcher_->GetMemo();
-
     // Get fuzzy patterns
     std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> fuzzy_matches;
     for (auto node : pattern_graph_.topological_order_) {
@@ -669,11 +677,13 @@ class PatternGrouper {
           }
         }
       }
-      // Don't treat Function params as input variables for partition
-      if (auto op = node->ref_.as<FunctionPatternNode>()) {
-        for (auto fuzzy_op : op->params) {
-          for (auto match : node_map[fuzzy_op]) {
-            fuzzy_matches.insert(match);
+      // Don't treat Function params or body as input variables for partition
+      if (node->ref_.as<FunctionPatternNode>()) {
+        auto matches = node_map[node->ref_];
+        for (auto match : matches) {
+          auto graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
+          for (auto node : graph.topological_order_) {
+            fuzzy_matches.insert(node->ref_);
           }
         }
       }
@@ -686,20 +696,44 @@ class PatternGrouper {
 
     std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs;
     Array<Var> params;
+
     for (auto node : pattern_graph_.topological_order_) {
-      if (node->inputs_.size() == 0) {
+      auto make_input = [&](const Expr& input) {
+        if (fuzzy_matches.count(input) == 0 && input.as<OpNode>() == nullptr &&
+            input.as<FunctionNode>() == nullptr && !EmbedConst(input, node->ref_)) {
+          inputs[input] =
+              Var("FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
+                  NullValue<Type>());
+          group.args.push_back(input);
+          params.push_back(inputs[input]);
+          var_number++;
+        }
+      };
+      auto tuple = node->ref_.as<TuplePatternNode>();
+      auto call = node->ref_.as<CallPatternNode>();
+      if (tuple && !tuple->fields.defined()) {
         if (node_map.count(node->ref_)) {
           auto matches = node_map[node->ref_];
           for (auto match : matches) {
-            if (fuzzy_matches.count(match) == 0 && match.as<OpNode>() == nullptr &&
-                match.as<FunctionNode>() == nullptr && !EmbedConst(match, node->ref_)) {
-              inputs[match] = Var(
-                  "FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
-                  NullValue<Type>());
-              group.args.push_back(match);
-              params.push_back(inputs[match]);
-              var_number++;
+            for (auto input : match.as<TupleNode>()->fields) {
+              make_input(input);
             }
+          }
+        }
+      } else if (call && !call->args.defined()) {
+        if (node_map.count(node->ref_)) {
+          auto matches = node_map[node->ref_];
+          for (auto match : matches) {
+            for (auto input : match.as<CallNode>()->args) {
+              make_input(input);
+            }
+          }
+        }
+      } else if (node->inputs_.size() == 0) {
+        if (node_map.count(node->ref_)) {
+          auto matches = node_map[node->ref_];
+          for (auto match : matches) {
+            make_input(match);
           }
         }
       }
@@ -898,6 +932,11 @@ class PatternPartitioner : protected MixedModeMutator {
  public:
   Expr Partition(const DFPattern& pattern, const Expr& pre, const Map<String, ObjectRef>& attrs,
                  PackedFunc check) {
+    if (pattern.as<FunctionPatternNode>()) {
+      LOG(WARNING) << "Partioning a Function that isn't called doesn't make sense, skipping"
+                   << pattern;
+      return pre;
+    }
     auto grouper = PatternGrouper();
     groups_ = grouper.GroupMatches(pattern, pre);
     gid_assignments_ = grouper.GetGIDAssignments();

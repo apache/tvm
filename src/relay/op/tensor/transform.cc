@@ -1096,10 +1096,11 @@ TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
 
 bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  // `types` contains: [data, indices, result]
-  ICHECK_EQ(types.size(), 3);
+  // `types` contains: [data, indices, updates, result]
+  ICHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* indices = types[1].as<TensorTypeNode>();
+  const auto* updates = types[2].as<TensorTypeNode>();
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
         << "ScatterND: expect input data type to be TensorType but got " << types[0];
@@ -1110,8 +1111,14 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "ScatterND: expect indices type to be TensorType but got " << types[1];
     return false;
   }
+  if (updates == nullptr) {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "ScatterND: expect updates type to be TensorType but got " << types[2];
+    return false;
+  }
   ICHECK(indices->dtype.is_int()) << "ScatterND: indices must be a tensor of integers.";
-  const auto out_shape = attrs.as<ScatterNDAttrs>()->out_shape;
+
+  const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
   const size_t kdim = indices->shape.size() - 1;
   const size_t ndim = out_shape.size();
@@ -1120,7 +1127,7 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
          "with shape (M, Y_0, ..., Y_{K-1}), M must be less than or equal to N.";
   // Indices: (M, Y_0, .. Y_{K-1}) data: (Y_0, .. Y_{K-1}, ...), verify Y's.
   for (size_t i = 0; i < kdim; i++) {
-    reporter->AssertEQ(indices->shape[i + 1], data->shape[i]);
+    reporter->AssertEQ(indices->shape[i + 1], updates->shape[i]);
   }
 
   std::vector<IndexExpr> oshape;
@@ -1133,15 +1140,15 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
   }
 
-  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
   return true;
 }
 
-Expr MakeScatterND(Expr data, Expr indices, const Array<Integer> out_shape) {
+Expr MakeScatterND(Expr data, Expr indices, Expr updates, String mode) {
   auto attrs = make_object<ScatterNDAttrs>();
-  attrs->out_shape = out_shape;
+  attrs->mode = std::move(mode);
   static const Op& op = Op::Get("scatter_nd");
-  return Call(op, {data, indices}, Attrs(attrs), {});
+  return Call(op, {data, indices, updates}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.scatter_nd").set_body_typed(MakeScatterND);
@@ -1156,9 +1163,10 @@ whose shape is defined by indices.
 Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}) and indices with shape
 (M, Y_0, ..., Y_{K-1}), the output will have shape (X_0, X_1, ..., X_{N-1}).
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(2)
+    .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor.")
     .set_support_level(3)
     .add_type_rel("ScatterND", ScatterNDRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
@@ -2159,6 +2167,69 @@ Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::squeeze(inputs[0], param->axis)};
 }
 
+Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
+  // NOTE: Discard "const" qualifier here.
+  SqueezeAttrs* params = const_cast<SqueezeAttrs*>(attrs.as<SqueezeAttrs>());
+
+  Layout inferred_input = new_in_layouts.defined() ? new_in_layouts[0] : old_in_layouts[0];
+  Layout inferred_output = inferred_input;
+
+  ICHECK(old_in_types[0].as<TensorTypeNode>());
+  const auto& shape = old_in_types[0].as<TensorTypeNode>()->shape;
+
+  // axis to squeeze
+  Array<Integer> axis;
+  if (params->axis.defined()) {
+    axis = params->axis;
+  } else {
+    // if axes is None, squeeze all axes of dimension 1
+    for (size_t i = 0; i < shape.size(); i++) {
+      if (topi::detail::GetConstInt(shape[i]) == 1) {
+        axis.push_back(i);
+      }
+    }
+  }
+
+  // If new_in_layouts are defined, this code tries to modify the layout
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    Array<Integer> new_axis;
+    for (const auto& e : axis) {
+      const auto& dim = old_in_layouts[0][e];
+      new_axis.push_back((new_in_layouts[0]).IndexOf(dim));
+    }
+    params->axis = new_axis;
+    axis = new_axis;
+  }
+
+  // Infer output layout
+  Array<tir::IterVar> kept_axes;
+  for (size_t i = 0; i < inferred_input.ndim(); i++) {
+    bool is_dim_kept = true;
+
+    // Check whether the dim should be kept
+    for (const auto& e : axis) {
+      int64_t axis_val = e->value;
+      if (axis_val < 0) {
+        axis_val += inferred_input.ndim();
+      }
+      if (static_cast<int64_t>(i) == axis_val) {
+        is_dim_kept = false;
+        break;
+      }
+    }
+
+    if (is_dim_kept) {
+      kept_axes.push_back(inferred_input->axes[i]);
+    }
+  }
+  inferred_output = Layout(kept_axes);
+
+  return Array<Array<Layout>>{{inferred_input}, {inferred_output}};
+}
+
 RELAY_REGISTER_OP("squeeze")
     .describe(R"code(Squeeze the input tensor at the dimensions given by axes
 
@@ -2171,7 +2242,8 @@ RELAY_REGISTER_OP("squeeze")
     .set_support_level(3)
     .add_type_rel("Squeeze", SqueezeRel)
     .set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SqueezeInferCorrectLayout);
 
 // CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
 bool CollapseSumLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -3772,20 +3844,20 @@ RELAY_REGISTER_OP("adv_index")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
-TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+TVM_REGISTER_NODE_TYPE(ScanopAttrs);
 
-bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool ScanopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   // types: [data, output]
   ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
-        << "cumsum: expect input type to be TensorType but get " << types[0];
+        << "Scanop: expect input type to be TensorType but get " << types[0];
     return false;
   }
 
-  const auto* param = attrs.as<CumsumAttrs>();
+  const auto* param = attrs.as<ScanopAttrs>();
 
   auto dtype = param->dtype;
   if (dtype.is_void()) {
@@ -3805,8 +3877,8 @@ bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Integer exclusive) {
-  auto attrs = make_object<CumsumAttrs>();
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
+  auto attrs = make_object<ScanopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
   attrs->exclusive = exclusive;
@@ -3822,7 +3894,27 @@ RELAY_REGISTER_OP("cumsum")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
-    .add_type_rel("Cumsum", CumsumRel)
+    .add_type_rel("Cumsum", ScanopRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+Expr MakeCumprod(Expr data, Integer axis, DataType dtype, Bool exclusive) {
+  auto attrs = make_object<ScanopAttrs>();
+  attrs->dtype = dtype;
+  attrs->axis = axis;
+  attrs->exclusive = exclusive;
+  static const Op& op = Op::Get("cumprod");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.cumprod").set_body_typed(MakeCumprod);
+
+RELAY_REGISTER_OP("cumprod")
+    .describe(
+        R"doc(Return the cumulative product of the elements along a given axis.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Cumprod", ScanopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 TVM_REGISTER_NODE_TYPE(UniqueAttrs);

@@ -19,16 +19,17 @@
 # pylint: disable=too-many-local-variables, too-many-arguments, no-else-return
 
 from __future__ import absolute_import
+
 import tvm
-from tvm import te
-from tvm.te.hybrid import script
+from tvm import te, topi
 from tvm.runtime import convert
-from tvm import topi
+from tvm.te.hybrid import script
 from tvm.topi.utils import get_const_int, get_const_tuple
+
 from . import op as _reg
 from . import strategy
-from .op import OpPattern
 from ._tensor import elemwise_shape_func
+from .op import OpPattern
 
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
@@ -144,7 +145,7 @@ _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 @_reg.register_compute("scatter_nd")
 def compute_scatter_nd(attrs, inputs, output_type):
     """Compute definition of scatter_nd"""
-    return [topi.scatter_nd(inputs[0], inputs[1], attrs.out_shape)]
+    return [topi.scatter_nd(inputs[0], inputs[1], inputs[2], attrs.mode)]
 
 
 _reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
@@ -158,6 +159,16 @@ def compute_cumsum(attrs, inputs, output_type):
 
 _reg.register_strategy("cumsum", strategy.cumsum_strategy)
 _reg.register_shape_func("cumsum", False, elemwise_shape_func)
+
+# cumprod
+@_reg.register_compute("cumprod")
+def compute_cumprod(attrs, inputs, output_type):
+    """Compute definition of cumprod"""
+    return [topi.cumprod(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
+
+
+_reg.register_strategy("cumprod", strategy.cumprod_strategy)
+_reg.register_shape_func("cumprod", False, elemwise_shape_func)
 
 
 @_reg.register_compute("unique")
@@ -1007,9 +1018,15 @@ def where_shape_func(attrs, inputs, _):
     """
     Shape func for where.
     """
-    cond_shape = inputs[0]
-    x_shape = inputs[1]
-    y_shape = inputs[2]
+
+    def ensure_tensor(tensor):
+        if len(tensor.shape) == 0:
+            return topi.full((1,), "int64", 1)
+        return tensor
+
+    cond_shape = ensure_tensor(inputs[0])
+    x_shape = ensure_tensor(inputs[1])
+    y_shape = ensure_tensor(inputs[2])
 
     bcast_shape = _broadcast_shape_tensors(x_shape, y_shape)
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)

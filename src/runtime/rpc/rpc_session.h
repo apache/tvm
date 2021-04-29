@@ -157,12 +157,12 @@ class RPCSession {
    *  The device API is guaranteed to be alive during the
    *  lifetime of the Session.
    *
-   * \param ctx The remote context.
+   * \param dev The remote device.
    * \param allow_missing Whether can we return nullptr if it is not available.
    *
    * \return The device API.
    */
-  virtual DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) = 0;
+  virtual DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing = false) = 0;
 
   /*!
    * \brief Whether the session is a local session and we can directly
@@ -234,12 +234,12 @@ class RPCSession {
   virtual void AsyncCopyFromRemote(DLTensor* remote_from, void* local_to_bytes, uint64_t nbytes,
                                    FAsyncCallback on_complete);
   /*!
-   * \brief Asynchrously wait for all events in ctx, stream compeletes.
-   * \param ctx The device context.
+   * \brief Asynchrously wait for all events in dev, stream compeletes.
+   * \param dev The device.
    * \param stream The stream to wait on.
    * \param on_complete The callback to signal copy complete.
    */
-  virtual void AsyncStreamWait(TVMContext ctx, TVMStreamHandle stream, FAsyncCallback on_compelte);
+  virtual void AsyncStreamWait(Device dev, TVMStreamHandle stream, FAsyncCallback on_compelte);
 
   /*!
    * \return The session table index of the session.
@@ -272,7 +272,7 @@ class RPCSession {
 /*!
  * \brief Remote space handle cell used by the RPC runtime API.
  *
- *  When we allocate space using a rpc context, the data pointer
+ *  When we allocate space using a rpc device, the data pointer
  *  points to an allocated RemoteSpace.
  */
 struct RemoteSpace {
@@ -285,7 +285,7 @@ struct RemoteSpace {
 /*!
  * \brief Wrap a timer function to measure the time cost of a given packed function.
  * \param f The function argument.
- * \param ctx The context.
+ * \param dev The device.
  * \param number The number of times to run this function for taking average.
  *        We call these runs as one `repeat` of measurement.
  * \param repeat The number of times to repeat the measurement.
@@ -302,8 +302,8 @@ struct RemoteSpace {
  * \param f_preproc The function to be executed before we excetute time evaluator.
  * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat,
-                             int min_repeat_ms, PackedFunc f_preproc = nullptr);
+PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
+                             PackedFunc f_preproc = nullptr);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.

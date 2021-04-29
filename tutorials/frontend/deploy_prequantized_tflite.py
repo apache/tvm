@@ -168,9 +168,9 @@ def run_tflite_model(tflite_model_buf, input_data):
 ###############################################################################
 # Lets run TVM compiled pre-quantized model inference and get the TVM prediction.
 def run_tvm(lib):
-    from tvm.contrib import graph_runtime
+    from tvm.contrib import graph_executor
 
-    rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
+    rt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
     rt_mod.set_input("input", data)
     rt_mod.run()
     tvm_res = rt_mod.get_output(0).asnumpy()
@@ -231,8 +231,8 @@ print("TFLite Top-5 labels:", tflite_pred)
 # -------------------
 # Here we give an example of how to measure performance of TVM compiled models.
 n_repeat = 100  # should be bigger to make the measurement more accurate
-ctx = tvm.cpu(0)
-ftimer = rt_mod.module.time_evaluator("run", ctx, number=1, repeat=n_repeat)
+dev = tvm.cpu(0)
+ftimer = rt_mod.module.time_evaluator("run", dev, number=1, repeat=n_repeat)
 prof_res = np.array(ftimer().results) * 1e3
 print("Elapsed average ms:", np.mean(prof_res))
 

@@ -46,7 +46,7 @@ func TestFunctionGlobals(t *testing.T) {
 
 // Check GetFunction API
 func TestFunctionGlobalGet(t *testing.T) {
-    funp, err := GetGlobalFunction("tvm.graph_runtime.create")
+    funp, err := GetGlobalFunction("tvm.graph_executor.create")
     if err != nil {
         t.Error(err.Error())
         return

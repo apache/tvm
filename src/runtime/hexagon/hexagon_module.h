@@ -143,7 +143,7 @@ class Device {
   virtual ~Device() = 0;
 
   static std::shared_ptr<Device> Global();
-  static bool ValidateDeviceId(decltype(DLContext::device_id) device_id) {
+  static bool ValidateDeviceId(decltype(DLDevice::device_id) device_id) {
     // Only supporting a single device for now.
     return device_id == 0;
   }

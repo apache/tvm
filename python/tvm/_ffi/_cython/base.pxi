@@ -29,7 +29,7 @@ cdef enum TVMArgTypeCode:
     kTVMOpaqueHandle = 3
     kTVMNullptr = 4
     kTVMDataType = 5
-    kTVMContext = 6
+    kDLDevice = 6
     kTVMDLTensorHandle = 7
     kTVMObjectHandle = 8
     kTVMModuleHandle = 9
@@ -46,13 +46,13 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         uint8_t bits
         uint16_t lanes
 
-    ctypedef struct DLContext:
+    ctypedef struct DLDevice:
         int device_type
         int device_id
 
     ctypedef struct DLTensor:
         void* data
-        DLContext ctx
+        DLDevice device
         int ndim
         DLDataType dtype
         int64_t* shape
@@ -70,7 +70,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         void* v_handle
         const char* v_str
         DLDataType v_type
-        DLContext v_ctx
+        DLDevice v_device
 
 ctypedef int64_t tvm_index_t
 ctypedef DLTensor* DLTensorHandle
@@ -118,7 +118,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMArrayAlloc(tvm_index_t* shape,
                       tvm_index_t ndim,
                       DLDataType dtype,
-                      DLContext ctx,
+                      DLDevice dev,
                       DLTensorHandle* out)
     int TVMArrayFree(DLTensorHandle handle)
     int TVMArrayCopyFromTo(DLTensorHandle src,

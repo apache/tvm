@@ -32,7 +32,7 @@ TEMP_DIR=$(mktemp -d)
 
 python3 $SCRIPT_DIR/test_add_cpu.py $TEMP_DIR
 python3 $SCRIPT_DIR/test_add_gpu.py $TEMP_DIR
-python3 $SCRIPT_DIR/test_graph_runtime.py $TEMP_DIR
+python3 $SCRIPT_DIR/test_graph_executor.py $TEMP_DIR
 
 # start rpc proxy server
 PORT=$(( ( RANDOM % 1000 )  + 9000 ))

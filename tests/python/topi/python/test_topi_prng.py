@@ -21,7 +21,7 @@ import tvm.topi
 import numpy as np
 
 
-def threefry_split(target, ctx, gen):
+def threefry_split(target, dev, gen):
     gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
     left_placeholder, right_placeholder = tvm.topi.random.threefry_split(gen_placeholder)
     s = tvm.topi.generic.schedule_extern([left_placeholder, right_placeholder])
@@ -32,7 +32,7 @@ def threefry_split(target, ctx, gen):
     return left.asnumpy(), right.asnumpy()
 
 
-def threefry_generate(target, ctx, gen, size):
+def threefry_generate(target, dev, gen, size):
     gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
     left_placeholder, right_placeholder = tvm.topi.random.threefry_generate(gen_placeholder, size)
     s = tvm.topi.generic.schedule_extern([left_placeholder, right_placeholder])
@@ -44,10 +44,10 @@ def threefry_generate(target, ctx, gen, size):
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_split(target, ctx):
+def test_threefry_split(target, dev):
     # test that results of split do not equal eachother or the input
     gen = tvm.relay.random.threefry_key(0).data.asnumpy()
-    a, b = threefry_split(target, ctx, gen)
+    a, b = threefry_split(target, dev, gen)
     assert (a != b).any() and (
         a != gen
     ).any(), "Splitting a gen should result in different output gens"
@@ -57,37 +57,37 @@ def test_threefry_split(target, ctx):
 
     # test enough splits to go over path length
     for i in range(129):
-        a, b = threefry_split(target, ctx, b)
+        a, b = threefry_split(target, dev, b)
     assert (a[0:4] == b[0:4]).all(), "State part of split should be the same"
     assert (b[0:4] != np.zeros(4, dtype="uint64")).any()
 
     # check that split then generate does not generate the same for both sides
-    a, a_rands = threefry_generate(target, ctx, a, (100,))
-    b, b_rands = threefry_generate(target, ctx, b, (100,))
+    a, a_rands = threefry_generate(target, dev, a, (100,))
+    b, b_rands = threefry_generate(target, dev, b, (100,))
     assert (
         a_rands != b_rands
     ).all(), "Numbers generated from different initial states should be different"
 
     # check repeatability
-    _, rands1 = threefry_generate(target, ctx, a, (100,))
-    _, rands2 = threefry_generate(target, ctx, a, (100,))
+    _, rands1 = threefry_generate(target, dev, a, (100,))
+    _, rands2 = threefry_generate(target, dev, a, (100,))
     assert (
         rands1 == rands2
     ).all(), "Numbers generated from the same initial state should be the same"
 
-    a1, b1 = threefry_split(target, ctx, a)
-    a2, b2 = threefry_split(target, ctx, a)
+    a1, b1 = threefry_split(target, dev, a)
+    a2, b2 = threefry_split(target, dev, a)
     assert (a1 == a2).all() and (
         b1 == b2
     ).all(), "Split called on the same input should return the same result"
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_generate(target, ctx):
+def test_threefry_generate(target, dev):
     gen = tvm.relay.random.threefry_key(0).data.asnumpy()
 
     # check that we can generate some data
-    a, rands = threefry_generate(target, ctx, gen, (2048,))
+    a, rands = threefry_generate(target, dev, gen, (2048,))
     assert (
         rands.shape[0] == 2048 and len(rands.shape) == 1
     ), "Output shape should match requested shape"
@@ -99,26 +99,26 @@ def test_threefry_generate(target, ctx):
     gen = np.array(
         [0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 1 << 63, 0], dtype="uint64"
     )  # make counter large
-    a, rands = threefry_generate(target, ctx, gen, (2048,))
+    a, rands = threefry_generate(target, dev, gen, (2048,))
     assert gen[4] != a[4], "Overflow of counter should trigger path change"
     assert a[7] == 2048, "Overflow of counter should still update counter"
 
     # check generate with path at length limit
     gen = np.array([0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 0, 0], dtype="uint64")  # make counter large
-    a, rands = threefry_generate(target, ctx, gen, (2048,))
+    a, rands = threefry_generate(target, dev, gen, (2048,))
     assert (
         gen[0:4] != a[0:4]
     ).any(), "Overflowing counter with no space left in path should change state"
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_wrapping(target, ctx):
+def test_threefry_wrapping(target, dev):
     assert tvm.topi.random.threefry_test_wrapping(
-        target, ctx
+        target, dev
     ), f"{target} does not suppport wrapping unsigned integer arithmetic"
 
 
 if __name__ == "__main__":
-    test_threefry_split(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_generate(tvm.target.Target("llvm"), tvm.context("cpu"))
-    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.context("cpu"))
+    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))

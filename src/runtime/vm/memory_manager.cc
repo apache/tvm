@@ -37,7 +37,7 @@ static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   ICHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::GetAllocator(buffer->ctx)->Free(*(buffer));
+  MemoryManager::GetAllocator(buffer->device)->Free(*(buffer));
   delete buffer;
   delete ptr;
 }
@@ -80,7 +80,9 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
-  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, this->buffer.ctx);
+  NDArray::Container* container =
+      new NDArray::Container(this->buffer.data, shape, dtype, this->buffer.device);
+  container->dl_tensor.byte_offset = offset;
 
   container->SetDeleter(StorageObj::Deleter);
   size_t needed_size = GetDataSize(container->dl_tensor);
@@ -92,12 +94,6 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   // reference count, then destroy the container, but leave the underlying
   // buffer intact.
   container->manager_ctx = reinterpret_cast<void*>(this);
-
-  // is this UB?
-  // The only change we make w.r.t offset is modifying the data pointer
-  // of the backing tensor to point into the buffer instead of its start.
-  auto offset_ptr = reinterpret_cast<uint8_t*>(this->buffer.data) + offset;
-  container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
 
   NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.
@@ -116,54 +112,54 @@ MemoryManager* MemoryManager::Global() {
   return inst;
 }
 
-Allocator* MemoryManager::GetOrCreateAllocator(TVMContext ctx, AllocatorType type) {
+Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
-  if (m->allocators_.find(ctx) == m->allocators_.end()) {
+  if (m->allocators_.find(dev) == m->allocators_.end()) {
     std::unique_ptr<Allocator> alloc;
     switch (type) {
       case kNaive: {
-        DLOG(INFO) << "New naive allocator for " << DeviceName(ctx.device_type) << "("
-                   << ctx.device_id << ")";
-        alloc.reset(new NaiveAllocator(ctx));
+        DLOG(INFO) << "New naive allocator for " << DeviceName(dev.device_type) << "("
+                   << dev.device_id << ")";
+        alloc.reset(new NaiveAllocator(dev));
         break;
       }
       case kPooled: {
-        DLOG(INFO) << "New pooled allocator for " << DeviceName(ctx.device_type) << "("
-                   << ctx.device_id << ")";
-        alloc.reset(new PooledAllocator(ctx));
+        DLOG(INFO) << "New pooled allocator for " << DeviceName(dev.device_type) << "("
+                   << dev.device_id << ")";
+        alloc.reset(new PooledAllocator(dev));
         break;
       }
       default:
         LOG(FATAL) << "Unknown allocator type: " << type;
     }
     auto ret = alloc.get();
-    m->allocators_.emplace(ctx, std::move(alloc));
+    m->allocators_.emplace(dev, std::move(alloc));
     return ret;
   }
-  auto alloc = m->allocators_.at(ctx).get();
+  auto alloc = m->allocators_.at(dev).get();
   if (alloc->type() != type) {
-    LOG(WARNING) << "The type of existing allocator for " << DeviceName(ctx.device_type) << "("
-                 << ctx.device_id << ") is different from the request type (" << alloc->type()
+    LOG(WARNING) << "The type of existing allocator for " << DeviceName(dev.device_type) << "("
+                 << dev.device_id << ") is different from the request type (" << alloc->type()
                  << " vs " << type << ")";
   }
   return alloc;
 }
 
-Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
+Allocator* MemoryManager::GetAllocator(Device dev) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
-  auto it = m->allocators_.find(ctx);
+  auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    LOG(FATAL) << "Allocator for " << DeviceName(ctx.device_type) << "(" << ctx.device_id
+    LOG(FATAL) << "Allocator for " << DeviceName(dev.device_type) << "(" << dev.device_id
                << ") has not been created yet.";
   }
   return it->second.get();
 }
 
-NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
-  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, ctx);
+  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);

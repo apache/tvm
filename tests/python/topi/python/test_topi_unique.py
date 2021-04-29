@@ -22,7 +22,7 @@ import tvm.topi.testing
 
 
 @tvm.testing.parametrize_targets
-def test_unique(ctx, target):
+def test_unique(dev, target):
     def calc_numpy_unique(data, is_sorted=False):
         uniq, index, inverse, counts = np.unique(
             data, return_index=True, return_inverse=True, return_counts=True
@@ -56,10 +56,10 @@ def test_unique(ctx, target):
             ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
-        tvm_data = tvm.nd.array(data, ctx=ctx)
-        tvm_unique = tvm.nd.array(np.zeros(data.shape).astype(data.dtype), ctx=ctx)
-        tvm_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), ctx=ctx)
-        tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), ctx=ctx)
+        tvm_data = tvm.nd.array(data, device=dev)
+        tvm_unique = tvm.nd.array(np.zeros(data.shape).astype(data.dtype), device=dev)
+        tvm_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
+        tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), device=dev)
 
         # without counts
         with tvm.target.Target(target):
@@ -76,7 +76,7 @@ def test_unique(ctx, target):
         np.testing.assert_allclose(tvm_indices.asnumpy(), np_indices, atol=1e-5, rtol=1e-5)
 
         # with counts
-        tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), ctx=ctx)
+        tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
         with tvm.target.Target(target):
             te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
             outs = fcompute(te_input, True)
@@ -106,6 +106,6 @@ def test_unique(ctx, target):
 
 
 if __name__ == "__main__":
-    test_unique(tvm.context("cpu"), tvm.target.Target("llvm"))
-    test_unique(tvm.context("cuda"), tvm.target.Target("cuda"))
-    test_unique(tvm.context("nvptx"), tvm.target.Target("nvptx"))
+    test_unique(tvm.device("cpu"), tvm.target.Target("llvm"))
+    test_unique(tvm.device("cuda"), tvm.target.Target("cuda"))
+    test_unique(tvm.device("nvptx"), tvm.target.Target("nvptx"))
