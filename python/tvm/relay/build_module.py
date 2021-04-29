@@ -229,7 +229,34 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     return build(mod, target, params=params, mod_name=mod_name).module
 
 
-def build(ir_mod, target=None, target_host=None, params=None, mod_name="default", executor="graph"):
+def get_executor_from_target(target, target_host):
+    """Helper function to extract the executor parameter from the target
+
+    Parameters
+    ----------
+    target : Dict of targets for heterogeneous compilation
+
+    target_host :  Host compilation target
+
+    Returns
+    -------
+    executor : str
+    A string representing the executor type
+    """
+
+    # Default executor is graph
+    executor = "graph"
+    cpu_device_type = 1
+    if target_host:
+        executor = target_host.attrs.get("executor", "graph")
+    else:
+        for device_type in target:
+            if device_type == cpu_device_type:
+                executor = target[device_type].attrs.get("executor", "graph")
+    return executor
+
+
+def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
     """Helper function that builds a Relay function to run on TVM graph executor.
@@ -258,11 +285,6 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     mod_name: Optional[str]
         The module name we will build
-
-    executor: Optional[str]
-        The type of executor to be used in order to run the model:
-            - If "graph" is specified, then the graph_executor will be used
-            - If "aot" is specified, then the aot_executor will be used
 
     Returns
     -------
@@ -312,6 +334,9 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     target, target_host = Target.check_and_update_host_consist(
         target, target_host, target_is_dict_key=False
     )
+
+    # Retrieve the executor from the target
+    executor = get_executor_from_target(target, target_host)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
