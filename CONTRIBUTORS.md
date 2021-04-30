@@ -123,6 +123,7 @@ We do encourage everyone to work anything they are interested in.
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
+- [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238
