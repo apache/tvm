@@ -1703,6 +1703,11 @@ def test_conv_reduce_convert_layout():
         assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
     def _test_conv_reduce_convert_layout2():
+        def _set_span(y, text):
+            return relay.Call(
+                y.op, y.args, y.attrs, y.type_args, relay.Span(relay.SourceName(text), 0, 0, 0, 0)
+            )
+
         def before():
             x = relay.var("x", shape=(1, 38, 38, 512))
             weight = relay.var("weight", shape=(3, 3, 512, 512))
@@ -1714,9 +1719,13 @@ def test_conv_reduce_convert_layout():
                 data_layout="NHWC",
                 kernel_layout="HWIO",
             )
+            y = _set_span(y, "SpanConv2D")
             y = relay.nn.relu(y)
+            y = _set_span(y, "SpanRelu")
             y = relay.multiply(y, y)
+            y = _set_span(y, "SpanMultiply")
             y = relay.sum(y, axis=(3,), keepdims=True)
+            y = _set_span(y, "SpanSum")
             return relay.Function(analysis.free_vars(y), y)
 
         def expected():
@@ -1733,6 +1742,10 @@ def test_conv_reduce_convert_layout():
 
         a = before()
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+        assert "SpanConv2D" in a.astext()
+        assert "SpanRelu" in a.astext()
+        assert "SpanMultiply" in a.astext()
+        assert "SpanSum" in a.astext()
         b = run_opt_pass(expected(), transform.InferType())
 
         assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)

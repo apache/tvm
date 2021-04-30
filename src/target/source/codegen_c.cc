@@ -960,11 +960,19 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
       return;
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       ICHECK_EQ(call->args.size(), 4);
+      int kind = call->args[2].as<IntImmNode>()->value;
+      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
-      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1],
-                                     call->args[2].as<IntImmNode>()->value);
+      std::string cast;
+      if (kind == builtin::kArrStrides) {
+        // cast void* to int64_t*
+        cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";
+      } else if (kind == builtin::kArrDeviceType) {
+        // cast int to enum
+        cast = "(DLDeviceType)";
+      }
       this->PrintIndent();
-      this->stream << ref << " = " << value << ";\n";
+      this->stream << ref << " = " << cast << value << ";\n";
       return;
     }
   }

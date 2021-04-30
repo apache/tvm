@@ -95,16 +95,25 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 @tvm.testing.requires_gpu
 def test_conv2d_hwcn():
-    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "SAME")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "SAME")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "SAME")
-    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "VALID")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "VALID")
     # dilation = 2
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
+    # Pass stride as tuple
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, (1, 1), "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, (1, 1), "SAME")
+    verify_conv2d_hwcn(4, 128, 16, 128, 5, (2, 2), "SAME")
+    verify_conv2d_hwcn(4, 128, 16, 256, 5, (2, 2), "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, (1, 1), "VALID")
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, (1, 1), "VALID")
+    verify_conv2d_hwcn(4, 128, 16, 128, 5, (2, 2), "VALID")
+    verify_conv2d_hwcn(4, 128, 16, 256, 5, (2, 2), "VALID")
 
 
 if __name__ == "__main__":

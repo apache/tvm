@@ -2390,16 +2390,20 @@ def verify_conv(
             # groups=1
         )
     elif padding is None:
+        ## autopadding with unset default attributes
+        kwargs = {}
+        if not all([s == 1 for s in strides]):
+            kwargs["strides"] = strides
+        if not all([d == 1 for d in dilations]):
+            kwargs["dilations"] = dilations
+
         node = helper.make_node(
             "Conv",
             inputs=["x", "W"],
             outputs=["y"],
-            kernel_shape=kernel_shape,
             # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            # groups=1
             auto_pad=auto_pad,
+            **kwargs,
         )
     else:
         node = helper.make_node(
@@ -2828,6 +2832,44 @@ def test_pooling():
             mode=mode,
             auto_pad="SAME_UPPER",
         )
+
+
+def verify_global_pooling(x_shape, mode):
+    out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
+
+    if mode == "max":
+        node_type = "GlobalMaxPool"
+    elif mode == "average":
+        node_type = "GlobalAveragePool"
+    else:
+        raise ValueError("Pool method {} is not supported.".format(mode))
+
+    pool_node = helper.make_node(node_type, inputs=["x"], outputs=["y"])
+
+    graph = helper.make_graph(
+        [pool_node],
+        "global_pooling_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="global_pooling_test")
+    verify_with_ort(model, [x_shape], [out_shape], use_vm=False, convert_to_static=True)
+
+
+@tvm.testing.uses_gpu
+def test_global_pooling():
+    # Test each pooling mode across all N-D inputs.
+    for mode in ["average", "max"]:
+        # 1D Pooling (NCW)
+        verify_global_pooling([1, 8, 8], mode)
+        verify_global_pooling([4, 1, 4], mode)
+        # 2D Pooling (NCHW)
+        verify_global_pooling([1, 8, 8, 8], mode)
+        verify_global_pooling([4, 1, 6, 4], mode)
+        # 3D Pooling (NCDHW)
+        verify_global_pooling([1, 8, 6, 8, 8], mode)
+        verify_global_pooling([4, 1, 2, 6, 4], mode)
 
 
 def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
@@ -4177,7 +4219,6 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
-    "test_nonmaxsuppression_center_point_box_format/",
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
@@ -4196,7 +4237,6 @@ unsupported_onnx_tests = [
     "test_round/",
     "test_scan9_sum/",
     "test_scan_sum/",
-    "test_scatternd/",
     "test_simple_rnn_defaults/",
     "test_simple_rnn_with_initial_bias/",
     "test_strnormalizer_export_monday_casesensintive_lower/",

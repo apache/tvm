@@ -368,8 +368,8 @@ def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", d
         ),
         dtype="int64",
     )
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
     # get input shape
+    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
 
     # set up integer constants
     zero = _op.const(0, dtype="int64")
@@ -410,12 +410,24 @@ class Conv(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+
+        kernel_type = infer_type(inputs[1])
+        kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = kernel_shapes[0][2:]
+
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
-                data = autopad(data, attr["strides"], attr["kernel_shape"], attr["dilations"], ndim)
+                data = autopad(
+                    data,
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    ndim,
+                )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
@@ -424,7 +436,6 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
-
         out = AttrCvt(
             op_name=dimension_picker("conv"),
             transforms={
@@ -469,9 +480,9 @@ class ConvTranspose(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
-                    attr["strides"],
+                    attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
-                    attr["dilations"],
+                    attr.get("dilations", [1] * (ndim - 2)),
                     ndim,
                     deconv=True,
                 )
@@ -499,6 +510,42 @@ class ConvTranspose(OnnxOpConverter):
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
         return out
+
+
+class GlobalAveragePool(OnnxOpConverter):
+    """Operator converter for GlobalAveragePool"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        rank = len(infer_shape(inputs[0]))
+        if rank == 3:
+            return _op.nn.global_avg_pool1d(inputs[0])
+        if rank == 4:
+            return _op.nn.global_avg_pool2d(inputs[0])
+        if rank == 5:
+            return _op.nn.global_avg_pool3d(inputs[0])
+        raise NotImplementedError(
+            "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+            % (rank - 2),
+        )
+
+
+class GlobalMaxPool(OnnxOpConverter):
+    """Operator converter for GlobalMaxPool"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        rank = len(infer_shape(inputs[0]))
+        if rank == 3:
+            return _op.nn.global_max_pool1d(inputs[0])
+        if rank == 4:
+            return _op.nn.global_max_pool2d(inputs[0])
+        if rank == 5:
+            return _op.nn.global_max_pool3d(inputs[0])
+        raise NotImplementedError(
+            "Global max pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+            % (rank - 2),
+        )
 
 
 class Div(Elemwise):
@@ -1327,6 +1374,18 @@ class Scatter(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 0)
         return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+
+
+class ScatterND(OnnxOpConverter):
+    """Operator converter for Scatter."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        indices_dim = len(infer_shape(inputs[1]))
+        axes = list(range(indices_dim))
+        return _op.scatter_nd(
+            inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update"
+        )
 
 
 class Greater(OnnxOpConverter):
@@ -2507,11 +2566,17 @@ class NonMaxSuppression(OnnxOpConverter):
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
 
-        if "center_point_box" in attr:
-            if attr["center_point_box"] != 0:
-                raise NotImplementedError(
-                    "Only support center_point_box = 0 in ONNX NonMaxSuprresion"
-                )
+        boxes_dtype = infer_type(boxes).checked_type.dtype
+
+        if attr.get("center_point_box", 0) != 0:
+            xc, yc, w, h = _op.split(boxes, 4, axis=2)
+            half_w = w / _expr.const(2.0, boxes_dtype)
+            half_h = h / _expr.const(2.0, boxes_dtype)
+            x1 = xc - half_w
+            x2 = xc + half_w
+            y1 = yc - half_h
+            y2 = yc + half_h
+            boxes = _op.concatenate([y1, x1, y2, x2], axis=2)
 
         if iou_threshold is None:
             iou_threshold = _expr.const(0.0, dtype="float32")
@@ -2775,8 +2840,8 @@ def _get_convert_map(opset):
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
         "ConvTranspose": ConvTranspose.get_converter(opset),
-        "GlobalAveragePool": Renamer("global_avg_pool2d"),
-        "GlobalMaxPool": Renamer("global_max_pool2d"),
+        "GlobalAveragePool": GlobalAveragePool.get_converter(opset),
+        "GlobalMaxPool": GlobalMaxPool.get_converter(opset),
         "BatchNormalization": BatchNorm.get_converter(opset),
         "InstanceNormalization": InstanceNorm.get_converter(opset),
         # 'LpNormalization'
@@ -2821,6 +2886,7 @@ def _get_convert_map(opset):
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
+        "ScatterND": ScatterND.get_converter(opset),
         "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),

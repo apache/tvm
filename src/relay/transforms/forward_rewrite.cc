@@ -168,7 +168,7 @@ class ForwardRewriter : private MixedModeMutator {
       }
     }
     if (unchanged) return ref_call;
-    return Call(new_op, call_args, call_node->attrs, call_node->type_args);
+    return Call(new_op, call_args, call_node->attrs, call_node->type_args, call_node->span);
   }
 };
 
