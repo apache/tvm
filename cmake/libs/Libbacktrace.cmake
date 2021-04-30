@@ -16,6 +16,14 @@
 # under the License.
 include(ExternalProject)
 
+
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin" AND (CMAKE_C_COMPILER MATCHES "^/Library"
+  OR CMAKE_C_COMPILER MATCHES "^/Applications"))
+    set(c_compiler "/usr/bin/cc")
+  else()
+    set(c_compiler "${CMAKE_C_COMPILER}")
+endif()
+
 ExternalProject_Add(project_libbacktrace
   PREFIX libbacktrace
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace
