@@ -118,6 +118,7 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
 }  // namespace intrin
 
 namespace legalize {
+
 using namespace tir;
 
 TVM_REGISTER_OP("tir.rsqrt")
