@@ -39,59 +39,38 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
-
-  template <typename ValueType>
-  inline std::vector<OpAttrMap<ValueType>> retrieve_attr_maps(const std::string& type_name,
-                                                              const std::string& target,
-                                                              const std::string& mtriple) {
-    std::vector<std::string> patterns;
-    patterns.push_back(target + "." + type_name);
-    bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
-    if (is_llvm_aarch64) {
-      patterns.push_back(target + ".aarch64." + type_name);
-    }
-    patterns.push_back("default." + type_name);
-
-    std::vector<OpAttrMap<ValueType>> attr_maps;
-    for (const std::string& pattern : patterns)
-      if (Op::HasAttrMap(pattern)) {
-        attr_maps.push_back(Op::GetAttrMap<ValueType>(pattern));
-        if (fma_ == nullptr && type_name == "FLowerIntrinsic") {
-          fma_ = (*attr_maps.rbegin()).get(Op::Get("tir.fma"), nullptr);
-        }
-      }
-    return attr_maps;
-  }
+  using FLowerGeneral = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {
-    std::vector<std::string> patterns_;
-    lower_intrin_maps_ = retrieve_attr_maps<FLowerIntrinsic>("FLowerIntrinsic", target, mtriple);
-    legalize_maps_ = retrieve_attr_maps<FLegalize>("FLegalize", target, mtriple);
+    std::vector<std::string> patterns;
+    patterns.push_back(target + ".FLowerIntrinsic");
+    patterns.push_back(target + ".FLegalize");
+    bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
+    if (is_llvm_aarch64) {
+      patterns.push_back(target + ".aarch64.FLowerIntrinsic");
+      patterns.push_back(target + ".aarch64.FLegalize");
+    }
+    patterns.push_back("default.FLowerIntrinsic");
+    patterns.push_back("default.FLegalize");
+
+    for (const std::string& pattern : patterns)
+      if (Op::HasAttrMap(pattern)) {
+        attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
+        if (fma_ == nullptr) {
+          fma_ = (*attr_maps_.rbegin()).get(Op::Get("tir.fma"), nullptr);
+        }
+      }
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      for (const auto& f_lower_intrin_map : lower_intrin_maps_) {
-        FLowerIntrinsic f = f_lower_intrin_map.get(GetRef<Op>(ptr_op), nullptr);
+      for (const auto& f_attr_map : attr_maps_) {
+        FLowerGeneral f = f_attr_map.get(GetRef<Op>(ptr_op), nullptr);
         if (f != nullptr) {
           PrimExpr e = GetRef<PrimExpr>(op);
           PrimExpr r = f(e);
           ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
-          if (!r.same_as(e)) {
-            r = this->VisitExpr(r);
-            if (r.defined()) {
-              return r;
-            }
-          }
-        }
-      }
-      for (const auto& f_legalize_map : legalize_maps_) {
-        FLowerIntrinsic f = f_legalize_map.get(GetRef<Op>(ptr_op), nullptr);
-        if (f != nullptr) {
-          PrimExpr e = GetRef<PrimExpr>(op);
-          PrimExpr r = f(e);
-          ICHECK(r.defined()) << "legalize rule must always return valid Expr";
           if (!r.same_as(e)) {
             r = this->VisitExpr(r);
             if (r.defined()) {
@@ -302,11 +281,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  // patterns
-  std::vector<OpAttrMap<FLowerIntrinsic>> lower_intrin_maps_;
-  std::vector<OpAttrMap<FLegalize>> legalize_maps_;
-  // only intrinsic lowering function for tir.fma is supported now
-  FLowerIntrinsic fma_{nullptr};
+  // attribute maps, shared only when FLegalize == FLowerIntrinsic
+  std::vector<OpAttrMap<FLowerGeneral>> attr_maps_;
+  FLowerGeneral fma_{nullptr};
   bool support_bitwise_op_{true};
 };
 
