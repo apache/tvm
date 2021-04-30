@@ -120,6 +120,14 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
 namespace legalize {
 using namespace tir;
 
+TVM_REGISTER_OP("tir.rsqrt")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      const CallNode* call = e.as<CallNode>();
+      ICHECK(call != nullptr);
+      auto one = make_const(call->args[0].dtype(), 1);
+      return one / sqrt(call->args[0]);
+    });
+
 TVM_REGISTER_OP("tir.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
