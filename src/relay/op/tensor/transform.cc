@@ -1120,7 +1120,8 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
-  ICHECK(mdim) << "GatherND needs a static shape for the first axis of indices, got " << indices->shape;
+  ICHECK(mdim) << "GatherND needs a static shape for the first axis of indices, got "
+               << indices->shape;
   const size_t kdim = indices->shape.size() - 1;
   const size_t ndim = out_shape.size();
   ICHECK_LE(size_t(mdim->value), ndim)
@@ -3328,7 +3329,8 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const size_t ndim = data->shape.size();
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
-  ICHECK(mdim) << "GatherND needs a static shape for the first axis of indices, got " << indices->shape;
+  ICHECK(mdim) << "GatherND needs a static shape for the first axis of indices, got "
+               << indices->shape;
   const size_t kdim = indices->shape.size() - 1;
   ICHECK(size_t(mdim->value) <= ndim) << "GatherND: indices shape does satisfy.";
 
