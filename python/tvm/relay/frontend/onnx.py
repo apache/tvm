@@ -1414,7 +1414,7 @@ class Scatter(OnnxOpConverter):
 
 
 class ScatterND(OnnxOpConverter):
-    """Operator converter for Scatter."""
+    """Operator converter for ScatterND."""
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
