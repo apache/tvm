@@ -133,11 +133,45 @@ def check_packed_func(target="llvm"):
     tvm.ir.assert_structural_equal(alloca_shape, expected_stmt, map_free_vars=True)
 
 
-def test_packed_func():
+def test_lower_packed_func():
     check_packed_func("llvm")
     check_packed_func("stackvm")
 
 
+@tvm.testing.requires_llvm
+def test_call_packed_return_non_i32():
+    # This call packed that return non i32 types
+    expected_value = np.array([1.2, 1.4], dtype="float32")
+
+    def packed_echo(value):
+        return tvm.tir.call_intrin(
+            value.dtype, tvm.ir.Op.get("tir.tvm_call_packed"), "testing.echo", value
+        )
+
+    def build_tir():
+        Ab = tvm.tir.decl_buffer((2,), "float32")
+        ib = tvm.tir.ir_builder.create()
+        Aptr = ib.buffer_ptr(Ab)
+        # return f32
+        # Aptr[0] = testing.echo(expected_value[0])
+        Aptr[0] = packed_echo(tvm.tir.const(expected_value[0], "float32"))
+        # return handle
+        # let Aptr_var = testing.echo(Aptr) in Aptr_var[1] = expected_value[1]
+        Aptr_var = ib.let("Aptr_dup", packed_echo(Aptr.asobject()))
+        ib.emit(tvm.tir.Store(Aptr, tvm.tir.const(expected_value[1], "float32"), 1))
+
+        stmt = ib.get()
+        return tvm.IRModule.from_expr(
+            tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "packed_test")
+        )
+
+    mod = build_tir()
+    f = tvm.build(mod, None, "llvm")
+    a = tvm.nd.array(np.zeros(2, dtype="float32"))
+    f(a)
+    tvm.testing.assert_allclose(a.asnumpy(), expected_value)
+
+
 if __name__ == "__main__":
-    # Test cases for issue: https://github.com/apache/tvm/issues/7246
-    test_packed_func()
+    test_call_packed_return_non_i32()
+    test_lower_packed_func()
