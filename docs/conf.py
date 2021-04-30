@@ -71,7 +71,6 @@ from tvm import te
 from tvm import testing
 
 version = git_describe_version(tvm.__version__)
-version = version
 release = version
 
 # Add any Sphinx extension module names here, as strings. They can be
