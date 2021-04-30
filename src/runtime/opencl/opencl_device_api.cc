@@ -32,19 +32,21 @@ namespace cl {
 std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name);
 std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name);
 
-struct ImageInfo {
+struct clImageInfo {
   size_t origin[3] = {};
   size_t region[3] = {};
   size_t row_pitch = 0;
   size_t slice_pitch = 0;
 };
 
-ImageInfo GetImageInfo(const OpenCLBuffer* desc, const DLTensor* tensor) {
-  ICHECK_EQ(desc->shape.size(), 3) << "The OpenCL Device API currently only supports image2d_t textures; "
-                                   << "the buffer descriptor provided describes a tensor of rank "
-                                   << desc->shape.size() << " != 3 for image2d_t";
+clImageInfo GetImageInfo(const OpenCLBuffer* desc, const DLTensor* tensor) {
+  ICHECK_EQ(desc->shape.size(), 3)
+      << "The OpenCL Device API currently only supports image2d_t textures; "
+      << "the buffer descriptor provided describes a tensor of rank " << desc->shape.size()
+      << " != 3 for image2d_t";
+
   size_t depth = 1;
-  ImageInfo info{};
+  clImageInfo info{};
   ICHECK(tensor->dtype.lanes == 1) << "Image dtype has lanes: " << tensor->dtype.lanes;
 
   info.origin[0] = info.origin[1] = info.origin[2] = 0;

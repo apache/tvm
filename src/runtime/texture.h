@@ -21,12 +21,13 @@
  * \file texture.h
  * \brief Texture utilities
  */
-#ifndef TVM_RUNTIME_TEXTURE_POOL_H_
-#define TVM_RUNTIME_TEXTURE_POOL_H_
+#ifndef TVM_RUNTIME_TEXTURE_H_
+#define TVM_RUNTIME_TEXTURE_H_
 
 #include <tvm/runtime/device_api.h>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace tvm {
@@ -122,4 +123,4 @@ class TVM_DLL TexturePool {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_TEXTURE_POOL_H_
+#endif  // TVM_RUNTIME_TEXTURE_H_

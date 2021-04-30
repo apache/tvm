@@ -328,7 +328,7 @@ struct OpenCLBuffer {
     IMAGE_2D_WEIGHT,
   };
   OpenCLBuffer() = default;
-  OpenCLBuffer(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
+  explicit OpenCLBuffer(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
   static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
   static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
   cl_mem buffer{nullptr};
