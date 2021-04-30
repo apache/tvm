@@ -248,7 +248,6 @@ def test_fma():
     )
     mod = opt(Module())
     assert mod["test_tir_fma"].body.body.value.op.name == "tir.call_llvm_pure_intrin"
-    assert int(mod["test_tir_fma"].body.body.value.args[0]) == 134
 
 
 if __name__ == "__main__":
