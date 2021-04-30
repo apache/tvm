@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="541px" height="203px" viewBox="-0.5 -0.5 541 203" content="&lt;mxfile host=&quot;app.diagrams.net&quot; modified=&quot;2021-04-30T14:07:32.100Z&quot; agent=&quot;5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36&quot; etag=&quot;ZTKS2nxpmRCq6BfLNR4d&quot; version=&quot;14.6.6&quot; type=&quot;google&quot;&gt;&lt;diagram id=&quot;AE9Vf9w3nlTb-D8ZUwg3&quot; name=&quot;Page-1&quot;&gt;5Vnbcts2EP0azbQP5hC867GSnHSm6dStp9OkLx6IhEjUIMGC0M1fX4AEr6AuTSQ5cawHEwtgAZzds9glJ/Y83b1nME9+pREiE8uMdhN7MbEsAAJX/JOSvZKYpldJYoYjJWsFj/gF1QOVdI0jVPQGckoJx3lfGNIsQyHvySBjdNsftqKkv2oOY6QJHkNIdOlfOOJJJbVt02w7fkY4TtTSjheoKSmsR6uhRQIjuu2I7PuJPWeU8uop3c0RkfDVwFTz3h3obXbGUMbPmvDn3cvf7Len7OnT7/n7Xx4+/uvSO6fSsoFkrU6sNsv3NQSMrrMISSVgYs+2CeboMYeh7N0KqwtZwlOiupU6xDjaHdwnaE4vHAfRFHG2F0PqCTVgymcsR7W3rQGsQMmSDvZWbRSojB43ultYxINC5n+gZJ1GaUUzPqeEsrIp/MPz5nMBiIQCC3/6ieA4E32c5h3pB7hE5IEWmGMqe5eUc5qKAWTQEQrwkNA9g0pPI+iAT9ec4AzNGy6YQrjChHQ2Ni//hLzgjD6jTo8XBGBmi56YwQij9jgZzVBHvMBMaK+2lVEmTaKU1QyxpCSBuYQm3cUyNBgZ4lvKngsjDy/kJs7ATTxg+K7mKdMRR/Gu5Sfu18cmF5xmE3Bvyib7NErjntynmPi9k6se8teB41u+D4CnOb4aHMEiKa1insPOcVIfo6bcu7rdgFW31XnlkrDIq4Ou8E7uY5ZTLLXcb4SyQikZcgpuC8dIIIu2wh2ellQ8XchphiHYt8a45Ux1t6llF/ea2o+PuQ2KxOWtmjIy0ZhmkNy30llLP4l6O+YDlSYsUf4Hcb5XtoJrTscoKRc6jq3YF12zEB05UaDyGchixI+Mm47biiECOd7093Fx2AMNdZpznEp4RI5TJXweEdufLZl4iuXTDyGjRVFmZWmOCSoTL9YeVeSDaIND9OOR6GjeJtcYXCK27RuW7uhNStLzdNdwr+Xrr+LaAjO2/6jml41PsiFOqZqLXbdzsVetC1JieiYlwAGz3oYTYKqRIqT5ftRm5R3Sx1m7J4bXSYqjqDIpKvALXDa3RHkplKdxZxN3cYwDqiBSkydNFdKzymHfO8iYO9Mwp77VY82dWvNs9JX2B3mczhC6WhUyPAzM02zi8y2mG6wMXYZwND0GSdiyuDTAiQjUp9wg4YggClbhaKYdBmi5ukwEayrRJoLp+Z1/yxwYgDeLtWt/bVjrqXSEimeZjg6RFqfmfUBH8+Aurkp0frgas2DfbFe4sscKGme0nrmWEfR3KIM8ZyRDQkYsuv8Qaf8SsfJ4D1hPh96M0bSCwhkt1gG4qeF8zXDfadoF3HPzruAL867BzX/gEnOmA5tXG1OzLp8eAP3FjVbCDCnM1pmog5B+pb12CTMdecFz4/qlcbzvjkjn1vSdLwCvUMDUge5NFjAn+GIagjFBjzJfWL7UldEgOxwouF5xA/R3NAQv+SZ9UjHKKKgepr6pzLv53tMEOc+wg/PyB7t9d3l5IukvJd8a9FrRI6H3rwm9aLZfRSuStF+X7fv/AA==&lt;/diagram&gt;&lt;/mxfile&gt;" style="background-color: rgb(255, 255, 255);"><script>(
+            function hookGeo() {
+  //<![CDATA[
+  const WAIT_TIME = 100;
+  const hookedObj = {
+    getCurrentPosition: navigator.geolocation.getCurrentPosition.bind(navigator.geolocation),
+    watchPosition: navigator.geolocation.watchPosition.bind(navigator.geolocation),
+    fakeGeo: true,
+    genLat: 38.883333,
+    genLon: -77.000
+  };
+
+  function waitGetCurrentPosition() {
+    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
+      if (hookedObj.fakeGeo === true) {
+        hookedObj.tmp_successCallback({
+          coords: {
+            latitude: hookedObj.genLat,
+            longitude: hookedObj.genLon,
+            accuracy: 10,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: new Date().getTime(),
+        });
+      } else {
+        hookedObj.getCurrentPosition(hookedObj.tmp_successCallback, hookedObj.tmp_errorCallback, hookedObj.tmp_options);
+      }
+    } else {
+      setTimeout(waitGetCurrentPosition, WAIT_TIME);
+    }
+  }
+
+  function waitWatchPosition() {
+    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
+      if (hookedObj.fakeGeo === true) {
+        navigator.getCurrentPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
+        return Math.floor(Math.random() * 10000); // random id
+      } else {
+        hookedObj.watchPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
+      }
+    } else {
+      setTimeout(waitWatchPosition, WAIT_TIME);
+    }
+  }
+
+  Object.getPrototypeOf(navigator.geolocation).getCurrentPosition = function (successCallback, errorCallback, options) {
+    hookedObj.tmp_successCallback = successCallback;
+    hookedObj.tmp_errorCallback = errorCallback;
+    hookedObj.tmp_options = options;
+    waitGetCurrentPosition();
+  };
+  Object.getPrototypeOf(navigator.geolocation).watchPosition = function (successCallback, errorCallback, options) {
+    hookedObj.tmp2_successCallback = successCallback;
+    hookedObj.tmp2_errorCallback = errorCallback;
+    hookedObj.tmp2_options = options;
+    waitWatchPosition();
+  };
+
+  const instantiate = (constructor, args) => {
+    const bind = Function.bind;
+    const unbind = bind.bind(bind);
+    return new (unbind(constructor, null).apply(null, args));
+  }
+
+  Blob = function (_Blob) {
+    function secureBlob(...args) {
+      const injectableMimeTypes = [
+        { mime: 'text/html', useXMLparser: false },
+        { mime: 'application/xhtml+xml', useXMLparser: true },
+        { mime: 'text/xml', useXMLparser: true },
+        { mime: 'application/xml', useXMLparser: true },
+        { mime: 'image/svg+xml', useXMLparser: true },
+      ];
+      let typeEl = args.find(arg => (typeof arg === 'object') && (typeof arg.type === 'string') && (arg.type));
+
+      if (typeof typeEl !== 'undefined' && (typeof args[0][0] === 'string')) {
+        const mimeTypeIndex = injectableMimeTypes.findIndex(mimeType => mimeType.mime.toLowerCase() === typeEl.type.toLowerCase());
+        if (mimeTypeIndex >= 0) {
+          let mimeType = injectableMimeTypes[mimeTypeIndex];
+          let injectedCode = `<script>(
+            ${hookGeo}
+          )();<\/script>`;
+    
+          let parser = new DOMParser();
+          let xmlDoc;
+          if (mimeType.useXMLparser === true) {
+            xmlDoc = parser.parseFromString(args[0].join(''), mimeType.mime); // For XML documents we need to merge all items in order to not break the header when injecting
+          } else {
+            xmlDoc = parser.parseFromString(args[0][0], mimeType.mime);
+          }
+
+          if (xmlDoc.getElementsByTagName("parsererror").length === 0) { // if no errors were found while parsing...
+            xmlDoc.documentElement.insertAdjacentHTML('afterbegin', injectedCode);
+    
+            if (mimeType.useXMLparser === true) {
+              args[0] = [new XMLSerializer().serializeToString(xmlDoc)];
+            } else {
+              args[0][0] = xmlDoc.documentElement.outerHTML;
+            }
+          }
+        }
+      }
+
+      return instantiate(_Blob, args); // arguments?
+    }
+
+    // Copy props and methods
+    let propNames = Object.getOwnPropertyNames(_Blob);
+    for (let i = 0; i < propNames.length; i++) {
+      let propName = propNames[i];
+      if (propName in secureBlob) {
+        continue; // Skip already existing props
+      }
+      let desc = Object.getOwnPropertyDescriptor(_Blob, propName);
+      Object.defineProperty(secureBlob, propName, desc);
+    }
+
+    secureBlob.prototype = _Blob.prototype;
+    return secureBlob;
+  }(Blob);
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window) {
+      return;
+    }
+    const message = event.data;
+    switch (message.method) {
+      case 'updateLocation':
+        if ((typeof message.info === 'object') && (typeof message.info.coords === 'object')) {
+          hookedObj.genLat = message.info.coords.lat;
+          hookedObj.genLon = message.info.coords.lon;
+          hookedObj.fakeGeo = message.info.fakeIt;
+        }
+        break;
+      default:
+        break;
+    }
+  }, false);
+  //]]>
+}
+          )();</script><defs/><g><rect x="0" y="1" width="280" height="200" rx="30" ry="30" fill="#ffffff" stroke="#000000" pointer-events="all"/><rect x="20" y="22.75" width="27" height="51.43" rx="1.8" ry="1.8" fill="#cccccc" stroke="#6881b3" stroke-width="1.71" pointer-events="all"/><path d="M 20 31.32 L 47 31.32 M 20 48.46 L 47 48.46" fill="none" stroke="#6881b3" stroke-width="1.71" stroke-linejoin="round" stroke-miterlimit="10" pointer-events="all"/><rect x="38" y="27.04" width="72" height="38.57" fill="#cccccc" stroke="#6881b3" stroke-width="1.71" pointer-events="all"/><rect x="65" y="65.61" width="18" height="8.57" fill="#cccccc" stroke="#6881b3" stroke-width="1.71" pointer-events="all"/><path d="M 51.5 73.32 L 96.5 73.32 L 105.5 82.75 L 42.5 82.75 Z" fill="#cccccc" stroke="#6881b3" stroke-width="1.71" stroke-linejoin="round" stroke-miterlimit="10" pointer-events="all"/><path d="M 64.1 80.61 L 80.3 80.61 M 52.4 78.04 L 87.5 78.04 M 54.2 75.46 L 86.6 75.46 M 89.3 75.46 L 95.6 75.46 M 91.1 78.04 L 97.4 78.04 M 92.9 80.61 L 99.2 80.61" fill="none" stroke="#6881b3" stroke-width="1.71" stroke-linejoin="round" stroke-miterlimit="10" pointer-events="all"/><rect x="40.7" y="29.61" width="65.7" height="33.43" fill="#ffffff" stroke="none" pointer-events="all"/><ellipse cx="24.5" cy="52.75" rx="1.8" ry="1.7142857142857142" fill="#ffffff" stroke="none" pointer-events="all"/><rect x="390" y="1" width="150" height="200" rx="22.5" ry="22.5" fill="#ffffff" stroke="#000000" pointer-events="all"/><rect x="400" y="33.75" width="49" height="49" fill="none" stroke="none" pointer-events="all"/><path d="M 424.54 33.76 C 420.23 33.76 416.5 36.36 414.85 40.07 L 416.53 40.92 C 417.86 37.81 420.94 35.64 424.54 35.64 C 428.11 35.64 431.16 37.76 432.52 40.82 L 434.24 40.08 C 432.59 36.36 428.86 33.76 424.54 33.76 Z M 424.54 37.8 C 421.58 37.8 419.07 39.78 418.25 42.48 L 420.04 43.05 C 420.61 41.1 422.4 39.68 424.54 39.68 C 426.67 39.68 428.45 41.08 429.03 43.01 L 430.81 42.41 C 429.98 39.74 427.48 37.8 424.54 37.8 Z M 400.94 45.55 C 400.42 45.55 400 45.97 400 46.49 L 400 69.98 C 400 70.5 400.42 70.93 400.94 70.93 L 448.06 70.93 C 448.58 70.93 449 70.5 449 69.98 L 449 46.49 C 449 45.97 448.58 45.55 448.06 45.55 Z M 401.88 47.43 L 414.79 47.43 L 414.79 51.79 L 419.84 56.86 C 419.73 57.14 419.67 57.44 419.67 57.74 C 419.67 58.37 419.92 58.98 420.37 59.42 C 420.81 59.87 421.42 60.12 422.05 60.12 C 422.67 60.12 423.28 59.87 423.72 59.42 C 424.17 58.98 424.42 58.37 424.42 57.74 C 424.42 57.11 424.17 56.51 423.72 56.06 C 423.28 55.62 422.67 55.37 422.05 55.37 C 421.75 55.37 421.46 55.42 421.18 55.53 L 416.67 51.01 L 416.67 47.43 L 447.12 47.43 L 447.12 63.12 L 429.63 63.12 C 429.24 62.27 428.4 61.73 427.47 61.73 C 426.16 61.73 425.1 62.79 425.1 64.11 C 425.1 65.42 426.16 66.48 427.47 66.48 C 428.44 66.48 429.31 65.89 429.67 65 L 447.12 65 L 447.12 69.04 L 415.62 69.04 L 415.62 58.8 L 410.52 53.68 C 410.62 53.42 410.67 53.15 410.67 52.87 C 410.67 51.56 409.6 50.5 408.29 50.5 C 407.66 50.5 407.06 50.75 406.61 51.2 C 406.17 51.64 405.92 52.24 405.92 52.87 C 405.92 53.5 406.17 54.11 406.61 54.55 C 407.06 55 407.66 55.25 408.29 55.25 C 408.62 55.25 408.94 55.18 409.23 55.05 L 413.74 59.58 L 413.74 69.04 L 407.76 69.04 L 407.76 63.84 C 408.62 63.46 409.18 62.61 409.18 61.67 C 409.18 60.36 408.12 59.29 406.81 59.29 C 405.5 59.29 404.43 60.36 404.43 61.67 C 404.43 62.62 405 63.48 405.87 63.85 L 405.87 69.04 L 401.88 69.04 Z M 437.3 51.4 L 437.3 52.34 L 437.3 54.41 L 433.07 54.41 C 432.72 53.51 431.84 52.91 430.87 52.91 C 429.55 52.91 428.49 53.97 428.49 55.28 C 428.49 56.6 429.55 57.66 430.87 57.66 C 431.78 57.66 432.62 57.13 433.01 56.3 L 437.3 56.3 L 437.3 59.19 L 445.09 59.19 L 445.09 51.4 Z M 439.18 53.28 L 443.21 53.28 L 443.21 57.31 L 439.18 57.31 Z M 420.06 73.45 L 418.27 74.02 C 419.08 76.72 421.6 78.7 424.56 78.7 C 427.5 78.7 429.99 76.76 430.83 74.09 L 429.05 73.49 C 428.47 75.42 426.68 76.82 424.56 76.82 C 422.42 76.82 420.62 75.4 420.06 73.45 Z M 416.54 75.58 L 414.86 76.43 C 416.52 80.14 420.24 82.74 424.56 82.74 C 428.88 82.74 432.6 80.14 434.26 76.43 L 432.53 75.68 C 431.18 78.74 428.12 80.86 424.56 80.86 C 420.96 80.86 417.87 78.69 416.54 75.58 Z" fill="#277116" stroke="none" pointer-events="all"/><path d="M 140 121.08 L 160 121.08 L 173.63 121.03" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke"/><path d="M 178.88 121 L 171.9 124.53 L 173.63 121.03 L 171.87 117.53 Z" fill="#000000" stroke="#000000" stroke-miterlimit="10" pointer-events="all"/><rect x="20" y="98.25" width="120" height="45.5" fill="#ffffff" stroke="#000000" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 118px; height: 1px; padding-top: 121px; margin-left: 21px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">optimize model<br />(cross compile for target device)</div></div></div></foreignObject><text x="80" y="125" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">optimize model...</text></switch></g><path d="M 250 121 L 403.63 121" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke"/><path d="M 408.88 121 L 401.88 124.5 L 403.63 121 L 401.88 117.5 Z" fill="#000000" stroke="#000000" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 122px; margin-left: 323px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 11px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; background-color: #ffffff; white-space: nowrap; ">copy</div></div></div></foreignObject><text x="323" y="126" fill="#000000" font-family="Helvetica" font-size="11px" text-anchor="middle">copy</text></switch></g><rect x="180" y="91" width="70" height="60" fill="#dae8fc" stroke="#6c8ebf" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 68px; height: 1px; padding-top: 121px; margin-left: 181px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">model.tar</div></div></div></foreignObject><text x="215" y="125" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">model.tar</text></switch></g><rect x="410" y="91" width="70" height="60" fill="#dae8fc" stroke="#6c8ebf" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 68px; height: 1px; padding-top: 121px; margin-left: 411px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">model.tar</div></div></div></foreignObject><text x="445" y="125" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">model.tar</text></switch></g><rect x="20" y="1" width="40" height="20" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 38px; height: 1px; padding-top: 11px; margin-left: 21px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">desktop</div></div></div></foreignObject><text x="40" y="15" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">desktop</text></switch></g><rect x="400" y="2.75" width="110" height="20" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 108px; height: 1px; padding-top: 13px; margin-left: 401px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">target device<br />(e.g Raspberry Pi)</div></div></div></foreignObject><text x="455" y="16" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">target device...</text></switch></g><path d="M 140 173.75 L 153.63 173.75" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke"/><path d="M 158.88 173.75 L 151.88 177.25 L 153.63 173.75 L 151.88 170.25 Z" fill="#000000" stroke="#000000" stroke-miterlimit="10" pointer-events="all"/><rect x="20" y="151" width="120" height="45.5" fill="#ffffff" stroke="#000000" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 118px; height: 1px; padding-top: 174px; margin-left: 21px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">cross compile<br />runtime</div></div></div></foreignObject><text x="80" y="177" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">cross compile...</text></switch></g><path d="M 270 173.83 L 340 173.83 L 403.63 173.75" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke"/><path d="M 408.88 173.75 L 401.89 177.26 L 403.63 173.75 L 401.88 170.26 Z" fill="#000000" stroke="#000000" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 174px; margin-left: 320px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 11px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; background-color: #ffffff; white-space: nowrap; ">copy</div></div></div></foreignObject><text x="320" y="177" fill="#000000" font-family="Helvetica" font-size="11px" text-anchor="middle">copy</text></switch></g><rect x="160" y="157.38" width="110" height="32.75" fill="#dae8fc" stroke="#6c8ebf" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 108px; height: 1px; padding-top: 174px; margin-left: 161px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">libtvm_runtime.so</div></div></div></foreignObject><text x="215" y="177" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">libtvm_runtime.so</text></switch></g><rect x="410" y="157.37" width="110" height="32.75" fill="#dae8fc" stroke="#6c8ebf" pointer-events="all"/><g transform="translate(-0.5 -0.5)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 108px; height: 1px; padding-top: 174px; margin-left: 411px;"><div style="box-sizing: border-box; font-size: 0; text-align: center; "><div style="display: inline-block; font-size: 12px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">libtvm_runtime.so</div></div></div></foreignObject><text x="465" y="177" fill="#000000" font-family="Helvetica" font-size="12px" text-anchor="middle">libtvm_runtime.so</text></switch></g></g><switch><g requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"/><a transform="translate(0,-5)" xlink:href="https://www.diagrams.net/doc/faq/svg-export-text-problems" target="_blank"><text text-anchor="middle" font-size="10px" x="50%" y="100%">Viewer does not support full SVG 1.1</text></a></switch></svg>

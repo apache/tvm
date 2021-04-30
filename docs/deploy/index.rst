@@ -67,7 +67,7 @@ After you get the TVM runtime library, you can link the compiled library
 Cross compiling a TVM model should not be confused with cross compiling the runtime
 shared library. 
 
-.. figure:: tvm_deploy.svg
+.. figure:: images/tvm_deploy.svg
    :align: center
    :width: 85%
 
