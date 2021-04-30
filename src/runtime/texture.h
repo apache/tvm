@@ -97,18 +97,18 @@ class TVM_DLL TexturePool {
   ~TexturePool();
   /*!
    * \brief Allocate temporal texture.
-   * \param ctx The context of allocation.
+   * \param dev The context of allocation.
    * \param width The width of the 2d texture to be allocated.
    * \param height The height of the 2d texture to be allocated.
    */
-  void* AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint);
+  void* AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint);
   /*!
    * \brief Free temporal texture in backend execution.
    *
-   * \param ctx The context of allocation.
+   * \param dev The context of allocation.
    * \param ptr The pointer to be freed.
    */
-  void FreeTexture(TVMContext ctx, void* ptr);
+  void FreeTexture(Device dev, void* ptr);
 
  private:
   class Pool;

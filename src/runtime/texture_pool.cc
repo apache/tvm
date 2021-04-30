@@ -32,7 +32,7 @@ namespace runtime {
 class TexturePool::Pool {
  public:
   Pool() = default;
-  void* Alloc(TVMContext ctx, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint) {
+  void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint) {
     Entry e;
     e.data = nullptr;
     if (free_list_.size() != 0)
@@ -71,11 +71,11 @@ class TexturePool::Pool {
       else if (min_added_size <= req_size) {
         // if added size is less or equal to
         // what is needed by alloc, then grow entry
-        device->FreeDataSpace(ctx, best_mem->data);
+        device->FreeDataSpace(dev, best_mem->data);
         free_list_.erase(best_mem);
         new_mem.type = type_hint;
         std::vector<int64_t> shape{int64_t(new_mem.y), int64_t(new_mem.x), 4};
-        new_mem.data = device->AllocDataSpace(ctx, shape.size(), shape.data(), new_mem.type, Optional<String>("texture"));
+        new_mem.data = device->AllocDataSpace(dev, shape.size(), shape.data(), new_mem.type, Optional<String>("texture"));
         e = new_mem;
       }
     }
@@ -84,7 +84,7 @@ class TexturePool::Pool {
     {
       // create new block
       std::vector<int64_t> shape{int64_t(height), int64_t(width), 4};
-      e.data = device->AllocDataSpace(ctx, shape.size(), shape.data(), type_hint, Optional<String>("texture"));
+      e.data = device->AllocDataSpace(dev, shape.size(), shape.data(), type_hint, Optional<String>("texture"));
       e.x = width;
       e.y = height;
       e.type = type_hint;
@@ -112,12 +112,12 @@ class TexturePool::Pool {
   }
 
   // Release all resources immediately
-  void Release(TVMContext ctx, DeviceAPI* device) {
+  void Release(Device dev, DeviceAPI* device) {
     for (auto& e : allocated_) {
-      device->FreeDataSpace(ctx, e.data);
+      device->FreeDataSpace(dev, e.data);
     }
     for (auto& e : free_list_) {
-      device->FreeDataSpace(ctx, e.data);
+      device->FreeDataSpace(dev, e.data);
     }
     allocated_.clear();
     free_list_.clear();
@@ -140,29 +140,29 @@ TexturePool::TexturePool(DLDeviceType device_type, DeviceAPI* device)
 TexturePool::~TexturePool() {
   for (size_t i = 0; i < array_.size(); ++i) {
     if (array_[i] != nullptr) {
-      TVMContext ctx;
-      ctx.device_type = device_type_;
-      ctx.device_id = static_cast<int>(i);
-      array_[i]->Release(ctx, device_);
+      Device dev;
+      dev.device_type = device_type_;
+      dev.device_id = static_cast<int>(i);
+      array_[i]->Release(dev, device_);
       delete array_[i];
     }
   }
 }
 
-void* TexturePool::AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
-  if (static_cast<size_t>(ctx.device_id) >= array_.size()) {
-    array_.resize(ctx.device_id + 1, nullptr);
+void* TexturePool::AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint) {
+  if (static_cast<size_t>(dev.device_id) >= array_.size()) {
+    array_.resize(dev.device_id + 1, nullptr);
   }
-  if (array_[ctx.device_id] == nullptr) {
-    array_[ctx.device_id] = new Pool();
+  if (array_[dev.device_id] == nullptr) {
+    array_[dev.device_id] = new Pool();
   }
-  return array_[ctx.device_id]->Alloc(ctx, device_, width, height, type_hint);
+  return array_[dev.device_id]->Alloc(dev, device_, width, height, type_hint);
 }
 
-void TexturePool::FreeTexture(TVMContext ctx, void* ptr) {
-  ICHECK(static_cast<size_t>(ctx.device_id) < array_.size() && array_[ctx.device_id] != nullptr)
+void TexturePool::FreeTexture(Device dev, void* ptr) {
+  ICHECK(static_cast<size_t>(dev.device_id) < array_.size() && array_[dev.device_id] != nullptr)
     << "Attempt to free texture from null texture pool";
-  array_[ctx.device_id]->Free(ptr);
+  array_[dev.device_id]->Free(ptr);
 }
 
 }  // namespace runtime

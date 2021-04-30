@@ -176,10 +176,10 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   return mptr;
 }
 
-void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape, DLDataType dtype,
+void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                       Optional<String> mem_scope) {
   if (!mem_scope.defined() || mem_scope.value() == "global") {
-    return DeviceAPI::AllocDataSpace(ctx, ndim, shape, dtype, mem_scope);
+    return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
   ICHECK(IsTextureStorage(std::string(mem_scope.value())))
     << "Device does not support allocate data space with "
@@ -191,11 +191,11 @@ void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, int ndim, const int64_t* s
   OpenCLBuffer* mptr = new OpenCLBuffer(mem_scope);
   size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
   auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
-  mptr->buffer = AllocTexture(ctx, texture.width, texture.height, dtype);
+  mptr->buffer = AllocTexture(dev, texture.width, texture.height, dtype);
   return mptr;
 }
 
-void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
+void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   // We have to make sure that the memory object is not in the command queue
   // for some OpenCL platforms.
   OPENCL_CALL(clFinish(this->GetQueue(dev)));
@@ -205,7 +205,7 @@ void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   delete mptr;
 }
 
-cl_mem OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
+cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint) {
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
@@ -223,12 +223,12 @@ cl_mem OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height
   return mptr;
 }
 
-void* OpenCLWorkspace::AllocTextureWorkspace(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
-  return GetThreadEntry()->texture_pool.AllocTexture(ctx, width, height, type_hint);
+void* OpenCLWorkspace::AllocTextureWorkspace(Device dev, size_t width, size_t height, DLDataType type_hint) {
+  return GetThreadEntry()->texture_pool.AllocTexture(dev, width, height, type_hint);
 }
 
-void OpenCLWorkspace::FreeTextureWorkspace(TVMContext ctx, void* ptr) {
-  GetThreadEntry()->texture_pool.FreeTexture(ctx, ptr);
+void OpenCLWorkspace::FreeTextureWorkspace(Device dev, void* ptr) {
+  GetThreadEntry()->texture_pool.FreeTexture(dev, ptr);
 }
 
 void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
@@ -236,17 +236,17 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
                                      DLDataType type_hint, TVMStreamHandle stream) {
   this->Init();
   ICHECK(stream == nullptr);
-  if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
+  if (IsOpenCLDevice(dev_from) && IsOpenCLDevice(dev_to)) {
     const auto* from_buf = static_cast<const OpenCLBuffer*>(from);
     auto* to_buf = static_cast<OpenCLBuffer*>(to);
-    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(ctx_to), from_buf->buffer, to_buf->buffer,
+    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(dev_to), from_buf->buffer, to_buf->buffer,
                                     from_offset, to_offset, size, 0, nullptr, nullptr));
-  } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
+  } else if (IsOpenCLDevice(dev_from) && dev_to.device_type == kDLCPU) {
     const auto* from_buf = static_cast<const OpenCLBuffer*>(from);
     cl_mem_object_type from_type = GetMemObjectType(from_buf->buffer);
     switch (from_type) {
     case CL_MEM_OBJECT_BUFFER:
-      OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from), from_buf->buffer, CL_FALSE,
+      OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(dev_from), from_buf->buffer, CL_FALSE,
                                       from_offset, size, static_cast<char*>(to) + to_offset, 0,
                                       nullptr, nullptr));
       break;
@@ -257,7 +257,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
       // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
       // Note that when utilizing texture pools for memory reuse, the allocated image
       // size can be larger than the size to be read.
-      OPENCL_CALL(clEnqueueReadImage(this->GetQueue(ctx_from), from_buf->buffer, CL_FALSE, origin,
+      OPENCL_CALL(clEnqueueReadImage(this->GetQueue(dev_from), from_buf->buffer, CL_FALSE, origin,
                                      region, row_pitch, slice_pitch,
                                      static_cast<char*>(to) + to_offset, 0, nullptr, nullptr));
       break;
@@ -265,13 +265,13 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
       LOG(FATAL) << "Device storage transfer from cl_mem_object_type: " << from_type
                  << " to host memory is not yet supported";
     }
-    OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
-  } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
+    OPENCL_CALL(clFinish(this->GetQueue(dev_from)));
+  } else if (dev_from.device_type == kDLCPU && IsOpenCLDevice(dev_to)) {
     auto* to_buf = static_cast<OpenCLBuffer*>(to);
     cl_mem_object_type to_type = GetMemObjectType(to_buf->buffer);
     switch (to_type) {
     case CL_MEM_OBJECT_BUFFER:
-      OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), to_buf->buffer, CL_FALSE, to_offset,
+      OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(dev_to), to_buf->buffer, CL_FALSE, to_offset,
                                        size, static_cast<const char*>(from) + from_offset, 0,
                                        nullptr, nullptr));
       break;
@@ -280,14 +280,14 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
       size_t row_pitch, slice_pitch;
       std::tie(row_pitch, slice_pitch) = GetImageInfo(to_buf->buffer, origin, region);
       OPENCL_CALL(clEnqueueWriteImage(
-          this->GetQueue(ctx_to), to_buf->buffer, CL_FALSE, origin, region, row_pitch, slice_pitch,
+          this->GetQueue(dev_to), to_buf->buffer, CL_FALSE, origin, region, row_pitch, slice_pitch,
           static_cast<const char*>(from) + from_offset, 0, nullptr, nullptr));
       break;
     default:
       LOG(FATAL) << "Device storage transfer from host memory to cl_mem_object_type: " << to_type
                  << " is not yet supported";
     }
-    OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
+    OPENCL_CALL(clFinish(this->GetQueue(dev_to)));
   } else {
     LOG(FATAL) << "Expect copy from/to OpenCL or between OpenCL";
   }
@@ -414,9 +414,9 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, 
   int height = args[3];
   int dtype_code_hint = args[4];
   int dtype_bits_hint = args[5];
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
 
   DLDataType type_hint;
   type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
@@ -424,7 +424,7 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, 
   type_hint.lanes = 1;
 
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-  *rv = ptr->AllocTextureWorkspace(ctx,
+  *rv = ptr->AllocTextureWorkspace(dev,
                              static_cast<size_t>(width),
                              static_cast<size_t>(height),
                              type_hint);
@@ -435,10 +435,10 @@ TVM_REGISTER_GLOBAL("device_api.opencl.FreeTexture").set_body([](TVMArgs args, T
   int device_id = args[1];
   void* data = args[2];
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  ptr->FreeTextureWorkspace(ctx, data);
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
+  ptr->FreeTextureWorkspace(dev, data);
   *rv = static_cast<int32_t>(0);
 });
 

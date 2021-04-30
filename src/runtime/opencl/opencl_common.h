@@ -264,20 +264,20 @@ class OpenCLWorkspace : public DeviceAPI {
     return queues[dev.device_id];
   }
   // override device API
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) final;
-  void* AllocDataSpace(TVMContext ctx, int ndim, const int64_t* shape, DLDataType dtype,
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
+  void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope = NullOpt) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
 
   // Texture (image2d_t) alloca APIs
-  cl_mem AllocTexture(TVMContext ctx, size_t width, size_t height, DLDataType type_hint);
-  void* AllocTextureWorkspace(TVMContext ctx, size_t width, size_t height, DLDataType type_hint);
-  void FreeTextureWorkspace(TVMContext ctx, void* data);
+  cl_mem AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint);
+  void* AllocTextureWorkspace(Device dev, size_t width, size_t height, DLDataType type_hint);
+  void FreeTextureWorkspace(Device dev, void* data);
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -313,7 +313,7 @@ class OpenCLThreadEntry {
   TexturePool texture_pool;
   // constructor
   OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
-      : pool(device_type, device_api) {
+      : pool(device_type, device_api), texture_pool(device_type, device_api) {
     device.device_id = 0;
     device.device_type = device_type;
   }
