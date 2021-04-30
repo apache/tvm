@@ -89,14 +89,19 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   Stmt VisitStmt(const Stmt& s) final {
+    // allocate space to hold prepare stmts before s
+    prep_seq_stack_.emplace_back(std::vector<Stmt>());
+
     auto stmt = StmtExprMutator::VisitStmt(s);
     auto& scope = alloca_scope_.back();
     ICHECK_EQ(scope.run_shape_stack, -1);
     ICHECK_EQ(scope.run_array_stack, 0);
 
-    if (prep_seq_.size() != 0) {
-      Stmt ret = SeqStmt::Flatten(prep_seq_, stmt);
-      prep_seq_.clear();
+    auto prep_seq = std::move(prep_seq_stack_.back());
+    prep_seq_stack_.pop_back();
+
+    if (prep_seq.size() != 0) {
+      Stmt ret = SeqStmt::Flatten(prep_seq, stmt);
       return ret;
     } else {
       return stmt;
@@ -192,6 +197,7 @@ class BuiltinLower : public StmtExprMutator {
     // if args.size() == 0, it represents a scalar shape ()
     ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
     if (scope.run_shape_stack == -1) {
       scope.run_shape_stack = 0;
     }
@@ -201,8 +207,8 @@ class BuiltinLower : public StmtExprMutator {
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
-      prep_seq_.emplace_back(Store(scope.stack_shape, cast(DataType::Int(64), op->args[i]),
-                                   ConstInt32(stack_begin + i), const_true(1)));
+      prep_seq.emplace_back(Store(scope.stack_shape, cast(DataType::Int(64), op->args[i]),
+                                  ConstInt32(stack_begin + i), const_true(1)));
     }
     return AddressOffset(scope.stack_shape, DataType::Int(64), stack_begin);
   }
@@ -210,48 +216,54 @@ class BuiltinLower : public StmtExprMutator {
   PrimExpr MakeArray(const CallNode* op) {
     ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+
     size_t idx = scope.run_array_stack;
     scope.run_array_stack += 1;
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrData, op->args[0]));
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrShape, op->args[1]));
+
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrData, op->args[0]));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrShape, op->args[1]));
     PrimExpr strides = op->args[2];
     if (!strides.defined() || is_zero(strides)) {
       strides = make_zero(DataType::Handle());
     }
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrStrides, strides));
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrNDim, op->args[3]));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrStrides, strides));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrNDim, op->args[3]));
     DataType dtype = op->args[4].dtype();
-    prep_seq_.emplace_back(
+    prep_seq.emplace_back(
         TVMStructSet(scope.stack_array, idx, builtin::kArrTypeCode,
                      make_const(DataType::UInt(8), static_cast<int>(dtype.code()))));
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeBits,
-                                        make_const(DataType::UInt(8), dtype.bits())));
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeLanes,
-                                        make_const(DataType::UInt(16), dtype.lanes())));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeBits,
+                                       make_const(DataType::UInt(8), dtype.bits())));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeLanes,
+                                       make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
     PrimExpr byte_offset = op->args[5];
     if (!is_zero(byte_offset)) {
       byte_offset = byte_offset * make_const(byte_offset.dtype(), data_bytes);
     }
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrByteOffset,
-                                        cast(DataType::UInt(64), byte_offset)));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrByteOffset,
+                                       cast(DataType::UInt(64), byte_offset)));
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
     ICHECK(device_id_.defined()) << "Unknown device id in current IR";
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceId,
-                                        cast(DataType::Int(32), device_id_)));
-    prep_seq_.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceType,
-                                        cast(DataType::Int(32), device_type_)));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceId,
+                                       cast(DataType::Int(32), device_id_)));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceType,
+                                       cast(DataType::Int(32), device_type_)));
     return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
   }
   // call packed.
   PrimExpr MakeCallPacked(const CallNode* op) {
     auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+
     int64_t restore_shape_stack = scope.run_shape_stack;
     size_t restore_array_stack = scope.run_array_stack;
     size_t arg_stack_begin = scope.run_arg_stack;
+
     scope.run_arg_stack += op->args.size();
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
@@ -264,15 +276,15 @@ class BuiltinLower : public StmtExprMutator {
       if (t != api_type) {
         arg = Cast(api_type, arg);
       }
-      prep_seq_.emplace_back(TVMStructSet(scope.stack_value,
-                                          static_cast<int>(arg_stack_begin + i - 1),
-                                          builtin::kTVMValueContent, arg));
+      prep_seq.emplace_back(TVMStructSet(scope.stack_value,
+                                         static_cast<int>(arg_stack_begin + i - 1),
+                                         builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       if (api_type.is_handle() && arg.as<StringImmNode>()) {
         arg_tcode = kTVMStr;
       }
       if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
-      prep_seq_.emplace_back(
+      prep_seq.emplace_back(
           Store(scope.stack_tcode, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
@@ -285,12 +297,15 @@ class BuiltinLower : public StmtExprMutator {
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
-    return Call(DataType::Int(32), builtin::tvm_call_packed_lowered(), packed_args);
+    // call_packed_lowered needs to do the type casting properly
+    return Call(op->dtype, builtin::tvm_call_packed_lowered(), packed_args);
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
     ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+
     int64_t restore_shape_stack = scope.run_shape_stack;
     size_t restore_array_stack = scope.run_array_stack;
     size_t arg_stack_begin = scope.run_arg_stack;
@@ -307,12 +322,12 @@ class BuiltinLower : public StmtExprMutator {
       if (t != api_type) {
         arg = Cast(api_type, arg);
       }
-      prep_seq_.emplace_back(TVMStructSet(scope.stack_value,
-                                          static_cast<int>(arg_stack_begin + i - 1),
-                                          builtin::kTVMValueContent, arg));
+      prep_seq.emplace_back(TVMStructSet(scope.stack_value,
+                                         static_cast<int>(arg_stack_begin + i - 1),
+                                         builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       ICHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
-      prep_seq_.emplace_back(
+      prep_seq.emplace_back(
           Store(scope.stack_tcode, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
@@ -344,8 +359,8 @@ class BuiltinLower : public StmtExprMutator {
     return false;
   }
 
-  // The prepration sequence to be emitted.
-  std::vector<Stmt> prep_seq_;
+  // The prepration sequence to be emitted before the current statement.
+  std::vector<std::vector<Stmt>> prep_seq_stack_;
   PrimExpr device_type_;
   PrimExpr device_id_;
 
