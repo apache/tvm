@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,19 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+"""Dummy StackVM build function."""
+# pylint: disable=invalid-name
+from __future__ import absolute_import as _abs
+import shutil
 
-# The https:// source added below required an apt https transport
-# support.
-apt-get update && apt-get install -y apt-transport-https
 
-# Install the necessary dependencies for sbt
-echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
-echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | sudo tee /etc/apt/sources.list.d/sbt_old.list
-apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
+def build(output, files):
+    """Simply copy StackVM output to the destination.
 
-# Note: The settings in vta/hardware/chisel/project/build.properties
-# file determines required sbt version.
-apt-get update && apt-get install -y sbt=1.1.1
+    Parameters
+    ----------
+    output : str
+        The target StackVM file.
+
+    files : list
+        A single self-contained StackVM module file.
+    """
+
+    if len(files) == 0:
+        raise RuntimeError("StackVM artifact must be provided")
+    if len(files) > 1:
+        raise RuntimeError("Unexpected multiple StackVM artifacts")
+
+    shutil.copy(files[0], output)
+
+
+# assign output format
+build.output_format = "stackvm"

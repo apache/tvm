@@ -145,7 +145,7 @@ _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 @_reg.register_compute("scatter_nd")
 def compute_scatter_nd(attrs, inputs, output_type):
     """Compute definition of scatter_nd"""
-    return [topi.scatter_nd(inputs[0], inputs[1], attrs.out_shape)]
+    return [topi.scatter_nd(inputs[0], inputs[1], inputs[2], attrs.mode)]
 
 
 _reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
@@ -1018,9 +1018,15 @@ def where_shape_func(attrs, inputs, _):
     """
     Shape func for where.
     """
-    cond_shape = inputs[0]
-    x_shape = inputs[1]
-    y_shape = inputs[2]
+
+    def ensure_tensor(tensor):
+        if len(tensor.shape) == 0:
+            return topi.full((1,), "int64", 1)
+        return tensor
+
+    cond_shape = ensure_tensor(inputs[0])
+    x_shape = ensure_tensor(inputs[1])
+    y_shape = ensure_tensor(inputs[2])
 
     bcast_shape = _broadcast_shape_tensors(x_shape, y_shape)
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)

@@ -3079,6 +3079,33 @@ def test_forward_resize():
 
 
 #######################################################################
+# BroadcastArgs
+# -----------
+
+
+def _test_broadcast_args(in_shape_1, in_shape_2):
+    """ One iteration of broadcast_args"""
+
+    shape_1 = np.array(in_shape_1).astype("int32")
+    shape_2 = np.array(in_shape_2).astype("int32")
+
+    with tf.Graph().as_default():
+        shape_1 = constant_op.constant(shape_1, shape=shape_1.shape, dtype=shape_1.dtype)
+        shape_2 = constant_op.constant(shape_2, shape=shape_2.shape, dtype=shape_2.dtype)
+        tf.raw_ops.BroadcastArgs(s0=shape_1, s1=shape_2)
+
+        compare_tf_with_tvm(None, "", "BroadcastArgs:0", opt_level=0)
+
+
+def test_forward_broadcast_args():
+    """ Resize Bilinear """
+
+    _test_broadcast_args((4, 1, 32, 32), [4, 8, 32, 32])
+    _test_broadcast_args((6, 32, 32, 1), [6, 32, 32, 16])
+    _test_broadcast_args((32, 32, 16), [6, 32, 32, 16])
+
+
+#######################################################################
 # BroadcastTo
 # -----------
 
@@ -3621,7 +3648,7 @@ def test_forward_logical():
 
 
 #######################################################################
-# Where, Select
+# Where, Select, SelectV2
 # -------------
 def test_forward_where():
     """ Where: return elements depending on conditions"""

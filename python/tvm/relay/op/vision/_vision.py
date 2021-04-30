@@ -94,7 +94,7 @@ def _all_class_nms_shape_func(boxes_shape, scores_shape):
     count_shape = output_tensor((1,), "int64")
 
     out_shape[0] = boxes_shape[0] * scores_shape[1] * boxes_shape[1]
-    out_shape[1] = 3
+    out_shape[1] = int64(3)
     count_shape[0] = int64(1)
     return out_shape, count_shape
 
