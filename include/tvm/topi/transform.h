@@ -878,7 +878,7 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims, int a
     }
 
     ICHECK_LT(batch_dims_, a->shape.size()) << "batch_dims out of bounds";
-    ICHECK_GE(axis, batch_dims_) << "batch_dims must be less than or equal to axis";
+    ICHECK_LE(batch_dims_, axis) << "batch_dims must be less than or equal to axis";
     for (int i = 0; i < batch_dims_; ++i) {
       auto addr1 = a->shape[i];
       auto addr2 = indices->shape[i];
