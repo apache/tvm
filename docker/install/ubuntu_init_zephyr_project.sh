@@ -16,19 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+DOWNLOAD_DIR=$1
+ZEPHYR_BRANCH=$2
 
-# The https:// source added below required an apt https transport
-# support.
-apt-get update && apt-get install -y apt-transport-https
-
-# Install the necessary dependencies for sbt
-echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
-echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | sudo tee /etc/apt/sources.list.d/sbt_old.list
-apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
-
-# Note: The settings in vta/hardware/chisel/project/build.properties
-# file determines required sbt version.
-apt-get update && apt-get install -y sbt=1.1.1
+west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
+cd ${DOWNLOAD_DIR}
+west update
+west zephyr-export
