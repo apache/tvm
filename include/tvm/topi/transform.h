@@ -763,6 +763,7 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
  *
  * \param a The source array.
  * \param indices The indices of the values to extract.
+ * \param batch_dims The number of batch dimensions.
  * \param mode The mode of the operation.
  * \param name The name of the operation.
  * \param mode The mode of to handle out of bound indices.
