@@ -32,12 +32,10 @@ from test_arm_compute_lib.infrastructure import (
 
 def _calculate_output_shape(shape, sizes, padding, strides, dilation):
     """Calculate pooling output shape."""
-    output_height = (
-        (shape[1] - (sizes[0] - 1) * dilation[0] - 1 + padding[0] + padding[2]) / strides[0]
-    ) + 1
-    output_width = (
-        (shape[2] - (sizes[1] - 1) * dilation[1] - 1 + padding[1] + padding[3]) / strides[1]
-    ) + 1
+    height_receptive_field = (sizes[0] - 1) * dilation[0] + 1
+    width_receptive_field = (sizes[1] - 1) * dilation[1] + 1
+    output_height = ((shape[1] - height_receptive_field + padding[0] + padding[2]) / strides[0]) + 1
+    output_width = ((shape[2] - width_receptive_field + padding[1] + padding[3]) / strides[1]) + 1
     return 1, int(output_height), int(output_width), shape[3]
 
 
