@@ -32,7 +32,7 @@ Build the TVM runtime library
 
 Unlike traditional deep learning frameworks. TVM stack is divided into two major components:
 
-- TVM compiler, which does all the compilation and optimizations
+- TVM compiler, which does all the compilation and optimizations of the model
 - TVM runtime, which runs on the target devices.
 
 In order to integrate the compiled module, we **do not** need to build entire
@@ -64,13 +64,26 @@ If you want to include additional runtime such as OpenCL,
 you can modify ``config.cmake`` to enable these options.
 After you get the TVM runtime library, you can link the compiled library
 
+Cross compiling a TVM model should not be confused with cross compiling the runtime
+shared library. 
+
+.. figure:: tvm_deploy.svg
+   :align: center
+   :width: 85%
+
+A model (optimized or not by TVM) can be cross compiled by TVM for
+different architectures such as ``aarch64`` on a ``x64_64`` host. Once the model
+is cross compiled it is neccessary to have a runtime compatible with the target
+architecture to be able to run the cross compiled model.
+
+
 Cross compile the TVM runtime for other architectures
 -----------------------------------------------------
 
 In the example :ref:`above <build-tvm-runtime-on-target-device>` the runtime library was 
 compiled on a Raspberry Pi. Producing the runtime library can be done much faster on 
-hosts that have beefy processors (such as laptops, workstation) instead of target
-devices such as a Raspberry Pi. In-order to cross compile the runtime the toolchain
+hosts that have high performace processors with ample resources (such as laptops, workstation) 
+compared to a target devices such as a Raspberry Pi. In-order to cross compile the runtime the toolchain
 for the target device must be installed. After installing the correct toolchain,
 the main difference compared to compiling natively is to pass some additional command
 line argument to cmake that specify a toolchain to be used. For reference
