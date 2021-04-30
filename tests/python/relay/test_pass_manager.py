@@ -25,6 +25,7 @@ from tvm.relay import ExprFunctor
 from tvm.relay import Function, Call
 from tvm.relay import analysis
 from tvm.relay import transform as _transform
+from tvm.ir import instrument as _instrument
 from tvm.relay.testing import run_infer_type
 import tvm.testing
 
@@ -535,11 +536,14 @@ def test_print_ir(capfd):
 
 __TRACE_COUNTER__ = 0
 
+pi = _instrument.PassInstrument("my_instrument")
 
-def _tracer(module, info, is_before):
+
+@pi.register_run_before_pass
+def _tracer(module, info):
     global __TRACE_COUNTER__
-    if bool(is_before):
-        __TRACE_COUNTER__ += 1
+    __TRACE_COUNTER__ += 1
+    return True
 
 
 def test_print_debug_callback():
@@ -562,7 +566,9 @@ def test_print_debug_callback():
     assert __TRACE_COUNTER__ == 0
     mod = tvm.IRModule({"main": func})
 
-    with tvm.transform.PassContext(opt_level=3, trace=_tracer):
+    with tvm.transform.PassContext(
+        opt_level=3, pass_instrumentor=_instrument.PassInstrumentor([pi])
+    ):
         mod = seq(mod)
 
     # TODO(@jroesch): when we remove new fn pass behavior we need to remove
