@@ -63,20 +63,25 @@ namespace runtime {
  *  This function can be explicitly invoked to check the cached signal
  *  and run the related processing if a signal is marked.
  *
- *  Invoke this function periodically in a long running C++ function
- *  to check if KeyboardInterrupt happens in a python execution environment.
+ *  On Linux, when siginterrupt() is set, invoke this function whenever a syscall returns EINTR.
+ *  When it is not set, invoke it between long-running syscalls when you will not immediately
+ *  return to the frontend. On Windows, the same rules apply, but due to differences in signal
+ *  processing, these are likely to only make a difference when used with Ctrl+C and socket calls.
  *
  *  Not inserting this function will not cause any correctness
- *  issue, but will delay the KeyboardInterrupt until the function returns
- *  to the python side. So this function is not needed in most API
- *  functions can finish quickly in a reasonable amount of time.
+ *  issue, but will delay invoking the Python-side signal handler until the function returns to
+ *  the Python side. This means that the effect of e.g. pressing Ctrl+C or sending signals the
+ *  process will be delayed until function return. When a C function is blocked on a syscall
+ *  such as accept(), it needs to be called when EINTR is received.
+ *  So this function is not needed in most API functions, which can finish quickly in a
+ *  reasonable, deterministic amount of time.
  *
  * \code
  *
- * int check_signal_every_kiter = 10;
+ * int check_signal_every_k_iter = 10;
  *
  * for (int iter = 0; iter < very_large_number; ++iter) {
- *   if (iter % check_signal_every_kiter == 0) {
+ *   if (iter % check_signal_every_k_iter == 0) {
  *     tvm::runtime::EnvCheckSignals();
  *   }
  *   // do work here
@@ -85,9 +90,10 @@ namespace runtime {
  * \endcode
  *
  * \note This function is a nop when no signal checking function is registered.
+ *       In particular PyErr_CheckSignals and PyErr_Clear when running in python.
  *
- * \throws This function throws approperiate exception if an error happens,
- *         otherwise it returns normally.
+ * \throws This function throws an exception when the frontend signal handler
+ *         indicate an error happens, otherwise it returns normally.
  */
 TVM_DLL void EnvCheckSignals();
 

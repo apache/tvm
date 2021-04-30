@@ -387,7 +387,8 @@ class Socket {
       if (GetLastError() == EINTR) {
         // Call into env check signals to see if there are
         // environment specific(e.g. python) signal exceptions.
-        // This function will throw an exception if there is an KeyboardInterrupt.
+        // This function will throw an exception if there is
+        // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
         runtime::EnvCheckSignals();
       } else {
         // other errors
