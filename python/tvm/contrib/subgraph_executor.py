@@ -35,8 +35,8 @@ def create(sub_mods):
     """
     mods = []
     for sub_mod in sub_mods:
-        m = graph_executor.GraphModule(sub_mod["lib"]["default"](sub_mod["dev"]))
-        mods.append(m)
+        mod = graph_executor.GraphModule(sub_mod["default"](sub_mods[sub_mod]["dev"]))
+        mods.append(mod)
 
     submodule = SubGraphModule(mods)
     return submodule

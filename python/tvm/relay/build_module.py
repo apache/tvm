@@ -246,13 +246,19 @@ def _module_export(module, file_name):  # fcompile, addons, kwargs?
 
 
 @register_func("tvm.relay.build")
-def _build_module_no_factory(mod, target=None, target_host=None, params=None, mod_name="default"):
+def _build_module_no_factory(
+    mod, target=None, target_host=None, params=None, mod_name="default", config=None
+):
     """A wrapper around build which discards the Python GraphFactoryRuntime.
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
     target, target_host = Target.check_and_update_host_consist(target, target_host)
-    return build(mod, target, params=params, mod_name=mod_name).module
+    ret = build(mod, target, params=params, mod_name=mod_name, config=config)
+    if isinstance(ret, dict):
+        return ret
+
+    return ret.module
 
 
 def get_executor_from_target(target, target_host):
@@ -371,6 +377,44 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             assert False, "Executor " + executor + " not supported"
 
         return executor_factory
+
+
+def build_pipeline(ir_mods, config):
+    """build module list that can use for pipeline execution.
+    Parameters:
+    ir_mods:
+        list of IRModule
+
+    config:
+        build configuration informaiton, structure like following.
+        {IRModule: {"target":target,
+                    "target_host":target_host,
+                    "params":params,
+                    "mod_name"mod_name,
+                    "build":build}}
+
+    Return:
+        list of IRModule
+    """
+    mods = {}
+    for ir_mod in ir_mods:
+        mod_config = config[ir_mod]
+        build_func = build
+        # if there is a self defined build function then use it.
+        if mod_config["build"]:
+            build_func = mod_config.build
+
+        mod = build_func(
+            ir_mod,
+            mod_config["target"],
+            params=mod_config["params"],
+            target_host=mod_config["target_host"],
+            mod_name=mod_config["mod_name"],
+        )
+
+        mods[mod] = {"dev": mod_config["dev"]}
+
+    return mods
 
 
 def optimize(mod, target=None, params=None):
