@@ -130,9 +130,9 @@ TEST(Relay, BuildModule) {
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
   auto get_output_f = run_mod.GetFunction("get_output", false);
-  set_input_f("a", &A.ToDLPack()->dl_tensor);
-  set_input_f("b", &B.ToDLPack()->dl_tensor);
-  set_input_f("c", &C.ToDLPack()->dl_tensor);
+  set_input_f("a", const_cast<DLTensor*>(A.operator->()));
+  set_input_f("b", const_cast<DLTensor*>(B.operator->()));
+  set_input_f("c", const_cast<DLTensor*>(C.operator->()));
   run_f();
   tvm::runtime::NDArray Y = get_output_f(0);
   auto pY = (float*)Y->data;
@@ -155,7 +155,7 @@ TEST(Relay, BuildModule) {
   for (int i = 0; i < 6; ++i) {
     pC2[i] = i + 4;
   }
-  set_input_f("c", &C2.ToDLPack()->dl_tensor);
+  set_input_f("c", const_cast<DLTensor*>(C2.operator->()));
   run_f();
   tvm::runtime::NDArray Y3 = get_output_f(0);
   auto pY3 = (float*)Y3->data;
