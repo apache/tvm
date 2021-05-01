@@ -1120,7 +1120,7 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
-  ICHECK(mdim) << "GatherND needs a static shape for the first axis of indices, got "
+  ICHECK(mdim) << "ScatterND needs a static shape for the first axis of indices, got "
                << indices->shape;
   const size_t kdim = indices->shape.size() - 1;
   const size_t ndim = out_shape.size();
