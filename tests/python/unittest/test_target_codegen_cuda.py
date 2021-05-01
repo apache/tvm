@@ -206,6 +206,27 @@ def test_cuda_make_int8():
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
+def test_cuda_make_int4():
+    def check_cuda(n, value, lanes):
+        dtype = "int4"
+        dev = tvm.gpu(0)
+        A = te.compute((n, lanes), lambda i, j: tvm.tir.const(value, dtype=dtype))
+        s = te.create_schedule(A.op)
+        y, x = s[A].op.axis
+        s[A].vectorize(x)
+        s[A].bind(y, bx)
+        fun = tvm.build(s, [A], "cuda", name="make_int4x8")
+        np_a = np.full((n, lanes), value, dtype="int8")
+        a = tvm.nd.empty((n, lanes), dtype, dev)
+        fun(a)
+        np.testing.assert_equal(a.asnumpy(), np_a)
+
+    check_cuda(64, 1, 8)
+    check_cuda(64, 7, 8)
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_inf_nan():
     target = "cuda"
 
@@ -972,6 +993,7 @@ if __name__ == "__main__":
     test_cuda_bf16_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
+    test_cuda_make_int4()
     test_cuda_make_int8()
     test_cuda_inf_nan()
     test_cuda_shuffle()
