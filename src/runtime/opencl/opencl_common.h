@@ -326,6 +326,14 @@ class OpenCLModuleNode : public ModuleNode {
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
 
+  /*
+   * \brief Splits the provided serialized source file into separate
+   * source for each kernel primitive.
+   * \param source The serialized program source file (fmt: cl)
+   * \return Mapping from primitive name to kernel source
+   */
+  std::unordered_map<std::string, std::string> SplitKernels(std::string source) const;
+
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
@@ -340,14 +348,14 @@ class OpenCLModuleNode : public ModuleNode {
   std::mutex build_lock_;
   // The OpenCL source.
   std::string source_;
-  // the binary data
-  cl_program program_{nullptr};
-  // build info
-  std::vector<bool> device_built_flag_;
+  // Mapping from primitive name to cl program for each device.
+  std::unordered_map<std::string, std::vector<cl_program>> programs_;
   // kernel id cache
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
+  // parsed kernel data
+  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 
 }  // namespace runtime
