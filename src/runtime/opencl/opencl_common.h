@@ -319,6 +319,7 @@ class OpenCLModuleNode : public ModuleNode {
    * \brief Splits the provided serialized source file into separate
    * source for each kernel primitive.
    * \param source The serialized program source file (fmt: cl)
+   * \return Mapping from primitive name to kernel source
    */
   std::unordered_map<std::string, std::string> SplitKernels(std::string source) const;
 
