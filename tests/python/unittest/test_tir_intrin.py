@@ -16,9 +16,10 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, tir
 from tvm import topi
 from tvm.contrib import utils, clang
+from tvm.script import ty
 import numpy as np
 import ctypes
 import math
@@ -184,6 +185,71 @@ def test_clz():
                 np.testing.assert_equal(b.asnumpy(), ref)
 
 
+@tvm.script.tir
+class Module:
+    def test_tir_fma(A: ty.handle, B: ty.handle, C: ty.handle, d: ty.handle) -> None:
+        # function attr dict
+        tir.func_attr({"global_symbol": "test_fma", "tir.noalias": True})
+        n = tir.var("int32")
+        stride = tir.var("int32")
+        stride_1 = tir.var("int32")
+        stride_2 = tir.var("int32")
+        stride_3 = tir.var("int32")
+        A_1 = tir.match_buffer(
+            A,
+            [n],
+            strides=[stride],
+            elem_offset=0,
+            align=128,
+            offset_factor=1,
+            type="auto",
+        )
+        B_1 = tir.match_buffer(
+            B,
+            [n],
+            strides=[stride_1],
+            elem_offset=0,
+            align=128,
+            offset_factor=1,
+            type="auto",
+        )
+        C_1 = tir.match_buffer(
+            C,
+            [n],
+            strides=[stride_2],
+            elem_offset=0,
+            align=128,
+            offset_factor=1,
+            type="auto",
+        )
+        d_1 = tir.match_buffer(
+            d,
+            [n],
+            strides=[stride_3],
+            elem_offset=0,
+            align=128,
+            offset_factor=1,
+            type="auto",
+        )
+        # body
+        for i in tir.serial(0, n):
+            d_1.data[(i * stride_3)] = (
+                tir.load("float32", A_1.data, (i * stride))
+                * tir.load("float32", B_1.data, (i * stride_1))
+            ) + tir.load("float32", C_1.data, (i * stride_2))
+
+
+def test_fma():
+    opt = tvm.transform.Sequential(
+        [
+            tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm"))),
+            tvm.tir.transform.LowerIntrin(),
+        ]
+    )
+    mod = opt(Module())
+    assert mod["test_tir_fma"].body.body.value.op.name == "tir.call_llvm_pure_intrin"
+
+
 if __name__ == "__main__":
     test_nearbyint()
     test_unary_intrin()
@@ -191,3 +257,4 @@ if __name__ == "__main__":
     test_binary_intrin()
     test_ldexp()
     test_clz()
+    test_fma()
