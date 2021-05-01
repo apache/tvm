@@ -20,8 +20,7 @@ import tvm
 import tvm.testing
 from tvm import relay
 from tvm.relay import transform
-from tvm.contrib import graph_executor, subgraph_executor
-from tvm.relay.analysis import pipeline_graph
+from tvm.contrib import graph_executor, pipeline_executor
 
 
 def run_module(mod, dev, target, dname, data):
@@ -73,7 +72,7 @@ def get_mannual_mod():
 
 
 """
-#split compute graph into 4 subgraph
+#split compute graph into 4 pipeline
 """
 mods, dshape = get_mannual_mod()
 """
@@ -91,7 +90,7 @@ for data in datas:
     outs.append(run_modules(mods, tvm.cpu(), "llvm", "data", data))
 
 """
-#Parameter use for subgraph executor creation
+#Parameter use for pipeline executor creation
 """
 mod_config = {}
 for i in range(len(mods)):
@@ -107,40 +106,38 @@ for i in range(len(mods)):
 
 """
 #Build module and append module and device type into variable that
-#use for subgraph creation.
-#first and second subgraph use cuda when cuda enable, second and 
-#last subgraph use cpu
+#use for pipeline creation.
+#first and second pipeline use cuda when cuda enable, second and 
+#last pipeline use cpu
 """
 with relay.build_config(opt_level=3):
     pipeline_mod = tvm.relay.build(mods, config=mod_config)
 """
-#Create subgraph executor
+#Create pipeline executor
 """
-smod = subgraph_executor.create(pipeline_mod)
+pipeline_module = pipeline_executor.create(pipeline_mod)
 
 """
-#Use subgraph executor to pipeline the said subgraph which use different backend
+#Use pipeline executor to pipeline the said pipeline which use different backend
 """
 for data in datas:
-    smod.set_input("data", data)
-    smod.run()
+    pipeline_module.set_input("data", data)
+    pipeline_module.run()
 
 """
 Get result
 """
-sub_outputs = []
+pipeline_outputs = []
 for i in range(len(datas)):
-    sub_outputs.append(smod.get_output()[0].asnumpy())
+    pipeline_outputs.append(pipeline_module.get_output()[0].asnumpy())
 
 """
 #Stop pipeline execution.
 """
-smod.stop()
+pipeline_module.stop()
 """
 
 #Verify result
 """
 for i in range(len(datas)):
-    tvm.testing.assert_allclose(outs[i], sub_outputs[i])
-
-print("run suc")
+    tvm.testing.assert_allclose(outs[i], pipeline_outputs[i])

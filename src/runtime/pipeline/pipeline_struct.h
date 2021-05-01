@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_SUBGRAPH_SUBGRAPH_STRUCT_H_
-#define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_STRUCT_H_
+#ifndef TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_
+#define TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_
 #include <assert.h>
 #include <sched.h>
 #include <string.h>
@@ -75,7 +75,7 @@ class TControl {
   }
 };
 
-class subgraphData {
+class pipelineData {
  private:
   void ResetDataList(size_t num) {
     if (max_num < num) {
@@ -152,14 +152,14 @@ class subgraphData {
   size_t max_num;
   DLTensor** dataList;
   TControl controlData;
-  subgraphData(void) : num(0), max_num(0), dataList(nullptr) {}
+  pipelineData(void) : num(0), max_num(0), dataList(nullptr) {}
 };
 
 template <int device_type = kDLCPU, int device_id = 0>
 class slot_t {
  public:
   bool bExit = false;
-  subgraphData data;
+  pipelineData data;
   slot_t(void) {}
 
   // overwrite operator = to handle "(slot) s = (OutputData) d;"
@@ -185,10 +185,10 @@ class slot_t {
 };
 
 template <int device_type = kDLCPU, int device_id = 0>
-class subgraphOutputData {
+class pipelineOutputData {
  public:
-  explicit subgraphOutputData(vector<NDArray>* datas) : datas_(datas) { ; }
-  subgraphOutputData& operator=(const slot_t<device_type, device_id>& slot) {
+  explicit pipelineOutputData(vector<NDArray>* datas) : datas_(datas) { ; }
+  pipelineOutputData& operator=(const slot_t<device_type, device_id>& slot) {
     assert(datas_->size() >= slot.data.num);
     for (size_t i = 0; i < slot.data.num; i++) {
       auto dlTensor = slot.data.dataList[i];
@@ -249,7 +249,7 @@ class RuntimeFunction {
   int NumInputs() const { return get_num_inputs(); }
 
   /*
-     when doing subgraph pipeline, the from data and to
+     when doing pipeline, the from data and to
      data may comming from different device, for example
      one from GPU another from VTA, here we need first
      copy it into cpu type memory from GPU then copy the
@@ -392,4 +392,4 @@ class RuntimeItem {
   }
 };
 
-#endif  //  TVM_RUNTIME_SUBGRAPH_SUBGRAPH_STRUCT_H_
+#endif  //  TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_

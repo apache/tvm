@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file subgraph_runtime.cc
+ * \file pipeline_runtime.cc
  */
-#include "subgraph_executor.h"
+#include "pipeline_executor.h"
 
 #include <tvm/runtime/registry.h>
 
@@ -28,16 +28,16 @@ namespace tvm {
 namespace runtime {
 
 /*!
- *\bief Stop subgraph run.
+ *\bief Stop pipeline run.
  */
-void SubGraphRuntime::Stop() { subgraph_stop(runtimes); }
+void SubGraphRuntime::Stop() { pipeline_stop(runtimes); }
 /*!
  * \brief Run all the operations one by one.
  */
-void SubGraphRuntime::Run() { subgraph_run(runtimes); }
+void SubGraphRuntime::Run() { pipeline_run(runtimes); }
 
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules) {
-  subgraph_init(modules, &runtimes);
+  pipeline_init(modules, &runtimes);
   SetupStorage();
   return;
 }
@@ -77,14 +77,14 @@ void SubGraphRuntime::SetInput(const std::string& name, DLTensor* data_in) {
 /*!
  * \brief Get the number of outputs
  *
- * \return The number of outputs from last subgraph.
+ * \return The number of outputs from last pipeline.
  */
 int SubGraphRuntime::NumOutputs() const { return runtimes.back()->runtimePtr->NumOutputs(); }
 
 /*!
  * \brief Get the number of inputs
  *
- * \return The number of inputs to the first subgraph.
+ * \return The number of inputs to the first pipeline.
  */
 int SubGraphRuntime::NumInputs() const { return runtimes.front()->runtimePtr->NumInputs(); }
 
@@ -111,7 +111,7 @@ NDArray SubGraphRuntime::GetInput(const std::string& name, int mIndx) const {
  */
 Array<NDArray> SubGraphRuntime::GetOutput(bool syncPoll) {
   Array<NDArray> nd;
-  if (subgraph_poll(&output_entry_, runtimes, syncPoll)) {
+  if (pipeline_poll(&output_entry_, runtimes, syncPoll)) {
     for (auto output : output_entry_) {
       nd.push_back(output);
     }
@@ -169,14 +169,14 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
   }
 }
 
-Module SubGraphRuntimeCreate(const Array<tvm::runtime::Module>& m) {
+Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m) {
   auto exec = make_object<SubGraphRuntime>();
   exec->Init(m);
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.subgraph_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = SubGraphRuntimeCreate(args[0]);
+TVM_REGISTER_GLOBAL("tvm.pipeline_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = PipelineRuntimeCreate(args[0]);
 });
 }  // namespace runtime
 }  // namespace tvm

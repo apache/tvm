@@ -102,7 +102,7 @@ set(USE_STACKVM_RUNTIME OFF)
 # Whether enable tiny embedded graph executor.
 set(USE_GRAPH_EXECUTOR ON)
 # Whether enable subgraph runtime.
-set(USE_SUBGRAPH_EXECUTOR ON)
+set(USE_PIPELINE_EXECUTOR ON)
 
 # Whether enable tiny graph executor with CUDA Graph
 set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)

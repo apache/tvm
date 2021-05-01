@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "subgraph_function.h"
+#include "pipeline_function.h"
 
 #include <utility>
 using namespace tvm::runtime;
 
-void subgraph_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRunItem) {
+void pipeline_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRunItem) {
   QUEUE* curQueue = curRunItem->queue;
   QUEUE* nextQueue = curRunItem->next->queue;
 
@@ -31,7 +31,7 @@ void subgraph_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
    */
   bool suc = false;
   while (curRunItem->waitPipeLineData(suc)) {
-    suc = subgraph_queue_poll(curQueue, &curRunItem->rData);
+    suc = pipeline_queue_poll(curQueue, &curRunItem->rData);
     if (!suc) {
       continue;
     }
@@ -39,20 +39,20 @@ void subgraph_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
     curRunItem->Run();
 
     auto output = curRunItem->GetOutput();
-    subgraph_queue_push(nextQueue, output);
+    pipeline_queue_push(nextQueue, output);
     curRunItem->notifyDataReadyToNext();
   }
   curRunItem->notifyNextExit();
 }
 
-thread* subgraph_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
+thread* pipeline_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
   for (size_t i = 1; i < runtimes->size(); i++) {
-    (*runtimes)[i]->t = thread(subgraph_pipeline_run, i, (*runtimes)[i]);
+    (*runtimes)[i]->t = thread(pipeline_pipeline_run, i, (*runtimes)[i]);
   }
   return NULL;
 }
 
-void subgraph_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
+void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
   int len = graphRuntimes.size();
   for (int i = 0; i < len; i++) {
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
@@ -69,33 +69,33 @@ void subgraph_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
       (*runtimes)[i]->next = (*runtimes)[0];
     }
   }
-  subgraph_pipeline_init(runtimes);
+  pipeline_pipeline_init(runtimes);
   return;
 }
 
-inline void subgraph_queue_push(QUEUE* queue, Array<NDArray> arrays) {
+inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays) {
   q_push<SLOT, Array<NDArray>>(queue, arrays);
   return;
 }
 
-bool subgraph_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
+bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
   return q_poll<SLOT, RuntimeData>(queue, runtimeData);
 }
 
-void subgraph_run(const SHARED_RUNTIME_VEC& runtimes) {
+void pipeline_run(const SHARED_RUNTIME_VEC& runtimes) {
   shared_ptr<RuntimeItem> runtime = runtimes.front();
   runtime->Run();
-  subgraph_queue_push(runtime->next->queue, runtime->GetOutput());
+  pipeline_queue_push(runtime->next->queue, runtime->GetOutput());
   runtime->notifyDataReadyToNext();
   return;
 }
 
-bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, const bool bSynch) {
+bool pipeline_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, const bool bSynch) {
   shared_ptr<RuntimeItem> firstRuntime = runtimes.front();
   QUEUE* queue = firstRuntime->queue;
   bool suc = false;
-  subgraphOutputData<> outputData(output);
-  suc = q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
+  pipelineOutputData<> outputData(output);
+  suc = q_poll<SLOT, pipelineOutputData<>>(queue, &outputData);
   while (!suc && bSynch) {
     /*
      * If get exit notify then break.
@@ -103,9 +103,9 @@ bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, 
     if (!firstRuntime->waitPipeLineData(!bSynch)) {
       break;
     }
-    suc = q_poll<SLOT, subgraphOutputData<>>(queue, &outputData);
+    suc = q_poll<SLOT, pipelineOutputData<>>(queue, &outputData);
   }
   return suc;
 }
 
-void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes) { runtimes.front()->notifyNextExit(); }
+void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes) { runtimes.front()->notifyNextExit(); }

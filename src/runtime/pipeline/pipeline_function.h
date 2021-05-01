@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_
-#define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_
+#ifndef TVM_RUNTIME_PIPELINE_PIPELINE_FUNCTION_H_
+#define TVM_RUNTIME_PIPELINE_PIPELINE_FUNCTION_H_
 #include <memory>
 #include <vector>
 
-#include "subgraph_data.h"
+#include "pipeline_data.h"
 
 using namespace std;
 using namespace tvm::runtime;
 typedef vector<shared_ptr<RuntimeItem>> SHARED_RUNTIME_VEC;
 
-void subgraph_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes);
-void subgraph_run(const SHARED_RUNTIME_VEC& runtimes);
-inline void subgraph_queue_push(QUEUE* queue, Array<NDArray> arrays);
-bool subgraph_queue_poll(QUEUE* queue, RuntimeData* runtimeData);
-bool subgraph_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes,
+void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes);
+void pipeline_run(const SHARED_RUNTIME_VEC& runtimes);
+inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays);
+bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData);
+bool pipeline_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes,
                    const bool bSync = false);
-void subgraph_stop(const SHARED_RUNTIME_VEC& runtimes);
+void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes);
 
-#endif  // TVM_RUNTIME_SUBGRAPH_SUBGRAPH_FUNCTION_H_
+#endif  // TVM_RUNTIME_PIPELINE_PIPELINE_FUNCTION_H_

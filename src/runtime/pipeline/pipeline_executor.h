@@ -22,19 +22,19 @@
  *        containing only tvm PackedFunc.
  * \file graph_runtime.h
  */
-#ifndef TVM_RUNTIME_SUBGRAPH_SUBGRAPH_EXECUTOR_H_
-#define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_EXECUTOR_H_
+#ifndef TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
+#define TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "subgraph_function.h"
+#include "pipeline_function.h"
 
 namespace tvm {
 namespace runtime {
 
 /*!
- * \brief subgraph runtime.
+ * \brief pipeline runtime.
  *
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
@@ -106,4 +106,4 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_SUBGRAPH_SUBGRAPH_EXECUTOR_H_
+#endif  // TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_

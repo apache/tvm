@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_SUBGRAPH_SUBGRAPH_DATA_H_
-#define TVM_RUNTIME_SUBGRAPH_SUBGRAPH_DATA_H_
+#ifndef TVM_RUNTIME_PIPELINE_PIPELINE_DATA_H_
+#define TVM_RUNTIME_PIPELINE_PIPELINE_DATA_H_
 #define EXPORT __attribute__((visibility("default")))
 #define IMPORT
 #include <condition_variable>
@@ -25,7 +25,7 @@
 #include <mutex>
 #include <thread>
 
-#include "subgraph_struct.h"
+#include "pipeline_struct.h"
 #ifdef __cplusplus
 
 #define read_barrier() std::atomic_thread_fence(std::memory_order_acquire)
@@ -71,4 +71,4 @@ bool q_poll(squeue<SLOT_TYPE>* q, VARIABLE_TYPE* s) {
 // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_SUBGRAPH_SUBGRAPH_DATA_H_
+#endif  // TVM_RUNTIME_PIPELINE_PIPELINE_DATA_H_

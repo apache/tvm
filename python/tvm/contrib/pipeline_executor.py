@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Minimum subgraph executor that executes subgraph containing TVM PackedFunc."""
+"""Minimum pipeline executor that executes pipeline containing TVM PackedFunc."""
 import tvm._ffi
 from tvm.contrib import graph_executor
 
 
 def create(sub_mods):
-    """Create a subgraph runtime executor.
+    """Create a pipeline runtime executor.
 
     Parameters
     ----------
@@ -30,19 +30,19 @@ def create(sub_mods):
 
     Returns
     -------
-    submodule : SubGraphModule
-        Runtime subgraph module.
+    submodule : PipelineModule
+        Runtime pipeline module.
     """
     mods = []
     for sub_mod in sub_mods:
         mod = graph_executor.GraphModule(sub_mod["default"](sub_mods[sub_mod]["dev"]))
         mods.append(mod)
 
-    submodule = SubGraphModule(mods)
+    submodule = PipelineModule(mods)
     return submodule
 
 
-class SubGraphModule(object):
+class PipelineModule(object):
     """Wrapper runtime module.
 
     This is a thin wrapper of the underlying TVM module.
@@ -66,8 +66,8 @@ class SubGraphModule(object):
         for module in graph_modules:
             mods.append(module.module)
 
-        subgraphcreate = tvm._ffi.get_global_func("tvm.subgraph_executor.create")
-        module = subgraphcreate(mods)
+        pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
+        module = pipelinecreate(mods)
 
         self.graph_modules_ = graph_modules
 
@@ -115,7 +115,7 @@ class SubGraphModule(object):
         self._run()
 
     def stop(self):
-        """Stop subgraph run"""
+        """Stop pipeline run"""
         self._stop()
 
     def get_num_outputs(self):
