@@ -128,21 +128,12 @@ class EnvCAPIRegistry {
    */
   typedef int (*F_PyErr_CheckSignals)();
 
-  /*!
-   * \brief Clear the error indicator.
-   */
-  typedef void (*F_PyErr_Clear)();
-
   // NOTE: the following function are only registered
   // in a python environment.
   /*!
    * \brief PyErr_CheckSignal function
    */
   F_PyErr_CheckSignals pyerr_check_signals = nullptr;
-  /*!
-   * \brief PyErrClear function
-   */
-  F_PyErr_Clear pyerr_clear = nullptr;
 
   static EnvCAPIRegistry* Global() {
     static EnvCAPIRegistry* inst = new EnvCAPIRegistry();
@@ -153,8 +144,6 @@ class EnvCAPIRegistry {
   void Register(const std::string& symbol_name, void* fptr) {
     if (symbol_name == "PyErr_CheckSignals") {
       Update(symbol_name, &pyerr_check_signals, fptr);
-    } else if (symbol_name == "PyErr_Clear") {
-      Update(symbol_name, &pyerr_clear, fptr);
     } else {
       LOG(FATAL) << "Unknown env API " << symbol_name;
     }
@@ -164,11 +153,9 @@ class EnvCAPIRegistry {
   void CheckSignals() {
     // check python signal to see if there are exception raised
     if (pyerr_check_signals != nullptr && (*pyerr_check_signals)() != 0) {
-      ICHECK_NOTNULL(pyerr_clear);
-      // clear the error so we can throw a new error
-      (*pyerr_clear)();
-      // Raise the error
-      LOG(FATAL) << "KeyboardInterrupt: Signal received";
+      // The error will let FFI know that the frontend environment
+      // already set an error.
+      throw EnvErrorAlreadySet("");
     }
   }
 

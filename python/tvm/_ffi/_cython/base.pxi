@@ -155,9 +155,13 @@ cdef inline c_str(pystr):
     return pystr.encode("utf-8")
 
 
-cdef inline CALL(int ret):
+cdef inline int CALL(int ret) except -2:
+    # -2 brings exception
+    if ret == -2:
+        return -2
     if ret != 0:
         raise get_last_ffi_error()
+    return 0
 
 
 cdef inline object ctypes_handle(void* chandle):
@@ -174,7 +178,6 @@ cdef inline void* c_handle(object handle):
 
 # python env API
 cdef extern from "Python.h":
-    void PyErr_Clear()
     int PyErr_CheckSignals()
 
 cdef extern from "tvm/runtime/c_backend_api.h":
@@ -191,6 +194,5 @@ cdef _init_env_api():
     # When the functions are not registered, the signals will be handled
     # only when the FFI function returns.
     CALL(TVMBackendRegisterEnvCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
-    CALL(TVMBackendRegisterEnvCAPI(c_str("PyErr_Clear"), <void*>PyErr_Clear))
 
 _init_env_api()
