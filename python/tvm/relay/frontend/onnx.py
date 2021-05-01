@@ -1376,6 +1376,18 @@ class Scatter(OnnxOpConverter):
         return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 
 
+class ScatterND(OnnxOpConverter):
+    """Operator converter for Scatter."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        indices_dim = len(infer_shape(inputs[1]))
+        axes = list(range(indices_dim))
+        return _op.scatter_nd(
+            inputs[0], _op.transpose(inputs[1], axes[-1:] + axes[:-1]), inputs[2], "update"
+        )
+
+
 class Greater(OnnxOpConverter):
     """Operator logical greater."""
 
@@ -2874,6 +2886,7 @@ def _get_convert_map(opset):
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
+        "ScatterND": ScatterND.get_converter(opset),
         "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),

@@ -31,6 +31,9 @@
 #include <sys/wait.h>
 #endif  // __hexagon__
 #endif  // _WIN32
+
+#include <tvm/runtime/container.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -126,6 +129,22 @@ inline std::vector<std::string> Split(const std::string& str, char delim) {
     ret.push_back(item);
   }
   return ret;
+}
+
+/*!
+ * \brief Check whether the string starts with a given prefix.
+ * \param str The given string.
+ * \param prefix The given prefix.
+ * \return Whether the prefix matched.
+ */
+inline bool StartsWith(const String& str, const char* prefix) {
+  size_t n = str.length();
+  for (size_t i = 0; i < n; i++) {
+    if (prefix[i] == '\0') return true;
+    if (str.data()[i] != prefix[i]) return false;
+  }
+  // return true if the str is equal to the prefix
+  return prefix[n + 1] == '\0';
 }
 
 /*!

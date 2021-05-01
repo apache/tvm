@@ -245,7 +245,6 @@ within_subsection_order = {
         "opt_gemm.py",
         "opt_conv_cuda.py",
         "opt_conv_tensorcore.py",
-        "opt_matmul_auto_tensorcore.py",
     ],
     "autotvm": [
         "tune_simple_template.py",

@@ -22,7 +22,7 @@ import tvm
 import os
 import tvm.testing
 import tvm.topi.testing
-from tvm import te, autotvm, topi
+from tvm import te, autotvm, topi, relay
 from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib import nvcc
 from tvm.topi.nn.utils import get_pad_tuple
@@ -136,6 +136,59 @@ def verify_conv2d_hwnc(
     check_target("cuda")
 
 
+def verify_feature_length():
+    np.random.seed(123)
+    target = "cuda"
+    ctx = tvm.device(target)
+
+    batch_size = 32
+
+    input_shape = (32, 512, 7, 7)
+    kernel_shape = (512, 512, 3, 3)
+
+    def get_mod():
+        x = relay.var("x", relay.TensorType(input_shape, "float32"))
+        y = relay.var("y", relay.TensorType(kernel_shape, "float32"))
+        f = relay.Function(
+            [x, y], relay.nn.conv2d(x, y, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3])
+        )
+        mod = tvm.IRModule()
+        mod["main"] = f
+        mod = relay.transform.InferType()(mod)
+        return mod, {}
+
+    mod, params = get_mod()
+    layout_config = relay.transform.LayoutConfig()
+    desired_layouts = {"nn.conv2d": ["HWNC", "default"]}
+    with layout_config:
+        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+        with tvm.transform.PassContext(opt_level=3):
+            mod = seq(mod)
+    mod = relay.transform.recast(mod, "int4", "int32")
+
+    tasks = autotvm.task.extract_from_program(
+        mod, target=target, params=params, ops=(relay.op.get("nn.conv2d"),)
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+
+    space = task.config_space
+
+    idx1 = np.random.randint(len(space))
+    idx2 = np.random.randint(len(space))
+
+    cfg = space.get(idx1)
+    sch, arg_bufs = task.instantiate(cfg)
+    fea1 = autotvm.feature.get_itervar_feature_flatten(sch, arg_bufs, take_log=True)
+
+    cfg = space.get(idx2)
+    sch, arg_bufs = task.instantiate(cfg)
+    fea2 = autotvm.feature.get_itervar_feature_flatten(sch, arg_bufs, take_log=True)
+
+    assert len(fea1) == len(fea2)
+
+
 @tvm.testing.requires_tensorcore
 def test_conv2d_hwnc_tensorcore():
     """Test the conv2d with tensorcore for hwnc layout"""
@@ -150,6 +203,7 @@ def test_conv2d_hwnc_tensorcore():
     verify_conv2d_hwnc(8, 256, 14, 512, 3, 2, 1)
     verify_conv2d_hwnc(8, 256, 14, 512, 1, 2, 0)
     verify_conv2d_hwnc(8, 512, 9, 512, 3, 1, 1)
+    verify_feature_length()
 
 
 if __name__ == "__main__":

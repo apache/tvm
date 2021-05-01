@@ -1288,7 +1288,7 @@ def wrap_compute_scatter_nd(topi_compute):
     """Wrap scatter_nd topi compute"""
 
     def _compute_scatter_nd(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], attrs.out_shape)]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.mode)]
 
     return _compute_scatter_nd
 
