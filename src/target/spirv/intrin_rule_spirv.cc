@@ -30,8 +30,6 @@
 namespace tvm {
 namespace codegen {
 namespace spirv {
-using tir::FLowerIntrinsic;
-
 // num_signature means number of arguments used to query signature
 template <unsigned id>
 PrimExpr CallGLSLIntrin(PrimExpr e, const Array<PrimExpr>& args) {
@@ -59,6 +57,8 @@ inline PrimExpr DispatchGLSLPureIntrin(const PrimExpr& e) {
   return CallGLSLIntrin<id>(e);
 }
 
+namespace intrin {
+using tir::FLowerIntrinsic;
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Floor>);
 
@@ -98,29 +98,6 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
-TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
-    "vulkan.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
-      ICHECK_EQ(call->args.size(), 1);
-      PrimExpr arg = call->args[0];
-      PrimExpr msb;
-      if (arg.dtype().bits() == 64) {
-        // SPIR-V FindUMsb intrinsic only supports 32 bit input
-        auto int32 = DataType::Int(32);
-        PrimExpr arg_hi32 = tvm::tir::Cast(int32, arg >> 32);
-        PrimExpr arg_lo32 = tvm::tir::Cast(int32, arg);
-        PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
-        PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
-        msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
-      } else if (arg.dtype().bits() == 32) {
-        msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
-      } else {
-        LOG(FATAL) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
-      }
-      return PrimExpr(arg.dtype().bits() - 1) - msb;
-    });
-
 // WebGPU rules.
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Floor>);
@@ -151,7 +128,33 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
 
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+}  // namespace intrin
 
+namespace legalize {
+using tir::FLegalize;
+TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>(
+    "vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      ICHECK_EQ(call->args.size(), 1);
+      PrimExpr arg = call->args[0];
+      PrimExpr msb;
+      if (arg.dtype().bits() == 64) {
+        // SPIR-V FindUMsb intrinsic only supports 32 bit input
+        auto int32 = DataType::Int(32);
+        PrimExpr arg_hi32 = tvm::tir::Cast(int32, arg >> 32);
+        PrimExpr arg_lo32 = tvm::tir::Cast(int32, arg);
+        PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
+        PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
+        msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
+      } else if (arg.dtype().bits() == 32) {
+        msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
+      } else {
+        LOG(FATAL) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
+      }
+      return PrimExpr(arg.dtype().bits() - 1) - msb;
+    });
+}  // namespace legalize
 }  // namespace spirv
 }  // namespace codegen
 }  // namespace tvm
