@@ -178,7 +178,7 @@ An example configuration for `test_config.json`:
 
     {
       "connection_type": "local",
-      "host": "localhost",
+      "host": "127.0.0.1",
       "port": 9090,
       "target": "llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
       "device_key": "",

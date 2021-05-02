@@ -45,7 +45,8 @@ if __name__ == "__main__":
 # run individual functions. Somewhere along the way, the imports are being
 # lost, so the server ends up not registering the functions.
 pytestmark = pytest.mark.skipif(
-    multiprocessing.get_start_method() != "fork",
+    # Windows does not support fork so we can enable Windows for testing
+    sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
     reason=(
         "pytest + multiprocessing spawn method causes tvm.register_func to "
         "not work on the rpc.Server."
@@ -87,13 +88,13 @@ def test_bigendian_rpc():
 
 @tvm.testing.requires_rpc
 def test_rpc_simple():
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
+    server = rpc.Server(key="x1")
+    client = rpc.connect("127.0.0.1", server.port, key="x1")
     f1 = client.get_function("rpc.test.addone")
     assert f1(10) == 11
     f3 = client.get_function("rpc.test.except")
 
-    with pytest.raises(tvm.error.RPCError):
+    with pytest.raises(tvm._ffi.base.TVMError):
         f3("abc")
 
     f2 = client.get_function("rpc.test.strcat")
@@ -102,8 +103,8 @@ def test_rpc_simple():
 
 @tvm.testing.requires_rpc
 def test_rpc_runtime_string():
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
+    server = rpc.Server(key="x1")
+    client = rpc.connect("127.0.0.1", server.port, key="x1")
     func = client.get_function("rpc.test.runtime_str_concat")
     x = tvm.runtime.container.String("abc")
     y = tvm.runtime.container.String("def")
@@ -114,8 +115,8 @@ def test_rpc_runtime_string():
 def test_rpc_array():
     x = np.ones((3, 4))
 
-    server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
+    server = rpc.Server()
+    remote = rpc.connect("127.0.0.1", server.port)
     r_cpu = tvm.nd.array(x, remote.cpu(0))
     assert str(r_cpu.device).startswith("remote")
     np.testing.assert_equal(r_cpu.asnumpy(), x)
@@ -126,8 +127,8 @@ def test_rpc_array():
 @tvm.testing.requires_rpc
 def test_rpc_large_array():
     # testcase of large array creation
-    server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
+    server = rpc.Server()
+    remote = rpc.connect("127.0.0.1", server.port)
     dev = remote.cpu(0)
     a_np = np.ones((5041, 720)).astype("float32")
     b_np = np.ones((720, 192)).astype("float32")
@@ -155,8 +156,8 @@ def test_rpc_echo():
             f3 = remote.system_lib()["notexist"]
 
     temp = rpc.server._server_env([])
-    server = rpc.Server("localhost")
-    client = rpc.connect(server.host, server.port)
+    server = rpc.Server()
+    client = rpc.connect("127.0.0.1", server.port)
     check(rpc.LocalSession())
 
     check(client)
@@ -170,9 +171,9 @@ def test_rpc_echo():
         tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
         check(rpc.PopenSession(minrpc_exec))
         # minrpc on the remote
-        server = rpc.Server("localhost")
+        server = rpc.Server()
         client = rpc.connect(
-            server.host,
+            "127.0.0.1",
             server.port,
             session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
         )
@@ -183,8 +184,8 @@ def test_rpc_echo():
 
 @tvm.testing.requires_rpc
 def test_rpc_file_exchange():
-    server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
+    server = rpc.Server()
+    remote = rpc.connect("127.0.0.1", server.port)
     blob = bytearray(np.random.randint(0, 10, size=(10)))
     remote.upload(blob, "dat.bin")
     rev = remote.download("dat.bin")
@@ -200,14 +201,14 @@ def test_rpc_remote_module():
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
 
-    server0 = rpc.Server("localhost", key="x0")
-    server1 = rpc.Server("localhost", key="x1")
+    server0 = rpc.Server(key="x0")
+    server1 = rpc.Server(key="x1")
 
     client = rpc.connect(
-        server0.host,
+        "127.0.0.1",
         server0.port,
         key="x0",
-        session_constructor_args=["rpc.Connect", server1.host, server1.port, "x1"],
+        session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1"],
     )
 
     def check_remote(remote):
@@ -318,8 +319,8 @@ def test_rpc_remote_module():
 
 @tvm.testing.requires_rpc
 def test_rpc_return_func():
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
+    server = rpc.Server(key="x1")
+    client = rpc.connect("127.0.0.1", server.port, key="x1")
     f1 = client.get_function("rpc.test.add_to_lhs")
     fadd = f1(10)
     assert fadd(12) == 22
@@ -328,16 +329,16 @@ def test_rpc_return_func():
 @tvm.testing.requires_rpc
 def test_rpc_session_constructor_args():
     # start server
-    server0 = rpc.Server("localhost", key="x0")
-    server1 = rpc.Server("localhost", key="x1")
+    server0 = rpc.Server(key="x0")
+    server1 = rpc.Server(key="x1")
 
     def check_multi_hop():
         # use server0 as proxy to connect to server1
         client = rpc.connect(
-            server0.host,
+            "127.0.0.1",
             server0.port,
             key="x0",
-            session_constructor_args=["rpc.Connect", server1.host, server1.port, "x1"],
+            session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1"],
         )
 
         fecho = client.get_function("testing.echo")
@@ -352,7 +353,7 @@ def test_rpc_session_constructor_args():
     def check_error_handling():
         with pytest.raises(tvm.error.RPCError):
             client = rpc.connect(
-                server0.host,
+                "127.0.0.1",
                 server0.port,
                 key="x0",
                 session_constructor_args=["rpc.NonExistingConstructor"],
@@ -365,8 +366,8 @@ def test_rpc_session_constructor_args():
 @tvm.testing.requires_rpc
 def test_rpc_return_ndarray():
     # start server
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
+    server = rpc.Server(key="x1")
+    client = rpc.connect("127.0.0.1", server.port, key="x1")
 
     m = client.get_function("rpc.test.remote_return_nd")
     get_arr = m("get_arr")
@@ -398,17 +399,16 @@ def test_local_func():
 @tvm.testing.requires_rpc
 def test_rpc_tracker_register():
     # test registration
-    tracker = Tracker("localhost", port=9000, port_end=10000)
+    tracker = Tracker(port=9000, port_end=10000)
     device_key = "test_device"
     server = rpc.Server(
-        "localhost",
         port=9000,
         port_end=10000,
         key=device_key,
-        tracker_addr=(tracker.host, tracker.port),
+        tracker_addr=("127.0.0.1", tracker.port),
     )
-    client = rpc.connect_tracker(tracker.host, tracker.port)
     time.sleep(1)
+    client = rpc.connect_tracker("127.0.0.1", tracker.port)
 
     summary = client.summary()
     assert summary["queue_info"][device_key]["free"] == 1
@@ -443,22 +443,19 @@ def _target(host, port, device_key, timeout):
 @tvm.testing.requires_rpc
 def test_rpc_tracker_request():
     # test concurrent request
-    tracker = Tracker("localhost", port=9000, port_end=10000)
+    tracker = Tracker(port=9000, port_end=10000)
     device_key = "test_device"
     server = rpc.Server(
-        "localhost",
         port=9000,
         port_end=10000,
         key=device_key,
-        tracker_addr=(tracker.host, tracker.port),
+        tracker_addr=("127.0.0.1", tracker.port),
     )
-    client = rpc.connect_tracker(tracker.host, tracker.port)
+    client = rpc.connect_tracker("127.0.0.1", tracker.port)
 
-    proc1 = multiprocessing.Process(
-        target=_target, args=(tracker.host, tracker.port, device_key, 4)
-    )
+    proc1 = multiprocessing.Process(target=_target, args=("127.0.0.1", tracker.port, device_key, 4))
     proc2 = multiprocessing.Process(
-        target=_target, args=(tracker.host, tracker.port, device_key, 200)
+        target=_target, args=("127.0.0.1", tracker.port, device_key, 200)
     )
     proc1.start()
     time.sleep(0.5)

@@ -164,7 +164,7 @@ server.start();
 This will open a socket and wait for remote requests. You can use Java, Python, or any other frontend to make an RPC call. Here's an example for calling remote function `test.rpc.strcat` in Java.
 
 ```java
-RPCSession client = Client.connect("localhost", port.value);
+RPCSession client = Client.connect("127.0.0.1", port.value);
 Function func = client.getFunction("test.rpc.strcat");
 String result = func.call("abc", 11L).asString();
 ```
