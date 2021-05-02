@@ -238,7 +238,8 @@ RELAY_REGISTER_OP("expand_dims")
     .set_support_level(1)
     .add_type_rel("ExpandDims", ExpandDimsRel)
     .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
-    .set_attr<TOpPattern>("TOpPattern", kBroadcast);
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // relay.concatenate
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
@@ -887,7 +888,8 @@ Example::
     .set_support_level(3)
     .add_type_rel("Reshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 /*!
  * \brief ReshapeLikeRel User defined type constraint function.
@@ -2243,7 +2245,8 @@ RELAY_REGISTER_OP("squeeze")
     .add_type_rel("Squeeze", SqueezeRel)
     .set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SqueezeInferCorrectLayout);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SqueezeInferCorrectLayout)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
 bool CollapseSumLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -3221,7 +3224,8 @@ example below::
     .set_support_level(10)
     .add_type_rel("ReverseReshape", ReverseReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // gather operator
 TVM_REGISTER_NODE_TYPE(GatherAttrs);

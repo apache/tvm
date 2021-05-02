@@ -349,6 +349,16 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return AddNode(node, GetRef<Expr>(op));
   }
 
+  bool ShareSameStorage(const Expr& lhs, const Expr& rhs) {
+    auto lit = storage_device_map_.find(lhs);
+    auto rit = storage_device_map_.find(rhs);
+    ICHECK(lit != storage_device_map_.end());
+    ICHECK(rit != storage_device_map_.end());
+    int64_t lhs_storage_id = ((*lit).second)[0][0]->value;
+    int64_t rhs_storage_id = ((*rit).second)[0][0]->value;
+    return lhs_storage_id == rhs_storage_id;
+  }
+
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* op) override {
     Expr expr = GetRef<Expr>(op);
     Function func;
@@ -378,6 +388,19 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
+    }
+
+    // In the current flat memory allocation scenario
+    // the flat memory allocator can always allocate input
+    // and output of the reshape to the same memory, we can turn reshape only
+    // function to a nop.
+    //
+    // NOTE that for non-flat memory this is not necessarily true.
+    //
+    // TODO(tvm-team) Update checks of flat memory enablement when we support
+    // opaque-nd memory planning to skip this path.
+    if (func->HasNonzeroAttr(attr::kReshapeOnly) && ShareSameStorage(expr, op->args[0])) {
+      return GraphAddCallNode(op, "reshape_nop", "__nop");
     }
 
     ICHECK_GE(storage_device_map_.count(expr), 0);

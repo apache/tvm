@@ -236,6 +236,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     auto it = prototype_.find(op);
     ICHECK(it != prototype_.end());
     std::vector<StorageToken*> tokens;
+
     for (StorageToken* tok : it->second) {
       if (can_realloc) {
         tokens.push_back(Request(tok));
@@ -250,6 +251,22 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     }
     token_map_[op] = tokens;
   }
+  // Mark op to reuse the input_token
+  // tie the two memories together
+  void ReuseInputToken(const ExprNode* op, StorageToken* input_token) {
+    ICHECK(!token_map_.count(op));
+    auto it = prototype_.find(op);
+    ICHECK(it != prototype_.end());
+    ICHECK_EQ(it->second.size(), 1U);
+    StorageToken* prototype = it->second[0];
+    // add the reference counter of the output
+    // so the input token can only be deleted after references
+    // to both are expired
+    input_token->ref_counter += prototype->ref_counter;
+    // reuse the input token
+    token_map_[op] = {input_token};
+  }
+
   // The call map
   void VisitExpr_(const CallNode* op) final {
     std::vector<StorageToken*> args;
@@ -259,8 +276,21 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         args.push_back(tok);
       }
     }
-    // create token for the call node.
-    CreateToken(op, true);
+    // Under the flat-memory setting.
+    // we can force aliasing the input and output of reshape
+    // to make it an nop. Note that this is not true
+    // for non-flat memory case. Given the current graph plan memory
+    // only works for flat memory case, we will go with this choice
+    //
+    // TODO(tvm-team) Update checks of flat memory enablement when we support
+    // opaque-nd memory planning to skip this path.
+    if (IsReshape(op)) {
+      ICHECK_EQ(args.size(), 1U);
+      ReuseInputToken(op, args[0]);
+    } else {
+      // create token for the call node.
+      CreateToken(op, true);
+    }
     // check if there is orphaned output that can be released immediately.
     for (StorageToken* tok : token_map_.at(op)) {
       CheckForRelease(tok);
@@ -277,6 +307,17 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
    */
   static size_t DivRoundUp(size_t size, size_t word_size) {
     return (size + word_size - 1) / word_size;
+  }
+  /*!
+   * \brief The call is an reshape only op
+   * \param call The call to be checked.
+   * \return the check result.
+   */
+  static bool IsReshape(const CallNode* call) {
+    if (const auto* fn = call->op.as<FunctionNode>()) {
+      return fn->HasNonzeroAttr(attr::kReshapeOnly);
+    }
+    return false;
   }
   /*!
    * \brief Get the memory requirement.
