@@ -386,7 +386,7 @@ class PopenTrackerServerState(object):
                 self.port = my_port
                 break
             except socket.error as sock_err:
-                if sock_err.errno in [98, 48]:
+                if sock_err.errno in [errno.EADDRINUSE]:
                     continue
                 raise sock_err
         if not self.port:
@@ -409,7 +409,7 @@ def _popen_start_tracker_server(host, port=9190, port_end=9199, silent=False):
 
 
 class Tracker(object):
-    """Start RPC tracker on a seperate process.
+    """Start RPC tracker on a separate process.
 
     Python implementation based on PopenWorker.
 
@@ -428,10 +428,9 @@ class Tracker(object):
         Whether run in silent mode
     """
 
-    def __init__(self, host, port=9190, port_end=9199, silent=False):
+    def __init__(self, host="0.0.0.0", port=9190, port_end=9199, silent=False):
         if silent:
             logger.setLevel(logging.WARN)
-
         self.proc = PopenWorker()
         # send the function
         self.proc.send(
@@ -449,7 +448,7 @@ class Tracker(object):
 
     def _stop_tracker(self):
         sock = socket.socket(base.get_addr_family((self.host, self.port)), socket.SOCK_STREAM)
-        sock.connect((self.host, self.port))
+        sock.connect(("127.0.0.1", self.port))
         sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
         magic = struct.unpack("<i", base.recvall(sock, 4))[0]
         assert magic == base.RPC_TRACKER_MAGIC

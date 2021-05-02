@@ -111,8 +111,14 @@ class BuildModule(object):
 
         Returns
         -------
-        factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
-            The runtime factory for the TVM graph executor.
+        graph_json : str
+            The json string that can be accepted by graph executor.
+
+        mod : tvm.Module
+            The module containing necessary libraries.
+
+        params : dict
+            The parameters of the final graph.
         """
         target = _update_target(target)
         target, target_host = Target.check_and_update_host_consist(
@@ -245,14 +251,8 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     Returns
     -------
-    graph_json : str
-        The json string that can be accepted by graph executor.
-
-    mod : tvm.Module
-        The module containing necessary libraries.
-
-    params : dict
-        The parameters of the final graph.
+    factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
+            The runtime factory for the TVM graph executor.
     """
     # pylint: enable=line-too-long
     # fmt: on

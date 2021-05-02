@@ -111,7 +111,7 @@ class RedisDatabase(Database):
         import redis
 
         if db_index == RedisDatabase.REDIS_TEST:
-            host = "localhost"
+            host = "127.0.0.1"
         else:
             host = os.environ.get("TVM_FLEET_HOST")
         self.db = redis.StrictRedis(host=host, port=6379, db=db_index)

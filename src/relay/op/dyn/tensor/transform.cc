@@ -141,7 +141,8 @@ RELAY_REGISTER_OP("dyn.reshape")
     .set_support_level(3)
     .add_type_rel("DynamicReshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // tile operator
 // TVM_REGISTER_NODE_TYPE(TileAttrs);
