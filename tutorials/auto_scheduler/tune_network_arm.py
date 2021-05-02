@@ -25,7 +25,7 @@ Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
 network for ARM CPU with the auto-scheduler via RPC.
 
-To auto-tune a neural network, we partition the network into small subgraphs and 
+To auto-tune a neural network, we partition the network into small subgraphs and
 tune them independently. Each subgraph is treated as one search task.
 A task scheduler slices the time and dynamically allocates time resources to
 these tasks. The task scheduler predicts the impact of each task on the end-to-end
@@ -234,7 +234,7 @@ target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 
 # Also replace this with the device key, rpc host and rpc port in your tracker
 device_key = "rasp4b-64"
-rpc_host = "0.0.0.0"
+rpc_host = "127.0.0.1"
 rpc_port = 9191
 
 # Set this to True if you use ndk tools for cross compiling

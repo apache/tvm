@@ -86,7 +86,7 @@ public class GraphExecutorTest {
     Server server = null;
     try {
       server = TestUtils.startServer(port);
-      RPCSession remote = Client.connect("localhost", port.value);
+      RPCSession remote = Client.connect("127.0.0.1", port.value);
       Device dev = remote.cpu();
 
       remote.upload(new File(libPath));
