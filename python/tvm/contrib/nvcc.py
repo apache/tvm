@@ -89,11 +89,13 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     cmd += ["-o", file_target]
     cmd += [temp_code]
 
-    cxx_compiler_path = tvm.support.libinfo().get("TVM_CXX_COMPILER_PATH")
-    if cxx_compiler_path != "":
-        # This tells nvcc where to find the c++ compiler just in case it is not in the path.
-        # On Windows it is not in the path by default.
-        cmd += ["-ccbin", cxx_compiler_path]
+    # NOTE: ccbin option can be used to tell nvcc where to find the c++ compiler
+    # just in case it is not in the path. On Windows it is not in the path by default.
+    # However, we cannot use TVM_CXX_COMPILER_PATH because the runtime env.
+    # Because it is hard to do runtime compiler detection, we require nvcc is configured
+    # correctly by default.
+    # if cxx_compiler_path != "":
+    #    cmd += ["-ccbin", cxx_compiler_path]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
