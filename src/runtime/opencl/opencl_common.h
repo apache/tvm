@@ -287,6 +287,8 @@ class OpenCLWorkspace : public DeviceAPI {
   // get the global workspace
   static OpenCLWorkspace* Global();
 
+  void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
+
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       Device dev_from, Device dev_to, DLDataType type_hint,
@@ -326,16 +328,17 @@ class OpenCLThreadEntry {
 /*! \brief OpenCL runtime buffer structure with tracked memory layout */
 struct OpenCLBuffer {
   enum class MemoryLayout {
-    kGlobalRowMajor,
-    kTexture2DActivation,
-    kTexture2DWeight,
-    kUndefined,
+    GLOBAL_BUFFER_ROW_MAJOR,
+    IMAGE2D_ACTIVATION,
+    IMAGE2D_WEIGHT,
   };
   OpenCLBuffer() = default;
   OpenCLBuffer(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
   static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
   cl_mem buffer{nullptr};
-  MemoryLayout layout{MemoryLayout::kGlobalRowMajor};
+  MemoryLayout layout{MemoryLayout::GLOBAL_BUFFER_ROW_MAJOR};
+  std::vector<int64_t> shape;
+  DLDataType dtype;
 };
 }  // namespace cl
 
@@ -405,15 +408,6 @@ class OpenCLModuleNode : public ModuleNode {
   // parsed kernel data
   std::unordered_map<std::string, std::string> parsed_kernels_;
 };
-
-inline cl_mem_object_type GetMemObjectType(const void* mem_ptr) {
-  cl_mem mem = static_cast<cl_mem>((void*)mem_ptr);
-  cl_mem_info param_name = CL_MEM_TYPE;
-  cl_mem_object_type mem_type;
-  OPENCL_CALL(clGetMemObjectInfo(mem, param_name, sizeof(mem_type), &mem_type, NULL));
-  return mem_type;
-}
-
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
