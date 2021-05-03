@@ -20,7 +20,6 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
-import tvm
 from ...ir import IRModule
 from ...relay import transform, build_module
 from ...runtime.ndarray import cpu
