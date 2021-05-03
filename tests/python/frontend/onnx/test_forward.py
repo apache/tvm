@@ -4209,12 +4209,8 @@ unsupported_onnx_tests = [
     "test_eyelike_populate_off_main_diagonal/",
     "test_eyelike_with_dtype/",
     "test_eyelike_without_dtype/",
-    "test_isinf_negative/",
-    "test_isinf_positive/",
     "test_matmulinteger/",
     "test_maxpool_2d_dilations/",
-    "test_maxpool_2d_same_lower/",
-    "test_maxpool_2d_same_upper/",
     "test_maxpool_with_argmax_2d_precomputed_pads/",
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
@@ -4233,7 +4229,6 @@ unsupported_onnx_tests = [
     "test_reversesequence_batch/",
     "test_reversesequence_time/",
     "test_rnn_seq_length/",
-    "test_roialign/",
     "test_round/",
     "test_scan9_sum/",
     "test_scan_sum/",
@@ -4252,7 +4247,6 @@ unsupported_onnx_tests = [
     "test_tfidfvectorizer_tf_onlybigrams_levelempty/",
     "test_tfidfvectorizer_tf_onlybigrams_skip5/",
     "test_tfidfvectorizer_tf_uniandbigrams_skip5/",
-    "test_top_k_smallest/",
     "test_unique_not_sorted_without_axis/",
     "test_unique_sorted_with_axis/",
     "test_unique_sorted_with_axis_3d/",
@@ -4268,6 +4262,12 @@ def test_onnx_nodes(test):
         if failure in test:
             pytest.skip()
             break
+    atol = 1e-5
+    rtol = 1e-5
+    if "roialign" in test:
+        # for some reason the ONNX test crops the
+        # roialign results to 4 decimal places
+        atol = 1e-4
     onnx_model = onnx.load(test + "/model.onnx")
     inputs = []
     outputs = []
@@ -4285,10 +4285,10 @@ def test_onnx_nodes(test):
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
         tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
         if len(outputs) == 1:
-            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
         else:
             for output, val in zip(outputs, tvm_val):
-                tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
 
 
 def test_wrong_input():
