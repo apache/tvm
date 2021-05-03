@@ -80,7 +80,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         weight_elements = weight_elements * wshape[i];
       }
       oshape.Set(oshape.size() - 1, weight_elements / dshape[dshape.size() - 1]);
-    // Otherwise just pull it out of the weight shape directly.
+      // Otherwise just pull it out of the weight shape directly.
     } else {
       ICHECK(static_cast<int>(weight->shape.size()) == 2);
       if (!data->shape.back().as<tir::AnyNode>()) {
