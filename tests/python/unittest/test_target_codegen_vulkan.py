@@ -158,8 +158,54 @@ def test_vulkan_stress():
     run_stress()
 
 
+@tvm.testing.requires_vulkan
+def test_vulkan_constant_passing():
+    target = "vulkan"
+
+    def test_scalar_params(num_int_params):
+        n = te.var("n")
+        scalars = [te.var("scale{}".format(i)) for i in range(num_int_params)]
+        scalar_sum = scalars[0]
+        for s in scalars[1:]:
+            scalar_sum += s
+
+        A = te.placeholder((n,), name="A")
+        B = te.compute(A.shape, lambda i: scalar_sum + A[i], name="B")
+
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], factor=64)
+        s[B].bind(xo, bx)
+        s[B].bind(xi, tx)
+        f_add = tvm.build(s, scalars + [A, B], target)
+
+        n = 1024
+        scalars = [1 for _ in scalars]
+        dev = tvm.vulkan(0)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+        f_add(*scalars, a, b)
+
+        tvm.testing.assert_allclose(a.asnumpy() + sum(scalars), b.asnumpy())
+
+    # f_add has 3+num_int_params scalar parameters.  The other three
+    # are length_n, stride1, and stride2.
+
+    # 4 params, 32 bytes.  Within 128-byte spec-guaranteed size of
+    # push constants.  Uses push constants.
+    test_scalar_params(1)
+
+    # 24 params, 192 bytes.  Too big for push constants, uses uniform
+    # buffer.
+    test_scalar_params(20)
+
+    # 2047 params, 16376 bytes, just below 16kB of uniform buffer
+    # space guaranteed by the vulkan spec.
+    test_scalar_params(2044)
+
+
 if __name__ == "__main__":
     test_vector_comparison()
     test_vulkan_copy()
     test_vulkan_vectorize_add()
     test_vulkan_stress()
+    test_vulkan_constant_passing()
