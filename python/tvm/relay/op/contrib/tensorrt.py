@@ -327,6 +327,8 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
     if (
         not get_tensorrt_use_implicit_batch_mode()
         and (isinstance(args[0], Constant) or isinstance(args[1], Constant))
+        and len(shapes[0]) > 0
+        and len(shapes[1]) > 0
         and shapes[0][0] == shapes[1][0]
         and shapes[0][0] != 1
         and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
