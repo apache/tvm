@@ -200,7 +200,7 @@ class TestKeras:
         verify_keras_frontend(keras_model)
         # RNN dense
         data = keras.layers.Input(shape=(1, 1, 32))
-        x = keras.layers.Dense(32, activation="relu", kernel_initializer="uniform")(x)
+        x = keras.layers.Dense(32, activation="relu", kernel_initializer="uniform")(data)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
