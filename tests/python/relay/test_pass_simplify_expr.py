@@ -108,7 +108,7 @@ def test_simplify_transpose():
 
     # Test a series of transpose and rank changing layout_transform
     def before4():
-        '''
+        """
         Simplify transpose->layout_transform and its inverse.
 
         Input:
@@ -116,7 +116,7 @@ def test_simplify_transpose():
 
         Simplified:
         NHWC -> NCHW4c -> op -> NCHW4c -> NHWC
-        '''
+        """
         x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")
         y = relay.transpose(x, axes=[0, 3, 1, 2])
         y = relay.layout_transform(y, "NCHW", "NCHW4c")
@@ -133,7 +133,7 @@ def test_simplify_transpose():
         return relay.Function([x], y)
 
     def before5():
-        '''
+        """
         Simplify layout_transform->layout_transform and its inverse.
 
         Input:
@@ -141,7 +141,7 @@ def test_simplify_transpose():
 
         Simplified:
         NHWC -> NCHW4c -> op -> NCHW4c -> NHWC
-        '''
+        """
         x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")  # NHWC
         y = relay.layout_transform(x, "NHWC", "NCHW")  # To NCHW
         y = relay.layout_transform(y, "NCHW", "NCHW4c")  # To NCHW4c
@@ -158,7 +158,7 @@ def test_simplify_transpose():
         return relay.Function([x], y)
 
     def before6():
-        '''
+        """
         Remove trivial layout_transform->layout_transform.
 
         Input:
@@ -166,7 +166,7 @@ def test_simplify_transpose():
 
         Simplified:
         NHWC -> op
-        '''
+        """
 
         x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
         y = relay.layout_transform(x, "NCHW", "NHWC")
@@ -180,7 +180,7 @@ def test_simplify_transpose():
         return relay.Function([x], y)
 
     def before7():
-        '''
+        """
         Remove trivial layout_transform->layout_transform.
 
         Input:
@@ -188,7 +188,7 @@ def test_simplify_transpose():
 
         Simplified:
         NCHW4c -> op
-        '''
+        """
         x = relay.var("x", shape=(1, 32, 56, 56, 4), dtype="float32")
         y = relay.layout_transform(x, "NCHW4c", "NCHW8c")
         y = relay.layout_transform(y, "NCHW8c", "NCHW4c")
@@ -201,7 +201,7 @@ def test_simplify_transpose():
         return relay.Function([x], y)
 
     def before8():
-        '''
+        """
         Simplify layout_transform->layout_transform with rank contraction and expansion
 
         Input:
@@ -209,7 +209,7 @@ def test_simplify_transpose():
 
         Simplified:
         NCHW4c -> NCHW8c -> op
-        '''
+        """
         x = relay.var("x", shape=(1, 32, 56, 56, 4), dtype="float32")
         y = relay.layout_transform(x, "NCHW4c", "NCHW")
         y = relay.layout_transform(y, "NCHW", "NCHW8c")
@@ -223,7 +223,7 @@ def test_simplify_transpose():
         return relay.Function([x], y)
 
     def before9():
-        '''
+        """
         Remove trivial layout_transform->layout_transform.
 
         Input:
@@ -231,7 +231,7 @@ def test_simplify_transpose():
 
         Simplified:
         NCHW -> op
-        '''
+        """
         x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
         y = relay.layout_transform(x, "NCHW", "NCHW4c")
         y = relay.layout_transform(y, "NCHW4c", "NCHW")
@@ -244,7 +244,7 @@ def test_simplify_transpose():
         return relay.Function([x], y)
 
     def before10():
-        '''
+        """
         Simplify layout_transform->layout_transform without rank change to transpose.
 
         Input:
@@ -252,7 +252,7 @@ def test_simplify_transpose():
 
         Simplified:
         NCHW -> CHWN -> op
-        '''
+        """
         x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
         y = relay.layout_transform(x, "NCHW", "NHWC")
         y = relay.layout_transform(y, "NHWC", "CHWN")
