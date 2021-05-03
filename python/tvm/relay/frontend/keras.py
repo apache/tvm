@@ -1209,9 +1209,11 @@ def from_keras(model, shape=None, layout="NCHW"):
             else:
                 if len(inexpr) == 1:
                     inexpr = inexpr[0]
-                outs.extend(keras_op_to_relay(
-                    inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab
-                ))
+                outs.extend(
+                    keras_op_to_relay(
+                        inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab
+                    )
+                )
         return outs
 
     is_tf_keras = _check_model_is_tf_keras()
