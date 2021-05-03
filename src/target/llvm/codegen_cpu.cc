@@ -796,7 +796,7 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
     symbols.push_back(sym);
     auto* sym_func =
         llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::GlobalValue::ExternalLinkage,
-                               sym.operator std::string(), *module_);
+                               sym.operator std::string(), module_.get());
 
     funcs.emplace_back(sym_func);
   }
