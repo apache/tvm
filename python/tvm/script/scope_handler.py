@@ -154,15 +154,17 @@ class LaunchThread(WithScopeHandler):
     def __init__(self):
         def launch_thread(env_var, extent, span):
             extent = tvm.runtime.convert(extent, span=span)
+            thread_id = self.context.func_var_env_dict[env_var]
+            attr_key = "virtual_thread" if thread_id == "vthread" else "thread_extent"
             return tvm.tir.AttrStmt(
                 IterVar(
-                    None,
+                    (0, extent),
                     env_var,
                     getattr(IterVar, "ThreadIndex"),
-                    self.context.func_var_env_dict[env_var],
+                    thread_id,
                     span=span,
                 ),
-                "thread_extent",
+                attr_key,
                 extent,
                 self.body,
                 span=span,

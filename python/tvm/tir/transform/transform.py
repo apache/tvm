@@ -610,3 +610,16 @@ def CompactBufferAllocation():
         The result pass
     """
     return _ffi_api.CompactBufferAllocation()
+
+
+def FlattenBuffer():
+    """Flatten the multi-dimensional BufferLoad and BufferStore
+    to single dimensional Load/Store. Also remove Block to
+    ensure that the flattened TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FlattenBuffer()
