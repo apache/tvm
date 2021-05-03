@@ -22,6 +22,7 @@ from tvm.topi.math import cast
 import numpy as np
 
 
+@tvm.testing.requires_vulkan
 def test_bool_load():
     def do_copy(A, B, n):
         ib = tvm.tir.ir_builder.create()
@@ -46,9 +47,6 @@ def test_bool_load():
     B = te.placeholder((n,), name="B", dtype="int32")
 
     target = "vulkan"
-
-    if not tvm.testing.device_enabled(target):
-        return
 
     B = te.extern(
         A.shape,
@@ -80,10 +78,8 @@ def check_mod(mod, x_np, res_np):
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
+@tvm.testing.requires_vulkan
 def test_pushconstants():
-    if not tvm.testing.device_enabled("vulkan"):
-        return
-
     # Three 32 bit pushconstants: any_dim, stride, stride
     dtype = "float32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
@@ -115,10 +111,8 @@ def test_pushconstants():
     check_mod(mod, x_np, res_np)
 
 
+@tvm.testing.requires_vulkan
 def test_unique():
-    if not tvm.testing.device_enabled("vulkan"):
-        return
-
     dtype = "int32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
     mod = tvm.IRModule()
