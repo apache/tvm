@@ -27,7 +27,7 @@ This page is organized as follows:
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
-- Feel free to also checkout the :ref:`dev-how-to` for useful development tips.
+- Feel free to also check out the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
 First, we review a single end-to-end compilation flow and discuss the key data structures and the transformations.
@@ -42,7 +42,7 @@ In this guide, we will study an example compilation flow in the compiler. The fi
 
 - Import: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
 - Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately
-  equivalent(e.g. in the case of quantization) IRModule. Many of the transformatons are target (backend) independent.
+  equivalent(e.g. in the case of quantization) IRModule. Many of the transformations are target (backend) independent.
   We also allow target to affect the configuration of the transformation pipeline.
 - Target Translation: The compiler translates(codegen) the IRModule to an executable format specified by the target.
   The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
@@ -103,7 +103,7 @@ Many low-level optimizations can be handled in the target phase by the LLVM, CUD
 Search-space and Learning-based Transformations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The transformation passes we described so far are deterministic and rule-based. One design goal of the TVM stack is to support high-performance code optimizations for different hardware platforms. To do so, we will need to investigate as many optimizations choices as possible, including but not limited to, multi-dimensional tensor access, loop tiling behavior, special accelerator memory hierarchy, and threading.
+The transformation passes we described so far are deterministic and rule-based. One design goal of the TVM stack is to support high-performance code optimizations for different hardware platforms. To do so, we will need to investigate as many optimization choices as possible, including but not limited to, multi-dimensional tensor access, loop tiling behavior, special accelerator memory hierarchy, and threading.
 
 It is hard to define a heuristic to make all of the choices. Instead, we will take a search and learning-based approach.
 We first define a collection of actions we can take to transform a program. Example actions include loop transformations, inlining,
