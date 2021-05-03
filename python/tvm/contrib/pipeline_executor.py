@@ -16,10 +16,48 @@
 # under the License.
 """Minimum pipeline executor that executes pipeline containing TVM PackedFunc."""
 import tvm._ffi
+from tvm import relay
 from tvm.contrib import graph_executor
 
 
-def create(sub_mods):
+def build_pipeline(ir_mods, config):
+    """build module list that can use for pipeline execution.
+    Parameters:
+    ir_mods:
+        list of IRModule
+
+    config:
+        build configuration informaiton, structure like following.
+        {IRModule: {"target":target,
+                    "target_host":target_host,
+                    "params":params,
+                    "mod_name"mod_name,
+                    "build":build}}
+
+    Return:
+        list of IRModule
+    """
+    mods = {}
+    for ir_mod in ir_mods:
+        mod_config = config[ir_mod]
+        build_func = relay.build
+        # if there is a self defined build function then use it.
+        if mod_config["build"]:
+            build_func = mod_config.build
+
+        mod = build_func(
+            ir_mod,
+            mod_config["target"],
+            params=mod_config["params"],
+            target_host=mod_config["target_host"],
+            mod_name=mod_config["mod_name"],
+        )
+
+        mods[mod] = {"dev": mod_config["dev"]}
+
+    return mods
+
+def create(mods, mod_config):
     """Create a pipeline runtime executor.
 
     Parameters
@@ -33,9 +71,13 @@ def create(sub_mods):
     submodule : PipelineModule
         Runtime pipeline module.
     """
+    pipeline_mods = build_pipeline(mods, config=mod_config)
+
     mods = []
-    for sub_mod in sub_mods:
-        mod = graph_executor.GraphModule(sub_mod["default"](sub_mods[sub_mod]["dev"]))
+    for pipeline_mod in pipeline_mods:
+        mod = graph_executor.GraphModule(
+              pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"]))
+
         mods.append(mod)
 
     submodule = PipelineModule(mods)
