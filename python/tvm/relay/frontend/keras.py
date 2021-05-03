@@ -1149,6 +1149,7 @@ def from_keras(model, shape=None, layout="NCHW"):
             raise TypeError(
                 "Unknown layer type or unsupported Keras version : {}".format(keras_layer)
             )
+        outs = []
         for node_idx, node in enumerate(inbound_nodes):
             # If some nodes in imported model are not relevant to the current model,
             # skip such layers.
@@ -1197,20 +1198,21 @@ def from_keras(model, shape=None, layout="NCHW"):
                         input_index += 1
                     else:
                         # Convert child layer. Prepend scope with parent layer name.
-                        outs = _convert_layer(layer, etab, keras_layer.name + "_" + scope)
+                        layer_outs = _convert_layer(layer, etab, keras_layer.name + "_" + scope)
 
                 # Get output of last child layer and mark as output of parent.
                 outname = keras_layer.name + ":" + str(node_idx)
-                for t_idx, out in enumerate(outs):
+                for t_idx, out in enumerate(layer_outs):
                     name = outname + ":" + str(t_idx)
                     etab.set_expr(name, out)
-                return outs
-
-            if len(inexpr) == 1:
-                inexpr = inexpr[0]
-            return keras_op_to_relay(
-                inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab
-            )
+                outs.extend(layer_outs)
+            else:
+                if len(inexpr) == 1:
+                    inexpr = inexpr[0]
+                outs.extend(keras_op_to_relay(
+                    inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab
+                ))
+        return outs
 
     is_tf_keras = _check_model_is_tf_keras()
 
