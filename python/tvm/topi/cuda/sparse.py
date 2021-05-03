@@ -163,7 +163,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     """
 
     def gen_ir(data, w_data, w_indices, w_indptr, out):
-        # pylint: disable=invalid-name
+        # pylint: disable=invalid-name, simplifiable-if-statement
         # TODO(tkonolige): use tensorcores for block multiply
         # TODO(tkonolige): use vectorize on loads
         # TODO(tkonolige): seperate implementation if M is small
@@ -237,7 +237,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
             )
         else:
             indices = ib.allocate(
-                ni, w_indices.dtype, (rowlength_bi,), name="indices", scope="shared"
+                w_indices.dtype, (ni, rowlength_bi), name="indices", scope="shared"
             )
             w_data_cache = ib.allocate(
                 w_data.dtype, (ni, rowlength_bi, bs_n, bs_k), name="w_data_cache", scope="shared"
