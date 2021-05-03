@@ -83,6 +83,13 @@ using TOpIsStateful = bool;
 using TNonComputational = bool;
 
 /*!
+ * \brief Mark the operator as reshape op of its first input
+ *        and can be turned into a nop when the first input and output
+ *        shares the same piece of memory.
+ */
+using TReshapeOp = bool;
+
+/*!
  * \brief Mark the operator whether output shape is data dependent.
  */
 using TShapeDataDependent = Array<Integer>;

@@ -64,39 +64,13 @@ inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dt
   return AllocTensor(storage, offset, shape, dtype, assert_shape);
 }
 
-// A pass to check if the fused op contains only reshape ops.
-class CheckReshapeOnly : public ExprVisitor {
- public:
-  CheckReshapeOnly()
-      : reshape_(Op::Get("reshape")),
-        contr_reshape_(Op::Get("contrib_reverse_reshape")),
-        dyn_reshape_(Op::Get("dyn.reshape")) {}
-
-  void VisitExpr_(const CallNode* cn) final {
-    if (!reshape_only) return;
-    if (cn->op != reshape_ && cn->op != contr_reshape_ && cn->op != dyn_reshape_) {
-      reshape_only = false;
-    }
-    for (auto arg : cn->args) ExprVisitor::VisitExpr(arg);
-  }
-
-  void VisitExpr_(const VarNode* vn) final {
-    if (!vn->checked_type_->IsInstance<TensorTypeNode>()) {
-      reshape_only = false;
-    }
-  }
-
-  const Op& reshape_;
-  const Op& contr_reshape_;
-  const Op& dyn_reshape_;
-  bool reshape_only{true};
-};
 
 // Check if the primitive function contains only reshape ops.
 bool IsReshapeOnly(const Expr& expr) {
-  auto check = CheckReshapeOnly();
-  check.VisitExpr(expr);
-  return check.reshape_only;
+  if (auto* func = expr.as<FunctionNode>()) {
+    return func->HasNonzeroAttr(attr::kReshapeOnly);
+  }
+  return false;
 }
 
 class DialectRewriter : public ExprMutator {

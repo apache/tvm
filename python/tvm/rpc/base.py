@@ -57,12 +57,10 @@ class TrackerCode(object):
 
 RPC_SESS_MASK = 128
 
-
+# Use "127.0.0.1" or "::1" if there is a need to force ip4 or ip6
+# connection for "localhost".
 def get_addr_family(addr):
     res = socket.getaddrinfo(addr[0], addr[1], 0, 0, socket.IPPROTO_TCP)
-    for info in res:
-        if info[0] == socket.AF_INET:
-            return info[0]
     return res[0][0]
 
 

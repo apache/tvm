@@ -180,7 +180,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Here we use an Pynq-Z1 board as an example.
 
 # Tracker host and port can be set by your environment
-tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
