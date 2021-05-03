@@ -45,7 +45,7 @@ def get_input_data_shape_dict(graph_def, input_data):
 def get_tvm_output_with_vm(
     graph_def, input_data, target, device, opset=None, freeze_params=False, convert_to_static=False
 ):
-    """ Generic function to execute and get tvm output with vm executor"""
+    """Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
@@ -67,7 +67,7 @@ def get_tvm_output_with_vm(
 def get_tvm_output(
     graph_def, input_data, target, device, output_shape=None, output_dtype="float32", opset=None
 ):
-    """ Generic function to execute and get tvm output"""
+    """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
     target = "llvm"
     device = tvm.cpu(0)
@@ -4218,8 +4218,6 @@ unsupported_onnx_tests = [
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
-    "test_range_float_type_positive_delta_expanded/",
-    "test_range_int32_type_negative_delta_expanded/",
     "test_resize_tf_crop_and_resize/",
     ## For these three tests, ONNX 1.6.0 has incorrect graphs, they pass with ONNX 1.7.0
     "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
