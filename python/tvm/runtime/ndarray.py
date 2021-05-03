@@ -520,6 +520,9 @@ def array(arr, device=cpu(0)):
     ret : NDArray
         The created array
     """
+    if isinstance(arr, tvm.ir.container.Array):
+        raise AttributeError("arr is an instance of", type(arr))
+
     if not isinstance(arr, (np.ndarray, NDArray)):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, device).copyfrom(arr)
