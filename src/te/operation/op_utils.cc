@@ -161,7 +161,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(bind_iv->thread_tag);
         runtime::StorageScope ss = runtime::StorageScope::Create(stage->scope);
-        if (static_cast<int>(ss.rank) <= ts.rank || ss.rank == runtime::StorageRank::kTexture) {
+        if (static_cast<int>(ss.rank) <= ts.rank) {
           value_map[iv] = var;
         } else if (stage->scope == "warp" && ts.rank == 1) {
           // To determine whether a thread index is inside or outside a warp, we need
