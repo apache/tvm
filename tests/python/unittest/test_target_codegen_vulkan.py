@@ -14,11 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm import te
+
 import re
 import numpy as np
+
+import tvm
+import tvm.testing
+from tvm import relay, te
+from tvm.topi.math import cast
+
+
+def check_mod(mod, x_np, res_np):
+    target = "vulkan"
+    dev = tvm.device(target, 0)
+    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
+    res = ex.evaluate()(x_np).asnumpy()
+    tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
 @tvm.testing.requires_vulkan
@@ -158,8 +169,150 @@ def test_vulkan_stress():
     run_stress()
 
 
+@tvm.testing.requires_vulkan
+def test_vulkan_bool_load():
+    def do_copy(A, B, n):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+
+        max_threads = 32
+        ib.scope_attr(bx, "thread_extent", tvm.tir.indexdiv(n + max_threads - 1, max_threads))
+        ib.scope_attr(tx, "thread_extent", max_threads)
+        tid = bx * max_threads + tx
+
+        with ib.if_scope(tid < n):
+            B[tid] = cast(A[tid], "int32")
+
+        return ib.get()
+
+    n = 1024
+    A = te.placeholder((n,), name="A", dtype="bool")
+    B = te.placeholder((n,), name="B", dtype="int32")
+
+    target = "vulkan"
+
+    B = te.extern(
+        A.shape,
+        [A],
+        lambda ins, outs: do_copy(ins[0], outs[0], n),
+        name="bool_copy_ir",
+        dtype="int32",
+    )
+    s = te.create_schedule(B.op)
+
+    with tvm.transform.PassContext(opt_level=3):
+        func = tvm.build(s, [A, B], target)
+
+    dev = tvm.device(target, 0)
+    a_np = np.random.uniform(size=n) > 0.5
+    b_np = np.zeros((n,), dtype="int32")
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    func(a, b)
+    ref = a_np.astype(np.int32)
+    tvm.testing.assert_allclose(b.asnumpy(), ref)
+
+
+@tvm.testing.requires_vulkan
+def test_vulkan_pushconstants():
+    # Three 32 bit pushconstants: any_dim, stride, stride
+    dtype = "float32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], relay.sqrt(x))
+    x_np = np.random.uniform(size=(10,)).astype(dtype)
+    res_np = np.sqrt(x_np)
+
+    check_mod(mod, x_np, res_np)
+
+    # One 64 bit and one 32 bit constants
+    dtype = "int32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], relay.argsort(x))
+    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
+    res_np = np.argsort(x_np)
+
+    check_mod(mod, x_np, res_np)
+
+    # One 64 bit and one 32 bit constants
+    dtype = "int32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], relay.cumsum(x))
+    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
+    res_np = np.cumsum(x_np)
+
+    check_mod(mod, x_np, res_np)
+
+
+@tvm.testing.requires_vulkan
+def test_vulkan_unique():
+    dtype = "int32"
+    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
+    mod = tvm.IRModule()
+    [unique, _, num_unique] = relay.unique(x, is_sorted=True)
+    mod["main"] = relay.Function([x], relay.op.strided_slice(unique, begin=[0], end=num_unique))
+    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
+    res_np = np.unique(x_np)
+    check_mod(mod, x_np, res_np)
+
+
+@tvm.testing.requires_vulkan
+def test_vulkan_constant_passing():
+    target = "vulkan"
+
+    def test_scalar_params(num_int_params):
+        n = te.var("n")
+        scalars = [te.var("scale{}".format(i)) for i in range(num_int_params)]
+        scalar_sum = scalars[0]
+        for s in scalars[1:]:
+            scalar_sum += s
+
+        A = te.placeholder((n,), name="A")
+        B = te.compute(A.shape, lambda i: scalar_sum + A[i], name="B")
+
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], factor=64)
+        s[B].bind(xo, bx)
+        s[B].bind(xi, tx)
+        f_add = tvm.build(s, scalars + [A, B], target)
+
+        n = 1024
+        scalars = [1 for _ in scalars]
+        dev = tvm.vulkan(0)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
+        f_add(*scalars, a, b)
+
+        tvm.testing.assert_allclose(a.asnumpy() + sum(scalars), b.asnumpy())
+
+    # f_add has 3+num_int_params scalar parameters.  The other three
+    # are length_n, stride1, and stride2.
+
+    # 4 params, 32 bytes.  Within 128-byte spec-guaranteed size of
+    # push constants.  Uses push constants.
+    test_scalar_params(1)
+
+    # 24 params, 192 bytes.  Too big for push constants, uses uniform
+    # buffer.
+    test_scalar_params(20)
+
+    # 2047 params, 16376 bytes, just below 16kB of uniform buffer
+    # space guaranteed by the vulkan spec.
+    test_scalar_params(2044)
+
+
 if __name__ == "__main__":
     test_vector_comparison()
     test_vulkan_copy()
     test_vulkan_vectorize_add()
     test_vulkan_stress()
+    test_vulkan_constant_passing()
+    test_vulkan_bool_load()
+    test_vulkan_pushconstants()
+    test_vulkan_unique()
