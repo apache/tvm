@@ -173,7 +173,7 @@ def test_reshape_nop():
     func = relay.Function([x], relay.Tuple([z0, z1, z2]))
     x_data = np.random.rand(10, 4).astype("float32")
     graph = relay.build(tvm.IRModule.from_expr(func), "llvm")
-    graph_json_str = graph.get_json()
+    graph_json_str = graph.get_graph_json()
 
     graph_json = json.loads(graph_json_str)
 
