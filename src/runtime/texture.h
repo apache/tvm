@@ -87,6 +87,11 @@ inline bool IsTextureStorage(std::string scope) {
   return scope.find("texture") != std::string::npos;
 }
 
+/*!
+ * \brief A two dimensional storage pool that recycles temporal workspace
+ * allocations for dynamically allocated texture. See AllocTexture docstring
+ * for approach to allocation and reuse.
+ */
 class TVM_DLL TexturePool {
  public:
   /*!
@@ -97,11 +102,22 @@ class TVM_DLL TexturePool {
   TexturePool(DLDeviceType device_type, DeviceAPI* device_api);
   /*! \brief destructor */
   ~TexturePool();
+
   /*!
-   * \brief Allocate temporal texture.
+   * \brief Allocate a two dimensional temporal texture workspace on device
+   *
+   * \note Two dimensional texture workspaces will be grown and reused
+   * according to the following strategy:
+   *  - Choose the workspace which minimizes the amount of memory required to
+   *    grow the workspace to fit the request.
+   *  - If a set of workspaces exist that fit the current request without
+   *    expansion, choose the workspace of that set which most closely
+   *    matches the request size, minimizing wasted space.
+   *
    * \param dev The context of allocation.
    * \param width The width of the 2d texture to be allocated.
    * \param height The height of the 2d texture to be allocated.
+   * \param type_hint The type of elements.
    */
   void* AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint);
   /*!
