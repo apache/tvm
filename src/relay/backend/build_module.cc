@@ -565,6 +565,19 @@ class RelayBuildModule : public runtime::ModuleNode {
     auto ext_mods = executor_codegen_->GetExternalModules();
     ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, GetTargetHost(),
                                                   executor_codegen_->GetMetadata());
+    // Remove external params which were stored in metadata module.
+    for (tvm::runtime::Module mod : ext_mods) {
+      auto pf_var = mod.GetFunction("get_const_vars");
+      if (pf_var != nullptr) {
+        Array<String> variables = pf_var();
+        for (size_t i = 0; i < variables.size(); i++) {
+          auto it = ret_.params.find(variables[i].operator std::string());
+          if (it != ret_.params.end()) {
+            ret_.params.erase(it);
+          }
+        }
+      }
+    }
   }
 
  private:
