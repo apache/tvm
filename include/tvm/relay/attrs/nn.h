@@ -686,6 +686,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
+  Array<IndexExpr> dilation;
   tvm::String layout;
   bool ceil_mode;
 
@@ -694,6 +695,9 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1, 1}))
+        .describe("Specifies the dilation of the convolution.");
     TVM_ATTR_FIELD(padding)
         .set_default(Array<IndexExpr>({0, 0}))
         .describe(
@@ -717,6 +721,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
+  Array<IndexExpr> dilation;
   tvm::String layout;
   bool ceil_mode;
   bool count_include_pad;
@@ -726,6 +731,9 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1, 1}))
+        .describe("Specifies the dilation of the convolution.");
     TVM_ATTR_FIELD(padding)
         .set_default(Array<IndexExpr>({0, 0}))
         .describe(
@@ -813,6 +821,7 @@ struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
 struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
+  Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
   bool ceil_mode;
@@ -822,6 +831,9 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1}))
         .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1}))
+        .describe("Specifies the dilation of the convolution.");
     TVM_ATTR_FIELD(padding)
         .set_default(Array<IndexExpr>({0}))
         .describe(
@@ -843,6 +855,7 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
 struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
+  Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
   bool ceil_mode;
@@ -853,6 +866,9 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1}))
         .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1}))
+        .describe("Specifies the dilation of the convolution.");
     TVM_ATTR_FIELD(padding)
         .set_default(Array<IndexExpr>({0}))
         .describe(
@@ -877,6 +893,7 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
 struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
+  Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
   bool ceil_mode;
@@ -886,6 +903,9 @@ struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1, 1}))
         .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1, 1, 1}))
+        .describe("Specifies the dilation of the convolution.");
     TVM_ATTR_FIELD(padding)
         .set_default(Array<IndexExpr>({0, 0, 0}))
         .describe(
@@ -908,6 +928,7 @@ struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
 struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
+  Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
   bool ceil_mode;
@@ -918,6 +939,9 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1, 1}))
         .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1, 1, 1}))
+        .describe("Specifies the dilation of the convolution.");
     TVM_ATTR_FIELD(padding)
         .set_default(Array<IndexExpr>({0, 0, 0}))
         .describe(

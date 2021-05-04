@@ -21,31 +21,28 @@
 """PT: PyTorch frontend."""
 import itertools
 import logging
-import sys
 import math
+import sys
 
 import numpy as np
-
 import tvm
-from tvm.topi.utils import get_const_tuple
 from tvm.ir import IRModule
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from .. import qnn
-from ..ty import TupleType, TensorType, Any
+from .. import qnn, transform
+from ..expr_functor import ExprMutator
 from ..loops import while_loop
-from .. import transform
+from ..prelude import Prelude, StaticTensorArrayOps
+from ..ty import Any, TensorType, TupleType
+from . import qnn_torch
 from .common import AttrCvt, get_relay_op
 from .common import infer_value as _infer_value
-from .common import try_infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from ..prelude import Prelude, StaticTensorArrayOps
-from ..expr_functor import ExprMutator
-
-from . import qnn_torch
+from .common import try_infer_value
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -883,11 +880,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1, 1]:
-            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+        return _op.nn.max_pool2d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCHW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_2d_with_indices(self, inputs, input_types):
         # returns dummy indices too
@@ -902,11 +903,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1]:
-            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
+        return _op.nn.max_pool1d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
@@ -916,12 +921,14 @@ class PyTorchOpConverter:
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
-        if dilation != [1, 1, 1]:
-            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
 
         return _op.nn.max_pool3d(
-            data, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            ceil_mode=ceil_mode,
         )
 
     def hardtanh(self, inputs, input_types):
@@ -1370,6 +1377,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1,),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1379,6 +1387,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1, 1),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1388,6 +1397,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1, 1, 1),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
