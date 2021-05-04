@@ -253,7 +253,6 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             and msg not in autotvm.task.DispatchContext.warning_messages
         ):
             autotvm.task.DispatchContext.warning_messages.add(msg)
-            autotvm_logger.warning(msg)
     logger.info(
         "Using %s for %s based on highest priority (%s)",
         best_plevel_impl.name,
