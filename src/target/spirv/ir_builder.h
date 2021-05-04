@@ -470,7 +470,7 @@ class IRBuilder {
    *
    * \param arg_type The type of argument.
    * \param descriptor_set The descriptor set we want to use.
-   * \param binding The binding locaiton in descriptor set.
+   * \param binding The binding location in descriptor set.
    * \param The argument type.
    */
   Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding);
@@ -496,10 +496,12 @@ class IRBuilder {
    *
    * \note Only call this function once!
    * \param value_types The values in the uniform buffer
-   * \param binding The binding locaiton in descriptor set
+   * \param descriptor_set The descriptor set we want to use
+   * \param binding The binding location in descriptor set
    * \return reference to self.
    */
-  Value DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding);
+  Value DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t descriptor_set,
+                             uint32_t binding);
   /*!
    * \brief Get i-th uniform constant
    * \param v_type The value type
@@ -584,6 +586,14 @@ class IRBuilder {
    */
   Value DeclareStorageVariable(const std::vector<SType>& value_types,
                                spv::StorageClass storage_class, ValueKind kind);
+
+  /*!
+   * \brief The common function to decorate storage buffer or uniform buffer arguments.
+   * \param val The Value to be decorated.
+   * \param descriptor_set The index of the descriptor set containing the buffer's descriptor
+   * \param binding The index of the buffer's descriptor within the descriptor set
+   */
+  void DecorateBufferArgument(Value val, uint32_t descriptor_set, uint32_t binding);
 
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
