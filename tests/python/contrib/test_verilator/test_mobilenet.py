@@ -87,9 +87,7 @@ def get_mobilenet_model():
     )
     model_dir = os.path.dirname(model_path)
     extract(model_path)
-    tflite_model_file = os.path.join(
-        model_dir, "mobilenet_v1_1.0_224_quant.tflite"
-    )
+    tflite_model_file = os.path.join(model_dir, "mobilenet_v1_1.0_224_quant.tflite")
     tflite_model_buf = open(tflite_model_file, "rb").read()
     try:
         import tflite
@@ -152,9 +150,7 @@ def run_model(mod, params=None, opts=None):
     out: Data
         The output data.
     """
-    with transform.PassContext(
-        opt_level=3, config={"relay.ext.verilator.options": opts}
-    ):
+    with transform.PassContext(opt_level=3, config={"relay.ext.verilator.options": opts}):
         lib = relay.build(mod, target="llvm", params=params)
     module = runtime.GraphModule(lib["default"](tvm.cpu()))
     image_data = get_real_image(224, 224)
@@ -204,9 +200,7 @@ def print_test_info(lanes, cycles):
         The number of cycles.
     """
     print(
-        "[mobilenet] vector-lanes:{} number of cycles:{} spent in nn.bias_add".format(
-            lanes, cycles
-        )
+        "[mobilenet] vector-lanes:{} number of cycles:{} spent in nn.bias_add".format(lanes, cycles)
     )
 
 

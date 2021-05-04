@@ -189,9 +189,7 @@ def run_module(inp, mod, params=None, opts=None):
         The output data.
     """
 
-    with tvm.transform.PassContext(
-        opt_level=3, config={"relay.ext.verilator.options": opts}
-    ):
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.verilator.options": opts}):
         lib = relay.vm.compile(mod, target="llvm", params=params)
     code, lib = lib.save()
     exe = runtime.vm.Executable.load_exec(code, lib)

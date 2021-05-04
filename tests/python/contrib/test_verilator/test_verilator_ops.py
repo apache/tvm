@@ -135,11 +135,7 @@ def print_test_info(test, lanes, cycles):
     cycles : Int
         The number of cycles.
     """
-    print(
-        "test:{} vector-lanes:{} number of cycles:{}".format(
-            test, lanes, cycles
-        )
-    )
+    print("test:{} vector-lanes:{} number of cycles:{}".format(test, lanes, cycles))
 
 
 def tadd(lanes):
