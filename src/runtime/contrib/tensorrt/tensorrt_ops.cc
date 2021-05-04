@@ -723,6 +723,53 @@ class ConcatOpConverter : public TensorRTOpConverter {
   }
 };
 
+class SplitOpConverter : public TensorRTOpConverter {
+ public:
+  SplitOpConverter() : TensorRTOpConverter({kTensor}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    auto input_dims = TrtDimsToVector(input->getDimensions());
+    const int original_axis = std::stoi(params->node.GetAttr<std::vector<std::string>>("axis")[0]);
+    const int axis = ConvertAxis(params, original_axis, input_dims.size());
+    auto indices_or_sections =
+        params->node.GetAttr<std::vector<std::string>>("indices_or_sections");
+    auto mode = params->node.GetAttr<std::vector<std::string>>("mode")[0];
+
+    std::vector<int> split_starts;
+    std::vector<int> split_sizes;
+    if (mode == "sections") {
+      int sections = std::stoi(indices_or_sections[0]);
+      int size = input_dims[axis] / sections;
+      for (int i = 0; i < sections; i++) {
+        split_starts.push_back(i * size);
+        split_sizes.push_back(size);
+      }
+    } else {
+      int last_index = 0;
+      for (size_t i = 0; i < indices_or_sections.size(); ++i) {
+        int index = std::stoi(indices_or_sections[i]);
+        split_starts.push_back(last_index);
+        split_sizes.push_back(index - last_index);
+        last_index = index;
+      }
+      split_starts.push_back(last_index);
+      split_sizes.push_back(input_dims[axis] - last_index);
+    }
+
+    std::vector<int> start(input_dims.size(), 0);
+    std::vector<int> size(input_dims.begin(), input_dims.end());
+    std::vector<int> strides(input_dims.size(), 1);
+    for (int i = 0; i < split_sizes.size(); ++i) {
+      start[axis] = split_starts[i];
+      size[axis] = split_sizes[i];
+      auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
+                                                   VectorToTrtDims(size), VectorToTrtDims(strides));
+      params->outputs.push_back(slice_layer->getOutput(0));
+    }
+  }
+};
+
 class BiasAddOpConverter : public TensorRTOpConverter {
  public:
   BiasAddOpConverter() : TensorRTOpConverter({kTensor, kWeight}) {}
@@ -970,9 +1017,17 @@ class ReduceOpConverter : public TensorRTOpConverter {
     // TODO(trevmorr): Support reduce to scalar.
     ICHECK_GT(str_axis.size(), 0);
     uint32_t reduce_axes = 0;
-    for (size_t i = 0; i < str_axis.size(); ++i) {
-      const int axis = ConvertAxis(params, std::stoi(str_axis[i]), input->getDimensions().nbDims);
-      reduce_axes |= 1 << axis;
+
+    if (str_axis.size() == 1 && str_axis[0].length() == 0) {
+      // Reduce to scalar
+      for (int i = 0; i < input->getDimensions().nbDims; ++i) {
+        reduce_axes |= 1 << i;
+      }
+    } else {
+      for (size_t i = 0; i < str_axis.size(); ++i) {
+        const int axis = ConvertAxis(params, std::stoi(str_axis[i]), input->getDimensions().nbDims);
+        reduce_axes |= 1 << axis;
+      }
     }
     auto reduce_layer = params->network->addReduce(*input, it->second, reduce_axes, keepdims);
     params->outputs.push_back(reduce_layer->getOutput(0));
@@ -1072,6 +1127,7 @@ GetOpConverters() {
   map->emplace("expand_dims", std::make_shared<ExpandDimsOpConverter>());
   map->emplace("squeeze", std::make_shared<SqueezeOpConverter>());
   map->emplace("concatenate", std::make_shared<ConcatOpConverter>());
+  map->emplace("split", std::make_shared<SplitOpConverter>());
   map->emplace("nn.conv2d_transpose", std::make_shared<Conv2DTransposeOpConverter>());
   map->emplace("transpose", std::make_shared<TransposeOpConverter>());
   map->emplace("layout_transform", std::make_shared<LayoutTransformOpConverter>());
