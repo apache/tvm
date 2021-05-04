@@ -43,6 +43,10 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   std::vector<Var> pod_args;
   uint32_t num_buffer = 0;
 
+  // Currently, all storage and uniform buffer arguments are passed as
+  // a single descriptor set at index 0.
+  const uint32_t descriptor_set = 0;
+
   for (Var arg : f->params) {
     DataType t = arg.dtype();
     if (t.is_handle()) {
@@ -55,8 +59,8 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
           // The loaded byte is cast to bool inside the LoadNode visitor below.
           value_storage_type = DataType::UInt(8);
         }
-        spirv::Value arg_value =
-            builder_->BufferArgument(builder_->GetSType(value_storage_type), 0, num_buffer);
+        spirv::Value arg_value = builder_->BufferArgument(builder_->GetSType(value_storage_type),
+                                                          descriptor_set, num_buffer);
         storage_info_[arg.get()].UpdateContentType(value_storage_type);
         var_map_[arg.get()] = arg_value;
       } else {
@@ -87,7 +91,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
     } else {
       shader.flag |= 1 << runtime::vulkan::ShaderMetaDataFlagMask::kUseUBO;
       // If we need to pass more arguments than push constants could handle, we use UBO.
-      spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, num_buffer);
+      spirv::Value ptr = builder_->DeclareUniformBuffer(value_types, descriptor_set, num_buffer);
       for (size_t i = 0; i < pod_args.size(); ++i) {
         spirv::Value value = builder_->GetUniform(ptr, value_types[i], static_cast<uint32_t>(i));
         var_map_[pod_args[i].get()] = value;
