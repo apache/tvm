@@ -142,7 +142,8 @@ void VerilatorRuntime::Run() {
         ICHECK(add != nullptr);
         add(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[1]);
       } else if ("nn.bias_add" == op_name) {
-        auto bias_add = reinterpret_cast<VerilatorBiasAddFunc>(lib_->GetSymbol("verilator_bias_add"));
+        auto bias_add =
+            reinterpret_cast<VerilatorBiasAddFunc>(lib_->GetSymbol("verilator_bias_add"));
         ICHECK(bias_add != nullptr);
         bias_add(device_, in_ptr[0], in_ptr[1], out_ptr[0], shape[0], shape[3], shape[1], shape[2]);
       } else {
