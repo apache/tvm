@@ -52,7 +52,7 @@ import tvm
 import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
-from tvm.relay.backend.graph_executor_factory import GraphExecutorFactoryModule
+from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
 
 from .common import TVMCException
 
