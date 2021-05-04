@@ -19,20 +19,21 @@ Provides support to run compiled networks both locally and remotely.
 """
 import json
 import logging
-import os
-import tarfile
-import tempfile
+from typing import Optional, Dict, List, Union
 
 import numpy as np
+import tvm
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
-from tvm.relay import load_param_dict
+from tvm.relay.param_dict import load_param_dict
 
 from . import common
+from .model import TVMCPackage, TVMCResult
 from .common import TVMCException
 from .main import register_parser
+from .result_utils import get_top_results
 
 
 # pylint: disable=invalid-name
@@ -82,7 +83,10 @@ def add_run_parser(subparsers):
         "making it take longer to be generated.",
     )
     parser.add_argument(
-        "--repeat", metavar="N", type=int, default=1, help="repeat the run n times. Defaults to '1'"
+        "--repeat", metavar="N", type=int, default=1, help="run the model n times. Defaults to '1'"
+    )
+    parser.add_argument(
+        "--number", metavar="N", type=int, default=1, help="repeat the run n times. Defaults to '1'"
     )
     parser.add_argument(
         "--rpc-key",
@@ -112,8 +116,10 @@ def drive_run(args):
     except IOError as ex:
         raise TVMCException("Error loading inputs file: %s" % ex)
 
-    outputs, times = run_module(
-        args.FILE,
+    tvmc_package = TVMCPackage(package_path=args.FILE)
+
+    result = run_module(
+        tvmc_package,
         args.device,
         hostname=rpc_hostname,
         port=rpc_port,
@@ -121,25 +127,26 @@ def drive_run(args):
         inputs=inputs,
         fill_mode=args.fill_mode,
         repeat=args.repeat,
+        number=args.number,
         profile=args.profile,
     )
 
     if args.print_time:
-        stat_table = format_times(times)
+        stat_table = result.format_times()
         # print here is intentional
         print(stat_table)
 
     if args.print_top:
-        top_results = get_top_results(outputs, args.print_top)
+        top_results = get_top_results(result, args.print_top)
         # print here is intentional
         print(top_results)
 
     if args.outputs:
         # Save the outputs
-        np.savez(args.outputs, **outputs)
+        result.save(args.outputs)
 
 
-def get_input_info(graph_str, params):
+def get_input_info(graph_str: str, params: Dict[str, tvm.nd.NDArray]):
     """Return the 'shape' and 'dtype' dictionaries for the input
     tensors of a compiled module.
 
@@ -155,8 +162,8 @@ def get_input_info(graph_str, params):
     ----------
     graph_str : str
         JSON graph of the module serialized as a string.
-    params : bytearray
-        Params serialized as a bytearray.
+    params : dict
+        Parameter dictionary mapping name to value.
 
     Returns
     -------
@@ -179,14 +186,14 @@ def get_input_info(graph_str, params):
             shape_dict[name] = graph["attrs"]["shape"][1][node_id]
             dtype_dict[name] = graph["attrs"]["dltype"][1][node_id]
 
-    logger.debug("collecting graph input shape and type:")
-    logger.debug("graph input shape: %s", shape_dict)
-    logger.debug("graph input type: %s", dtype_dict)
+    logger.debug("Collecting graph input shape and type:")
+    logger.debug("Graph input shape: %s", shape_dict)
+    logger.debug("Graph input type: %s", dtype_dict)
 
     return shape_dict, dtype_dict
 
 
-def generate_tensor_data(shape, dtype, fill_mode):
+def generate_tensor_data(shape: tuple, dtype: str, fill_mode: str):
     """Generate data to produce a tensor of given shape and dtype.
 
     Random data generation depends on the dtype. For int8 types,
@@ -226,7 +233,12 @@ def generate_tensor_data(shape, dtype, fill_mode):
     return tensor
 
 
-def make_inputs_dict(shape_dict, dtype_dict, inputs=None, fill_mode="random"):
+def make_inputs_dict(
+    shape_dict: Dict[str, List[int]],
+    dtype_dict: Dict[str, str],
+    inputs: Optional[Dict[str, np.ndarray]] = None,
+    fill_mode: str = "random",
+):
     """Make the inputs dictionary for a graph.
 
     Use data from 'inputs' where specified. For input tensors
@@ -289,15 +301,16 @@ def make_inputs_dict(shape_dict, dtype_dict, inputs=None, fill_mode="random"):
 
 
 def run_module(
-    module_file,
-    device,
-    hostname=None,
-    port=9090,
-    rpc_key=None,
-    inputs=None,
-    fill_mode="random",
-    repeat=1,
-    profile=False,
+    tvmc_package: TVMCPackage,
+    device: str,
+    hostname: Optional[str] = None,
+    port: Union[int, str] = 9090,
+    rpc_key: Optional[str] = None,
+    inputs: Optional[Dict[str, np.ndarray]] = None,
+    fill_mode: str = "random",
+    repeat: int = 10,
+    number: int = 10,
+    profile: bool = False,
 ):
     """Run a compiled graph executor module locally or remotely with
     optional input values.
@@ -307,8 +320,8 @@ def run_module(
 
     Parameters
     ----------
-    module_file : str
-        The path to the module file (a .tar file).
+    tvmc_package: TVMCPackage
+        The compiled model package object that will be run.
     device: str,
         the device (e.g. "cpu" or "gpu") to be targeted by the RPC
         session, local or remote).
@@ -320,13 +333,16 @@ def run_module(
         The tracker key of the target device. If this is set, it
         will be assumed that remote points to a tracker.
     inputs : dict, optional
-        A dictionary that maps input names to numpy values.
+        A dictionary that maps input names to numpy values. If not provided,
+        inputs will be generated using the fill_mode argument.
     fill_mode : str, optional
         The fill-mode to use when generating data for input tensors.
         Valid options are "zeros", "ones" and "random".
         Defaults to "random".
     repeat : int, optional
         How many times to repeat the run.
+    number : int, optional
+        The number of runs to measure within each repeat.
     profile : bool
         Whether to profile the run with the debug runtime.
 
@@ -337,135 +353,73 @@ def run_module(
     times : list of str
         execution times generated by the time evaluator
     """
+    if not isinstance(tvmc_package, TVMCPackage):
+        raise TVMCException(
+            "This model doesn't seem to have been compiled yet. "
+            "Try calling tvmc.compile on the model before running it."
+        )
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        logger.debug("extracting module file %s", module_file)
-        t = tarfile.open(module_file)
-        t.extractall(tmp_dir)
-        graph = open(os.path.join(tmp_dir, "mod.json")).read()
-        params = bytearray(open(os.path.join(tmp_dir, "mod.params"), "rb").read())
-
-        if hostname:
-            # Remote RPC
-            if rpc_key:
-                logger.debug("running on remote RPC tracker with key %s", rpc_key)
-                session = request_remote(rpc_key, hostname, port, timeout=1000)
-            else:
-                logger.debug("running on remote RPC with no key")
-                session = rpc.connect(hostname, port)
+    if hostname:
+        if isinstance(port, str):
+            port = int(port)
+        # Remote RPC
+        if rpc_key:
+            logger.debug("Running on remote RPC tracker with key %s.", rpc_key)
+            session = request_remote(rpc_key, hostname, port, timeout=1000)
         else:
-            # Local
-            logger.debug("running a local session")
-            session = rpc.LocalSession()
+            logger.debug("Running on remote RPC with no key.")
+            session = rpc.connect(hostname, port)
+    else:
+        # Local
+        logger.debug("Running a local session.")
+        session = rpc.LocalSession()
 
-        session.upload(os.path.join(tmp_dir, "mod.so"))
-        lib = session.load_module("mod.so")
+    session.upload(tvmc_package.lib_path)
+    lib = session.load_module(tvmc_package.lib_name)
 
-        # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
-        logger.debug("device is %s", device)
-        if device == "gpu":
-            dev = session.gpu()
-        elif device == "cl":
-            dev = session.cl()
-        else:
-            assert device == "cpu"
-            dev = session.cpu()
+    # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
+    logger.debug("Device is %s.", device)
+    if device == "gpu":
+        dev = session.gpu()
+    elif device == "cl":
+        dev = session.cl()
+    else:
+        assert device == "cpu"
+        dev = session.cpu()
 
-        if profile:
-            logger.debug("creating runtime with profiling enabled")
-            module = debug_executor.create(graph, lib, dev, dump_root="./prof")
-        else:
-            logger.debug("creating runtime with profiling disabled")
-            module = runtime.create(graph, lib, dev)
+    if profile:
+        logger.debug("Creating runtime with profiling enabled.")
+        module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
+    else:
+        logger.debug("Creating runtime with profiling disabled.")
+        module = runtime.create(tvmc_package.graph, lib, dev)
 
-        logger.debug("load params into the runtime module")
-        module.load_params(params)
+    logger.debug("Loading params into the runtime module.")
+    module.load_params(tvmc_package.params)
 
-        shape_dict, dtype_dict = get_input_info(graph, params)
-        inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
+    shape_dict, dtype_dict = get_input_info(tvmc_package.graph, tvmc_package.params)
+    inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
 
-        logger.debug("setting inputs to the module")
-        module.set_input(**inputs_dict)
+    logger.debug("Setting inputs to the module.")
+    module.set_input(**inputs_dict)
 
-        # Run must be called explicitly if profiling
-        if profile:
-            logger.debug("running the module with profiling enabled")
-            module.run()
+    # Run must be called explicitly if profiling
+    if profile:
+        logger.info("Running the module with profiling enabled.")
+        module.run()
 
-        # create the module time evaluator (returns a function)
-        timer = module.module.time_evaluator("run", dev, 1, repeat=repeat)
-        # call the evaluator function to invoke the module and save execution times
-        prof_result = timer()
-        # collect a list of execution times from the profiling results
-        times = prof_result.results
+    # create the module time evaluator (returns a function)
+    timer = module.module.time_evaluator("run", dev, number=number, repeat=repeat)
+    # call the evaluator function to invoke the module and save execution times
+    prof_result = timer()
+    # collect a list of execution times from the profiling results
+    times = prof_result.results
 
-        logger.debug("collecting the output tensors")
-        num_outputs = module.get_num_outputs()
-        outputs = {}
-        for i in range(num_outputs):
-            output_name = "output_{}".format(i)
-            outputs[output_name] = module.get_output(i).asnumpy()
+    logger.debug("Collecting the output tensors.")
+    num_outputs = module.get_num_outputs()
+    outputs = {}
+    for i in range(num_outputs):
+        output_name = "output_{}".format(i)
+        outputs[output_name] = module.get_output(i).asnumpy()
 
-        return outputs, times
-
-
-def get_top_results(outputs, max_results):
-    """Return the top n results from the output tensor.
-
-    This function is primarily for image classification and will
-    not necessarily generalise.
-
-    Parameters
-    ----------
-    outputs : dict
-        Outputs dictionary - {output_name: np.array}.
-    max_results : int
-        Number of results to return
-
-    Returns
-    -------
-    top_results : np.array
-        Results array of shape (2, n).
-        The first row is the indices and the second is the values.
-
-    """
-    output = np.copy(outputs["output_0"])
-    sorted_labels = output.argsort()[0][-max_results:][::-1]
-    output.sort()
-    sorted_values = output[0][-max_results:][::-1]
-    top_results = np.array([sorted_labels, sorted_values])
-    return top_results
-
-
-def format_times(times):
-    """Format the mean, max, min and std of the execution times.
-
-    This has the effect of producing a small table that looks like:
-
-        Execution time summary:
-        mean (ms)   max (ms)    min (ms)    std (ms)
-        0.14310    0.16161    0.12933    0.01004
-
-    Parameters
-    ----------
-    times : list
-        A list of execution times (in seconds).
-
-    Returns
-    -------
-    str
-        A formatted string containing the statistics.
-    """
-
-    # timestamps
-    mean_ts = np.mean(times) * 1000
-    std_ts = np.std(times) * 1000
-    max_ts = np.max(times) * 1000
-    min_ts = np.min(times) * 1000
-
-    header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-        "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
-    )
-    stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(mean_ts, max_ts, min_ts, std_ts)
-
-    return "%s\n%s\n" % (header, stats)
+    return TVMCResult(outputs, times)
