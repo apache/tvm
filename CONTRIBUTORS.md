@@ -55,6 +55,7 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky - relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Masahiro Masuda](https://github.com/masahi) (PMC): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
