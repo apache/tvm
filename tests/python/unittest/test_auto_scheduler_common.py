@@ -17,8 +17,7 @@
 
 """Common functions for auto_scheduler test cases"""
 import tvm
-from tvm import te, auto_scheduler
-from tvm import topi
+from tvm import auto_scheduler, te, topi
 from tvm.topi.nn.winograd_util import winograd_transform_matrices
 from tvm.topi.utils import get_const_tuple
 
@@ -105,7 +104,7 @@ def conv2d_nchw_bn_relu_auto_scheduler_test(
 @auto_scheduler.register_workload
 def max_pool2d_auto_scheduler_test(N, H, W, CI, padding):
     data = te.placeholder((N, CI, H, W), name="Data")
-    out = topi.nn.pool(data, [2, 2], [1, 1], [padding, padding, padding, padding], "max")
+    out = topi.nn.pool2d(data, [2, 2], [1, 1], [1, 1], [padding, padding, padding, padding], "max")
 
     return [data, out]
 

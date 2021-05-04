@@ -15,17 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-import onnx
-from onnx import helper, TensorProto, mapping, numpy_helper
+import pytest
+import scipy
 import torch
 import torchvision
-import pytest
-import tvm.topi.testing
 import tvm
+import tvm.testing
+import tvm.topi.testing
 from tvm import relay
 from tvm.contrib import graph_executor
-import scipy
-import tvm.testing
+
+import onnx
+from onnx import TensorProto, helper, mapping, numpy_helper
 
 
 def get_input_data_shape_dict(graph_def, input_data):
@@ -2696,7 +2697,7 @@ def test_convtranspose():
 
 @tvm.testing.uses_gpu
 def test_unsqueeze_constant():
-    from torch.nn import Linear, Sequential, Module
+    from torch.nn import Linear, Module, Sequential
 
     class Flatten(Module):
         def forward(self, input):
@@ -4210,7 +4211,8 @@ unsupported_onnx_tests = [
     "test_eyelike_with_dtype/",
     "test_eyelike_without_dtype/",
     "test_matmulinteger/",
-    "test_maxpool_2d_dilations/",
+    "test_maxpool_2d_same_lower/",
+    "test_maxpool_2d_same_upper/",
     "test_maxpool_with_argmax_2d_precomputed_pads/",
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
