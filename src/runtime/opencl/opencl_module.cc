@@ -63,7 +63,7 @@ class OpenCLWrappedFunc {
     }
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
-      auto* arg = static_cast<cl::OpenCLBuffer*>(void_args[i]);
+      auto* arg = static_cast<cl::BufferDescriptor*>(void_args[i]);
       OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg->buffer));
     }
     cl_command_queue queue = w_->GetQueue(t->device);

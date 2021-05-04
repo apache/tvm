@@ -321,16 +321,17 @@ class OpenCLThreadEntry {
 };
 
 /*! \brief OpenCL runtime buffer structure with tracked memory layout */
-struct OpenCLBuffer {
+struct BufferDescriptor {
   enum class MemoryLayout {
     BUFFER_1D,
     IMAGE_2D_ACTIVATION,
     IMAGE_2D_WEIGHT,
   };
-  OpenCLBuffer() = default;
-  explicit OpenCLBuffer(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
+  BufferDescriptor() = default;
+  explicit BufferDescriptor(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
   static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
   static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
+
   cl_mem buffer{nullptr};
   MemoryLayout layout{MemoryLayout::BUFFER_1D};
   std::vector<int64_t> shape;
