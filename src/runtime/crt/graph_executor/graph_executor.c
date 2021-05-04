@@ -53,19 +53,19 @@ int NodeEntry_Load(TVMGraphExecutorNodeEntry* entry, JSONReader* reader) {
   int status = 0;
   reader->BeginArray(reader);
   if (!(reader->NextArrayItem(reader))) {
-    fprintf(stderr, "invalid json format: failed to parse `node_id`\n");
+    LOG_ERROR("invalid json format: failed to parse `node_id`\n");
     status = -1;
   }
   reader->ReadUnsignedInteger(reader, &(entry->node_id));
   if (!(reader->NextArrayItem(reader))) {
-    fprintf(stderr, "invalid json format: failed to parse `index`\n");
+    LOG_ERROR("invalid json format: failed to parse `index`\n");
     status = -1;
   }
   reader->ReadUnsignedInteger(reader, &(entry->index));
   if (reader->NextArrayItem(reader)) {
     reader->ReadUnsignedInteger(reader, &(entry->version));
     if (reader->NextArrayItem(reader)) {
-      fprintf(stderr, "invalid json format: failed to parse `version`\n");
+      LOG_ERROR("invalid json format: failed to parse `version`\n");
       status = -1;
     }
   } else {
@@ -85,7 +85,7 @@ void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* read
   while (reader->NextObjectItem(reader, key, sizeof(key))) {
     int status = reader->ReadString(reader, value, sizeof(value));
     if (status != 0) {
-      fprintf(stderr, "error reading value for key: %s\n", key);
+      LOG_ERROR("error reading value for key: %s\n", key);
       break;
     }
     if (!strcmp(key, "func_name")) {
@@ -101,11 +101,11 @@ void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* read
       param->flatten_data = strtoul(value, 0, 10);
       bitmask |= 8;
     } else {
-      fprintf(stderr, "do not support key %s", key);
+      LOG_ERROR("do not support key %s", key);
     }
   }
   if (bitmask != (1 | 2 | 4 | 8)) {
-    fprintf(stderr, "invalid format\n");
+    LOG_ERROR("invalid format\n");
   }
 }
 
@@ -118,14 +118,14 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
     if (!strcmp(key, "op")) {
       status = reader->ReadString(reader, node->op_type, sizeof(node->op_type));
       if (status != 0) {
-        fprintf(stderr, "error reading op\n");
+        LOG_ERROR("error reading op\n");
         break;
       }
       bitmask |= 1;
     } else if (!strcmp(key, "name")) {
       status = reader->ReadString(reader, node->name, sizeof(node->name));
       if (status != 0) {
-        fprintf(stderr, "error reading name\n");
+        LOG_ERROR("error reading name\n");
         break;
       }
       bitmask |= 2;
@@ -134,32 +134,32 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
       reader->BeginArray(reader);
       size_t num_inputs = 0;
       if (reader->ArrayLength(reader, &num_inputs) != 0) {
-        fprintf(stderr, "error determining inputs array length\n");
+        LOG_ERROR("error determining inputs array length\n");
         break;
       }
       DLDevice dev = {kDLCPU, 0};
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(
           sizeof(TVMGraphExecutorNodeEntry) * num_inputs, dev, (void**)&node->inputs);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         return -1;
       }
       while (reader->NextArrayItem(reader)) {
         if (count == num_inputs) {
-          fprintf(stderr, "too many array elements\n");
+          LOG_ERROR("too many array elements\n");
           return -1;
         }
 
         TVMGraphExecutorNodeEntry* inputs = node->inputs + count;
         reader->BeginArray(reader);
         if (!reader->NextArrayItem(reader)) {
-          fprintf(stderr, "invalid json format\n");
+          LOG_ERROR("invalid json format\n");
           status = -1;
           break;
         }
         reader->ReadUnsignedInteger(reader, &(inputs->node_id));
         if (!reader->NextArrayItem(reader)) {
-          fprintf(stderr, "invalid json format\n");
+          LOG_ERROR("invalid json format\n");
           status = -1;
           break;
         }
@@ -167,7 +167,7 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
         if (reader->NextArrayItem(reader)) {
           reader->ReadUnsignedInteger(reader, &(inputs->version));
           if (reader->NextArrayItem(reader)) {
-            fprintf(stderr, "invalid json format\n");
+            LOG_ERROR("invalid json format\n");
             status = -1;
             break;
           }
@@ -184,10 +184,10 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
       TVMGraphExecutorNode_LoadAttrs(node, reader, &param);
       memcpy(&node->param, &param, sizeof(param));
     } else if (!strcmp(key, "control_deps")) {
-      fprintf(stderr, "do not support key %s", key);
+      LOG_ERROR("do not support key %s", key);
       status = -1;
     } else {
-      fprintf(stderr, "do not support key %s", key);
+      LOG_ERROR("do not support key %s", key);
       status = -1;
     }
     if (status != 0) {
@@ -195,7 +195,7 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
     }
   }
   if (bitmask != (1 | 2 | 4)) {
-    fprintf(stderr, "invalid format\n");
+    LOG_ERROR("invalid format\n");
     status = -1;
   }
   return status;
@@ -238,29 +238,29 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
     if (!strcmp(key, "dltype")) {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       status = reader->ReadString(reader, type, sizeof(type));
       if (status != 0) {
-        fprintf(stderr, "error reading dltype type\n");
+        LOG_ERROR("error reading dltype type\n");
         break;
       }
       if (strcmp(type, "list_str")) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_str length\n");
+        LOG_ERROR("error determing list_str length\n");
         status = -1;
         break;
       }
@@ -268,20 +268,20 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err =
           TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_DLTYPE * num_items, dev, (void**)&attr->dltype);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         return -1;
       }
       dltype_count = 0;
       while (reader->NextArrayItem(reader)) {
         if (dltype_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
         status = reader->ReadString(reader, attr->dltype + dltype_count * TVM_CRT_STRLEN_DLTYPE,
                                     TVM_CRT_STRLEN_DLTYPE);
         if (status != 0) {
-          fprintf(stderr, "error reading dltype array item");
+          LOG_ERROR("error reading dltype array item");
           break;
         }
         dltype_count++;
@@ -289,7 +289,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       attr->dltype_count = dltype_count;
 
       if (reader->NextArrayItem(reader)) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
@@ -297,28 +297,28 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
     } else if (!strcmp(key, "storage_id")) {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       status = reader->ReadString(reader, type, sizeof(type));
       if (status != 0) {
-        fprintf(stderr, "error reading device_index array item");
+        LOG_ERROR("error reading device_index array item");
       }
       if (strcmp(type, "list_int")) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_str length\n");
+        LOG_ERROR("error determing list_str length\n");
         status = -1;
         break;
       }
@@ -326,13 +326,13 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err =
           TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->storage_id);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         return -1;
       }
       storage_id_count = 0;
       while (reader->NextArrayItem(reader)) {
         if (storage_id_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
@@ -340,7 +340,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         storage_id_count++;
       }
       if (reader->NextArrayItem(reader)) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
@@ -348,29 +348,29 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
     } else if (!strcmp(key, "shape")) {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       status = reader->ReadString(reader, type, sizeof(type));
       if (status != 0) {
-        fprintf(stderr, "error reading shape array item\n");
+        LOG_ERROR("error reading shape array item\n");
         break;
       }
       if (strcmp(type, "list_shape")) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_str length\n");
+        LOG_ERROR("error determing list_str length\n");
         status = -1;
         break;
       }
@@ -378,20 +378,20 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(
           sizeof(int64_t) * TVM_CRT_MAX_NDIM * num_items, dev, (void**)&attr->shape);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->ndim);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       shape_count = 0;
       while (reader->NextArrayItem(reader)) {
         if (shape_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
@@ -416,7 +416,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       }
       attr->shape_count = shape_count;
       if (reader->NextArrayItem(reader)) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
@@ -424,28 +424,28 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
     } else if (!strcmp(key, "device_index")) {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       status = reader->ReadString(reader, type, sizeof(type));
       if (status != 0) {
-        fprintf(stderr, "error reading device_index array item");
+        LOG_ERROR("error reading device_index array item");
         break;
       }
       if (strcmp(type, "list_int")) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_int length\n");
+        LOG_ERROR("error determing list_int length\n");
         status = -1;
         break;
       }
@@ -453,14 +453,14 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err =
           TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->device_index);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       device_index_count = 0;
       while (reader->NextArrayItem(reader)) {
         if (device_index_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
@@ -468,21 +468,21 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         device_index_count++;
       }
       if (reader->NextArrayItem(reader)) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
     } else {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
       reader->ReadString(reader, type, sizeof(type));
       if (!strcmp(type, "list_int")) {
         if (!(reader->NextArrayItem(reader))) {
-          fprintf(stderr, "Invalid json format\n");
+          LOG_ERROR("Invalid json format\n");
           status = -1;
           break;
         }
@@ -495,26 +495,26 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         }
       } else if (!strcmp(type, "size_t")) {
         if (!(reader->NextArrayItem(reader))) {
-          fprintf(stderr, "Invalid json format\n");
+          LOG_ERROR("Invalid json format\n");
           status = -1;
           break;
         }
         uint32_t temp;
         reader->ReadUnsignedInteger(reader, &temp);
       } else {
-        fprintf(stderr, "cannot skip graph attr %s", key);
+        LOG_ERROR("cannot skip graph attr %s", key);
         status = -1;
         break;
       }
       if (reader->NextArrayItem(reader)) {
-        fprintf(stderr, "Invalid json format\n");
+        LOG_ERROR("Invalid json format\n");
         status = -1;
         break;
       }
     }
   }
   if (bitmask != (1 | 2 | 4)) {
-    fprintf(stderr, "invalid format\n");
+    LOG_ERROR("invalid format\n");
     status = -1;
   }
   return status;
@@ -578,7 +578,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_int length\n");
+        LOG_ERROR("error determing list_int length\n");
         status = -1;
         break;
       }
@@ -586,20 +586,20 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNode) * num_items, dev,
                                                       (void**)&executor->nodes);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       while (reader->NextArrayItem(reader)) {
         if (executor->nodes_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
         TVMGraphExecutorNode* node = executor->nodes + executor->nodes_count;
         status = TVMGraphExecutorNode_Load(node, reader);
         if (status != 0) {
-          fprintf(stderr, "failed to load an element in `nodes` field in graph executor node.\n");
+          LOG_ERROR("failed to load an element in `nodes` field in graph executor node.\n");
           break;
 #if TVM_CRT_DEBUG
         } else {
@@ -613,7 +613,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_int length\n");
+        LOG_ERROR("error determing list_int length\n");
         status = -1;
         break;
       }
@@ -622,13 +622,13 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
                                                       (void**)&executor->input_nodes);
 
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       while (reader->NextArrayItem(reader)) {
         if (executor->input_nodes_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
@@ -641,7 +641,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_int length\n");
+        LOG_ERROR("error determing list_int length\n");
         status = -1;
         break;
       }
@@ -649,13 +649,13 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev,
                                                       (void**)&executor->node_row_ptr);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       while (reader->NextArrayItem(reader)) {
         if (executor->node_row_ptr_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
@@ -669,7 +669,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
-        fprintf(stderr, "error determing list_int length\n");
+        LOG_ERROR("error determing list_int length\n");
         status = -1;
         break;
       }
@@ -677,20 +677,20 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNodeEntry) * num_items,
                                                       dev, (void**)&executor->outputs);
       if (err != kTvmErrorNoError) {
-        fprintf(stderr, "memory allocate error: %08x", err);
+        LOG_ERROR("memory allocate error: %08x", err);
         status = -1;
         break;
       }
       while (reader->NextArrayItem(reader)) {
         if (executor->outputs_count == num_items) {
-          fprintf(stderr, "array too big\n");
+          LOG_ERROR("array too big\n");
           status = -1;
           return status;
         }
         TVMGraphExecutorNodeEntry* entry = executor->outputs + executor->outputs_count;
         status = NodeEntry_Load(entry, reader);
         if (status != 0) {
-          fprintf(stderr, "Fail to load an element in `heads` field in graph executor node.\n");
+          LOG_ERROR("Fail to load an element in `heads` field in graph executor node.\n");
           break;
         }
         executor->outputs_count++;
@@ -699,14 +699,14 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
     } else if (!strcmp(key, "attrs")) {
       status = TVMGraphExecutorGraphAttr_Load(&(executor->attrs), reader);
       if (status != 0) {
-        fprintf(stderr, "Fail to load an element in `heads` field in graph executor node.\n");
+        LOG_ERROR("Fail to load an element in `heads` field in graph executor node.\n");
         break;
       }
       bitmask |= 16;
     } else if (!strcmp(key, "metadata")) {
       break;
     } else {
-      fprintf(stderr, "key %s is not supported\n", key);
+      LOG_ERROR("key %s is not supported\n", key);
       status = -1;
     }
     if (status != 0) {
@@ -714,7 +714,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
     }
   }
   if (!(bitmask == (1 | 2 | 4 | 8 | 16))) {
-    fprintf(stderr, "invalid format\n");
+    LOG_ERROR("invalid format\n");
     status = -1;
   }
   return status;
@@ -762,7 +762,7 @@ int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* executor, const char* name)
 void TVMGraphExecutor_SetInput(TVMGraphExecutor* executor, const char* name, DLTensor* data_in) {
   uint32_t index = TVMGraphExecutor_GetInputIndex(executor, name);
   if (index >= executor->input_nodes_count) {
-    fprintf(stderr, "given index is greater than num of input nodes.\n");
+    LOG_ERROR("given index is greater than num of input nodes.\n");
   }
   uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[index], 0);
   executor->data_entry[eid].dl_tensor.data = data_in->data;
@@ -783,7 +783,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   memcpy(&header, bptr, sizeof(header));
   bptr += sizeof(header);
   if (header != kTVMNDArrayListMagic) {
-    fprintf(stderr, "Invalid parameters file format");
+    LOG_ERROR("Invalid parameters file format");
     status = -1;
   }
   memcpy(&reserved, bptr, sizeof(reserved));
@@ -795,7 +795,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   tvm_crt_error_t err =
       TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_NAME * executor->nodes_count, dev, (void**)&names);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     status = -1;
     return status;
   }
@@ -809,7 +809,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
     memcpy(&name_length, bptr, sizeof(name_length));
     bptr += sizeof(name_length);
     if (name_length >= TVM_CRT_STRLEN_NAME) {
-      fprintf(stderr, "Error: function name longer than expected.\n");
+      LOG_ERROR("Error: function name longer than expected.\n");
       status = -1;
     }
     memcpy(names + TVM_CRT_STRLEN_NAME * idx, bptr, name_length);
@@ -822,7 +822,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   bptr += sizeof(sz);
   uint32_t size = sz;
   if (size != names_count) {
-    fprintf(stderr, "Invalid parameters file format\n");
+    LOG_ERROR("Invalid parameters file format\n");
     status = -1;
   }
 
@@ -832,7 +832,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
              names + TVM_CRT_STRLEN_NAME * idx);
     uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[in_idx], 0);
     if (!(eid < executor->data_entry_count)) {
-      fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
+      LOG_ERROR("`entry_id`=%d is greater than expected(%d).\n", eid,
               executor->data_entry_count);
       status = -1;
     }
@@ -933,7 +933,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(DLDataType) * attrs->dltype_count,
                                                   alloc_dev, (void**)&vtype);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < attrs->dltype_count; idx++) {
@@ -945,7 +945,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorPoolEntry) * executor->nodes_count,
                                   alloc_dev, (void**)&pool_entry);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     return -1;
   }
   memset(pool_entry, 0, sizeof(TVMGraphExecutorPoolEntry) * executor->nodes_count);
@@ -973,7 +973,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorStorageEntry) * pool_entry_count,
                                   alloc_dev, (void**)&executor->storage_pool);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < pool_entry_count; idx++) {
@@ -1017,7 +1017,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   err = TVMPlatformMemoryAllocate(sizeof(TVMNDArray) * executor->data_entry_count, alloc_dev,
                                   (void**)&executor->data_entry);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < executor->data_entry_count; ++idx) {
@@ -1032,13 +1032,13 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   // Release memory
   err = TVMPlatformMemoryFree(vtype, alloc_dev);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory free error: %08x", err);
+    LOG_ERROR("memory free error: %08x", err);
     return err;
   }
 
   err = TVMPlatformMemoryFree(pool_entry, alloc_dev);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory free error: %08x", err);
+    LOG_ERROR("memory free error: %08x", err);
     return -1;
   }
 
@@ -1053,7 +1053,7 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* executor) {
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMPackedFunc) * executor->op_execs_count,
                                                   dev, (void**)&executor->op_execs);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     status = -1;
     return status;
   }
@@ -1074,12 +1074,12 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* executor) {
         args_count++;
       }
       if (strcmp(inode->op_type, "tvm_op")) {
-        fprintf(stderr, "Can only take tvm_op as op, but \"%s\" is found.\n", inode->op_type);
+        LOG_ERROR("Can only take tvm_op as op, but \"%s\" is found.\n", inode->op_type);
         status = -1;
         break;
       }
       if (args_count >= TVM_CRT_MAX_ARGS) {
-        fprintf(stderr, "too many arguments: expected less than %d args, but got %d.\n",
+        LOG_ERROR("too many arguments: expected less than %d args, but got %d.\n",
                 TVM_CRT_MAX_ARGS, args_count);
         status = -1;
         break;
@@ -1135,7 +1135,7 @@ int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* executor, const TVMOpPara
     }
   }
   if (!strcmp(param->func_name, "__nop") || !strcmp(param->func_name, "__copy")) {
-    fprintf(stderr, "%s function is not yet supported.", param->func_name);
+    LOG_ERROR("%s function is not yet supported.", param->func_name);
     status = -1;
   }
 
@@ -1192,7 +1192,7 @@ int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
   DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutor), dev, (void**)executor);
   if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
+    LOG_ERROR("memory allocate error: %08x", err);
     return -1;
   }
 
