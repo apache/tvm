@@ -1372,7 +1372,6 @@ class Parser {
     Map<String, ObjectRef> kwargs;
     while (Peek()->token_type == TokenType::kIdentifier) {
       auto key = GetHierarchicalName(ParseHierarchicalName().data);
-      // auto key = Match(TokenType::kIdentifier).ToString();
       Match(TokenType::kEqual);
       // TOOD(@jroesch): syntactically what do we allow to appear in attribute right hand side.
       auto value = ParseAttributeValue();
