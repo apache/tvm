@@ -200,8 +200,7 @@ Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set
 
   ib_.Begin(spv::OpVariable).AddSeq(ptr_type, val, storage_class).Commit(&global_);
 
-  this->Decorate(spv::OpDecorate, val, spv::DecorationDescriptorSet, descriptor_set);
-  this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
+  this->DecorateBufferArgument(val, descriptor_set, binding);
   return val;
 }
 
@@ -253,10 +252,16 @@ Value IRBuilder::GetPushConstant(Value ptr_push_const, const SType& v_type, uint
   return this->MakeValue(spv::OpLoad, v_type, ptr);
 }
 
-Value IRBuilder::DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t binding) {
+Value IRBuilder::DeclareUniformBuffer(const std::vector<SType>& value_types,
+                                      uint32_t descriptor_set, uint32_t binding) {
   Value val = DeclareStorageVariable(value_types, spv::StorageClassUniform, kUniformPtr);
-  this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
+  this->DecorateBufferArgument(val, descriptor_set, binding);
   return val;
+}
+
+void IRBuilder::DecorateBufferArgument(Value val, uint32_t descriptor_set, uint32_t binding) {
+  this->Decorate(spv::OpDecorate, val, spv::DecorationDescriptorSet, descriptor_set);
+  this->Decorate(spv::OpDecorate, val, spv::DecorationBinding, binding);
 }
 
 Value IRBuilder::GetUniform(Value ptr_push_const, const SType& v_type, uint32_t index) {
