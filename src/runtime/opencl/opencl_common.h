@@ -288,11 +288,6 @@ class OpenCLWorkspace : public DeviceAPI {
   static OpenCLWorkspace* Global();
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
-
- protected:
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      Device dev_from, Device dev_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final;
 };
 
 /*! \brief Thread local workspace */
@@ -328,15 +323,16 @@ class OpenCLThreadEntry {
 /*! \brief OpenCL runtime buffer structure with tracked memory layout */
 struct OpenCLBuffer {
   enum class MemoryLayout {
-    GLOBAL_BUFFER_ROW_MAJOR,
-    IMAGE2D_ACTIVATION,
-    IMAGE2D_WEIGHT,
+    BUFFER_1D,
+    IMAGE_2D_ACTIVATION,
+    IMAGE_2D_WEIGHT,
   };
   OpenCLBuffer() = default;
   OpenCLBuffer(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
   static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
+  static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
   cl_mem buffer{nullptr};
-  MemoryLayout layout{MemoryLayout::GLOBAL_BUFFER_ROW_MAJOR};
+  MemoryLayout layout{MemoryLayout::BUFFER_1D};
   std::vector<int64_t> shape;
   DLDataType dtype;
 };
