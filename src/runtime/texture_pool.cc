@@ -72,7 +72,7 @@ class TexturePool::Pool {
         new_mem.type = type_hint;
         std::vector<int64_t> shape{int64_t(new_mem.y), int64_t(new_mem.x), 4};
         new_mem.data = device->AllocDataSpace(dev, shape.size(), shape.data(), new_mem.type,
-                                              Optional<String>("texture"));
+                                              Optional<String>("global.texture"));
         e = new_mem;
       }
     }
@@ -81,7 +81,7 @@ class TexturePool::Pool {
       // create new block
       std::vector<int64_t> shape{int64_t(height), int64_t(width), 4};
       e.data = device->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
-                                      Optional<String>("texture"));
+                                      Optional<String>("global.texture"));
       e.x = width;
       e.y = height;
       e.type = type_hint;

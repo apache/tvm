@@ -46,18 +46,19 @@ struct Texture2DShape {
  * \param convention Storage scope convention to use for flattening
  * \return The axis separator that defines the Nd shape partitioning in 2d
  */
-inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, std::string convention = "texture") {
+inline size_t DefaultTextureLayoutSeparator(size_t shape_rank,
+                                            std::string convention = "global.texture") {
   // Texture activation:
   // e.g. [N,C,H,W,c] -> Texture2d[N*C*H, W, c]
   // Texture weight:
   // e.g. [O,I,H,W,c] -> Texture2d[O, I*H*W, c]
   size_t separator = 0;
-  if (convention == "texture") {
+  if (convention == "global.texture") {
     separator = shape_rank - 2;
-  } else if (convention == "texture:weight") {
+  } else if (convention == "global.texture-weight") {
     separator = 1;
   } else {
-    LOG(FATAL) << "Encountered unknown texture lowering convention";
+    LOG(FATAL) << "Encountered unknown texture lowering convention: " << convention;
   }
   return separator;
 }
