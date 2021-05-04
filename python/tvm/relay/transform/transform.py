@@ -1171,3 +1171,30 @@ def AnnotateSpans():
         The regsistered AnnotateSpans pass.
     """
     return _ffi_api.AnnotateSpans()
+
+
+def QuantizeFakeQuantization():
+    """
+    Find regions of the graph of the form
+
+    x    w
+    |    |
+    dq   dq
+     \   /
+      op1
+       |
+      op2
+       |
+       q
+
+    where q == qnn.quantize and dq = qnn.dequantize
+    and rewrite them into integer versions of op1 and op2
+
+    Rules for rewriting indivdual ops are in quantize_fake_quantization.py
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered SimplifyExpr pass.
+    """
+    return _ffi_api.QuantizeFakeQuantization()

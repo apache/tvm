@@ -436,6 +436,26 @@ def register_external_compiler(op_name, fexternal=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
 
 
+def register_quantize_fake_quantization(op_name, qfq=None, level=10):
+    """Register quantize function for an op
+
+    Given an op and Affine Types on it's inputs, this function should return the op
+    in affine space and the new type of the output
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    qfq: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
+        The function for translating the op into affine space
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMQuantizeFakeQuantization", qfq, level)
+
+
 @tvm._ffi.register_func("relay.op.compiler._lower")
 def _lower(name, schedule, inputs, outputs):
     return lower(schedule, list(inputs) + list(outputs), name=name)
