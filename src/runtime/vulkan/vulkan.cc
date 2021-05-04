@@ -373,29 +373,32 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
 
  public:
-  // Always use the default stream
-  TVMStreamHandle CreateStream(Device dev) {
-    LOG(FATAL) << "Not implemented";
-    return nullptr;
-  }
+  // Current vulkan implementation has one "stream" per CPU thread,
+  // with all commands writing into a single command buffer that is
+  // submitted on a call to StreamSync.  Therefore, for now, these are
+  // mostly no-ops.  If needed in the future, could have multiple
+  // command buffers to act as multiple streams.
+  TVMStreamHandle CreateStream(Device dev) final { return nullptr; }
 
-  void FreeStream(Device dev, TVMStreamHandle stream) {
-    LOG(FATAL) << "Not implemented";
+  void FreeStream(Device dev, TVMStreamHandle stream) final {
+    ICHECK_EQ(stream, static_cast<void*>(nullptr));
     return;
   }
 
-  void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
-    LOG(FATAL) << "Not implemented";
+  // Syncing two streams is a nop, since there is only one stream.
+  void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) final {
+    ICHECK_EQ(event_src, static_cast<void*>(nullptr));
+    ICHECK_EQ(event_dst, static_cast<void*>(nullptr));
     return;
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final {
-    ICHECK(stream == nullptr);
+    ICHECK_EQ(stream, static_cast<void*>(nullptr));
     VulkanThreadEntry::ThreadLocal()->Stream(dev.device_id)->Synchronize();
   }
 
   void SetStream(Device dev, TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented";
+    ICHECK_EQ(stream, static_cast<void*>(nullptr));
     return;
   }
 
