@@ -60,17 +60,7 @@ int TVMPackedFunc_Call(TVMPackedFunc* pf);
 
 void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args);
 
-inline TVMModuleHandle TVMArgs_AsModuleHandle(const TVMArgs* args, size_t index) {
-  if (index >= args->values_count) {
-    TVMPlatformAbort(-1);
-  }
-
-  if (args->tcodes[index] != kTVMModuleHandle) {
-    TVMPlatformAbort(-1);
-  }
-
-  return args->values[index].v_handle;
-}
+TVMModuleHandle TVMArgs_AsModuleHandle(const TVMArgs* args, size_t index);
 
 extern TVMPackedFunc* g_fexecs;
 extern uint32_t g_fexecs_count;

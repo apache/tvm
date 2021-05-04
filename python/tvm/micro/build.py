@@ -54,7 +54,8 @@ class Workspace:
 
 
 # Required C runtime libraries, in link order.
-CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
+# CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
+CRT_RUNTIME_LIB_NAMES = ["graph_executor", "common", "memory"]
 
 
 STANDALONE_CRT_DIR = None
