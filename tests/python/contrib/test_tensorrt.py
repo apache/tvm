@@ -605,6 +605,19 @@ def test_concatenate():
     run_and_verify_func(get_graph([(1, 2, 6, 6), (1, 3, 6, 6)], axis=1))
 
 
+def test_split():
+    def get_graph(x_shape, indices_or_sections, axis):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        out = relay.split(x, indices_or_sections=indices_or_sections, axis=axis)
+        f = relay.Function([x], out.astuple())
+        return f, {"x": x_shape}, []
+
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=2, axis=1))
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=4, axis=1))
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=[8], axis=1))
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=[2, 3, 6, 10, 14], axis=1))
+
+
 def test_conv2d_transpose():
     def get_graph(
         x_shape=(1, 32, 8, 8),
