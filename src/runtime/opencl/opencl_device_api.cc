@@ -53,7 +53,8 @@ clImageInfo GetImageInfo(const OpenCLBuffer* desc, const DLTensor* tensor) {
   info.row_pitch = 0;
   info.slice_pitch = 0;
 
-  size_t axis = DefaultTextureLayoutSeparator(tensor->ndim, OpenCLBuffer::ScopeFromMemoryLayout(desc->layout));
+  size_t axis = DefaultTextureLayoutSeparator(tensor->ndim,
+                                              OpenCLBuffer::ScopeFromMemoryLayout(desc->layout));
   auto texture_shape = ApplyTexture2DFlattening<int64_t>(tensor->shape, tensor->ndim, axis);
   info.region[0] = texture_shape.width;
   info.region[1] = texture_shape.height;
@@ -74,15 +75,16 @@ OpenCLBuffer::MemoryLayout OpenCLBuffer::MemoryLayoutFromScope(Optional<String> 
 }
 
 String OpenCLBuffer::ScopeFromMemoryLayout(OpenCLBuffer::MemoryLayout layout) {
-  switch(layout) {
-  case OpenCLBuffer::MemoryLayout::BUFFER_1D:
-    return "global";
-  case OpenCLBuffer::MemoryLayout::IMAGE_2D_ACTIVATION:
-    return "texture";
-  case OpenCLBuffer::MemoryLayout::IMAGE_2D_WEIGHT:
-    return "texture:weight";
+  switch (layout) {
+    case OpenCLBuffer::MemoryLayout::BUFFER_1D:
+      return "global";
+    case OpenCLBuffer::MemoryLayout::IMAGE_2D_ACTIVATION:
+      return "texture";
+    case OpenCLBuffer::MemoryLayout::IMAGE_2D_WEIGHT:
+      return "texture:weight";
   }
-  LOG(FATAL) << "No scope corresponding to the provided memory layout: " << static_cast<int>(layout);
+  LOG(FATAL) << "No scope corresponding to the provided memory layout: "
+             << static_cast<int>(layout);
   return "";
 }
 
@@ -207,8 +209,8 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
   ICHECK(IsTextureStorage(std::string(mem_scope.value())))
-    << "Device does not support allocate data space with "
-    << "specified memory scope: " << mem_scope.value();
+      << "Device does not support allocate data space with "
+      << "specified memory scope: " << mem_scope.value();
 
   ICHECK(ndim > 2) << "Shape for texture allocation must be at least rank 3; "
                    << "provided shape is rank " << ndim;
@@ -232,25 +234,22 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   delete mptr;
 }
 
-cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint) {
+cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
+                                     DLDataType type_hint) {
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
-  cl_image_format format = { CL_RGBA, cl_type };
-  cl_image_desc descriptor = { CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0 };
-  cl_mem mptr = clCreateImage(
-    this->context,
-    CL_MEM_READ_WRITE,
-    &format,
-    &descriptor,
-    nullptr,
-    &err_code);
+  cl_image_format format = {CL_RGBA, cl_type};
+  cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
+  cl_mem mptr =
+      clCreateImage(this->context, CL_MEM_READ_WRITE, &format, &descriptor, nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
 }
 
-void* OpenCLWorkspace::AllocTextureWorkspace(Device dev, size_t width, size_t height, DLDataType type_hint) {
+void* OpenCLWorkspace::AllocTextureWorkspace(Device dev, size_t width, size_t height,
+                                             DLDataType type_hint) {
   return GetThreadEntry()->texture_pool.AllocTexture(dev, width, height, type_hint);
 }
 
@@ -259,54 +258,56 @@ void OpenCLWorkspace::FreeTextureWorkspace(Device dev, void* ptr) {
 }
 
 void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
-
   size_t nbytes = GetDataSize(*from);
   ICHECK_EQ(nbytes, GetDataSize(*to));
   ICHECK(IsContiguous(*from) && IsContiguous(*to))
-    << "CopyDataFromTo only support contiguous array for now";
+      << "CopyDataFromTo only support contiguous array for now";
 
   if (IsOpenCLDevice(from->device) && IsOpenCLDevice(to->device)) {
     const auto* from_buf = static_cast<const OpenCLBuffer*>(from->data);
     ICHECK(from_buf->layout == OpenCLBuffer::MemoryLayout::BUFFER_1D)
-      << "Device to device copying is currently only implemented for OpenCL buffer storage";
+        << "Device to device copying is currently only implemented for OpenCL buffer storage";
     auto* to_buf = static_cast<OpenCLBuffer*>(to->data);
     OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_buf->buffer, to_buf->buffer,
-                                    from->byte_offset, to->byte_offset, nbytes, 0, nullptr, nullptr));
+                                    from->byte_offset, to->byte_offset, nbytes, 0, nullptr,
+                                    nullptr));
   } else if (IsOpenCLDevice(from->device) && to->device.device_type == kDLCPU) {
     const auto* from_buf = static_cast<const OpenCLBuffer*>(from->data);
     switch (from_buf->layout) {
-    case OpenCLBuffer::MemoryLayout::BUFFER_1D:
-      OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(from->device), from_buf->buffer, CL_FALSE,
-                                      from->byte_offset, nbytes, static_cast<char*>(to->data) + to->byte_offset, 0,
-                                      nullptr, nullptr));
-      break;
-    case OpenCLBuffer::MemoryLayout::IMAGE_2D_ACTIVATION:
-    case OpenCLBuffer::MemoryLayout::IMAGE_2D_WEIGHT:
-      auto image_info = GetImageInfo(from_buf, from);
-      // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
-      // Note that when utilizing texture pools for memory reuse, the allocated image
-      // size can be larger than the size to be read.
-      OPENCL_CALL(clEnqueueReadImage(this->GetQueue(from->device), from_buf->buffer, CL_FALSE, image_info.origin,
-                                     image_info.region, image_info.row_pitch, image_info.slice_pitch,
-                                     static_cast<char*>(to->data) + to->byte_offset, 0, nullptr, nullptr));
-      break;
+      case OpenCLBuffer::MemoryLayout::BUFFER_1D:
+        OPENCL_CALL(clEnqueueReadBuffer(
+            this->GetQueue(from->device), from_buf->buffer, CL_FALSE, from->byte_offset, nbytes,
+            static_cast<char*>(to->data) + to->byte_offset, 0, nullptr, nullptr));
+        break;
+      case OpenCLBuffer::MemoryLayout::IMAGE_2D_ACTIVATION:
+      case OpenCLBuffer::MemoryLayout::IMAGE_2D_WEIGHT:
+        auto image_info = GetImageInfo(from_buf, from);
+        // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
+        // Note that when utilizing texture pools for memory reuse, the allocated image
+        // size can be larger than the size to be read.
+        OPENCL_CALL(clEnqueueReadImage(
+            this->GetQueue(from->device), from_buf->buffer, CL_FALSE, image_info.origin,
+            image_info.region, image_info.row_pitch, image_info.slice_pitch,
+            static_cast<char*>(to->data) + to->byte_offset, 0, nullptr, nullptr));
+        break;
     }
     OPENCL_CALL(clFinish(this->GetQueue(from->device)));
   } else if (from->device.device_type == kDLCPU && IsOpenCLDevice(to->device)) {
     auto* to_buf = static_cast<OpenCLBuffer*>(to->data);
     switch (to_buf->layout) {
-    case OpenCLBuffer::MemoryLayout::BUFFER_1D:
-      OPENCL_CALL(clEnqueueWriteBuffer(
-                    this->GetQueue(to->device), to_buf->buffer, CL_FALSE, to->byte_offset, nbytes,
-                    static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
-      break;
-    case OpenCLBuffer::MemoryLayout::IMAGE_2D_ACTIVATION:
-    case OpenCLBuffer::MemoryLayout::IMAGE_2D_WEIGHT:
-      auto image_info = GetImageInfo(to_buf, to);
-      OPENCL_CALL(clEnqueueWriteImage(
-                    this->GetQueue(to->device), to_buf->buffer, CL_FALSE, image_info.origin, image_info.region, image_info.row_pitch,
-                    image_info.slice_pitch, static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
-      break;
+      case OpenCLBuffer::MemoryLayout::BUFFER_1D:
+        OPENCL_CALL(clEnqueueWriteBuffer(
+            this->GetQueue(to->device), to_buf->buffer, CL_FALSE, to->byte_offset, nbytes,
+            static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
+        break;
+      case OpenCLBuffer::MemoryLayout::IMAGE_2D_ACTIVATION:
+      case OpenCLBuffer::MemoryLayout::IMAGE_2D_WEIGHT:
+        auto image_info = GetImageInfo(to_buf, to);
+        OPENCL_CALL(clEnqueueWriteImage(
+            this->GetQueue(to->device), to_buf->buffer, CL_FALSE, image_info.origin,
+            image_info.region, image_info.row_pitch, image_info.slice_pitch,
+            static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
+        break;
     }
     OPENCL_CALL(clFinish(this->GetQueue(to->device)));
   } else {
@@ -427,7 +428,6 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   initialized_ = true;
 }
 
-
 TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
   int device_type = args[0];
   int device_id = args[1];
@@ -445,10 +445,8 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, 
   type_hint.lanes = 1;
 
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-  *rv = ptr->AllocTextureWorkspace(dev,
-                             static_cast<size_t>(width),
-                             static_cast<size_t>(height),
-                             type_hint);
+  *rv = ptr->AllocTextureWorkspace(dev, static_cast<size_t>(width), static_cast<size_t>(height),
+                                   type_hint);
 });
 
 TVM_REGISTER_GLOBAL("device_api.opencl.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {

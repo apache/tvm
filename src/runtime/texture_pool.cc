@@ -21,10 +21,10 @@
  * \file texture_pool.h
  * \brief Texture pool utility.
  */
-#include "texture.h"
-
 #include <limits>
 #include <memory>
+
+#include "texture.h"
 
 namespace tvm {
 namespace runtime {
@@ -35,15 +35,13 @@ class TexturePool::Pool {
   void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint) {
     Entry e;
     e.data = nullptr;
-    if (free_list_.size() != 0)
-    {
+    if (free_list_.size() != 0) {
       int64_t req_size = height * width;
       Entry new_mem;
       int64_t min_added_size = std::numeric_limits<int64_t>::max();
       int64_t min_wasted_size = std::numeric_limits<int64_t>::max();
       std::vector<Entry>::iterator best_mem;
-      for (auto it = free_list_.begin(); it != free_list_.end(); ++it)
-      {
+      for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
         if (it->type.code != type_hint.code) {
           continue;
         }
@@ -62,29 +60,28 @@ class TexturePool::Pool {
         }
       }
 
-      if (min_added_size == 0)
-      {
+      if (min_added_size == 0) {
         // use existing block
         e = *best_mem;
         free_list_.erase(best_mem);
-      }
-      else if (min_added_size <= req_size) {
+      } else if (min_added_size <= req_size) {
         // if added size is less or equal to
         // what is needed by alloc, then grow entry
         device->FreeDataSpace(dev, best_mem->data);
         free_list_.erase(best_mem);
         new_mem.type = type_hint;
         std::vector<int64_t> shape{int64_t(new_mem.y), int64_t(new_mem.x), 4};
-        new_mem.data = device->AllocDataSpace(dev, shape.size(), shape.data(), new_mem.type, Optional<String>("texture"));
+        new_mem.data = device->AllocDataSpace(dev, shape.size(), shape.data(), new_mem.type,
+                                              Optional<String>("texture"));
         e = new_mem;
       }
     }
 
-    if (e.data == nullptr)
-    {
+    if (e.data == nullptr) {
       // create new block
       std::vector<int64_t> shape{int64_t(height), int64_t(width), 4};
-      e.data = device->AllocDataSpace(dev, shape.size(), shape.data(), type_hint, Optional<String>("texture"));
+      e.data = device->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
+                                      Optional<String>("texture"));
       e.x = width;
       e.y = height;
       e.type = type_hint;
@@ -161,7 +158,7 @@ void* TexturePool::AllocTexture(Device dev, size_t width, size_t height, DLDataT
 
 void TexturePool::FreeTexture(Device dev, void* ptr) {
   ICHECK(static_cast<size_t>(dev.device_id) < array_.size() && array_[dev.device_id] != nullptr)
-    << "Attempt to free texture from null texture pool";
+      << "Attempt to free texture from null texture pool";
   array_[dev.device_id]->Free(ptr);
 }
 

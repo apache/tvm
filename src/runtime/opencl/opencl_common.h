@@ -66,8 +66,8 @@
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
-#include "../thread_storage_scope.h"
 #include "../texture.h"
+#include "../thread_storage_scope.h"
 #include "../workspace_pool.h"
 
 namespace tvm {

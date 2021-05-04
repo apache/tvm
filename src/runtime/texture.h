@@ -52,7 +52,7 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, std::string conve
   // Texture weight:
   // e.g. [O,I,H,W,c] -> Texture2d[O, I*H*W, c]
   size_t separator = 0;
-  if (convention == "texture"){
+  if (convention == "texture") {
     separator = shape_rank - 2;
   } else if (convention == "texture:weight") {
     separator = 1;
@@ -68,9 +68,10 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank, std::string conve
  * \param axis The axis separator that splits the Nd axes into two sets
  * \return Width and height of the 2d shape
  */
-template<typename T, typename S>
+template <typename T, typename S>
 Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t axis) {
-  ICHECK(axis < rank) << "Number of axes to flatten into rows must be less than shape rank for 2d flattening";
+  ICHECK(axis < rank)
+      << "Number of axes to flatten into rows must be less than shape rank for 2d flattening";
   Texture2DShape<T> texture{1, 1, shape[rank - 1]};
   for (size_t i = 0; i < rank - 1; i++) {
     if (i < axis) {
