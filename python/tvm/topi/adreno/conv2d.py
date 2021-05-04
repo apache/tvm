@@ -115,7 +115,7 @@ def compute_conv2d_NCHWc_KCRSk(Input, Filter, stride, padding, dilation, out_dty
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
-    # When tuning, insert a cache_read("texture") stage to properly test
+    # When tuning, insert a cache_read("global.texture") stage to properly test
     # performance of kernels that utlize texture inputs. The cache_read
     # is not needed when using the graph_runtime which supports passing
     # in external texture buffers. This can be removed once AutoTVM tuning
@@ -207,8 +207,8 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
 
     # create cache stage
     if autotvm.GLOBAL_SCOPE.in_tuning:
-        AT = s.cache_read(pad_data, "texture", [OL])
-        WT = s.cache_read(kernel, "texture", [OL])
+        AT = s.cache_read(pad_data, "global.texture", [OL])
+        WT = s.cache_read(kernel, "global.texture-weight", [OL])
         def copy_to_texture(stage):
             axes = s[stage].op.axis
             fused = s[stage].fuse(*axes[:-1])
@@ -433,8 +433,8 @@ def schedule_depthwise_conv2d_NCHWc_KCRSk(cfg, s, output, args={}):
 
     # create cache stage
     if autotvm.GLOBAL_SCOPE.in_tuning:
-        AT = s.cache_read(pad_data, "texture", [OL])
-        WT = s.cache_read(kernel, "texture", [OL])
+        AT = s.cache_read(pad_data, "global.texture", [OL])
+        WT = s.cache_read(kernel, "global.texture-weight", [OL])
         def copy_to_texture(stage):
             axes = s[stage].op.axis
             fused = s[stage].fuse(*axes[:-1])
