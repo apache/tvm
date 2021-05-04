@@ -311,9 +311,8 @@ def register_task_input_buffer(
                 input_table[input_name] = tensor_from_file
         elif input_name in input_table.keys():
             raise RuntimeError(
-                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s" %
-                (input_name,
-                "set overwrite to True or this Tensor will not be registered")
+                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s"
+                % (input_name, "set overwrite to True or this Tensor will not be registered")
             )
             return input_table[input_name]
 

@@ -108,13 +108,22 @@ def process_params(expr, params, block_size, sparsity_threshold):
                 sparse_weight.indptr.shape[0],
             )
             register_task_input_buffer(
-                "default", prefix + "W_data", tvm.runtime.ndarray.array(sparse_weight.data), overwrite=True
+                "default",
+                prefix + "W_data",
+                tvm.runtime.ndarray.array(sparse_weight.data),
+                overwrite=True,
             )
             register_task_input_buffer(
-                "default", prefix + "W_indices", tvm.runtime.ndarray.array(sparse_weight.indices), overwrite=True
+                "default",
+                prefix + "W_indices",
+                tvm.runtime.ndarray.array(sparse_weight.indices),
+                overwrite=True,
             )
             register_task_input_buffer(
-                "default", prefix + "W_indptr", tvm.runtime.ndarray.array(sparse_weight.indptr), overwrite=True
+                "default",
+                prefix + "W_indptr",
+                tvm.runtime.ndarray.array(sparse_weight.indptr),
+                overwrite=True,
             )
     ret = SparseAnalysisResult(
         weight_name=tvm.runtime.convert(memo.weight_name),

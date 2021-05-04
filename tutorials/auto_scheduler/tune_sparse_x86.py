@@ -109,7 +109,14 @@ Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
 target = tvm.target.Target("llvm")
 
 # Register the sparse data to task inputs
-prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%d_" % (N, K, BS_R, BS_C, W_sp_np.indices.shape[0], W_sp_np.indptr.shape[0])
+prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%d_" % (
+    N,
+    K,
+    BS_R,
+    BS_C,
+    W_sp_np.indices.shape[0],
+    W_sp_np.indptr.shape[0],
+)
 task = tvm.auto_scheduler.SearchTask(
     func=sparse_dense,
     args=(M, N, K, W_sp_np.data.shape, W_sp_np.indices.shape, W_sp_np.indptr.shape, "float32"),
