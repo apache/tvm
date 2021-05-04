@@ -22,7 +22,6 @@
  * \brief Graph runtime codegen
  */
 
-#include <dmlc/any.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
@@ -212,7 +211,7 @@ class AOTExecutorCodegen : public ExprVisitor {
    */
   void CreateFuncCall(Call call, std::string func_name) {
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
-    std::vector<tir::Stmt> CreateFuncCall_stmts;
+    std::vector<tir::Stmt> create_func_call_stmts;
 
     // Pack the inputs
     for (Expr arg : call->args) {
@@ -228,9 +227,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     }
 
     // Use tvm_call_packed to execute the function
-    CreateFuncCall_stmts.push_back(tir::Evaluate(
+    create_func_call_stmts.push_back(tir::Evaluate(
         tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_cpacked(), args)));
-    tir::Stmt body = tir::SeqStmt(CreateFuncCall_stmts);
+    tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
   }
 

@@ -116,7 +116,6 @@ class BuildModule(object):
 
         Returns
         -------
-<<<<<<< HEAD
         graph_json : str
             The json string that can be accepted by graph executor.
 
@@ -125,10 +124,6 @@ class BuildModule(object):
 
         params : dict
             The parameters of the final graph.
-=======
-        factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
-            The runtime factory for the TVM executor.
->>>>>>> f65012308... Addressing comments - 3
         """
         target = _update_target(target)
         target, target_host = Target.check_and_update_host_consist(
@@ -288,28 +283,8 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     Returns
     -------
-<<<<<<< HEAD
-<<<<<<< HEAD
     factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
             The runtime factory for the TVM graph executor.
-=======
-    internal_repr : str or tir.PrimFunc
-        The internal representation the executor uses to execute the
-        network. Can be a string representing the json graph (if we are
-        building for graph executor) or the PrimFunc representing the
-        AOT runner function
-=======
-    executor_config : str
-        The internal configuration the executor uses to execute the
-        network.
->>>>>>> db667146e... addressing comments - 6
-
-    mod : tvm.Module
-        The module containing necessary libraries.
-
-    params : dict
-        The parameters of the final graph.
->>>>>>> f65012308... Addressing comments - 3
     """
     # pylint: enable=line-too-long
     # fmt: on

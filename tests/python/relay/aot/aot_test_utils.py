@@ -109,9 +109,9 @@ TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int ove
         main_file.write("tvm_runtime_run(&network, inputs, outputs);")
 
         for i in range(0, len(output_list)):
-            is_real_dtype = output_list[i].dtype == "float32"
+            is_float_dtype = output_list[i].dtype == "float32"
             main_file.write("for (int i = 0; i<output_data%i_len; i++){\n" % i)
-            if is_real_dtype:
+            if is_float_dtype:
                 main_file.write(
                     'if (fabs(output_data%s[i]-expected_output_data%s[i]) > 0.001f){printf("ko\\n");return -1;}\n'
                     % (i, i)
