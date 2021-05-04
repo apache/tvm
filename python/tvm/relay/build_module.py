@@ -216,7 +216,7 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     the runtime::Module can be freely passed between language boundaries.
     """
     target, target_host = Target.check_and_update_host_consist(target, target_host)
-    return build(mod, target, params=params, mod_name=mod_name).module
+    return build(mod, target, params=params, mod_name=mod_name).get_lib()
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
