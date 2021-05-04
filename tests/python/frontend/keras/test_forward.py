@@ -199,10 +199,10 @@ class TestKeras:
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
         # RNN dense
-        data = keras.layers.Input(shape=(1, 1, 32))
+        data = keras.layers.Input(shape=(1, 32))
         x = keras.layers.Dense(32, activation="relu", kernel_initializer="uniform")(data)
         keras_model = keras.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_permute(self, keras):
         data = keras.layers.Input(shape=(2, 3, 4))
