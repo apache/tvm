@@ -575,13 +575,15 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_nested_layers(self, keras):
-        sub_model = keras.applications.MobileNetV2(input_shape=(224, 224, 3), include_top=False)
+        sub_model = keras.applications.MobileNet(
+            include_top=False, weights="imagenet", input_shape=(224, 224, 3)
+        )
         keras_model = keras.Sequential(
             [
                 sub_model,
                 keras.layers.GlobalAveragePooling2D(),
-                keras.layers.Dense(1024),
-                keras.layers.Dense(2),
+                keras.layers.Dense(1024, activation="relu"),
+                keras.layers.Dense(2, activation="sigmoid"),
             ]
         )
         verify_keras_frontend(keras_model)
