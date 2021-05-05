@@ -852,5 +852,42 @@ def test_vm_rpc():
     server.terminate()
 
 
+def test_get_output_single():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10,))
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    inp = np.ones(10, dtype="float32")
+    vm_factory.invoke_stateful("main", inp)
+    outputs = vm_factory.get_outputs()
+    assert len(outputs) == 1
+    np.testing.assert_allclose(outputs[0].asnumpy(), inp + inp)
+
+
+def test_get_output_multiple():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10,))
+    f = relay.Function([x], relay.Tuple([x + x, x]))
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    inp = np.ones(10, dtype="float32")
+    vm_factory.invoke_stateful("main", inp)
+    outputs = vm_factory.get_outputs()
+    assert len(outputs) == 2
+    np.testing.assert_allclose(outputs[0].asnumpy(), inp + inp)
+    np.testing.assert_allclose(outputs[1].asnumpy(), inp)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
