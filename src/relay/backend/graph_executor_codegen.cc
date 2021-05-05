@@ -402,7 +402,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // TODO(tvm-team) Update checks of flat memory enablement when we support
     // opaque-nd memory planning to skip this path.
     if (func->HasNonzeroAttr(attr::kReshapeOnly) && ShareSameStorage(expr, op->args[0])) {
-      return GraphAddCallNode(op, "reshape_nop", "__nop");
+      return GraphAddCallNode(op, "reshape_nop", "__nop", attrs);
     }
 
     ICHECK_GE(storage_device_map_.count(expr), 0);
