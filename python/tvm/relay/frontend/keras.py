@@ -250,7 +250,7 @@ def _convert_dense(inexpr, keras_layer, etab):
             raise tvm.error.OpAttributeInvalid(
                 "Input shape {} is not valid for operator Dense.".format(input_shape)
             )
-        inexpr = _op.squeeze(inexpr, axis=0)
+        inexpr = _op.squeeze(inexpr, axis=[0])
     out = _op.nn.dense(data=inexpr, **params)
     if keras_layer.use_bias:
         bias = etab.new_const(weightList[1])
