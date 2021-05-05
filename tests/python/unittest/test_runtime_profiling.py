@@ -18,12 +18,31 @@ import numpy as np
 import pytest
 from io import StringIO
 import csv
+import os
 
 import tvm.testing
 from tvm.runtime import profiler_vm
 from tvm import relay
 from tvm.relay.testing import mlp
 from tvm.contrib.debugger import debug_executor
+
+
+def read_csv(report):
+    f = StringIO(report.csv())
+    headers = []
+    rows = []
+    reader = csv.reader(f, delimiter=",")
+    # force parsing
+    in_header = True
+    for row in reader:
+        if in_header:
+            headers = row
+            in_header = False
+            rows = [[] for x in headers]
+        else:
+            for i in range(len(row)):
+                rows[i].append(row[i])
+    return dict(zip(headers, rows))
 
 
 @pytest.mark.skipif(not profiler_vm.enabled(), reason="VM Profiler not enabled")
@@ -39,14 +58,9 @@ def test_vm(target, dev):
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
 
-    f = StringIO(report.csv())
-    reader = csv.reader(f, delimiter=",")
-    # force parsing
-    in_header = True
-    for row in reader:
-        if in_header:
-            assert "Hash" in row
-            in_header = False
+    csv = read_csv(report)
+    assert "Hash" in csv.keys()
+    assert all([float(x) > 0 for x in csv["Duration (us)"]])
 
 
 @tvm.testing.parametrize_targets
@@ -61,3 +75,26 @@ def test_graph_executor(target, dev):
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
     assert "Hash" in str(report)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.skipif(
+    tvm.get_global_func("runtime.profiling.metrics.papi", allow_missing=True) is None,
+    reason="PAPI profiling not enabled",
+)
+def test_papi_gpu():
+    mod, params = mlp.get_workload(1)
+
+    exe = relay.vm.compile(mod, "cuda", params=params)
+    vm = profiler_vm.VirtualMachineProfiler(exe, tvm.gpu())
+
+    data = np.random.rand(1, 1, 28, 28).astype("float32")
+    report = vm.profile([data], func_name="main")
+    assert "cuda::" in str(report)
+
+    metric = "cuda:::event:shared_load:device=0"
+    os.environ["TVM_PAPI_GPU_METRICS"] = metric
+    report = vm.profile([data], func_name="main")
+    csv = read_csv(report)
+    assert metric in csv.keys()
+    assert any([float(x) > 0 for x in csv[metric]])

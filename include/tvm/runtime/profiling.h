@@ -200,6 +200,52 @@ class Report : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
 };
 
+/*! \brief Interface for user defined profiling metric collection.
+ *
+ * Users can register their own collector by registering a packed function with
+ * the name "runtime.profiling.metrics.my_collector_name" where
+ * "my_collector_name" is the name of their collector. This function should
+ * take an Array of Device as input which contains the devices the collector
+ * will be run on.
+ *
+ * `MetricCollectorNode`s will be called in the following fashion.
+ * \code
+ * MetricCollector mc;
+ * for (auto op : model) {
+ *   auto o = mc.Start();
+ *   op();
+ *   auto metrics = mc.Stop(o); // metrics are added the profiling report
+ * }
+ * \endcode
+ */
+class MetricCollectorNode : public Object {
+ public:
+  /*! \brief Start colling metrics for a function call.
+   * \param dev The device the call will be run on.
+   * \returns An object used to maintain state of the metric collection. This
+   * object will be passed to the corresponding `Stop` call. If the device is
+   * not supported, this function will return a nullptr ObjectRef.
+   */
+  virtual ObjectRef Start(Device dev) = 0;
+  /*! \brief Stop collecting metrics.
+   * \param obj The object created by the corresponding `Start` call.
+   * \returns A set of metric names and the associated values. Values must be
+   * one of DurationNode, PercentNode, CountNode, or StringObj.
+   */
+  virtual Map<String, ObjectRef> Stop(ObjectRef obj) = 0;
+
+  virtual ~MetricCollectorNode() {}
+
+  static constexpr const char* _type_key = "runtime.profiling.MetricCollectorNode";
+  TVM_DECLARE_BASE_OBJECT_INFO(MetricCollectorNode, Object);
+};
+
+/*! \brief Wrapper for `MetricCollectorNode`. */
+class MetricCollector : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetricCollector, ObjectRef, MetricCollectorNode);
+};
+
 /*! Information about a single function or operator call. */
 struct CallFrame {
   /*! Device on which the call was made */
@@ -210,6 +256,8 @@ struct CallFrame {
   Timer timer;
   /*! Extra performance metrics */
   std::unordered_map<std::string, ObjectRef> extra_metrics;
+  /*! User defined metric collectors */
+  std::vector<std::pair<MetricCollector, ObjectRef>> extra_collectors;
 };
 
 /*! Runtime profiler for function and/or operator calls. Used in the graph
@@ -217,9 +265,10 @@ struct CallFrame {
  *
  * Example usage:
  * \code{.cpp}
- * Profiler prof;
  * Device cpu, gpu;
- * prof.Start({cpu, gpu});
+ * Profiler prof({cpu, gpu});
+ * my_gpu_kernel(); // do a warmup iteration
+ * prof.Start();
  * prof.StartCall("my_gpu_kernel", gpu);
  * my_gpu_kernel();
  * prof.StopCall();
@@ -232,13 +281,19 @@ struct CallFrame {
  */
 class Profiler {
  public:
-  /*! \brief Start the profiler.
+  /*! Constructor.
+   *
+   * The profiler should be constructed before you do any warmup iterations.
+   *
    * \param devs The list of devices the profiler will be running on. Should
    *             include all devices used by profiled operators.
+   */
+  explicit Profiler(std::vector<Device> devs);
+  /*! \brief Start the profiler.
    *
    * This function should only be called once per object.
    */
-  void Start(const std::vector<Device>& devs);
+  void Start();
   /*! \brief Stop the profiler.
    *
    * This function should only be called once per object after start has been called.
@@ -270,12 +325,14 @@ class Profiler {
   /*! \brief Check if the profiler is currently running.
    * \returns Whether or not the profiler is running.
    */
-  bool IsRunning() const { return !global_timers_.empty(); }
+  bool IsRunning() const { return is_running_; }
 
  private:
-  std::vector<std::pair<Device, Timer>> global_timers_;
+  std::vector<Device> devs_;
+  bool is_running_{false};
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
+  std::vector<MetricCollector> collectors_;
 };
 
 /* \brief A duration in time. */
@@ -328,6 +385,24 @@ class CountNode : public Object {
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
  */
 String ShapeString(const std::vector<NDArray>& shapes);
+
+/*! \brief Wrapper for `Device`. */
+struct DeviceWrapperNode : public Object {
+  /*! The device */
+  Device device;
+
+  /*! Constructor */
+  explicit DeviceWrapperNode(Device device) : device(device) {}
+
+  static constexpr const char* _type_key = "DeviceWrapperNode";
+  TVM_DECLARE_BASE_OBJECT_INFO(DeviceWrapperNode, Object);
+};
+
+/*! \brief Wrapper for `Device`. */
+class DeviceWrapper : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DeviceWrapper, ObjectRef, DeviceWrapperNode);
+};
 
 }  // namespace profiling
 }  // namespace runtime

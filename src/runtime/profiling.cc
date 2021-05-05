@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ir/expr.h>
+#include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 
@@ -100,16 +101,38 @@ TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 
 namespace profiling {
 
-void Profiler::Start(const std::vector<Device>& devs) {
-  CHECK(global_timers_.empty()) << "You can only call Start once per Profiler.";
+Profiler::Profiler(std::vector<Device> devs) : devs_(devs) {
+  is_running_ = false;
+  std::vector<DeviceWrapper> wrapped_devs;
   for (auto dev : devs) {
-    global_timers_.emplace_back(dev, Timer::Start(dev));
+    wrapped_devs.push_back(DeviceWrapper(make_object<DeviceWrapperNode>(dev)));
+  }
+  for (const auto& name : Registry::ListNames()) {
+    if (name.find("runtime.profiling.metrics.") == 0) {
+      collectors_.push_back(Registry::Get(name)->operator()(Array<DeviceWrapper>(wrapped_devs)));
+    }
+  }
+  // reset the thread pool so that PAPI eventset hooks are set in all threads.
+  TVMBackendResetPool();
+}
+
+void Profiler::Start() {
+  is_running_ = true;
+  for (auto dev : devs_) {
+    StartCall("Total", dev, {});
   }
 }
 
 void Profiler::StartCall(String name, Device dev,
                          std::unordered_map<std::string, ObjectRef> extra_metrics) {
-  in_flight_.push(CallFrame{dev, name, Timer::Start(dev), extra_metrics});
+  std::vector<std::pair<MetricCollector, ObjectRef>> objs;
+  for (auto& collector : collectors_) {
+    ObjectRef obj = collector->Start(dev);
+    if (obj.defined()) {
+      objs.emplace_back(collector, obj);
+    }
+  }
+  in_flight_.push(CallFrame{dev, name, Timer::Start(dev), extra_metrics, objs});
 }
 
 void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics) {
@@ -118,14 +141,21 @@ void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics
   for (auto& p : extra_metrics) {
     cf.extra_metrics[p.first] = p.second;
   }
+  // collect the extra metrics from user defined collectors
+  for (const auto& obj : cf.extra_collectors) {
+    auto collector_metrics = obj.first->Stop(obj.second);
+    for (auto& p : collector_metrics) {
+      cf.extra_metrics[p.first] = p.second;
+    }
+  }
   in_flight_.pop();
   calls_.push_back(cf);
 }
 
 void Profiler::Stop() {
-  // Stop all global timers. We wait to synchronize until we are making the report.
-  for (auto p : global_timers_) {
-    p.second->Stop();
+  is_running_ = false;
+  for (size_t i = 0; i < devs_.size(); i++) {
+    StopCall();
   }
 }
 
@@ -396,31 +426,11 @@ std::string DeviceString(Device dev) {
 }
 
 Report Profiler::Report(bool aggregate, bool sort) {
-  std::vector<std::pair<Device, double>> global_times;
-  for (auto p : global_timers_) {
-    global_times.emplace_back(p.first, p.second->SyncAndGetElapsedNanos() / 1e3);
-  }
-
-  double overall_time = 0;
-  for (auto p : global_times) {
-    overall_time = std::max(overall_time, p.second);
-  }
-
-  std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
-  for (auto p : global_times) {
-    std::unordered_map<String, ObjectRef> row;
-    row["Name"] = String("Total");
-    row["Duration (us)"] = ObjectRef(make_object<DurationNode>(p.second));
-    row["Percent"] = ObjectRef(make_object<PercentNode>(p.second / overall_time * 100));
-    row["Device"] = String(DeviceString(p.first));
-    device_metrics[DeviceString(p.first)] = row;
-  }
-
-  std::vector<Map<String, ObjectRef>> rows;
+  // sync all timers and normalize rows
+  std::vector<std::unordered_map<String, ObjectRef>> rows;
   for (auto& cf : calls_) {
     std::unordered_map<String, ObjectRef> row;
     double us = cf.timer->SyncAndGetElapsedNanos() / 1e3;
-    row["Percent"] = ObjectRef(make_object<PercentNode>(us / overall_time * 100));
     row["Duration (us)"] = ObjectRef(make_object<DurationNode>(us));
     row["Count"] = ObjectRef(make_object<CountNode>(1));
     row["Name"] = cf.name;
@@ -431,7 +441,29 @@ Report Profiler::Report(bool aggregate, bool sort) {
     rows.push_back(row);
   }
 
-  return profiling::Report(rows, device_metrics);
+  // the last couple of call frames are the overall times
+  double overall_time = 0;
+  std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
+  for (size_t i = 0; i < devs_.size(); i++) {
+    auto row = rows[rows.size() - 1];
+    rows.pop_back();
+    device_metrics[Downcast<String>(row["Device"])] = row;
+    overall_time = std::max(overall_time, row["Duration (us)"].as<DurationNode>()->microseconds);
+  }
+
+  // Calculate percentages
+  for (auto& row : rows) {
+    row["Percent"] = ObjectRef(make_object<PercentNode>(
+        row["Duration (us)"].as<DurationNode>()->microseconds / overall_time * 100));
+  }
+
+  // convert to map
+  std::vector<Map<String, ObjectRef>> converted_rows;
+  for (const auto& row : rows) {
+    converted_rows.push_back(row);
+  }
+
+  return profiling::Report(converted_rows, device_metrics);
 }
 
 Report::Report(Array<Map<String, ObjectRef>> calls,
@@ -446,6 +478,8 @@ TVM_REGISTER_OBJECT_TYPE(DurationNode);
 TVM_REGISTER_OBJECT_TYPE(PercentNode);
 TVM_REGISTER_OBJECT_TYPE(CountNode);
 TVM_REGISTER_OBJECT_TYPE(ReportNode);
+TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
+TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
 TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
 }  // namespace profiling

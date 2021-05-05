@@ -279,13 +279,14 @@ class GraphExecutorDebug : public GraphExecutor {
    * \returns A table of per-op runtimes and total times.
    */
   profiling::Report Profile() {
+    profiling::Profiler prof(devices_);
+
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {
       GraphExecutor::Run();
     }
 
-    profiling::Profiler prof;
-    prof.Start(devices_);
+    prof.Start();
     for (size_t i = 0; i < op_execs_.size(); ++i) {
       if (op_execs_[i]) {
         // get argument shapes

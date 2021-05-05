@@ -278,6 +278,22 @@ class ThreadPool {
     }
     threads_.reset();
   }
+  void Reset() {
+    for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
+      q->SignalForKill();
+    }
+    queues_.clear();
+    threads_.reset();
+    for (int i = 0; i < num_workers_; ++i) {
+      // The SpscTaskQueue only hosts ONE item at a time
+      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
+    }
+    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
+        new tvm::runtime::threading::ThreadGroup(
+            num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+            exclude_worker0_ /* include_main_thread */));
+    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
+  }
   int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
     ICHECK(!launcher->is_worker)
@@ -406,5 +422,10 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
   }
   std::atomic_thread_fence(std::memory_order_acquire);
 #endif
+  return 0;
+}
+
+int TVMBackendResetPool() {
+  tvm::runtime::ThreadPool::ThreadLocal()->Reset();
   return 0;
 }
