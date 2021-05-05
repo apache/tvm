@@ -711,6 +711,7 @@ def take_grad(orig, grad):
     # TODO(@altanh): we currently assume indices are in range
     data, indices = orig.args
     axis = orig.attrs.axis
+    batch_dims = orig.attrs.batch_dims
     zero, one = map(make_scalar_tensor, [0, 1])
     data_grad = zeros_like(data)
     try:
@@ -726,6 +727,12 @@ def take_grad(orig, grad):
         data_shape = (data_shape,)
     else:
         axis = int(axis)
+    if batch_dims is None:
+        batch_dims = 0
+    else:
+        batch_dims = int(batch_dims)
+    if batch_dims != 0:
+        raise OpError("take_grad only supports batch_dims equales to 0")
     strides = [1] * len(data_shape)
 
     if len(indices.checked_type.shape) == 0:

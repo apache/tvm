@@ -1204,15 +1204,24 @@ bool TakeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto ndim_data = static_cast<int>(data->shape.size());
   const auto ndim_indices = static_cast<int>(indices->shape.size());
   int axis = static_cast<int>(param->axis->value);
+  int batch_dims = static_cast<int>(param->batch_dims->value);
   if (axis < 0) axis += ndim_data;
+  if (batch_dims < 0) axis += ndim_indices;
   ICHECK_LE(axis, ndim_data) << "axis should be with in data shape"
                              << ", but got = " << axis;
+  ICHECK_LE(batch_dims, ndim_indices) << "batch_dims should be with in indices shape"
+                                      << ", but got = " << batch_dims;
+  ICHECK_LE(batch_dims, axis) << "batch_dims should be less than or equal to axis"
+                              << ", but got = " << batch_dims;
 
-  oshape.reserve(ndim_data - 1 + ndim_indices);
-  for (int i = 0; i < axis; ++i) {
+  oshape.reserve(ndim_data - 1 + ndim_indices - batch_dims);
+  for (int i = 0; i < batch_dims; ++i) {
     oshape.emplace_back(data->shape[i]);
   }
-  for (int i = 0; i < ndim_indices; ++i) {
+  for (int i = batch_dims; i < axis; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+  for (int i = batch_dims; i < ndim_indices; ++i) {
     oshape.emplace_back(indices->shape[i]);
   }
   for (int i = axis + 1; i < ndim_data; ++i) {
@@ -1228,14 +1237,16 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   const auto* param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->mode)};
+    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->batch_dims, param->mode)};
   } else {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->axis, param->mode)};
+    return Array<te::Tensor>{
+        topi::take(inputs[0], inputs[1], param->batch_dims, param->axis, param->mode)};
   }
 }
 
-Expr MakeTake(Expr data, Expr indices, Integer axis, String mode) {
+Expr MakeTake(Expr data, Expr indices, Integer batch_dims, Integer axis, String mode) {
   auto attrs = make_object<TakeAttrs>();
+  attrs->batch_dims = std::move(batch_dims);
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
   static const Op& op = Op::Get("take");
