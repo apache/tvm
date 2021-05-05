@@ -43,7 +43,9 @@ class MetalModuleNode final : public runtime::ModuleNode {
  public:
   explicit MetalModuleNode(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
+      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {
+    parsed_kernels_ = SplitKernels(GetSource(fmt_));
+  }
   const char* type_key() const final { return "metal"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
@@ -71,6 +73,31 @@ class MetalModuleNode final : public runtime::ModuleNode {
       return "";
     }
   }
+
+  std::unordered_map<std::string, std::string> SplitKernels(std::string source) const {
+    std::unordered_map<std::string, std::string> split_kernels;
+    if (source.size()) {
+      std::string del{"// Function: "};
+      size_t end = 0;
+      size_t begin = source.find(del);
+      ICHECK(begin != std::string::npos) << "The Metal module expects a kernel delimited "
+                                         << "source from code generation, but no kernel "
+                                         << "delimiter was found.";
+      while (end != std::string::npos) {
+        begin += del.size();
+        end = source.find('\n', begin);
+        std::string func_name = source.substr(begin, end - begin);
+        begin = ++end;
+        end = source.find(del, begin);
+        std::string func_source =
+            source.substr(begin, (end == std::string::npos) ? end : end - begin);
+        split_kernels.insert({func_name, func_source});
+        begin = end;
+      }
+    }
+    return split_kernels;
+  }
+
   // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
     metal::MetalWorkspace* w = metal::MetalWorkspace::Global();
@@ -85,37 +112,37 @@ class MetalModuleNode final : public runtime::ModuleNode {
     if (it != e.smap.end()) return it->second;
     // compile
     NSError* err_msg = nil;
-    if (e.lib == nil) {
-      if (fmt_ == "metal") {
-        MTLCompileOptions* opts = [MTLCompileOptions alloc];
-        opts.languageVersion = MTLLanguageVersion2_3;
-        opts.fastMathEnabled = YES;
-        // opts = nil;
-        e.lib = [w->devices[device_id]
-            newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
-                         options:opts
-                           error:&err_msg];
-        [opts dealloc];
-        if (e.lib == nil) {
-          LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
-        }
-        if (err_msg != nil) {
-          LOG(INFO) << "Warning: " << [[err_msg localizedDescription] UTF8String];
-        }
-      } else {
-        // Build from library.
-        auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
-        auto data = dispatch_data_create(data_.c_str(), data_.length(), q,
-                                         ^{
-                                         });
-        e.lib = [w->devices[device_id] newLibraryWithData:data error:&err_msg];
-        if (err_msg != nil || e.lib == nil) {
-          LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
-        }
+    id<MTLLibrary> lib = nil;
+    if (fmt_ == "metal") {
+      MTLCompileOptions* opts = [MTLCompileOptions alloc];
+      opts.languageVersion = MTLLanguageVersion2_3;
+      opts.fastMathEnabled = YES;
+      // opts = nil;
+      std::string source = parsed_kernels_[func_name];
+      lib =
+          [w->devices[device_id] newLibraryWithSource:[NSString stringWithUTF8String:source.c_str()]
+                                              options:opts
+                                                error:&err_msg];
+      [opts dealloc];
+      if (lib == nil) {
+        LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
+      }
+      if (err_msg != nil) {
+        LOG(INFO) << "Warning: " << [[err_msg localizedDescription] UTF8String];
+      }
+    } else {
+      // Build from library.
+      auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
+      std::string source = parsed_kernels_[func_name];
+      auto data = dispatch_data_create(source.c_str(), source.length(), q,
+                                       ^{
+                                       });
+      lib = [w->devices[device_id] newLibraryWithData:data error:&err_msg];
+      if (err_msg != nil || lib == nil) {
+        LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
       }
     }
-    id<MTLFunction> f =
-        [e.lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
+    id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
     ICHECK(f != nil) << "cannot find function " << func_name;
     id<MTLComputePipelineState> state =
         [w->devices[device_id] newComputePipelineStateWithFunction:f error:&err_msg];
@@ -123,6 +150,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
                          << " for function " << func_name
                          << [[err_msg localizedDescription] UTF8String];
     [f release];
+    [lib release];
     // The state.threadExecutionWidth can change dynamically according
     // to the resource constraint in kernel, so it is not strictly hold
     // Turn of warp aware optimziation for now.
@@ -135,13 +163,10 @@ class MetalModuleNode final : public runtime::ModuleNode {
  private:
   // device specific entry
   struct DeviceEntry {
-    // library
-    id<MTLLibrary> lib = nil;
     // state cache;
-    std::unordered_map<std::string, id<MTLComputePipelineState> > smap;
+    std::unordered_map<std::string, id<MTLComputePipelineState>> smap;
 
     ~DeviceEntry() {
-      if (lib != nil) [lib release];
       for (auto&& kv : smap) {
         [kv.second release];
       }
@@ -159,6 +184,8 @@ class MetalModuleNode final : public runtime::ModuleNode {
   std::vector<DeviceEntry> finfo_;
   // internal mutex when updating the module
   std::mutex mutex_;
+  // parsed kernel data
+  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 
 // a wrapped function class to get packed func.
