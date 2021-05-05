@@ -32,7 +32,6 @@ import typing
 from random import getrandbits
 from collections import namedtuple
 import tempfile
-import numpy as np
 
 import tvm._ffi
 import tvm.ir.transform
@@ -400,18 +399,17 @@ class LocalRunner(RPCRunner):
         from ...rpc.server import Server
 
         self.task = task
-        tracker = Tracker("0.0.0.0", port=9000, port_end=10000, silent=True)
+        tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % tracker.port
         server = Server(
-            "0.0.0.0",
             port=9000,
             port_end=10000,
             key=device_key,
             silent=True,
-            tracker_addr=(tracker.host, tracker.port),
+            tracker_addr=("127.0.0.1", tracker.port),
         )
         self.key = device_key
-        self.host = tracker.host
+        self.host = "127.0.0.1"
         self.port = tracker.port
 
         super(LocalRunner, self).set_task(task)
@@ -583,7 +581,7 @@ def run_through_rpc(
                 raise AttributeError(
                     "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
                 )
-            args = [nd.array(np.zeros(x[0], dtype=x[1]), device=dev) for x in build_result.arg_info]
+            args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
             if "scatter" not in measure_input.task.name:
                 # the index tensor of scatter op cannot be randomly initialized
                 for arg in args:

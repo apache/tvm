@@ -436,7 +436,7 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         target_host = Target(target_host)
     if (
         target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
-        and target_host.attrs.get("system-lib", 0).value == 1
+        and target_host.attrs.get("system-lib", 0) == 1
     ):
         if target_host.kind.name == "c":
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(

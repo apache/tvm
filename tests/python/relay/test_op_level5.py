@@ -17,13 +17,13 @@
 """ Support level5 operator test cases.
 """
 import math
+
 import numpy as np
 import tvm
-from tvm import te
-from tvm import relay
-from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
 import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te
+from tvm.relay.testing import run_infer_type
 
 
 def test_resize_infer_type():

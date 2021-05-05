@@ -463,8 +463,8 @@ def test_sparse_dense_bsr_randomized():
             check_device(device)
 
 
-@tvm.testing.requires_cuda
-def test_sparse_dense_padded_cuda():
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_sparse_dense_padded_gpu(target, dev):
     M = 128
     N = 1280
     K = 128
@@ -483,8 +483,7 @@ def test_sparse_dense_padded_cuda():
         shape=W_sp_np_padded.indptr.shape, dtype=str(W_sp_np_padded.indptr.dtype)
     )
     X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
-    with tvm.target.Target("cuda"):
-        dev = tvm.device("gpu")
+    with tvm.target.Target(target):
         Y = topi.cuda.sparse_dense_padded(X, W_data, W_indices, W_indptr)
         s = topi.cuda.schedule_sparse_dense_padded([Y])
         func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
@@ -499,9 +498,9 @@ def test_sparse_dense_padded_cuda():
         tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_cuda
-def test_sparse_dense_padded_alter_op():
-    with tvm.target.Target("cuda"):
+@tvm.testing.parametrize_targets("cuda", "rocm")
+def test_sparse_dense_padded_alter_op(target, dev):
+    with tvm.target.Target(target):
         M = 128
         N = 16
         K = 128
@@ -523,7 +522,7 @@ def test_sparse_dense_padded_alter_op():
 
         # build with cuda and AlterOpLayout to ensure that sparse_dense_padded is in action
         with tvm.transform.PassContext(opt_level=3, required_pass="AlterOpLayout"):
-            x = relay.build(tvm.IRModule.from_expr(f), target=tvm.target.Target("cuda"))
+            x = relay.build(tvm.IRModule.from_expr(f), target=target)
 
 
 def test_sparse_add_csr():

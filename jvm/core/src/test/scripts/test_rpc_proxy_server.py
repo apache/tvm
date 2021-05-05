@@ -19,7 +19,7 @@ from tvm.rpc import proxy
 
 
 def start_proxy_server(port, timeout):
-    prox = proxy.Proxy("localhost", port=port, port_end=port + 1)
+    prox = proxy.Proxy("127.0.0.1", port=port, port_end=port + 1)
     if timeout > 0:
         import time
 

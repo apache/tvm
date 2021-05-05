@@ -63,7 +63,7 @@ register_error("IndexError", IndexError)
 
 
 @register_error
-class RPCError(RuntimeError):
+class RPCError(TVMError):
     """Error thrown by the remote server handling the RPC call."""
 
 

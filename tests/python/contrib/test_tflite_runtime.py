@@ -128,7 +128,7 @@ def test_remote():
     tflite_output = interpreter.get_tensor(output_details[0]["index"])
 
     # inference via remote tvm tflite runtime
-    server = rpc.Server("localhost")
+    server = rpc.Server("127.0.0.1")
     remote = rpc.connect(server.host, server.port)
     a = remote.upload(tflite_model_path)
 

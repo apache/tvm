@@ -47,7 +47,7 @@ public class RPCTest {
     Server server = null;
     try {
       server = TestUtils.startServer(port);
-      RPCSession client = Client.connect("localhost", port.value);
+      RPCSession client = Client.connect("127.0.0.1", port.value);
       Function func = client.getFunction("test.rpc.addone");
       assertEquals(11L, func.call(10).asLong());
     } finally {
@@ -73,7 +73,7 @@ public class RPCTest {
     Server server = null;
     try {
       server = TestUtils.startServer(port);
-      RPCSession client = Client.connect("localhost", port.value);
+      RPCSession client = Client.connect("127.0.0.1", port.value);
       Function func = client.getFunction("test.rpc.strcat");
       assertEquals("abc:11", func.call("abc", 11L).asString());
     } finally {

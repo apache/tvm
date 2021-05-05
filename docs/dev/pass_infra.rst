@@ -394,7 +394,7 @@ Python Frontend
 
 Only some simple APIs are needed for the frontend side. For example, we can
 provide users the following APIs to create and execute a pass (full
-implementation is provided in `python/tvm/relay/transform.py`_ and
+implementation is provided in `python/tvm/relay/transform/transform.py`_ and
 `python/tvm/ir/transform.py`_). The backend
 receives the information and decides which function it should use to create
 a Pass object.
@@ -460,7 +460,7 @@ users so that they can customize their own pass or pass pipeline.
 
 For all the passes that are implemented in the C++ backend, we provide
 corresponding Python APIs in `python/tvm/ir/transform.py`_ and
-`python/tvm/relay/transform.py`_, respectively. For instance,
+`python/tvm/relay/transform/transform.py`_, respectively. For instance,
 const folding has a Python API like the following:
 
 .. code:: python
@@ -538,7 +538,7 @@ optimization pipeline and debug Relay and tir passes, please refer to the
 
 .. _src/relay/pass/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relay/pass/fold_constant.cc
 
-.. _python/tvm/relay/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relay/transform.py
+.. _python/tvm/relay/transform/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relay/transform/transform.py
 
 .. _include/tvm/relay/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/relay/transform.h
 

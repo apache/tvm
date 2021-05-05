@@ -23,7 +23,7 @@ from tvm.contrib import utils, xcode, coreml_runtime
 import pytest
 import os
 
-proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "localhost")
+proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "127.0.0.1")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
 destination = os.environ.get("TVM_IOS_RPC_DESTINATION", "")
 key = "iphone"

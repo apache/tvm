@@ -15,17 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-import onnx
-from onnx import helper, TensorProto, mapping, numpy_helper
+import pytest
+import scipy
 import torch
 import torchvision
-import pytest
-import tvm.topi.testing
 import tvm
+import tvm.testing
+import tvm.topi.testing
 from tvm import relay
 from tvm.contrib import graph_executor
-import scipy
-import tvm.testing
+
+import onnx
+from onnx import TensorProto, helper, mapping, numpy_helper
 
 
 def get_input_data_shape_dict(graph_def, input_data):
@@ -45,7 +46,7 @@ def get_input_data_shape_dict(graph_def, input_data):
 def get_tvm_output_with_vm(
     graph_def, input_data, target, device, opset=None, freeze_params=False, convert_to_static=False
 ):
-    """ Generic function to execute and get tvm output with vm executor"""
+    """Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
@@ -67,7 +68,7 @@ def get_tvm_output_with_vm(
 def get_tvm_output(
     graph_def, input_data, target, device, output_shape=None, output_dtype="float32", opset=None
 ):
-    """ Generic function to execute and get tvm output"""
+    """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
     target = "llvm"
     device = tvm.cpu(0)
@@ -2696,7 +2697,7 @@ def test_convtranspose():
 
 @tvm.testing.uses_gpu
 def test_unsqueeze_constant():
-    from torch.nn import Linear, Sequential, Module
+    from torch.nn import Linear, Module, Sequential
 
     class Flatten(Module):
         def forward(self, input):
@@ -4209,10 +4210,7 @@ unsupported_onnx_tests = [
     "test_eyelike_populate_off_main_diagonal/",
     "test_eyelike_with_dtype/",
     "test_eyelike_without_dtype/",
-    "test_isinf_negative/",
-    "test_isinf_positive/",
     "test_matmulinteger/",
-    "test_maxpool_2d_dilations/",
     "test_maxpool_2d_same_lower/",
     "test_maxpool_2d_same_upper/",
     "test_maxpool_with_argmax_2d_precomputed_pads/",
@@ -4222,8 +4220,6 @@ unsupported_onnx_tests = [
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
-    "test_range_float_type_positive_delta_expanded/",
-    "test_range_int32_type_negative_delta_expanded/",
     "test_resize_tf_crop_and_resize/",
     ## For these three tests, ONNX 1.6.0 has incorrect graphs, they pass with ONNX 1.7.0
     "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
@@ -4233,7 +4229,6 @@ unsupported_onnx_tests = [
     "test_reversesequence_batch/",
     "test_reversesequence_time/",
     "test_rnn_seq_length/",
-    "test_roialign/",
     "test_round/",
     "test_scan9_sum/",
     "test_scan_sum/",
@@ -4252,7 +4247,6 @@ unsupported_onnx_tests = [
     "test_tfidfvectorizer_tf_onlybigrams_levelempty/",
     "test_tfidfvectorizer_tf_onlybigrams_skip5/",
     "test_tfidfvectorizer_tf_uniandbigrams_skip5/",
-    "test_top_k_smallest/",
     "test_unique_not_sorted_without_axis/",
     "test_unique_sorted_with_axis/",
     "test_unique_sorted_with_axis_3d/",
@@ -4268,6 +4262,12 @@ def test_onnx_nodes(test):
         if failure in test:
             pytest.skip()
             break
+    atol = 1e-5
+    rtol = 1e-5
+    if "roialign" in test:
+        # for some reason the ONNX test crops the
+        # roialign results to 4 decimal places
+        atol = 1e-4
     onnx_model = onnx.load(test + "/model.onnx")
     inputs = []
     outputs = []
@@ -4285,10 +4285,10 @@ def test_onnx_nodes(test):
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
         tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
         if len(outputs) == 1:
-            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
         else:
             for output, val in zip(outputs, tvm_val):
-                tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
 
 
 def test_wrong_input():
