@@ -1371,7 +1371,7 @@ class Parser {
     DLOG(INFO) << "Parser::ParseAttrs";
     Map<String, ObjectRef> kwargs;
     while (Peek()->token_type == TokenType::kIdentifier) {
-      auto key = Match(TokenType::kIdentifier).ToString();
+      auto key = GetHierarchicalName(ParseHierarchicalName().data);
       Match(TokenType::kEqual);
       // TOOD(@jroesch): syntactically what do we allow to appear in attribute right hand side.
       auto value = ParseAttributeValue();
@@ -1545,18 +1545,7 @@ class Parser {
             auto spanned_idents = ParseHierarchicalName();
             auto idents = spanned_idents.data;
             auto span = spanned_idents.span;
-            ICHECK_NE(idents.size(), 0);
-            std::stringstream op_name;
-            int i = 0;
-            int periods = idents.size() - 1;
-            for (auto ident : idents) {
-              op_name << ident;
-              if (i < periods) {
-                op_name << ".";
-                i++;
-              }
-            }
-            return GetOp(op_name.str(), span);
+            return GetOp(GetHierarchicalName(idents), span);
           }
         }
         case TokenType::kGraph: {
@@ -1694,6 +1683,21 @@ class Parser {
     }
 
     return Spanned<Array<String>>(idents, span);
+  }
+
+  std::string GetHierarchicalName(Array<String> idents) {
+    ICHECK_NE(idents.size(), 0);
+    std::stringstream hierarchical_name;
+    int i = 0;
+    int periods = idents.size() - 1;
+    for (auto ident : idents) {
+      hierarchical_name << ident;
+      if (i < periods) {
+        hierarchical_name << ".";
+        i++;
+      }
+    }
+    return hierarchical_name.str();
   }
 
   /*! \brief Parse a shape. */

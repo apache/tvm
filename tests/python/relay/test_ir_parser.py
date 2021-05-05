@@ -959,6 +959,13 @@ def test_tokenize_inf():
     mod = relay.transform.AnnotateSpans()(mod)
 
 
+def test_func_attrs():
+    attrs = tvm.ir.make_node("DictAttrs", **{"Primitive": 1, "relay.reshape_only": 1})
+    x = relay.var("x", shape=(2, 3))
+    func = relay.Function([x], relay.reshape(x, (-1,)), attrs=attrs)
+    assert_parses_as(func.astext(), func)
+
+
 if __name__ == "__main__":
     import sys
 
