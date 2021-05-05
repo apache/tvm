@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/object.h>
 
 #include <list>
 #include <string>
@@ -140,7 +141,7 @@ class GraphOpNode : public GraphNode {
     attrs_ = nd_attrs;
     op_name_ = op_name;
     inputs_ = inputs;
-    op_attrs_ = attrs_;
+    op_attrs_ = attrs;
     num_outputs_ = num_outputs;
     op_attrs_["func_name"] = op_name_;
     op_attrs_["flatten_data"] = std::string("0");
@@ -337,7 +338,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
   std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op, const std::string& op_name,
-                                             const std::string& func_name) {
+                                             const std::string& func_name, GraphAttrs attrs) {
     std::vector<GraphNodeRef> inputs;
     for (auto arg : op->args) {
       auto res = VisitExpr(arg);
@@ -345,7 +346,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
         inputs.push_back(nr);
       }
     }
-    auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, GraphAttrs());
+    auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, attrs);
     return AddNode(node, GetRef<Expr>(op));
   }
 
@@ -377,6 +378,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
                  << "(i.e functions composed of fusable operator invocations)";
     }
 
+    // Copy attrs from function into the graph node
+    // For now we only handle strings
+    GraphAttrs attrs;
+    for (auto p : func->attrs->dict) {
+      if (p.second.as<StringObj>()) {
+        attrs[p.first] = std::string(Downcast<String>(p.second));
+      }
+    }
+
     auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
@@ -387,7 +397,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
-      return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
+      return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name, attrs);
     }
 
     // In the current flat memory allocation scenario
@@ -430,7 +440,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
-    return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name);
+    return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name,
+                            attrs);
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {
