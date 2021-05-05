@@ -57,6 +57,7 @@ def build_pipeline(ir_mods, config):
 
     return mods
 
+
 def create(mods, mod_config):
     """Create a pipeline runtime executor.
 
@@ -76,7 +77,8 @@ def create(mods, mod_config):
     mods = []
     for pipeline_mod in pipeline_mods:
         mod = graph_executor.GraphModule(
-              pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"]))
+            pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
+        )
 
         mods.append(mod)
 

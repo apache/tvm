@@ -67,9 +67,9 @@ def get_mannual_mod():
     return mods, dshape
 
 
-def test_pipeline():
+def run_pipeline(target):
     """
-    #split compute graph into 4 pipeline
+    #Get 4 pipeline module.
     """
     mods, dshape = get_mannual_mod()
     """
@@ -84,25 +84,20 @@ def test_pipeline():
     """
     outs = [run_modules(mods, tvm.cpu(), "llvm", "data", data) for data in datas]
 
-    """
-    #Parameter use for pipeline executor creation
-    #Build module and append module and device type into variable that
-    #use for pipeline creation.
-    #first and second pipeline use cuda when cuda enable, second and 
-    #last pipeline use cpu
-    """
     mod_config = {}
-    for i in range(len(mods)):
+    indx = 0
+    for mod in mods:
         mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
-        # if cuda enabled, first 2 module us cuda as target
-        if i < 2 and tvm.testing.device_enabled("cuda"):
-            mconfig["target"] = "cuda"
-            mconfig["dev"] = tvm.gpu()
+        # first two module use target that could be "cuda", "nvptx" etc.
+        if indx < 2:
+            mconfig["target"] = target[0]
+            mconfig["dev"] = target[1]
         else:
             mconfig["target"] = "llvm"
             mconfig["dev"] = tvm.cpu()
 
-        mod_config[mods[i]] = mconfig
+        mod_config[mod] = mconfig
+        indx = indx + 1
 
     """
     #build and create pipeline module
@@ -134,6 +129,12 @@ def test_pipeline():
     """
     for ref_out, out in zip(outs, pipeline_outputs):
         tvm.testing.assert_allclose(ref_out, out)
+
+
+def test_pipeline():
+    target_list = tvm.testing.enabled_targets()
+    for target in target_list:
+        run_pipeline(target)
 
 
 if __name__ == "__main__":
