@@ -58,7 +58,7 @@ tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void**
 //   TVMPlatformMemoryFree
 // ====================================================
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  free (ptr);
+  free(ptr);
   return kTvmErrorNoError;
 }
 
@@ -96,7 +96,7 @@ TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   return 0;
 }
 
-#endif // _USE_TVM_BACKEND_API_
+#endif  // _USE_TVM_BACKEND_API_
 
 // ====================================================
 //   TVMAPISetLastError

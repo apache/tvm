@@ -27,7 +27,6 @@ import tarfile
 import re
 import json
 from datetime import datetime
-from string import Template
 
 import numpy as np
 

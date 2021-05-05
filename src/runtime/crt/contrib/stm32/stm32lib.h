@@ -24,8 +24,8 @@
 
 // LINT_C_FILE
 
-#ifndef TVM_RUNTIME_STM32_STM32LIB_H_
-#define TVM_RUNTIME_STM32_STM32LIB_H_
+#ifndef TVM_RUNTIME_CRT_CONTRIB_STM32_STM32LIB_H_
+#define TVM_RUNTIME_CRT_CONTRIB_STM32_STM32LIB_H_
 
 #include <stdint.h>
 
@@ -195,4 +195,4 @@ conv2d_NCHWc_int16_smlad_update_(
   return 0;
 }
 
-#endif  // TVM_RUNTIME_STM32_STM32LIB_H_
+#endif  // TVM_RUNTIME_CRT_CONTRIB_STM32_STM32LIB_H_

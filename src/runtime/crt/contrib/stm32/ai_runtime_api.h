@@ -22,8 +22,8 @@
  * \brief The runtime API for the TVM generated C code.
  */
 
-#ifndef TVM_RUNTIME_STM32_AI_RUNTIME_API_H_
-#define TVM_RUNTIME_STM32_AI_RUNTIME_API_H_
+#ifndef TVM_RUNTIME_CRT_CONTRIB_STM32_AI_RUNTIME_API_H_
+#define TVM_RUNTIME_CRT_CONTRIB_STM32_AI_RUNTIME_API_H_
 
 #include "dlpack/dlpack.h"   // From TVM
 
@@ -232,4 +232,4 @@ const ai_ptr ai_get_params(ai_handle handle);
 //
 const ai_quantization_info * ai_get_quantization(ai_tensor * tensor);
 
-#endif  // TVM_RUNTIME_STM32_AI_RUNTIME_API_H_
+#endif  // TVM_RUNTIME_CRT_CONTRIB_STM32_AI_RUNTIME_API_H_
