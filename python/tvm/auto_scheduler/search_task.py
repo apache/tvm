@@ -314,7 +314,6 @@ def register_task_input_buffer(
                 "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s"
                 % (input_name, "set overwrite to True or this Tensor will not be registered")
             )
-            return input_table[input_name]
 
     input_table[input_name] = input_data
     if save_to_file:
