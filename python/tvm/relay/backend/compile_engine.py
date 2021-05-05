@@ -33,6 +33,8 @@ from . import _backend
 logger = logging.getLogger("compile_engine")
 autotvm_logger = logging.getLogger("autotvm")
 
+_first_warning = True
+
 
 @tvm._ffi.register_object("relay.LoweredOutput")
 class LoweredOutput(Object):
@@ -253,6 +255,16 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             and msg not in autotvm.task.DispatchContext.warning_messages
         ):
             autotvm.task.DispatchContext.warning_messages.add(msg)
+            if autotvm_logger.level == logging.DEBUG:  # only print if in debug mode
+                autotvm_logger.warning(msg)
+            else:
+                global _first_warning
+                if _first_warning == True:
+                    _first_warning = False
+                    info_msg = "One or more operators have not been tuned. Please tune your model "
+                    "for better performance or use DEBUG logging level to see more details."
+                    autotvm_logger.warning(info_msg)
+
     logger.info(
         "Using %s for %s based on highest priority (%s)",
         best_plevel_impl.name,
