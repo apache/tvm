@@ -21,7 +21,6 @@
  * \file metadata_module.cc
  * \brief Defines functions that build MetadataModules for C++ and C runtimes.
  */
-
 #include "metadata_module.h"
 
 #include <vector>
@@ -46,7 +45,8 @@ namespace codegen {
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
-    tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target) {
+    tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
+    runtime::Metadata metadata) {
   // Here we split modules into two groups:
   //  1. Those modules which can be exported to C-runtime. These are DSO-exportable
   //     (i.e. llvm or c) modules which return nothing from get_const_vars().
@@ -114,7 +114,7 @@ runtime::Module CreateMetadataModule(
 
     if (target->kind->name == "c") {
       crt_exportable_modules.push_back(target_module);
-      target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target);
+      target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target, metadata);
     } else if (target->kind->name == "llvm") {
 #ifdef TVM_LLVM_VERSION
       crt_exportable_modules.push_back(target_module);

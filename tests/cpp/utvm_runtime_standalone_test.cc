@@ -37,6 +37,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/executor_info.h>
 #include <tvm/runtime/micro/standalone/utvm_runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
@@ -91,7 +92,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
 
   Target llvm_tgt = Target("llvm");
   targets.Set(0, llvm_tgt);
-  build_f(func, targets, llvm_tgt);
+  build_f(func, targets, llvm_tgt, runtime::kTvmExecutorGraph);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   std::string o_fname = std::tmpnam(nullptr);

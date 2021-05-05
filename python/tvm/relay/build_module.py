@@ -34,7 +34,7 @@ from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
-from .backend import graph_executor_factory as _graph_executor_factory
+from .backend import executor_factory as _executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -84,7 +84,7 @@ class BuildModule(object):
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
 
-    def build(self, mod, target=None, target_host=None, params=None):
+    def build(self, mod, target=None, target_host=None, params=None, executor="graph"):
         """
         Parameters
         ----------
@@ -108,6 +108,11 @@ class BuildModule(object):
         params : dict of str to NDArray
             Input parameters to the graph that do not change
             during inference time. Used for constant folding.
+
+        executor: str[Optional]
+            The type of executor to be used in order to run the model:
+            - If "graph" is specified, then the graph_executor will be used
+            - If "aot" is specified, then the aot_executor will be used
 
         Returns
         -------
@@ -139,15 +144,15 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        self._build(mod, target, target_host)
+        self._build(mod, target, target_host, executor)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
-        graph_json = self.get_json()
         mod = self.get_module()
         params = self.get_params()
+        executor_config = self.get_graph_json() if executor == "graph" else None
 
-        return graph_json, mod, params
+        return executor_config, mod, params
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -187,7 +192,7 @@ class BuildModule(object):
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))
 
-    def get_json(self):
+    def get_graph_json(self):
         """Return the json file of the built program."""
         return self._get_graph_json()
 
@@ -217,6 +222,33 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     """
     target, target_host = Target.check_and_update_host_consist(target, target_host)
     return build(mod, target, params=params, mod_name=mod_name).module
+
+
+def get_executor_from_target(target, target_host):
+    """Helper function to extract the executor parameter from the target
+
+    Parameters
+    ----------
+    target : Dict of targets for heterogeneous compilation
+
+    target_host :  Host compilation target
+
+    Returns
+    -------
+    executor : str
+    A string representing the executor type
+    """
+
+    # Default executor is graph
+    executor = "graph"
+    cpu_device_type = 1
+    if target_host:
+        executor = target_host.attrs.get("executor", "graph")
+    else:
+        for device_type in target:
+            if device_type == cpu_device_type:
+                executor = target[device_type].attrs.get("executor", "graph")
+    return executor
 
 
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
@@ -251,7 +283,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     Returns
     -------
-    factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
+    factory_module : tvm.relay.backend.executor_factory.ExecutorFactoryModule
             The runtime factory for the TVM graph executor.
     """
     # pylint: enable=line-too-long
@@ -278,6 +310,9 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         target, target_host, target_is_dict_key=False
     )
 
+    # Retrieve the executor from the target
+    executor = get_executor_from_target(target, target_host)
+
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
@@ -287,10 +322,21 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(mod=ir_mod, target=target, params=params)
-        executor_factory = _graph_executor_factory.GraphExecutorFactoryModule(
-            ir_mod, target, graph_json, runtime_mod, mod_name, params
+        executor_config, runtime_mod, params = bld_mod.build(
+            mod=ir_mod, target=target, params=params, executor=executor
         )
+
+        if executor == "aot":
+            executor_factory = _executor_factory.AOTExecutorFactoryModule(
+                ir_mod, target, runtime_mod, mod_name, params
+            )
+        elif executor == "graph":
+            executor_factory = _executor_factory.GraphExecutorFactoryModule(
+                ir_mod, target, executor_config, runtime_mod, mod_name, params
+            )
+        else:
+            assert False, "Executor " + executor + " not supported"
+
         return executor_factory
 
 

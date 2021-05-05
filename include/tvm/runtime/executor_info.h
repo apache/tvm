@@ -18,31 +18,22 @@
  */
 
 /*!
- * \file source_module.h
- * \brief Source code module
+ * \file executor_info.h
+ * \brief Executor information
  */
-
-#ifndef TVM_TARGET_SOURCE_SOURCE_MODULE_H_
-#define TVM_TARGET_SOURCE_SOURCE_MODULE_H_
-
-#include <tvm/runtime/container.h>
-#include <tvm/runtime/module.h>
-#include <tvm/target/target.h>
-
-#include "../../runtime/meta_data.h"
+#ifndef TVM_RUNTIME_EXECUTOR_INFO_H_
+#define TVM_RUNTIME_EXECUTOR_INFO_H_
 
 namespace tvm {
-namespace codegen {
+namespace runtime {
 
-/*!
- * \brief Create C-runtime targeted metadata module for "c" backend.
- * \param modules Array of modules included in the compilation output.
- * \param target TVM target.
- */
-runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               tvm::Target target, runtime::Metadata metadata);
+/*! \brief Value used to indicate the graph executor. */
+static constexpr const char* kTvmExecutorGraph = "graph";
 
-}  // namespace codegen
+/*! \brief Value used to indicate the aot executor. */
+static constexpr const char* kTvmExecutorAot = "aot";
+
+}  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_SOURCE_MODULE_H_
+#endif  // TVM_RUNTIME_EXECUTOR_INFO_H_

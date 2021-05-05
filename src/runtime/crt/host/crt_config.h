@@ -51,6 +51,9 @@
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
+/*! \brief Enable checks to enforce the stack allocator with a FIFO ordering. */
+#define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
+
 // #define TVM_CRT_FRAMER_ENABLE_LOGS
 
 #endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

@@ -52,7 +52,7 @@ import tvm
 import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
-from tvm.relay.backend.graph_executor_factory import GraphExecutorFactoryModule
+from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
 
 from .common import TVMCException
 
@@ -220,7 +220,7 @@ class TVMCModel(object):
         self.lib_path = path_lib
 
         with open(temp.relpath(graph_name), "w") as graph_file:
-            graph_file.write(executor_factory.get_json())
+            graph_file.write(executor_factory.get_graph_json())
 
         with open(temp.relpath(param_name), "wb") as params_file:
             params_file.write(relay.save_param_dict(executor_factory.get_params()))

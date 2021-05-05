@@ -158,7 +158,7 @@ def test_graph_executor():
 
     with _make_session(workspace, factory.get_lib()) as sess:
         graph_mod = tvm.micro.create_local_graph_executor(
-            factory.get_json(), sess.get_system_lib(), sess.device
+            factory.get_graph_json(), sess.get_system_lib(), sess.device
         )
         A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
         assert (A_data.asnumpy() == np.array([2, 3])).all()
@@ -226,4 +226,5 @@ def test_platform_timer():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_graph_executor()
+#     sys.exit(pytest.main([__file__] + sys.argv[1:]))

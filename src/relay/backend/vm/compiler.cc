@@ -1189,7 +1189,7 @@ void VMCompiler::Codegen() {
     // to make sure a DSO module will be also available.
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
-  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_);
+  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
   exec_->SetLib(lib);
   CompileEngine::Global()->Clear();
 }

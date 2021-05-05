@@ -48,7 +48,6 @@ using namespace tvm::relay::transform;
 
 /*!
  * \brief Output of building module
- *
  */
 struct BuildOutput {
   std::string graph_json;
@@ -56,31 +55,12 @@ struct BuildOutput {
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
 
-/*!
- * \brief GraphCodegen module wrapper
- *
- */
-struct GraphCodegen {
- public:
-  GraphCodegen() {
-    auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
-    mod = (*pf)();
-  }
-  ~GraphCodegen() {}
-
+struct ExecutorCodegen {
   void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
 
   void Codegen(const Function& func) { CallFunc("codegen", func); }
 
-  std::string GetJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
-
-  Array<tvm::runtime::Module> GetExternalModules() {
-    return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
-  }
-
-  Map<String, IRModule> GetIRModule() {
-    return CallFunc<Map<String, IRModule>>("get_irmodule", nullptr);
-  }
+  virtual void UpdateOutput(BuildOutput* ret) = 0;
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
@@ -104,6 +84,17 @@ struct GraphCodegen {
     return ret;
   }
 
+  Array<tvm::runtime::Module> GetExternalModules() {
+    return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
+  }
+
+  Map<String, IRModule> GetIRModule() {
+    return CallFunc<Map<String, IRModule>>("get_irmodule", nullptr);
+  }
+
+  runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
+  virtual ~ExecutorCodegen() {}
+
  protected:
   tvm::runtime::Module mod;
   template <typename R, typename... Args>
@@ -118,6 +109,48 @@ struct GraphCodegen {
     return;
   }
 };
+
+struct AOTCodegen : ExecutorCodegen {
+  AOTCodegen() {
+    auto pf = GetPackedFunc("relay.build_module._AOTExecutorCodegen");
+    mod = (*pf)();
+  }
+
+  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = ""; }
+
+  ~AOTCodegen() {}
+};
+
+/*!
+ * \brief GraphCodegen module wrapper
+ *
+ */
+struct GraphCodegen : ExecutorCodegen {
+  GraphCodegen() {
+    auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
+    mod = (*pf)();
+  }
+  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = GetGraphJSON(); }
+
+  std::string GetGraphJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
+
+  ~GraphCodegen() {}
+};
+
+/*!
+ * \brief Executor codegen factory function
+ */
+std::unique_ptr<ExecutorCodegen> MakeExecutorCodegen(String executor_str) {
+  std::unique_ptr<ExecutorCodegen> ret;
+  if (executor_str == runtime::kTvmExecutorGraph) {
+    ret = std::make_unique<GraphCodegen>();
+  } else if (executor_str == runtime::kTvmExecutorAot) {
+    ret = std::make_unique<AOTCodegen>();
+  } else {
+    CHECK(false) << "Executor " << executor_str << " not supported";
+  }
+  return ret;
+}
 
 /*!
  * \brief Relay build module
@@ -140,8 +173,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 3);
-        this->Build(args[0], args[1], args[2]);
+        ICHECK_EQ(args.num_args, 4);
+        this->Build(args[0], args[1], args[2], args[3]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -158,11 +191,11 @@ class RelayBuildModule : public runtime::ModuleNode {
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->graph_codegen_->GetIRModule();
+        *rv = this->executor_codegen_->GetIRModule();
       });
     } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->graph_codegen_->GetExternalModules();
+        *rv = this->executor_codegen_->GetExternalModules();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -237,10 +270,12 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target Target device
    * \param target_host Host target device
    */
-  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host,
+             const String executor) {
     // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
+    executor_ = executor;
     CheckAndUpdateHostConsistency(&targets_, &target_host_);
     BuildRelay(mod, params_);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
@@ -477,23 +512,23 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
+
     // Get the updated function.
     auto func = Downcast<Function>(relay_module->Lookup("main"));
 
     // Generate code for the updated function.
-    graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
-    graph_codegen_->Init(nullptr, targets_);
-    graph_codegen_->Codegen(func);
+    executor_codegen_ = MakeExecutorCodegen(executor_);
+    executor_codegen_->Init(nullptr, targets_);
+    executor_codegen_->Codegen(func);
+    executor_codegen_->UpdateOutput(&ret_);
+    ret_.params = executor_codegen_->GetParams();
 
-    ret_.graph_json = graph_codegen_->GetJSON();
-    ret_.params = graph_codegen_->GetParams();
-
-    auto lowered_funcs = graph_codegen_->GetIRModule();
+    auto lowered_funcs = executor_codegen_->GetIRModule();
 
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
       CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
-      auto param_ids = graph_codegen_->GetParamIds();
+      auto param_ids = executor_codegen_->GetParamIds();
       auto link_params = Map<String, tir::LinkedParam>();
       for (auto param : ret_.params) {
         link_params.Set(param.first, tir::LinkedParam(param_ids[param.first], param.second));
@@ -527,8 +562,9 @@ class RelayBuildModule : public runtime::ModuleNode {
       ret_.mod = tvm::build(lowered_funcs, target_host_);
     }
 
-    auto ext_mods = graph_codegen_->GetExternalModules();
-    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, GetTargetHost());
+    auto ext_mods = executor_codegen_->GetExternalModules();
+    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, GetTargetHost(),
+                                                  executor_codegen_->GetMetadata());
   }
 
  private:
@@ -546,7 +582,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
  protected:
-  std::unique_ptr<GraphCodegen> graph_codegen_;
+  std::unique_ptr<ExecutorCodegen> executor_codegen_;
   /*! \brief target device */
   TargetsMap targets_;
   /*! \brief target host device */
@@ -555,6 +591,12 @@ class RelayBuildModule : public runtime::ModuleNode {
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */
   BuildOutput ret_;
+  /*!
+   * \brief Executor used to execute the model:
+   * - graph: use the json graph executor
+   * - aot: use the aot executor
+   */
+  String executor_;
 };
 
 runtime::Module RelayBuildCreate() {

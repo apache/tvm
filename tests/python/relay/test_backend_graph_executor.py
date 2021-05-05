@@ -133,10 +133,12 @@ def test_plan_memory():
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()
+    storage_sizes = {}
     for k, v in smap.items():
-        assert len(v) == 2
+        assert len(v) == 3
         for x in v[0]:
             storage_ids.add(x.value)
+            storage_sizes[x.value] = v[2]
         for x in v[1]:
             device_types.add(x.value)
 
@@ -145,6 +147,15 @@ def test_plan_memory():
     # two alternating temporary space.
     assert len(storage_ids) == 4
     assert len(device_types) == 1
+    assert len(storage_sizes) == 4
+
+    # Check the specific size of each sid
+    assert (
+        storage_sizes[0][0] == 40
+        and storage_sizes[1][0] == 4
+        and storage_sizes[2][0] == 4
+        and storage_sizes[3][0] == 40
+    )
 
 
 def test_reshape_nop():
@@ -162,7 +173,7 @@ def test_reshape_nop():
     func = relay.Function([x], relay.Tuple([z0, z1, z2]))
     x_data = np.random.rand(10, 4).astype("float32")
     graph = relay.build(tvm.IRModule.from_expr(func), "llvm")
-    graph_json_str = graph.get_json()
+    graph_json_str = graph.get_graph_json()
 
     graph_json = json.loads(graph_json_str)
 
