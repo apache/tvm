@@ -107,7 +107,7 @@ Expr MakeArange(Expr start, Expr stop, Expr step, DataType dtype);
 
 Expr MakeShapeOf(Expr data, DataType dtype);
 
-Expr MakeTake(Expr data, Expr indices, Integer axis, String mode);
+Expr MakeTake(Expr data, Expr indices, Integer batch_dims, Integer axis, String mode);
 
 }  // namespace relay
 }  // namespace tvm
