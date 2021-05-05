@@ -31,9 +31,38 @@
 #include <string.h>
 #include <malloc.h>
 
+#ifdef _USE_TVM_BACKEND_API_
 #include "tvm/runtime/c_runtime_api.h"
+#else
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/crt/error_codes.h>
+#endif
 
 static char * g_last_error = NULL;
+
+#ifdef _USE_TVM_BACKEND_API_
+
+// ====================================================
+//   TVMPlatformMemoryAllocate
+// ====================================================
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+#ifdef __arm__
+  *out_ptr = malloc(num_bytes);
+#else  // _x86_
+  *out_ptr = malloc(num_bytes);
+#endif
+  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
+}
+
+// ====================================================
+//   TVMPlatformMemoryFree
+// ====================================================
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  free (ptr);
+  return kTvmErrorNoError;
+}
+
+#else
 
 // ====================================================
 //   TVMBackendAllocWorkspace
@@ -67,6 +96,8 @@ TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   return 0;
 }
 
+#endif // _USE_TVM_BACKEND_API_
+
 // ====================================================
 //   TVMAPISetLastError
 // ====================================================
@@ -76,7 +107,6 @@ void TVMAPISetLastError(const char * msg) {
   }
   uint32_t nbytes = strlen(msg)+1;
   g_last_error = malloc(nbytes);
-  // strcpy(g_last_error, msg);
   snprintf(g_last_error, nbytes, "%s", msg);
 }
 

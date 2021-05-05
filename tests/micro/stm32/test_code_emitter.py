@@ -276,14 +276,17 @@ def run_tvm_model(build_dir, model_name, target_dir, image_path):
     #
     # Build the model
     #
-    command = f"make -f {curr_path}/Makefile TVM_PATH={curr_path}/../../.. MODEL_PATH={target_dir} BUILD_PATH={build_dir} IMAGE_PATH={image_path}"
-    print(f"{command} ...")
+    tvm_dir = os.path.join(curr_path,"..","..","..")
+    test_dir = os.path.join(tvm_dir,"tests","crt","contrib","stm32")
+
+    command = f"make -f {test_dir}/Makefile TVM_PATH={tvm_dir} MODEL_PATH={target_dir} BUILD_PATH={build_dir} IMAGE_PATH={image_path}"
+    print(f"{command}")
     os.system(command)
     #
     # Run
     #
     command = f"{target_dir}/{model_name}.exe"
-    print(f"{command} ...")
+    print(f"{command}")
     os.system(command)
 
     tvm_results = np.loadtxt(tvm_results_name)

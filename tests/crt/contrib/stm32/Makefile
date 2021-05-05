@@ -31,8 +31,9 @@ ifndef IMAGE_PATH
 $(error IMAGE_PATH must be set and point at where your images are stored)
 endif
 
-SRC_PATH = $(TVM_PATH)/tests/micro/stm32/src
-RUNTIME_PATH = $(TVM_PATH)/src/runtime/stm32
+#TVM_CRT_PATH = $(TVM_PATH)/src/runtime/crt/common
+SRC_PATH = $(TVM_PATH)/tests/crt/contrib/stm32/src
+RUNTIME_PATH = $(TVM_PATH)/src/runtime/crt/contrib/stm32
 
 #
 # Model sources
@@ -42,6 +43,7 @@ C_SOURCES := $(wildcard ${MODEL_PATH}/*.c)
 #
 # TVM sources
 #
+#C_SOURCES += $(TVM_CRT_PATH)/crt_backend_api.c
 C_SOURCES += $(RUNTIME_PATH)/runtime.c
 C_SOURCES += $(RUNTIME_PATH)/ai_runtime_api.c
 
@@ -65,7 +67,7 @@ OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
 CXX = gcc -m32 -g
 
 DEFINES =
-INCLUDES = -I$(TVM_PATH)/3rdparty/dlpack/include -I$(TVM_PATH)/include -I$(TVM_PATH)/src/runtime/stm32
+INCLUDES = -I$(TVM_PATH)/3rdparty/dlpack/include -I$(TVM_PATH)/include -I$(RUNTIME_PATH)
 
 CFLAGS = $(DEFINES) $(INCLUDES)
 LDFLAGS = -lm
