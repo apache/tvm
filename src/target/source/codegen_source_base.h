@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -155,7 +156,7 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
-    const Array<runtime::Module>& ext_modules, Target target);
+    const Array<runtime::Module>& ext_modules, Target target, runtime::Metadata metadata);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
@@ -173,10 +174,11 @@ runtime::Module DeviceSourceModuleCreate(
  * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
  * \param modules The modules to be wrapped.
  * \param target the target the modules are compiled for.
+ * \param metadata the metadata needed for code generation.
  * \return The wrapped module.
  */
-runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               Target target);
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                               runtime::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm
