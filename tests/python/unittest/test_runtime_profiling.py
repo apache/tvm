@@ -42,8 +42,11 @@ def test_vm(target, dev):
     f = StringIO(report.csv())
     reader = csv.reader(f, delimiter=",")
     # force parsing
+    in_header = True
     for row in reader:
-        pass
+        if in_header:
+            assert "Hash" in row
+            in_header = False
 
 
 @tvm.testing.parametrize_targets
@@ -57,3 +60,4 @@ def test_graph_executor(target, dev):
     report = gr.profile(data=data)
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
+    assert "Hash" in str(report)
