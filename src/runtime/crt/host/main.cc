@@ -25,7 +25,7 @@
 #include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 #include <unistd.h>
 
@@ -123,7 +123,8 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  int status = MemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
+  int status =
+      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
   if (status != 0) {
     fprintf(stderr, "error initiailizing memory manager\n");
     return 2;

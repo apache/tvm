@@ -131,7 +131,7 @@ def test_load_unexpected_params():
 
     graph_module = relay.build(mod, target="llvm", params=params)
     rt_mod = tvm.contrib.graph_executor.create(
-        graph_module.get_json(), graph_module.get_lib(), tvm.cpu(0)
+        graph_module.get_graph_json(), graph_module.get_lib(), tvm.cpu(0)
     )
 
     new_params = graph_module.get_params()

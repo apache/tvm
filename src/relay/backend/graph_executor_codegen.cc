@@ -52,14 +52,6 @@ using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
 using TargetsMap = std::unordered_map<int, Target>;
 
-/*! \brief Lowered outputs */
-struct LoweredOutput {
-  std::string graph_json;
-  Map<String, IRModule> lowered_funcs;
-  Array<tvm::runtime::Module> external_mods;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-};
-
 /*! \brief Node types */
 enum GraphNodeType {
   kGraphNop,
@@ -251,7 +243,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     size_t count = storage_device_map_.count(expr);
     ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
     auto storage_device_info = storage_device_map_[expr];
-    ICHECK_EQ(storage_device_info.size(), 2);
+    ICHECK_EQ(storage_device_info.size(), 3);
     // storage
     std::vector<int64_t> storage_info;
     for (auto& v : storage_device_info[0]) {
@@ -648,6 +640,9 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.external_mods;
       });
+    } else if (name == "get_metadata") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});
     }

@@ -54,7 +54,7 @@ def test_graph_executor(target, dev):
     mod, params = mlp.get_workload(1)
 
     exe = relay.build(mod, target, params=params)
-    gr = debug_executor.create(exe.get_json(), exe.lib, dev)
+    gr = debug_executor.create(exe.get_graph_json(), exe.lib, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     report = gr.profile(data=data)

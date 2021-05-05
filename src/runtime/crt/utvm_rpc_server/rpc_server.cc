@@ -35,8 +35,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/platform.h>
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>

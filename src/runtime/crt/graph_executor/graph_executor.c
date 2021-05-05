@@ -27,9 +27,9 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/internal/graph_executor/graph_executor.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
 #include <tvm/runtime/crt/packed_func.h>
+#include <tvm/runtime/crt/page_allocator.h>
 
 #include "crt_config.h"
 

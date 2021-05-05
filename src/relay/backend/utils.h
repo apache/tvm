@@ -37,11 +37,26 @@
 #include <typeinfo>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
+
+#include "../../runtime/meta_data.h"
 
 namespace tvm {
 namespace relay {
 namespace backend {
+
+/*!
+ *  \brief Executor generator artifacts. Those artifacts  are subsequently
+ *  used by the relay build process.
+ */
+struct LoweredOutput {
+  std::string graph_json;
+  Map<String, IRModule> lowered_funcs;
+  Array<tvm::runtime::Module> external_mods;
+  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
+  runtime::Metadata metadata;
+};
 
 /*!
  * \brief A helper to expand the params by adding the ones used in a given expression.
