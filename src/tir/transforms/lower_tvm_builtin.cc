@@ -179,7 +179,9 @@ class BuiltinLower : public StmtExprMutator {
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
-      return MakeCallPacked(op);
+      return MakeCallPacked(op, /* use_string_lookup */ true);
+    } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
+      return MakeCallPacked(op, /* use_string_lookup */ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallTracePacked(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
@@ -256,7 +258,7 @@ class BuiltinLower : public StmtExprMutator {
     return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
   }
   // call packed.
-  PrimExpr MakeCallPacked(const CallNode* op) {
+  PrimExpr MakeCallPacked(const CallNode* op, bool use_string_lookup) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -297,8 +299,10 @@ class BuiltinLower : public StmtExprMutator {
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
-    // call_packed_lowered needs to do the type casting properly
-    return Call(op->dtype, builtin::tvm_call_packed_lowered(), packed_args);
+
+    auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
+                                          : builtin::tvm_call_cpacked_lowered();
+    return Call(op->dtype, builtin_call, packed_args);
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
