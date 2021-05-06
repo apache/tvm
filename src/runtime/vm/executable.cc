@@ -273,7 +273,7 @@ void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
     primitive_names[packed_index] = it.first;
   }
   strm->Write(primitive_names);
-  // TODO(tkonolige): cannot serialize ObjectRefs
+  // TODO(tkonolige): cannot serialize ObjectRefs with dmlc's serializer.
   // std::vector<std::pair<size_t, Map<String, ObjectRef>>> primitive_attrs;
   // for (const auto& it : this->op_attrs) {
   //   auto packed_index = static_cast<size_t>(it.first);
@@ -576,7 +576,7 @@ void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
   for (size_t i = 0; i < primitive_names.size(); i++) {
     this->primitive_map.insert({primitive_names[i], i});
   }
-  // TODO(tkonolige): cannot serialize ObjectRefs
+  // TODO(tkonolige): cannot serialize ObjectRefs with dmlc's serializer.
   // std::vector<std::pair<size_t, Map<String, ObjectRef>>> primitive_attrs;
   // STREAM_CHECK(strm->Read(&primitive_attrs), "primitive attrs");
   // for (auto p : primitive_attrs) {

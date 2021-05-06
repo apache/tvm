@@ -36,12 +36,12 @@ namespace profiling {
 #define PAPI_CALL(func)                                                         \
   {                                                                             \
     int e = (func);                                                             \
-    if (e < 0) {                                                                \
-      LOG(FATAL) << "PAPIError: " << e << " " << std::string(PAPI_strerror(e)); \
+    if (e != PAPI_OK) {                                                                \
+      LOG(FATAL) << "PAPIError: in function " #func " " << e << " " << std::string(PAPI_strerror(e)); \
     }                                                                           \
   }
 
-static const std::unordered_map<DLDeviceType, std::vector<std::string>> default_metrics = {
+static const std::unordered_map<DLDeviceType, std::vector<std::string>> default_metric_names = {
     {kDLCPU,
      {"perf::CYCLES", "perf::STALLED-CYCLES-FRONTEND", "perf::STALLED-CYCLES-BACKEND",
       "perf::INSTRUCTIONS", "perf::CACHE-MISSES"}},
@@ -61,6 +61,11 @@ struct PAPIEventSetNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(PAPIEventSetNode, Object);
 };
 
+/* Get the PAPI component id for the given device.
+ * \param dev The device to get the component for.
+ * \returns PAPI component id for the device. Returns -1 if the device is not
+ * supported by PAPI.
+ */
 int component_for_device(Device dev) {
   std::string component_name;
   switch (dev.device_type) {
@@ -103,7 +108,10 @@ int component_for_device(Device dev) {
 struct PAPIMetricCollectorNode final : public MetricCollectorNode {
   explicit PAPIMetricCollectorNode(Array<DeviceWrapper> devices) {
     if (!PAPI_is_initialized()) {
-      PAPI_CALL(PAPI_library_init(PAPI_VER_CURRENT));
+      if(sizeof(long_long) > sizeof(int64_t)) {
+        LOG(WARNING) << "PAPI's long_long is larger than int64_t. Overflow may occur when reporting metrics.";
+      }
+      CHECK_EQ(PAPI_library_init(PAPI_VER_CURRENT), PAPI_VER_CURRENT) << "Error while initializing PAPI";
     }
 
     // create event sets for each device
@@ -115,8 +123,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
         continue;
       }
 
-      const PAPI_component_info_t* component;
-      component = PAPI_get_component_info(cidx);
+      const PAPI_component_info_t* component = PAPI_get_component_info(cidx);
       if (component->disabled) {
         std::string help_message = "";
         switch (device.device_type) {
@@ -154,7 +161,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
       }
 
       // load default metrics for device or read them from an environment variable
-      std::vector<std::string> metrics;
+      std::vector<std::string> metric_names;
       std::string dev_name = DeviceName(device.device_type);
       std::transform(dev_name.begin(), dev_name.end(), dev_name.begin(),
                      [](unsigned char c) { return std::toupper(c); });
@@ -168,13 +175,13 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
           if (next == metric_string.npos) {
             next = metric_string.size();
           }
-          metrics.push_back(metric_string.substr(loc, next - loc));
+          metric_names.push_back(metric_string.substr(loc, next - loc));
           loc = next + 1;
         }
       } else {
-        auto it = default_metrics.find(device.device_type);
-        if (it != default_metrics.end()) {
-          metrics = it->second;
+        auto it = default_metric_names.find(device.device_type);
+        if (it != default_metric_names.end()) {
+          metric_names = it->second;
         } else {
           LOG(WARNING) << "No default metrics set for " << dev_name
                        << ". You can specify metrics with the environment variable TVM_PAPI_"
@@ -182,17 +189,17 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
         }
       }
       // skip if no metrics exist
-      if (metrics.size() == 0) {
+      if (metric_names.size() == 0) {
         continue;
       }
-      papi_metrics[device] = metrics;
+      papi_metric_names[device] = metric_names;
 
-      if (static_cast<int>(metrics.size()) > PAPI_num_cmp_hwctrs(cidx)) {
+      if (static_cast<int>(metric_names.size()) > PAPI_num_cmp_hwctrs(cidx)) {
         PAPI_CALL(PAPI_set_multiplex(event_set));
       }
 
       // add all the metrics
-      for (auto metric : metrics) {
+      for (auto metric : metric_names) {
         int e = PAPI_add_named_event(event_set, metric.c_str());
         if (e != PAPI_OK) {
           LOG(FATAL) << "PAPIError: " << e << " " << std::string(PAPI_strerror(e)) << ": " << metric
@@ -208,7 +215,9 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
     }
   }
 
-  /*! \brief Called right before a function call.
+  /*! \brief Called right before a function call. Reads starting values of the
+   * measured metrics.
+   *
    * \param dev The device the function will be run on.
    * \returns A `PAPIEventSetNode` containing values for the counters at the
    * start of the call. Passed to a corresponding `Stop` call.
@@ -219,7 +228,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
     auto it = event_sets.find(dev);
     if (it != event_sets.end()) {
       int event_set = it->second;
-      std::vector<long_long> values(papi_metrics[dev].size());
+      std::vector<long_long> values(papi_metric_names[dev].size());
       PAPI_CALL(PAPI_read(event_set, values.data()));
       return ObjectRef(make_object<PAPIEventSetNode>(values, dev));
     } else {
@@ -227,18 +236,27 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
     }
   }
 
-  /*! \brief Called right after a function call.
+  /*! \brief Called right after a function call. Reads ending values of the
+   * measured metrics. Computes the change in each metric from the
+   * corresponding `Start` call.
+   *
    * \param obj `PAPIEventSetNode` created by a call to `Start`.
    * \returns A mapping from metric name to value.
    */
   Map<String, ObjectRef> Stop(ObjectRef obj) final {
     const PAPIEventSetNode* event_set_node = obj.as<PAPIEventSetNode>();
-    std::vector<long_long> end_values(papi_metrics[event_set_node->dev].size());
+    std::vector<long_long> end_values(papi_metric_names[event_set_node->dev].size());
     PAPI_CALL(PAPI_read(event_sets[event_set_node->dev], end_values.data()));
     std::unordered_map<String, ObjectRef> reported_metrics;
     for (size_t i = 0; i < end_values.size(); i++) {
-      reported_metrics[papi_metrics[event_set_node->dev][i]] =
-          ObjectRef(make_object<CountNode>(end_values[i] - event_set_node->start_values[i]));
+      if (end_values[i] < event_set_node->start_values[i]) {
+        LOG(WARNING) << "Detected overflow when reading performance counter, setting value to -1.";
+        reported_metrics[papi_metric_names[event_set_node->dev][i]] =
+            ObjectRef(make_object<CountNode>(-1));
+      } else {
+        reported_metrics[papi_metric_names[event_set_node->dev][i]] =
+            ObjectRef(make_object<CountNode>(end_values[i] - event_set_node->start_values[i]));
+      }
     }
     return reported_metrics;
   }
@@ -251,11 +269,11 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
     }
   }
 
-  /*! \brief Device-specific event sets. Contains the running counters for that device. */
+  /*! \brief Device-specific event sets. Contains the running counters (the int values) for that device. */
   std::unordered_map<Device, int> event_sets;
   /*! \brief Device-specific metric names. Order of names matches the order in the corresponding
    * `event_set`. */
-  std::unordered_map<Device, std::vector<std::string>> papi_metrics;
+  std::unordered_map<Device, std::vector<std::string>> papi_metric_names;
 
   static constexpr const char* _type_key = "PAPIMetricCollectorNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(PAPIMetricCollectorNode, MetricCollectorNode);

@@ -256,7 +256,9 @@ struct CallFrame {
   Timer timer;
   /*! Extra performance metrics */
   std::unordered_map<std::string, ObjectRef> extra_metrics;
-  /*! User defined metric collectors */
+  /*! User defined metric collectors. Each pair is the MetricCollector and its
+   * associated data (returned from MetricCollector.Start).
+   */
   std::vector<std::pair<MetricCollector, ObjectRef>> extra_collectors;
 };
 
@@ -386,7 +388,9 @@ class CountNode : public Object {
  */
 String ShapeString(const std::vector<NDArray>& shapes);
 
-/*! \brief Wrapper for `Device`. */
+/*! \brief Wrapper for `Device` because `Device` is not passable across the
+ * PackedFunc interface.
+ */
 struct DeviceWrapperNode : public Object {
   /*! The device */
   Device device;
