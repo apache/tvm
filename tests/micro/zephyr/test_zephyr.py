@@ -34,6 +34,7 @@ import tvm
 import tvm.rpc
 import tvm.micro
 import tvm.relay as relay
+from tvm import runtime
 
 from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
@@ -62,10 +63,16 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
 
-    return _make_session(model, target, zephyr_board, west_cmd, mod)
+    return _make_session(model, target, zephyr_board, west_cmd, mod, "host_driven")
 
+def _get_runtime_path():
+    """Returns zephyr runtime path"""
+    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
+    return os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
 
-def _make_session(model, target, zephyr_board, west_cmd, mod):
+def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
+    import pdb; pdb.set_trace()
     test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{zephyr_board}"
     prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
@@ -76,21 +83,23 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         os.makedirs(workspace_parent)
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
-    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
     compiler = zephyr.ZephyrCompiler(
-        project_dir=runtime_path,
+        project_dir=_get_runtime_path(),
         board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
         west_cmd=west_cmd,
-        env_vars={"ZEPHYR_RUNTIME": "HOST_DRIVEN"}
+        env_vars={"ZEPHYR_RUNTIME": runtime_mode.upper()},
     )
 
-    opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
+    
+
+    opts = tvm.micro.default_options(os.path.join(_get_runtime_path(), "crt"))
+
     # TODO(weberlo) verify this is necessary
     opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
     opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
+    opts["bin_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
+    opts["lib_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
 
     flasher_kw = {}
     if DEBUG:
@@ -100,6 +109,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         "flasher": compiler.flasher(**flasher_kw),
     }
 
+    # import pdb; pdb.set_trace()
     if BUILD:
         session_kw["binary"] = tvm.micro.build_static_runtime(
             # the x86 compiler *expects* you to give the exact same dictionary for both
@@ -110,6 +120,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
             compiler,
             mod,
             opts,
+            runtime_mode=runtime_mode.lower()
         )
         if os.path.exists(prev_build):
             os.unlink(prev_build)
@@ -197,7 +208,7 @@ def test_relay(platform, west_cmd):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(func, target=target)
 
-    with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, mod, "host_driven") as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -238,7 +249,7 @@ def test_onnx(platform, west_cmd):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_json()
 
-    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, "host_driven") as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -317,7 +328,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         graph, mod, params = tvm.relay.build(relay_mod, target=target)
 
-    with _make_session(model, target, zephyr_board, west_cmd, mod) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, mod, "host_driven") as session:
         rt_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -394,6 +405,59 @@ def test_byoc_utvm(platform, west_cmd):
         west_cmd=west_cmd,
     )
 
+def _dump_hex(root_path:str, src_file:str, fmt="c"):
+    """Dump a binary file as a hex file with format fmt"""
+    subprocess.run(args=["xxd", "-i", src_file, f"{src_file}.{fmt}"], cwd=root_path)
+
+def test_standalone(platform, west_cmd):
+    """Testing an ONNX model in standalone mode"""
+    model, zephyr_board = PLATFORMS[platform]
+    runtime_path = _get_runtime_path()
+
+    # Load test image.
+    this_dir = os.path.dirname(__file__)
+    sample = Image.open(f"{this_dir}/testdata/digit-2.jpg").resize((28, 28))
+    sample = np.asarray(sample).astype("float32")
+    sample = np.expand_dims(sample, axis=0)
+    sample = np.expand_dims(sample, axis=0)
+
+    input_file = os.path.join(runtime_path, "input.bin")
+    with open(input_file, "wb") as fp:
+        fp.write(sample.astype(np.float32).tobytes())
+    _dump_hex(runtime_path, "input.bin")
+    os.remove(input_file)
+
+    # Load ONNX model and convert to Relay.
+    onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
+    shape = {"Input3": (1, 1, 28, 28)}
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
+    relay_mod = relay.transform.DynamicToStatic()(relay_mod)
+    
+    target = tvm.target.target.micro(model)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(relay_mod, target, params=params)
+        graph = lowered.get_json()
+
+    # Export graph in C
+    graph_file = os.path.join(runtime_path, "graph.json")
+    with open(graph_file, 'w') as json_f:
+        json_f.write(graph)
+    _dump_hex(runtime_path, "graph.json")
+    os.remove(graph_file)
+
+    params_file = os.path.join(runtime_path, "params.bin")
+    with open(params_file, "wb") as f_params:
+        f_params.write(runtime.save_param_dict(params))
+    _dump_hex(runtime_path, "params.bin")
+    os.remove(params_file)
+
+    # Export parameter in C
+    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, "standalone") as session:
+        graph_mod = tvm.micro.create_local_graph_executor(
+            graph, session.get_system_lib(), session.device
+        )
+        import pdb; pdb.set_trace()
+        print("end")
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))

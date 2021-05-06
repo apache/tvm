@@ -45,10 +45,10 @@
 #define TVM_CRT_MAX_PACKET_SIZE_BYTES 8192
 
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
-#define TVM_CRT_MAX_STRLEN_DLTYPE 10
+#define TVM_CRT_STRLEN_DLTYPE 10
 
 /*! Maximum supported string length in function names */
-#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 80
+#define TVM_CRT_STRLEN_NAME 80
 
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30

@@ -54,9 +54,10 @@ class Workspace:
 
 
 # Required C runtime libraries, in link order.
-# CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
-CRT_RUNTIME_LIB_NAMES = ["graph_executor", "common", "memory"]
+CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
 
+# Requireed C runtime libraries for standalone mode, in link order.
+CRT_STANDALONE_LIB_NAMES = ["graph_executor", "common"]
 
 STANDALONE_CRT_DIR = None
 
@@ -111,10 +112,15 @@ def get_standalone_crt_lib(name: str) -> str:
     return os.path.join(get_standalone_crt_dir(), "src", "runtime", "crt", name)
 
 
-def get_runtime_libs() -> str:
+def get_runtime_libs(mode:str) -> str:
     """Return abspath to all CRT directories which contain source (i.e. not header) files."""
-    return [get_standalone_crt_lib(n) for n in CRT_RUNTIME_LIB_NAMES]
-
+    if mode == "host_driven":
+        lib_names = CRT_RUNTIME_LIB_NAMES
+    elif mode == "standalone":
+        lib_names = CRT_STANDALONE_LIB_NAMES
+    else:
+        raise ValueError(f"Incorrect runtime mode: {mode}")
+    return [get_standalone_crt_lib(n) for n in lib_names]
 
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 
@@ -189,6 +195,7 @@ def build_static_runtime(
     compiler,
     module,
     compiler_options,
+    runtime_mode,
     extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
@@ -207,6 +214,9 @@ def build_static_runtime(
         used. This dict contains the `options` parameter passed to Compiler.library() and
         Compiler.binary() at various stages in the compilation process.
 
+    runtime_mode : str
+        Runtime mode which could be one these: [host_driven, standalone]
+
     extra_libs : Optional[List[MicroLibrary|str]]
         If specified, extra libraries to be compiled into the binary. If a MicroLibrary, it is
         included into the binary directly. If a string, the path to a directory; all direct children
@@ -223,7 +233,7 @@ def build_static_runtime(
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
 
     libs = []
-    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs():
+    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs(runtime_mode):
         if isinstance(mod_or_src_dir, MicroLibrary):
             libs.append(mod_or_src_dir)
             continue

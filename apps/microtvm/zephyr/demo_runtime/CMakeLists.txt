@@ -19,14 +19,14 @@ set(TVM_MODEL_FILES
 )
 
 if($ENV{ZEPHYR_RUNTIME} STREQUAL "HOST_DRIVEN")
-  message("equallllllllllll")
   target_sources(app PRIVATE 
                       host_driven/src/main.c
                       ${TVM_SOURCES}
   )
 elseif($ENV{ZEPHYR_RUNTIME} STREQUAL "STANDALONE")
   target_sources(app PRIVATE
-                      standalone/src/main.c 
+                      standalone/src/main.c
+                      standalone/src/zephyr_runtime.c
                       ${TVM_SOURCES}
                       ${TVM_MODEL_FILES}                    
   )
