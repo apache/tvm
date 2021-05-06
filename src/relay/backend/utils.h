@@ -67,9 +67,15 @@ struct FunctionInfoNode : public Object {
 
 class FunctionInfo : public ObjectRef {
  public:
-  void SetWorkspaceSize(Target func_var, Integer size);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(FunctionInfo, ObjectRef, FunctionInfoNode);
 };
+
+/*!
+ * \brief Calculate the storage required to store the type of relay.Expr
+ *
+ * \param func The relay expr for which the storage is calculated
+ */
+int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
 
 /*!
  *  \brief Executor generator artifacts. Those artifacts  are subsequently

@@ -185,35 +185,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
   /*!
-   * \brief Calculate the storage required to store the type of relay.Expr
-   *
-   * \param func The relay expr for which the storage is calculated
-   */
-  int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
-    if (expr_type->IsInstance<TupleTypeNode>()) {
-      auto tuple_type = Downcast<TupleType>(expr_type);
-      int64_t size = 0;
-      for (const auto& field : tuple_type->fields) {
-        size += CalculateRelayExprSizeBytes(field);
-      }
-      return size;
-    }
-    auto tensor_type = expr_type.as<TensorTypeNode>();
-    auto shape = tensor_type->shape;
-    int num_of_elements = 1;
-    for (const auto& dim_index_expr : shape) {
-      if (dim_index_expr->IsInstance<IntImmNode>()) {
-        num_of_elements *= dim_index_expr.as<IntImmNode>()->value;
-      } else {
-        // If shape is dynamic, we cannot calculate workspace in compile time.
-        num_of_elements = 0;
-      }
-    }
-    auto element_size = tensor_type->dtype.bytes();
-    return element_size * num_of_elements;
-  }
-
-  /*!
    * \brief Update the "main" control function's metadata
    *
    * \param func The main function that contains calls to relay primitive functions
@@ -277,6 +248,11 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     // Populate FunctionInfo
     auto fi_node = make_object<FunctionInfoNode>();
+    // Initialize all target workspaces to zero
+    for (const auto& kv : targets_) {
+      auto tgt = kv.second;
+      fi_node->workspace_sizes.Set(tgt, 0);
+    }
     for (const auto& dev_and_size : device_workspace) {
       auto tgt = GetTargetFromInteger(dev_and_size.first);
       fi_node->workspace_sizes.Set(tgt, dev_and_size.second);
@@ -291,7 +267,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       fi_node->constant_sizes.Set(tgt, dev_and_size.second);
     }
 
-    function_metadata_.Set(kMainFuncStr, FunctionInfo(fi_node));
+    function_metadata_.Set(String(runtime::symbol::tvm_module_main), FunctionInfo(fi_node));
   }
 
   LoweredOutput Codegen(relay::Function func) {
@@ -754,8 +730,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   std::unordered_map<std::string, size_t> name_map_;
   /*! \brief compile engine */
   CompileEngine compile_engine_;
-  /*! \brief main function name */
-  const String kMainFuncStr = "run";
 };
 
 class GraphExecutorCodegenModule : public runtime::ModuleNode {

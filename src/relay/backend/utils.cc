@@ -28,16 +28,31 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-void FunctionInfo::SetWorkspaceSize(Target tgt, tvm::Integer size) {
-  (*this)->workspace_sizes.Set(tgt, size);
+int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
+  if (expr_type->IsInstance<TupleTypeNode>()) {
+    auto tuple_type = Downcast<TupleType>(expr_type);
+    int64_t size = 0;
+    for (const auto& field : tuple_type->fields) {
+      size += CalculateRelayExprSizeBytes(field);
+    }
+    return size;
+  }
+  auto tensor_type = expr_type.as<TensorTypeNode>();
+  auto shape = tensor_type->shape;
+  int num_of_elements = 1;
+  for (const auto& dim_index_expr : shape) {
+    if (dim_index_expr->IsInstance<IntImmNode>()) {
+      num_of_elements *= dim_index_expr.as<IntImmNode>()->value;
+    } else {
+      // If shape is dynamic, we cannot calculate workspace in compile time.
+      num_of_elements = 0;
+    }
+  }
+  auto element_size = tensor_type->dtype.bytes();
+  return element_size * num_of_elements;
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionInfoNode);
-TVM_REGISTER_GLOBAL("relay.backend.FunctionInfo").set_body_typed([]() { return FunctionInfo(); });
-TVM_REGISTER_GLOBAL("relay.backend._FunctionInfo_SetWorkspaceSize")
-    .set_body_typed([](FunctionInfo fi, Target target, Integer size) {
-      return fi.SetWorkspaceSize(target, size);
-    });
 
 }  // namespace backend
 }  // namespace relay

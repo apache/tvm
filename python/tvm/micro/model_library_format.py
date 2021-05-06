@@ -27,7 +27,8 @@ from ..contrib import utils
 from ..relay.backend import executor_factory
 from ..relay import param_dict
 
-MAIN_FUNC_NAME_STR = "run"
+# This should be kept identical to runtime::symbol::tvm_module_main
+MAIN_FUNC_NAME_STR = "__tvm_main__"
 
 
 class UnsupportedInModelLibraryFormatError(Exception):
@@ -79,8 +80,7 @@ def _build_memory_map(mod):
     ret = dict()
     if isinstance(mod, executor_factory.GraphExecutorFactoryModule):
         ret["sids"] = _build_sid_map(mod.graph_json)
-        # TODO(@manupa-arm): add AoT executor support
-        ret["functions"] = _build_function_memory_map(mod.function_metadata)
+    ret["functions"] = _build_function_memory_map(mod.function_metadata)
     return ret
 
 
@@ -146,15 +146,16 @@ def _build_function_memory_map(function_metadata):
         2.) A global memory requirement if all functions are executed sequentially
     """
     device_max_workspace = dict()
-    num_targets = len(function_metadata[MAIN_FUNC_NAME_STR].workspace_sizes.items())
+    main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
+    num_targets = len(main_func_metadata.workspace_sizes.items())
     func_entries = []
     target_local_entries = dict()
     for i in range(num_targets):
+        target = main_func_metadata.workspace_sizes.items()[i][0]
+        device_max_workspace[target] = 0
         for func_name, finfo in function_metadata.items():
             if func_name == MAIN_FUNC_NAME_STR:
                 continue
-            target = finfo.workspace_sizes.items()[i][0]
-            device_max_workspace[target] = 0
             target_local_entries[func_name] = list()
 
         for func_name, finfo in function_metadata.items():
@@ -180,7 +181,6 @@ def _build_function_memory_map(function_metadata):
         func_entries.append(func_entry)
 
     target_main_entries = list()
-    main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
     for i in range(num_targets):
         target = main_func_metadata.workspace_sizes.items()[i][0]
         main_func_local_workspace = main_func_metadata.workspace_sizes.items()[i][1]
@@ -198,7 +198,7 @@ def _build_function_memory_map(function_metadata):
 
     ret = {
         "operator_functions": func_entries,
-        "main_function": target_main_entries,
+        "main": target_main_entries,
     }
     return ret
 

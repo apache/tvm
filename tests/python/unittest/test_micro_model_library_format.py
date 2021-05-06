@@ -45,9 +45,16 @@ def validate_graph_json(extract_dir, factory):
 
 
 @tvm.testing.requires_micro
-def test_export_model_library_format_c():
+@pytest.mark.parametrize(
+    "target",
+    [
+        ("graph", tvm.target.target.micro("host")),
+        ("aot", tvm.target.target.micro("host", options="-executor=aot")),
+    ],
+)
+def test_export_model_library_format_c(target):
+    executor, _target = target
     with utils.TempDirectory.set_keep_for_debug(True):
-        target = tvm.target.target.micro("host")
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             relay_mod = tvm.parser.fromtext(
                 """
@@ -59,8 +66,8 @@ def test_export_model_library_format_c():
             )
             factory = tvm.relay.build(
                 relay_mod,
-                target,
-                target_host=target,
+                _target,
+                target_host=_target,
                 mod_name="add",
                 params={"c": numpy.array([[2.0, 4.0]], dtype="float32")},
             )
@@ -84,34 +91,35 @@ def test_export_model_library_format_c():
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
             )
             assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-            assert metadata["target"] == {"1": str(target)}
-            assert metadata["memory"]["sids"] == [
-                {"storage_id": 0, "size_bytes": 2, "input_binding": "a"},
-                {"storage_id": 1, "size_bytes": 8, "input_binding": "b"},
-                {"storage_id": 2, "size_bytes": 8, "input_binding": "p0"},
-                {"storage_id": 3, "size_bytes": 8},
+            assert metadata["target"] == {"1": str(_target)}
+            if executor == "graph":
+                assert metadata["memory"]["sids"] == [
+                    {"storage_id": 0, "size_bytes": 2, "input_binding": "a"},
+                    {"storage_id": 1, "size_bytes": 8, "input_binding": "b"},
+                    {"storage_id": 2, "size_bytes": 8, "input_binding": "p0"},
+                    {"storage_id": 3, "size_bytes": 8},
+                ]
+            assert metadata["memory"]["functions"]["main"] == [
+                {
+                    "constants_size_bytes": 8,
+                    "device": 1,
+                    "io_size_bytes": 18,
+                    "workspace_size_bytes": 0,
+                }
             ]
-            assert metadata["memory"]["functions"] == {
-                "main_function": [
-                    {
-                        "constants_size_bytes": 8,
-                        "device": 1,
-                        "io_size_bytes": 18,
-                        "workspace_size_bytes": 0,
-                    }
-                ],
-                "operator_functions": [
-                    {
-                        "function_name": "fused_cast_multiply_add",
-                        "workspace": [{"device": 1, "workspace_size_bytes": 0}],
-                    }
-                ],
-            }
+            assert metadata["memory"]["functions"]["operator_functions"][0]["workspace"] == [
+                {"device": 1, "workspace_size_bytes": 0}
+            ]
+            assert (
+                "fused_cast_multiply_add"
+                in metadata["memory"]["functions"]["operator_functions"][0]["function_name"]
+            )
 
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib0.c"))
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib1.c"))
 
-        validate_graph_json(extract_dir, factory)
+        if executor == "graph":
+            validate_graph_json(extract_dir, factory)
 
         with open(os.path.join(extract_dir, "relay.txt")) as relay_f:
             assert relay_f.read() == str(relay_mod)
@@ -170,22 +178,21 @@ def test_export_model_library_format_llvm():
                 {"storage_id": 2, "size_bytes": 8, "input_binding": "p0"},
                 {"storage_id": 3, "size_bytes": 8},
             ]
-            assert metadata["memory"]["functions"] == {
-                "main_function": [
-                    {
-                        "constants_size_bytes": 8,
-                        "device": 1,
-                        "io_size_bytes": 18,
-                        "workspace_size_bytes": 0,
-                    }
-                ],
-                "operator_functions": [
-                    {
-                        "function_name": "fused_cast_multiply_add_1",
-                        "workspace": [{"device": 1, "workspace_size_bytes": 0}],
-                    }
-                ],
-            }
+            assert metadata["memory"]["functions"]["main"] == [
+                {
+                    "constants_size_bytes": 8,
+                    "device": 1,
+                    "io_size_bytes": 18,
+                    "workspace_size_bytes": 0,
+                }
+            ]
+            assert metadata["memory"]["functions"]["operator_functions"][0]["workspace"] == [
+                {"device": 1, "workspace_size_bytes": 0}
+            ]
+            assert (
+                "fused_cast_multiply_add"
+                in metadata["memory"]["functions"]["operator_functions"][0]["function_name"]
+            )
 
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "lib", "lib0.o"))
 
@@ -200,8 +207,15 @@ def test_export_model_library_format_llvm():
 
 
 @tvm.testing.requires_micro
-def test_export_model_library_format_workspace():
-    target = tvm.target.target.micro("host")
+@pytest.mark.parametrize(
+    "target",
+    [
+        ("graph", tvm.target.target.micro("host")),
+        ("aot", tvm.target.target.micro("host", options="-executor=aot")),
+    ],
+)
+def test_export_model_library_format_workspace(target):
+    executor, _target = target
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         relay_mod = tvm.parser.fromtext(
             """
@@ -215,7 +229,7 @@ def test_export_model_library_format_workspace():
             }
             """
         )
-        factory = tvm.relay.build(relay_mod, target, target_host=target, mod_name="qnn_conv2d")
+        factory = tvm.relay.build(relay_mod, _target, target_host=_target, mod_name="qnn_conv2d")
 
     temp_dir = utils.tempdir()
     mlf_tar_path = temp_dir.relpath("lib.tar")
@@ -236,23 +250,22 @@ def test_export_model_library_format_workspace():
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
         )
         assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-        assert metadata["target"] == {"1": str(target)}
-        assert metadata["memory"]["functions"] == {
-            "main_function": [
-                {
-                    "constants_size_bytes": 0,
-                    "device": 1,
-                    "io_size_bytes": 1207040,
-                    "workspace_size_bytes": 2466816,
-                }
-            ],
-            "operator_functions": [
-                {
-                    "function_name": "fused_nn_conv2d_add_fixed_point_multiply_clip_cast",
-                    "workspace": [{"device": 1, "workspace_size_bytes": 2466816}],
-                }
-            ],
-        }
+        assert metadata["target"] == {"1": str(_target)}
+        assert metadata["memory"]["functions"]["main"] == [
+            {
+                "constants_size_bytes": 0,
+                "device": 1,
+                "io_size_bytes": 1207040,
+                "workspace_size_bytes": 2466816,
+            }
+        ]
+        assert metadata["memory"]["functions"]["operator_functions"][0]["workspace"] == [
+            {"device": 1, "workspace_size_bytes": 2466816}
+        ]
+        assert (
+            "fused_nn_conv2d_add_fixed_point_multiply_clip_cast"
+            in metadata["memory"]["functions"]["operator_functions"][0]["function_name"]
+        )
 
 
 @tvm.testing.requires_micro
