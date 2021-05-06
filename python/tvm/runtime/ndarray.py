@@ -62,7 +62,7 @@ class NDArray(NDArrayBase):
         """Device of this array"""
         return self.handle.contents.device
 
-    def __dlpack__(self, stream=None):
+    def __dlpack__(self, stream=None):  # pylint: disable=unused-argument
         """Export the array for consumption by from_dlpack() as a DLPack capsule.
 
         Parameters
@@ -343,8 +343,7 @@ def from_dlpack(dltensor):
     if hasattr(dltensor, "__dlpack__"):
         dlpack_caps = dltensor.__dlpack__()
         return _from_dlpack(dlpack_caps)
-    else:
-        raise AttributeError("Required attribute __dlpack__ not found")
+    raise AttributeError("Required attribute __dlpack__ not found")
 
 
 def cpu(dev_id=0):
