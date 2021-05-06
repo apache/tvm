@@ -72,7 +72,6 @@ def _get_runtime_path():
     return os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
 
 def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
-    import pdb; pdb.set_trace()
     test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{zephyr_board}"
     prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
@@ -91,15 +90,14 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
         env_vars={"ZEPHYR_RUNTIME": runtime_mode.upper()},
     )
 
-    
-
     opts = tvm.micro.default_options(os.path.join(_get_runtime_path(), "crt"))
-
     # TODO(weberlo) verify this is necessary
     opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
     opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
-    opts["bin_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
-    opts["lib_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
+    
+    if runtime_mode == "standalone":
+        opts["bin_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
+        opts["lib_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
 
     flasher_kw = {}
     if DEBUG:
@@ -109,7 +107,6 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
         "flasher": compiler.flasher(**flasher_kw),
     }
 
-    # import pdb; pdb.set_trace()
     if BUILD:
         session_kw["binary"] = tvm.micro.build_static_runtime(
             # the x86 compiler *expects* you to give the exact same dictionary for both
@@ -430,13 +427,14 @@ def test_standalone(platform, west_cmd):
     # Load ONNX model and convert to Relay.
     onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
-    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape)#, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
     
-    target = tvm.target.target.micro(model)
+    target = tvm.target.target.micro(model)#, options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_json()
+        params = lowered.get_params()
 
     # Export graph in C
     graph_file = os.path.join(runtime_path, "graph.json")
@@ -456,7 +454,6 @@ def test_standalone(platform, west_cmd):
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
-        import pdb; pdb.set_trace()
         print("end")
 
 if __name__ == "__main__":

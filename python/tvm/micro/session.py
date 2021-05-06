@@ -65,6 +65,7 @@ class Session:
         transport_context_manager=None,
         session_name="micro-rpc",
         timeout_override=None,
+        runtime_mode="host_driven",
     ):
         """Configure a new session.
 
@@ -84,12 +85,16 @@ class Session:
         timeout_override : TransportTimeouts
             If given, TransportTimeouts that govern the way Receive() behaves. If not given, this is
             determined by calling has_flow_control() on the transport.
+        runtime_mode : str
+            Runtime mode which could be one [host_driven, standalone]. Default uses host_driven which
+            means sessions requires an RPC server.
         """
         self.binary = binary
         self.flasher = flasher
         self.transport_context_manager = transport_context_manager
         self.session_name = session_name
         self.timeout_override = timeout_override
+        self.runtime_mode = runtime_mode
 
         self._rpc = None
         self._graph_executor = None
@@ -127,28 +132,29 @@ class Session:
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.DEBUG
         ).__enter__()
+        
+        if self.runtime_mode == "host_driven":
+            try:
+                timeouts = self.timeout_override
+                if timeouts is None:
+                    timeouts = self.transport.timeouts()
 
-        try:
-            timeouts = self.timeout_override
-            if timeouts is None:
-                timeouts = self.transport.timeouts()
-
-            self._rpc = RPCSession(
-                _rpc_connect(
-                    self.session_name,
-                    self._wrap_transport_write,
-                    self._wrap_transport_read,
-                    int(timeouts.session_start_retry_timeout_sec * 1e6),
-                    int(timeouts.session_start_timeout_sec * 1e6),
-                    int(timeouts.session_established_timeout_sec * 1e6),
+                self._rpc = RPCSession(
+                    _rpc_connect(
+                        self.session_name,
+                        self._wrap_transport_write,
+                        self._wrap_transport_read,
+                        int(timeouts.session_start_retry_timeout_sec * 1e6),
+                        int(timeouts.session_start_timeout_sec * 1e6),
+                        int(timeouts.session_established_timeout_sec * 1e6),
+                    )
                 )
-            )
-            self.device = self._rpc.cpu(0)
-            return self
+                self.device = self._rpc.cpu(0)
+                return self
 
-        except:
-            self.transport.__exit__(*sys.exc_info())
-            raise
+            except:
+                self.transport.__exit__(*sys.exc_info())
+                raise
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
