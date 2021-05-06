@@ -31,6 +31,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/transform.h>
 
 #include <algorithm>
 #include <list>
@@ -44,52 +45,185 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
+/**
+ * Struct to contain information about the intermediate tensors in the
+ * runner function
+ */
+struct StorageInfo {
+  /*! \brief storage integer identifier of the particular intermediate buffer */
+  int sid;
+  /*! \brief exact size of the temporary */
+  int size_bytes;
+  /*! \brief device type of the intermediate tensor */
+  int dev_type;
+};
+
 using IntegerArray = Array<Integer>;
 using TargetsMap = std::unordered_map<int, Target>;
+using StorageMap = std::unordered_map<Expr, std::vector<StorageInfo>, runtime::ObjectPtrHash,
+                                      runtime::ObjectPtrEqual>;
 
-class AotReturnSidVisitor : public ExprVisitor {
+/**
+ * This is an on demand allocator for AOT. A new temporary
+ * (storage allocator identifier) is allocated for each operation.
+ */
+class AOTOnDemandAllocator : public ExprVisitor {
  public:
-  explicit AotReturnSidVisitor(Map<Expr, Array<IntegerArray>> storage_device_map)
-      : storage_device_map_{storage_device_map}, return_sid_{-1} {}
+  // run the visitor on a function.
+  void Run(const Function& func) {
+    node_device_map_ = CollectDeviceInfo(func);
 
-  IntegerArray FindReturnSid(Function func) {
-    VisitExpr(func->body);
-    return return_sid_;
-  }
-
- protected:
-  void AssignReturnSid(Expr e) {
-    auto iter = storage_device_map_.find(e);
-    if (iter != storage_device_map_.end()) {
-      return_sid_ = (*iter).second[0];
+    for (Expr param : func->params) {
+      CreateStorage(param.operator->());
     }
+
+    GetStorage(func->body);
   }
 
-  void VisitExpr_(const ConstantNode* cn) override {
-    ExprVisitor::VisitExpr_(cn);
-    AssignReturnSid(GetRef<Expr>(cn));
+  std::vector<int> GetReturnIds() const { return return_ids_; }
+
+  StorageMap GetStorageMap() const { return storage_device_map_; }
+
+  void VisitExpr_(const ConstantNode* op) final {
+    CreateStorage(op);
+    AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void VisitExpr_(const VarNode* vn) override {
-    ExprVisitor::VisitExpr_(vn);
-    AssignReturnSid(GetRef<Expr>(vn));
+  void VisitExpr_(const CallNode* op) final {
+    // create token for the call node.
+    CreateStorage(op);
+    for (Expr arg : op->args) {
+      GetStorage(arg);
+    }
+    AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void VisitExpr_(const CallNode* cn) override {
-    ExprVisitor::VisitExpr_(cn);
-    AssignReturnSid(GetRef<Expr>(cn));
+  void VisitExpr_(const VarNode* op) final {
+    ExprVisitor::VisitExpr_(op);
+    AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void VisitExpr_(const LetNode* op) override { VisitExpr(op->body); }
-
-  void VisitExpr_(const TupleNode* tn) override {
-    ExprVisitor::VisitExpr_(tn);
-    AssignReturnSid(GetRef<Expr>(tn));
+  void VisitExpr_(const FunctionNode* op) final {
+    // do not recurse into sub function.
   }
+
+  void VisitExpr_(const GlobalVarNode* op) final {
+    // Do nothing.
+  }
+
+  void VisitExpr_(const OpNode* op) final {
+    // Do nothing.
+  }
+
+  void VisitExpr_(const TupleNode* op) final {
+    std::vector<StorageInfo> field_sids;
+    Expr expr = GetRef<Expr>(op);
+    for (Expr field : op->fields) {
+      auto sid = GetStorage(field);
+      field_sids.insert(field_sids.end(), sid.begin(), sid.end());
+    }
+
+    storage_device_map_[expr] = field_sids;
+    AssignReturnSid(expr);
+  }
+
+  void VisitExpr_(const TupleGetItemNode* op) final {
+    Expr expr = GetRef<Expr>(op);
+    const auto& sids = GetStorage(op->tuple);
+    ICHECK_LT(static_cast<size_t>(op->index), sids.size());
+    storage_device_map_[expr] = {sids[op->index]};
+    AssignReturnSid(expr);
+  }
+
+  void VisitExpr_(const IfNode* op) final { LOG(FATAL) << "if is not supported."; }
+
+  void VisitExpr_(const LetNode* op) final { LOG(FATAL) << "if is not supported."; }
 
  private:
-  Map<Expr, Array<IntegerArray>> storage_device_map_;
-  IntegerArray return_sid_;
+  void AssignReturnSid(Expr e) {
+    if (storage_device_map_.find(e) != storage_device_map_.end()) {
+      auto buffers = storage_device_map_[e];
+      std::vector<int> return_ids;
+      for (auto buffer : buffers) {
+        return_ids.push_back(buffer.sid);
+      }
+      return_ids_ = return_ids;
+    }
+  }
+  /*!
+   * \brief ceil(size/word_size) to get number of words.
+   * \param size The original size.
+   * \param word_size The element size.
+   */
+  static size_t DivRoundUp(size_t size, size_t word_size) {
+    return (size + word_size - 1) / word_size;
+  }
+  /*!
+   * \brief Get the memory requirement.
+   * \param prototype The prototype token.
+   * \return The required memory size.
+   */
+  size_t GetMemorySize(const TensorTypeNode* ttype) {
+    ICHECK(ttype != nullptr);
+    size_t size = 1;
+    for (IndexExpr dim : ttype->shape) {
+      const int64_t* pval = tir::as_const_int(dim);
+      ICHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
+      ICHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
+      size *= static_cast<size_t>(pval[0]);
+    }
+    size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
+    return size;
+  }
+  /*!
+   * \brief Get the necessary storage for the expression.
+   * \param expr The expression.
+   * \return The corresponding token.
+   */
+  std::vector<StorageInfo> GetStorage(const Expr& expr) {
+    this->VisitExpr(expr);
+    auto it = storage_device_map_.find(expr);
+    ICHECK(it != storage_device_map_.end());
+    return it->second;
+  }
+
+  /*!
+   * \brief Create storage for the expression.
+   * \param expr The expression.
+   */
+  void CreateStorage(const ExprNode* op) {
+    std::vector<StorageInfo> buffers;
+    Expr expr = GetRef<Expr>(op);
+    int device_type = node_device_map_.count(GetRef<Expr>(op)) ? node_device_map_[expr]->value : 0;
+    if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
+      for (Type t : tuple_type->fields) {
+        const auto* ttype = t.as<TensorTypeNode>();
+        ICHECK(ttype);
+        StorageInfo buffer;
+        buffer.sid = sid_++;
+        buffer.size_bytes = GetMemorySize(ttype);
+        buffer.dev_type = device_type;
+        buffers.push_back(buffer);
+      }
+    } else {
+      const auto* ttype = op->checked_type().as<TensorTypeNode>();
+      ICHECK(ttype);
+      StorageInfo buffer;
+      buffer.sid = sid_++;
+      buffer.size_bytes = GetMemorySize(ttype);
+      buffer.dev_type = device_type;
+      buffers.push_back(buffer);
+    }
+    storage_device_map_[expr] = buffers;
+  }
+  /*! \brief mapping of expression -> storageInfo*/
+  StorageMap storage_device_map_;
+  /*! \brief mapping of expression -> device type*/
+  Map<Expr, Integer> node_device_map_;
+  /*! \brief current id of the temporary allocated*/
+  int sid_{0};
+  /*! \brief the set of intermediate tensors that are return variables */
+  std::vector<int> return_ids_;
 };
 
 /*! \brief Code generator for AOT executor */
@@ -120,37 +254,37 @@ class AOTExecutorCodegen : public ExprVisitor {
    * \brief Return a vector of variables that represents the sids for the given Relay Expr
    */
   std::vector<tir::Var> PackSid(Expr expr) {
-    Array<IntegerArray> sids = storage_device_map_[expr];
-    std::vector<tir::Var> sid_vars;
+    auto buffers = storage_device_map_[expr];
+    std::vector<tir::Var> buffer_vars;
 
     // Note that an expression can have multiple sids associated with it
     // e.g., returning multiple values from a function
-    for (const auto& sid : sids[0]) {
+    for (const auto& buffer : buffers) {
       // Determine if an sid is an output buffer
-      int sid_int = static_cast<int>((sid.as<IntImmNode>())->value);
-      auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sid_int);
+      int sid = buffer.sid;
+      auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sid);
       if (output_iter != return_sid_.end()) {
         int output_index = std::distance(return_sid_.begin(), output_iter);
-        sid_vars.push_back(main_signature_[input_vars_.size() + output_index]);
+        buffer_vars.push_back(main_signature_[input_vars_.size() + output_index]);
         continue;
       }
-      // Pack the sid inside the TVMValue
-      auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
-      auto sid_value = sids_table_[sid];
 
+
+      auto sid_value = sids_table_[sid];
       if (!use_unpacked_api_) {
+    	// Pack the sid inside the TVMValue
+    	auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
         tvm::PrimExpr set_tensor =
             tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                            {sid_array, 0, tir::builtin::kArrData, sid_value});
         stmts_.push_back(
             tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
+        buffer_vars.push_back(sid_array);
       } else {
-        stmts_.push_back(tir::LetStmt(sid_array, sid_value, tir::Evaluate(0)));
+    	  buffer_vars.push_back(sid_value)
       }
-
-      sid_vars.push_back(sid_array);
     }
-    return sid_vars;
+    return buffer_vars;
   }
 
   /*!
@@ -390,8 +524,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     }
 
     ICHECK_GE(storage_device_map_.count(expr), 0);
-    auto& device_type = storage_device_map_[expr][1];
-    auto call_dev_type = device_type[0]->value;
+    auto call_dev_type = storage_device_map_[expr][0].dev_type;
     // Normal Relay Function
     if (targets_.size() == 1) {
       // homogeneous execution.
@@ -428,14 +561,14 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // If the Var node is an output node we need to copy the content of the variable to the output
     // It's safe to check the SID here because Var StorageToken are never reallocated
-    Array<IntegerArray> sids = storage_device_map_[expr];
+    auto buffers = storage_device_map_[expr];
 
-    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(),
-                                 static_cast<int>((sids[0][0].as<IntImmNode>())->value));
+    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), buffers[0].sid);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
       auto var_expr = FindExpr(expr);
-      CopyToOutput(main_signature_[input_vars_.size() + output_index], var_expr[0], sids[2][0]);
+      CopyToOutput(main_signature_[input_vars_.size() + output_index], var_expr[0],
+                   buffers[0].size_bytes);
     }
   }
 
@@ -444,18 +577,18 @@ class AOTExecutorCodegen : public ExprVisitor {
     size_t index = params_.size();
     std::string name = "p" + std::to_string(index);
 
-    param_storage_ids_[name] = storage_device_map_[expr][0][0]->value;
+    param_storage_ids_[name] = storage_device_map_[expr][0].sid;
     params_[name] = op->data;
     params_by_expr_.Set(expr, name);
 
     // If the Constant node is an output node we need to copy the content of the parameter to the
     // output A Var node can only produce a single output
-    Array<IntegerArray> sids = storage_device_map_[expr];
-    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(),
-                                 static_cast<int>((sids[0][0].as<IntImmNode>())->value));
+    auto buffers = storage_device_map_[expr];
+    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), buffers[0].sid);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
-      CopyToOutput(main_signature_[input_vars_.size() + output_index], PackParam(expr), sids[2][0]);
+      CopyToOutput(main_signature_[input_vars_.size() + output_index], PackParam(expr),
+                   buffers[0].size_bytes);
     }
   }
 
@@ -511,9 +644,9 @@ class AOTExecutorCodegen : public ExprVisitor {
         continue;
       }
 
-      for (unsigned int i = 0; i < kv.second[0].size(); i++) {
-        int size = kv.second[2][i];
-        int sid = static_cast<int>((kv.second[0][i].as<IntImmNode>())->value);
+      for (unsigned int i = 0; i < kv.second.size(); i++) {
+        int size = kv.second[i].size_bytes;
+        int sid = kv.second[i].sid;
 
         if (std::find(return_sid_.begin(), return_sid_.end(), sid) != return_sid_.end()) {
           continue;
@@ -523,6 +656,8 @@ class AOTExecutorCodegen : public ExprVisitor {
         // so we don't pay the price of allocation for every inference
         if (!allocated[sid]) {
           body = tir::Allocate(sids_table_[sid], DataType::Int(8), {size}, tir::const_true(), body);
+          body = tir::AttrStmt(sids_table_[sid], tir::attr::storage_scope, tir::StringImm("global"),
+                               body);
         }
         allocated[sid] = true;
       }
@@ -578,7 +713,8 @@ class AOTExecutorCodegen : public ExprVisitor {
   std::unordered_map<std::string, int64_t> param_storage_ids_;
 
   /*! \brief plan memory of device result */
-  Map<Expr, Array<IntegerArray>> storage_device_map_;
+  StorageMap storage_device_map_;
+  /*! \brief mapping sid -> tir::Var */
   std::unordered_map<int, te::Var> sids_table_;
   /*! \brief lowered funcs */
   std::unordered_map<std::string, IRModule> lowered_funcs_;
@@ -589,9 +725,10 @@ class AOTExecutorCodegen : public ExprVisitor {
   /*! \brief the set of statements that make the program */
   std::vector<tir::Stmt> stmts_;
   /*! \brief the list of return sids (note that the function might return more then one output */
-  IntegerArray return_sid_;
+  std::vector<int> return_sid_;
   /*! \brief the module name we use to mangle the function names */
   String mod_name_;
+
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
@@ -602,9 +739,11 @@ class AOTExecutorCodegen : public ExprVisitor {
         compile_engine_(CompileEngine::Global()) {}
 
   LoweredOutput Codegen(relay::Function func, String mod_name) {
-    // Get the module, storage map and token sizes
-    auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
-    storage_device_map_ = (*pf)(func);
+    auto aot_allocator = AOTOnDemandAllocator();
+    aot_allocator.Run(func);
+
+    // Retrieve the storage map
+    storage_device_map_ = aot_allocator.GetStorageMap();
     mod_name_ = mod_name;
 
     for (auto input : func->params) {
@@ -614,14 +753,14 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Define the storage allocator ids
     for (auto kv : storage_device_map_) {
-      for (const auto& sid : kv.second[0]) {
-        te::Var sid_var(MakeString("sid_", sid), PointerType(PrimType(DataType::Int(8))));
-        sids_table_[sid] = sid_var;
+      for (const auto& buffer : kv.second) {
+        te::Var buffer_var(MakeString("sid_", buffer.sid), PointerType(PrimType(DataType::Int(8))));
+        sids_table_[buffer.sid] = buffer_var;
       }
     }
 
-    // Find the return sid
-    return_sid_ = AotReturnSidVisitor(storage_device_map_).FindReturnSid(func);
+    // Retrieve the return sids
+    return_sid_ = aot_allocator.GetReturnIds();
     for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
       main_signature_.push_back(tir::Var("output", DataType::Handle()));
     }
@@ -649,14 +788,21 @@ class AOTExecutorCodegen : public ExprVisitor {
     }
     ret.external_mods = compile_engine_->LowerExternalFunctions();
 
+    // Build the TIR IRModule
+    Map<GlobalVar, BaseFunc> symbol_map;
+    symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
+    IRModule mod_run(symbol_map);
+
+    // Apply storage rewrite pass to the runner function to do memory planning
+    auto storage_rewrite = tir::transform::StorageRewrite();
+    mod_run = storage_rewrite(mod_run);
+
+    // Update the lowered functions
     auto target_host_str = target_host_->str();
     if (ret.lowered_funcs.find(target_host_str) != ret.lowered_funcs.end()) {
-      ret.lowered_funcs[target_host_str]->Add(
-          GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
+      ret.lowered_funcs[target_host_str]->Update(mod_run);
     } else {
-      Map<GlobalVar, BaseFunc> symbol_map;
-      symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
-      ret.lowered_funcs.Set(target_host_str, IRModule(symbol_map));
+      ret.lowered_funcs.Set(target_host_str, mod_run);
     }
     ret.function_metadata = std::move(function_metadata_);
     ret.metadata = runtime::Metadata(input_vars_.size(), return_sid_.size(),

@@ -138,6 +138,34 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     if (op->op.same_as(builtin::address_of())) {
       const LoadNode* l = op->args[0].as<LoadNode>();
       this->VisitExpr(l->index);
+    } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
+      // Recall that the arguments of a tvm_call_cpacked are passed as
+      // TVMValues. But a TVMValue is only a container, that points to
+      // a real buffer previously allocated. We need to signal that those
+      // buffers need to be live at the same time (i.e., cannot be overridden)
+      Array<PrimExpr> args = op->args;
+      for (auto arg : args) {
+        const VarNode* var = arg.as<VarNode>();
+        if (value_to_alloc_.find(var) != value_to_alloc_.end()) {
+          auto allocs = value_to_alloc_[var];
+          for (const VarNode* alloc : allocs) {
+            VisitExpr_(alloc);
+          }
+        } else {
+          this->VisitExpr(arg);
+        }
+      }
+    } else if (op->op.same_as(builtin::tvm_struct_set())) {
+      // If we are using a struct_set built-in, and we are setting
+      // a DLTensor ArrayData field, let's note down the
+      // buffers that the TVMValue refers to
+      const VarNode* var = op->args[0].as<VarNode>();
+      const VarNode* alloc = op->args[3].as<VarNode>();
+      const int field_id = op->args[2].as<IntImmNode>()->value;
+      if (var && alloc && field_id == tir::builtin::kArrData) {
+        value_to_alloc_[var].push_back(alloc);
+      }
+      StmtExprVisitor::VisitExpr_(op);
     } else {
       StmtExprVisitor::VisitExpr_(op);
     }
@@ -206,6 +234,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   bool in_thread_env_{false};
   // The scope stack.
   std::vector<StmtEntry> scope_;
+  // This is a map to connect TVMValues to real allocations
+  std::unordered_map<const VarNode*, std::vector<const VarNode*>> value_to_alloc_;
 };
 
 // Verify if the statement can be run safely via inplace fashion
@@ -887,11 +917,11 @@ class StoragePlanRewriter : public StmtExprMutator {
   // symbolic free list, for non constant items.
   std::list<StorageEntry*> sym_free_list_;
   // The allocation attach map
-  std::unordered_map<const Object*, std::vector<StorageEntry*> > attach_map_;
+  std::unordered_map<const Object*, std::vector<StorageEntry*>> attach_map_;
   // The allocation assign map
   std::unordered_map<const VarNode*, StorageEntry*> alloc_map_;
   // The allocations
-  std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
+  std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
   // analyzer
   arith::Analyzer analyzer_;
 };
@@ -950,7 +980,7 @@ class VectorAllocRewriter : public StmtExprMutator {
   }
 
   // Internal access map
-  std::unordered_map<const VarNode*, std::vector<DataType> > acc_map_;
+  std::unordered_map<const VarNode*, std::vector<DataType>> acc_map_;
   // Variables to remap
   Map<tir::Var, PrimExpr> var_remap_;
   // internal analyzer
