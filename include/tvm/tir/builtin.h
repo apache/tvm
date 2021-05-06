@@ -349,6 +349,18 @@ TVM_DLL const Op& tvm_call_packed();
 /*!
  * \brief See pesudo code
  *
+ * return_type tvm_call_packed(fname, TVMValue* args) {
+ * 	   int ret_code;
+ *     TVMValue ret_value;
+ *     (*fname)(args, type_code_of(args), len(args), &ret_value, &ret_code);
+ *     return cast(return_type, ret_value.v_return_type);
+ *  }
+ */
+TVM_DLL const Op& tvm_call_cpacked();
+
+/*!
+ * \brief See pesudo code
+ *
  *  return_type tvm_call_trace_packed(name, TVMValue* args) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const PackedFunc* f = env->GetFuncFromEnv(name);
@@ -391,6 +403,21 @@ TVM_DLL const Op& tvm_thread_context();
  *  }
  */
 TVM_DLL const Op& tvm_call_packed_lowered();
+
+/*!
+ * \brief Lowered version of call c-packed, the space of value and
+ *  type codes are explicitly allocated.
+ *
+ *  int tvm_call_packed_lowered(fname,
+ *                              TVMValue* value_stack,
+ *                              int* tcode_stack,
+ *                              int begin,
+ *                              int end) {
+ *     fname(TVMArgs(value_stack[begin:end], tcode_stack[begin:end]),
+ *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *  }
+ */
+TVM_DLL const Op& tvm_call_cpacked_lowered();
 
 /*!
  * \brief Lowered version of trace intrinsic, the space of value and

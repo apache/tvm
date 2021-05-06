@@ -185,7 +185,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * do nothing.
    */
   void BuildEngine() {
-    batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
+    batch_size_ =
+        data_entry_[input_var_eid_[0]]->ndim == 0 ? 1 : data_entry_[input_var_eid_[0]]->shape[0];
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) return;
     DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_
                << " with batch size " << batch_size_;

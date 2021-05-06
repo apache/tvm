@@ -2705,14 +2705,14 @@ def test_forward_truncatemod():
 # --------------------------
 
 
-def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
+def _test_gather(ip_shape, indice_shape, indice_value, axis, batch_dims, dtype):
     """ One iteration of a GatherV2 """
 
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data = tf.placeholder(dtype, ip_shape, name="in_data")
         indices = tf.placeholder("int32", indice_shape, name="indices")
-        out = tf.gather(in_data, indices, axis=axis)
+        out = tf.gather(in_data, indices, axis=axis, batch_dims=batch_dims)
         np_data = np.random.uniform(1, 10, size=ip_shape).astype(dtype)
 
         def _fill_indices(indice_value):
@@ -2724,22 +2724,34 @@ def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
             return indices
 
         np_indices = _fill_indices(indice_value)
-
         compare_tf_with_tvm([np_data, np_indices], ["in_data:0", "indices:0"], out.name)
 
 
 def test_forward_gather():
     """test Gather/GatherV2 layer"""
-    _test_gather((4,), (1,), 1, 0, "int32")
-    _test_gather((4,), (1,), 1, 0, "float32")
-    _test_gather((1, 4), (1,), [0], 0, "int32")
-    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "float32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "int32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, "int32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "float32")
-    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, "int32")
-    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, "int32")
-    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, "float32")
+    _test_gather((4,), (1,), 1, 0, 1, "int32")
+    _test_gather((4,), (1,), 1, 0, 0, "float32")
+    _test_gather((1, 4), (1,), [0], 0, 0, "int32")
+    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "float32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "int32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, 0, "int32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "float32")
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 0, "int32")
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 0, "int32")
+    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 0, "float32")
+    _test_gather((2, 2), (2, 2), [[0, 0], [0, 0]], 1, 1, "float32")
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 2, 2, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 1, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 2, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 0, "float32"
+    )
 
 
 #######################################################################

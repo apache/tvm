@@ -112,8 +112,8 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
     }
     std::sort(std::begin(keys), std::end(keys),
               [&](const std::string& lhs, const std::string& rhs) -> bool {
-                auto lhs_size = GetDataSize(value[lhs].ToDLPack()->dl_tensor);
-                auto rhs_size = GetDataSize(value[rhs].ToDLPack()->dl_tensor);
+                auto lhs_size = GetDataSize(*value[lhs].operator->());
+                auto rhs_size = GetDataSize(*value[rhs].operator->());
                 return lhs_size > rhs_size;
               });
     for (const auto& key : keys) {

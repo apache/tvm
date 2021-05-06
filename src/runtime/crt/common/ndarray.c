@@ -26,7 +26,7 @@
 
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/platform.h>
 
 #include "crt_config.h"

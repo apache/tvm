@@ -117,7 +117,7 @@ def get_relay_dense(m=128, n=128, k=128):
     dtype = "float32"
     d = relay.var("data", shape=(m, k), dtype=dtype)
     w = relay.var("weight", shape=(n, k), dtype=dtype)
-    y = relay.nn.dense(d, w, units=n)
+    y = relay.nn.dense(d, w)
     mod = tvm.IRModule()
     mod["main"] = relay.Function([d, w], y)
     data, weight = get_np_array(d, dtype), get_np_array(w, dtype)

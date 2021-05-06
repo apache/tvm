@@ -426,7 +426,15 @@ def try_get_sparse_input(args):
             density *= i
         density /= k * n
         density = density.value
-        sparse_prefix = "%s_%d_%d_%d_%d_%.2f_" % (prefix_init, n, k, bs_r, bs_c, density)
+        sparse_prefix = "%s_%d_%d_%d_%d_%d_%d_" % (
+            prefix_init,
+            n,
+            k,
+            bs_r,
+            bs_c,
+            sparse_indices.shape[0],
+            sparse_indptr.shape[0],
+        )
 
     visited = set()
 

@@ -31,5 +31,4 @@ There can be internal header files within each module that sit in src.
 - relay: Relay IR, high-level optimization.
 - autotvm: The auto-tuning module.
 - contrib: Contrib extension libraries.
-- api: API function registration.
 - driver: Compilation driver APIs.

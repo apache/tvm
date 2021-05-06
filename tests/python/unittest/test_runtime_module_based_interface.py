@@ -275,7 +275,7 @@ def test_mod_export():
 
         from tvm import rpc
 
-        server = rpc.Server("localhost", port=9094)
+        server = rpc.Server("127.0.0.1", port=9094)
         remote = rpc.connect(server.host, server.port)
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
@@ -543,7 +543,7 @@ def test_debug_graph_executor():
     debug_g_mod = debug_executor.GraphModuleDebug(
         complied_graph_lib["debug_create"]("default", dev),
         [dev],
-        complied_graph_lib.get_json(),
+        complied_graph_lib.get_graph_json(),
         None,
     )
     debug_g_mod.set_input("data", data)

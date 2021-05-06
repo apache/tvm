@@ -15,14 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import te
-from tvm.testing import assert_allclose
-from tvm import topi
-from tvm.topi.utils import get_const_tuple
-import pytest
-
 import numpy as np
+import pytest
+import tvm
+from tvm import te, topi
+from tvm.testing import assert_allclose
+from tvm.topi.utils import get_const_tuple
 
 
 def check_grad(
@@ -193,10 +191,10 @@ def test_topi():
     R = topi.nn.conv2d(X, topi.broadcast_to(W2, (5, 2, 3, 3)), 1, 1, 1)
     check_grad(R, [X, W2])
 
-    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], "avg")
+    R = topi.nn.pool2d(X, [2, 2], [1, 1], [2, 2], [0, 0, 0, 0], "avg")
     check_grad(R, X)
 
-    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], "max")
+    R = topi.nn.pool2d(X, [2, 2], [1, 1], [2, 2], [0, 0, 0, 0], "max")
     check_grad(R, X)
 
     X = te.placeholder((1, 2, 5, 5), name="X")
@@ -316,23 +314,23 @@ def test_stride_dilation():
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
     check_grad(Y, [X, W])
 
-    Y = topi.nn.pool(X, [1, 1], [1, 1], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [1, 1], [1, 1], [1, 1], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [1, 1], [2, 2], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [1, 1], [1, 1], [2, 2], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [1, 1], [3, 3], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [1, 1], [1, 1], [3, 3], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [2, 2], [1, 1], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [2, 2], [1, 1], [1, 1], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [2, 2], [1, 1], [2, 2], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [2, 2], [3, 3], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [2, 2], [1, 1], [3, 3], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [3, 3], [1, 1], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [3, 3], [1, 1], [1, 1], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [3, 3], [2, 2], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [3, 3], [1, 1], [2, 2], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [3, 3], [3, 3], [0, 0, 0, 0], "max")
+    Y = topi.nn.pool2d(X, [3, 3], [1, 1], [3, 3], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
 
 

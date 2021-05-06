@@ -787,7 +787,7 @@ def sparse_reshape_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@sparse_dense_padded_strategy.register(["cuda", "gpu"])
+@sparse_dense_padded_strategy.register(["cuda", "gpu", "rocm"])
 def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     """sparse dense cuda strategy"""
     strategy = _op.OpStrategy()

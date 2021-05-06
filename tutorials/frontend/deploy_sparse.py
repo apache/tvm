@@ -198,7 +198,7 @@ def import_graphdef(
             with open(os.path.join(abs_path, relay_params), "wb") as fo:
                 fo.write(runtime.save_param_dict(params))
 
-    return mod, params, shape_dict
+    return mod, dict(params.items()), shape_dict
 
 
 ###############################################################################

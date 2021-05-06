@@ -250,7 +250,7 @@ def test_onnx(platform, west_cmd):
     target = tvm.target.target.micro(model, options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
-        graph = lowered.get_json()
+        graph = lowered.get_graph_json()
 
     with _make_session(
         model, target, zephyr_board, west_cmd, lowered.lib, "host_driven"

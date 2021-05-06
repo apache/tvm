@@ -127,7 +127,9 @@ def server_start():
 def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="the hostname of the server")
+    parser.add_argument(
+        "--host", type=str, default="0.0.0.0", help="The host IP address the server binds to"
+    )
     parser.add_argument("--port", type=int, default=9091, help="The port of the RPC")
     parser.add_argument("--port-end", type=int, default=9199, help="The end search port of the RPC")
     parser.add_argument(

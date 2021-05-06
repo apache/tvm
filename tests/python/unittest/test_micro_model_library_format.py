@@ -26,7 +26,7 @@ import pytest
 
 import tvm
 import tvm.relay
-from tvm.relay.backend import graph_executor_factory
+from tvm.relay.backend import executor_factory
 import tvm.runtime.module
 import tvm.testing
 from tvm.contrib import utils
@@ -170,7 +170,7 @@ def test_export_model_library_format_llvm():
 @tvm.testing.requires_micro
 def test_export_model():
     module = tvm.support.FrontendTestModule()
-    factory = graph_executor_factory.GraphExecutorFactoryModule(
+    factory = executor_factory.GraphExecutorFactoryModule(
         None, tvm.target.target.micro("host"), '"graph_json"', module, "test_module", {}
     )
 

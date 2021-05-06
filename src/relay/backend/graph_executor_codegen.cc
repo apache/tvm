@@ -27,6 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/object.h>
 
 #include <list>
 #include <string>
@@ -50,14 +51,6 @@ using GraphObjectPtr = std::shared_ptr<GraphNode>;
 using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
 using TargetsMap = std::unordered_map<int, Target>;
-
-/*! \brief Lowered outputs */
-struct LoweredOutput {
-  std::string graph_json;
-  Map<String, IRModule> lowered_funcs;
-  Array<tvm::runtime::Module> external_mods;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-};
 
 /*! \brief Node types */
 enum GraphNodeType {
@@ -140,7 +133,7 @@ class GraphOpNode : public GraphNode {
     attrs_ = nd_attrs;
     op_name_ = op_name;
     inputs_ = inputs;
-    op_attrs_ = attrs_;
+    op_attrs_ = attrs;
     num_outputs_ = num_outputs;
     op_attrs_["func_name"] = op_name_;
     op_attrs_["flatten_data"] = std::string("0");
@@ -250,7 +243,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     size_t count = storage_device_map_.count(expr);
     ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
     auto storage_device_info = storage_device_map_[expr];
-    ICHECK_EQ(storage_device_info.size(), 2);
+    ICHECK_EQ(storage_device_info.size(), 3);
     // storage
     std::vector<int64_t> storage_info;
     for (auto& v : storage_device_info[0]) {
@@ -337,7 +330,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
   std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op, const std::string& op_name,
-                                             const std::string& func_name) {
+                                             const std::string& func_name, GraphAttrs attrs) {
     std::vector<GraphNodeRef> inputs;
     for (auto arg : op->args) {
       auto res = VisitExpr(arg);
@@ -345,8 +338,18 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
         inputs.push_back(nr);
       }
     }
-    auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, GraphAttrs());
+    auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, attrs);
     return AddNode(node, GetRef<Expr>(op));
+  }
+
+  bool ShareSameStorage(const Expr& lhs, const Expr& rhs) {
+    auto lit = storage_device_map_.find(lhs);
+    auto rit = storage_device_map_.find(rhs);
+    ICHECK(lit != storage_device_map_.end());
+    ICHECK(rit != storage_device_map_.end());
+    int64_t lhs_storage_id = ((*lit).second)[0][0]->value;
+    int64_t rhs_storage_id = ((*rit).second)[0][0]->value;
+    return lhs_storage_id == rhs_storage_id;
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* op) override {
@@ -367,6 +370,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
                  << "(i.e functions composed of fusable operator invocations)";
     }
 
+    // Copy attrs from function into the graph node
+    // For now we only handle strings
+    GraphAttrs attrs;
+    for (auto p : func->attrs->dict) {
+      if (p.second.as<StringObj>()) {
+        attrs[p.first] = std::string(Downcast<String>(p.second));
+      }
+    }
+
     auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
@@ -377,7 +389,20 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
-      return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
+      return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name, attrs);
+    }
+
+    // In the current flat memory allocation scenario
+    // the flat memory allocator can always allocate input
+    // and output of the reshape to the same memory, we can turn reshape only
+    // function to a nop.
+    //
+    // NOTE that for non-flat memory this is not necessarily true.
+    //
+    // TODO(tvm-team) Update checks of flat memory enablement when we support
+    // opaque-nd memory planning to skip this path.
+    if (func->HasNonzeroAttr(attr::kReshapeOnly) && ShareSameStorage(expr, op->args[0])) {
+      return GraphAddCallNode(op, "reshape_nop", "__nop", attrs);
     }
 
     ICHECK_GE(storage_device_map_.count(expr), 0);
@@ -407,7 +432,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
-    return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name);
+    return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name,
+                            attrs);
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {
@@ -614,6 +640,9 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.external_mods;
       });
+    } else if (name == "get_metadata") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});
     }
