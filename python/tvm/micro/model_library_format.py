@@ -79,7 +79,8 @@ def _build_memory_map(mod):
     ret = dict()
     if isinstance(mod, executor_factory.GraphExecutorFactoryModule):
         ret["sids"] = _build_sid_map(mod.graph_json)
-    ret["functions"] = _build_function_memory_map(mod.function_metadata)
+        # TODO(@manupa-arm): add AoT executor support
+        ret["functions"] = _build_function_memory_map(mod.function_metadata)
     return ret
 
 

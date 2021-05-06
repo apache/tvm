@@ -221,8 +221,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   void UpdateMainWorkspaceSize(const Function& func) {
     // This is a Map<device,Map<storage_id, size>>
     std::unordered_map<int, std::unordered_map<int, int>> sid_workspace;
-    // This is a Map<device, workspace_size>
-    std::unordered_map<int, int> device_workspace;
     // This is a Map<device, size_of_inputs_and_outputs>
     std::unordered_map<int, int> device_io;
     // This is a Map<device, size_of_constants>
@@ -237,7 +235,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
         sid_workspace[devices[i]][sids[i]] = 0;
         device_io[devices[i]] = 0;
         device_consts[devices[i]] = 0;
-        device_workspace[devices[i]] = 0;
       }
     }
 
@@ -267,9 +264,12 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       }
     }
 
+    // This is a Map<device, workspace_size>
+    std::unordered_map<int, int> device_workspace;
     // Once we know the sizes of sids, we need to accumulate per device
     for (const auto& dev_sid_size : sid_workspace) {
       auto dev = dev_sid_size.first;
+      device_workspace[dev] = 0;
       for (const auto& sid_size : dev_sid_size.second) {
         device_workspace[dev] += sid_size.second;
       }
