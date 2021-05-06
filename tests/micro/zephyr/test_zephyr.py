@@ -84,6 +84,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
         west_cmd=west_cmd,
+        env_vars={"ZEPHYR_RUNTIME": "HOST_DRIVEN"}
     )
 
     opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))

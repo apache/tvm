@@ -11,7 +11,26 @@ project(microtvm_zephyr_runtime)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 file(GLOB TVM_SOURCES ${CMAKE_SOURCE_DIR}/__tvm*.c)
-target_sources(app PRIVATE src/main.c ${TVM_SOURCES})
+
+set(TVM_MODEL_FILES 
+  ${CMAKE_SOURCE_DIR}/graph.json.c
+  ${CMAKE_SOURCE_DIR}/params.bin.c
+  ${CMAKE_SOURCE_DIR}/input.bin.c
+)
+
+if($ENV{ZEPHYR_RUNTIME} STREQUAL "HOST_DRIVEN")
+  message("equallllllllllll")
+  target_sources(app PRIVATE 
+                      host_driven/src/main.c
+                      ${TVM_SOURCES}
+  )
+elseif($ENV{ZEPHYR_RUNTIME} STREQUAL "STANDALONE")
+  target_sources(app PRIVATE
+                      standalone/src/main.c 
+                      ${TVM_SOURCES}
+                      ${TVM_MODEL_FILES}                    
+  )
+endif()
 
 foreach(tvm_lib ${TVM_LIBS})
   string(LENGTH ${tvm_lib} tvm_lib_length)
