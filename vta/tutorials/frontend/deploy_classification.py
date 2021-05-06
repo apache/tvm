@@ -63,6 +63,8 @@ from vta.top import graph_pack
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
+# Make sure vta is available
+assert tvm.get_global_func("tvm.contrib.vta.init", True) is not None
 
 ######################################################################
 # Define the platform and model targets
