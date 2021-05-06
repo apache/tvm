@@ -78,11 +78,8 @@ class MetalModuleNode final : public runtime::ModuleNode {
     std::unordered_map<std::string, std::string> split_kernels;
     if (source.size()) {
       std::string del{"// Function: "};
-      size_t end = 0;
       size_t begin = source.find(del);
-      ICHECK(begin != std::string::npos) << "The Metal module expects a kernel delimited "
-                                         << "source from code generation, but no kernel "
-                                         << "delimiter was found.";
+      size_t end = begin;
       while (end != std::string::npos) {
         begin += del.size();
         end = source.find('\n', begin);
@@ -113,12 +110,17 @@ class MetalModuleNode final : public runtime::ModuleNode {
     // compile
     NSError* err_msg = nil;
     id<MTLLibrary> lib = nil;
+    std::string source;
+    auto kernel = parsed_kernels_.find(func_name);
+    if (kernel != parsed_kernels_.end())
+      source = kernel->second;
+    else
+      source = data_;
     if (fmt_ == "metal") {
       MTLCompileOptions* opts = [MTLCompileOptions alloc];
       opts.languageVersion = MTLLanguageVersion2_3;
       opts.fastMathEnabled = YES;
       // opts = nil;
-      std::string source = parsed_kernels_[func_name];
       lib =
           [w->devices[device_id] newLibraryWithSource:[NSString stringWithUTF8String:source.c_str()]
                                               options:opts
@@ -133,7 +135,6 @@ class MetalModuleNode final : public runtime::ModuleNode {
     } else {
       // Build from library.
       auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
-      std::string source = parsed_kernels_[func_name];
       auto data = dispatch_data_create(source.c_str(), source.length(), q,
                                        ^{
                                        });
