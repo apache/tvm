@@ -352,6 +352,8 @@ def test_load_params_with_constants_in_ext_codegen():
     mod = transform.PartitionGraph()(mod)
 
     graph_module = relay.build(mod, target="llvm", params=params)
+    # Params will be stored in metadata module.
+    assert len(graph_module.get_params()) == 0
     lib = update_lib(graph_module.get_lib())
     rt_mod = tvm.contrib.graph_executor.create(graph_module.get_graph_json(), lib, tvm.cpu(0))
     rt_mod.load_params(runtime.save_param_dict(graph_module.get_params()))
