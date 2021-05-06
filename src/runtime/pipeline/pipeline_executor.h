@@ -41,11 +41,11 @@ namespace runtime {
  */
 class TVM_DLL SubGraphRuntime : public ModuleNode {
  public:
-   ~SubGraphRuntime() {
-     /* stop pipeline threads and release data in deconstructor.
-      */
-     Stop();
-   }
+  ~SubGraphRuntime() {
+    /* stop pipeline threads and release data in deconstructor.
+     */
+    Stop();
+  }
   /*!
    * \brief Get member function to front-end
    * \param name The name of the function.
