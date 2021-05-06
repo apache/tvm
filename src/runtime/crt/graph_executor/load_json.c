@@ -64,7 +64,7 @@ void JSONNodeEntryLoad(JSONNodeEntry* entry, JSONReader* reader) {
 
 void SeqPush(Seq* seq, uint32_t src) {
   if (seq->size >= seq->allocated) {
-    printf("seq too large.\n");
+    LOG_INFO("seq too large.\n");
   }
   seq->data[seq->size] = src;
   seq->size += 1;
@@ -72,17 +72,17 @@ void SeqPush(Seq* seq, uint32_t src) {
 
 uint32_t* SeqBack(Seq* seq) {
   if (seq->size >= seq->allocated) {
-    printf("seq too large.\n");
+    LOG_INFO("seq too large.\n");
   }
   return seq->data + (seq->size - 1);
 }
 
 void SeqPop(Seq* seq) {
   if (seq->size >= seq->allocated) {
-    printf("seq size is too large.\n");
+    LOG_INFO("seq size is too large.\n");
   }
   if (seq->size == 0) {
-    printf("seq size is too small.\n");
+    LOG_INFO("seq size is too small.\n");
   }
   seq->size -= 1;
 }
