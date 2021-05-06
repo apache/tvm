@@ -141,7 +141,7 @@ int TVMGraphExecutorNode_Load(TVMGraphExecutorNode* node, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(
           sizeof(TVMGraphExecutorNodeEntry) * num_inputs, dev, (void**)&node->inputs);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("19 memory allocate error: %08x", err);
         return -1;
       }
       while (reader->NextArrayItem(reader)) {
@@ -268,7 +268,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err =
           TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_DLTYPE * num_items, dev, (void**)&attr->dltype);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("5th memory allocate error: %08x", err);
         return -1;
       }
       dltype_count = 0;
@@ -326,7 +326,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err =
           TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->storage_id);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("6th memory allocate error: %08x", err);
         return -1;
       }
       storage_id_count = 0;
@@ -378,13 +378,13 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(
           sizeof(int64_t) * TVM_CRT_MAX_NDIM * num_items, dev, (void**)&attr->shape);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("7th memory allocate error: %08x", err);
         status = -1;
         break;
       }
       err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->ndim);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("8th memory allocate error: %08x", err);
         status = -1;
         break;
       }
@@ -453,7 +453,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       tvm_crt_error_t err =
           TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->device_index);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("10th memory allocate error: %08x", err);
         status = -1;
         break;
       }
@@ -586,7 +586,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNode) * num_items, dev,
                                                       (void**)&executor->nodes);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("1st memory allocate error: %08x", err);
         status = -1;
         break;
       }
@@ -622,7 +622,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
                                                       (void**)&executor->input_nodes);
 
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("2nd memory allocate error: %08x", err);
         status = -1;
         break;
       }
@@ -649,7 +649,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev,
                                                       (void**)&executor->node_row_ptr);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("3rd memory allocate error: %08x", err);
         status = -1;
         break;
       }
@@ -677,7 +677,7 @@ int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader) {
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorNodeEntry) * num_items,
                                                       dev, (void**)&executor->outputs);
       if (err != kTvmErrorNoError) {
-        LOG_ERROR("memory allocate error: %08x", err);
+        LOG_ERROR("4th memory allocate error: %08x", err);
         status = -1;
         break;
       }
@@ -795,7 +795,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   tvm_crt_error_t err =
       TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_NAME * executor->nodes_count, dev, (void**)&names);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("11th memory allocate error: %08x", err);
     status = -1;
     return status;
   }
@@ -933,7 +933,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(DLDataType) * attrs->dltype_count,
                                                   alloc_dev, (void**)&vtype);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("13 memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < attrs->dltype_count; idx++) {
@@ -945,7 +945,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorPoolEntry) * executor->nodes_count,
                                   alloc_dev, (void**)&pool_entry);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("14 memory allocate error: %08x", err);
     return -1;
   }
   memset(pool_entry, 0, sizeof(TVMGraphExecutorPoolEntry) * executor->nodes_count);
@@ -973,7 +973,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutorStorageEntry) * pool_entry_count,
                                   alloc_dev, (void**)&executor->storage_pool);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("18 memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < pool_entry_count; idx++) {
@@ -1017,7 +1017,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   err = TVMPlatformMemoryAllocate(sizeof(TVMNDArray) * executor->data_entry_count, alloc_dev,
                                   (void**)&executor->data_entry);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("15 memory allocate error: %08x", err);
     return -1;
   }
   for (idx = 0; idx < executor->data_entry_count; ++idx) {
@@ -1053,7 +1053,7 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* executor) {
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMPackedFunc) * executor->op_execs_count,
                                                   dev, (void**)&executor->op_execs);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("16 memory allocate error: %08x", err);
     status = -1;
     return status;
   }
@@ -1159,12 +1159,18 @@ int TVMGraphExecutor_Init(TVMGraphExecutor* executor, const char* graph_json,
   JSONReader reader;
   tvm_crt_error_t err = JSONReader_Create(graph_json, &reader);
   if (err != kTvmErrorNoError) {
+    LOG_ERROR("Graph Executor: Failed to create json.");
     return -1;
   }
 
-  TVMGraphExecutor_Load(executor, &reader);
+  int load_err = TVMGraphExecutor_Load(executor, &reader);
+  if (load_err != 0) {
+    LOG_ERROR("Graph Executor: Failed to load.");
+  }
+
   err = JSONReader_Release(&reader);
   if (err != kTvmErrorNoError) {
+    LOG_ERROR("Graph Executor: JsonReader failed to release.");
     return -1;
   }
   executor->module_handle = module_handle;
@@ -1173,14 +1179,12 @@ int TVMGraphExecutor_Init(TVMGraphExecutor* executor, const char* graph_json,
   int status;
   status = TVMGraphExecutor_SetupStorage(executor);
   if (status != 0) {
+    LOG_ERROR("Graph Executor: Failed to setup storage.");
     return status;
   }
   status = TVMGraphExecutor_SetupOpExecs(executor);
   if (status != 0) {
-    if (status != 0) {
-      return status;
-    }
-
+    LOG_ERROR("Graph Executor: Failed to setup Op Executives.");
     return status;
   }
 
@@ -1192,7 +1196,7 @@ int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
   DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphExecutor), dev, (void**)executor);
   if (err != kTvmErrorNoError) {
-    LOG_ERROR("memory allocate error: %08x", err);
+    LOG_ERROR("17 memory allocate error: %08x", err);
     return -1;
   }
 

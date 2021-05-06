@@ -26,8 +26,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/crt/internal/graph_executor/load_json.h>
+#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
+
+#include "crt_config.h"
 
 // the node entry structure in serialized format
 typedef struct JSONNodeEntry {
@@ -40,17 +43,17 @@ typedef struct JSONNodeEntry {
 void JSONNodeEntryLoad(JSONNodeEntry* entry, JSONReader* reader) {
   reader->BeginArray(reader);
   if (reader->NextArrayItem(reader)) {
-    fprintf(stderr, "invalid json format\n");
+    LOG_ERROR("invalid json format\n");
   }
   reader->ReadUnsignedInteger(reader, &(entry->node_id));
   if (reader->NextArrayItem(reader)) {
-    fprintf(stderr, "invalid json format\n");
+    LOG_ERROR("invalid json format\n");
   }
   reader->ReadUnsignedInteger(reader, &(entry->index));
   if (reader->NextArrayItem(reader)) {
     reader->ReadUnsignedInteger(reader, &(entry->version));
     if (!reader->NextArrayItem(reader)) {
-      fprintf(stderr, "invalid json format\n");
+      LOG_ERROR("invalid json format\n");
     }
   } else {
     entry->version = 0;
@@ -200,7 +203,7 @@ int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size
           out_str[output_counter++] = '\"';
           break;
         default:
-          fprintf(stderr, "unknown string escape %c\n", sch);
+          LOG_ERROR("unknown string escape %c\n", sch);
           break;
       }
     } else {
@@ -212,11 +215,11 @@ int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size
       }
     }
     if (output_counter == out_str_size - 1) {
-      fprintf(stderr, "Error: string size greater than buffer size (%zu).\n", out_str_size);
+      LOG_ERROR("Error: string size greater than buffer size (%zu).\n", out_str_size);
       break;
     }
     if (ch == EOF || ch == '\r' || ch == '\n') {
-      fprintf(stderr, "Error at line %zu, Expect \'\"\' but reach end of line\n",
+      LOG_ERROR("Error at line %zu, Expect \'\"\' but reach end of line\n",
               reader->line_count_n_);
       break;
     }
@@ -264,7 +267,7 @@ int JSONReader_ReadInteger(JSONReader* reader, int64_t* out_value) {
 void JSONReader_BeginObject(JSONReader* reader) {
   int ch = reader->NextNonSpace(reader);
   if (!(ch == '{')) {
-    fprintf(stderr, "Error at line %zu, Expect \'{\' but got \'%c\'\n", reader->line_count_n_, ch);
+    LOG_ERROR("Error at line %zu, Expect \'{\' but got \'%c\'\n", reader->line_count_n_, ch);
   }
   Seq* scope_counter_ = reader->scope_counter_;
   scope_counter_->push_back(scope_counter_, 0);
@@ -289,7 +292,7 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
       next = 0;
     } else {
       if (ch != ',') {
-        fprintf(stderr, "Error at line %zu, JSON object expect \'}\' or \',\' but got \'%c\'\n",
+        LOG_ERROR("Error at line %zu, JSON object expect \'}\' or \',\' but got \'%c\'\n",
                 reader->line_count_n_, ch);
       }
     }
@@ -307,12 +310,12 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
     scope_counter_->back(scope_counter_)[0] += 1;
     int err = reader->ReadString(reader, out_key, out_key_size);
     if (err != 0) {
-      fprintf(stderr, "error reading key");
+      LOG_ERROR("error reading key");
       return 0;
     }
     int ch = reader->NextNonSpace(reader);
     if (ch != ':') {
-      fprintf(stderr, "Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_,
+      LOG_ERROR("Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_,
               ch);
     }
     return 1;
@@ -333,7 +336,7 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
 void JSONReader_BeginArray(JSONReader* reader) {
   int ch = reader->NextNonSpace(reader);
   if (ch != '[') {
-    fprintf(stderr, "Error at line %zu, Expect \'[\' but get \'%c\'\n", reader->line_count_n_, ch);
+    LOG_ERROR("Error at line %zu, Expect \'[\' but get \'%c\'\n", reader->line_count_n_, ch);
   }
   Seq* scope_counter_ = reader->scope_counter_;
   scope_counter_->push_back(scope_counter_, 0);
@@ -356,7 +359,7 @@ uint8_t JSONReader_NextArrayItem(JSONReader* reader) {
       next = 0;
     } else {
       if (ch != ',') {
-        fprintf(stderr, "Error at line %zu, JSON object expect \']\' or \',\' but got \'%c\'\n",
+        LOG_ERROR("Error at line %zu, JSON object expect \']\' or \',\' but got \'%c\'\n",
                 reader->line_count_n_, ch);
       }
     }

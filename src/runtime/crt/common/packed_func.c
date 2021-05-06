@@ -60,7 +60,7 @@ DLDataType String2DLDataType(const char* s) {
     return t;
   } else {
     scan = s;
-    fprintf(stderr, "unknown type %s\n", s);
+    LOG_ERROR("unknown type %s\n", s);
   }
   char* xdelim;
   uint8_t bits = (uint8_t)(strtoul(scan, &xdelim, 10));
@@ -70,7 +70,7 @@ DLDataType String2DLDataType(const char* s) {
     t.lanes = (uint16_t)(strtoul(xdelim + 1, &endpt, 10));
   }
   if (!(endpt == s + strlen(s))) {
-    fprintf(stderr, "unknown type %s\n", s);
+    LOG_ERROR("unknown type %s\n", s);
   }
   return t;
 }
@@ -100,6 +100,7 @@ int TVMPackedFunc_InitModuleFunc(TVMPackedFunc* pf, TVMModuleHandle module, cons
 
   status = TVMModGetFunction(module, name, 0, &pf->fexec);
   if (status != 0) {
+    LOG_ERROR("PackedFunc: failed to get function {%s}.", name);
     return status;
   }
 
@@ -129,6 +130,18 @@ int TVMPackedFunc_Call(TVMPackedFunc* pf) {
 
 void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args) {
   memcpy(&(pf->args), args, sizeof(TVMArgs));
+}
+
+TVMModuleHandle TVMArgs_AsModuleHandle(const TVMArgs* args, size_t index) {
+  if (index >= args->values_count) {
+    TVMPlatformAbort(-1);
+  }
+
+  if (args->tcodes[index] != kTVMModuleHandle) {
+    TVMPlatformAbort(-1);
+  }
+
+  return args->values[index].v_handle;
 }
 
 TVMPackedFunc* g_fexecs;

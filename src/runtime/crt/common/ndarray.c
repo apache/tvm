@@ -27,6 +27,7 @@
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
+#include <tvm/runtime/crt/logging.h>
 
 #include "crt_config.h"
 
@@ -71,7 +72,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   memcpy(&header, *strm, sizeof(header));
   *strm += sizeof(header);
   if (header != kTVMNDArrayMagic) {
-    fprintf(stderr, "Invalid DLTensor file format\n");
+    LOG_ERROR("Invalid DLTensor file format\n");
     status = -1;
   }
   memcpy(&reserved, *strm, sizeof(reserved));
@@ -86,11 +87,11 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   memcpy(&dtype, *strm, sizeof(dtype));
   *strm += sizeof(dtype);
   if ((ndim < 0) || (ndim > TVM_CRT_MAX_NDIM)) {
-    fprintf(stderr, "Invalid ndim=%d: expected to be 0 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
+    LOG_ERROR("Invalid ndim=%d: expected to be 0 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
     status = -1;
   }
   if (dev.device_type != kDLCPU) {
-    fprintf(stderr, "Invalid DLTensor device: can only save as CPU tensor\n");
+    LOG_ERROR("Invalid DLTensor device: can only save as CPU tensor\n");
     status = -1;
   }
   int64_t shape[TVM_CRT_MAX_NDIM] = {0};
