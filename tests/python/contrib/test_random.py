@@ -73,7 +73,7 @@ def test_uniform():
     verify()
 
 
-@pytest.mark.skip('neo-ai/tvm: skip due to MemoryError')
+@pytest.mark.skip("neo-ai/tvm: skip due to MemoryError")
 def test_normal():
     m = 10240
     n = 10240
