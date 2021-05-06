@@ -33,12 +33,13 @@ namespace tvm {
 namespace runtime {
 namespace profiling {
 
-#define PAPI_CALL(func)                                                         \
-  {                                                                             \
-    int e = (func);                                                             \
-    if (e != PAPI_OK) {                                                                \
-      LOG(FATAL) << "PAPIError: in function " #func " " << e << " " << std::string(PAPI_strerror(e)); \
-    }                                                                           \
+#define PAPI_CALL(func)                                             \
+  {                                                                 \
+    int e = (func);                                                 \
+    if (e != PAPI_OK) {                                             \
+      LOG(FATAL) << "PAPIError: in function " #func " " << e << " " \
+                 << std::string(PAPI_strerror(e));                  \
+    }                                                               \
   }
 
 static const std::unordered_map<DLDeviceType, std::vector<std::string>> default_metric_names = {
@@ -108,10 +109,12 @@ int component_for_device(Device dev) {
 struct PAPIMetricCollectorNode final : public MetricCollectorNode {
   explicit PAPIMetricCollectorNode(Array<DeviceWrapper> devices) {
     if (!PAPI_is_initialized()) {
-      if(sizeof(long_long) > sizeof(int64_t)) {
-        LOG(WARNING) << "PAPI's long_long is larger than int64_t. Overflow may occur when reporting metrics.";
+      if (sizeof(long_long) > sizeof(int64_t)) {
+        LOG(WARNING) << "PAPI's long_long is larger than int64_t. Overflow may occur when "
+                        "reporting metrics.";
       }
-      CHECK_EQ(PAPI_library_init(PAPI_VER_CURRENT), PAPI_VER_CURRENT) << "Error while initializing PAPI";
+      CHECK_EQ(PAPI_library_init(PAPI_VER_CURRENT), PAPI_VER_CURRENT)
+          << "Error while initializing PAPI";
     }
 
     // create event sets for each device
@@ -269,7 +272,8 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
     }
   }
 
-  /*! \brief Device-specific event sets. Contains the running counters (the int values) for that device. */
+  /*! \brief Device-specific event sets. Contains the running counters (the int values) for that
+   * device. */
   std::unordered_map<Device, int> event_sets;
   /*! \brief Device-specific metric names. Order of names matches the order in the corresponding
    * `event_set`. */
