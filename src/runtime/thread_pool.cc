@@ -375,6 +375,10 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
   ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
 });
 
+namespace threading {
+void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
+}  // namespace threading
+
 }  // namespace runtime
 }  // namespace tvm
 
@@ -422,10 +426,5 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
   }
   std::atomic_thread_fence(std::memory_order_acquire);
 #endif
-  return 0;
-}
-
-int TVMBackendResetPool() {
-  tvm::runtime::ThreadPool::ThreadLocal()->Reset();
   return 0;
 }

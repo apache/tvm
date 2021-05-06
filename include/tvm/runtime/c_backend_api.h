@@ -166,16 +166,6 @@ TVM_DLL int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
  */
 TVM_DLL int TVMBackendRunOnce(void** handle, int (*f)(void*), void* cdata, int nbytes);
 
-/*!
- * \brief Reset the threads in the pool. All current threads are destroyed and
- * new ones are created.
- *
- * Note that this does nothing when openmp is used.
- *
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_DLL int TVMBackendResetPool();
-
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif

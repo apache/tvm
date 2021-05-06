@@ -26,6 +26,7 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/threading_backend.h>
 
 #include <chrono>
 #include <iomanip>
@@ -113,7 +114,7 @@ Profiler::Profiler(std::vector<Device> devs) : devs_(devs) {
     }
   }
   // reset the thread pool so that PAPI eventset hooks are set in all threads.
-  TVMBackendResetPool();
+  threading::ResetThreadPool();
 }
 
 void Profiler::Start() {
