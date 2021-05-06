@@ -181,7 +181,7 @@ set(USE_EDGETPU OFF)
 set(USE_CUDNN OFF)
 
 # Whether use cuBLAS
-set(USE_CUBLAS ON)
+set(USE_CUBLAS OFF)
 
 # Whether use MIOpen
 set(USE_MIOPEN OFF)
@@ -194,10 +194,6 @@ set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
 set(USE_SORT ON)
-
-# Whether use TensorRT
-# /path/to/tensorrt that contains include and lib dirs
-set(USE_TENSORRT OFF)
 
 # Whether use MKL-DNN (DNNL) codegen
 set(USE_DNNL_CODEGEN OFF)
