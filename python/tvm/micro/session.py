@@ -132,7 +132,7 @@ class Session:
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.DEBUG
         ).__enter__()
-        
+
         if self.runtime_mode == "host_driven":
             try:
                 timeouts = self.timeout_override

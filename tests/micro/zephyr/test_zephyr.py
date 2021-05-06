@@ -65,11 +65,13 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
 
     return _make_session(model, target, zephyr_board, west_cmd, mod, "host_driven")
 
+
 def _get_runtime_path():
     """Returns zephyr runtime path"""
     test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
     return os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
+
 
 def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
     test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{zephyr_board}"
@@ -94,10 +96,14 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
     # TODO(weberlo) verify this is necessary
     opts["bin_opts"]["ccflags"] = ["-std=gnu++14"]
     opts["lib_opts"]["ccflags"] = ["-std=gnu++14"]
-    
+
     if runtime_mode == "standalone":
-        opts["bin_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
-        opts["lib_opts"]["include_dirs"].append(os.path.join(_get_runtime_path(), "standalone", "include"))
+        opts["bin_opts"]["include_dirs"].append(
+            os.path.join(_get_runtime_path(), "standalone", "include")
+        )
+        opts["lib_opts"]["include_dirs"].append(
+            os.path.join(_get_runtime_path(), "standalone", "include")
+        )
 
     flasher_kw = {}
     if DEBUG:
@@ -117,7 +123,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
             compiler,
             mod,
             opts,
-            runtime_mode=runtime_mode.lower()
+            runtime_mode=runtime_mode.lower(),
         )
         if os.path.exists(prev_build):
             os.unlink(prev_build)
@@ -246,7 +252,9 @@ def test_onnx(platform, west_cmd):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_json()
 
-    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, "host_driven") as session:
+    with _make_session(
+        model, target, zephyr_board, west_cmd, lowered.lib, "host_driven"
+    ) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -402,9 +410,11 @@ def test_byoc_utvm(platform, west_cmd):
         west_cmd=west_cmd,
     )
 
-def _dump_hex(root_path:str, src_file:str, fmt="c"):
+
+def _dump_hex(root_path: str, src_file: str, fmt="c"):
     """Dump a binary file as a hex file with format fmt"""
     subprocess.run(args=["xxd", "-i", src_file, f"{src_file}.{fmt}"], cwd=root_path)
+
 
 def test_standalone(platform, west_cmd):
     """Testing an ONNX model in standalone mode"""
@@ -427,10 +437,10 @@ def test_standalone(platform, west_cmd):
     # Load ONNX model and convert to Relay.
     onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
-    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape)#, freeze_params=True)
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape)  # , freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
-    
-    target = tvm.target.target.micro(model)#, options=["-link-params=1"])
+
+    target = tvm.target.target.micro(model)  # , options=["-link-params=1"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_json()
@@ -438,7 +448,7 @@ def test_standalone(platform, west_cmd):
 
     # Export graph in C
     graph_file = os.path.join(runtime_path, "graph.json")
-    with open(graph_file, 'w') as json_f:
+    with open(graph_file, "w") as json_f:
         json_f.write(graph)
     _dump_hex(runtime_path, "graph.json")
     os.remove(graph_file)
@@ -455,6 +465,7 @@ def test_standalone(platform, west_cmd):
             graph, session.get_system_lib(), session.device
         )
         print("end")
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))

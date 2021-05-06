@@ -832,8 +832,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
              names + TVM_CRT_STRLEN_NAME * idx);
     uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[in_idx], 0);
     if (!(eid < executor->data_entry_count)) {
-      LOG_ERROR("`entry_id`=%d is greater than expected(%d).\n", eid,
-              executor->data_entry_count);
+      LOG_ERROR("`entry_id`=%d is greater than expected(%d).\n", eid, executor->data_entry_count);
       status = -1;
     }
 
@@ -1079,8 +1078,8 @@ int TVMGraphExecutor_SetupOpExecs(TVMGraphExecutor* executor) {
         break;
       }
       if (args_count >= TVM_CRT_MAX_ARGS) {
-        LOG_ERROR("too many arguments: expected less than %d args, but got %d.\n",
-                TVM_CRT_MAX_ARGS, args_count);
+        LOG_ERROR("too many arguments: expected less than %d args, but got %d.\n", TVM_CRT_MAX_ARGS,
+                  args_count);
         status = -1;
         break;
       }

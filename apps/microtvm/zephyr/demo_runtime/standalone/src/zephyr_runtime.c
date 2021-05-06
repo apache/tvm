@@ -17,34 +17,33 @@
  * under the License.
  */
 
+#include "zephyr_runtime.h"
+
+#include <power/reboot.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <power/reboot.h>
-#include <zephyr.h>
-
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/graph_executor.h>
 #include <tvm/runtime/crt/packed_func.h>
-
-#include "zephyr_runtime.h"
+#include <unistd.h>
+#include <zephyr.h>
 
 // Heap for use by TVMPlatformMemoryAllocate.
 K_HEAP_DEFINE(tvm_heap, 1024 * 1024);
 
 /*! \brief macro to do C API call */
-#define TVM_CCALL(func)                                                              \
-  do {                                                                               \
-    tvm_crt_error_t ret = (func);                                                    \
-    if (ret != kTvmErrorNoError) {                                                   \
+#define TVM_CCALL(func)                                                        \
+  do {                                                                         \
+    tvm_crt_error_t ret = (func);                                              \
+    if (ret != kTvmErrorNoError) {                                             \
       LOG_ERROR("%s: %d: error: %s\n", __FILE__, __LINE__, TVMGetLastError()); \
-      TVMPlatformAbort(ret);                                                                     \
-    }                                                                                \
+      TVMPlatformAbort(ret);                                                   \
+    }                                                                          \
   } while (0)
 
 void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size) {
+                         const uint64_t params_size) {
   int64_t device_type = kDLCPU;
   int64_t device_id = 0;
 

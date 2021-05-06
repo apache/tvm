@@ -112,7 +112,7 @@ def get_standalone_crt_lib(name: str) -> str:
     return os.path.join(get_standalone_crt_dir(), "src", "runtime", "crt", name)
 
 
-def get_runtime_libs(mode:str) -> str:
+def get_runtime_libs(mode: str) -> str:
     """Return abspath to all CRT directories which contain source (i.e. not header) files."""
     if mode == "host_driven":
         lib_names = CRT_RUNTIME_LIB_NAMES
@@ -121,6 +121,7 @@ def get_runtime_libs(mode:str) -> str:
     else:
         raise ValueError(f"Incorrect runtime mode: {mode}")
     return [get_standalone_crt_lib(n) for n in lib_names]
+
 
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 

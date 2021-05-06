@@ -101,7 +101,6 @@ typedef enum {
   kTvmErrorSystemErrorMask = (1 << (sizeof(int) * 4 - 1)),
 } tvm_crt_error_t;
 
-
 /*!
  * \brief Breaks error code into category and sub-category.
  * \param error The error code.

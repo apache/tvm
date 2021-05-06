@@ -32,16 +32,15 @@
 #include <drivers/gpio.h>
 #include <drivers/uart.h>
 #include <fatal.h>
+#include <float.h>
 #include <kernel.h>
 #include <power/reboot.h>
 #include <stdio.h>
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
+#include <tvm/runtime/crt/logging.h>
 #include <unistd.h>
 #include <zephyr.h>
-#include <float.h>
-
-#include <tvm/runtime/crt/logging.h>
 
 #include "zephyr_runtime.h"
 
@@ -124,8 +123,8 @@ void main(void) {
   uint64_t params_size = params_bin_len;
   tvm_handle = tvm_runtime_create(json_data, params_data, params_size);
 
-  //Prepare input/output tensors
-  float* input_storage = (float *)input_bin;
+  // Prepare input/output tensors
+  float* input_storage = (float*)input_bin;
   DLTensor input_tensor;
   input_tensor.data = input_storage;
   DLDevice dev = {kDLCPU, 0};
@@ -153,7 +152,7 @@ void main(void) {
 
   // Set input tensor
   tvm_runtime_set_input(tvm_handle, "Input3", &input_tensor);
-  
+
   // Run model
   tvm_runtime_run(tvm_handle);
 

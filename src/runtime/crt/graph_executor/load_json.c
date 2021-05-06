@@ -219,8 +219,7 @@ int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size
       break;
     }
     if (ch == EOF || ch == '\r' || ch == '\n') {
-      LOG_ERROR("Error at line %zu, Expect \'\"\' but reach end of line\n",
-              reader->line_count_n_);
+      LOG_ERROR("Error at line %zu, Expect \'\"\' but reach end of line\n", reader->line_count_n_);
       break;
     }
   }
@@ -293,7 +292,7 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
     } else {
       if (ch != ',') {
         LOG_ERROR("Error at line %zu, JSON object expect \'}\' or \',\' but got \'%c\'\n",
-                reader->line_count_n_, ch);
+                  reader->line_count_n_, ch);
       }
     }
   } else {
@@ -315,8 +314,7 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
     }
     int ch = reader->NextNonSpace(reader);
     if (ch != ':') {
-      LOG_ERROR("Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_,
-              ch);
+      LOG_ERROR("Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_, ch);
     }
     return 1;
   }
@@ -360,7 +358,7 @@ uint8_t JSONReader_NextArrayItem(JSONReader* reader) {
     } else {
       if (ch != ',') {
         LOG_ERROR("Error at line %zu, JSON object expect \']\' or \',\' but got \'%c\'\n",
-                reader->line_count_n_, ch);
+                  reader->line_count_n_, ch);
       }
     }
   } else {

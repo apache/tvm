@@ -25,9 +25,9 @@
  */
 
 #include <tvm/runtime/crt/internal/common/ndarray.h>
+#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
-#include <tvm/runtime/crt/logging.h>
 
 #include "crt_config.h"
 
@@ -115,9 +115,10 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   memcpy(&data_byte_size, *strm, sizeof(data_byte_size));
   *strm += sizeof(data_byte_size);
   if (!(data_byte_size == num_elems * elem_bytes)) {
-    LOG_ERROR("invalid DLTensor file format: data_byte_size=%d, "
-              "while num_elems*elem_bytes=%d\n",
-              (int)data_byte_size, (int)(num_elems * elem_bytes));  // NOLINT(*)
+    LOG_ERROR(
+        "invalid DLTensor file format: data_byte_size=%d, "
+        "while num_elems*elem_bytes=%d\n",
+        (int)data_byte_size, (int)(num_elems * elem_bytes));  // NOLINT(*)
     status = -1;
   }
   memcpy(ret->dl_tensor.data, *strm, data_byte_size);
