@@ -417,7 +417,7 @@ def _dump_hex(root_path: str, src_file: str, fmt="c"):
 
 
 def test_standalone(platform, west_cmd):
-    """Testing an ONNX model in standalone mode"""
+    """Testing an ONNX model in standalone mode on Zephyr"""
     model, zephyr_board = PLATFORMS[platform]
     runtime_path = _get_runtime_path()
 
@@ -437,13 +437,13 @@ def test_standalone(platform, west_cmd):
     # Load ONNX model and convert to Relay.
     onnx_model = onnx.load(f"{this_dir}/testdata/mnist-8.onnx")
     shape = {"Input3": (1, 1, 28, 28)}
-    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape)  # , freeze_params=True)
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
-    target = tvm.target.target.micro(model)  # , options=["-link-params=1"])
+    target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
-        graph = lowered.get_json()
+        graph = lowered.get_graph_json()
         params = lowered.get_params()
 
     # Export graph in C

@@ -100,6 +100,20 @@ void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* read
     } else if (!strcmp(key, "flatten_data")) {
       param->flatten_data = strtoul(value, 0, 10);
       bitmask |= 8;
+    } else if (!strcmp(key, "src_layout")) {
+      continue;
+    } else if (!strcmp(key, "dst_layout")) {
+      continue;
+    } else if (!strcmp(key, "hash")) {
+      continue;
+    } else if (!strcmp(key, "data_layout")) {
+      continue;
+    } else if (!strcmp(key, "kernel_layout")) {
+      continue;
+    } else if (!strcmp(key, "out_layout")) {
+      continue;
+    } else if (!strcmp(key, "layout")) {
+      continue;
     } else {
       LOG_ERROR("do not support key %s", key);
     }
