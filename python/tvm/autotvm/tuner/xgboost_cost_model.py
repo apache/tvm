@@ -258,9 +258,6 @@ class XGBoostCostModel(CostModel):
                 xs.append(x)
                 ys.append(y)
 
-        if len(xs) < 500:  # no enough samples
-            return False
-
         xs, ys = np.array(xs), np.array(ys)
         x_train = xs
         y_train = ys
