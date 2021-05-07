@@ -290,8 +290,9 @@ Pass MakePackedAPI(int num_unpacked_args) {
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         PrimFunc func = GetRef<PrimFunc>(n);
-        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-            CallingConv::kDefault) {
+        auto calling_conv =
+            func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault));
+        if (calling_conv == CallingConv::kDefault || calling_conv == CallingConv::kEntryPoint) {
           auto updated_func = MakePackedAPI(std::move(func), num_unpacked_args);
           updates.push_back({kv.first, updated_func});
         }

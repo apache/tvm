@@ -61,6 +61,13 @@ enum class CallingConv : int {
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,
+  /*!
+   * \brief Function that represents the entrypoint to a TVM network
+   *
+   * - This is transformed to either a packed function or a micro entrypoint
+   * - Implementation: Change the passes over this function
+   */
+  kEntryPoint = 3
 };
 
 /*!

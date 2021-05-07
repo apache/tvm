@@ -193,28 +193,50 @@ class AOTExecutorCodegen : public ExprVisitor {
   }
 
   /*!
+   * \brief Unpacks a buffer if operators are using the unpacked C-style interface
+   */
+  PrimExpr UnpackBufferIfUnpackedSignature(tir::Var arg) {
+    auto untyped_operators =
+        target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false));
+    if (!untyped_operators) {
+      return arg;
+    }
+
+    return tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
+                     {arg, 0, tir::builtin::kArrData});
+  }
+
+  /*!
    * brief Call a function with a given name
    */
   void CreateFuncCall(Call call, std::string func_name) {
+    auto untyped_operators =
+        target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false));
+
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
 
     // Pack the inputs
     for (Expr arg : call->args) {
       auto var_arg = FindExpr(arg);
-      args.push_back(var_arg[0]);
+      args.push_back(UnpackBufferIfUnpackedSignature(var_arg[0]));
     }
 
     auto ret_expr = Downcast<Expr>(call);
-
     // Pack the return(s) value. A call node can produce multiple outputs
     for (const auto& var : PackSid(ret_expr)) {
-      args.push_back(var);
+      args.push_back(UnpackBufferIfUnpackedSignature(var));
     }
 
-    // Use tvm_call_packed to execute the function
-    create_func_call_stmts.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_cpacked(), args)));
+    // Use tvm_call_packed to execute the function unless we're calling directly
+    auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    if (untyped_operators) {
+      calling_pattern = tvm::tir::builtin::call_extern();
+    }
+
+    create_func_call_stmts.push_back(
+        tir::Evaluate(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
+
     tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
   }
@@ -518,6 +540,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Define the PrimFunc attributes
     Map<String, ObjectRef> dict_attrs;
     dict_attrs.Set("global_symbol", runtime::String(runtime::symbol::tvm_run_func_prefix));
+    dict_attrs.Set(tvm::attr::kCallingConv, Integer(CallingConv::kEntryPoint));
 
     // Make the PrimFunc
     return tir::PrimFunc(main_signature_, body, VoidType(), Map<tir::Var, tir::Buffer>(),
@@ -575,10 +598,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
 
-    int input_index = 0;
     for (auto input : func->params) {
       input_vars_.push_back(input);
-      main_signature_.push_back(tir::Var(MakeString("input_", input_index), DataType::Handle()));
+      main_signature_.push_back(tir::Var("input", DataType::Handle()));
     }
 
     // Define the storage allocator ids
@@ -592,7 +614,8 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Find the return sid
     return_sid_ = AotReturnSidVisitor(storage_device_map_).FindReturnSid(func);
     for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
-      main_signature_.push_back(tir::Var(MakeString("output_", output_index), DataType::Handle()));
+      auto output_var = tir::Var("output", DataType::Handle());
+      main_signature_.push_back(output_var);
     }
 
     VisitExpr(func->body);
