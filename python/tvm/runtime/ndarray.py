@@ -62,6 +62,27 @@ class NDArray(NDArrayBase):
         """Device of this array"""
         return self.handle.contents.device
 
+    def __dlpack__(self, stream=None):  # pylint: disable=unused-argument
+        """Export the array for consumption by from_dlpack() as a DLPack capsule.
+
+        Parameters
+        ----------
+        stream : int, optional
+            A Python integer representing a pointer to a stream.
+            Stream is provided by the consumer to the producer to instruct the producer
+            to ensure that operations can safely be performed on the array.
+
+        Returns
+        -------
+        capsule : PyCapsule
+            A DLPack capsule for the array, containing a DLPackManagedTensor.
+        """
+        return self.to_dlpack()
+
+    def __dlpack_device__(self):
+        """Return a tuple of device_type, device_id in DLPack convention"""
+        return (self.handle.contents.device.device_type, self.handle.contents.device.device_id)
+
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
 
@@ -301,22 +322,28 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
 
 
 def from_dlpack(dltensor):
-    """Produce an array from a DLPack tensor without memory copy.
+    """Produces an array from an object with __dlpack__ method or a DLPack tensor w/o memory copy.
     Retreives the underlying DLPack tensor's pointer to create an array from the
     data. Removes the original DLPack tensor's destructor as now the array is
     responsible for destruction.
 
     Parameters
     ----------
-    dltensor : DLPack tensor
-        Input DLManagedTensor, can only be consumed once.
+    dltensor : object with __dlpack__ attribute or a DLPack capsule
 
     Returns
     -------
     arr: tvm.nd.NDArray
         The array view of the tensor data.
     """
-    return _from_dlpack(dltensor)
+    t = type(dltensor)
+    if t.__module__ == "builtins" and t.__name__ == "PyCapsule":
+        return _from_dlpack(dltensor)
+
+    if hasattr(dltensor, "__dlpack__"):
+        dlpack_caps = dltensor.__dlpack__()
+        return _from_dlpack(dlpack_caps)
+    raise AttributeError("Required attribute __dlpack__ not found")
 
 
 def cpu(dev_id=0):
