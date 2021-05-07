@@ -715,12 +715,15 @@ def _target_to_requirement(target):
     return []
 
 
-def _pytest_target_params(targets):
+def _pytest_target_params(targets, excluded_targets=None):
     # Include unrunnable targets here.  They get skipped by the
     # pytest.mark.skipif in _target_to_requirement(), showing up as
     # skipped tests instead of being hidden entirely.
     if targets == None:
-        targets = [t["target"] for t in _get_targets()]
+        if excluded_targets is None:
+            excluded_targets = set()
+
+        targets = [t["target"] for t in _get_targets() if t["target_kind"] not in excluded_targets]
 
     return [pytest.param(target, marks=_target_to_requirement(target)) for target in targets]
 
@@ -737,8 +740,23 @@ def _auto_parametrize_target(metafunc):
     if "target" in metafunc.fixturenames:
         mark = metafunc.definition.get_closest_marker("parametrize")
         if not mark or "target" not in mark.args[0]:
-            print("Applying parametrize_targets to ", metafunc.definition.name)
-            metafunc.parametrize("target", _pytest_target_params(None))
+            # Any conftest.py, the file containing the test, or the
+            # test itself, are allowed to disable a test from running
+            # on a target or targets.
+            plugins = list(metafunc.config.pluginmanager.get_plugins()) + [
+                metafunc.function,
+                metafunc.module,
+            ]
+            excluded_targets = set()
+            for plugin in plugins:
+                if hasattr(plugin, "tvm_excluded_targets"):
+                    # Can be defined either as a string, or a list of strings.
+                    if isinstance(plugin.tvm_excluded_targets, str):
+                        excluded_targets.add(plugin.tvm_excluded_targets)
+                    else:
+                        excluded_targets |= set(plugin.tvm_excluded_targets)
+
+            metafunc.parametrize("target", _pytest_target_params(None, excluded_targets))
 
 
 def parametrize_targets(*args):
@@ -783,6 +801,49 @@ def parametrize_targets(*args):
     if len(args) == 1 and callable(args[0]):
         return wrap(None)(args[0])
     return wrap(args)
+
+
+def exclude_targets(*args):
+    """Exclude a test from running on a particular target.
+
+    Use this decorator when you want your test to be run over a
+    variety of targets and devices (including cpu and gpu devices),
+    but want to exclude some particular target or targets.  For
+    example, a test may wish to be run against all targets in
+    tvm.testing.enabled_targets(), except for a particular target that
+    does not support the capabilities.
+
+    Alternatively, this can be specified in the conftest.py or the
+    file containing the test by setting the global variable
+    "tvm_excluded_targets".
+
+    Parameters
+    ----------
+    f : function
+        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
+        where `xxxxxxxxx` is any name.
+    targets : list[str], optional
+        Set of targets to exclude.
+
+    Example
+    -------
+    >>> @tvm.testing.exclude_targets("cuda")
+    >>> def test_mytest(target, dev):
+    >>>     ...  # do something
+
+    Or
+
+    >>> @tvm.testing.exclude_targets("llvm", "cuda")
+    >>> def test_mytest(target, dev):
+    >>>     ...  # do something
+
+    """
+
+    def wraps(func):
+        func.tvm_excluded_targets = args
+        return func
+
+    return wraps
 
 
 def identity_after(x, sleep):
