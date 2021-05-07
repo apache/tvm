@@ -185,6 +185,11 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
+TVM_REGISTER_GLOBAL("lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  return lower(sch, args, name, binds);
+});
+
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,
                                                 const transform::PassContext& pass_ctx) {
@@ -339,3 +344,4 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
 }
 
 }  // namespace tvm
+

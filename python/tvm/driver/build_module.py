@@ -31,6 +31,8 @@ from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
 
+from . import _ffi_api
+
 
 def get_binds(args, compact=False, binds=None):
     """Internal function to get binds and arg_list given arguments.
@@ -120,6 +122,9 @@ def form_irmodule(sch, args, name, binds):
 
 
 def lower(sch, args, name="main", binds=None, simple_mode=False):
+
+    mod = self.__init_handler_by_constructor__(_ffi_api.lower, sch, args, name, binds)   
+    
     """Lowering step before build into target.
 
     Parameters
@@ -149,62 +154,62 @@ def lower(sch, args, name="main", binds=None, simple_mode=False):
        Then the Stmt before make api is returned.
     """
     # config setup
-    pass_ctx = PassContext.current()
-    instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
-    disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
-    add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
+    # pass_ctx = PassContext.current()
+    # instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
+    # disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
+    # add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
 
-    lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
-    lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
-    lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
-    lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
+    # lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
+    # lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
+    # lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
+    # lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
 
-    # Phase 0
-    if isinstance(sch, schedule.Schedule):
-        mod = form_irmodule(sch, args, name, binds)
-    else:
-        mod = sch
+    # # Phase 0
+    # if isinstance(sch, schedule.Schedule):
+    #     mod = form_irmodule(sch, args, name, binds)
+    # else:
+    #     mod = sch
 
-    pass_list = lower_phase0
-    # Phase 1
-    pass_list += [
-        tvm.tir.transform.InjectPrefetch(),
-        tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
-        tvm.tir.transform.BF16Legalize(),
-        tvm.tir.transform.NarrowDataType(32),
-        tvm.tir.transform.Simplify(),
-    ]
-    pass_list += lower_phase1
+    # pass_list = lower_phase0
+    # # Phase 1
+    # pass_list += [
+    #     tvm.tir.transform.InjectPrefetch(),
+    #     tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
+    #     tvm.tir.transform.BF16Legalize(),
+    #     tvm.tir.transform.NarrowDataType(32),
+    #     tvm.tir.transform.Simplify(),
+    # ]
+    # pass_list += lower_phase1
 
-    # Phase 2
-    if not simple_mode:
-        pass_list += [(tvm.tir.transform.LoopPartition())]
+    # # Phase 2
+    # if not simple_mode:
+    #     pass_list += [(tvm.tir.transform.LoopPartition())]
 
-    pass_list += [
-        tvm.tir.transform.VectorizeLoop(not disable_vectorize),
-        tvm.tir.transform.InjectVirtualThread(),
-        tvm.tir.transform.InjectDoubleBuffer(),
-        tvm.tir.transform.StorageRewrite(),
-        tvm.tir.transform.UnrollLoop(),
-    ]
-    pass_list += lower_phase2
+    # pass_list += [
+    #     tvm.tir.transform.VectorizeLoop(not disable_vectorize),
+    #     tvm.tir.transform.InjectVirtualThread(),
+    #     tvm.tir.transform.InjectDoubleBuffer(),
+    #     tvm.tir.transform.StorageRewrite(),
+    #     tvm.tir.transform.UnrollLoop(),
+    # ]
+    # pass_list += lower_phase2
 
-    # Phase 3
-    pass_list += [
-        tvm.tir.transform.Simplify(),
-        tvm.tir.transform.RemoveNoOp(),
-    ]
+    # # Phase 3
+    # pass_list += [
+    #     tvm.tir.transform.Simplify(),
+    #     tvm.tir.transform.RemoveNoOp(),
+    # ]
 
-    pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
-    pass_list += [tvm.tir.transform.HoistIfThenElse()]
-    pass_list += lower_phase3
+    # pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    # pass_list += [tvm.tir.transform.HoistIfThenElse()]
+    # pass_list += lower_phase3
 
-    # Instrument BoundCheckers
-    if instrument_bound_checkers:
-        pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
+    # # Instrument BoundCheckers
+    # if instrument_bound_checkers:
+    #     pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
 
-    optimize = tvm.transform.Sequential(pass_list)
-    mod = optimize(mod)
+    # optimize = tvm.transform.Sequential(pass_list)
+    # mod = optimize(mod)
     return mod
 
 
@@ -436,7 +441,7 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         target_host = Target(target_host)
     if (
         target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
-        and target_host.attrs.get("system-lib", 0) == 1
+        and target_host.attrs.get("system-lib", 0).value == 1
     ):
         if target_host.kind.name == "c":
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
