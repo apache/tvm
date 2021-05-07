@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 from tvm.contrib.dlpack import to_pytorch_func
@@ -32,7 +33,7 @@ def test():
         x = torch.rand(56, 56)
         tvm_x = tvm.nd.from_dlpack(torch.utils.dlpack.to_dlpack(x))
         np.testing.assert_equal(x.numpy(), tvm_x.asnumpy())
-        y = tvm.nd.from_dlpack(tvm_x.to_dlpack())
+        y = tvm.nd.from_dlpack(tvm_x)
         np.testing.assert_equal(y.asnumpy(), tvm_x.asnumpy())
         np.testing.assert_equal(
             torch.utils.dlpack.from_dlpack(y.to_dlpack()).numpy(), tvm_x.asnumpy()
