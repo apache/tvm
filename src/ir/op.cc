@@ -102,6 +102,12 @@ TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name)
   reg.reset_attr(attr_name);
 });
 
+TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name) {
+  const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
+  ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
+  OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+});
+
 TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
     .set_body_typed([](String op_name, String attr_key, runtime::TVMArgValue value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();

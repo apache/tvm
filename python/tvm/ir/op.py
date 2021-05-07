@@ -86,6 +86,18 @@ class Op(RelayExpr):
         _ffi_api.OpResetAttr(self, attr_name)
 
 
+def register_op(op_name):
+    """Register an operator by name
+
+    Parameters
+    ----------
+    op_name : str
+        The name of new operator
+    """
+
+    _ffi_api.RegisterOp(op_name)
+
+
 def register_op_attr(op_name, attr_key, value=None, level=10):
     """Register an operator property of an operator by name.
 
