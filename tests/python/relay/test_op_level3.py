@@ -761,9 +761,9 @@ def test_interpolate():
 
         ref_res = np.interp(x, xp, fp)
 
-        for target, ctx in [("llvm", tvm.cpu())]:
+        for target, dev in [("llvm", tvm.cpu())]:
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                intrp = relay.create_executor(kind, device=dev, target=target)
                 op_res = intrp.evaluate(func)(*input_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
