@@ -146,7 +146,7 @@ def tune_and_check(mod, data, weight):
         log_file = fp.name
 
         # Tune tasks
-        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights, callbacks=[])
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=1,
             num_measures_per_round=1,
