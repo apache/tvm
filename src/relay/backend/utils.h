@@ -46,6 +46,37 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
+struct FunctionInfoNode : public Object {
+  Map<Target, Integer> workspace_sizes;
+  Map<Target, Integer> io_sizes;
+  Map<Target, Integer> constant_sizes;
+  Map<Target, tir::PrimFunc> tir_primfuncs;
+  Map<Target, Function> relay_primfuncs;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("workspace_sizes", &workspace_sizes);
+    v->Visit("io_sizes", &io_sizes);
+    v->Visit("constant_sizes", &constant_sizes);
+    v->Visit("tir_primfuncs", &tir_primfuncs);
+    v->Visit("relay_primfuncs", &relay_primfuncs);
+  }
+
+  static constexpr const char* _type_key = "relay.backend.FunctionInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionInfoNode, Object);
+};
+
+class FunctionInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(FunctionInfo, ObjectRef, FunctionInfoNode);
+};
+
+/*!
+ * \brief Calculate the storage required to store the type of relay.Expr
+ *
+ * \param func The relay expr for which the storage is calculated
+ */
+int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
+
 /*!
  *  \brief Executor generator artifacts. Those artifacts  are subsequently
  *  used by the relay build process.
@@ -54,6 +85,7 @@ struct LoweredOutput {
   std::string graph_json;
   Map<String, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
+  Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
   runtime::Metadata metadata;
 };
