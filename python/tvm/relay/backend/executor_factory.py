@@ -81,15 +81,18 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         The name of module
     params : dict of str to NDArray
         The parameters of module
+    function_metadata : Map of String to FunctionInfo
+        This holds a map function names to their information
     """
 
-    def __init__(self, ir_mod, target, libmod, libmod_name, params):
+    def __init__(self, ir_mod, target, libmod, libmod_name, params, function_metadata):
         self.ir_mod = ir_mod
         self.target = target
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
         self.iter_cnt = 0
+        self.function_metadata = function_metadata
 
     def get_params(self):
         return self.params
@@ -118,9 +121,13 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         The name of module
     params : dict of str to NDArray
         The parameters of module
+    function_metadata : Map of String to FunctionInfo
+        This holds a map function names to their information
     """
 
-    def __init__(self, ir_mod, target, graph_json_str, libmod, libmod_name, params):
+    def __init__(
+        self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
+    ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
         args = []
@@ -136,6 +143,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.libmod_name = libmod_name
         self.params = params
         self.iter_cnt = 0
+        self.function_metadata = function_metadata
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
