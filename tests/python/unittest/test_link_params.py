@@ -275,7 +275,7 @@ def test_c_link_params():
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
             src = lib.lib.get_source()
-            lib.lib.save("test.c", "c")
+            lib.lib.save(temp_dir.relpath("test.c"), "c")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
             param = lib.params["p0"].asnumpy().reshape(np.prod(KERNEL_SHAPE))
@@ -302,7 +302,6 @@ def test_c_link_params():
                 i += 1
 
             assert cursor == np.prod(param.shape)
-            temp = utils.tempdir()
 
             # Need a unique name per library to avoid dlopen caching the lib load.
             lib_path = temp_dir.relpath(f"test-{dtype}-linked.so")
