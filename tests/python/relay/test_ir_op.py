@@ -32,7 +32,7 @@ def test_op_attr():
 
 
 def test_op_reset_attr():
-    """ Tests reset_attr functionality. """
+    """Tests reset_attr functionality."""
 
     def add1(x):
         return x + 1
@@ -60,7 +60,7 @@ def test_op_reset_attr():
 
 
 def test_op_temp_attr():
-    """ Tests reset_attr functionality. """
+    """Tests reset_attr functionality."""
 
     def add1(x):
         return x + 1
@@ -99,9 +99,21 @@ def test_op_level3():
         assert y.args[0] == x
 
 
+def test_op_register():
+    """Tests register_op functionality."""
+    op_name = "custom_op"
+
+    tvm.ir.register_op(op_name)
+    tvm.ir.register_op_attr(op_name, "num_inputs", 2, 256)
+
+    assert tvm.ir.Op.get(op_name).name == op_name
+    assert tvm.ir.Op.get(op_name).num_inputs == 2
+
+
 if __name__ == "__main__":
     test_op_attr()
     test_op_reset_attr()
     test_op_temp_attr()
     test_op_level1()
     test_op_level3()
+    test_op_register()
