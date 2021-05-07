@@ -444,15 +444,16 @@ def device_enabled(target):
 
 
 def enabled_targets():
-    """Get all enabled targets with associated contexts.
+    """Get all enabled targets with associated devices.
 
     In most cases, you should use :py:func:`tvm.testing.parametrize_targets` instead of
     this function.
 
-    In this context, enabled means that TVM was built with support for this
-    target and the target name appears in the TVM_TEST_TARGETS environment
-    variable. If TVM_TEST_TARGETS is not set, it defaults to variable
-    DEFAULT_TEST_TARGETS in this module.
+    In this context, enabled means that TVM was built with support for
+    this target, the target name appears in the TVM_TEST_TARGETS
+    environment variable, and a suitable device for running this
+    target exists.  If TVM_TEST_TARGETS is not set, it defaults to
+    variable DEFAULT_TEST_TARGETS in this module.
 
     If you use this function in a test, you **must** decorate the test with
     :py:func:`tvm.testing.uses_gpu` (otherwise it will never be run on the gpu).
@@ -461,8 +462,9 @@ def enabled_targets():
     -------
     targets: list
         A list of pairs of all enabled devices and the associated context
+
     """
-    return [(t["target"], tvm.device(t["target"])) for t in _get_targets()]
+    return [(t["target"], tvm.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
 
 
 def _compose(args, decs):
@@ -713,11 +715,41 @@ def _target_to_requirement(target):
     return []
 
 
+def _pytest_target_params(targets):
+    # Include unrunnable targets here.  They get skipped by the
+    # pytest.mark.skipif in _target_to_requirement(), showing up as
+    # skipped tests instead of being hidden entirely.
+    if targets == None:
+        targets = [t["target"] for t in _get_targets()]
+
+    return [pytest.param(target, marks=_target_to_requirement(target)) for target in targets]
+
+
+def _auto_parametrize_target(metafunc):
+    """Automatically applies parametrize_targets
+
+    Used if a test function uses the "target" fixture, but isn't
+    already marked with @tvm.testing.parametrize_targets.  Intended
+    for use in the pytest_generate_tests() handler of a conftest.py
+    file.
+
+    """
+    if "target" in metafunc.fixturenames:
+        mark = metafunc.definition.get_closest_marker("parametrize")
+        if not mark or "target" not in mark.args[0]:
+            print("Applying parametrize_targets to ", metafunc.definition.name)
+            metafunc.parametrize("target", _pytest_target_params(None))
+
+
 def parametrize_targets(*args):
     """Parametrize a test over all enabled targets.
 
-    Use this decorator when you want your test to be run over a variety of
-    targets and devices (including cpu and gpu devices).
+    Use this decorator when you want your test to be run over a
+    variety of targets and devices (including cpu and gpu devices).
+
+    Alternatively, a test that accepts the "target" and "dev" will
+    automatically be parametrized over all targets in
+    :py:func:`tvm.testing.enabled_targets`.
 
     Parameters
     ----------
@@ -730,39 +762,26 @@ def parametrize_targets(*args):
 
     Example
     -------
-    >>> @tvm.testing.parametrize
+    >>> @tvm.testing.parametrize_targets
     >>> def test_mytest(target, dev):
     >>>     ...  # do something
 
     Or
 
-    >>> @tvm.testing.parametrize("llvm", "cuda")
+    >>> @tvm.testing.parametrize_targets("llvm", "cuda")
     >>> def test_mytest(target, dev):
     >>>     ...  # do something
+
     """
-
-    def wrap_target(f):
-        def func(target):
-            dev = tvm.device(target, 0)
-            return f(target, dev)
-
-        return func
 
     def wrap(targets):
         def func(f):
-            params = [
-                pytest.param(target, marks=_target_to_requirement(target)) for target in targets
-            ]
-            return pytest.mark.parametrize("target", params)(wrap_target(f))
+            return pytest.mark.parametrize("target", _pytest_target_params(targets))(f)
 
         return func
 
     if len(args) == 1 and callable(args[0]):
-        # Include unrunnable targets here.  They get skipped by the
-        # pytest.mark.skipif in _target_to_requirement(), showing up
-        # as skipped tests instead of being hidden entirely.
-        targets = [t["target"] for t in _get_targets()]
-        return wrap(targets)(args[0])
+        return wrap(None)(args[0])
     return wrap(args)
 
 

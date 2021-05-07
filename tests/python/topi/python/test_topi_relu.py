@@ -87,13 +87,11 @@ def verify_prelu(x, w, axis, weight_reshape):
     tvm.testing.assert_allclose(b.numpy(), out_np, rtol=1e-5)
 
 
-@tvm.testing.parametrize_targets
 def test_relu(target, dev):
     verify_relu(target, dev, 10, 128, "float32")
     verify_relu(target, dev, 128, 64, "float16")
 
 
-@tvm.testing.parametrize_targets
 def test_schedule_big_array(target, dev):
     verify_relu(target, dev, 1024 * 100, 512)
 
