@@ -41,6 +41,7 @@
 #include <tvm/runtime/crt/logging.h>
 #include <unistd.h>
 #include <zephyr.h>
+#include <string.h>
 
 #include "zephyr_runtime.h"
 
@@ -99,6 +100,7 @@ int uart_rx_buf_read(struct ring_buf* rbuf, uint8_t* data, size_t data_size_byte
   return bytes_read;
 }
 
+const char g_start_command[] = "##start##";
 // ###########################################################################
 // TVM Model
 // ###########################################################################
@@ -109,13 +111,7 @@ extern unsigned int params_bin_len;
 extern const char input_bin[];
 extern const char output_bin[];
 
-void main(void) {
-  // Claim console device.
-  g_tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
-  uart_rx_init(&uart_rx_rbuf, g_tvm_uart);
-
-  TVMLogf("microTVM Zephyr Standalone Demo\n");
-
+void TVMInference(void) {
   // Create runtime
   int* tvm_handle;
   char* json_data = (char*)(graph_json);
@@ -172,5 +168,41 @@ void main(void) {
   }
 
   TVMLogf("\nResult: {%d}\n", label);
+}
+
+static uint8_t main_rx_buf[RING_BUF_SIZE_BYTES];
+// static uint8_t command_buf[128];
+
+void main(void) {
+  // Claim console device.
+  g_tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  uart_rx_init(&uart_rx_rbuf, g_tvm_uart);
+
+  TVMLogf("microTVM Zephyr Standalone Demo\n");
+
+  // int total_read = 0;
+  // waiting for g_start_command
+  while(true) {
+    // TVMLogf("sstt");
+    int bytes_read = uart_rx_buf_read(&uart_rx_rbuf, main_rx_buf, sizeof(main_rx_buf));
+    if (bytes_read > 0) {
+      for (int i=0; i<bytes_read; i++) {
+        TVMLogf("r: %c\n", main_rx_buf[i]);
+      }
+      // uint8_t* dest_cursor = command_buf + total_read;
+      // uint8_t* src_cursor = main_rx_buf;
+      // memcpy(dest_cursor, src_cursor, bytes_read);
+      // total_read += bytes_read;
+    }
+
+    // if (total_read >= sizeof(g_start_command)) {
+    //   if (!strcmp(command_buf, g_start_command)) {
+    //     TVMLogf("start\n");
+    //     break;
+    //   }
+    // }
+  }
+
+  TVMInference();
   TVMPlatformAbort(kTvmErrorNoError);
 }

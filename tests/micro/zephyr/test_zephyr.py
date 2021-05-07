@@ -45,7 +45,7 @@ import conftest
 
 # If set, build the uTVM binary from scratch on each test.
 # Otherwise, reuses the build from the previous test run.
-BUILD = True
+BUILD = False
 
 # If set, enable a debug session while the test is running.
 # Before running the test, in a separate shell, you should run:
@@ -134,7 +134,10 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, runtime_mode):
             prev_build, unarchive_dir.relpath("binary")
         )
 
-    return tvm.micro.Session(**session_kw)
+    # if runtime_mode == "standalone":
+    return session_kw
+    # else:
+    # return tvm.micro.Session(**session_kw)
 
 
 def _make_add_sess(model, zephyr_board, west_cmd):
@@ -459,12 +462,38 @@ def test_standalone(platform, west_cmd):
     _dump_hex(runtime_path, "params.bin")
     os.remove(params_file)
 
-    # Export parameter in C
-    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, "standalone") as session:
-        graph_mod = tvm.micro.create_local_graph_executor(
-            graph, session.get_system_lib(), session.device
-        )
-        print("end")
+    # with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, "standalone") as session:
+    #     graph_mod = tvm.micro.create_local_graph_executor(
+    #         graph, session.get_system_lib(), session.device
+    #     )
+    #     while(True):
+    #         continue
+    
+    session = _make_session(model, target, zephyr_board, west_cmd, lowered.lib, "standalone")
+    from tvm.micro.transport import TransportLogger
+    transport_context_manager = session["flasher"].flash(session["binary"])
+    # transport_context_manager.open()
+
+    # transport_context_manager.__enter__()
+    # import pdb; pdb.set_trace()
+    transport = TransportLogger("session_name", transport_context_manager, level=logging.DEBUG).__enter__()
+    # transport.open()
+
+    # flag = False
+    # while not flag:
+    #     continue
+    #     import pdb; pdb.set_trace()
+        # written_bytes = transport.write("test\n", timeout_sec=5)
+        # print(f"mehrdad: written_bytes: {written_bytes}")
+        # data = transport.read(1000, timeout_sec=10)
+        
+        # if data:
+        #     print(f"mehrdad: data: {data}")
+        #     if "result" in data:
+        #         break
+
+    import pdb; pdb.set_trace()
+    print("end")
 
 
 if __name__ == "__main__":

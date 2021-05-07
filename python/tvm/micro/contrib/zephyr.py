@@ -57,6 +57,7 @@ class SubprocessEnv(object):
         for k, v in self.default_overrides.items():
             env[k] = v
 
+        # import pdb; pdb.set_trace()
         return subprocess.check_output(cmd, env=env, **kw, universal_newlines=True)
 
 
@@ -200,6 +201,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
                     f'{" ".join(os.path.abspath(d) for d in options["include_dirs"])})\n'
                 )
 
+        # import pdb; pdb.set_trace()
         with open(os.path.join(output, "main.c"), "w"):
             pass
 
@@ -241,6 +243,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
 
         copied_libs = base.populate_tvm_objs(self._project_dir, objects)
 
+        # import pdb; pdb.set_trace()
         # expected not to exist after populate_tvm_objs
         cmake_args = [
             "cmake",
@@ -640,6 +643,7 @@ class ZephyrQemuTransport(Transport):
 
     def open(self):
         self.pipe_dir = tempfile.mkdtemp()
+        # self.pipe_dir = "/tinymlperf/test_fifo"
         self.pipe = os.path.join(self.pipe_dir, "fifo")
         self.write_pipe = os.path.join(self.pipe_dir, "fifo.in")
         self.read_pipe = os.path.join(self.pipe_dir, "fifo.out")
@@ -689,9 +693,9 @@ class ZephyrQemuTransport(Transport):
         if self.proc is not None:
             self.proc = None
 
-        if self.pipe_dir is not None:
-            shutil.rmtree(self.pipe_dir)
-            self.pipe_dir = None
+        # if self.pipe_dir is not None:
+        # shutil.rmtree(self.pipe_dir)
+        # self.pipe_dir = None
 
     def read(self, n, timeout_sec):
         if self.fd_transport is None:
