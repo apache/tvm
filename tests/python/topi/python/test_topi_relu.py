@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for relu activation"""
+import sys
 import os
 import numpy as np
 import tvm
@@ -28,7 +29,15 @@ import pytest
 import tvm.testing
 
 
-def verify_relu(target, dev, m, n, dtype="float32"):
+@pytest.mark.parametrize(
+    "m, n, dtype",
+    [
+        (10, 128, "float32"),
+        (128, 64, "float16"),
+        (1024 * 100, 512, "float32"),
+    ],
+)
+def test_relu(target, dev, m, n, dtype):
     A = te.placeholder((m, n), name="A", dtype=dtype)
     B = topi.nn.relu(A)
 
@@ -49,7 +58,8 @@ def verify_relu(target, dev, m, n, dtype="float32"):
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 
-def verify_leaky_relu(m, alpha):
+@pytest.mark.parametrize("m, alpha", [(100, 0.1)])
+def test_leaky_relu(m, alpha):
     A = te.placeholder((m,), name="A")
     B = topi.nn.leaky_relu(A, alpha)
     s = te.create_schedule([B.op])
@@ -64,7 +74,15 @@ def verify_leaky_relu(m, alpha):
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
-def verify_prelu(x, w, axis, weight_reshape):
+@pytest.mark.parametrize(
+    "x, w, axis, weight_reshape",
+    [
+        ((1, 3, 2, 2), (3,), 1, (3, 1, 1)),
+        ((1, 3, 2, 2), (2,), 2, (2, 1)),
+        ((1, 3), (3,), 1, (3,)),
+    ],
+)
+def test_prelu(x, w, axis, weight_reshape):
     X = te.placeholder((x), name="X")
     W = te.placeholder((w), name="W")
     x_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(X.shape)).astype(X.dtype)
@@ -87,27 +105,5 @@ def verify_prelu(x, w, axis, weight_reshape):
     tvm.testing.assert_allclose(b.numpy(), out_np, rtol=1e-5)
 
 
-def test_relu(target, dev):
-    verify_relu(target, dev, 10, 128, "float32")
-    verify_relu(target, dev, 128, 64, "float16")
-
-
-def test_schedule_big_array(target, dev):
-    verify_relu(target, dev, 1024 * 100, 512)
-
-
-def test_leaky_relu():
-    verify_leaky_relu(100, 0.1)
-
-
-def test_prelu():
-    verify_prelu((1, 3, 2, 2), (3,), 1, (3, 1, 1))
-    verify_prelu((1, 3, 2, 2), (2,), 2, (2, 1))
-    verify_prelu((1, 3), (3,), 1, (3,))
-
-
 if __name__ == "__main__":
-    test_schedule_big_array()
-    test_relu()
-    test_leaky_relu()
-    test_prelu()
+    sys.exit(pytest.main(sys.argv))
