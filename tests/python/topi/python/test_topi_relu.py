@@ -24,32 +24,29 @@ import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 from tvm.contrib.nvcc import have_fp16
 
+import pytest
 import tvm.testing
 
 
-def verify_relu(m, n, dtype="float32"):
+def verify_relu(target, dev, m, n, dtype="float32"):
     A = te.placeholder((m, n), name="A", dtype=dtype)
     B = topi.nn.relu(A)
 
     a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0)
 
-    def check_target(target, dev):
-        if dtype == "float16" and target == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
-            print("Skip because %s does not have fp16 support" % target)
-            return
-        print("Running on target: %s" % target)
-        with tvm.target.Target(target):
-            s = tvm.topi.testing.get_elemwise_schedule(target)(B)
+    if dtype == "float16" and target == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
+        pytest.skip("Skip because %s does not have fp16 support" % target)
 
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        foo = tvm.build(s, [A, B], target, name="relu")
-        foo(a, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+    print("Running on target: %s" % target)
+    with tvm.target.Target(target):
+        s = tvm.topi.testing.get_elemwise_schedule(target)(B)
 
-    for target, dev in tvm.testing.enabled_targets():
-        check_target(target, dev)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    foo = tvm.build(s, [A, B], target, name="relu")
+    foo(a, b)
+    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 
 def verify_leaky_relu(m, alpha):
@@ -90,15 +87,15 @@ def verify_prelu(x, w, axis, weight_reshape):
     tvm.testing.assert_allclose(b.numpy(), out_np, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_relu():
-    verify_relu(10, 128, "float32")
-    verify_relu(128, 64, "float16")
+@tvm.testing.parametrize_targets
+def test_relu(target, dev):
+    verify_relu(target, dev, 10, 128, "float32")
+    verify_relu(target, dev, 128, 64, "float16")
 
 
-@tvm.testing.uses_gpu
-def test_schedule_big_array():
-    verify_relu(1024 * 100, 512)
+@tvm.testing.parametrize_targets
+def test_schedule_big_array(target, dev):
+    verify_relu(target, dev, 1024 * 100, 512)
 
 
 def test_leaky_relu():

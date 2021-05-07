@@ -366,24 +366,37 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
     )
 
 
-def _get_targets():
-    target_str = os.environ.get("TVM_TEST_TARGETS", "")
+def _get_targets(target_str=None):
+    if target_str is None:
+        target_str = os.environ.get("TVM_TEST_TARGETS", "")
+
     if len(target_str) == 0:
         target_str = DEFAULT_TEST_TARGETS
-    targets = set()
-    for dev in target_str.split(";"):
-        if len(dev) == 0:
-            continue
-        target_kind = dev.split()[0]
-        if tvm.runtime.enabled(target_kind) and tvm.device(target_kind, 0).exist:
-            targets.add(dev)
-    if len(targets) == 0:
+
+    target_names = set(t.strip() for t in target_str.split(";") if t.strip())
+
+    targets = []
+    for target in target_names:
+        target_kind = target.split()[0]
+        is_enabled = tvm.runtime.enabled(target_kind)
+        is_runnable = is_enabled and tvm.device(target_kind).exist
+        targets.append(
+            {
+                "target": target,
+                "target_kind": target_kind,
+                "is_enabled": is_enabled,
+                "is_runnable": is_runnable,
+            }
+        )
+
+    if all(not t["is_runnable"] for t in targets):
         logging.warning(
             "None of the following targets are supported by this build of TVM: %s."
             " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
             target_str,
         )
-        return {"llvm"}
+        return _get_targets("llvm")
+
     return targets
 
 
@@ -425,10 +438,9 @@ def device_enabled(target):
     nodes and `target="llvm"` on cpu test nodes.
     """
     assert isinstance(target, str), "device_enabled requires a target as a string"
-    target_kind = target.split(" ")[
-        0
-    ]  # only check if device name is found, sometime there are extra flags
-    return any([target_kind in test_target for test_target in _get_targets()])
+    # only check if device name is found, sometime there are extra flags
+    target_kind = target.split(" ")[0]
+    return any(target_kind == t["target_kind"] for t in _get_targets() if t["is_runnable"])
 
 
 def enabled_targets():
@@ -450,7 +462,7 @@ def enabled_targets():
     targets: list
         A list of pairs of all enabled devices and the associated context
     """
-    return [(tgt, tvm.device(tgt)) for tgt in _get_targets()]
+    return [(t["target"], tvm.device(t["target"])) for t in _get_targets()]
 
 
 def _compose(args, decs):
@@ -729,18 +741,27 @@ def parametrize_targets(*args):
     >>>     ...  # do something
     """
 
+    def wrap_target(f):
+        def func(target):
+            dev = tvm.device(target, 0)
+            return f(target, dev)
+
+        return func
+
     def wrap(targets):
         def func(f):
             params = [
-                pytest.param(target, tvm.device(target, 0), marks=_target_to_requirement(target))
-                for target in targets
+                pytest.param(target, marks=_target_to_requirement(target)) for target in targets
             ]
-            return pytest.mark.parametrize("target,dev", params)(f)
+            return pytest.mark.parametrize("target", params)(wrap_target(f))
 
         return func
 
     if len(args) == 1 and callable(args[0]):
-        targets = [t for t, _ in enabled_targets()]
+        # Include unrunnable targets here.  They get skipped by the
+        # pytest.mark.skipif in _target_to_requirement(), showing up
+        # as skipped tests instead of being hidden entirely.
+        targets = [t["target"] for t in _get_targets()]
         return wrap(targets)(args[0])
     return wrap(args)
 
