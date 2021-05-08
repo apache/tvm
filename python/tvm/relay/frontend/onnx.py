@@ -2832,11 +2832,10 @@ class QLinearConv(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-
-        def get_scalar(input):
-            if isinstance(input, _expr.Var) and input.name_hint in params:
-                return params[input.name_hint].asnumpy()
-            return input
+        def get_scalar(x):
+            if isinstance(x, _expr.Var) and x.name_hint in params:
+                return params[x.name_hint].asnumpy()
+            return x
 
         data = inputs[0]
         x_scale = get_scalar(inputs[1])
@@ -2884,7 +2883,9 @@ class QLinearConv(OnnxOpConverter):
         groups = attr["group"] if "group" in attr else 1
 
         if ndim != 4:
-            raise tvm.error.OpAttributeInvalid("Only 2D kernels are supported for operator QLinearConv.")
+            raise tvm.error.OpAttributeInvalid(
+                "Only 2D kernels are supported for operator QLinearConv."
+            )
 
         out = _qnn.op.conv2d(
             data,

@@ -66,8 +66,14 @@ def get_tvm_output_with_vm(
 
 
 def get_tvm_output(
-    graph_def, input_data, target, device, output_shape=None,
-    output_dtype="float32", opset=None, opt_level=1,
+    graph_def,
+    input_data,
+    target,
+    device,
+    output_shape=None,
+    output_dtype="float32",
+    opset=None,
+    opt_level=1,
 ):
     """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
@@ -4224,6 +4230,8 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
+    # For QLinearConv tests in ONNX, scale and zero_point input are placeholders,
+    # but qnn.conv2d requires scale and zero_point input to be scalar
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
@@ -4421,16 +4429,21 @@ def verify_qlinearconv(
         helper.make_tensor_value_info("w", TensorProto.UINT8, list(w_shape)),
     ]
     input_names = [
-        "x", "x_scale", "x_zero_point", "w", "w_scale", "w_zero_point", "y_scale", "y_zero_point"
+        "x",
+        "x_scale",
+        "x_zero_point",
+        "w",
+        "w_scale",
+        "w_zero_point",
+        "y_scale",
+        "y_zero_point",
     ]
     input_values = [x_array, w_array]
 
     if bias is True:
         b_shape = w_shape[0:1]
         b_array = np.random.randint(low=0, high=65536, size=b_shape).astype("int32")
-        input_nodes.append(
-            helper.make_tensor_value_info("B", TensorProto.INT32, list(b_shape))
-        )
+        input_nodes.append(helper.make_tensor_value_info("B", TensorProto.INT32, list(b_shape)))
         input_names.append("B")
         input_values.append(b_array)
 
@@ -4478,6 +4491,7 @@ def verify_qlinearconv(
 def test_qlinearconv():
     def repeat(N, D):
         return tuple([N for _ in range(D)])
+
     # only support QLinearConv2d because only support qnn.conv2d
     D = 2
 
