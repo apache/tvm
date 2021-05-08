@@ -246,8 +246,8 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     # Use the implementation with highest plevel
     if workloads[best_plevel_impl] is not None:
         msg = (
-            "Cannot find config for target=%s, workload=%s. A fallback configuration "
-            "is used, which may bring great performance regression."
+            "Cannot find tuning records for:\n    target=%s\n    key=%s\n"
+            "TVM will apply a default schedule which may negatively impact performance."
             % (target, workloads[best_plevel_impl])
         )
         if (
