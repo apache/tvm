@@ -37,7 +37,7 @@ tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** 
   TVMValue tvm_values[model->num_input_tensors + model->num_output_tensors];  // NOLINT
   int32_t tvm_typeids[model->num_input_tensors + model->num_output_tensors];  // NOLINT
 
-  for (uint32_t i = 0; i < model->num_input_tensors; i++) {
+  for (size_t i = 0; i < model->num_input_tensors; i++) {
     tensors[i].device = fake_device;
     tensors[i].data = inputs[i];
     tensors[i].shape = &fake_shape;
@@ -47,8 +47,8 @@ tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** 
     tvm_values[i].v_handle = &tensors[i];
   }
 
-  for (uint32_t i = 0; i < model->num_output_tensors; i++) {
-    uint32_t j = model->num_input_tensors + i;
+  for (size_t i = 0; i < model->num_output_tensors; i++) {
+    size_t j = model->num_input_tensors + i;
     tensors[j].device = fake_device;
     tensors[j].data = outputs[i];
     tensors[j].shape = &fake_shape;
