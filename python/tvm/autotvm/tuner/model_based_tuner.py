@@ -98,7 +98,7 @@ class CostModel(object):
         """
         raise NotImplementedError()
 
-    def fit_log(self, records, plan_size):
+    def fit_log(self, records, plan_size, min_seed_records=500):
         """Fit training data from log.
 
         Parameters
@@ -107,6 +107,11 @@ class CostModel(object):
             The tuning records
         plan_size: int
             The plan size of tuner
+        min_seed_records: int
+            Defaults to 500. Indicates the minimum number of records to
+            train the tuner with. If there are less than `min_seed_records`
+            number of records in `data_set`, no training of the tuner
+            will be done.
         """
         raise NotImplementedError()
 
@@ -292,19 +297,6 @@ class ModelBasedTuner(Tuner):
             self.train_ct += 1
 
     def load_history(self, data_set, min_seed_records=500):
-        """Attempts to load historical records by training the cost model
-        with them.
-
-        Parameters
-        ----------
-        data_set: List[MeasureInput, MeasureResult]
-            Historical records to train the cost model.
-        min_seed_records: int
-            Defaults to 500. Indicates the minimum number of records to
-            train the tuner with. If there are less than `min_seed_records`
-            number of records in `data_set`, no training of the tuner
-            will be done.
-        """
         # set in_tuning as True to make the feature extraction consistent
         GLOBAL_SCOPE.in_tuning = True
 
