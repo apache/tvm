@@ -261,11 +261,15 @@ class ModelBasedTuner(Tuner):
                 flops = inp.task.flop / np.mean(res.costs)
                 self.flops_max = max(self.flops_max, flops)
                 self.ys.append(flops)
-                self.visited.add(index)
             else:
                 self.xs.append(index)
                 self.ys.append(0.0)
-                self.visited.add(index)
+            # Usually the update function is called during the tune loop
+            # after the index is already added to the visited set.
+            # However, adding the index to visited again here enables us
+            # to also use this update function to resume tuning progress in
+            # case of interruption.
+            self.visited.add(index)
 
         # if we have enough new training samples
         if len(self.xs) >= self.plan_size * (self.train_ct + 1) and self.flops_max > 1e-6:
