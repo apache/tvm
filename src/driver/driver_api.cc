@@ -185,7 +185,7 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+TVM_REGISTER_GLOBAL("tvm.driver.lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
   return lower(sch, args, name, binds);
 });
