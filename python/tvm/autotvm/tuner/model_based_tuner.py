@@ -261,9 +261,11 @@ class ModelBasedTuner(Tuner):
                 flops = inp.task.flop / np.mean(res.costs)
                 self.flops_max = max(self.flops_max, flops)
                 self.ys.append(flops)
+                self.visited.add(index)
             else:
                 self.xs.append(index)
                 self.ys.append(0.0)
+                self.visited.add(index)
 
         # if we have enough new training samples
         if len(self.xs) >= self.plan_size * (self.train_ct + 1) and self.flops_max > 1e-6:
@@ -285,13 +287,26 @@ class ModelBasedTuner(Tuner):
             self.trial_pt = 0
             self.train_ct += 1
 
-    def load_history(self, data_set):
+    def load_history(self, data_set, min_seed_records=500):
+        """Attempts to load historical records by training the cost model
+        with them.
+
+        Parameters
+        ----------
+        data_set: List[MeasureInput, MeasureResult]
+            Historical records to train the cost model.
+        min_seed_records: int
+            Defaults to 500. Indicates the minimum number of records to
+            train the tuner with. If there are less than `min_seed_records`
+            number of records in `data_set`, no training of the tuner
+            will be done.
+        """
         # set in_tuning as True to make the feature extraction consistent
         GLOBAL_SCOPE.in_tuning = True
 
         # fit base model
         base_model = self.cost_model.spawn_base_model()
-        success = base_model.fit_log(data_set, self.plan_size)
+        success = base_model.fit_log(data_set, self.plan_size, min_seed_records)
 
         if not success:
             GLOBAL_SCOPE.in_tuning = False
