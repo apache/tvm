@@ -307,6 +307,56 @@ def test_vulkan_constant_passing():
     test_scalar_params(2044)
 
 
+@tvm.testing.parametrize_targets("vulkan")
+def test_vulkan_while_if(target, dev):
+    def do_compute(A, B, n):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+
+        ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
+
+        iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
+        iterations[0] = 0
+        B[0] = 0
+
+        # WhileNode's condition is re-evaluated every loop.  The
+        # if_then_else block introduces additional labels/blocks that
+        # must be kept separate from the WhileNode's block.
+        loop_condition = iterations[0] < tvm.tir.if_then_else(A[0] > 0, 10, 20)
+        with ib.while_loop(loop_condition):
+            iterations[0] += 1
+            B[0] += iterations[0]
+
+        return ib.get()
+
+    n = 1
+    dtype = "int32"
+    A = te.placeholder((n,), name="A", dtype=dtype)
+
+    B = te.extern(
+        A.shape,
+        [A],
+        lambda ins, outs: do_compute(ins[0], outs[0], n),
+        dtype=dtype,
+    )
+    s = te.create_schedule(B.op)
+
+    # Point of failure would be here, at tvm.build.
+    with tvm.transform.PassContext(opt_level=3):
+        func = tvm.build(s, [A, B], target)
+
+    a = tvm.nd.array(np.array([5], dtype=A.dtype), dev)
+    b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+    func(a, b)
+    tvm.testing.assert_allclose(b.asnumpy(), [55])
+
+    a = tvm.nd.array(np.array([-5], dtype=A.dtype), dev)
+    b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+    func(a, b)
+    tvm.testing.assert_allclose(b.asnumpy(), [210])
+
+
 if __name__ == "__main__":
     test_vector_comparison()
     test_vulkan_copy()
