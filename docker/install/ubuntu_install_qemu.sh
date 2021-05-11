@@ -49,4 +49,4 @@ make -j2
 sudo make install
 
 # For debugging with qemu
-apt-get install libpython3.8
+apt-get -y install libpython3.8
