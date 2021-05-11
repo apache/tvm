@@ -21,7 +21,7 @@ import pytest
 import tvm
 from tvm import relay
 
-from .infrastructure import skip_runtime_test, compare_inference_with_ref, generate_trials
+from infrastructure import skip_runtime_test, compare_inference_with_ref, generate_trials
 
 # TODO: Missed cases
 #   1. Bias as add with 3d const tensor. Lead to additional unsqueeze op between
