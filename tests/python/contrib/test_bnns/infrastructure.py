@@ -19,15 +19,17 @@ from itertools import zip_longest, combinations
 import json
 import os
 import warnings
-
+from enum import Enum
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm import rpc
 from tvm.contrib import graph_executor
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.contrib import utils
+from tvm.contrib import xcode
 from tvm.autotvm.measure import request_remote
 from tvm.relay.analysis import analysis
 
@@ -66,12 +68,23 @@ class Device:
         Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
     """
 
-    connection_type = "local"
-    host = "127.0.0.1"
+    class ConnectionType(Enum):
+        TRACKER = "tracker"
+        REMOTE = "remote"
+        LOCAL = "local"
+        TRACKER_CONNECTION = "tracker_connection"
+
+    class LibExportType(Enum):
+        X64_X86 = 0
+        ARM64 = 1
+
+    connection_type = ConnectionType("local")
+    host = "localhost"
     port = 9090
     target = "llvm"
     device_key = ""
     cross_compile = ""
+    lib_export_type = LibExportType.X64_X86
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
@@ -80,18 +93,37 @@ class Device:
     @classmethod
     def _get_remote(cls):
         """Get a remote (or local) device to use for testing."""
-        if cls.connection_type == "tracker":
+        if cls.connection_type == Device.ConnectionType.TRACKER:
             device = request_remote(cls.device_key, cls.host, cls.port, timeout=1000)
-        elif cls.connection_type == "remote":
+        elif cls.connection_type == Device.ConnectionType.REMOTE:
             device = rpc.connect(cls.host, cls.port)
-        elif cls.connection_type == "local":
+        elif cls.connection_type == Device.ConnectionType.LOCAL:
             device = rpc.LocalSession()
+        elif cls.connection_type == Device.ConnectionType.TRACKER_CONNECTION:
+            tracker = rpc.connect_tracker(url=cls.host, port=cls.port)
+            device = tracker.request(cls.device_key)
         else:
             raise ValueError(
                 "connection_type in test_config.json should be one of: " "local, tracker, remote."
             )
 
         return device
+
+    @classmethod
+    def _set_parameters(cls, connection_type, host, port, target, device_key, cross_compile, lib_export_type):
+        cls.connection_type = connection_type
+        cls.host = host
+        cls.port = port
+        cls.target = target
+        cls.device_key = device_key
+        cls.cross_compile = cross_compile
+        cls.lib_export_type = lib_export_type
+
+    @classmethod
+    def create_device(cls, connection_type, host, port, target, device_key="",
+                      cross_compile="", lib_export_type=LibExportType.X64_X86):
+        cls._set_parameters(connection_type, host, port, target, device_key, cross_compile, lib_export_type)
+        return cls()
 
     @classmethod
     def load(cls, file_name):
@@ -108,7 +140,7 @@ class Device:
         with open(config_file, mode="r") as config:
             test_config = json.load(config)
 
-        cls.connection_type = test_config["connection_type"]
+        cls.connection_type = Device.ConnectionType(test_config["connection_type"])
         cls.host = test_config["host"]
         cls.port = test_config["port"]
         cls.target = test_config["target"]
@@ -170,7 +202,7 @@ def build_and_run(
         err_msg += str(e)
         raise Exception(err_msg)
 
-    lib = update_lib(lib, device.device, device.cross_compile)
+    lib = update_lib(lib, device.device, device.cross_compile, device.lib_export_type)
     gen_module = graph_executor.GraphModule(lib["default"](device.device.cpu(0)))
     gen_module.set_input(**inputs)
     out = []
@@ -180,13 +212,15 @@ def build_and_run(
     return out
 
 
-def update_lib(lib, device, cross_compile):
+def update_lib(lib, device, cross_compile, lib_export_type):
     """Export the library to the remote/local device."""
     lib_name = "mod.so"
     temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
-    if cross_compile:
+    if lib_export_type != Device.LibExportType.ARM64 and cross_compile:
         lib.export_library(lib_path, cc=cross_compile)
+    if lib_export_type == Device.LibExportType.ARM64:
+        lib.export_library(lib_path, xcode.create_dylib, arch="arm64", sdk="iphoneos")
     else:
         lib.export_library(lib_path)
     device.upload(lib_path)
