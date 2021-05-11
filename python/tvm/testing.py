@@ -760,32 +760,13 @@ def _auto_parametrize_target(metafunc):
     file.
 
     """
-
-    def get_param_list(plugins, param_name):
-        output = set()
-        for plugin in plugins:
-            if hasattr(plugin, param_name):
-                param = getattr(plugin, param_name, [])
-                # Can be defined either as a string, or a list of strings.
-                if isinstance(param, str):
-                    output.add(param)
-                else:
-                    output |= set(param)
-        return output
-
     if "target" in metafunc.fixturenames:
         mark = metafunc.definition.get_closest_marker("parametrize")
         if not mark or "target" not in mark.args[0]:
-            # Any conftest.py, the file containing the test, or the
-            # test itself, are allowed to disable a test from running
-            # on a target or targets.
-            plugins = list(metafunc.config.pluginmanager.get_plugins()) + [
-                metafunc.function,
-                metafunc.module,
-            ]
-            excluded_targets = get_param_list(plugins, "tvm_excluded_targets")
-            known_failing_targets = get_param_list(plugins, "tvm_known_failing_targets")
-
+            # Check if the function is marked with either excluded or
+            # known failing targets.
+            excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
+            known_failing_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
             metafunc.parametrize(
                 "target", _pytest_target_params(None, excluded_targets, known_failing_targets)
             )
@@ -845,9 +826,7 @@ def exclude_targets(*args):
     tvm.testing.enabled_targets(), except for a particular target that
     does not support the capabilities.
 
-    Alternatively, this can be specified in the conftest.py or the
-    file containing the test by setting the global variable
-    "tvm_excluded_targets".
+    Applies pytest.mark.skipif to the targets given.
 
     Parameters
     ----------
@@ -887,19 +866,7 @@ def known_failing_targets(*args):
     implemented runtime may not support all features being tested, and
     should be excluded.
 
-    Alternatively, this can be specified in the conftest.py or the
-    file containing the test by setting the global variable
-    "tvm_known_failing_targets".
-
-    This is distinct from :py:func:`exclude_targets`, as these known
-    failing tests are still included in the final report as being
-    skipped, and show up in detailed views.  Where
-    :py:func:`exclude_targets` is intended to mark targets that are
-    inherently incompatible with the test being run,
-    :py:func:`known_failing_targets` is intended to mark known failure
-    modes that are either exposed by implementing new tests, or lack
-    of feature implementation in a newly-implemented runtime, and will
-    be resolved in the future.
+    Applies pytest.mark.xfail to the targets given.
 
     Parameters
     ----------
