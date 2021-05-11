@@ -36,6 +36,9 @@ RUN bash /install/ubuntu1804_install_llvm.sh
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
 
+COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
+RUN bash /install/ubuntu_install_papi.sh ""
+
 # Install MxNet for access to Gluon Model Zoo.
 COPY install/ubuntu_install_mxnet.sh /install/ubuntu_install_mxnet.sh
 RUN bash /install/ubuntu_install_mxnet.sh
