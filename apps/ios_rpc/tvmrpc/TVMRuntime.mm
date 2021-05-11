@@ -36,6 +36,8 @@
 #include "../../../src/runtime/thread_pool.cc"
 #include "../../../src/runtime/threading_backend.cc"
 #include "../../../src/runtime/workspace_pool.cc"
+#include "../../../src/runtime/profiling.cc"
+#include "../../../src/runtime/logging.cc"
 
 // RPC server
 #include "../../../src/runtime/rpc/rpc_channel.cc"
