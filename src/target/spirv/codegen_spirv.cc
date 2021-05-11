@@ -549,6 +549,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
   spirv::Label head_label = builder_->NewLabel();
+  spirv::Label condition_label = builder_->NewLabel();
   spirv::Label body_label = builder_->NewLabel();
   spirv::Label continue_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
@@ -556,9 +557,15 @@ void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
 
   // Loop head
   builder_->StartLabel(head_label);
-  spirv::Value loop_cond = MakeValue(op->condition);
   uint32_t control = spv::LoopControlMaskNone;
   builder_->MakeInst(spv::OpLoopMerge, merge_label, continue_label, control);
+  builder_->MakeInst(spv::OpBranch, condition_label);
+
+  // Loop condition evaluation.  The condition could contain if/else
+  // blocks that introduce additional labels, so the condition cannot
+  // be in the loop head's block.
+  builder_->StartLabel(condition_label);
+  spirv::Value loop_cond = MakeValue(op->condition);
   builder_->MakeInst(spv::OpBranchConditional, loop_cond, body_label, merge_label,
                      weight_likely_branch_, 1);
 
