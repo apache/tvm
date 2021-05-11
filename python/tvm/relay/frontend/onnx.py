@@ -2832,19 +2832,23 @@ class QLinearConv(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        def get_scalar(x):
+        def get_scalar(x, dtype="float32"):
             if isinstance(x, _expr.Var) and x.name_hint in params:
-                return params[x.name_hint].asnumpy()
-            return x
+                return _op.const(params[x.name_hint].asnumpy(), dtype)
+            rank = len(infer_shape(x))
+            assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
+            if rank == 1:
+                x = _op.squeeze(x, [0])
+            return _op.cast(x, dtype)
 
         data = inputs[0]
         x_scale = get_scalar(inputs[1])
-        x_zero_point = get_scalar(inputs[2])
+        x_zero_point = get_scalar(inputs[2], "int32")
         weight = inputs[3]
         w_scale = get_scalar(inputs[4])
-        w_zero_point = get_scalar(inputs[5])
+        w_zero_point = get_scalar(inputs[5], "int32")
         y_scale = get_scalar(inputs[6])
-        y_zero_point = get_scalar(inputs[7])
+        y_zero_point = get_scalar(inputs[7], "int32")
 
         input_shape = infer_shape(data)
         ndim = len(input_shape)
@@ -2864,7 +2868,7 @@ class QLinearConv(OnnxOpConverter):
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
                     ndim,
-                    pad_value=x_zero_point,
+                    pad_value=x_zero_point.data,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -2890,10 +2894,10 @@ class QLinearConv(OnnxOpConverter):
         out = _qnn.op.conv2d(
             data,
             weight,
-            _expr.const(x_zero_point, "int32"),
-            _expr.const(w_zero_point, "int32"),
-            _expr.const(x_scale),
-            _expr.const(w_scale),
+            x_zero_point,
+            w_zero_point,
+            x_scale,
+            w_scale,
             kernel_size=attr["kernel_shape"],
             channels=out_channels,
             strides=strides,
@@ -2905,14 +2909,13 @@ class QLinearConv(OnnxOpConverter):
         if use_bias:
             out = _op.nn.bias_add(out, inputs[8])
 
-        requantize_scale = x_scale * w_scale
         out_dtype = infer_type(inputs[7]).checked_type.dtype
         requantized = _qnn.op.requantize(
             out,
-            _expr.const(requantize_scale),
+            _op.multiply(x_scale, w_scale),
             tvm.relay.const(0, "int32"),
-            _expr.const(y_scale),
-            _expr.const(y_zero_point, "int32"),
+            y_scale,
+            y_zero_point,
             out_dtype=out_dtype,
             axis=0,
         )
