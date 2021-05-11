@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm import tir, script
@@ -91,14 +92,20 @@ def primfunc_local_allocates(placeholder_162: ty.handle, placeholder_163: ty.han
 # fmt: on
 
 
-def test_global_allocates():
+@pytest.mark.parametrize("alignment_and_size", [(1, 663552), (10, 663560)])
+def test_global_allocates(alignment_and_size):
+    alignment = alignment_and_size[0]
+    size = alignment_and_size[1]
     primfunc = primfunc_global_allocates
-    assert tvm.tir.analysis.calculate_workspace_bytes(primfunc) == 663552
+    assert tvm.tir.analysis.calculate_workspace_bytes(primfunc, alignment) == size
 
 
-def test_local_allocates():
+@pytest.mark.parametrize("alignment_and_size", [(1, 1566720), (100, 1567100)])
+def test_local_allocates(alignment_and_size):
+    alignment = alignment_and_size[0]
+    size = alignment_and_size[1]
     primfunc = primfunc_local_allocates
-    assert tvm.tir.analysis.calculate_workspace_bytes(primfunc) == 1566720
+    assert tvm.tir.analysis.calculate_workspace_bytes(primfunc, alignment) == size
 
 
 if __name__ == "__main__":
