@@ -16,11 +16,15 @@
 # under the License.
 """BNNS pattern detection check"""
 
+import onnx
 import pytest
 
 import tvm
+import tvm.testing
+from tvm import rpc
 from tvm import relay
 from tvm.relay import transform
+from tvm.contrib import xcode
 from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.bnns import partition_for_bnns
@@ -31,18 +35,19 @@ pytest.importorskip("onnx")
 
 bnns_is_absent = tvm.get_global_func("relay.ext.bnns", True) is None
 
-TARGET = "llvm"
+RUN_ON_IPHONE = True
+TARGET = "llvm" if not RUN_ON_IPHONE else "llvm -model=iphone12mini -mtriple=arm64-apple-darwin -mattr=+neon"
 INPUT_SHAPE = [1, 3, 224, 224]
 
 BASE_MODEL_URL = "https://github.com/onnx/models/raw/master/"
 MODEL_URL_COLLECTION = {
-    "BERT": "text/machine_comprehension/bert-squad/model/bertsquad-10.onnx",
+    # "BERT": "text/machine_comprehension/bert-squad/model/bertsquad-10.onnx",
     "MobileNet-v2": "vision/classification/mobilenet/model/mobilenetv2-7.onnx",
     "ResNet50-v1": "vision/classification/resnet/model/resnet50-v1-7.onnx",
     "ResNet50-v2": "vision/classification/resnet/model/resnet50-v2-7.onnx",
-    "SqueezeNet-v1.1": "vision/classification/squeezenet/model/squeezenet1.1-7.onnx",
-    "SqueezeNet-v1.0": "vision/classification/squeezenet/model/squeezenet1.0-7.onnx",
-    "Inception-v1": "vision/classification/inception_and_googlenet/inception_v1/model/inception-v1-7.onnx",
+    # "SqueezeNet-v1.1": "vision/classification/squeezenet/model/squeezenet1.1-7.onnx",
+    # "SqueezeNet-v1.0": "vision/classification/squeezenet/model/squeezenet1.0-7.onnx",
+    # "Inception-v1": "vision/classification/inception_and_googlenet/inception_v1/model/inception-v1-7.onnx",
     "Inception-v2": "vision/classification/inception_and_googlenet/inception_v2/model/inception-v2-7.onnx",
 }
 
@@ -111,12 +116,22 @@ def process(model_name):
                 mod = partition_for_bnns(mod)
             graph_module = relay.build(mod, target=target, target_host=target, params=params)
 
-        lib_name = "deploy.tar"
+        lib_name = "deploy.tar" if not RUN_ON_IPHONE else "deploy.dylib"
         path_dso = temp.relpath(lib_name)
-        graph_module.export_library(path_dso)
+        if RUN_ON_IPHONE:
+            graph_module.export_library(path_dso, xcode.create_dylib, arch="arm64", sdk="iphoneos")
+        else:
+            graph_module.export_library(path_dso)
 
-        dev = tvm.cpu(0)
-        loaded_lib = tvm.runtime.load_module(path_dso)
+        if RUN_ON_IPHONE:
+            tracker = rpc.connect_tracker(url="0.0.0.0", port=9190)
+            remote = tracker.request('i12')
+            remote.upload(path_dso)
+            loaded_lib = remote.load_module(lib_name)
+            dev = remote.cpu(0)
+        else:
+            dev = tvm.cpu(0)
+            loaded_lib = tvm.runtime.load_module(path_dso)
 
         module = graph_executor.GraphModule(loaded_lib["default"](dev))
         module.run()
@@ -133,8 +148,17 @@ def process(model_name):
     )
 
 
-@pytest.mark.skip(reason="Manually disabled because of huge complexity")
+# @pytest.mark.skip(reason="Manually disabled because of huge complexity")
 @pytest.mark.skipif(bnns_is_absent, reason="BNNS runtime is absent")
 @pytest.mark.parametrize("model_name", MODEL_URL_COLLECTION.keys())
 def test_topology(model_name):
     process(model_name)
+
+
+def main():
+    for model_name in MODEL_URL_COLLECTION.keys():
+        test_topology(model_name)
+
+
+if __name__ == "__main__":
+    main()

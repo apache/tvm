@@ -21,14 +21,14 @@ import pytest
 import tvm
 from tvm import relay
 from tvm import testing
-from .infrastructure import (
+from infrastructure import (
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,
     verify,
     verify_codegen,
 )
-from .infrastructure import Device
+from infrastructure import Device
 
 
 def _calculate_output_shape(shape, sizes, padding, strides):
@@ -134,7 +134,12 @@ def _get_expected_global_pooling_codegen(shape, dtype, typef):
 
 @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_pooling():
-    device = Device()
+    device = Device.create_device(connection_type=Device.ConnectionType.TRACKER_CONNECTION,
+                                  host="0.0.0.0",
+                                  port=9190,
+                                  target="llvm -model=iphone12mini -mtriple=arm64-apple-darwin -mattr=+neon",
+                                  device_key="i12",
+                                  cross_compile="")
     np.random.seed(0)
 
     dtype = "float32"
@@ -192,7 +197,12 @@ def test_pooling():
 
 @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
 def test_global_pooling():
-    device = Device()
+    device = Device.create_device(connection_type=Device.ConnectionType.TRACKER_CONNECTION,
+                                  host="0.0.0.0",
+                                  port=9190,
+                                  target="llvm -model=iphone12mini -mtriple=arm64-apple-darwin -mattr=+neon",
+                                  device_key="i12",
+                                  cross_compile="")
     np.random.seed(0)
 
     dtype = "float32"
