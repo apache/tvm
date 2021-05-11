@@ -728,13 +728,18 @@ def _pytest_target_params(targets, excluded_targets=None, known_failing_targets=
 
         target_marks = []
         for t in _get_targets():
+            # Excluded targets aren't included in the params at all.
             if t["target_kind"] not in excluded_targets:
-                extra_marks = [
-                    pytest.mark.skipif(
-                        t["target_kind"] in known_failing_targets,
-                        reason='Known failing test for target "{}"'.format(t["target_kind"]),
+
+                # Known failing targets are included, but are marked
+                # as expected to fail.
+                extra_marks = []
+                if t["target_kind"] in known_failing_targets:
+                    extra_marks.append(
+                        pytest.mark.xfail(
+                            reason='Known failing test for target "{}"'.format(t["target_kind"])
+                        )
                     )
-                ]
                 target_marks.append((t["target"], extra_marks))
 
     else:
