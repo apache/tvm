@@ -63,6 +63,7 @@ class OperatorConverter(object):
             "Slice": self.convert_slice,
             "Softmax": self.convert_softmax,
             "TanH": self.convert_tanh,
+            "Reduction": self.convert_reduction,
         }
 
     def convert_flatten(self, op):
@@ -609,6 +610,36 @@ class OperatorConverter(object):
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.tanh(in_expr)
+        return out
+
+    def convert_reduction(self, op):
+        """ Convert Reduction layer """
+        reduction_dic = ["NOP", "SUM", "ASUM", "SUMSQ", "MEAN"]
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        method = op.reduction_param.operation
+        axis = op.reduction_param.axis
+        coeff = op.reduction_param.coeff
+        if reduction_dic[method] == "MEAN":
+            coeff /= len(inputs)
+        coeff_expr = self.exp_tab.new_const(np.asarray(coeff, np.float32))
+
+        if reduction_dic[method] == "SUM":
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "MEAN":
+            out = _op.mean(in_expr, axis=axis)
+        elif reduction_dic[method] == "ASUM":
+            in_expr = _op.abs(in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "SUMSQ":
+            in_expr = _op.multiply(in_expr, in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                "reduction method:{} is invalid in Caffe frontend.".format(method)
+            )
+
+        out = _op.multiply(out, coeff_expr)
         return out
 
     def convert_crop(self, op):

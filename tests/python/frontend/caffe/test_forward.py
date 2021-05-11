@@ -791,6 +791,29 @@ def test_forward_TanH():
 
 
 #######################################################################
+# Reduction
+# -----------
+
+
+def _test_reduction(data, **kwargs):
+    """ One iteration of Reduction """
+    _test_op(data, L.Reduction, "Reduction", **kwargs)
+
+
+def test_forward_Reduction():
+    """ Reduction """
+    reduction_op = {"SUM":1, "ASUM":2, "SUMSQ":3, "MEAN":4}
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUM"], axis=0)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUM"], axis=0, coeff=0.)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["ASUM"], axis=0)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["ASUM"], axis=0, coeff=0.)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUMSQ"], axis=0)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUMSQ"], axis=0, coeff=0.)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["MEAN"], axis=0)
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["MEAN"], axis=0, coeff=0.)
+
+
+#######################################################################
 # Mobilenetv2
 # -----------
 
@@ -934,6 +957,7 @@ if __name__ == "__main__":
     # Reshape
     test_forward_Reshape()
     test_forward_Flatten()
+    test_forward_Reduction()
 
     # Math
     test_forward_Concat()
