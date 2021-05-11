@@ -396,22 +396,25 @@ def _make_large_tensors_sess(model, zephyr_board, west_cmd, shape, build_config)
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, C], build_config)
 
-def test_rpc_large_array(platform, west_cmd, tvm_build, tvm_debug):
+@pytest.mark.parametrize(
+    "shape,",
+    [pytest.param((1*1024,), id='(1*1024)'), pytest.param((4*1024,), id='(4*1024)'), pytest.param((16*1024,), id='(16*1024)')],
+)
+def test_rpc_large_array(platform, west_cmd, tvm_build, tvm_debug, shape):
     """Test large RPC array transfer."""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"build": tvm_build, "debug": tvm_debug}
-    tensor_shape = (16*1024,)
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_tensors(sess):
-        a_np = np.random.randint(low=-128, high=127, size=tensor_shape, dtype="int8")
+        a_np = np.random.randint(low=-128, high=127, size=shape, dtype="int8")
 
         A_data = tvm.nd.array(a_np, device=sess.device)
         assert (A_data.asnumpy() == a_np).all()
-        C_data = tvm.nd.array(np.zeros(tensor_shape, dtype="int8"), device=sess.device)
-        assert (C_data.asnumpy() == np.zeros(tensor_shape)).all()
+        C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
+        assert (C_data.asnumpy() == np.zeros(shape)).all()
 
-    with _make_large_tensors_sess(model, zephyr_board, west_cmd, tensor_shape, build_config) as sess:
+    with _make_large_tensors_sess(model, zephyr_board, west_cmd, shape, build_config) as sess:
         test_tensors(sess)
 
 if __name__ == "__main__":
