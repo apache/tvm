@@ -45,11 +45,18 @@ def pytest_addoption(parser):
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
     )
     parser.addoption(
-        "--tvm-build", action="store_true", default=True, help="If set true, build the uTVM binary from scratch on each test. Otherwise, reuses the build from the previous test run."
+        "--tvm-build",
+        action="store_true",
+        default=True,
+        help="If set true, build the uTVM binary from scratch on each test. Otherwise, reuses the build from the previous test run.",
     )
     parser.addoption(
-        "--tvm-debug", action="store_true", default=False, help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>"
+        "--tvm-debug",
+        action="store_true",
+        default=False,
+        help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
     )
+
 
 def pytest_generate_tests(metafunc):
     if "platform" in metafunc.fixturenames:
@@ -60,9 +67,11 @@ def pytest_generate_tests(metafunc):
 def west_cmd(request):
     return request.config.getoption("--west-cmd")
 
+
 @pytest.fixture
 def tvm_build(request):
     return request.config.getoption("--tvm-build")
+
 
 @pytest.fixture
 def tvm_debug(request):

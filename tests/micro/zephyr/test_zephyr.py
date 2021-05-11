@@ -304,7 +304,9 @@ class CcompilerAnnotator(ExprMutator):
         return super().visit_call(call)
 
 
-def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config):
+def check_result(
+    relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config
+):
     """Helper function to verify results"""
     TOL = 1e-5
     target = tvm.target.target.micro(model)
@@ -390,15 +392,21 @@ def test_byoc_utvm(platform, west_cmd, tvm_build, tvm_debug):
         build_config=build_config,
     )
 
+
 def _make_large_tensors_sess(model, zephyr_board, west_cmd, shape, build_config):
     A = tvm.te.placeholder(shape, dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")
     sched = tvm.te.create_schedule(C.op)
     return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, C], build_config)
 
+
 @pytest.mark.parametrize(
     "shape,",
-    [pytest.param((1*1024,), id='(1*1024)'), pytest.param((4*1024,), id='(4*1024)'), pytest.param((16*1024,), id='(16*1024)')],
+    [
+        pytest.param((1 * 1024,), id="(1*1024)"),
+        pytest.param((4 * 1024,), id="(4*1024)"),
+        pytest.param((16 * 1024,), id="(16*1024)"),
+    ],
 )
 def test_rpc_large_array(platform, west_cmd, tvm_build, tvm_debug, shape):
     """Test large RPC array transfer."""
@@ -416,6 +424,7 @@ def test_rpc_large_array(platform, west_cmd, tvm_build, tvm_debug, shape):
 
     with _make_large_tensors_sess(model, zephyr_board, west_cmd, shape, build_config) as sess:
         test_tensors(sess)
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
