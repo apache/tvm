@@ -613,12 +613,6 @@ Doc TIRTextPrinter::VisitType_(const PointerTypeNode* node) {
   return doc;
 }
 
-Doc TIRTextPrinter::VisitType_(const TextureTypeNode* node) {
-  Doc doc;
-  doc << "Texture(" << Print(node->element_type) << ")";
-  return doc;
-}
-
 Doc TIRTextPrinter::VisitType_(const TupleTypeNode* node) {
   std::vector<Doc> fields;
   for (Type field : node->fields) {

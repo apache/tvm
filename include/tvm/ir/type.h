@@ -189,55 +189,6 @@ class PointerType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
 };
 
-/*!
- * \brief Low-level texture type.
- *
- *  TextureType represents type hints in the TIR to be
- *  passed to the final code generator.
- *
- *  TextureType should not occur in the high-level analysis.
- *
- * \sa TextureType
- */
-class TextureTypeNode : public TypeNode {
- public:
-  /*!
-   * \brief The base type of the texture.
-   */
-  Type element_type;
-
-  void VisitAttrs(AttrVisitor* v) { v->Visit("element_type", &element_type); }
-
-  bool SEqualReduce(const TextureTypeNode* other, SEqualReducer equal) const {
-    return equal(element_type, other->element_type);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(element_type); }
-
-  static constexpr const char* _type_key = "TextureType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TextureTypeNode, TypeNode);
-};
-
-/*
- * \brief Managed reference to TextureTypeNode.
- * \sa TextureTypeNode
- */
-class TextureType : public Type {
- public:
-  /*!
-   * \brief Constructor
-   * \param element_type The base type of the texture.
-   */
-  TVM_DLL explicit TextureType(Type element_type);
-  /*!
-   * \brief Constructor
-   * \param element_type The base type of the texture.
-   */
-  TVM_DLL explicit TextureType(runtime::DataType dtype);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(TextureType, Type, TextureTypeNode);
-};
-
 /*! \brief Possible kinds of TypeVars. */
 enum TypeKind : int {
   kType = 0,

@@ -89,8 +89,6 @@ void TypeVisitor::VisitType_(const PrimTypeNode* op) {}
 
 void TypeVisitor::VisitType_(const PointerTypeNode* op) { this->VisitType(op->element_type); }
 
-void TypeVisitor::VisitType_(const TextureTypeNode* op) { this->VisitType(op->element_type); }
-
 Type TypeMutator::VisitType(const Type& t) {
   return t.defined() ? TypeFunctor<Type(const Type&)>::VisitType(t) : t;
 }
@@ -197,16 +195,6 @@ Type TypeMutator::VisitType_(const PointerTypeNode* op) {
     return GetRef<Type>(op);
   } else {
     return PointerType(element_type, op->storage_scope);
-  }
-}
-
-Type TypeMutator::VisitType_(const TextureTypeNode* op) {
-  Type element_type = VisitType(op->element_type);
-
-  if (element_type.same_as(op->element_type)) {
-    return GetRef<Type>(op);
-  } else {
-    return TextureType(element_type);
   }
 }
 
