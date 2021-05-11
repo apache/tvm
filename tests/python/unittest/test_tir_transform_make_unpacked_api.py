@@ -68,6 +68,19 @@ def test_device_setup(mod, target, dev):
     assert f.body.body.value == dev.device_type
 
 
+def test_no_buffers_no_device_setup():
+    ib = tvm.tir.ir_builder.create()
+    n = tvm.runtime.convert(4)
+    stmt = ib.get()
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
+
+    f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
+    assert len(f.params) == 0
+    assert f.body.value == 0
+
+
 def test_argument_mapping(mod):
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
     assert len(f.params) == 1

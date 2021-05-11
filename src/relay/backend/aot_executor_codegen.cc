@@ -137,10 +137,17 @@ class AOTExecutorCodegen : public ExprVisitor {
       // Pack the sid inside the TVMValue
       auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
       auto sid_value = sids_table_[sid];
-      tvm::PrimExpr set_tensor =
-          tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                         {sid_array, 0, tir::builtin::kArrData, sid_value});
-      stmts_.push_back(tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
+
+      if (target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
+        stmts_.push_back(tir::LetStmt(sid_array, sid_value, tir::Evaluate(0)));
+      } else {
+        tvm::PrimExpr set_tensor =
+            tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
+                           {sid_array, 0, tir::builtin::kArrData, sid_value});
+        stmts_.push_back(
+            tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
+      }
+
       sid_vars.push_back(sid_array);
     }
     return sid_vars;
@@ -161,16 +168,15 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                        {tir::StringImm(params_by_expr_[expr])});
 
-    tvm::PrimExpr set_param_array =
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                       {param_array, 0, tir::builtin::kArrData, param_handle});
-    lookup_call.push_back(tir::Evaluate(set_param_array));
+    if (!target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
+      tvm::PrimExpr set_param_array =
+          tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
+                        {param_array, 0, tir::builtin::kArrData, param_handle});
+      stmts_.push_back(tir::LetStmt(param_array, StackAlloca("arg_value", 1), tir::Evaluate(set_param_array)));
+    } else {
+      stmts_.push_back(tir::LetStmt(param_array, param_handle, tir::Evaluate(0)));
+    }
 
-    tir::Stmt lookup_body = tir::SeqStmt(lookup_call);
-
-    // Allocate the DLTensors on the stack
-    lookup_body = tir::LetStmt(param_array, StackAlloca("arg_value", 1), lookup_body);
-    stmts_.push_back(lookup_body);
     return param_array;
   }
 
@@ -193,44 +199,27 @@ class AOTExecutorCodegen : public ExprVisitor {
   }
 
   /*!
-   * \brief Unpacks a buffer if operators are using the unpacked C-style interface
-   */
-  PrimExpr UnpackBufferIfUnpackedSignature(tir::Var arg) {
-    auto untyped_operators =
-        target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false));
-    if (!untyped_operators) {
-      return arg;
-    }
-
-    return tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                     {arg, 0, tir::builtin::kArrData});
-  }
-
-  /*!
    * brief Call a function with a given name
    */
   void CreateFuncCall(Call call, std::string func_name) {
-    auto untyped_operators =
-        target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false));
-
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
 
     // Pack the inputs
     for (Expr arg : call->args) {
       auto var_arg = FindExpr(arg);
-      args.push_back(UnpackBufferIfUnpackedSignature(var_arg[0]));
+      args.push_back(var_arg[0]);
     }
 
     auto ret_expr = Downcast<Expr>(call);
     // Pack the return(s) value. A call node can produce multiple outputs
     for (const auto& var : PackSid(ret_expr)) {
-      args.push_back(UnpackBufferIfUnpackedSignature(var));
+      args.push_back(var);
     }
 
     // Use tvm_call_packed to execute the function unless we're calling directly
     auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
-    if (untyped_operators) {
+    if (target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
       calling_pattern = tvm::tir::builtin::call_extern();
     }
 
@@ -248,16 +237,20 @@ class AOTExecutorCodegen : public ExprVisitor {
    * copy-on-write fashion.
    */
   void CopyToOutput(te::Var out, te::Var in, size_t size) {
-    auto retval_get = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                     {in, 0, tir::builtin::kArrData});
-
     // Define intermediate DLTensor to load/store the data
     auto tmp0 = te::Var("tmp0", DataType::Handle());
     auto tmp1 = te::Var("tmp1", DataType::Handle());
     te::Var loop_idx("i", DataType::Int(32));
     auto retval_i = tir::Load(DataType::UInt(8), tmp0, loop_idx, tir::const_true());
-    auto tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                  {out, 0, tir::builtin::kArrData});
+
+    PrimExpr retval_get = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
+                                         {in, 0, tir::builtin::kArrData});
+    PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
+                                      {out, 0, tir::builtin::kArrData});
+    if (target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
+      retval_get = in;
+      tostore = out;
+    }
 
     // Copy the variable from the input to the output
     tir::Stmt copy = tir::For(
@@ -540,7 +533,6 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Define the PrimFunc attributes
     Map<String, ObjectRef> dict_attrs;
     dict_attrs.Set("global_symbol", runtime::String(runtime::symbol::tvm_run_func_prefix));
-    dict_attrs.Set(tvm::attr::kCallingConv, Integer(CallingConv::kEntryPoint));
 
     // Make the PrimFunc
     return tir::PrimFunc(main_signature_, body, VoidType(), Map<tir::Var, tir::Buffer>(),

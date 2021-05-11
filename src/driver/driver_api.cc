@@ -128,22 +128,6 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
-transform::Pass FilterCallingConv(CallingConv calling_conv, bool should_match) {
-  return Filter([calling_conv, should_match](const tir::PrimFunc& f) {
-    auto actual_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault));
-    bool does_match = actual_conv == calling_conv;
-    return does_match == should_match;
-  });
-}
-
-transform::Pass FilterCallingConv(CallingConv calling_conv) {
-  return FilterCallingConv(calling_conv, true);
-}
-
-transform::Pass FilterNotCallingConv(CallingConv calling_conv) {
-  return FilterCallingConv(calling_conv, false);
-}
-
 IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
   Array<ObjectRef> out_arg_list;
@@ -201,10 +185,12 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
-IRModule MixedPasses(IRModule mod_mixed, const Target& target,
-                     const transform::PassContext& pass_ctx, const tvm::transform::Pass& filter,
-                     bool use_unpacked_api) {
-  Array<tvm::transform::Pass> mixed_pass_list = {filter, BindTarget(target),
+std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
+                                                const Target& target_host_arg,
+                                                const transform::PassContext& pass_ctx) {
+  Target target = target_arg, target_host = target_host_arg;
+  CheckAndUpdateHostConsistency(&target, &target_host);
+  Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
 
   if (pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value()) {
@@ -215,7 +201,7 @@ IRModule MixedPasses(IRModule mod_mixed, const Target& target,
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  if (use_unpacked_api) {
+  if (target->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
@@ -224,28 +210,13 @@ IRModule MixedPasses(IRModule mod_mixed, const Target& target,
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 
   auto opt_mixed = transform::Sequential(mixed_pass_list);
-  return opt_mixed(mod_mixed);
-}
-
-std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
-                                                const Target& target_host_arg,
-                                                const transform::PassContext& pass_ctx) {
-  Target target = target_arg, target_host = target_host_arg;
-  CheckAndUpdateHostConsistency(&target, &target_host);
-
-  // Run default passes over entrypoint function
-  auto entrypoint_filter = FilterCallingConv(CallingConv::kEntryPoint);
-  auto entrypoint_mod = MixedPasses(mod_mixed, target, pass_ctx, entrypoint_filter, false);
-
-  // Create passes for untyped operators but maintain default API for entrypoint
-  auto untyped_operators = target->GetAttr<Bool>("no-typed-operators").value_or(Bool(false));
-  auto operator_filter = FilterNotCallingConv(CallingConv::kEntryPoint);
-  mod_mixed = MixedPasses(mod_mixed, target, pass_ctx, operator_filter, untyped_operators);
-
-  mod_mixed->Update(entrypoint_mod);
+  mod_mixed = opt_mixed(std::move(mod_mixed));
 
   auto host_pass_list = {
-      FilterNotCallingConv(CallingConv::kDeviceKernelLaunch),
+      Filter([](const tir::PrimFunc& f) {
+        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
+               CallingConv::kDeviceKernelLaunch;
+      }),
       BindTarget(target_host),
       tir::transform::LowerTVMBuiltin(),
       tir::transform::LowerCustomDatatypes(),
@@ -259,7 +230,10 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
 
   // device pipeline
   auto device_pass_list = {
-      FilterCallingConv(CallingConv::kDeviceKernelLaunch),
+      Filter([](const tir::PrimFunc& f) {
+        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+               CallingConv::kDeviceKernelLaunch;
+      }),
       BindTarget(target),
       tir::transform::LowerWarpMemory(),
       tir::transform::Simplify(),

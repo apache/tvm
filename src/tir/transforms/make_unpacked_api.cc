@@ -56,8 +56,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   Integer device_id(0);
   PrimExpr node = StringImm("default");
   const Stmt nop = Evaluate(0);
-  std::vector<Stmt> device_init = {AttrStmt(node, attr::device_id, device_id, nop),
-                                   AttrStmt(node, attr::device_type, device_type, nop)};
+  std::vector<Stmt> device_init;
 
   // Create arg to buffer binder
   std::unordered_map<const VarNode*, PrimExpr> vmap;
@@ -88,6 +87,11 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   }
   for (const auto& kv : buffer_def) {
     binder.Bind(kv.second->data, kv.first, kv.first->name_hint, true);
+  }
+
+  if (buffer_def.size()) {
+    device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
+    device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
   }
 
   func_ptr->body = MergeNest({device_init, binder.init_nest(), binder.asserts()}, func_ptr->body);
