@@ -393,7 +393,7 @@ def test_byoc_utvm(platform, west_cmd, tvm_build, tvm_debug):
     )
 
 
-def _make_large_tensors_sess(model, zephyr_board, west_cmd, shape, build_config):
+def _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config):
     A = tvm.te.placeholder(shape, dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")
     sched = tvm.te.create_schedule(C.op)
