@@ -2570,17 +2570,17 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     if (params->begin && params->end && params->strides) {
       for (Integer i : params->strides.value()) {
         ICHECK(i.defined());
-        auto slice_val = Integer(IntImm(DataType::Int(64), i->value));
-        strides.push_back(params->slice_mode == "size" ? Integer(1) : slice_val);
+        auto slice_val = Integer(IntImm(i->dtype, i->value));
+        strides.push_back(params->slice_mode == "size" ? Integer(IntImm(i->dtype, 1)) : slice_val);
       }
 
       for (Integer i : params->begin.value()) {
         ICHECK(i.defined());
-        begin.push_back(IntImm(DataType::Int(64), i->value));
+        begin.push_back(IntImm(i->dtype, i->value));
       }
       for (Integer i : params->end.value()) {
         ICHECK(i.defined());
-        end.push_back(IntImm(DataType::Int(64), i->value));
+        end.push_back(IntImm(i->dtype, i->value));
       }
     }
 
@@ -2620,9 +2620,9 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
             ed = shape[new_index].as<IntImmNode>()->value;
           }
 
-          new_begin.push_back(IntImm(DataType::Int(64), bg));
-          new_end.push_back(IntImm(DataType::Int(64), ed));
-          new_strides.push_back(IntImm(DataType::Int(64), st));
+          new_begin.push_back(IntImm(begin[0]->dtype, bg));
+          new_end.push_back(IntImm(end[0]->dtype, ed));
+          new_strides.push_back(IntImm(strides[0]->dtype, st));
         }
         params->begin = new_begin;
         params->end = new_end;
@@ -2638,8 +2638,8 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         }
         auto factor = new_layout.FactorOf(axis);
         if (factor == -1) {
-          new_begin.push_back(IntImm(DataType::Int(64), begin[i]));
-          new_end.push_back(IntImm(DataType::Int(64), end[i]));
+          new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
+          new_end.push_back(IntImm(end[i]->dtype, end[i]));
         } else {
           if (strides.defined() && i < strides.size()) {
             auto stride = strides[i];
@@ -2666,8 +2666,8 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
             // transform to original layout
             return {{Layout::Undef()}, {Layout::Undef()}};
           }
-          new_begin.push_back(IntImm(DataType::Int(64), (bg / factor)));
-          new_end.push_back(IntImm(DataType::Int(64), (ed / factor)));
+          new_begin.push_back(IntImm(begin[0]->dtype, (bg / factor)));
+          new_end.push_back(IntImm(end[0]->dtype, (ed / factor)));
         }
       }
 
