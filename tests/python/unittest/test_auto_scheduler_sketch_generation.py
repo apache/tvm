@@ -17,8 +17,12 @@
 
 """ Test sketch generation. """
 
+import sys
 import tvm
 import tvm.testing
+
+import pytest
+
 from tvm import te, auto_scheduler
 from tvm.auto_scheduler import _ffi_api
 from tvm.auto_scheduler.loop_state import Stage
@@ -39,7 +43,14 @@ from test_auto_scheduler_common import (
 def generate_sketches(
     workload_func, args, target, print_for_debug=False, init_search_callbacks=None
 ):
-    task = auto_scheduler.SearchTask(func=workload_func, args=args, target=target)
+    # NOTE: test_cpu_matmul_sketch and test_cpu_max_pool2d_sketch assume 4 cores to trigger all
+    # possible sketch generations.
+    task = auto_scheduler.SearchTask(
+        func=workload_func,
+        args=args,
+        target=target,
+        hardware_params=auto_scheduler.HardwareParams(num_cores=4, target=target),
+    )
     policy = auto_scheduler.SketchPolicy(
         task, verbose=0, init_search_callbacks=init_search_callbacks
     )
@@ -440,18 +451,4 @@ def test_cuda_zero_rank_sketch():
 
 
 if __name__ == "__main__":
-    test_cpu_matmul_sketch()
-    test_cpu_conv2d_bn_relu_sketch()
-    test_cpu_max_pool2d_sketch()
-    test_cpu_min_sketch()
-    test_cpu_softmax_sketch()
-    test_cpu_conv2d_winograd_sketch()
-    test_cpu_zero_rank_sketch()
-    test_cpu_custom_sketch()
-    test_cuda_matmul_sketch()
-    test_cuda_conv2d_bn_relu_sketch()
-    test_cuda_max_pool2d_sketch()
-    test_cuda_min_sketch()
-    test_cuda_softmax_sketch()
-    test_cuda_conv2d_winograd_sketch()
-    test_cuda_zero_rank_sketch()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
