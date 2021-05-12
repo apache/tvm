@@ -1221,6 +1221,14 @@ class String : public ObjectRef {
    */
   inline String& operator=(const char* other);
 
+  bool operator>(const String &r) const {return compare(r) > 0;}
+  // bool operator<(const String &r) const { return compare(r) < 0;}
+  // bool operator>=(const String &r) const {return compare(r) >= 0;}
+  // bool operator<=(const String &r) const {return compare(r) <= 0;}
+  // bool operator==(const String &r) const {return compare(r) == 0;}
+  // bool operator!=(const String &r) const {return compare(r) != 0;}
+
+
   /*!
    * \brief Compares this String object to other
    *
