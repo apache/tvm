@@ -30,6 +30,7 @@
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
+#include "../source_utils.h"
 #include "../thread_storage_scope.h"
 #include "metal_common.h"
 
@@ -74,27 +75,6 @@ class MetalModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  std::unordered_map<std::string, std::string> SplitKernels(std::string source) const {
-    std::unordered_map<std::string, std::string> split_kernels;
-    if (source.size()) {
-      std::string del{"// Function: "};
-      size_t begin = source.find(del);
-      size_t end = begin;
-      while (end != std::string::npos) {
-        begin += del.size();
-        end = source.find('\n', begin);
-        std::string func_name = source.substr(begin, end - begin);
-        begin = ++end;
-        end = source.find(del, begin);
-        std::string func_source =
-            source.substr(begin, (end == std::string::npos) ? end : end - begin);
-        split_kernels.insert({func_name, func_source});
-        begin = end;
-      }
-    }
-    return split_kernels;
-  }
-
   // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
     metal::MetalWorkspace* w = metal::MetalWorkspace::Global();
@@ -112,6 +92,9 @@ class MetalModuleNode final : public runtime::ModuleNode {
     id<MTLLibrary> lib = nil;
     std::string source;
     auto kernel = parsed_kernels_.find(func_name);
+    // If we cannot find this kernel in parsed_kernels_, it means that all kernels going together
+    // without explicit separator. In this case we use data_ with all kernels. It done for backward
+    // compatibility.
     if (kernel != parsed_kernels_.end())
       source = kernel->second;
     else
