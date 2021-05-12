@@ -4230,9 +4230,6 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
-    # For ONNX test model of QLinearConv, y_scale is input node and will be parsed to free_var in
-    # relay. It will cause error while lowering requantize in src/relay/qnn/op/requantize.cc:148
-    "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
     "test_resize_tf_crop_and_resize/",

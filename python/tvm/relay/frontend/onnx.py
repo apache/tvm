@@ -2910,17 +2910,24 @@ class QLinearConv(OnnxOpConverter):
             out = _op.nn.bias_add(out, inputs[8])
 
         out_dtype = infer_type(inputs[7]).checked_type.dtype
-        requantized = _qnn.op.requantize(
-            out,
-            _op.multiply(x_scale, w_scale),
-            tvm.relay.const(0, "int32"),
-            y_scale,
-            y_zero_point,
-            out_dtype=out_dtype,
-            axis=0,
-        )
+        requantize_scale = _op.multiply(x_scale, w_scale)
 
-        return requantized
+        # requantize requires y_scale to be constant,
+        # if y_scale is not constant, doing dequantize -> quantize
+        if isinstance(y_scale, _expr.Constant):
+            out = _qnn.op.requantize(
+                out,
+                requantize_scale,
+                _op.const(0, dtype="int32"),
+                y_scale,
+                y_zero_point,
+                out_dtype=out_dtype,
+                axis=0,
+            )
+        else:
+            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=0)
+            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=0, out_dtype=out_dtype)
+        return out
 
 
 class BitShift(OnnxOpConverter):
