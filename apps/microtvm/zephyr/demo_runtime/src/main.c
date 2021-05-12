@@ -50,6 +50,7 @@
 #include "crt_config.h"
 
 static const struct device* tvm_uart;
+#define UART_BAUDRATE 115200
 
 #ifdef CONFIG_LED
 #define LED0_NODE DT_ALIAS(led0)
@@ -215,7 +216,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 
 // Ring buffer used to store data read from the UART on rx interrupt.
 // Should be larger than TVM_CRT_MAX_PACKET_SIZE_BYTES
-#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
+#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 25)
 RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
 
 // Small buffer used to read data from the UART into the ring buffer.
@@ -248,6 +249,9 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
 
 // Used to initialize the UART receiver.
 void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
+  const struct uart_config config = {
+      .baudrate = UART_BAUDRATE, .parity = 0, .stop_bits = 1, .data_bits = 3, .flow_ctrl = 0};
+  uart_configure(dev, &config);
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
 }

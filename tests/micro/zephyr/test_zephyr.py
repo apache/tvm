@@ -90,7 +90,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
         "flasher": compiler.flasher(**flasher_kw),
     }
 
-    if build_config["build"]:
+    if not build_config["skip_build"]:
         session_kw["binary"] = tvm.micro.build_static_runtime(
             # the x86 compiler *expects* you to give the exact same dictionary for both
             # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
@@ -118,15 +118,15 @@ def _make_add_sess(model, zephyr_board, west_cmd, build_config):
     B = tvm.te.placeholder((1,), dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C])
+    return _make_sess_from_op(model, zephyr_board, west_cmd, "add", sched, [A, B, C], build_config)
 
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
-def test_compile_runtime(platform, west_cmd, build, tvm_debug):
+def test_compile_runtime(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"build": tvm_build, "debug": tvm_debug}
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -145,11 +145,11 @@ def test_compile_runtime(platform, west_cmd, build, tvm_debug):
         test_basic_add(sess)
 
 
-def test_platform_timer(platform, west_cmd, tvm_build, tvm_debug):
+def test_platform_timer(platform, west_cmd, skip_build, tvm_debug):
     """Test compiling the on-device runtime."""
 
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"build": tvm_build, "debug": tvm_debug}
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -173,10 +173,10 @@ def test_platform_timer(platform, west_cmd, tvm_build, tvm_debug):
         test_basic_add(sess)
 
 
-def test_relay(platform, west_cmd, tvm_build, tvm_debug):
+def test_relay(platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"build": tvm_build, "debug": tvm_debug}
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -202,10 +202,10 @@ def test_relay(platform, west_cmd, tvm_build, tvm_debug):
         tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 
-def test_onnx(platform, west_cmd, tvm_build, tvm_debug):
+def test_onnx(platform, west_cmd, skip_build, tvm_debug):
     """Testing a simple ONNX model."""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"build": tvm_build, "debug": tvm_debug}
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # Load test images.
     this_dir = os.path.dirname(__file__)
@@ -332,10 +332,10 @@ def check_result(
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
 
 
-def test_byoc_utvm(platform, west_cmd, tvm_build, tvm_debug):
+def test_byoc_utvm(platform, west_cmd, skip_build, tvm_debug):
     """This is a simple test case to check BYOC capabilities of uTVM"""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"build": tvm_build, "debug": tvm_debug}
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
     w1 = relay.var("w1", shape=(10, 10))
@@ -408,10 +408,10 @@ def _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config
         pytest.param((16 * 1024,), id="(16*1024)"),
     ],
 )
-def test_rpc_large_array(platform, west_cmd, tvm_build, tvm_debug, shape):
+def test_rpc_large_array(platform, west_cmd, skip_build, tvm_debug, shape):
     """Test large RPC array transfer."""
     model, zephyr_board = PLATFORMS[platform]
-    build_config = {"build": tvm_build, "debug": tvm_debug}
+    build_config = {"skip_build": skip_build, "debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_tensors(sess):
@@ -422,7 +422,7 @@ def test_rpc_large_array(platform, west_cmd, tvm_build, tvm_debug, shape):
         C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
         assert (C_data.asnumpy() == np.zeros(shape)).all()
 
-    with _make_large_tensors_sess(model, zephyr_board, west_cmd, shape, build_config) as sess:
+    with _make_add_sess_with_shape(model, zephyr_board, west_cmd, shape, build_config) as sess:
         test_tensors(sess)
 
 

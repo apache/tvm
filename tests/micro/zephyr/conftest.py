@@ -45,10 +45,9 @@ def pytest_addoption(parser):
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
     )
     parser.addoption(
-        "--tvm-build",
+        "--skip-build",
         action="store_true",
-        default=True,
-        help="If set true, build the uTVM binary from scratch on each test. Otherwise, reuses the build from the previous test run.",
+        help="If set true, reuses build from the previous test run. Otherwise, build from the scratch.",
     )
     parser.addoption(
         "--tvm-debug",
@@ -69,8 +68,8 @@ def west_cmd(request):
 
 
 @pytest.fixture
-def tvm_build(request):
-    return request.config.getoption("--tvm-build")
+def skip_build(request):
+    return request.config.getoption("--skip-build")
 
 
 @pytest.fixture
