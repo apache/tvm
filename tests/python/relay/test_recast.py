@@ -102,6 +102,30 @@ def test_recast_skip():
     assert tvm.ir.structural_equal(expected, post)
 
 
+def test_recast_concat():
+    def before():
+        x = relay.var("x", shape=[1, 4])
+        y = relay.var("y", shape=[1, 4])
+        t = relay.Tuple([x, y])
+        c = relay.op.concatenate(t, axis=1)
+        return relay.Function([x, y], c)
+
+    def expected():
+        xv = relay.var("x", shape=[1, 4])
+        yv = relay.var("y", shape=[1, 4])
+        x = relay.cast(xv, "float16")
+        y = relay.cast(yv, "float16")
+        t = relay.Tuple([x, y])
+        c = relay.op.concatenate(t, axis=1)
+        c = relay.cast(c, "float32")
+        return relay.Function([xv, yv], c)
+
+    pre = before()
+    post = recast(pre, "float16", "float32", ops=["concatenate"])
+    expected = expected()
+    assert tvm.ir.structural_equal(expected, post)
+
+
 if __name__ == "__main__":
     test_recast_simple()
     test_recast_medium()
