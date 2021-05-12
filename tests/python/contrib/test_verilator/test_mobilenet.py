@@ -207,6 +207,7 @@ def is_tflite_available():
     """Skip test if tensorflow-lite is not installed."""
     try:
         import tflite
+
         return True
     except:
         return False
