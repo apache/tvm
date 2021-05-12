@@ -18,7 +18,6 @@
 from itertools import zip_longest, combinations
 import json
 import os
-import warnings
 from enum import Enum
 import numpy as np
 
@@ -72,7 +71,12 @@ class Device:
         TRACKER = "tracker"
         REMOTE = "remote"
         LOCAL = "local"
-        TRACKER_CONNECTION = "tracker_connection"
+
+    class TrackerEnvironmentVariables(Enum):
+        TVM_USE_TRACKER = "TVM_USE_TRACKER"
+        TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
+        TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
+        TVM_REMOTE_DEVICE_KEY = "TVM_REMOTE_DEVICE_KEY"
 
     class LibExportType(Enum):
         X64_X86 = 0
@@ -88,7 +92,19 @@ class Device:
 
     def __init__(self):
         """Keep remote device for lifetime of object."""
+        self._set_parameters_from_environment_variables()
         self.device = self._get_remote()
+
+    @classmethod
+    def _set_parameters_from_environment_variables(cls):
+        if have_tracker_flag() and have_device_and_tracker_variables():
+            cls.connection_type = Device.ConnectionType.TRACKER
+            cls.host = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_HOST.value]
+            cls.port = int(os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_PORT.value])
+            cls.device_key = os.environ[Device.TrackerEnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
+
+            cls.target = "llvm -mtriple=arm64-apple-darwin"
+            cls.lib_export_type = Device.LibExportType.ARM64
 
     @classmethod
     def _get_remote(cls):
@@ -109,47 +125,6 @@ class Device:
 
         return device
 
-    @classmethod
-    def _set_parameters(cls, connection_type, host, port, target, device_key, cross_compile, lib_export_type):
-        cls.connection_type = connection_type
-        cls.host = host
-        cls.port = port
-        cls.target = target
-        cls.device_key = device_key
-        cls.cross_compile = cross_compile
-        cls.lib_export_type = lib_export_type
-
-    @classmethod
-    def create_device(cls, connection_type, host, port, target, device_key="",
-                      cross_compile="", lib_export_type=LibExportType.X64_X86):
-        cls._set_parameters(connection_type, host, port, target, device_key, cross_compile, lib_export_type)
-        return cls()
-
-    @classmethod
-    def load(cls, file_name):
-        """Load test config
-
-        Load the test configuration by looking for file_name relative
-        to the test_bnns directory.
-        """
-        location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        config_file = os.path.join(location, file_name)
-        if not os.path.exists(config_file):
-            warnings.warn("Config file doesn't exist, resuming tests with default config.")
-            return
-        with open(config_file, mode="r") as config:
-            test_config = json.load(config)
-
-        cls.connection_type = Device.ConnectionType(test_config["connection_type"])
-        cls.host = test_config["host"]
-        cls.port = test_config["port"]
-        cls.target = test_config["target"]
-        cls.device_key = test_config.get("device_key") or ""
-        cls.cross_compile = test_config.get("cross_compile") or ""
-
-
-Device.target = "llvm"
-
 
 def skip_runtime_test():
     """Skip test if it requires the runtime and it's not present."""
@@ -165,6 +140,30 @@ def skip_codegen_test():
     if not tvm.get_global_func("relay.ext.bnns", True):
         print("Skip because BNNS codegen is not available.")
         return True
+    return False
+
+
+def have_tracker_flag():
+    try:
+        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_USE_TRACKER.value]
+        return True
+    except KeyError:
+        return False
+
+
+def have_device_and_tracker_variables():
+    try:
+        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_HOST.value]
+        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_PORT.value]
+        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
+        return True
+    except KeyError:
+        return False
+
+
+def skip_tracker_connection():
+    """Skip test if it requires RPC connection, but no environment variables set for the device"""
+    return have_tracker_flag() and not have_device_and_tracker_variables()
 
 
 def build_module(mod, target, params=None, enable_bnns=True, tvm_ops=0):

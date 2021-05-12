@@ -17,19 +17,15 @@
 """BNNS integration dense tests."""
 
 import numpy as np
-import math
 import pytest
 import tvm
 from tvm import relay
-from tvm import testing
 from infrastructure import (
     Device,
     skip_runtime_test,
-    skip_codegen_test,
-    verify_codegen,
+    skip_tracker_connection,
     build_and_run,
-    verify,
-    generate_trials,
+    verify
 )
 
 
@@ -51,14 +47,9 @@ def _get_model(a_shape, b_shape, dtype, var_names, is_a_constant=False, is_b_con
 
 
 @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
 def test_matmul():
-    device = Device.create_device(connection_type=Device.ConnectionType.TRACKER_CONNECTION,
-                                  host="0.0.0.0",
-                                  port=9190,
-                                  target="llvm -model=iphone12mini -mtriple=arm64-apple-darwin -mattr=+neon",
-                                  device_key="i12",
-                                  cross_compile="",
-                                  lib_export_type=Device.LibExportType.ARM64)
+    device = Device()
 
     np.random.seed(0)
     dtype = "float32"
