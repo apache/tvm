@@ -123,7 +123,7 @@ def form_irmodule(sch, args, name, binds):
 
 def lower(sch, args, name="main", binds=None, simple_mode=False):
 
-    mod = self.__init_handler_by_constructor__(_ffi_api.lower, sch, args, name, binds)   
+    mod = self.__init_handler_by_constructor__(_ffi_api.tvm.driver.lower, sch, args, name, binds)   
     
     """Lowering step before build into target.
 
