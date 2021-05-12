@@ -68,9 +68,13 @@ def skipped_test_tflite_runtime():
         server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         dev = remote.cpu(0)
+        if target_edgetpu:
+            runtime_target = "edge_tpu"
+        else:
+            runtime_target = "cpu"
 
         with open(tflite_model_path, "rb") as model_fin:
-            runtime = tflite_runtime.create(model_fin.read(), dev)
+            runtime = tflite_runtime.create(model_fin.read(), dev, runtime_target)
             runtime.set_input(0, tvm.nd.array(tflite_input, dev))
             runtime.invoke()
             out = runtime.get_output(0)
