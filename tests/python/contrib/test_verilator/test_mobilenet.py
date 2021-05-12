@@ -25,7 +25,6 @@ from PIL import Image
 import numpy as np
 
 from test_verilator.infrastructure import (
-    skip_test,
     compile_hardware,
     compiler_opts,
     offload,
@@ -204,6 +203,15 @@ def print_test_info(lanes, cycles):
     )
 
 
+def is_tflite_available():
+    """Skip test if tensorflow-lite is not installed."""
+    try:
+        import tflite
+        return True
+    except:
+        return False
+
+
 def tmobilenet(lanes):
     """Mobilenet test template.
     Paramters
@@ -211,7 +219,7 @@ def tmobilenet(lanes):
     lanes : Int
         The number of vector lanes.
     """
-    if skip_test():
+    if not is_tflite_available():
         return
     model = get_mobilenet_model()
     mod, params = compile_model_to_relay(model)
