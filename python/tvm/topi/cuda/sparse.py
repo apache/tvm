@@ -105,13 +105,22 @@ def schedule_sparse_dense(outs):
     return s
 
 
-def schedule_cuda_transpose(s, out):
+def schedule_transpose(outs):
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    schedule_transpose_existing(s, outs[0])
+    return s
+
+
+def schedule_transpose_existing(s, out):
     """Schedule for transpose on the gpu.
 
     Roughly follows this:
     https://developer.nvidia.com/blog/efficient-matrix-transpose-cuda-cc/, but
     without the padding for shared memory. For better performance, we could
-    rewrite it in tir to add the padding.
+    rewrite it in tir to add the padding. Also, rewriting in tir would allow
+    use to use warp shuffles instead of shared memory (see
+    https://github.com/bryancatanzaro/trove).
     """
 
     def _callback(op):
@@ -388,7 +397,7 @@ def schedule_sparse_dense_padded(outs):
     # necessary
     data_t = outs[0].op.input_tensors[0]
     s = te.create_schedule([outs[0].op, data_t.op])
-    schedule_cuda_transpose(s, outs[0].op.input_tensors[0])
+    schedule_transpose_existing(s, outs[0].op.input_tensors[0])
     return s
 
 

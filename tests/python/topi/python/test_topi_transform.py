@@ -20,6 +20,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import topi
+from tvm import relay
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 
@@ -868,6 +869,30 @@ def test_transpose():
     verify_transpose((3, 10, 2), (1, 0, 2))
     verify_transpose((3, 10, 5), (2, 0, 1))
     verify_transpose((3, 10), None)
+
+
+@tvm.testing.parametrize_targets
+def test_transpose_schedule(target, dev):
+    shape = (100, 34)
+    x = relay.var("x", relay.TensorType(shape, "float32"))
+    f = relay.transpose(x)
+    ex = relay.create_executor(
+        kind="graph", mod=tvm.IRModule.from_expr(relay.Function([x], f)), device=dev, target=target
+    )
+    r = np.random.rand(*shape)
+    tvm.testing.assert_allclose(ex.evaluate()(r).asnumpy(), np.transpose(r))
+
+    # make sure schedule does not fire here
+    x = relay.var("x", relay.TensorType(shape, "float32"))
+    y = relay.var("y", relay.TensorType(shape, "float32"))
+    f = relay.transpose(x + y)
+    ex = relay.create_executor(
+        kind="graph",
+        mod=tvm.IRModule.from_expr(relay.Function([x, y], f)),
+        device=dev,
+        target=target,
+    )
+    tvm.testing.assert_allclose(ex.evaluate()(r, r).asnumpy(), np.transpose(r + r))
 
 
 @tvm.testing.uses_gpu
