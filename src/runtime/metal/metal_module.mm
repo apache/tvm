@@ -45,7 +45,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
   explicit MetalModuleNode(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {
-    parsed_kernels_ = SplitKernels(GetSource(fmt_));
+    parsed_kernels_ = SplitKernels(data);
   }
   const char* type_key() const final { return "metal"; }
 
