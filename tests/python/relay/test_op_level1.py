@@ -67,7 +67,7 @@ def test_unary_op():
                 if (
                     dtype == "float16"
                     and target == "cuda"
-                    and not have_fp16(tvm.gpu(0).compute_version)
+                    and not have_fp16(tvm.cuda(0).compute_version)
                 ):
                     continue
                 intrp = relay.create_executor("graph", device=dev, target=target)
@@ -129,7 +129,7 @@ def test_binary_op():
                 if (
                     dtype == "float16"
                     and target == "cuda"
-                    and not have_fp16(tvm.gpu(0).compute_version)
+                    and not have_fp16(tvm.cuda(0).compute_version)
                 ):
                     continue
                 intrp = relay.create_executor("graph", device=dev, target=target)
@@ -158,7 +158,7 @@ def test_expand_dims():
             if (
                 dtype == "float16"
                 and target == "cuda"
-                and not have_fp16(tvm.gpu(0).compute_version)
+                and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
             data = np.random.uniform(size=dshape).astype(dtype)
@@ -193,7 +193,7 @@ def test_bias_add():
             if (
                 dtype == "float16"
                 and target == "cuda"
-                and not have_fp16(tvm.gpu(0).compute_version)
+                and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
             intrp = relay.create_executor("graph", device=dev, target=target)
@@ -314,7 +314,7 @@ def test_concatenate():
             if (
                 dtype == "float16"
                 and target == "cuda"
-                and not have_fp16(tvm.gpu(0).compute_version)
+                and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
             intrp1 = relay.create_executor("graph", device=dev, target=target)

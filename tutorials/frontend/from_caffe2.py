@@ -107,7 +107,7 @@ import tvm
 from tvm import te
 from tvm.contrib import graph_executor
 
-# context x86 CPU, use tvm.gpu(0) if you run on GPU
+# context x86 CPU, use tvm.cuda(0) if you run on GPU
 dev = tvm.cpu(0)
 # create a runtime executor module
 m = graph_executor.GraphModule(lib["default"](dev))

@@ -144,7 +144,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.gpu(0))
+    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(a)
     print(a.asnumpy())
@@ -164,8 +164,8 @@ The above example only deals with a simple `addone` function. The code snippet b
    import tvm
    # Example runtime execution program in python, with types annotated
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
-   # Create a stateful graph execution module for resnet18 on gpu(0)
-   gmod: tvm.runtime.Module = factory["resnet18"](tvm.gpu(0))
+   # Create a stateful graph execution module for resnet18 on cuda(0)
+   gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
    data: tvm.runtime.NDArray = get_input_data()
    # set input
    gmod["set_input"](0, data)
