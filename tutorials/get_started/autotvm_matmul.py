@@ -86,7 +86,7 @@ from tvm import autotvm
 
 def matmul_basic(N, L, M, dtype):
 
-    a = te.placeholder((n, l), name="a", dtype=dtype)
+    A = te.placeholder((N, L), name="A", dtype=dtype)
     B = te.placeholder((L, M), name="B", dtype=dtype)
 
     k = te.reduce_axis((0, L), name="k")
