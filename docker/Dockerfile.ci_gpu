@@ -102,6 +102,10 @@ RUN bash /install/ubuntu_install_nnpack.sh
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
 RUN bash /install/ubuntu_install_universal.sh
 
+# PAPI profiling deps
+COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
+RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
+
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
