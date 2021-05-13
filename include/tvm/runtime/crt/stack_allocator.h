@@ -74,7 +74,7 @@ tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspa
  * \param tvm_runtime_workspace The tvm_workspace_t struct containing state
  * \param nbytes The number of bytes required for the allocation
  * \param current_alloc The pointer-to-pointer to be populated with the allocated address
- * \param do_lifo_check THis indicates to perform a check LIFO pattern Allocs/Frees
+ * \param do_lifo_check This being non-zero indicates to perform a check LIFO pattern Allocs/Frees
  */
 tvm_crt_error_t StackMemoryManager_Allocate_Body(tvm_workspace_t* tvm_runtime_workspace,
                                                  int32_t nbytes, void** current_alloc,
