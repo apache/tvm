@@ -201,10 +201,10 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  if (target->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
-    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
-  } else {
+  if (target->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
+  } else {
+    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   }
 
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());

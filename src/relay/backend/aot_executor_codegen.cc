@@ -138,14 +138,14 @@ class AOTExecutorCodegen : public ExprVisitor {
       auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
       auto sid_value = sids_table_[sid];
 
-      if (target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
-        stmts_.push_back(tir::LetStmt(sid_array, sid_value, tir::Evaluate(0)));
-      } else {
+      if (target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
         tvm::PrimExpr set_tensor =
             tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                            {sid_array, 0, tir::builtin::kArrData, sid_value});
         stmts_.push_back(
             tir::LetStmt(sid_array, StackAlloca("array", 1), tir::Evaluate(set_tensor)));
+      } else {
+        stmts_.push_back(tir::LetStmt(sid_array, sid_value, tir::Evaluate(0)));
       }
 
       sid_vars.push_back(sid_array);
@@ -168,11 +168,12 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                        {tir::StringImm(params_by_expr_[expr])});
 
-    if (!target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
+    if (target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
       tvm::PrimExpr set_param_array =
           tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                        {param_array, 0, tir::builtin::kArrData, param_handle});
-      stmts_.push_back(tir::LetStmt(param_array, StackAlloca("arg_value", 1), tir::Evaluate(set_param_array)));
+                         {param_array, 0, tir::builtin::kArrData, param_handle});
+      stmts_.push_back(
+          tir::LetStmt(param_array, StackAlloca("arg_value", 1), tir::Evaluate(set_param_array)));
     } else {
       stmts_.push_back(tir::LetStmt(param_array, param_handle, tir::Evaluate(0)));
     }
@@ -219,7 +220,7 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Use tvm_call_packed to execute the function unless we're calling directly
     auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
-    if (target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
+    if (!target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
       calling_pattern = tvm::tir::builtin::call_extern();
     }
 
@@ -247,7 +248,7 @@ class AOTExecutorCodegen : public ExprVisitor {
                                          {in, 0, tir::builtin::kArrData});
     PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
                                       {out, 0, tir::builtin::kArrData});
-    if (target_host_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
+    if (!target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
       retval_get = in;
       tostore = out;
     }

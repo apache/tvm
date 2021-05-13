@@ -238,10 +238,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\"\n";
     code_ << "#endif\n";
-    if (target_->GetAttr<Bool>("no-typed-operators").value_or(Bool(false))) {
-      GenerateUntypedEntrypoint();
-    } else {
+    if (target_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
       GenerateTypedEntrypoint();
+    } else {
+      GenerateUntypedEntrypoint();
     }
     code_ << "const tvm_model_t network = {\n"
           << "    .run_func = &_tvm_entrypoint,\n"
