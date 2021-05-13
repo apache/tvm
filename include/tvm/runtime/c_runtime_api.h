@@ -36,7 +36,7 @@
  *  Possible return values of the API functions:
  *  * 0: success
  *  * -1: the error can be retrieved through TVMGetLastError.
- *  * -2: a frontend error ocurred and recorded in the frontend.
+ *  * -2: a frontend error occurred and recorded in the frontend.
  */
 #ifndef TVM_RUNTIME_C_RUNTIME_API_H_
 #define TVM_RUNTIME_C_RUNTIME_API_H_

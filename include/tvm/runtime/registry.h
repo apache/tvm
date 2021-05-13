@@ -89,8 +89,7 @@ namespace runtime {
  *
  * \endcode
  *
- * \note This function is a nop when no signal checking function is registered.
- *       In particular PyErr_CheckSignals and PyErr_Clear when running in python.
+ * \note This function is a nop when no PyErr_CheckSignal is registered.
  *
  * \throws This function throws an exception when the frontend signal handler
  *         indicate an error happens, otherwise it returns normally.
