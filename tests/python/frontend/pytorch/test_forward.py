@@ -16,21 +16,22 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """Unit tests for various models and operators"""
-from time import time
 import os
 import sys
-from scipy.stats import t as tdistr
+from time import time
+
 import numpy as np
 import torch
 import torchvision
+import tvm
+import tvm.testing
+from packaging import version as package_version
+from scipy.stats import t as tdistr
 from torch.nn import Module
 from torch.nn import functional as F
-import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
-import tvm.testing
-from packaging import version as package_version
 
 sys.setrecursionlimit(10000)
 
@@ -162,7 +163,9 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
                 return est
 
 
-def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5):
+def verify_model(
+    model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
+):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if isinstance(model_name, str):
@@ -219,6 +222,20 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
+
+    if expected_ops:
+
+        def visit(op):
+            if isinstance(op, tvm.ir.op.Op):
+                if op.name in expected_ops:
+                    expected_ops.remove(op.name)
+
+        tvm.relay.analysis.post_order_visit(mod["main"].body, visit)
+
+        if expected_ops:
+            msg = "TVM Relay do not contain expected ops {}"
+            raise AssertionError(msg.format(expected_ops))
+
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
@@ -720,6 +737,7 @@ def test_forward_maxpool2d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[2, 2], dilation=[2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(), input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2).eval(), input_data)
 
@@ -758,6 +776,7 @@ def test_forward_maxpool1d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(), input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=2, dilation=[1]).eval(), input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(), input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=4, padding=2, stride=2).eval(), input_data)
 
@@ -776,6 +795,7 @@ def test_forward_maxpool3d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data)
 
@@ -3304,17 +3324,24 @@ def test_forward_matmul():
     # matrix x matrix
     tensor1 = torch.randn(10, 4)
     tensor2 = torch.randn(4, 10)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(10, 4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
     # batched matrix x broadcasted matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # broadcasted matrix x batched matrix
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(3, 4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(1, 12, 14, 64)
@@ -3500,7 +3527,7 @@ def test_forward_pretrained_bert_base_uncased():
     """
 
     try:
-        from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+        from pytorch_pretrained_bert import BertForMaskedLM, BertTokenizer
     except:
         print("Torch pretrained bert package must be installed to run this script.")
         return

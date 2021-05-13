@@ -111,9 +111,24 @@ class RPCDeviceAPI final : public DeviceAPI {
     }
   }
 
+  TVMStreamHandle CreateStream(Device dev) {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    return GetSess(dev)->GetDeviceAPI(remote_dev)->CreateStream(remote_dev);
+  }
+
+  void FreeStream(Device dev, TVMStreamHandle stream) {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    GetSess(dev)->GetDeviceAPI(remote_dev)->FreeStream(remote_dev, stream);
+  }
+
   void StreamSync(Device dev, TVMStreamHandle stream) final {
     auto remote_dev = RemoveRPCSessionMask(dev);
     GetSess(dev)->GetDeviceAPI(remote_dev)->StreamSync(remote_dev, stream);
+  }
+
+  void SetStream(Device dev, TVMStreamHandle stream) {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    GetSess(dev)->GetDeviceAPI(remote_dev)->SetStream(remote_dev, stream);
   }
 
  protected:

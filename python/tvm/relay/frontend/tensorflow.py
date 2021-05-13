@@ -19,6 +19,7 @@
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
+from collections import deque
 
 # Numpy support
 import numpy as np
@@ -56,7 +57,12 @@ def list_shape_of(tensor, ndim):
 
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
-    if input1d % stride1d == 0:
+    if isinstance(input1d, tvm.tir.Any) and stride1d != 1:
+        raise tvm.error.OpAttributeUnImplemented(
+            "SAME padding is not supported in combination with dynamic height or width when stride"
+            " is not 1."
+        )
+    if stride1d == 1 or input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)
     else:
         pad = max(kernel1d - (input1d % stride1d), 0)
@@ -1765,6 +1771,43 @@ def _bias_add():
     return _impl
 
 
+def _broadcast_args():
+    def _impl(inputs, attr, params, mod):
+        if isinstance(inputs[0], _expr.Var):
+            s0 = params[inputs[0].name_hint]
+        else:
+            s0 = _infer_value(inputs[0], params, mod)
+        if isinstance(inputs[1], _expr.Var):
+            s1 = params[inputs[1].name_hint]
+        else:
+            s1 = _infer_value(inputs[1], params, mod)
+        s0 = list(s0.asnumpy().reshape([-1]))
+        s1 = list(s1.asnumpy().reshape([-1]))
+        s0_size, s1_size = len(s0), len(s1)
+
+        out = deque([])
+        for i in range(1, min(s0_size, s1_size) + 1):
+            if s0[s0_size - i] == s1[s1_size - i]:
+                out.appendleft(s0[s0_size - i])
+            elif s0[s0_size - i] == 1:
+                out.appendleft(s1[s1_size - i])
+            else:
+                assert s1[s1_size - i] == 1, "Incompatible broadcast type %s and %s" % (
+                    s0[s0_size - i],
+                    s1[s1_size - i],
+                )
+                out.appendleft(s0[s0_size - i])
+        if s0_size < s1_size:
+            for i in range(s0_size + 1, s1_size + 1):
+                out.appendleft(s1[s1_size - i])
+        if s1_size < s0_size:
+            for i in range(s1_size + 1, s0_size + 1):
+                out.appendleft(s0[s0_size - i])
+        return _expr.const(list(out), attr["T"].name)
+
+    return _impl
+
+
 def _broadcast_to():
     def _impl(inputs, attr, params, mod):
         if isinstance(inputs[1], _expr.Var):
@@ -1959,14 +2002,19 @@ def _gather():
             axis = _get_num_param(params, inputs.pop(2))
         else:
             axis = 0
+        batch_dims = 0
         if int(attr.get("batch_dims", 0)) != 0:
-            raise tvm.error.OpAttributeUnImplemented("Attribute batch_dims is not supported")
+            batch_dims = int(attr.get("batch_dims", 0))
         new_input = inputs[0:2]
-        return AttrCvt(
+        op_ = AttrCvt(
             op_name="take",
-            extras={"axis": tvm.tir.const(axis, "int32")},
-            ignores=["Tindices", "Tparams", "validate_indices", "Taxis", "_class", "batch_dims"],
+            extras={
+                "axis": tvm.tir.const(axis, "int32"),
+                "batch_dims": tvm.tir.const(batch_dims, "int32"),
+            },
+            ignores=["Tindices", "Tparams", "validate_indices", "Taxis", "_class"],
         )(new_input, attr)
+        return op_
 
     return _impl
 
@@ -2740,6 +2788,7 @@ _convert_map = {
     "BatchToSpaceND": _batch_to_space_nd(),
     "BiasAdd": _bias_add(),
     "BroadcastTo": _broadcast_to(),
+    "BroadcastArgs": _broadcast_args(),
     "Cast": _cast(),
     "Ceil": AttrCvt("ceil"),
     "CheckNumerics": _check_numerics(),
@@ -2833,6 +2882,7 @@ _convert_map = {
     "Round": AttrCvt("round"),
     "Rsqrt": _rsqrt(),
     "Select": _where(),
+    "SelectV2": _where(),
     "Selu": _selu(),
     "Shape": _shape(),
     "Sigmoid": AttrCvt("sigmoid"),
@@ -3936,7 +3986,6 @@ class GraphProto(object):
             raise ImportError("Unable to import tensorflow which is required {}".format(e))
 
         input_op_name = node_name.split(":")[0].split("^")[-1]
-
         if input_op_name not in self._nodes:
             node = self._tf_node_map[input_op_name]
             attr = self._parse_attr(node.attr)
@@ -3997,7 +4046,6 @@ class GraphProto(object):
                         inputs[i] = actual_input
 
                 op = self._convert_operator(node.op, node.name, inputs, attr)
-
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)
                 op = [
@@ -4019,7 +4067,6 @@ class GraphProto(object):
             tn = node_name.split(":")
             tensor_slot = int(tn[1]) if len(tn) > 1 else 0
             return out[tensor_slot]
-
         return out[0]
 
 

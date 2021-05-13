@@ -29,7 +29,7 @@ Vagrant.configure("2") do |config|
   if git_file.ftype() == "file" then
     gitdir_match = Regexp.new('^gitdir: (?<gitdir>.*/.git).*\n$', Regexp::MULTILINE).match(git_file.read())
     if !gitdir_match.nil? then
-      dirs_to_mount.append(Pathname.new(gitdir_match.named_captures["gitdir"]))
+      dirs_to_mount.append(Pathname.new(tvm_home).realpath.join(gitdir_match.named_captures["gitdir"]))
       puts "NOTE: also configuring git-worktree gitdir: %s" % [dirs_to_mount[-1]]
     end
   end

@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import time
 
 import tvm
 from tvm import runtime
@@ -823,8 +824,11 @@ def test_vm_rpc():
     path = temp.relpath("vm_library.so")
     vm_exec.mod.export_library(path)
 
-    # Use LocalRPC for testing.
-    remote = rpc.LocalSession()
+    # Use local rpc server for testing.
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    server = rpc.Server("localhost", port=9120)
+    remote = rpc.connect(server.host, server.port, session_timeout=10)
 
     # Upload the serialized Executable.
     remote.upload(path)
@@ -837,9 +841,52 @@ def test_vm_rpc():
     np_input = np.random.uniform(size=(10, 1)).astype("float32")
     input_tensor = tvm.nd.array(np_input, ctx)
     # Invoke its "main" function.
-    out = vm_factory.invoke("main", [input_tensor])
+    out = vm_factory.invoke("main", input_tensor)
     # Check the result.
     np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
+
+    # delete tensors before the server shuts down so we don't throw errors.
+    del input_tensor
+    del out
+
+    server.terminate()
+
+
+def test_get_output_single():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10,))
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    inp = np.ones(10, dtype="float32")
+    vm_factory.invoke_stateful("main", inp)
+    outputs = vm_factory.get_outputs()
+    assert len(outputs) == 1
+    np.testing.assert_allclose(outputs[0].asnumpy(), inp + inp)
+
+
+def test_get_output_multiple():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10,))
+    f = relay.Function([x], relay.Tuple([x + x, x]))
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    inp = np.ones(10, dtype="float32")
+    vm_factory.invoke_stateful("main", inp)
+    outputs = vm_factory.get_outputs()
+    assert len(outputs) == 2
+    np.testing.assert_allclose(outputs[0].asnumpy(), inp + inp)
+    np.testing.assert_allclose(outputs[1].asnumpy(), inp)
 
 
 if __name__ == "__main__":

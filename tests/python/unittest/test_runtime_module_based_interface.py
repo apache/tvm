@@ -137,10 +137,16 @@ def test_mod_export():
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
         complied_graph_lib.export_library(path_lib)
-        loaded_lib = tvm.runtime.load_module(path_lib)
-        dev = tvm.cpu(0)
-        gmod = loaded_lib["default"](dev)
 
+        # run the setup in a separate function, so the load_lib
+        # can get destructed right away
+        # test the robustness wrt to parent module destruction
+        def setup_gmod():
+            loaded_lib = tvm.runtime.load_module(path_lib)
+            dev = tvm.cpu(0)
+            return loaded_lib["default"](dev)
+
+        gmod = setup_gmod()
         # raw api
         set_input = gmod["set_input"]
         run = gmod["run"]
@@ -152,7 +158,7 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
-        gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
+        gmod = graph_executor.GraphModule(setup_gmod())
         gmod.set_input("data", data)
         gmod.run()
         out = gmod.get_output(0).asnumpy()
@@ -176,12 +182,19 @@ def test_mod_export():
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
         complied_graph_lib.export_library(path_lib)
-        loaded_lib = tvm.runtime.load_module(path_lib)
-        data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = tvm.gpu()
 
+        data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
+
+        # run the setup in a separate function, so the load_lib
+        # can get destructed right away
+        # test the robustness wrt to parent module destruction
+        def setup_gmod():
+            loaded_lib = tvm.runtime.load_module(path_lib)
+            dev = tvm.gpu()
+            return loaded_lib["default"](dev)
+
+        gmod = setup_gmod()
         # raw api
-        gmod = loaded_lib["default"](dev)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -191,7 +204,7 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph executor wrapper
-        gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
+        gmod = graph_executor.GraphModule(setup_gmod())
         gmod.set_input("data", data)
         gmod.run()
         out = gmod.get_output(0).asnumpy()
@@ -262,7 +275,7 @@ def test_mod_export():
 
         from tvm import rpc
 
-        server = rpc.Server("localhost", use_popen=True, port=9094)
+        server = rpc.Server("127.0.0.1", port=9094)
         remote = rpc.connect(server.host, server.port)
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
@@ -530,7 +543,7 @@ def test_debug_graph_executor():
     debug_g_mod = debug_executor.GraphModuleDebug(
         complied_graph_lib["debug_create"]("default", dev),
         [dev],
-        complied_graph_lib.get_json(),
+        complied_graph_lib.get_graph_json(),
         None,
     )
     debug_g_mod.set_input("data", data)

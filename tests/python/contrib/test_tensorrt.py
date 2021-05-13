@@ -239,7 +239,7 @@ def test_tensorrt_not_compatible():
 
     x = relay.var("x", shape=(xshape), dtype=dtype)
     y = relay.add(x, x)
-    z = relay.erf(y)
+    z = relay.cast(relay.cast(y, "int32"), "float32")
     out = relay.nn.relu(z)
     f = relay.Function([x], out)
     mod = tvm.IRModule()
@@ -473,6 +473,17 @@ def test_dense():
     run_and_verify_func(get_graph(k_shape=(1, 16)))
 
 
+def test_batch_matmul():
+    def get_graph(x_shape=(12, 128, 64), y_shape=(12, 128, 64)):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        y = relay.var("y", shape=(y_shape), dtype="float32")
+        out = relay.nn.batch_matmul(x, y)
+        f = relay.Function([x, y], out)
+        return f, {"x": x_shape, "y": y_shape}, []
+
+    run_and_verify_func(get_graph())
+
+
 def test_bias_add():
     def get_graph(x_shape=(1, 16), channels=16):
         x = relay.var("x", shape=(x_shape), dtype="float32")
@@ -603,6 +614,19 @@ def test_concatenate():
         return f, shapes_dict, []
 
     run_and_verify_func(get_graph([(1, 2, 6, 6), (1, 3, 6, 6)], axis=1))
+
+
+def test_split():
+    def get_graph(x_shape, indices_or_sections, axis):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        out = relay.split(x, indices_or_sections=indices_or_sections, axis=axis)
+        f = relay.Function([x], out.astuple())
+        return f, {"x": x_shape}, []
+
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=2, axis=1))
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=4, axis=1))
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=[8], axis=1))
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=[2, 3, 6, 10, 14], axis=1))
 
 
 def test_conv2d_transpose():
@@ -835,6 +859,36 @@ def test_batch_norm():
     run_and_verify_func(get_graph((1, 3, 8), (8,), axis=2))
 
 
+def test_layer_norm():
+    def get_graph(x_shape, param_shape, axis=1, epsilon=1e-5):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        gamma = relay.var("gamma", shape=(param_shape), dtype="float32")
+        beta = relay.var("beta", shape=(param_shape), dtype="float32")
+        out = relay.nn.layer_norm(
+            x,
+            gamma=gamma,
+            beta=beta,
+            axis=axis,
+            epsilon=epsilon,
+            center=True,
+            scale=True,
+        )
+        f = relay.Function([x, gamma, beta], out)
+        return (
+            f,
+            {
+                "x": x_shape,
+                "beta": param_shape,
+                "gamma": param_shape,
+            },
+            ["beta", "gamma"],
+        )
+
+    run_and_verify_func(get_graph((1, 32, 8, 8), (32,)))
+    run_and_verify_func(get_graph((1, 8, 8, 32), (32,), axis=3, epsilon=1.001e-05))
+    run_and_verify_func(get_graph((1, 8), (8,), axis=1))
+
+
 def test_unary():
     def get_graph(op, x_shape=(1, 8, 3, 3)):
         x = relay.var("x", shape=(x_shape), dtype="float32")
@@ -856,6 +910,7 @@ def test_unary():
         relay.atan,
         relay.ceil,
         relay.floor,
+        relay.erf,
     ]:
         run_and_verify_func(get_graph(op))
 

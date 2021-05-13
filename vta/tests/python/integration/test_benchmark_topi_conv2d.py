@@ -292,7 +292,7 @@ def test_conv2d(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target
-            if env.TARGET not in ["sim", "tsim"]:
+            if env.TARGET not in ["sim", "tsim", "intelfocl"]:
                 assert tvm.runtime.enabled("rpc")
                 program_fpga(remote, bitstream=None)
                 reconfig_runtime(remote)

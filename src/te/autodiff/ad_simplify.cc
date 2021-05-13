@@ -545,7 +545,7 @@ class EliminateDivModMutator : public ExprMutator {
       }
     }
 
-    return truncdiv(VisitExpr(op->a), VisitExpr(op->b));
+    return div(VisitExpr(op->a), VisitExpr(op->b));
   }
 
   virtual PrimExpr VisitExpr_(const ModNode* op) {

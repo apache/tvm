@@ -310,8 +310,8 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
-def scatter_nd(data, indices, out_shape):
-    """Scatter values from an array.
+def scatter_nd(data, indices, updates, mode="update"):
+    """Scatter values from an array and update.
 
     See :py:func:`tvm.topi.scatter` for how data is scattered.
 
@@ -323,15 +323,18 @@ def scatter_nd(data, indices, out_shape):
     indices : relay.Expr
         The index locations to update.
 
-    out_shape : Union[Tuple[int], List[int]]
-        Output shape of the scatter.
+    updates : relay.Expr
+        The values to update.
+
+    mode : string
+        The accumulation mode for scatter. "update" or "add"
 
     Returns
     -------
     ret : relay.Expr
         The computed result.
     """
-    return _make.scatter_nd(data, indices, out_shape)
+    return _make.scatter_nd(data, indices, updates, mode)
 
 
 def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_end=None):
@@ -385,7 +388,7 @@ def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_e
     return _make.reshape_like(data, shape_like, lhs_begin, lhs_end, rhs_begin, rhs_end)
 
 
-def take(data, indices, axis=None, mode="clip"):
+def take(data, indices, axis=None, batch_dims=0, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -400,6 +403,9 @@ def take(data, indices, axis=None, mode="clip"):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    batch_dims : int
+        The number of batch dimensions. By default is 0.
+
     mode : str, optional
         Specifies how out-of-bound indices will behave [clip, wrap, fast].
         clip: clip to the range (default).
@@ -411,7 +417,7 @@ def take(data, indices, axis=None, mode="clip"):
     ret : relay.Expr
         The computed result.
     """
-    return _make.take(data, indices, axis, mode)
+    return _make.take(data, indices, batch_dims, axis, mode)
 
 
 def full(fill_value, shape=(), dtype=""):

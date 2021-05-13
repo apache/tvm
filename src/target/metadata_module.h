@@ -33,12 +33,15 @@
 #include <string>
 #include <unordered_map>
 
+#include "../runtime/meta_data.h"
+
 namespace tvm {
 namespace codegen {
 
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
-    tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target);
+    tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
+    runtime::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

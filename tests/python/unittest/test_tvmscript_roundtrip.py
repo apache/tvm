@@ -2663,6 +2663,31 @@ def test_opt_conv_tensorcore_mod_host():
 
 
 @tvm.script.tir
+def vthread_func(a: ty.handle, c: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    C = tir.match_buffer(c, (16, 16), "float32")
+
+    i0 = tir.env_thread("blockIdx.x")
+    i1 = tir.env_thread("threadIdx.x")
+    i2 = tir.env_thread("vthread")
+
+    tir.launch_thread(i0, 4)
+    tir.launch_thread(i1, 2)
+    tir.launch_thread(i2, 2)
+    B = tir.allocate([16], "float32", "local")
+    for j in range(0, 16):
+        B[j] = tir.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + tir.float32(1)
+    for j in range(0, 16):
+        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = tir.load("float32", B, j) * tir.float32(2)
+
+
+def test_vthread():
+    func = vthread_func
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@tvm.script.tir
 def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
     A = tir.match_buffer(a, [128, 128])
     B = tir.match_buffer(b, [128, 128])
@@ -2828,6 +2853,41 @@ def test_block_elements():
     assert block.annotations["attr_key"] == "attr_value"
 
 
+@tvm.script.tir
+def opaque_block(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    B = tir.match_buffer(b, (16, 16), "float32")
+
+    for i in range(0, 16):
+        for j in range(0, 16):
+            with tir.block([]):
+                tir.reads([])
+                tir.writes(A[i, j])
+                A[i, j] = tir.float32(0)
+        with tir.block([]):
+            tir.reads([A[i, 0:16]])
+            tir.writes([B[i, 0:16]])
+            for j in range(0, 16):
+                B[i, j] = A[i, j]
+
+
+def test_opaque_block():
+    func = opaque_block
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    root_block = rt_func.body.block
+    assert isinstance(root_block, tir.stmt.Block)
+    assert isinstance(root_block.body, tir.stmt.For)
+    assert isinstance(root_block.body.body[0], tir.stmt.For)
+    assert isinstance(root_block.body.body[0].body, tir.stmt.BlockRealize)
+    assert isinstance(root_block.body.body[0].body.block, tir.stmt.Block)
+    assert len(root_block.body.body[0].body.block.iter_vars) == 0
+    assert isinstance(root_block.body.body[1], tir.stmt.BlockRealize)
+    assert isinstance(root_block.body.body[1].block, tir.stmt.Block)
+    assert len(root_block.body.body[1].block.iter_vars) == 0
+
+
 if __name__ == "__main__":
     test_opt_gemm_normalize()
     test_opt_gemm_mod_host()
@@ -2835,6 +2895,7 @@ if __name__ == "__main__":
     test_opt_conv_tensorcore_normalize()
     test_opt_conv_tensorcore_lower()
     test_opt_conv_tensorcore_mod_host()
+    test_vthread()
     test_module_define()
     test_matmul()
     test_matmul_original()
@@ -2842,3 +2903,4 @@ if __name__ == "__main__":
     test_predicate()
     test_for_thread_binding()
     test_block_elements()
+    test_opaque_block()

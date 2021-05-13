@@ -28,6 +28,7 @@ from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
 from . import _ffi_api, container
+from ..rpc.base import RPC_SESS_MASK
 
 
 def _convert(arg, cargs):
@@ -341,6 +342,9 @@ class VirtualMachine(object):
         self._exec = exe
         self._init = self.module["init"]
         self._invoke = self.module["invoke"]
+        self._invoke_stateful = self.module["invoke_stateful"]
+        self._get_output = self.module["get_output"]
+        self._get_num_outputs = self.module["get_num_outputs"]
         self._set_input = self.module["set_input"]
         self._setup_device(device, memory_cfg)
 
@@ -356,7 +360,7 @@ class VirtualMachine(object):
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if not any(c.device_type == tvm.cpu().device_type for c in devs):
+        if not any(c.device_type % RPC_SESS_MASK == tvm.cpu().device_type for c in devs):
             devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
@@ -374,7 +378,7 @@ class VirtualMachine(object):
             )
         init_args = []
         for device in devs:
-            init_args.append(device.device_type)
+            init_args.append(device.device_type % RPC_SESS_MASK)
             init_args.append(device.device_id)
             alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
@@ -455,3 +459,34 @@ class VirtualMachine(object):
             The output.
         """
         return self.invoke("main", *args, **kwargs)
+
+    def invoke_stateful(self, func_name, *args, **kwargs):
+        """Invoke a function and ignore the returned result.
+
+        Use this function when running over rpc because it is currently
+        impossible to return a ADT object over rpc. To get the outputs, use
+        :py:func`get_outputs`.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+        """
+        if args or kwargs:
+            self.set_input(func_name, *args, **kwargs)
+        self._invoke_stateful(func_name)
+
+    def get_outputs(self):
+        """Get the outputs from a call to :py:func`invoke_stateful`.
+
+        Returns
+        -------
+        outputs : List[NDArray]
+        """
+        return [self._get_output(i) for i in range(self._get_num_outputs())]

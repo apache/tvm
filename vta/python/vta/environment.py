@@ -23,6 +23,7 @@ import json
 import copy
 import tvm
 from tvm import te
+from tvm.ir import register_intrin_lowering
 from . import intrin
 
 
@@ -66,11 +67,13 @@ class DevContext(object):
     MEM_ID_INP = 2
     MEM_ID_ACC = 3
     MEM_ID_OUT = 4
+    MEM_ID_ACC_8BIT = 5
     # VTA ALU Opcodes
     ALU_OPCODE_MIN = 0
     ALU_OPCODE_MAX = 1
     ALU_OPCODE_ADD = 2
     ALU_OPCODE_SHR = 3
+    ALU_OPCODE_MUL = 4
     # Task queue id (pipeline stage)
     QID_LOAD_INP = 1
     QID_LOAD_WGT = 1
@@ -232,7 +235,7 @@ class Environment(object):
             return "llvm -mtriple=armv7-none-linux-gnueabihf"
         if self.TARGET == "ultra96":
             return "llvm -mtriple=aarch64-linux-gnu"
-        if self.TARGET in ["sim", "tsim"]:
+        if self.TARGET in ["sim", "tsim", "intelfocl"]:
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
 
@@ -289,8 +292,8 @@ def mem_info_acc_buffer():
     )
 
 
-# TVM related registration
-@tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")
+# TVM Op related registration
+@register_intrin_lowering("tir.vta.coproc_sync", "default")
 def coproc_sync(op):
     _ = op
     return tvm.tir.call_extern(
@@ -301,14 +304,14 @@ def coproc_sync(op):
     )
 
 
-@tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
+@register_intrin_lowering("tir.vta.coproc_dep_push", "default")
 def coproc_dep_push(op):
     return tvm.tir.call_extern(
         "int32", "VTADepPush", get_env().dev.command_handle, op.args[0], op.args[1]
     )
 
 
-@tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_pop")
+@register_intrin_lowering("tir.vta.coproc_dep_pop", "default")
 def coproc_dep_pop(op):
     return tvm.tir.call_extern(
         "int32", "VTADepPop", get_env().dev.command_handle, op.args[0], op.args[1]

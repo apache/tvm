@@ -167,6 +167,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
                             max_threads_per_block, max_vthread_extent, warp_size);
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.GetDefaultHardwareParams")
+    .set_body_typed([](Target target, Target target_host) {
+      return HardwareParamsNode::GetDefaultHardwareParams(target, target_host);
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,

@@ -26,7 +26,7 @@ from tvm import rpc
 from tvm.contrib import utils, emcc
 import numpy as np
 
-proxy_host = "localhost"
+proxy_host = "127.0.0.1"
 proxy_port = 9090
 
 

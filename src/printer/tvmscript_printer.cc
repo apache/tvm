@@ -232,6 +232,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintConstScalar(DataType dtype, const T* data) {
     Doc doc;
     std::ostringstream os;
+    if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
+      os.precision(17);
+    }
     os << data[0];
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
@@ -617,9 +620,9 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
     }
   }
   // concise thread env
-  if (op->node->IsInstance<IterVarNode>() && op->attr_key == "thread_extent") {
+  if (op->node->IsInstance<IterVarNode>() &&
+      (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
     const auto* iter_var = Downcast<IterVar>(op->node).get();
-    ICHECK(!iter_var->dom.defined());
     var_not_in_headers.insert(iter_var->var.get());
     var_env_map_[iter_var->var] = iter_var->thread_tag;
     if (current_num_ != num_child_ - 1) {

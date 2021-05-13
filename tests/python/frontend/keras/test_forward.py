@@ -198,6 +198,11 @@ class TestKeras:
         x = keras.layers.Dense(10, activation="relu", kernel_initializer="uniform")(x)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
+        # RNN dense
+        data = keras.layers.Input(shape=(1, 32))
+        x = keras.layers.Dense(32, activation="relu", kernel_initializer="uniform")(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_permute(self, keras):
         data = keras.layers.Input(shape=(2, 3, 4))
@@ -573,6 +578,20 @@ class TestKeras:
             x = pool_func(data)
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model, layout="NDHWC")
+
+    def test_forward_nested_layers(self, keras):
+        sub_model = keras.applications.MobileNet(
+            include_top=False, weights="imagenet", input_shape=(224, 224, 3)
+        )
+        keras_model = keras.Sequential(
+            [
+                sub_model,
+                keras.layers.GlobalAveragePooling2D(),
+                keras.layers.Dense(1024, activation="relu"),
+                keras.layers.Dense(2, activation="sigmoid"),
+            ]
+        )
+        verify_keras_frontend(keras_model)
 
 
 if __name__ == "__main__":

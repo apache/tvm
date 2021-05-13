@@ -44,10 +44,11 @@ def kill_child_processes(pid):
 
     try:
         parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
     except psutil.NoSuchProcess:
         return
 
-    for process in parent.children(recursive=True):
+    for process in children:
         try:
             process.kill()
         except psutil.NoSuchProcess:
@@ -152,10 +153,26 @@ class PopenWorker:
         self._reader = os.fdopen(main_read, "rb")
         self._writer = os.fdopen(main_write, "wb")
 
-    def join(self):
-        """Join the current process worker before it terminates"""
+    def join(self, timeout=None):
+        """Join the current process worker before it terminates.
+
+        Parameters
+        ----------
+        timeout: Optional[number]
+            Timeout value, block at most timeout seconds if it
+            is a positive number.
+        """
         if self._proc:
-            self._proc.wait()
+            try:
+                self._proc.wait(timeout)
+            except subprocess.TimeoutExpired:
+                pass
+
+    def is_alive(self):
+        """Check if the process is alive"""
+        if self._proc:
+            return self._proc.poll() is None
+        return False
 
     def send(self, fn, args=(), kwargs=None, timeout=None):
         """Send a new function task fn(*args, **kwargs) to the subprocess.

@@ -88,10 +88,9 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
-
-    VulkanShader shader;
     std::string entry = webgpu_restriction ? "main" : f_name;
-    shader.data = cg.BuildFunction(f, entry);
+
+    VulkanShader shader = cg.BuildFunction(f, entry);
 
     if (webgpu_restriction) {
       for (auto param : f->params) {

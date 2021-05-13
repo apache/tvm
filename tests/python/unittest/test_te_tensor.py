@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import tvm
 import tvm.testing
-import numpy as np
 from tvm import te
-from tvm.topi.nn.pooling import pool
+from tvm.topi.nn.pooling import pool2d
 
 
 def test_tensor():
@@ -337,7 +337,9 @@ def test_tensor_pool():
         return te.decl_tensor_intrin(P.op, intrin_func, default_buffer_params={"offset_factor": 1})
 
     A = te.placeholder((1, 64, 16, 16), name="A")
-    P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0), pool_type="max")
+    P = pool2d(
+        data=A, kernel=(3, 3), stride=(1, 1), dilation=(1, 1), padding=(0, 0, 0, 0), pool_type="max"
+    )
     s = te.create_schedule(P.op)
     _, oh, _, _ = P.op.axis
     intrin = intrin_pool()

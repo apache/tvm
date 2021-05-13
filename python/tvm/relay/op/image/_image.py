@@ -31,12 +31,28 @@ from ..op import OpPattern
 # resize
 @reg.register_compute("image.resize")
 def compute_resize(attrs, inputs, out_type):
+    """ compute definition for resize op """
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
+    rounding_method = attrs.rounding_method
+    bicubic_alpha = attrs.bicubic_alpha
+    bicubic_exclude = attrs.bicubic_exclude
     out_dtype = attrs.out_dtype
-    return [topi.image.resize(inputs[0], size, layout, method, coord_trans, out_dtype)]
+    return [
+        topi.image.resize(
+            inputs[0],
+            size,
+            layout,
+            method,
+            coord_trans,
+            rounding_method,
+            bicubic_alpha,
+            bicubic_exclude,
+            out_dtype,
+        )
+    ]
 
 
 reg.register_injective_schedule("image.resize")

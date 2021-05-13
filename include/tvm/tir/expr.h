@@ -638,6 +638,7 @@ class BufferLoad : public PrimExpr {
  public:
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };
 
 /*!

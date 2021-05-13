@@ -47,7 +47,8 @@ enum DeviceAttrKind : int {
   kMaxThreadDimensions = 8,
   kMaxRegistersPerBlock = 9,
   kGcnArch = 10,
-  kApiVersion = 11
+  kApiVersion = 11,
+  kDriverVersion = 12
 };
 
 /*! \brief Number of bytes each allocation must align to */

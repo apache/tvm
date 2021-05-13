@@ -33,7 +33,7 @@ def main():
 
     # default to local host or environment variable
     if not args.host:
-        args.host = os.environ.get("TVM_TRACKER_HOST", "localhost")
+        args.host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 
     if not args.port:
         args.port = int(os.environ.get("TVM_TRACKER_PORT", "9190"))

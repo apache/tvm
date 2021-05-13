@@ -109,6 +109,32 @@ def _kl_scale(mod, dataset):
     return func
 
 
+def _find_scale_by_percentile(arr, percentile=0.99999):
+    assert isinstance(arr, np.ndarray)
+    x = np.abs(arr)
+    max_k = int(x.size * percentile)
+    return np.partition(x, max_k)[max_k]
+
+
+def _percentile_scale(mod, dataset):
+    cfg = quantize.current_qconfig()
+    chunk_by = cfg.calibrate_chunk_by
+    scales = []
+    for samples in collect_stats(mod, dataset, chunk_by):
+        logging.info("finding threshold with percentile for calibration...")
+        with mp.Pool() as pool:
+            scales += list(pool.map(_find_scale_by_percentile, samples))
+
+    def func(_):
+        scale = scales[func.scale_idx]
+        func.scale_idx += 1
+        return scale
+
+    func.scale_idx = 0
+
+    return func
+
+
 def _set_params(mod, input_scale_func, weight_scale_func):
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
     cfg = quantize.current_qconfig()
@@ -195,6 +221,8 @@ def calibrate(dataset=None):
             input_scale_func = _kl_scale(mod, dataset)
         elif cfg.calibrate_mode == "global_scale":
             input_scale_func = _global_scale
+        elif cfg.calibrate_mode == "percentile":
+            input_scale_func = _percentile_scale(mod, dataset)
         else:
             raise ValueError("Unknown calibrate mode {}".format(cfg.calibrate_mode))
 

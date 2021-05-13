@@ -115,7 +115,6 @@ class WorkspacePool::Pool {
   }
   // Release all resources
   void Release(Device dev, DeviceAPI* device) {
-    ICHECK_EQ(allocated_.size(), 1);
     for (size_t i = 1; i < free_list_.size(); ++i) {
       device->FreeDataSpace(dev, free_list_[i].data);
     }

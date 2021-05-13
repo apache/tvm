@@ -45,4 +45,7 @@
 /*! Size of the global function registry, in bytes. */
 #define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
 
+/*! Maximum packet size, in bytes, including the length header. */
+#define TVM_CRT_MAX_PACKET_SIZE_BYTES 512
+
 #endif  // TVM_RUNTIME_CRT_CONFIG_H_

@@ -62,6 +62,27 @@ class NDArray(NDArrayBase):
         """Device of this array"""
         return self.handle.contents.device
 
+    def __dlpack__(self, stream=None):  # pylint: disable=unused-argument
+        """Export the array for consumption by from_dlpack() as a DLPack capsule.
+
+        Parameters
+        ----------
+        stream : int, optional
+            A Python integer representing a pointer to a stream.
+            Stream is provided by the consumer to the producer to instruct the producer
+            to ensure that operations can safely be performed on the array.
+
+        Returns
+        -------
+        capsule : PyCapsule
+            A DLPack capsule for the array, containing a DLPackManagedTensor.
+        """
+        return self.to_dlpack()
+
+    def __dlpack_device__(self):
+        """Return a tuple of device_type, device_id in DLPack convention"""
+        return (self.handle.contents.device.device_type, self.handle.contents.device.device_id)
+
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
 
@@ -170,15 +191,27 @@ class NDArray(NDArrayBase):
         """
         t = DataType(self.dtype)
         shape, dtype = self.shape, self.dtype
+        old_dtype = dtype
         if t.lanes > 1:
             shape = shape + (t.lanes,)
             t.lanes = 1
             dtype = str(t)
+        if dtype == "int4":
+            dtype = "int8"
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
+        if old_dtype == "int4":
+            length = np_arr.size
+            np_arr_ret = np.empty((length,), dtype="int8")
+            np_arr = np_arr.reshape((length,))
+            old_index = np.bitwise_and(np_arr, 0x0F)
+            even_index = np.bitwise_and(np_arr >> 4, 0x0F)
+            np_arr_ret[1::2] = old_index[0 : length // 2]
+            np_arr_ret[0::2] = even_index[0 : length // 2]
+            return np_arr_ret.reshape(shape)
         return np_arr
 
     def copyto(self, target):
@@ -289,22 +322,28 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
 
 
 def from_dlpack(dltensor):
-    """Produce an array from a DLPack tensor without memory copy.
+    """Produces an array from an object with __dlpack__ method or a DLPack tensor w/o memory copy.
     Retreives the underlying DLPack tensor's pointer to create an array from the
     data. Removes the original DLPack tensor's destructor as now the array is
     responsible for destruction.
 
     Parameters
     ----------
-    dltensor : DLPack tensor
-        Input DLManagedTensor, can only be consumed once.
+    dltensor : object with __dlpack__ attribute or a DLPack capsule
 
     Returns
     -------
     arr: tvm.nd.NDArray
         The array view of the tensor data.
     """
-    return _from_dlpack(dltensor)
+    t = type(dltensor)
+    if t.__module__ == "builtins" and t.__name__ == "PyCapsule":
+        return _from_dlpack(dltensor)
+
+    if hasattr(dltensor, "__dlpack__"):
+        dlpack_caps = dltensor.__dlpack__()
+        return _from_dlpack(dlpack_caps)
+    raise AttributeError("Required attribute __dlpack__ not found")
 
 
 def cpu(dev_id=0):
@@ -508,6 +547,9 @@ def array(arr, device=cpu(0)):
     ret : NDArray
         The created array
     """
+    if isinstance(arr, tvm.ir.container.Array):
+        raise AttributeError("arr is an instance of", type(arr))
+
     if not isinstance(arr, (np.ndarray, NDArray)):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, device).copyfrom(arr)

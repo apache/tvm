@@ -22,10 +22,10 @@ import tvm.ir
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 
-from ...dataflow_pattern import wildcard, is_op, is_constant
 from ... import qnn as _qnn
-from .register import register_pattern_table
+from ...dataflow_pattern import is_constant, is_op, wildcard
 from . import _ethosn as support
+from .register import register_pattern_table
 
 
 class Available(Enum):
@@ -82,7 +82,7 @@ def pattern_table():
     """Get the Ethos-N compiler pattern table."""
 
     def qnn_conv_pattern():
-        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("nn.pad")(wildcard(), wildcard()) | wildcard()
         pattern = is_op("qnn.conv2d")(
             pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
         )

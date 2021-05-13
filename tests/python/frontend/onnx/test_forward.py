@@ -15,17 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-import onnx
-from onnx import helper, TensorProto, mapping, numpy_helper
+import pytest
+import scipy
 import torch
 import torchvision
-import pytest
-import tvm.topi.testing
 import tvm
+import tvm.testing
+import tvm.topi.testing
 from tvm import relay
 from tvm.contrib import graph_executor
-import scipy
-import tvm.testing
+
+import onnx
+from onnx import TensorProto, helper, mapping, numpy_helper
 
 
 def get_input_data_shape_dict(graph_def, input_data):
@@ -45,7 +46,7 @@ def get_input_data_shape_dict(graph_def, input_data):
 def get_tvm_output_with_vm(
     graph_def, input_data, target, device, opset=None, freeze_params=False, convert_to_static=False
 ):
-    """ Generic function to execute and get tvm output with vm executor"""
+    """Generic function to execute and get tvm output with vm executor"""
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
@@ -67,7 +68,7 @@ def get_tvm_output_with_vm(
 def get_tvm_output(
     graph_def, input_data, target, device, output_shape=None, output_dtype="float32", opset=None
 ):
-    """ Generic function to execute and get tvm output"""
+    """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
     target = "llvm"
     device = tvm.cpu(0)
@@ -1054,20 +1055,21 @@ def test_onehot():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
+def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False, dtype="float32"):
     out_shape = [a_shape[0], b_shape[1]]
-    a_array = np.random.uniform(size=a_shape).astype("float32")
-    b_array = np.random.uniform(size=b_shape).astype("float32")
+    a_array = np.random.uniform(size=a_shape).astype(dtype)
+    b_array = np.random.uniform(size=b_shape).astype(dtype)
     input_names = ["a", "b"]
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
     input_nodes = [
-        helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
-        helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        helper.make_tensor_value_info("a", ONNX_DTYPE, list(a_shape)),
+        helper.make_tensor_value_info("b", ONNX_DTYPE, list(b_shape)),
     ]
     input_values = [a_array, b_array]
     if c_shape is not None:
-        c_array = np.random.uniform(size=c_shape).astype("float32")
+        c_array = np.random.uniform(size=c_shape).astype(dtype)
         input_names.append("c")
-        input_nodes.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)))
+        input_nodes.append(helper.make_tensor_value_info("c", ONNX_DTYPE, list(c_shape)))
         input_values.append(c_array)
 
     gemm_node = helper.make_node("Gemm", input_names, ["out"])
@@ -1076,11 +1078,11 @@ def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False):
         [gemm_node],
         "gemm_test",
         inputs=input_nodes,
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(out_shape))],
     )
 
     model = helper.make_model(graph, producer_name="gemm_test")
-    verify_with_ort_with_inputs(model, input_values, freeze_params=freeze_params)
+    verify_with_ort_with_inputs(model, input_values, freeze_params=freeze_params, dtype=dtype)
 
 
 @tvm.testing.uses_gpu
@@ -1088,6 +1090,7 @@ def test_gemm():
     verify_gemm(a_shape=(4, 3), b_shape=(3, 4))
     verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,))
     verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True)
+    verify_gemm(a_shape=(4, 3), b_shape=(3, 4), c_shape=(4,), freeze_params=True, dtype="float16")
 
 
 @tvm.testing.uses_gpu
@@ -2390,16 +2393,20 @@ def verify_conv(
             # groups=1
         )
     elif padding is None:
+        ## autopadding with unset default attributes
+        kwargs = {}
+        if not all([s == 1 for s in strides]):
+            kwargs["strides"] = strides
+        if not all([d == 1 for d in dilations]):
+            kwargs["dilations"] = dilations
+
         node = helper.make_node(
             "Conv",
             inputs=["x", "W"],
             outputs=["y"],
-            kernel_shape=kernel_shape,
             # Default values for other attributes:
-            strides=strides,
-            dilations=dilations,
-            # groups=1
             auto_pad=auto_pad,
+            **kwargs,
         )
     else:
         node = helper.make_node(
@@ -2692,7 +2699,7 @@ def test_convtranspose():
 
 @tvm.testing.uses_gpu
 def test_unsqueeze_constant():
-    from torch.nn import Linear, Sequential, Module
+    from torch.nn import Linear, Module, Sequential
 
     class Flatten(Module):
         def forward(self, input):
@@ -2828,6 +2835,44 @@ def test_pooling():
             mode=mode,
             auto_pad="SAME_UPPER",
         )
+
+
+def verify_global_pooling(x_shape, mode):
+    out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
+
+    if mode == "max":
+        node_type = "GlobalMaxPool"
+    elif mode == "average":
+        node_type = "GlobalAveragePool"
+    else:
+        raise ValueError("Pool method {} is not supported.".format(mode))
+
+    pool_node = helper.make_node(node_type, inputs=["x"], outputs=["y"])
+
+    graph = helper.make_graph(
+        [pool_node],
+        "global_pooling_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="global_pooling_test")
+    verify_with_ort(model, [x_shape], [out_shape], use_vm=False, convert_to_static=True)
+
+
+@tvm.testing.uses_gpu
+def test_global_pooling():
+    # Test each pooling mode across all N-D inputs.
+    for mode in ["average", "max"]:
+        # 1D Pooling (NCW)
+        verify_global_pooling([1, 8, 8], mode)
+        verify_global_pooling([4, 1, 4], mode)
+        # 2D Pooling (NCHW)
+        verify_global_pooling([1, 8, 8, 8], mode)
+        verify_global_pooling([4, 1, 6, 4], mode)
+        # 3D Pooling (NCDHW)
+        verify_global_pooling([1, 8, 6, 8, 8], mode)
+        verify_global_pooling([4, 1, 2, 6, 4], mode)
 
 
 def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
@@ -3579,7 +3624,7 @@ def test_roi_align():
     # ONNX implementation of roi_align with max mode is incorrect, so we don't compare outputs here.
 
 
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
     def verify_nms(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
@@ -4128,6 +4173,14 @@ def test_cumsum():
     verify_cumsum(data, 1, 1, 1, type="int32")
 
 
+"""
+  The following parameterized tests loads the tests that ONNX ships as
+  serialized ONNX files, inputs, and outputs. The goal of this test
+  is to ensure the ONNX importer is in line with the ONNX specification.
+  To allow these tests to run in CI before all pass, a number of tests that
+  are not yet supported are skipped.
+"""
+
 from onnx import numpy_helper
 
 f = onnx.__file__
@@ -4159,63 +4212,27 @@ unsupported_onnx_tests = [
     "test_eyelike_populate_off_main_diagonal/",
     "test_eyelike_with_dtype/",
     "test_eyelike_without_dtype/",
-    "test_hardmax_axis_0/",
-    "test_hardmax_axis_1/",
-    "test_hardmax_axis_2/",
-    "test_hardmax_default_axis/",
-    "test_hardmax_example/",
-    "test_hardmax_negative_axis/",
-    "test_hardmax_one_hot/",
-    "test_isinf_negative/",
-    "test_isinf_positive/",
     "test_matmulinteger/",
-    "test_maxpool_2d_dilations/",
     "test_maxpool_2d_same_lower/",
     "test_maxpool_2d_same_upper/",
     "test_maxpool_with_argmax_2d_precomputed_pads/",
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
-    "test_nonmaxsuppression_center_point_box_format/",
     "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
-    "test_range_float_type_positive_delta_expanded/",
-    "test_range_int32_type_negative_delta_expanded/",
-    "test_resize_downsample_scales_cubic/",
-    "test_resize_downsample_scales_cubic_A_n0p5_exclude_outside/",
-    "test_resize_downsample_scales_cubic_align_corners/",
-    "test_resize_downsample_scales_linear/",
-    "test_resize_downsample_scales_nearest/",
-    "test_resize_downsample_sizes_cubic/",
-    "test_resize_downsample_sizes_linear_pytorch_half_pixel/",
-    "test_resize_downsample_sizes_nearest/",
-    "test_resize_downsample_sizes_nearest_tf_half_pixel_for_nn/",
     "test_resize_tf_crop_and_resize/",
-    "test_resize_upsample_scales_cubic/",
-    "test_resize_upsample_scales_cubic_A_n0p5_exclude_outside/",
-    "test_resize_upsample_scales_cubic_align_corners/",
-    "test_resize_upsample_scales_cubic_asymmetric/",
-    "test_resize_upsample_scales_linear/",
-    "test_resize_upsample_sizes_cubic/",
+    ## For these three tests, ONNX 1.6.0 has incorrect graphs, they pass with ONNX 1.7.0
     "test_resize_upsample_sizes_nearest_ceil_half_pixel/",
     "test_resize_upsample_sizes_nearest_floor_align_corners/",
     "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric/",
-    "test_reversesequence_batch/",
-    "test_reversesequence_time/",
     "test_rnn_seq_length/",
-    "test_roialign/",
     "test_round/",
     "test_scan9_sum/",
     "test_scan_sum/",
-    "test_scatternd/",
-    "test_selu_default/",
-    "test_shrink_hard/",
-    "test_shrink_soft/",
     "test_simple_rnn_defaults/",
     "test_simple_rnn_with_initial_bias/",
-    "test_slice_neg_steps/",
-    "test_slice_start_out_of_bounds/",
     "test_strnormalizer_export_monday_casesensintive_lower/",
     "test_strnormalizer_export_monday_casesensintive_nochangecase/",
     "test_strnormalizer_export_monday_casesensintive_upper/",
@@ -4229,13 +4246,11 @@ unsupported_onnx_tests = [
     "test_tfidfvectorizer_tf_onlybigrams_levelempty/",
     "test_tfidfvectorizer_tf_onlybigrams_skip5/",
     "test_tfidfvectorizer_tf_uniandbigrams_skip5/",
-    "test_top_k_smallest/",
     "test_unique_not_sorted_without_axis/",
     "test_unique_sorted_with_axis/",
     "test_unique_sorted_with_axis_3d/",
     "test_unique_sorted_with_negative_axis/",
     "test_unique_sorted_without_axis/",
-    "test_unsqueeze_unsorted_axes/",
     "test_upsample_nearest/",
 ]
 
@@ -4246,6 +4261,12 @@ def test_onnx_nodes(test):
         if failure in test:
             pytest.skip()
             break
+    atol = 1e-5
+    rtol = 1e-5
+    if "roialign" in test:
+        # for some reason the ONNX test crops the
+        # roialign results to 4 decimal places
+        atol = 1e-4
     onnx_model = onnx.load(test + "/model.onnx")
     inputs = []
     outputs = []
@@ -4263,10 +4284,10 @@ def test_onnx_nodes(test):
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
         tvm_val = get_tvm_output_with_vm(onnx_model, inputs, "llvm", tvm.cpu(0))
         if len(outputs) == 1:
-            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
         else:
             for output, val in zip(outputs, tvm_val):
-                tvm.testing.assert_allclose(output, val, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(output, val, rtol=rtol, atol=atol)
 
 
 def test_wrong_input():
@@ -4326,6 +4347,44 @@ def test_aten():
 
     verify_embedding_bag(10, 3, [2, 10])
     verify_embedding_bag(32, 2, [3, 3])
+
+
+def verify_reverse_sequence(x, sequence_lens, batch_axis, time_axis):
+    node = onnx.helper.make_node(
+        "ReverseSequence",
+        inputs=["x", "sequence_lens"],
+        outputs=["y"],
+        time_axis=time_axis,
+        batch_axis=batch_axis,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "reverse_sequence_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
+            helper.make_tensor_value_info(
+                "sequence_lens", TensorProto.INT64, list(sequence_lens.shape)
+            ),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="reverse_sequence_test")
+    verify_with_ort_with_inputs(model, [x, sequence_lens], [x.shape])
+
+
+@tvm.testing.uses_gpu
+def test_reverse_sequence():
+    x = np.array(
+        [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]],
+        dtype=np.float32,
+    )
+    sequence_lens = np.array([1, 2, 3, 4], dtype=np.int64)
+    verify_reverse_sequence(x, sequence_lens, 0, 1)
+
+    sequence_lens = np.array([4, 3, 2, 1], dtype=np.int64)
+    verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
 if __name__ == "__main__":
@@ -4408,3 +4467,4 @@ if __name__ == "__main__":
     test_cumsum()
     test_wrong_input()
     test_aten()
+    test_reverse_sequence()

@@ -213,6 +213,7 @@ def compare_tf_with_tvm(
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
     targets=None,
+    ignore_in_shape=False,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -259,6 +260,7 @@ def compare_tf_with_tvm(
                 opt_level=opt_level,
                 mode=mode,
                 cuda_layout=cuda_layout,
+                ignore_in_shape=ignore_in_shape,
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
@@ -314,6 +316,22 @@ def _test_pooling(input_shape, **kwargs):
             _test_pooling_iteration(input_shape, **kwargs)
 
 
+def _test_pooling_dynamic(input_shape, np_shape, **kwargs):
+    """ Pooling with dynamic height and width dimensions. """
+    x = -np.arange(np.prod(np_shape), dtype=np.float32).reshape(np_shape) - 1
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype="float32")
+        nn_ops.pool(in_data, **kwargs)
+
+        if kwargs["pooling_type"] == "MAX":
+            out_name = "max_pool:0"
+        else:
+            out_name = "avg_pool:0"
+
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, mode="vm", ignore_in_shape=True)
+
+
 @tvm.testing.uses_gpu
 def test_forward_pooling():
     """ Pooling """
@@ -345,6 +363,16 @@ def test_forward_pooling():
             pooling_type=pool_type,
             dilation_rate=[1, 1, 1],
             strides=[2, 2, 2],
+        )
+
+        _test_pooling_dynamic(
+            input_shape=[1, None, None, 3],
+            np_shape=[1, 32, 32, 3],
+            window_shape=[2, 2],
+            padding="SAME",
+            pooling_type=pool_type,
+            dilation_rate=[1, 1],
+            strides=[1, 1],
         )
 
         # test cases for max_pool3d & avg_pool3d with layout NCDHW
@@ -2677,14 +2705,14 @@ def test_forward_truncatemod():
 # --------------------------
 
 
-def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
+def _test_gather(ip_shape, indice_shape, indice_value, axis, batch_dims, dtype):
     """ One iteration of a GatherV2 """
 
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data = tf.placeholder(dtype, ip_shape, name="in_data")
         indices = tf.placeholder("int32", indice_shape, name="indices")
-        out = tf.gather(in_data, indices, axis=axis)
+        out = tf.gather(in_data, indices, axis=axis, batch_dims=batch_dims)
         np_data = np.random.uniform(1, 10, size=ip_shape).astype(dtype)
 
         def _fill_indices(indice_value):
@@ -2696,22 +2724,34 @@ def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
             return indices
 
         np_indices = _fill_indices(indice_value)
-
         compare_tf_with_tvm([np_data, np_indices], ["in_data:0", "indices:0"], out.name)
 
 
 def test_forward_gather():
     """test Gather/GatherV2 layer"""
-    _test_gather((4,), (1,), 1, 0, "int32")
-    _test_gather((4,), (1,), 1, 0, "float32")
-    _test_gather((1, 4), (1,), [0], 0, "int32")
-    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "float32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "int32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, "int32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "float32")
-    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, "int32")
-    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, "int32")
-    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, "float32")
+    _test_gather((4,), (1,), 1, 0, 1, "int32")
+    _test_gather((4,), (1,), 1, 0, 0, "float32")
+    _test_gather((1, 4), (1,), [0], 0, 0, "int32")
+    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "float32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "int32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, 0, "int32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "float32")
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 0, "int32")
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 0, "int32")
+    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 0, "float32")
+    _test_gather((2, 2), (2, 2), [[0, 0], [0, 0]], 1, 1, "float32")
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 2, 2, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 1, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 2, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 0, "float32"
+    )
 
 
 #######################################################################
@@ -3048,6 +3088,33 @@ def test_forward_resize():
     _test_resize_bilinear_from_tensor((6, 50, 50, 3), True)
     _test_resize_nearest_neighbor((6, 32, 32, 3), [20, 20])
     _test_resize_nearest_neighbor_dynamic_shape((1, 16, 16, 3), scale=[2, 2])
+
+
+#######################################################################
+# BroadcastArgs
+# -----------
+
+
+def _test_broadcast_args(in_shape_1, in_shape_2):
+    """ One iteration of broadcast_args"""
+
+    shape_1 = np.array(in_shape_1).astype("int32")
+    shape_2 = np.array(in_shape_2).astype("int32")
+
+    with tf.Graph().as_default():
+        shape_1 = constant_op.constant(shape_1, shape=shape_1.shape, dtype=shape_1.dtype)
+        shape_2 = constant_op.constant(shape_2, shape=shape_2.shape, dtype=shape_2.dtype)
+        tf.raw_ops.BroadcastArgs(s0=shape_1, s1=shape_2)
+
+        compare_tf_with_tvm(None, "", "BroadcastArgs:0", opt_level=0)
+
+
+def test_forward_broadcast_args():
+    """ Resize Bilinear """
+
+    _test_broadcast_args((4, 1, 32, 32), [4, 8, 32, 32])
+    _test_broadcast_args((6, 32, 32, 1), [6, 32, 32, 16])
+    _test_broadcast_args((32, 32, 16), [6, 32, 32, 16])
 
 
 #######################################################################
@@ -3593,7 +3660,7 @@ def test_forward_logical():
 
 
 #######################################################################
-# Where, Select
+# Where, Select, SelectV2
 # -------------
 def test_forward_where():
     """ Where: return elements depending on conditions"""

@@ -14,10 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import json
 import pytest
 import os
-import tarfile
 
 from os import path
 
@@ -26,8 +24,8 @@ from tvm.driver import tvmc
 
 
 def _get_tasks(model):
-    mod, params = tvmc.frontends.load_model(model)
-    return tvmc.autotuner.autotvm_get_tuning_tasks(mod, params, "llvm")
+    tvmc_model = tvmc.frontends.load_model(model)
+    return tvmc.autotuner.autotvm_get_tuning_tasks(tvmc_model.mod, tvmc_model.params, "llvm")
 
 
 def _get_measure_options():
@@ -36,20 +34,18 @@ def _get_measure_options():
     )
 
 
-def _tuner_test_helper(
-    model, tuner_name, tmpdir_name, tasks=None, early_stopping=1, tuning_records=None
-):
-    tasks = tasks if tasks else _get_tasks(model)
+def _tuner_test_helper(model, tuner_name, tmpdir_name, early_stopping=1, prior_records=None):
+    tvmc_model = tvmc.frontends.load_model(model)
     log_file = os.path.join(tmpdir_name, "log_{}.txt".format(tuner_name))
 
-    tvmc.autotuner.tune_tasks(
-        tasks=[tasks[0]],
-        log_file=log_file,
-        measure_option=_get_measure_options(),
+    tvmc.tune(
+        tvmc_model,
+        target="llvm",
+        tuning_records=log_file,
+        prior_records=prior_records,
         tuner=tuner_name,
-        trials=1,
+        trials=4,
         early_stopping=early_stopping,
-        tuning_records=tuning_records,
     )
 
     # testing whether the log file was produced
@@ -63,10 +59,10 @@ def _tuner_test_helper(
     return log_file
 
 
-def test_get_tuning_tasks(onnx_resnet50):
+def test_get_tuning_tasks(onnx_mnist):
     pytest.importorskip("onnx")
 
-    sut = _get_tasks(onnx_resnet50)
+    sut = _get_tasks(onnx_mnist)
     expected_task_type = autotvm.task.Task
 
     assert type(sut) is list
@@ -74,76 +70,85 @@ def test_get_tuning_tasks(onnx_resnet50):
     assert all([type(x) is expected_task_type for x in sut]) is True
 
 
-def test_tune_tasks__tuner__xgb(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__xgb(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "xgb", tmpdir_name)
+    _tuner_test_helper(onnx_mnist, "xgb", tmpdir_name)
 
 
-def test_tune_tasks__tuner__xgb_knob(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__xgb_knob(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "xgb_knob", tmpdir_name)
+    _tuner_test_helper(onnx_mnist, "xgb_knob", tmpdir_name)
 
 
-def test_tune_tasks__tuner__ga(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__ga(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "ga", tmpdir_name)
+    _tuner_test_helper(onnx_mnist, "ga", tmpdir_name)
 
 
-def test_tune_tasks__tuner__random(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__random(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "random", tmpdir_name)
+    _tuner_test_helper(onnx_mnist, "random", tmpdir_name)
 
 
-def test_tune_tasks__tuner__gridsearch(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__gridsearch(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "gridsearch", tmpdir_name)
+    _tuner_test_helper(onnx_mnist, "gridsearch", tmpdir_name)
 
 
-def test_tune_tasks__tuner__gridsearch__tuning_records(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__gridsearch__tuning_records(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    output_log_phase_1 = _tuner_test_helper(onnx_resnet50, "gridsearch", tmpdir_name)
+    output_log_phase_1 = _tuner_test_helper(onnx_mnist, "gridsearch", tmpdir_name)
 
     # Exercises transfer learning by making sure a previous log exists
-    _tuner_test_helper(onnx_resnet50, "gridsearch", tmpdir_name, tuning_records=output_log_phase_1)
+    _tuner_test_helper(onnx_mnist, "gridsearch", tmpdir_name, prior_records=output_log_phase_1)
 
 
-def test_tune_tasks__tuner__ga__empty_tasks(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__ga__empty_tasks(tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "ga", tmpdir_name, tasks=[])
+    log_file = os.path.join(tmpdir_name, "log_{}.txt".format("ga"))
+
+    tvmc.autotuner.tune_tasks(
+        tasks=[],
+        log_file=log_file,
+        measure_option=_get_measure_options(),
+        tuner="ga",
+        trials=1,
+        early_stopping=1,
+    )
 
 
-def test_tune_tasks__tuner__xgb__no_early_stopping(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__xgb__no_early_stopping(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "xgb", tmpdir_name, tasks=None, early_stopping=None)
+    _tuner_test_helper(onnx_mnist, "xgb", tmpdir_name, early_stopping=None)
 
 
-def test_tune_tasks__tuner__xgb__no_tuning_records(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__tuner__xgb__no_tuning_records(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
     tmpdir_name = tmpdir_factory.mktemp("data")
-    _tuner_test_helper(onnx_resnet50, "xgb", tmpdir_name, tasks=None, tuning_records=None)
+    _tuner_test_helper(onnx_mnist, "xgb", tmpdir_name, prior_records=None)
 
 
-def test_tune_tasks__invalid_tuner(onnx_resnet50, tmpdir_factory):
+def test_tune_tasks__invalid_tuner(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
-    tasks = _get_tasks(onnx_resnet50)
+    tasks = _get_tasks(onnx_mnist)
     log_file = os.path.join(tmpdir_factory.mktemp("data"), "log2.txt")
 
     with pytest.raises(tvmc.common.TVMCException):

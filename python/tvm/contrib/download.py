@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Helper utility for downloading"""
-import os
+from pathlib import Path
+from os import environ
 import sys
 import time
 import uuid
@@ -49,11 +50,12 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
     # pylint: disable=import-outside-toplevel
     import urllib.request as urllib2
 
-    if os.path.isfile(path) and not overwrite:
+    path = Path(path).resolve()
+    if path.exists() and path.is_file() and not overwrite:
         if size_compare:
             import requests
 
-            file_size = os.path.getsize(path)
+            file_size = path.stat().st_size
             res_head = requests.head(url)
             res_get = requests.get(url, stream=True)
             if "Content-Length" not in res_head.headers:
@@ -71,11 +73,10 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
 
     # Stateful start time
     start_time = time.time()
-    dirpath = os.path.dirname(path)
-    if dirpath and not os.path.isdir(dirpath):
-        os.makedirs(dirpath)
+    dirpath = path.parent
+    dirpath.mkdir(parents=True, exist_ok=True)
     random_uuid = str(uuid.uuid4())
-    tempfile = os.path.join(dirpath, random_uuid)
+    tempfile = Path(dirpath, random_uuid)
 
     def _download_progress(count, block_size, total_size):
         # pylint: disable=unused-argument
@@ -109,8 +110,8 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
         except Exception as err:
             retries -= 1
             if retries == 0:
-                if os.path.exists(tempfile):
-                    os.remove(tempfile)
+                if tempfile.exists():
+                    tempfile.unlink()
                 raise err
             print(
                 "download failed due to {}, retrying, {} attempt{} left".format(
@@ -119,11 +120,11 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
             )
 
 
-if "TEST_DATA_ROOT_PATH" in os.environ:
-    TEST_DATA_ROOT_PATH = os.environ.get("TEST_DATA_ROOT_PATH")
+if "TEST_DATA_ROOT_PATH" in environ:
+    TEST_DATA_ROOT_PATH = environ.get("TEST_DATA_ROOT_PATH")
 else:
-    TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm_test_data")
-os.makedirs(TEST_DATA_ROOT_PATH, exist_ok=True)
+    TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data")
+TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 
 
 def download_testdata(url, relpath, module=None, overwrite=False):
@@ -151,9 +152,9 @@ def download_testdata(url, relpath, module=None, overwrite=False):
     elif isinstance(module, str):
         module_path = module
     elif isinstance(module, (list, tuple)):
-        module_path = os.path.join(*module)
+        module_path = Path(*module)
     else:
         raise ValueError("Unsupported module: " + module)
-    abspath = os.path.join(TEST_DATA_ROOT_PATH, module_path, relpath)
+    abspath = Path(TEST_DATA_ROOT_PATH, module_path, relpath)
     download(url, abspath, overwrite=overwrite, size_compare=False)
-    return abspath
+    return str(abspath)

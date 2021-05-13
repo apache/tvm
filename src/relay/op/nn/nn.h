@@ -49,9 +49,9 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   ICHECK(static_cast<int>(data->shape.size()) != 0);
 
-  Array<tvm::PrimExpr> oshape = data->shape;
+  Array<tvm::PrimExpr> dshape = data->shape;
+  Array<tvm::PrimExpr> oshape = dshape;
   if (param->units.defined()) {
-    Array<tvm::PrimExpr> dshape = data->shape;
     // validate the weight shape is proper if defined
     // Assign weight type
     Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
@@ -72,13 +72,24 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     if (weight == nullptr) return false;
     Array<tvm::PrimExpr> wshape = weight->shape;
-    ICHECK(static_cast<int>(weight->shape.size()) == 2);
-    if (!data->shape.back().as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
-          << "DenseRel: input dimension doesn't match,"
-          << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+    // When weight's layout has been rewritten, figure it out based on the
+    // total number of elements and input dimensions.
+    if (param->auto_scheduler_rewritten_layout.size() != 0) {
+      PrimExpr weight_elements = 1;
+      for (size_t i = 0; i < wshape.size(); i++) {
+        weight_elements = weight_elements * wshape[i];
+      }
+      oshape.Set(oshape.size() - 1, weight_elements / dshape[dshape.size() - 1]);
+      // Otherwise just pull it out of the weight shape directly.
+    } else {
+      ICHECK(static_cast<int>(weight->shape.size()) == 2);
+      if (!data->shape.back().as<tir::AnyNode>()) {
+        ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
+            << "DenseRel: input dimension doesn't match,"
+            << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+      }
+      oshape.Set((oshape.size() - 1), wshape[0]);
     }
-    oshape.Set((oshape.size() - 1), wshape[0]);
   }
 
   DataType out_dtype = param->out_dtype;

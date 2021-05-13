@@ -65,6 +65,7 @@ if python -c "import tvm; from tvm.relay.op.contrib.ethosn import ethosn_availab
 fi
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
 
+# forked is needed because the global registry gets contaminated
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
     run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
 

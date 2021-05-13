@@ -21,31 +21,28 @@
 """PT: PyTorch frontend."""
 import itertools
 import logging
-import sys
 import math
+import sys
 
 import numpy as np
-
 import tvm
-from tvm.topi.utils import get_const_tuple
 from tvm.ir import IRModule
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from .. import qnn
-from ..ty import TupleType, TensorType, Any
+from .. import qnn, transform
+from ..expr_functor import ExprMutator
 from ..loops import while_loop
-from .. import transform
+from ..prelude import Prelude, StaticTensorArrayOps
+from ..ty import Any, TensorType, TupleType
+from . import qnn_torch
 from .common import AttrCvt, get_relay_op
 from .common import infer_value as _infer_value
-from .common import try_infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from ..prelude import Prelude, StaticTensorArrayOps
-from ..expr_functor import ExprMutator
-
-from . import qnn_torch
+from .common import try_infer_value
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -883,11 +880,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1, 1]:
-            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+        return _op.nn.max_pool2d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCHW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_2d_with_indices(self, inputs, input_types):
         # returns dummy indices too
@@ -902,11 +903,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1]:
-            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
+        return _op.nn.max_pool1d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
@@ -916,12 +921,14 @@ class PyTorchOpConverter:
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
-        if dilation != [1, 1, 1]:
-            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
 
         return _op.nn.max_pool3d(
-            data, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            ceil_mode=ceil_mode,
         )
 
     def hardtanh(self, inputs, input_types):
@@ -1370,6 +1377,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1,),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1379,6 +1387,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1, 1),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1388,6 +1397,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1, 1, 1),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1580,7 +1590,7 @@ class PyTorchOpConverter:
         b_shape = self.infer_shape_with_prelude(inputs_1)
 
         # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if len(a_shape) > 2 or len(b_shape) > 2:
+        if len(a_shape) > 2 and len(b_shape) > 2:
             # Convert a into a 3 dimensional tensors.
             need_reshape_output = False
             if len(a_shape) != 3:
@@ -1606,17 +1616,31 @@ class PyTorchOpConverter:
             if need_reshape_output:
                 return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
             return output
+        elif len(a_shape) > 2:
+            inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
 
-        # Otherwise a simple dense op will get the job done.
-        if len(b_shape) == 1:
-            input_1 = _op.expand_dims(inputs_1, 0, 1)
-        else:
+        if len(b_shape) > 2:
+            trans_axes = list(range(len(b_shape)))
+            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
+            input_1 = _op.reshape(_op.transpose(inputs_1, trans_axes), [-1, b_shape[-2]])
+        elif len(b_shape) == 2:
             input_1 = _op.transpose(inputs_1, axes=(1, 0))
+        elif len(b_shape) == 1:
+            input_1 = _op.expand_dims(inputs_1, 0, 1)
 
         out = _op.nn.dense(inputs_0, input_1)
 
         if len(b_shape) == 1:
             out = _op.squeeze(out, axis=[-1])
+
+        # Reshape output into a N dimensional tensor when a or b dim > 2
+        if len(a_shape) > 2:
+            out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
+        elif len(b_shape) > 2:
+            out = _op.reshape(out, [a_shape[-2], -1, b_shape[-1]])
+            out = _op.reshape(
+                _op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]]
+            )
 
         return out
 
@@ -2104,26 +2128,13 @@ class PyTorchOpConverter:
         indices = inputs[1]
         values = inputs[2]
         accumulate = inputs[3]
-        # accumulate parameter is ignored.
-        # torch.index_put default is False but Relay.scatter_nd accumulates values.
-        # We assume there is no duplicate indices in torch.index_put input
         if not accumulate:
-            logging.warning(
-                "torch.index_put accumulate parameter is False. "
-                "TVM uses tvm.relay.scatter_nd operator which accumulates values. "
-                "Make sure there is no duplicate indices in torch.index_put input."
-            )
-        # Relay scatter_nd does not support input tensor
-        # We assume that torch.index_put is used with empty zero-values input tensor
-        # scatter_nd will create empty zero-values tensor with a given shape
-        out_shape = self.infer_shape(in_tensor)
-        logging.warning(
-            "tvm.relay.scatter_nd operator does not support input tensor parameter. "
-            "TVM assumes that torch.index_put is used with empty zero-values input tensor"
-        )
+            mode = "update"
+        else:
+            mode = "add"
         # Combine array of index tensors into one index tensor with shape (N,_)
         index_tensor = _op.stack(indices, axis=0)
-        return _op.transform.scatter_nd(values, index_tensor, out_shape)
+        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]

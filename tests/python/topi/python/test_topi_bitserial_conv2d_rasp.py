@@ -43,6 +43,7 @@ def verify_bitserial_conv2d_nhwc(
     activation_bits,
     weight_bits,
     unipolar,
+    use_relu=False,
 ):
     in_height = in_width = in_size
     input_type = "uint32"
@@ -55,6 +56,8 @@ def verify_bitserial_conv2d_nhwc(
         B = topi.arm_cpu.bitserial_conv2d_nhwc(
             A, W, stride, padding, activation_bits, weight_bits, "uint8", out_dtype, unipolar
         )
+        if use_relu:
+            B = topi.nn.relu(B)
         s = topi.arm_cpu.schedule_bitserial_conv2d_nhwc([B])
 
     func = tvm.build(s, [A, W, B], device)
@@ -110,6 +113,8 @@ def test_bitserial_conv2d():
 
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, True)
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, True)
+
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, True, True)
 
 
 if __name__ == "__main__":
