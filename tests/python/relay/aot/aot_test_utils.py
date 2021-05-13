@@ -175,7 +175,7 @@ def compile_and_run(
 
     # The calculated workspaces will not account for stack allocator tags used for debugging
     if not use_calculated_workspaces:
-        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK "
+        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lib = tvm.relay.build(mod, target, target_host=target, params=params)

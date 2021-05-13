@@ -22,8 +22,8 @@
 #include "../../src/runtime/crt/memory/stack_allocator.c"
 #include "platform.cc"
 
-// Check with FIFO checks enabled for stack allocator
-#define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
+// Check with LIFO checks enabled for stack allocator
+#define TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
 /*
  * Tests allocations are properly aligned when allocated
  */
