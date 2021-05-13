@@ -66,7 +66,14 @@ def get_tvm_output_with_vm(
 
 
 def get_tvm_output(
-    graph_def, input_data, target, device, output_shape=None, output_dtype="float32", opset=None
+    graph_def,
+    input_data,
+    target,
+    device,
+    output_shape=None,
+    output_dtype="float32",
+    opset=None,
+    opt_level=1,
 ):
     """Generic function to execute and get tvm output"""
     # TODO: Resolve the issues and remove the following lines
@@ -76,7 +83,8 @@ def get_tvm_output(
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
-    with tvm.transform.PassContext(opt_level=1):
+
+    with tvm.transform.PassContext(opt_level=opt_level):
         graph, lib, params = relay.build(mod, target, params=params)
 
     m = graph_executor.create(graph, lib, device)
@@ -135,6 +143,7 @@ def verify_with_ort_with_inputs(
     rtol=1e-5,
     atol=1e-5,
     apply_softmax=False,
+    opt_level=1,
 ):
     if opset is not None:
         model.opset_import[0].version = opset
@@ -156,7 +165,9 @@ def verify_with_ort_with_inputs(
                 convert_to_static=convert_to_static,
             )
         else:
-            tvm_out = get_tvm_output(model, inputs, target, dev, out_shape, dtype, opset=opset)
+            tvm_out = get_tvm_output(
+                model, inputs, target, dev, out_shape, dtype, opset=opset, opt_level=opt_level
+            )
         if not isinstance(tvm_out, list):
             tvm_out = [tvm_out]
         if not isinstance(ort_out, list):
@@ -4219,7 +4230,6 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides/",
     "test_maxunpool_export_with_output_shape/",
     "test_mvn/",
-    "test_qlinearconv/",
     "test_qlinearmatmul_2D/",
     "test_qlinearmatmul_3D/",
     "test_resize_tf_crop_and_resize/",
@@ -4387,6 +4397,189 @@ def test_reverse_sequence():
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+def verify_qlinearconv(
+    x_shape,
+    w_shape,
+    y_shape,
+    padding,
+    kernel_shape,
+    strides,
+    dilations,
+    auto_pad="NOTSET",
+    bias=False,
+):
+
+    x_array = np.random.randint(low=0, high=255, size=x_shape).astype("uint8")
+    w_array = np.random.uniform(low=0, high=255, size=w_shape).astype("uint8")
+
+    initializer = [
+        helper.make_tensor("x_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+        helper.make_tensor("x_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+        helper.make_tensor("w_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+        helper.make_tensor("w_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+        helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()]),
+        helper.make_tensor("y_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+    ]
+
+    input_nodes = [
+        helper.make_tensor_value_info("x", TensorProto.UINT8, list(x_shape)),
+        helper.make_tensor_value_info("w", TensorProto.UINT8, list(w_shape)),
+    ]
+    input_names = [
+        "x",
+        "x_scale",
+        "x_zero_point",
+        "w",
+        "w_scale",
+        "w_zero_point",
+        "y_scale",
+        "y_zero_point",
+    ]
+    input_values = [x_array, w_array]
+
+    if bias is True:
+        b_shape = w_shape[0:1]
+        b_array = np.random.randint(low=0, high=65536, size=b_shape).astype("int32")
+        input_nodes.append(helper.make_tensor_value_info("B", TensorProto.INT32, list(b_shape)))
+        input_names.append("B")
+        input_values.append(b_array)
+
+    if padding is None:
+        ## autopadding with unset default attributes
+        kwargs = {}
+        if not all([s == 1 for s in strides]):
+            kwargs["strides"] = strides
+        if not all([d == 1 for d in dilations]):
+            kwargs["dilations"] = dilations
+
+        node = helper.make_node(
+            "QLinearConv",
+            inputs=input_names,
+            outputs=["y"],
+            # Default values for other attributes:
+            auto_pad=auto_pad,
+            **kwargs,
+        )
+    else:
+        node = helper.make_node(
+            "QLinearConv",
+            inputs=input_names,
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            # groups=1
+            pads=padding,
+        )
+
+    graph = helper.make_graph(
+        [node],
+        "conv_test",
+        inputs=input_nodes,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, list(y_shape))],
+        initializer=initializer,
+    )
+    model = helper.make_model(graph, producer_name="qlinearconv_test")
+    # opt_level=1 will cause error
+    verify_with_ort_with_inputs(model, input_values, opt_level=2)
+
+
+def test_qlinearconv():
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+
+    # only support QLinearConv2d because only support qnn.conv2d
+    D = 2
+
+    # Convolution with padding
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        2 * repeat(1, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+    )
+
+    # Convolution with bias
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        2 * repeat(1, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+        bias=True,
+    )
+
+    # Convolution with assymetric padding
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(4, D),
+        repeat(0, D) + repeat(1, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+    )
+    # Convolution without padding
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        2 * repeat(0, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+    )
+    # Convolution with autopadding
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        None,
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+        auto_pad="SAME_UPPER",
+    )
+    # Convolution with valid autopadding
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        None,
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+        auto_pad="VALID",
+    )
+    # Convolution with non uniform stride
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        None,
+        repeat(3, D),
+        repeat(2, D),
+        repeat(1, D),
+        auto_pad="SAME_UPPER",
+    )
+    # Convolution with dilation
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(5, D),
+        2 * repeat(2, D),
+        repeat(3, D),
+        repeat(1, D),
+        repeat(2, D),
+    )
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4468,3 +4661,4 @@ if __name__ == "__main__":
     test_wrong_input()
     test_aten()
     test_reverse_sequence()
+    test_qlinearconv()
