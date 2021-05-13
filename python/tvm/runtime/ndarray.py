@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
 """Runtime NDArray API"""
 import ctypes
+import warnings
 import numpy as np
 import tvm._ffi
 
@@ -254,8 +255,7 @@ def device(dev_type, dev_id=0):
     .. code-block:: python
 
       assert tvm.device("cpu", 1) == tvm.cpu(1)
-      assert tvm.device("gpu", 0) == tvm.gpu(0)
-      assert tvm.device("cuda", 0) == tvm.gpu(0)
+      assert tvm.device("cuda", 0) == tvm.cuda(0)
     """
     if isinstance(dev_type, string_types):
         if "-device=micro_dev" in dev_type:
@@ -362,8 +362,8 @@ def cpu(dev_id=0):
     return Device(1, dev_id)
 
 
-def gpu(dev_id=0):
-    """Construct a GPU device
+def cuda(dev_id=0):
+    """Construct a CUDA GPU device
 
     Parameters
     ----------
@@ -375,6 +375,27 @@ def gpu(dev_id=0):
     dev : Device
         The created device
     """
+    return Device(2, dev_id)
+
+
+def gpu(dev_id=0):
+    """Construct a CUDA GPU device
+
+        deprecated:: 0.9.0
+        Use :py:func:`tvm.cuda` instead.
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    warnings.warn(
+        "Please use tvm.cuda() instead of tvm.gpu(). tvm.gpu() is going to be deprecated in 0.9.0",
+    )
     return Device(2, dev_id)
 
 
