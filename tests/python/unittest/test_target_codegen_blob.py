@@ -57,7 +57,7 @@ def test_synthetic():
 
     loaded_lib = tvm.runtime.load_module(path_lib)
     data = np.random.uniform(-1, 1, size=input_shape).astype("float32")
-    dev = tvm.gpu()
+    dev = tvm.cuda()
     module = graph_executor.GraphModule(loaded_lib["default"](dev))
     module.set_input("data", data)
     module.run()
@@ -68,7 +68,7 @@ def test_synthetic():
 
 @tvm.testing.uses_gpu
 def test_cuda_lib():
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     for device in ["llvm", "cuda"]:
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled..." % device)

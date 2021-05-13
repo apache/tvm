@@ -231,10 +231,10 @@ inline const char* DeviceName(int type) {
   switch (type) {
     case kDLCPU:
       return "cpu";
-    case kDLGPU:
-      return "gpu";
-    case kDLCPUPinned:
-      return "cpu_pinned";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
     case kDLOpenCL:
       return "opencl";
     case kDLSDAccel:
