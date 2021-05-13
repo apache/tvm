@@ -55,7 +55,7 @@ pub struct UnsupportedDeviceError(String);
 
 macro_rules! impl_tvm_device {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
-        /// Creates a DLDevice from a string (e.g., "cpu", "gpu", "ext_dev")
+        /// Creates a DLDevice from a string (e.g., "cpu", "cuda", "ext_dev")
         impl FromStr for DLDevice {
             type Err = UnsupportedDeviceError;
             fn from_str(type_str: &str) -> Result<Self, Self::Err> {
@@ -86,7 +86,7 @@ macro_rules! impl_tvm_device {
 
 impl_tvm_device!(
     DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
-    DLDeviceType_kDLCUDA: [gpu, cuda, nvptx],
+    DLDeviceType_kDLCUDA: [cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],
     DLDeviceType_kDLMetal: [metal],
     DLDeviceType_kDLVPI: [vpi],
