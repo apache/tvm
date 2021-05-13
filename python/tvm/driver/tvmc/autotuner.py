@@ -142,7 +142,7 @@ def add_tune_parser(subparsers):
 
     auto_scheduler_group = parser.add_argument_group(
         "Autoscheduler options",
-        "Autoscheduler options, used when --enabled-auto-scheduler is provided",
+        "Autoscheduler options, used when --enable-autoscheduler is provided",
     )
 
     auto_scheduler_group.add_argument(
