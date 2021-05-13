@@ -24,6 +24,7 @@ from tvm.te import SpecializedCondition
 
 from .. import op as _op
 from ....target import Target
+from ....tir import IntImm
 from .generic import *
 
 
@@ -1082,6 +1083,7 @@ def schedule_transpose_cuda(attrs, outs, target):
         isinstance(outs[0].op.input_tensors[0].op, te.PlaceholderOp)
         and len(outs[0].shape) == 2
         and (attrs.axes is None or (len(attrs.axes) == 2 and attrs.axes == [1, 0]))
+        and isinstance(outs[0].shape[1], (int, IntImm))
         and outs[0].shape[1] >= warp_size
     ):
         return topi.cuda.schedule_transpose(outs)
