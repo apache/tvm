@@ -231,8 +231,8 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
 
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
-         to->device.device_type == kDLCPU || from->device.device_type == kDLCPUPinned ||
-         to->device.device_type == kDLCPUPinned)
+         to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
+         to->device.device_type == kDLCUDAHost)
       << "Can not copy across different device types directly";
 
   // Use the device that is *not* a cpu device to get the correct device

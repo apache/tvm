@@ -35,7 +35,7 @@ def verify_relu(m, n, dtype="float32"):
     b_np = a_np * (a_np > 0)
 
     def check_target(target, dev):
-        if dtype == "float16" and target == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
+        if dtype == "float16" and target == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because %s does not have fp16 support" % target)
             return
         print("Running on target: %s" % target)

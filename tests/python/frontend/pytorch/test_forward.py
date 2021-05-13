@@ -1240,7 +1240,7 @@ def test_type_as():
         check_fp16 = False
         try:
             # Only check half precision on supported hardwares.
-            if have_fp16(tvm.gpu(0).compute_version):
+            if have_fp16(tvm.cuda(0).compute_version):
                 check_fp16 = True
         except Exception as e:
             # If GPU is not enabled in TVM, skip the fp16 test.

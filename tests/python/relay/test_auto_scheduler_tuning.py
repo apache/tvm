@@ -69,7 +69,7 @@ def tune_network(network, target):
 
         # Check the correctness
         def get_output(data, lib):
-            dev = tvm.gpu()
+            dev = tvm.cuda()
             module = graph_executor.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()

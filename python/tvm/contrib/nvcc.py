@@ -249,8 +249,8 @@ def get_target_compute_version(target=None):
         return major + "." + minor
 
     # 3. GPU
-    if tvm.gpu(0).exist:
-        return tvm.gpu(0).compute_version
+    if tvm.cuda(0).exist:
+        return tvm.cuda(0).compute_version
 
     warnings.warn(
         "No CUDA architecture was specified or GPU detected."
@@ -331,8 +331,8 @@ def have_tensorcore(compute_version=None, target=None):
         isn't specified.
     """
     if compute_version is None:
-        if tvm.gpu(0).exist:
-            compute_version = tvm.gpu(0).compute_version
+        if tvm.cuda(0).exist:
+            compute_version = tvm.cuda(0).compute_version
         else:
             if target is None or "arch" not in target.attrs:
                 warnings.warn(
