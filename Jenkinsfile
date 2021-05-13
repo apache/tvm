@@ -50,7 +50,7 @@ ci_cpu = "tkonolige/ci-cpu:latest"
 ci_wasm = "tkonolige/ci-wasm:latest"
 ci_i386 = "tkonolige/ci-i386:latest"
 ci_qemu = "tkonolige/ci-qemu:latest"
-ci_arm = "tkonolige/ci-arm:latest"
+ci_arm = "tkonolige/ci-arm:v0.04"
 // <--- End of regex-scanned config.
 
 // tvm libraries
