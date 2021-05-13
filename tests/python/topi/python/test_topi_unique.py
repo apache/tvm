@@ -34,11 +34,11 @@ def test_unique(dev, target):
             uniq = uniq[order].astype(data.dtype)
             inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
             counts = counts[order].astype("int32")
-        return [uniq.astype(data.dtype), inverse.astype("int32"), counts, num_uniq]
+        return [uniq.astype(data.dtype), index.astype("int32"), inverse.astype("int32"), counts, num_uniq]
 
     def check_unique(data, is_sorted=False):
         # numpy reference
-        np_unique, np_indices, np_counts, np_num_unique = calc_numpy_unique(data, is_sorted)
+        np_unique, np_indices, np_inverse_indices, np_counts, np_num_unique = calc_numpy_unique(data, is_sorted)
         num_unique = np_num_unique[0]
 
         implementations = {
@@ -59,6 +59,7 @@ def test_unique(dev, target):
         tvm_data = tvm.nd.array(data, device=dev)
         tvm_unique = tvm.nd.array(np.zeros(data.shape).astype(data.dtype), device=dev)
         tvm_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
+        tvm_inverse_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
         tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), device=dev)
 
         # without counts
@@ -67,13 +68,26 @@ def test_unique(dev, target):
             outs = fcompute(te_input, False)
             s = fschedule(outs)
             func = tvm.build(s, [te_input, *outs])
-            func(tvm_data, tvm_unique, tvm_indices, tvm_num_unique)
+            func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique)
+
+        print("TVM_DATA: ", tvm_data)
+        print("TVM_UNIQUE: ", tvm_unique)
+        print("TVM_INDICES: ", tvm_indices)
+        print("TVM_INVERSE_INDICES: ", tvm_inverse_indices)
+        print("TVM_NUM_UNIQUE: ", tvm_num_unique)
+
+        print("NP_DATA: ", data)
+        print("NP_UNIQUE: ", np_unique)
+        print("NP_INDICES: ", np_indices)
+        print("NP_INVERSE_INDICES: ", np_inverse_indices)
+        print("NP_NUM_UNIQUE: ", np_num_unique)
 
         assert tvm_num_unique.asnumpy()[0] == np_num_unique
         np.testing.assert_allclose(
             tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
-        np.testing.assert_allclose(tvm_indices.asnumpy(), np_indices, atol=1e-5, rtol=1e-5)
+
+        np.testing.assert_allclose(tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5)
 
         # with counts
         tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
@@ -82,15 +96,16 @@ def test_unique(dev, target):
             outs = fcompute(te_input, True)
             s = fschedule(outs)
             func = tvm.build(s, [te_input, *outs])
-            func(tvm_data, tvm_unique, tvm_indices, tvm_num_unique, tvm_counts)
-
-        np_unique, np_indices, _, np_num_unique = calc_numpy_unique(data, is_sorted)
+            print("Trying func")
+            func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique, tvm_counts)
+            print("Succeeded")
+        np_unique, np_indices, np_inverse_indices, _, np_num_unique = calc_numpy_unique(data, is_sorted) # TODO this is incorrect??
         num_unique = np_num_unique[0]
         assert tvm_num_unique.asnumpy()[0] == np_num_unique
         np.testing.assert_allclose(
             tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
-        np.testing.assert_allclose(tvm_indices.asnumpy(), np_indices, atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5)
         np.testing.assert_allclose(
             tvm_counts.asnumpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
         )

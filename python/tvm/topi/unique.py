@@ -194,7 +194,7 @@ def _calc_first_occurence(argsorted_indices, inc_scan):
     """
     first_occurence = output_tensor(argsorted_indices.shape, "int32")
     for i in parallel(argsorted_indices.shape[0]):
-        first_occurence[i] = argsorted_indices.shape[0]
+        first_occurence[i] = argsorted_indices.shape[0] # TODO: why isn't this 0? ah because if 0 is in last spot is problem
     for i in parallel(argsorted_indices.shape[0]):
         if i == 0 or inc_scan[i] != inc_scan[i - 1]:
             first_occurence[inc_scan[i]] = argsorted_indices[i]
@@ -220,10 +220,18 @@ def unique(data, is_sorted=True, return_counts=False):
     Returns
     -------
     output : tvm.te.Tensor
-        A 1-D tensor containing the unique elements of the input data tensor.
+        A 1-D tensor containing the unique elements of the input data tensor. The same size as
+        the input data. If there are less unique elements than input data, the end of the tensor
+        is padded with zeros.
 
     indices : tvm.te.Tensor
-        A 1-D tensor containing the index of each data element in the output tensor.
+        A 1-D tensor. The same size as output. For each entry in output, it contains
+        the index of its first occurence in the input data. The end of the tensor is padded
+        with the length of the input data.
+
+    inverse_indices : tvm.te.Tensor
+        A 1-D tensor. For each entry in data, it contains the index of that entry in output.
+        (Note that inverse_indices is very similar to indices if output is not sorted.)
 
     num_unique : tvm.te.Tensor
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
@@ -235,20 +243,23 @@ def unique(data, is_sorted=True, return_counts=False):
     --------
     .. code-block:: python
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
-        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique     =  [5]
+        output          =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices         =  [0, 1, 2, 3, 4, ?, ?, ?]
+        inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique      =  [5]
 
         [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
-        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique     =  [5]
-        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
+        output          =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices         =  [0, 1, 2, 3, 4, ?, ?, ?]
+        inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique      =  [5]
+        counts          =  [2, 2, 1, 1, 2, ?, ?, ?]
 
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
-        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
-        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
-        num_unique     =  [5]
+        output          =  [1, 2, 3, 4, 5, ?, ?, ?]
+        indices         =  [2, 3, 4, 0, 1, ?, ?, ?]
+        inverse_indices =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique      =  [5]
     """
     sorted_data = sort(data)
     argsorted_indices = argsort(data, dtype="int32")
@@ -272,6 +283,7 @@ def unique(data, is_sorted=True, return_counts=False):
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs)
         else:
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs, None)
+        first_occurence = _calc_first_occurence(argsorted_indices, inc_scan)
     else:
         # calculate the index converter if the unique elements should not be sorted
         # calculate first occurence
@@ -293,5 +305,5 @@ def unique(data, is_sorted=True, return_counts=False):
         tag="_calc_unique_cpu",
     )
     if return_counts:
-        return [outs[0], outs[1], num_unique_elements, outs[2]]
-    return [*outs, num_unique_elements]
+        return [outs[0], first_occurence, outs[1], num_unique_elements, outs[2]]
+    return [outs[0], first_occurence, outs[1], num_unique_elements]

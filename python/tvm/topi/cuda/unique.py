@@ -294,10 +294,18 @@ def unique(data, is_sorted=True, return_counts=False):
     Returns
     -------
     output : tvm.te.Tensor
-        A 1-D tensor containing the unique elements of the input data tensor.
+        A 1-D tensor containing the unique elements of the input data tensor. The same size as
+        the input data. If there are less unique elements than input data, the end of the tensor
+        is padded with zeros.
 
     indices : tvm.te.Tensor
-        A 1-D tensor containing the index of each data element in the output tensor.
+        A 1-D tensor. The same size as output. For each entry in output, it contains
+        the index of its first occurence in the input data. The end of the tensor is padded
+        with the length of the input data.
+
+    inverse_indices : tvm.te.Tensor
+        A 1-D tensor. For each entry in data, it contains the index of that entry in output.
+        (Note that inverse_indices is very similar to indices if output is not sorted.)
 
     num_unique : tvm.te.Tensor
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
@@ -309,20 +317,23 @@ def unique(data, is_sorted=True, return_counts=False):
     --------
     .. code-block:: python
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
-        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique     =  [5]
+        output          =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices         =  [0, 1, 2, 3, 4, ?, ?, ?]
+        inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique      =  [5]
 
         [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
-        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique     =  [5]
-        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
+        output          =  [4, 5, 1, 2, 3, ?, ?, ?]
+        indices         =  [0, 1, 2, 3, 4, ?, ?, ?]
+        inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique      =  [5]
+        counts          =  [2, 2, 1, 1, 2, ?, ?, ?]
 
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
-        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
-        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
-        num_unique     =  [5]
+        output          =  [1, 2, 3, 4, 5, ?, ?, ?]
+        indices         =  [2, 3, 4, 0, 1, ?, ?, ?]
+        inverse_indices =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique      =  [5]
     """
     sorted_data = sort(data)
     argsorted_indices = argsort(data, dtype="int32")
