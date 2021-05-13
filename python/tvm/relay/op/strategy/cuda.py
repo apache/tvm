@@ -1083,6 +1083,8 @@ def schedule_transpose_cuda(attrs, outs, target):
         isinstance(outs[0].op.input_tensors[0].op, te.PlaceholderOp)
         and len(outs[0].shape) == 2
         and (attrs.axes is None or (len(attrs.axes) == 2 and attrs.axes == [1, 0]))
+        and isinstance(outs[0].shape[0], (int, IntImm))
+        and outs[0].shape[0] >= warp_size
         and isinstance(outs[0].shape[1], (int, IntImm))
         and outs[0].shape[1] >= warp_size
     ):
