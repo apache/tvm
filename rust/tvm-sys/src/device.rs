@@ -66,7 +66,7 @@ use thiserror::Error;
 pub enum DeviceType {
     CPU = 1,
     GPU,
-    CPUPinned,
+    CUDAHost,
     OpenCL,
     Vulkan,
     Metal,
@@ -102,7 +102,7 @@ impl Display for DeviceType {
             match self {
                 DeviceType::CPU => "cpu",
                 DeviceType::GPU => "cuda",
-                DeviceType::CPUPinned => "cuda_host",
+                DeviceType::CUDAHost => "cuda_host",
                 DeviceType::OpenCL => "opencl",
                 DeviceType::Vulkan => "vulkan",
                 DeviceType::Metal => "metal",

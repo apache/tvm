@@ -73,7 +73,7 @@ def test_graph_simple():
 
     def check_verify():
         mlib = tvm.build(s, [A, B], "cuda", name="myadd")
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         try:
             mod = cuda_graph_executor.create(graph, mlib, dev)
         except ValueError:

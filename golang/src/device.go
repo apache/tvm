@@ -61,13 +61,13 @@ func CPU(index int32) Device {
     return Device{KDLCPU, index}
 }
 
-// GPU returns the Device object for GPU target on given index
-func GPU(index int32) Device {
+// CUDA returns the Device object for CUDA target on given index
+func CUDA(index int32) Device {
     return Device{kDLCUDA, index}
 }
 
-// CPUPinned returns the Device object for CPUPinned target on given index
-func CPUPinned(index int32) Device {
+// CUDAHost returns the Device object for CUDAHost target on given index
+func CUDAHost(index int32) Device {
     return Device{kDLCUDAHost, index}
 }
 
