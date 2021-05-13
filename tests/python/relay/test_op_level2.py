@@ -1569,7 +1569,7 @@ def test_conv2d_int8_intrinsics():
             weight,
             kernel_size=(ch, cw),
             channels=oc,
-            padding=(1, 1),
+            padding=(0, 0, 0, 1),
             dilation=(1, 1),
             data_layout=data_layout,
             kernel_layout=kernel_layout,
