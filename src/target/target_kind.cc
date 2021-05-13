@@ -152,7 +152,7 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
   } else {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
-    if (!DetectDeviceFlag({kDLGPU, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
       arch = 20;
     } else {
@@ -230,7 +230,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("executor")
     .set_default_keys({"cpu"});
 
-TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
+TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
     .add_attr_option<Bool>("system-lib")
@@ -241,7 +241,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
     .add_attr_option<Integer>("max_threads_per_block")
     .set_default_keys({"cuda", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("nvptx", kDLGPU)
+TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")

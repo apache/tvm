@@ -107,7 +107,7 @@ with tvm.transform.PassContext(opt_level=opt_level):
 # Now we can create graph executor and run the module on Nvidia GPU.
 
 # create random input
-dev = tvm.gpu()
+dev = tvm.cuda()
 data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
 # create module
 module = graph_executor.GraphModule(lib["default"](dev))

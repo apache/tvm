@@ -145,7 +145,7 @@ bias_np = np.random.uniform(size=(1, CO, 1, 1)).astype(np.float32)
 conv_np = conv2d_nchw_python(data_np, weight_np, strides, padding)
 out_np = np.maximum(conv_np + bias_np, 0.0)
 
-dev = tvm.gpu()
+dev = tvm.cuda()
 data_tvm = tvm.nd.array(data_np, device=dev)
 weight_tvm = tvm.nd.array(weight_np, device=dev)
 bias_tvm = tvm.nd.array(bias_np, device=dev)

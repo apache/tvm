@@ -810,7 +810,7 @@ def test_llvm_gpu_lower_atomic():
         s = tvm.te.create_schedule(C.op)
         f = tvm.build(s, [A], target="nvptx")
 
-        dev = tvm.gpu()
+        dev = tvm.cuda()
         a = tvm.nd.array(np.zeros((size,)).astype(A.dtype), dev)
         f(a)
         ref = np.zeros((size,)).astype(A.dtype)

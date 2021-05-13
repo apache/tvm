@@ -65,7 +65,7 @@ def test_basic_build():
 def test_fp16_build():
     dtype = "float16"
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     if dtype == "float16" and not have_fp16(dev.compute_version):
         print("skip because gpu does not support fp16")
         return

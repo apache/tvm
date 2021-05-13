@@ -225,7 +225,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     if topi_tmpl == "conv2d_HWNCnc_tensorcore.cuda":
         assert data_layout == "HWNC" and kernel_layout == "HWOI"
-        assert float(tvm.gpu(0).compute_version) >= 7.5
+        assert float(tvm.cuda(0).compute_version) >= 7.5
         H, W, N, CI = get_const_tuple(data.shape)
         KH, KW, CO, _ = get_const_tuple(kernel.shape)
 
