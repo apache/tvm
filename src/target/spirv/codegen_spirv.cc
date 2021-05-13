@@ -37,6 +37,8 @@
 namespace tvm {
 namespace codegen {
 
+CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
+
 runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
@@ -44,7 +46,8 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   uint32_t num_buffer = 0;
 
   // Currently, all storage and uniform buffer arguments are passed as
-  // a single descriptor set at index 0.
+  // a single descriptor set at index 0.  If ever non-zero, must
+  // ensure it is less than maxBoundDescriptorSets.
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
@@ -114,7 +117,7 @@ void CodeGenSPIRV::InitFuncState() {
   var_map_.clear();
   storage_info_.clear();
   analyzer_.reset(new arith::Analyzer());
-  builder_.reset(new spirv::IRBuilder());
+  builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
 }
 
