@@ -116,7 +116,7 @@ def add_tune_parser(subparsers):
         help="the host compilation target, defaults to 'llvm'",
         default="llvm",
     )
-    parser.add_argument("--timeout", default=10, help="compilation timeout, in seconds")
+    parser.add_argument("--timeout", type=int, default=10, help="compilation timeout, in seconds")
     parser.add_argument(
         "--trials",
         type=int,
