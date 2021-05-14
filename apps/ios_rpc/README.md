@@ -55,11 +55,13 @@ Instead, we need to build a list of libraries, pack them into the app bundle, la
 connect to test the bundled libraries. We use ```xcodebuild test``` to automate this process.
 
 The test script [tests/ios_rpc_test.py](tests/ios_rpc_test.py) is a good template for the workflow. With this
-script, we don't need to manually operate the iOS App, this script will build the app, run it and collect the results automatically.
+script, we don't need to manually operate the iOS App, this script will build the app, run it and collect the results 
+automatically.
 
  To run the script,  you need to configure the following environment variables
 
 - ```TVM_IOS_CODESIGN``` The signature you use to codesign the app and libraries (e.g. ```iPhone Developer: Name (XXXX)```)
+- ```TVM_IOS_TEAM_ID``` The developer Team ID available at https://developer.apple.com/account/#/membership     
 - ```TVM_IOS_RPC_ROOT``` The root directory of the iOS rpc project
 - ```TVM_IOS_RPC_PROXY_HOST``` The RPC proxy address (see above)
 - ```TVM_IOS_RPC_DESTINATION``` The Xcode target device (e.g. ```platform=iOS,id=xxxx```)
