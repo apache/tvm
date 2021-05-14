@@ -42,7 +42,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     // create buffers to be allocated at each stmts
     for (const auto& kv : buffer_lca) {
       const Buffer& buffer = kv.first;
-      const StmtNode* stmt = kv.second.defined()? kv.second.value().get() : nullptr;
+      const StmtNode* stmt = kv.second.defined() ? kv.second.value().get() : nullptr;
       if (arg_buffers.count(buffer.get())) {
         continue;
       }
