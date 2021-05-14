@@ -47,12 +47,9 @@ def uniform(target, dev, gen, low, high, size, dtype):
     gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
     low_placeholder = tvm.te.placeholder(low.shape, name="low", dtype=dtype)
     high_placeholder = tvm.te.placeholder(high.shape, name="high", dtype=dtype)
-    print(low_placeholder)
-    print(high_placeholder)
     out_placeholder = tvm.topi.random.uniform(
         gen_placeholder, low_placeholder, high_placeholder, size, dtype
     )
-    print(out_placeholder)
     s = tvm.topi.generic.schedule_extern([out_placeholder])
     f = tvm.build(s, [gen_placeholder, low_placeholder, high_placeholder, out_placeholder])
     rands = tvm.nd.array(np.zeros(size, dtype=dtype))
