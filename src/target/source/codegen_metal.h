@@ -51,12 +51,13 @@ class CodeGenMetal final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  // overload visitor
   void VisitExpr_(const CallNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
   // reuse parent's function.
   using CodeGenC::PrintType;
 
  private:
+  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenMetal* p);
   int thread_index_bits_{32};
 };
 }  // namespace codegen
