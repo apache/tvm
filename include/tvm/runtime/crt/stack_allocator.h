@@ -45,13 +45,60 @@ typedef struct {
   size_t workspace_size;  // Total number of bytes in the workspace
 } tvm_workspace_t;
 
+/*!
+ * \brief Initialize the stack-based memory manager
+ *
+ * \param tvm_runtime_workspace The tvm_workspace_t struct containing state
+ * \param g_aot_memory The memory buffer used to allocate within
+ * \param workspace_size The total size of the workspace buffer workspace
+ */
 tvm_crt_error_t StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace,
                                         uint8_t* g_aot_memory, size_t workspace_size);
 
+/*!
+ * \brief The intended user-facing function to allocate within the buffer. It wraps
+ * StackMemoryManager_Allocate_Body enable and disable the LIFO check that is useful for debugging
+ * the AoT codegen.
+ *
+ * \param tvm_runtime_workspace The tvm_workspace_t struct containing state
+ * \param nbytes The number of bytes required for the allocation
+ * \param current_alloc The pointer-to-pointer to be populated with the allocated address
+ */
 tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes,
-                                            void**);
+                                            void** current_alloc);
 
+/*!
+ * \brief The internal function that accepts allocate inputs and an extra byte to say to enable the
+ * LIFO check that is useful in debugging for debugging the AoT codegen.
+ *
+ * \param tvm_runtime_workspace The tvm_workspace_t struct containing state
+ * \param nbytes The number of bytes required for the allocation
+ * \param current_alloc The pointer-to-pointer to be populated with the allocated address
+ * \param do_lifo_check This being non-zero indicates to perform a check LIFO pattern Allocs/Frees
+ */
+tvm_crt_error_t StackMemoryManager_Allocate_Body(tvm_workspace_t* tvm_runtime_workspace,
+                                                 int32_t nbytes, void** current_alloc,
+                                                 uint8_t do_lifo_check);
+
+/*!
+ * \brief The intended user-facing function to free the tensor within the buffer. It wraps
+ * StackMemoryManager_Free_Body enable and disable the stack allocator
+ *
+ * \param tvm_runtime_workspace The tvm_workspace_t struct containing state
+ * \param ptr The base pointer of the tensor to be free'd
+ */
 tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr);
+
+/*!
+ * \brief The internal function that accepts free inputs and an extra byte to say to enable the LIFO
+ * check that is useful in debugging for debugging the AoT codegen.
+ *
+ * \param tvm_runtime_workspace The tvm_workspace_t struct containing state
+ * \param ptr The base pointer of tensor to be free'd within the workspace buffer
+ * \param do_lifo_check This being non-zero indicates to perform a check LIFO pattern Allocs/Frees
+ */
+tvm_crt_error_t StackMemoryManager_Free_Body(tvm_workspace_t* tvm_runtime_workspace, void* ptr,
+                                             uint8_t do_lifo_check);
 
 #ifdef __cplusplus
 }  // extern "C"

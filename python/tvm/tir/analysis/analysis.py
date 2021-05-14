@@ -133,7 +133,7 @@ def get_block_access_region(block, buffer_var_map):
     return _ffi_api.get_block_access_region(block, buffer_var_map)
 
 
-def calculate_workspace_bytes(func: PrimFunc):
+def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int):
     """Calculate the workspace size in bytes needed by the TIR allocates inside the TIR
     PrimFunc.
 
@@ -141,13 +141,15 @@ def calculate_workspace_bytes(func: PrimFunc):
     ----------
     func: tvm.tir.PrimFunc
         The function to be detected.
+    workspace_byte_alignment : int
+        The byte alignment required for each tensor
 
     Returns
     -------
     result : int
         Workspace size in bytes.
     """
-    return _ffi_api.calculate_workspace_bytes(func)
+    return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)
 
 
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
