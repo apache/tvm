@@ -23,6 +23,8 @@ from tvm.contrib import utils, tflite_runtime
 
 # import tflite_runtime.interpreter as tflite
 
+# NOTE: This script was tested on tensorflow/tflite (v2.4.1)
+
 
 def skipped_test_tflite_runtime():
     def get_tflite_model_path(target_edgetpu):
