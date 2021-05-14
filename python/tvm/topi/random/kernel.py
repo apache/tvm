@@ -466,3 +466,57 @@ def threefry_test_wrapping(target, device):
     out_ary = tvm.nd.array(np.ones((1,), "uint64"), device)
     tvm.build(s, [f], target=target)(out_ary)
     return out_ary.asnumpy()[0] == 0
+
+
+def uniform(gen, low, high, out_shape, out_dtype):
+    """Draw samples from a uniform distribution.
+
+    Samples are uniformly distributed over the half-open interval [low, high)
+    (includes low, but excludes high). In other words, any value within the
+    given interval is equally likely to be drawn by uniform.
+
+    Parameters
+    ----------
+    gen : Tensor[10, uint64]
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
+
+    low : Tensor[(), out_dtype]
+        Lower boundary of the output interval. All values generated will be
+        greater than or equal to low.
+
+    high : Tensor[(), out_dtype]
+        Upper boundary of the output interval. All values generated will be
+        less than high.
+
+    out_shape : Sequence[int]
+        Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    out : Tensor[out_shape, out_dtype]
+        Tensor of random numbers with shape `out_shape` and type `out_dtype`.
+    """
+    _, random_bits = threefry_generate(gen, out_shape)
+    nbits = 64
+    if out_dtype == "float32":
+        nfraction = 23
+    elif out_dtype == "float64":
+        nfraction = 52
+
+    def uniform_scalar(bits):
+        bits = bits >> (nbits - nfraction)
+        standard_uniform = bits.astype(out_dtype) / float(1 << nfraction)
+        return standard_uniform
+
+    standard_uniform_values = tvm.te.compute(
+        out_shape, lambda *i : uniform_scalar(random_bits(*i)))
+
+    uniform_values = tvm.topi.add(
+                        tvm.topi.multiply(standard_uniform_values, high - low),
+                        low)
+
+    return uniform_values

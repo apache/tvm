@@ -43,6 +43,23 @@ def threefry_generate(target, dev, gen, size):
     return out_gen.asnumpy(), rands.asnumpy()
 
 
+def uniform(target, dev, gen, low, high, size, dtype):
+    gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
+    low_placeholder = tvm.te.placeholder(low.shape, name="low", dtype=dtype)
+    high_placeholder = tvm.te.placeholder(high.shape, name="high", dtype=dtype)
+    print(low_placeholder)
+    print(high_placeholder)
+    out_placeholder = tvm.topi.random.uniform(gen_placeholder, low_placeholder,
+                                              high_placeholder, size, dtype)
+    print(out_placeholder)
+    s = tvm.topi.generic.schedule_extern([out_placeholder])
+    f = tvm.build(s, [gen_placeholder, low_placeholder, high_placeholder,
+                      out_placeholder])
+    rands = tvm.nd.array(np.zeros(size, dtype=dtype))
+    f(tvm.nd.array(gen), tvm.nd.array(low), tvm.nd.array(high), rands)
+    return rands.asnumpy()
+
+
 @tvm.testing.parametrize_targets
 def test_threefry_split(target, dev):
     # test that results of split do not equal eachother or the input
@@ -118,7 +135,23 @@ def test_threefry_wrapping(target, dev):
     ), f"{target} does not suppport wrapping unsigned integer arithmetic"
 
 
+@tvm.testing.parametrize_targets
+def test_uniform(target, dev):
+    gen = tvm.relay.random.threefry_key(0).data.asnumpy()
+    m = 1024
+    n = 1024
+    dtype = "float32"
+    low = np.array(5.0, dtype=dtype)
+    high = np.array(10.0, dtype=dtype)
+    rands = uniform(
+        target, dev, gen, low, high, (m, n), "float32")
+    assert abs(np.mean(rands) - 7.5) < 1e-1
+    assert abs(np.min(rands) - 5.0) < 1e-3
+    assert abs(np.max(rands) - 10.0) < 1e-3
+
+
 if __name__ == "__main__":
     test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
     test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
     test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_uniform(tvm.target.Target("llvm"), tvm.device("cpu"))
