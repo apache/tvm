@@ -639,13 +639,15 @@ class ZephyrQemuTransport(Transport):
         )
 
     def open(self):
-        self.pipe_dir = tempfile.mkdtemp()
+        # self.pipe_dir = tempfile.mkdtemp()
+        self.pipe_dir = "/tinymlperf/test_fifo"
+        
         self.pipe = os.path.join(self.pipe_dir, "fifo")
         self.write_pipe = os.path.join(self.pipe_dir, "fifo.in")
         self.read_pipe = os.path.join(self.pipe_dir, "fifo.out")
 
-        os.mkfifo(self.write_pipe)
-        os.mkfifo(self.read_pipe)
+        # os.mkfifo(self.write_pipe)
+        # os.mkfifo(self.read_pipe)
         if self.qemu_debugger is not None:
             if "env" in self.kwargs:
                 self.kwargs["env"] = copy.copy(self.kwargs["env"])
@@ -689,9 +691,9 @@ class ZephyrQemuTransport(Transport):
         if self.proc is not None:
             self.proc = None
 
-        if self.pipe_dir is not None:
-            shutil.rmtree(self.pipe_dir)
-            self.pipe_dir = None
+        # if self.pipe_dir is not None:
+        #     shutil.rmtree(self.pipe_dir)
+        #     self.pipe_dir = None
 
     def read(self, n, timeout_sec):
         if self.fd_transport is None:
