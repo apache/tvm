@@ -186,6 +186,7 @@ def test_multiple_ifs():
     res = vmobj_to_list(vm.evaluate()(False))
     assert res == [1, 0]
 
+
 @tvm.testing.uses_gpu
 def test_unused_function():
     cond = relay.const(True)
@@ -193,7 +194,7 @@ def test_unused_function():
     then_name = relay.GlobalVar("times_2")
     # define unused function
     else_name = relay.GlobalVar("times_3")
-    t1 = relay.TensorType((2,2), dtype="float32")
+    t1 = relay.TensorType((2, 2), dtype="float32")
     x1 = relay.var("x1", t1, dtype="float32")
     x2 = relay.var("x2", t1, dtype="float32")
     f2 = relay.multiply(x1, relay.const(2.0))
@@ -202,13 +203,14 @@ def test_unused_function():
     mod[else_name] = relay.Function([x2], f3)
     mod = InferType()(mod)
     x3 = relay.var("x3", t1, dtype="float32")
-    # put unused function in else branch 
+    # put unused function in else branch
     f = relay.If(cond, then_name(x3), else_name(x3))
     mod["main"] = relay.Function([x3], f)
     x_data = np.random.rand(2, 2).astype("float32")
     y_data = x_data * 2
 
     check_result([x_data], y_data, mod=mod)
+
 
 @tvm.testing.uses_gpu
 def test_simple_call():
