@@ -181,8 +181,11 @@ TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 /*!
  * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
  * \param func The TIR PrimFunc for which the workspace size to be calculated
+ * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
+ * workspace
  */
-TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func);
+TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
+                                       const Integer& workspace_byte_alignment);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
