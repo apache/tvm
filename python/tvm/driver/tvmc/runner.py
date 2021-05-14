@@ -379,8 +379,8 @@ def run_module(
 
     # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
     logger.debug("Device is %s.", device)
-    if device == "gpu":
-        dev = session.gpu()
+    if device == "cuda":
+        dev = session.cuda()
     elif device == "cl":
         dev = session.cl()
     else:

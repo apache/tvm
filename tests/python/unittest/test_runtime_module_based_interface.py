@@ -280,7 +280,7 @@ def test_mod_export():
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = remote.gpu()
+        dev = remote.cuda()
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -484,7 +484,7 @@ def test_remove_package_params():
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = remote.gpu()
+        dev = remote.cuda()
 
         # raw api
         gmod = loaded_lib["default"](dev)
