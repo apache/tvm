@@ -55,6 +55,10 @@
 // CoreML
 #include "../../../src/runtime/contrib/coreml/coreml_runtime.mm"
 
+#if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
+#include <custom_dlfcn.h>
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace detail {
@@ -147,6 +151,12 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([](TVMArgs args, TVMR
     // only load dylib from frameworks.
     NSBundle* bundle = [NSBundle mainBundle];
     base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
+    
+    if (Registry::Get("runtime.module.loadfile_dylib_custom")) {
+      // Custom dso laoder is present. Will use it.
+      base = NSTemporaryDirectory();
+      fmt = "dylib_custom";
+    }
   } else {
     // Load other modules in tempdir.
     base = NSTemporaryDirectory();
@@ -157,6 +167,42 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([](TVMArgs args, TVMR
   *rv = Module::LoadFromFile(name, fmt);
   LOG(INFO) << "Load module from " << name << " ...";
 });
+
+#if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
+
+// Custom dynamic library loader. Supports unsigned binary
+class UnsignedDSOLoader final : public Library {
+public:
+    ~UnsignedDSOLoader() {
+        if (lib_handle_) {
+            custom_dlclose(lib_handle_);
+            lib_handle_ = nullptr;
+        };
+    }
+    void Init(const std::string& name) {
+        lib_handle_ = custom_dlopen(name.c_str(), RTLD_NOW | RTLD_LOCAL);
+        ICHECK(lib_handle_ != nullptr)
+            << "Failed to load dynamic shared library " << name << " " << custom_dlerror();
+    }
+
+    void* GetSymbol(const char* name) final {
+        return custom_dlsym(lib_handle_, name);
+    }
+
+private:
+    // Library handle
+    void* lib_handle_{nullptr};
+};
+
+// Add UnsignedDSOLoader plugin in global registry
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_dylib_custom").set_body([](TVMArgs args, TVMRetValue* rv) {
+    auto n = make_object<UnsignedDSOLoader>();
+    n->Init(args[0]);
+    *rv = CreateModuleFromLibrary(n);
+});
+
+#endif
+
 }  // namespace runtime
 }  // namespace tvm
 

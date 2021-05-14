@@ -31,7 +31,7 @@ import numpy as np
 
 # Set to be address of tvm proxy.
 proxy_host = os.environ["TVM_IOS_RPC_PROXY_HOST"]
-# Set your desination via env variable.
+# Set your destination via env variable.
 # Should in format "platform=iOS,id=<the test device uuid>"
 destination = os.environ["TVM_IOS_RPC_DESTINATION"]
 
@@ -103,10 +103,48 @@ def test_rpc_module():
     a_np = np.random.uniform(size=1024).astype(A.dtype)
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
-    time_f = f2.time_evaluator(f1.entry_name, dev, number=10)
+    time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op" % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 
-test_rpc_module()
+def test_rpc_module_with_upload():
+    server = xcode.popen_test_rpc(proxy_host, proxy_port, key, destination=destination)
+
+    remote = rpc.connect(proxy_host, proxy_port, key=key)
+    try:
+        remote.get_function("runtime.module.loadfile_dylib_custom")
+    except AttributeError as e:
+        print(e)
+        print("Skip test. You are using iOS RPC without custom DSO loader enabled.")
+        return
+
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
+    temp = utils.tempdir()
+    s = te.create_schedule(B.op)
+    xo, xi = s[B].split(B.op.axis[0], factor=64)
+    s[B].parallel(xi)
+    s[B].pragma(xo, "parallel_launch_point")
+    s[B].pragma(xi, "parallel_barrier_when_finish")
+    f = tvm.build(s, [A, B], target, name="myadd_cpu")
+    path_dso = temp.relpath("cpu_lib.dylib")
+    f.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
+
+    dev = remote.cpu(0)
+    remote.upload(path_dso)
+    f = remote.load_module("cpu_lib.dylib")
+    a_np = np.random.uniform(size=1024).astype(A.dtype)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    time_f = f.time_evaluator(f.entry_name, dev, number=10)
+    cost = time_f(a, b).mean
+    print("%g secs/op" % cost)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+
+if __name__ == "__main__":
+    test_rpc_module()
+    test_rpc_module_with_upload()
