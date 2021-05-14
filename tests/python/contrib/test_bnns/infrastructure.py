@@ -129,7 +129,7 @@ class Device:
 def skip_runtime_test():
     """Skip test if it requires the runtime and it's not present."""
     # BNNS codegen not present.
-    if not tvm.get_global_func("relay.ext.bnns", True):
+    if not tvm.get_global_func("runtime.RuntimeEnabled", True):
         print("Skip because BNNS codegen is not available.")
         return True
     return False
@@ -201,8 +201,8 @@ def build_and_run(
         err_msg += str(e)
         raise Exception(err_msg)
 
-    lib = update_lib(lib, device.device, device.cross_compile, device.lib_export_type)
-    gen_module = graph_executor.GraphModule(lib["default"](device.device.cpu(0)))
+    loaded_lib = update_lib(lib, device.device, device.cross_compile, device.lib_export_type)
+    gen_module = graph_executor.GraphModule(loaded_lib["default"](device.device.cpu(0)))
     gen_module.set_input(**inputs)
     out = []
     for _ in range(no_runs):

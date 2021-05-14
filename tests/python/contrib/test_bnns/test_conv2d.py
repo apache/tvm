@@ -21,7 +21,7 @@ import pytest
 import tvm
 from tvm import relay
 
-from infrastructure import skip_runtime_test, compare_inference_with_ref, generate_trials
+from infrastructure import skip_runtime_test, skip_tracker_connection, compare_inference_with_ref, generate_trials
 
 # TODO: Missed cases
 #   1. Bias as add with 3d const tensor. Lead to additional unsqueeze op between
@@ -84,6 +84,7 @@ def _get_model(
 
 
 @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
 def test_conv2d():
     np.random.seed(0)
 
@@ -145,10 +146,8 @@ def test_conv2d():
 
 
 @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
 def test_conv2d_dw():
-    if skip_runtime_test():
-        return
-
     np.random.seed(0)
     shape = [4, 5, 5]
 
@@ -158,10 +157,8 @@ def test_conv2d_dw():
 
 
 @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
 def test_conv2d_with_oc1():
-    if skip_runtime_test():
-        return
-
     np.random.seed(0)
     shape = [3, 5, 5]
 

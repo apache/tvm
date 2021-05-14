@@ -18,25 +18,20 @@
 
 import onnx
 import pytest
+import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import rpc
 from tvm import relay
 from tvm.relay import transform
-from tvm.contrib import xcode
-from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
-from tvm.relay.op.contrib.bnns import partition_for_bnns
 
-import numpy as np
+from infrastructure import Device, build_and_run, verify
 
-pytest.importorskip("onnx")
 
 bnns_is_absent = tvm.get_global_func("relay.ext.bnns", True) is None
 
-RUN_ON_IPHONE = True
-TARGET = "llvm" if not RUN_ON_IPHONE else "llvm -model=iphone12mini -mtriple=arm64-apple-darwin -mattr=+neon"
+DTYPE = 'float32'
 INPUT_SHAPE = [1, 3, 224, 224]
 
 BASE_MODEL_URL = "https://github.com/onnx/models/raw/master/"
@@ -65,7 +60,7 @@ def get_model_url(model_name):
 
 
 def get_name_from_url(url):
-    return url[url.rfind("/") + 1 :].strip()
+    return url[url.rfind("/") + 1:].strip()
 
 
 def find_of_download(model_name):
@@ -78,10 +73,12 @@ def get_model(model_name):
     model_path = find_of_download(model_name)
     onnx_model = onnx.load(model_path)
     input_names = get_onnx_input_name(onnx_model)
+    input_shape_dict = {}
     input_dict = {}
     for name in input_names:
-        input_dict[name] = INPUT_SHAPE  # TODO: hardcode
-    mod, params = relay.frontend.from_onnx(onnx_model, input_dict, freeze_params=True)
+        input_shape_dict[name] = INPUT_SHAPE  # TODO: hardcode
+        input_dict[name] = tvm.nd.array(np.random.uniform(0, 127, INPUT_SHAPE).astype(DTYPE))
+    mod, params = relay.frontend.from_onnx(onnx_model, input_shape_dict, freeze_params=True)
     return mod, params, input_dict
 
 
@@ -105,47 +102,25 @@ def simplify_model(mod):
 
 
 def process(model_name):
-    temp = utils.tempdir()
+    device = Device()
     model, params, input_dict = get_model(model_name)
+    with tvm.transform.PassContext(opt_level=3):
+        model = simplify_model(model)
 
-    def run(mod, target, simplify=True, with_bnns=False):
-        with tvm.transform.PassContext(opt_level=3):
-            if simplify:
-                mod = simplify_model(mod)
-            if with_bnns:
-                mod = partition_for_bnns(mod)
-            graph_module = relay.build(mod, target=target, target_host=target, params=params)
+    outputs = []
+    for enable_bnns in [False, True]:
+        outputs.append(
+            build_and_run(
+                model,
+                input_dict,
+                1,
+                params,
+                device,
+                enable_bnns=enable_bnns,
+            )[0]
+        )
 
-        lib_name = "deploy.tar" if not RUN_ON_IPHONE else "deploy.dylib"
-        path_dso = temp.relpath(lib_name)
-        if RUN_ON_IPHONE:
-            graph_module.export_library(path_dso, xcode.create_dylib, arch="arm64", sdk="iphoneos")
-        else:
-            graph_module.export_library(path_dso)
-
-        if RUN_ON_IPHONE:
-            tracker = rpc.connect_tracker(url="0.0.0.0", port=9190)
-            remote = tracker.request('i12')
-            remote.upload(path_dso)
-            loaded_lib = remote.load_module(lib_name)
-            dev = remote.cpu(0)
-        else:
-            dev = tvm.cpu(0)
-            loaded_lib = tvm.runtime.load_module(path_dso)
-
-        module = graph_executor.GraphModule(loaded_lib["default"](dev))
-        module.run()
-        return module.get_output(0).asnumpy()
-
-    res_llvm = run(model, TARGET, simplify=True, with_bnns=False)
-    res_bnns = run(model, TARGET, simplify=True, with_bnns=True)
-
-    tvm.testing.assert_allclose(
-        res_llvm,
-        res_bnns,
-        atol=0.002,
-        rtol=0.007,
-    )
+    verify(outputs, atol=0.002, rtol=0.007)
 
 
 # @pytest.mark.skip(reason="Manually disabled because of huge complexity")
