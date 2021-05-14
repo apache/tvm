@@ -64,7 +64,6 @@ inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dt
   return AllocTensor(storage, offset, shape, dtype, assert_shape);
 }
 
-
 // Check if the primitive function contains only reshape ops.
 bool IsReshapeOnly(const Expr& expr) {
   if (auto* func = expr.as<FunctionNode>()) {

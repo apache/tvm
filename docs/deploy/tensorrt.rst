@@ -124,7 +124,7 @@ have to be built.
 
 .. code:: python
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     loaded_lib = tvm.runtime.load_module('compiled.so')
     gen_module = tvm.contrib.graph_executor.GraphModule(loaded_lib['default'](dev))
     input_data = np.random.uniform(0, 1, input_shape).astype(dtype)
@@ -180,6 +180,8 @@ Operator support
 | tanh                   |                                    |
 +------------------------+------------------------------------+
 | nn.batch_norm          |                                    |
++------------------------+------------------------------------+
+| nn.layer_norm          |                                    |
 +------------------------+------------------------------------+
 | nn.softmax             |                                    |
 +------------------------+------------------------------------+
@@ -253,6 +255,8 @@ Operator support
 +------------------------+------------------------------------+
 | nn.adaptive_avg_pool2d |                                    |
 +------------------------+------------------------------------+
+| nn.batch_matmul        |                                    |
++------------------------+------------------------------------+
 | clip                   | Requires TensorRT 5.1.5 or greater |
 +------------------------+------------------------------------+
 | nn.leaky_relu          | Requires TensorRT 5.1.5 or greater |
@@ -276,6 +280,8 @@ Operator support
 | nn.avg_pool3d          | Requires TensorRT 6.0.1 or greater |
 +------------------------+------------------------------------+
 | nn.conv3d_transpose    | Requires TensorRT 6.0.1 or greater |
++------------------------+------------------------------------+
+| erf                    | Requires TensorRT 7.0.0 or greater |
 +------------------------+------------------------------------+
 
 

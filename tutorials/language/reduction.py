@@ -137,7 +137,7 @@ print(fcuda.imported_modules[0].get_source())
 # Verify the correctness of result kernel by comparing it to numpy.
 #
 nn = 128
-dev = tvm.gpu(0)
+dev = tvm.cuda(0)
 a = tvm.nd.array(np.random.uniform(size=(nn, nn)).astype(A.dtype), dev)
 b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
 fcuda(a, b)

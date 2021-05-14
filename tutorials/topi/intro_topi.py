@@ -99,7 +99,7 @@ print(sg.stages)
 # We can test the correctness by comparing with :code:`numpy` result as follows
 #
 func = tvm.build(sg, [a, b, g], "cuda")
-dev = tvm.gpu(0)
+dev = tvm.cuda(0)
 a_np = np.random.uniform(size=(x, y, y)).astype(a.dtype)
 b_np = np.random.uniform(size=(y, y)).astype(b.dtype)
 g_np = np.sum(np.add(a_np + b_np, a_np * b_np) / 2.0)

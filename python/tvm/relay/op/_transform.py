@@ -390,7 +390,7 @@ def _take_no_axis_shape_func(indices_shape, out_ndim):
 
 
 @script
-def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
+def _take_with_axis_shape_func(data_shape, indices_shape, axis, batch_dims, out_ndim):
     out = output_tensor((out_ndim,), "int64")
     for i in const_range(axis):
         out[i] = data_shape[i]
@@ -399,10 +399,10 @@ def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
         for i in const_range(axis + 1, len(data_shape)):
             out[i - 1] = data_shape[i]
     else:
-        for i in const_range(len(indices_shape)):
-            out[axis + i] = indices_shape[i]
+        for i in const_range(len(indices_shape) - batch_dims):
+            out[axis + i] = indices_shape[i + batch_dims]
         for i in const_range(axis + 1, len(data_shape)):
-            out[len(indices_shape) + i - 1] = data_shape[i]
+            out[len(indices_shape) + i - 1 - batch_dims] = data_shape[i]
     return out
 
 
@@ -414,11 +414,16 @@ def take_shape_func(attrs, inputs, out_ndims):
     if attrs.axis is None:
         return [_take_no_axis_shape_func(inputs[1], out_ndims[0])]
     axis = get_const_int(attrs.axis)
+    batch_dims = get_const_int(attrs.batch_dims)
     data_ndim = int(inputs[0].shape[0])
+    if inputs[1].shape:
+        indicies_ndim = int(inputs[1].shape[0])
     if axis < 0:
         axis += data_ndim
     assert 0 <= axis < data_ndim
-    return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
+    if batch_dims < 0:
+        batch_dims += indicies_ndim
+    return [_take_with_axis_shape_func(*inputs, convert(axis), convert(batch_dims), out_ndims[0])]
 
 
 @_reg.register_legalize("take")

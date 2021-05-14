@@ -763,6 +763,7 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
  *
  * \param a The source array.
  * \param indices The indices of the values to extract.
+ * \param batch_dims The number of batch dimensions.
  * \param mode The mode of the operation.
  * \param name The name of the operation.
  * \param mode The mode of to handle out of bound indices.
@@ -770,8 +771,9 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
  *
  * \return A Tensor whose op member is the take operation
  */
-inline Tensor take(const Tensor& a, const Tensor& indices, std::string mode = "clip",
-                   std::string name = "T_take", std::string tag = kInjective) {
+inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
+                   std::string mode = "clip", std::string name = "T_take",
+                   std::string tag = kInjective) {
   Array<PrimExpr> a_shape = a->shape;
   Array<PrimExpr> out_shape = indices->shape;
   PrimExpr a_size = 1;
@@ -846,6 +848,7 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
  *
  * \param a The source array.
  * \param indices The indices of the values to extract.
+ * \param batch_dims The number of batch dimensions. By default is 0.
  * \param axis The axis over which to select values. By default,
  * the flattened input array is used.
  * \param mode The mode for handling out of bound indices.
@@ -854,46 +857,99 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
  *
  * \return A Tensor whose op member is the take operation
  */
-inline Tensor take(const Tensor& a, const Tensor& indices, int axis, std::string mode = "clip",
-                   std::string name = "T_take", std::string tag = kInjective) {
+inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims, int axis,
+                   std::string mode = "clip", std::string name = "T_take",
+                   std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(a->shape.size());
   }
   ICHECK_GE(axis, 0) << "axis out of bounds";
   ICHECK_LT(axis, a->shape.size()) << "axis out of bounds";
   auto axis_dim = a->shape[axis];
-
   int indices_len = static_cast<int>(indices->shape.size());
-  Array<PrimExpr> out_shape;
-  for (size_t i = 0; i < a->shape.size(); ++i) {
-    if (axis == static_cast<int>(i)) {
-      for (size_t j = 0; j < indices->shape.size(); ++j) {
-        out_shape.push_back(indices->shape[j]);
-      }
-    } else {
-      out_shape.push_back(a->shape[i]);
+
+  int batch_dims_ = batch_dims;
+  if (batch_dims_ != 0) {
+    ICHECK_GE(batch_dims_, -static_cast<int>(indices->shape.size())) << "batch_dims out of bounds";
+    ICHECK_LE(batch_dims_, indices->shape.size()) << "batch_dims out of bounds";
+
+    if (batch_dims_ < 0) {
+      batch_dims_ = indices->shape.size() + batch_dims_;
+    }
+
+    ICHECK_LT(batch_dims_, a->shape.size()) << "batch_dims out of bounds";
+    ICHECK_LE(batch_dims_, axis) << "batch_dims must be less than or equal to axis";
+    for (int i = 0; i < batch_dims_; ++i) {
+      auto addr1 = a->shape[i];
+      auto addr2 = indices->shape[i];
+      auto v1 = static_cast<IntImm*>(&addr1)->get()->value;
+      auto v2 = static_cast<IntImm*>(&addr2)->get()->value;
+      ICHECK_EQ(v1, v2) << "a.shape[" << i << "] should be equal to indices.shape[" << i << "]";
     }
   }
+
+  // The result shape is a.shape[:axis] + indices.shape[batch_dims:] +
+  // a.shape[axis + 1:].
+
+  Array<PrimExpr> out_shape;
+  for (int i = 0; i < batch_dims_; ++i) {
+    out_shape.push_back(a->shape[i]);
+  }
+  for (int i = batch_dims_; i < axis; ++i) {
+    out_shape.push_back(a->shape[i]);
+  }
+  for (size_t i = static_cast<size_t>(batch_dims_); i < indices->shape.size(); ++i) {
+    out_shape.push_back(indices->shape[i]);
+  }
+  for (size_t i = axis + 1; i < a->shape.size(); ++i) {
+    out_shape.push_back(a->shape[i]);
+  }
+
   if (mode == "clip") {
-    return compute(
-        out_shape,
-        [&](const Array<Var>& out_index) {
-          Array<PrimExpr> indices_position;
-          for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
-            indices_position.push_back(out_index[j]);
-          }
-          Array<PrimExpr> real_indices;
-          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
-            real_indices.push_back(out_index[j]);
-          }
-          auto idx = tvm::min(tvm::max(0, indices(indices_position)), axis_dim - 1);
-          real_indices.push_back(idx);
-          for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
-            real_indices.push_back(out_index[j]);
-          }
-          return a(real_indices);
-        },
-        name, tag);
+    if (batch_dims_ == 0) {
+      return compute(
+          out_shape,
+          [&](const Array<Var>& out_index) {
+            Array<PrimExpr> indices_position;
+            for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
+              indices_position.push_back(out_index[j]);
+            }
+            Array<PrimExpr> real_indices;
+            for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+              real_indices.push_back(out_index[j]);
+            }
+            auto idx = tvm::min(tvm::max(0, indices(indices_position)), axis_dim - 1);
+            real_indices.push_back(idx);
+            for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
+              real_indices.push_back(out_index[j]);
+            }
+            return a(real_indices);
+          },
+          name, tag);
+    } else {
+      return compute(
+          out_shape,
+          [&](const Array<Var>& out_index) {
+            Array<PrimExpr> indices_position;
+            for (size_t j = 0; j < static_cast<size_t>(batch_dims_); ++j) {
+              indices_position.push_back(out_index[j]);
+            }
+            for (size_t j = axis; j < static_cast<size_t>(axis + indices_len - batch_dims_); ++j) {
+              indices_position.push_back(out_index[j]);
+            }
+            Array<PrimExpr> real_indices;
+            for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+              real_indices.push_back(out_index[j]);
+            }
+            auto idx = tvm::min(tvm::max(0, indices(indices_position)), axis_dim - 1);
+            real_indices.push_back(idx);
+            for (size_t j = axis + indices_len - batch_dims_; j < out_index.size(); ++j) {
+              real_indices.push_back(out_index[j]);
+            }
+            return a(real_indices);
+          },
+          name, tag);
+    }
   } else if (mode == "fast") {
     LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
                     "Make sure input indices are in bound";

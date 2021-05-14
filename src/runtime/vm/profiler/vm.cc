@@ -104,8 +104,20 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
       }
     }
 
-    prof_.StartCall(packed_index_map_[packed_index], dev,
-                    {{"Argument Shapes", profiling::ShapeString(shapes)}});
+    std::unordered_map<std::string, ObjectRef> metrics;
+    auto& op_attrs = exec_->op_attrs.at(packed_index);
+    for (auto p : op_attrs) {
+      if (std::string(p.first).find("layout") != std::string::npos) {
+        metrics[p.first] = p.second;
+      }
+    }
+    auto it = op_attrs.find("hash");
+    if (it != op_attrs.end()) {
+      metrics["Hash"] = Downcast<String>((*it).second);
+    }
+    metrics["Argument Shapes"] = profiling::ShapeString(shapes);
+
+    prof_.StartCall(packed_index_map_[packed_index], dev, metrics);
   }
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
   if (prof_.IsRunning()) {

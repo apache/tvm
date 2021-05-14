@@ -66,7 +66,7 @@ use thiserror::Error;
 pub enum DeviceType {
     CPU = 1,
     GPU,
-    CPUPinned,
+    CUDAHost,
     OpenCL,
     Vulkan,
     Metal,
@@ -101,8 +101,8 @@ impl Display for DeviceType {
             "{}",
             match self {
                 DeviceType::CPU => "cpu",
-                DeviceType::GPU => "gpu",
-                DeviceType::CPUPinned => "cpu_pinned",
+                DeviceType::GPU => "cuda",
+                DeviceType::CUDAHost => "cuda_host",
                 DeviceType::OpenCL => "opencl",
                 DeviceType::Vulkan => "vulkan",
                 DeviceType::Metal => "metal",
@@ -210,7 +210,7 @@ macro_rules! impl_tvm_device {
 
 impl_tvm_device!(
     DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
-    DLDeviceType_kDLGPU: [gpu, cuda, nvptx],
+    DLDeviceType_kDLCUDA: [gpu, cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],
     DLDeviceType_kDLMetal: [metal],
     DLDeviceType_kDLVPI: [vpi],

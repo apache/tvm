@@ -2002,14 +2002,19 @@ def _gather():
             axis = _get_num_param(params, inputs.pop(2))
         else:
             axis = 0
+        batch_dims = 0
         if int(attr.get("batch_dims", 0)) != 0:
-            raise tvm.error.OpAttributeUnImplemented("Attribute batch_dims is not supported")
+            batch_dims = int(attr.get("batch_dims", 0))
         new_input = inputs[0:2]
-        return AttrCvt(
+        op_ = AttrCvt(
             op_name="take",
-            extras={"axis": tvm.tir.const(axis, "int32")},
-            ignores=["Tindices", "Tparams", "validate_indices", "Taxis", "_class", "batch_dims"],
+            extras={
+                "axis": tvm.tir.const(axis, "int32"),
+                "batch_dims": tvm.tir.const(batch_dims, "int32"),
+            },
+            ignores=["Tindices", "Tparams", "validate_indices", "Taxis", "_class"],
         )(new_input, attr)
+        return op_
 
     return _impl
 

@@ -209,6 +209,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     for (const auto& kv : token_map_) {
       std::vector<Integer> storage_ids;
       std::vector<Integer> device_types;
+      std::vector<Integer> sid_sizes_byte;
       for (StorageToken* tok : kv.second) {
         if (tok->device_type) {
           num_annotated_nodes++;
@@ -216,8 +217,10 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         num_nodes++;
         storage_ids.push_back(tok->storage_id);
         device_types.push_back(tok->device_type);
+        sid_sizes_byte.push_back(GetMemorySize(tok));
       }
-      smap.Set(GetRef<Expr>(kv.first), Array<IntegerArray>({storage_ids, device_types}));
+      smap.Set(GetRef<Expr>(kv.first),
+               Array<IntegerArray>({storage_ids, device_types, sid_sizes_byte}));
     }
     // Either all or none of the nodes should be annotated.
     if (num_annotated_nodes != 0 && num_annotated_nodes != num_nodes) {

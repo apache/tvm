@@ -33,9 +33,8 @@
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
-#include <tvm/runtime/crt/internal/memory/memory.h>
+#include <tvm/runtime/crt/internal/memory/page_allocator.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
 
 // construct a new page
@@ -123,8 +122,8 @@ void MultiMap_Insert(struct MultiMap* map, uint32_t npage, Page* p) {
  * \param size The size of memory
  * \return The virtual address
  */
-tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t num_bytes,
-                                       DLDevice dev, void** out_ptr) {
+tvm_crt_error_t PageMemoryManager_Allocate(MemoryManagerInterface* interface, size_t num_bytes,
+                                           DLDevice dev, void** out_ptr) {
   MemoryManager* mgr = (MemoryManager*)interface;
 
   *out_ptr = 0;
@@ -170,8 +169,8 @@ tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t
  * \param num_bytes The size of memory now required.
  * \return kTvmErrorNoError on success.
  */
-tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** ptr,
-                                      tvm_index_t num_bytes) {
+tvm_crt_error_t PageMemoryManager_Realloc(MemoryManagerInterface* interface, void** ptr,
+                                          tvm_index_t num_bytes) {
   MemoryManager* mgr = (MemoryManager*)interface;
 
   uint8_t* data = *((uint8_t**)ptr);  // NOLINT(*)
@@ -259,7 +258,7 @@ tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** 
  * \param dev Execution device passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
-tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr, DLDevice dev) {
+tvm_crt_error_t PageMemoryManager_Free(MemoryManagerInterface* interface, void* ptr, DLDevice dev) {
   MemoryManager* mgr = (MemoryManager*)interface;
 
   TLB* pmap = &(mgr->pmap);
@@ -278,8 +277,9 @@ tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr,
   return kTvmErrorNoError;
 }
 
-tvm_crt_error_t MemoryManagerCreate(MemoryManagerInterface** interface, uint8_t* memory_pool,
-                                    size_t memory_pool_size_bytes, size_t page_size_bytes_log2) {
+tvm_crt_error_t PageMemoryManagerCreate(MemoryManagerInterface** interface, uint8_t* memory_pool,
+                                        size_t memory_pool_size_bytes,
+                                        size_t page_size_bytes_log2) {
   memset(memory_pool, 0, sizeof(memory_pool_size_bytes));
 
   // Allocate enough space for MAX_PAGES.
@@ -292,14 +292,14 @@ tvm_crt_error_t MemoryManagerCreate(MemoryManagerInterface** interface, uint8_t*
   MemoryManager* manager = (MemoryManager*)metadata_cursor;
   *interface = &manager->interface;
   /* handle MemoryManager member functions */
-  manager->interface.Allocate = MemoryManager_Allocate;
+  manager->interface.Allocate = PageMemoryManager_Allocate;
   //  manager->Realloc = MemoryManager_Reallocate;
-  manager->interface.Free = MemoryManager_Free;
+  manager->interface.Free = PageMemoryManager_Free;
 
   metadata_cursor += sizeof(MemoryManager);
 
-  manager->interface.Allocate = MemoryManager_Allocate;
-  manager->interface.Free = MemoryManager_Free;
+  manager->interface.Allocate = PageMemoryManager_Allocate;
+  manager->interface.Free = PageMemoryManager_Free;
   manager->ptable.memory_pool = memory_pool;
 
   /* handle PageTable member functions */

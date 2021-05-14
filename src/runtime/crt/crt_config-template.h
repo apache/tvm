@@ -51,4 +51,7 @@
 /*! \brief DLDataType for the return value from strlen */
 #define TVM_CRT_STRLEN_DLTYPE 10
 
+/*! \brief Enable checks to enforce the stack allocator with a FIFO ordering. Off by default */
+// #define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
+
 #endif  // TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_

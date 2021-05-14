@@ -425,6 +425,9 @@ Report Profiler::Report(bool aggregate, bool sort) {
     row["Count"] = ObjectRef(make_object<CountNode>(1));
     row["Name"] = cf.name;
     row["Device"] = String(DeviceString(cf.dev));
+    for (auto p : cf.extra_metrics) {
+      row[p.first] = p.second;
+    }
     rows.push_back(row);
   }
 
