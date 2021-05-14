@@ -3955,6 +3955,7 @@ bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   std::vector<Type> fields;
   fields.push_back(TensorType(data->shape, data->dtype));               // unique
   fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
+  fields.push_back(TensorType(data->shape, DataType::Int(32)));         // inverse_indices
   fields.push_back(TensorType(Array<PrimExpr>{1}, DataType::Int(32)));  // num_unique
   const auto* param = attrs.as<UniqueAttrs>();
   if (param->return_counts) {

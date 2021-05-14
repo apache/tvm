@@ -1688,5 +1688,5 @@ def unique(data, is_sorted=True, return_counts=False):
         num_unique     =  [5]
     """
     if return_counts:
-        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
-    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 3)
+        return TupleWrapper(_make.unique(data, is_sorted, return_counts), 5)
+    return TupleWrapper(_make.unique(data, is_sorted, return_counts), 4)
