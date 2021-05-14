@@ -1553,4 +1553,4 @@ def unique_strategy(attrs, inputs, out_type, target):
 def schedule_transpose(attrs, outs, target):
     """schedule transpose"""
     with target:
-        return topi.generic.schedule_injective(outs)
+        return schedule_injective(attrs, outs, target)
