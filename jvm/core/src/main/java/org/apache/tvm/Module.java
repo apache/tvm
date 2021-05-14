@@ -148,8 +148,8 @@ public class Module extends TVMValue {
 
   /**
    * Whether module runtime is enabled for target,
-   * e.g., The following code checks if gpu is enabled.
-   * Module.enabled("gpu")
+   * e.g., The following code checks if cuda is enabled.
+   * Module.enabled("cuda")
    * @param target The target device type.
    * @return Whether runtime is enabled.
    */
