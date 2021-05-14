@@ -121,7 +121,7 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
 
 
 if "TEST_DATA_ROOT_PATH" in environ:
-    TEST_DATA_ROOT_PATH = environ.get("TEST_DATA_ROOT_PATH")
+    TEST_DATA_ROOT_PATH = Path(environ.get("TEST_DATA_ROOT_PATH"))
 else:
     TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data")
 TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
