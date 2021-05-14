@@ -98,7 +98,7 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python:/workspace/.local/lib/python3.6/site-packages"
+    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python"
 else
     CI_ADDON_ENV=""
 fi
@@ -167,7 +167,6 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${CI_ADDON_ENV} \
     ${CUDA_ENV} \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
-    --mount type=bind,source=/home/mhessar/tinymlperf,target=/tinymlperf \
     ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
     "${COMMAND[@]}"

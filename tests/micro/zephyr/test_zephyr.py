@@ -66,10 +66,11 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
 
 
 def _make_session(model, target, zephyr_board, west_cmd, mod):
-    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{zephyr_board}"
-    prev_build = f"{test_name}-last-build.micro-binary"
+    parent_dir = os.path.dirname(__file__)
+    filename = os.path.splitext(os.path.basename(__file__))[0]
+    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
     workspace_root = (
-        f'{test_name}_workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
+        os.path.join(f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}", datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
     )
     workspace_parent = os.path.dirname(workspace_root)
     if not os.path.exists(workspace_parent):
@@ -84,6 +85,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
         board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
         west_cmd=west_cmd,
+        env_vars={"ZEPHYR_RUNTIME": "HOST-DRIVEN"},
     )
 
     opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
@@ -109,6 +111,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
             compiler,
             mod,
             opts,
+            runtime="host-driven",
         )
         if os.path.exists(prev_build):
             os.unlink(prev_build)
@@ -395,4 +398,4 @@ def test_byoc_utvm(platform, west_cmd):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

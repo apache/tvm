@@ -355,8 +355,6 @@ class Module(object):
                             object_format = "cu"
                     has_c_module = True
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
-            # import pdb; pdb.set_trace()
-            print(f"mehrdad: {path_obj}")
             module.save(path_obj)
             files.append(path_obj)
             is_system_lib = (
@@ -365,27 +363,6 @@ class Module(object):
             llvm_target_triple = (
                 module.type_key == "llvm" and module.get_function("_get_target_triple")()
             )
-
-        lib0_path = os.path.join(workspace_dir, "lib0.c")
-        with open(lib0_path) as lib0_f:
-            lines = list(lib0_f)
-
-        PROTOTYPE_START = "TVM_DLL int32_t tvm__run_func("
-        with open(lib0_path, "w") as lib0_f:
-            found_first_prototype = False
-            found_invalid_prototype = False
-            for l in lines:
-                if not found_first_prototype and l.startswith(PROTOTYPE_START):
-                    found_first_prototype = True
-                elif (
-                    found_first_prototype
-                    and not found_invalid_prototype
-                    and l.startswith(PROTOTYPE_START)
-                ):
-                    found_invalid_prototype = True
-                    continue
-                lib0_f.write(l)
-
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar

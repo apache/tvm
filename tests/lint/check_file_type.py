@@ -129,6 +129,8 @@ ALLOW_SPECIFIC_FILE = {
     "tests/micro/zephyr/testdata/digit-2.jpg",
     "tests/micro/zephyr/testdata/digit-9.jpg",
     "tests/micro/zephyr/testdata/mnist-8.onnx",
+    "tests/micro/zephyr/testdata/ic_sample_fp32_8.npy",
+    "tests/micro/zephyr/testdata/ic_fp32.tflite",
     # microTVM Zephyr runtime
     "apps/microtvm/zephyr/demo_runtime/prj.conf",
     "apps/microtvm/zephyr/demo_runtime/boards/qemu_x86.conf",

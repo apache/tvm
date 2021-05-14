@@ -30,7 +30,6 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <algorithm>
 
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"
@@ -144,7 +143,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
-    LOG(ERROR) << "mehrdad: SaveToFile 2";
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c") {
@@ -212,7 +210,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   void CreateSource() {
     if (target_->GetAttr<Bool>("system-lib").value_or(Bool(false)) && !func_names_.empty()) {
-      // std::sort(func_names_.begin(), func_names_.end());
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }

@@ -395,7 +395,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
 
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
-    LOG(ERROR) << "mehrdad: " << f->GetAttr<String>("global_symbol");
     cg.AddFunction(f);
   }
 
@@ -414,7 +413,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   }
 
   std::string code = cg.Finish();
-  LOG(ERROR) << "mehrdad: found: CSourceModuleCreate";
   return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
 }
 
