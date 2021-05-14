@@ -22,6 +22,7 @@
  * \brief Calculate any intermediary memory required by PrimFuncs.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -33,7 +34,7 @@ class WorkspaceCalculator : public StmtExprVisitor {
  public:
   WorkspaceCalculator() = default;
   size_t operator()(const PrimFunc& func);
-  size_t byte_alignment = 1;
+  size_t byte_alignment = tvm::runtime::kDefaultWorkspaceAlignment;
 
  private:
   void VisitStmt_(const AllocateNode* op) override;
