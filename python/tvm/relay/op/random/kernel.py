@@ -134,7 +134,7 @@ def threefry_split(key):
     return _make.threefry_split(key)
 
 
-def uniform(key, shape, dtype="float32", low=0., high=1.):
+def uniform(key, shape, dtype="float32", low=0.0, high=1.0):
     """Draw samples from a uniform distribution.
 
     Samples are uniformly distributed over the half-open interval [low, high)

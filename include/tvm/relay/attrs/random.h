@@ -43,7 +43,8 @@ struct UniformAttrs : public tvm::AttrsNode<UniformAttrs> {
 
   TVM_DECLARE_ATTRS(UniformAttrs, "relay.attrs.UniformAttrs") {
     TVM_ATTR_FIELD(out_shape).describe("Shape of random numbers to generate");
-    TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>())
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
         .describe("Data type of the generated numbers");
   }
 };

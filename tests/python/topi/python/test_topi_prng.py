@@ -49,12 +49,12 @@ def uniform(target, dev, gen, low, high, size, dtype):
     high_placeholder = tvm.te.placeholder(high.shape, name="high", dtype=dtype)
     print(low_placeholder)
     print(high_placeholder)
-    out_placeholder = tvm.topi.random.uniform(gen_placeholder, low_placeholder,
-                                              high_placeholder, size, dtype)
+    out_placeholder = tvm.topi.random.uniform(
+        gen_placeholder, low_placeholder, high_placeholder, size, dtype
+    )
     print(out_placeholder)
     s = tvm.topi.generic.schedule_extern([out_placeholder])
-    f = tvm.build(s, [gen_placeholder, low_placeholder, high_placeholder,
-                      out_placeholder])
+    f = tvm.build(s, [gen_placeholder, low_placeholder, high_placeholder, out_placeholder])
     rands = tvm.nd.array(np.zeros(size, dtype=dtype))
     f(tvm.nd.array(gen), tvm.nd.array(low), tvm.nd.array(high), rands)
     return rands.asnumpy()
@@ -143,8 +143,7 @@ def test_uniform(target, dev):
     dtype = "float32"
     low = np.array(5.0, dtype=dtype)
     high = np.array(10.0, dtype=dtype)
-    rands = uniform(
-        target, dev, gen, low, high, (m, n), "float32")
+    rands = uniform(target, dev, gen, low, high, (m, n), "float32")
     assert abs(np.mean(rands) - 7.5) < 1e-1
     assert abs(np.min(rands) - 5.0) < 1e-3
     assert abs(np.max(rands) - 10.0) < 1e-3

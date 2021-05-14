@@ -512,11 +512,8 @@ def uniform(gen, low, high, out_shape, out_dtype):
         standard_uniform = bits.astype(out_dtype) / float(1 << nfraction)
         return standard_uniform
 
-    standard_uniform_values = tvm.te.compute(
-        out_shape, lambda *i : uniform_scalar(random_bits(*i)))
+    standard_uniform_values = tvm.te.compute(out_shape, lambda *i: uniform_scalar(random_bits(*i)))
 
-    uniform_values = tvm.topi.add(
-                        tvm.topi.multiply(standard_uniform_values, high - low),
-                        low)
+    uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
 
     return uniform_values
