@@ -149,7 +149,7 @@ def test_recast_relu():
         return relay.Function([x, w], r_float32)
 
     pre = before()
-    post = recast(pre, "float16", "float16", ops = ["nn.conv2d", "nn.relu"])
+    post = recast(pre, "float16", "float16", ops=["nn.conv2d", "nn.relu"])
     expected = expected()
     assert tvm.ir.structural_equal(expected, post)
 
