@@ -90,7 +90,7 @@ TVM_REGISTER_NODE_TYPE(UniformAttrs);
 bool UniformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   const UniformAttrs* param = attrs.as<UniformAttrs>();
-  ICHECK_EQ(types.size(), 4) << "ThreefryGenerate should have one input and one output";
+  ICHECK_EQ(types.size(), 4) << "Uniform should have three input and one output";
 
   std::vector<IndexExpr> oshape;
   for (auto& x : param->out_shape) {
@@ -102,7 +102,7 @@ bool UniformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   reporter->Assign(types[1], TensorType({}, out_dtype));
   reporter->Assign(types[2], TensorType({}, out_dtype));
   // generate returns the next key and an array of random values
-  reporter->Assign(types[3], TensorType(oshape, out_dtype));
+  reporter->Assign(types[3], TupleType({ThreefryKeyType(), TensorType(oshape, out_dtype)}));
   return true;
 }
 

@@ -1500,7 +1500,7 @@ def wrap_compute_uniform(topi_compute):
     """Wrap uniform topi compute"""
 
     def _compute_uniform(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.out_shape, attrs.out_dtype)]
+        return list(topi_compute(inputs[0], inputs[1], inputs[2], attrs.out_shape, attrs.out_dtype))
 
     return _compute_uniform
 

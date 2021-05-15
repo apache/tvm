@@ -477,7 +477,7 @@ def uniform(gen, low, high, out_shape, out_dtype):
 
     Parameters
     ----------
-    gen : Tensor[10, uint64]
+    gen : ThreefryKey
         Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
         reused in another function, otherwise random numbers will be repeated.
 
@@ -500,7 +500,7 @@ def uniform(gen, low, high, out_shape, out_dtype):
     out : Tensor[out_shape, out_dtype]
         Tensor of random numbers with shape `out_shape` and type `out_dtype`.
     """
-    _, random_bits = threefry_generate(gen, out_shape)
+    new_gen, random_bits = threefry_generate(gen, out_shape)
     nbits = 64
     if out_dtype == "float32":
         nfraction = 23
@@ -509,11 +509,11 @@ def uniform(gen, low, high, out_shape, out_dtype):
 
     def uniform_scalar(bits):
         bits = bits >> (nbits - nfraction)
-        standard_uniform = bits.astype(out_dtype) / float(1 << nfraction)
+        standard_uniform = bits.astype(out_dtype) / tir.const(1 << nfraction, dtype=out_dtype)
         return standard_uniform
 
     standard_uniform_values = tvm.te.compute(out_shape, lambda *i: uniform_scalar(random_bits(*i)))
 
     uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
 
-    return uniform_values
+    return new_gen, uniform_values
