@@ -279,7 +279,9 @@ class AOTExecutorCodegen : public ExprVisitor {
    * \param func The main function that contains calls to operator tir primitive functions
    */
   void UpdateMainWorkspaceSize(const tir::PrimFunc& primfunc, const relay::Function& func) {
-    Integer workspace_size = CalculateWorkspaceBytes(primfunc);
+    auto workspace_byte_alignment = target_host_->GetAttr<Integer>("workspace-byte-alignment")
+                                        .value_or(tvm::runtime::kDefaultWorkspaceAlignment);
+    Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
     // Populate FunctionInfo
     auto fi_node = make_object<FunctionInfoNode>();
     // Initialize all target workspaces to zero
@@ -318,7 +320,9 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto fi_node = make_object<FunctionInfoNode>();
     for (const auto& kv : cfunc->funcs->functions) {
       auto primfunc = Downcast<tir::PrimFunc>(kv.second);
-      Integer workspace_size = CalculateWorkspaceBytes(primfunc);
+      auto workspace_byte_alignment =
+          target_host_->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+      Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
       Target primfunc_target = relay_target;
       if (primfunc->attrs->dict.count("target")) {
         primfunc_target = Downcast<Target>(primfunc->attrs->dict["target"]);

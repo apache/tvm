@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import tempfile
 import tarfile
+import json
 
 
 import tvm
@@ -55,7 +56,7 @@ def subprocess_with_stdout_and_log(cmd, cwd, logfile, stdout):
                     print(text, end="")
 
 
-def create_main(test_name, input_list, output_list, output_path):
+def create_main(test_name, input_list, output_list, output_path, workspace_bytes):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
     raw_path = file_path.with_suffix(".c").resolve()
@@ -64,7 +65,7 @@ def create_main(test_name, input_list, output_list, output_path):
         main_file.write("#include <math.h>\n")
         main_file.write('#include "tvm/runtime/crt/internal/aot_executor/aot_executor.h"\n')
         main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
-        main_file.write("#define WORKSPACE_SIZE (16384*1024)\n")
+        main_file.write(f"#define WORKSPACE_SIZE ({workspace_bytes})\n")
         main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
 
         for i in range(0, len(input_list)):
@@ -157,11 +158,24 @@ def create_header_file(tensor_name, npy_data, output_path):
         header_file.write("};\n\n")
 
 
-def compile_and_run(mod, input_list, output_list, params=None):
+def extract_main_workspace_sizebytes(extract_dir):
+    with open(os.path.join(extract_dir, "metadata.json")) as json_f:
+        metadata = json.load(json_f)
+        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
+
+
+def compile_and_run(
+    mod, input_list, output_list, use_calculated_workspaces, params=None, workspace_byte_alignment=8
+):
     """
     This method verifies the generated source
     """
-    target = "c -runtime=c --link-params --executor=aot"
+    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+
+    # The calculated workspaces will not account for stack allocator tags used for debugging
+    if not use_calculated_workspaces:
+        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lib = tvm.relay.build(mod, target, target_host=target, params=params)
@@ -177,6 +191,10 @@ def compile_and_run(mod, input_list, output_list, params=None):
     export_model_library_format(lib, tar_file)
     t = tarfile.open(tar_file)
     t.extractall(base_path)
+    if use_calculated_workspaces:
+        workspace_bytes = extract_main_workspace_sizebytes(base_path)
+    else:
+        workspace_bytes = 16384 * 1024
 
     for i in range(len(input_list)):
         create_header_file((f"input_data{i}"), input_list[i], build_path)
@@ -189,12 +207,16 @@ def compile_and_run(mod, input_list, output_list, params=None):
         )
         create_header_file((f"expected_output_data{i}"), output_list[i], build_path)
 
-    create_main("test.c", input_list, output_list, build_path)
+    create_main("test.c", input_list, output_list, build_path, workspace_bytes)
 
     # Verify that compiles fine
     file_dir = os.path.dirname(os.path.abspath(__file__))
     makefile = os.path.join(file_dir, "aot_test.mk")
-    make_cmd = f"make -f {makefile} build_dir=" + build_path + f" TVM_ROOT={file_dir}/../../../.."
+    make_cmd = (
+        f"make CFLAGS='{cflags}' -f {makefile} build_dir="
+        + build_path
+        + f" TVM_ROOT={file_dir}/../../../.."
+    )
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
     ret = subprocess_with_stdout_and_log(make_cmd, ".", compile_log_path, False)

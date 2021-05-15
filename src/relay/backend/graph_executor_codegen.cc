@@ -483,7 +483,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     auto fi_node = make_object<FunctionInfoNode>();
     for (const auto& kv : cfunc->funcs->functions) {
       auto primfunc = Downcast<tir::PrimFunc>(kv.second);
-      Integer workspace_size = CalculateWorkspaceBytes(primfunc);
+      auto workspace_byte_alignment = relay_target->GetAttr<Integer>("workspace-byte-alignment")
+                                          .value_or(tvm::runtime::kDefaultWorkspaceAlignment);
+      Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
       Target primfunc_target = relay_target;
       if (primfunc->attrs->dict.count("target")) {
         primfunc_target = Downcast<Target>(primfunc->attrs->dict["target"]);
