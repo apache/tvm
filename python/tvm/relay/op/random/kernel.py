@@ -173,6 +173,9 @@ def uniform(key, shape, dtype="float32", low=0.0, high=1.0):
 
     Returns
     -------
+    new_key : relay.Expr
+        New random key to pass to future uses of random functions.
+
     random_values : relay.Expr
         The generated uniform distributed random numbers.
     """

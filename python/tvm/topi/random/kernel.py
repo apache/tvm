@@ -497,6 +497,9 @@ def uniform(gen, low, high, out_shape, out_dtype):
 
     Returns
     -------
+    new_gen : ThreefryKey
+        New generator state that is distinct from `gen`.
+
     out : Tensor[out_shape, out_dtype]
         Tensor of random numbers with shape `out_shape` and type `out_dtype`.
     """
