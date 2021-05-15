@@ -158,8 +158,7 @@ def lower(
     Returns
     -------
     m : IRModule
-       The result IRModule, if simple_mode=False
-       Then the Stmt before make api is returned.
+       The result IRModule
     """
     # config setup
     pass_ctx = PassContext.current()
@@ -199,16 +198,20 @@ def lower(
             tvm.tir.transform.InjectPrefetch(),
             tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
         ]
+    else:
+        pass_list += [
+            tvm.tir.transform.LowerInitBlock(),
+            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.tir.transform.ConvertBlocksToOpaque(),
+            tvm.tir.transform.CompactBufferAllocation(),
+            tvm.tir.transform.FlattenBuffer(),
+        ]
     pass_list += [
-        tvm.tir.transform.LowerInitBlock(),
-        tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
-        tvm.tir.transform.ConvertBlocksToOpaque(),
-        tvm.tir.transform.CompactBufferAllocation(),
-        tvm.tir.transform.FlattenBuffer(),
         tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
     ]
+
     pass_list += lower_phase1
 
     # Phase 2
