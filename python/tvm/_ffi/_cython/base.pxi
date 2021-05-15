@@ -155,9 +155,13 @@ cdef inline c_str(pystr):
     return pystr.encode("utf-8")
 
 
-cdef inline CALL(int ret):
+cdef inline int CALL(int ret) except -2:
+    # -2 brings exception
+    if ret == -2:
+        return -2
     if ret != 0:
         raise get_last_ffi_error()
+    return 0
 
 
 cdef inline object ctypes_handle(void* chandle):
@@ -170,3 +174,25 @@ cdef inline void* c_handle(object handle):
     cdef unsigned long long v_ptr
     v_ptr = handle.value
     return <void*>(v_ptr)
+
+
+# python env API
+cdef extern from "Python.h":
+    int PyErr_CheckSignals()
+
+cdef extern from "tvm/runtime/c_backend_api.h":
+    int TVMBackendRegisterEnvCAPI(const char* name, void* ptr)
+
+cdef _init_env_api():
+    # Initialize env api for signal handling
+    # so backend can call tvm::runtime::EnvCheckSignals to check
+    # signal when executing a long running function.
+    #
+    # This feature is only enabled in cython for now due to problems of calling
+    # these functions in ctypes.
+    #
+    # When the functions are not registered, the signals will be handled
+    # only when the FFI function returns.
+    CALL(TVMBackendRegisterEnvCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
+
+_init_env_api()
