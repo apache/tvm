@@ -490,7 +490,14 @@ def requires_gpu(*args):
         Function to mark
     """
     _requires_gpu = [
-        pytest.mark.skipif(not tvm.cuda().exist, reason="No GPU present"),
+        pytest.mark.skipif(
+            not tvm.cuda().exist
+            and not tvm.rocm().exist
+            and not tvm.opencl().exist
+            and not tvm.metal().exist
+            and not tvm.vulkan().exist,
+            reason="No GPU present",
+        ),
         *uses_gpu(),
     ]
     return _compose(args, _requires_gpu)
