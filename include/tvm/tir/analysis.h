@@ -192,9 +192,10 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
  *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.
  * \param func The PrimFunc to be detected.
- * \return The Map from buffer to the LCA of all access to it.
+ * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
+ *         return stmt is NullOpt.
  */
-TVM_DLL Map<Buffer, Stmt> DetectBufferAccessLCA(const PrimFunc& func);
+TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
