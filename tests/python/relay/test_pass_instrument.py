@@ -17,7 +17,7 @@
 import tvm
 import tvm.relay
 from tvm.relay import op
-from tvm.ir.instrument import PassesTimeInstrument, PassInstrument, pass_instrument
+from tvm.ir.instrument import PassesTimeInstrument, pass_instrument
 
 
 def test_pass_time_instrument():
