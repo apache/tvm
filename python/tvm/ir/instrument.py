@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass instrumentation across IR variants."""
-import types
 import inspect
 import functools
 
@@ -62,7 +61,8 @@ def _wrap_class_pass_instrument(pi_cls):
                 return None
 
             # create runtime pass instrument object
-            # reister instance's run_before_pass, run_after_pass, set_up and tear_down method to it if present.
+            # reister instance's run_before_pass, run_after_pass, set_up and tear_down method
+            # to it if present.
             self.__init_handle_by_constructor__(
                 _ffi_instrument_api.PassInstrument,
                 pi_cls.__name__,
@@ -129,7 +129,6 @@ def pass_instrument(pi_cls=None):
         if not inspect.isclass(pi_cls):
             raise TypeError("pi_cls must be a class")
 
-        name = pi_cls.__name__
         return _wrap_class_pass_instrument(pi_cls)
 
     if pi_cls:
