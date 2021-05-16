@@ -124,7 +124,7 @@ cmake --build . --target custom_dso_loader ios_rpc  # Will use custom DSO loader
 To enable using of Custom DSO Plugin during xcode build outsde of Cmake you should specify two additional variables.
 You can do it manually inside Xcode IDE or as command line args for `xcodebuild`. Make sure that `custom_dso_loader`
 target from previous step is already built.
-* TVM_BUILD_DIR=<path-to-tvm-ios-build-dir>
+* TVM_BUILD_DIR=path-to-tvm-ios-build-dir
 * USE_CUSTOM_DSO_LOADER=1
 
 iOS RPC application with enabled custom DSO loader is able to process modules passed via regular
