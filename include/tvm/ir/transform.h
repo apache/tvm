@@ -88,8 +88,8 @@ class PassContextNode : public Object {
   /*! \brief Pass specific configurations. */
   Map<String, ObjectRef> config;
 
-  /*! \brief Instrumentor contains a list of instrument implementations. */
-  instrument::PassInstrumentor pass_instrumentor;
+  /*! \brief A list of pass instrument implementations. */
+  Array<instrument::PassInstrument> instruments;
 
   PassContextNode() = default;
 

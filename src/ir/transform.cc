@@ -166,32 +166,41 @@ PassContext PassContext::Create() { return PassContext(make_object<PassContextNo
 
 void PassContext::InstrumentSetUp() const {
   auto pass_ctx_node = this->operator->();
-  if (pass_ctx_node->pass_instrumentor.defined()) {
-    pass_ctx_node->pass_instrumentor->SetUp();
+  if (pass_ctx_node->instruments.defined()) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->SetUp();
+    }
   }
 }
 
 void PassContext::InstrumentTearDown() const {
   auto pass_ctx_node = this->operator->();
-  if (pass_ctx_node->pass_instrumentor.defined()) {
-    pass_ctx_node->pass_instrumentor->TearDown();
+  if (pass_ctx_node->instruments.defined()) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->TearDown();
+    }
   }
 }
 
 bool PassContext::InstrumentBeforePass(const IRModule& ir_module, const PassInfo& pass_info) const {
   auto pass_ctx_node = this->operator->();
-  if (pass_ctx_node->pass_instrumentor.defined()) {
-    if (!pass_ctx_node->pass_instrumentor->RunBeforePass(ir_module, pass_info)) {
-      return false;
+  if (pass_ctx_node->instruments.defined()) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      if (!pi->RunBeforePass(ir_module, pass_info)) {
+        return false;
+      }
     }
+    return true;
   }
   return true;
 }
 
 void PassContext::InstrumentAfterPass(const IRModule& ir_module, const PassInfo& pass_info) const {
   auto pass_ctx_node = this->operator->();
-  if (pass_ctx_node->pass_instrumentor.defined()) {
-    pass_ctx_node->pass_instrumentor->RunAfterPass(ir_module, pass_info);
+  if (pass_ctx_node->instruments.defined()) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->RunAfterPass(ir_module, pass_info);
+    }
   }
 }
 
@@ -515,14 +524,14 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
-                       instrument::PassInstrumentor pass_instrumentor,
+                       Array<instrument::PassInstrument> instruments,
                        Optional<Map<String, ObjectRef>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
-      pctx->pass_instrumentor = std::move(pass_instrumentor);
+      pctx->instruments = std::move(instruments);
       if (config.defined()) {
         pctx->config = config.value();
       }

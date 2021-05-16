@@ -66,90 +66,29 @@ void PassInstrumentNode::RunAfterPass(const IRModule& ir_module,
   }
 }
 
-PassInstrumentor::PassInstrumentor(Array<PassInstrument> pass_instruments) {
-  auto n = make_object<PassInstrumentorNode>();
-  n->pass_instruments = std::move(pass_instruments);
-  data_ = std::move(n);
-}
-
-void PassInstrumentorNode::SetUp() const {
-  for (PassInstrument pi : pass_instruments) {
-    pi->SetUp();
-  }
-}
-
-void PassInstrumentorNode::TearDown() const {
-  for (PassInstrument pi : pass_instruments) {
-    pi->TearDown();
-  }
-}
-
-bool PassInstrumentorNode::RunBeforePass(const IRModule& ir_module,
-                                         const transform::PassInfo& pass_info) const {
-  for (PassInstrument pi : pass_instruments) {
-    if (!pi->RunBeforePass(ir_module, pass_info)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-void PassInstrumentorNode::RunAfterPass(const IRModule& ir_module,
-                                        const transform::PassInfo& pass_info) const {
-  for (PassInstrument pi : pass_instruments) {
-    pi->RunAfterPass(ir_module, pass_info);
-  }
-}
-
 TVM_REGISTER_NODE_TYPE(PassInstrumentNode);
 
-TVM_REGISTER_GLOBAL("instrument.PassInstrument").set_body_typed([](String name) {
-  return PassInstrument(name);
-});
+TVM_REGISTER_GLOBAL("instrument.PassInstrument")
+    .set_body_typed([](String name,
+                       runtime::TypedPackedFunc<bool(const IRModule&, const transform::PassInfo&)>
+                           run_before_pass,
+                       runtime::TypedPackedFunc<void(const IRModule&, const transform::PassInfo&)>
+                           run_after_pass,
+                       runtime::TypedPackedFunc<void()> set_up,
+                       runtime::TypedPackedFunc<void()> tear_down) {
+      auto pi = PassInstrument(name);
+      pi->run_before_pass_callback = std::move(run_before_pass);
+      pi->run_after_pass_callback = std::move(run_after_pass);
+
+      pi->set_up_callback = std::move(set_up);
+      pi->tear_down_callback = std::move(tear_down);
+      return pi;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PassInstrumentNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const PassInstrumentNode*>(ref.get());
       p->stream << node->name;
-    });
-
-TVM_REGISTER_NODE_TYPE(PassInstrumentorNode);
-
-TVM_REGISTER_GLOBAL("instrument.PassInstrumentor")
-    .set_body_typed([](Array<PassInstrument> pass_instruments) {
-      return PassInstrumentor(pass_instruments);
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PassInstrumentorNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PassInstrumentorNode*>(ref.get());
-
-      p->stream << "\n PassInstrumentor [";
-      for (PassInstrument pi : node->pass_instruments) {
-        p->stream << pi << " ";
-      }
-      p->stream << "] \n";
-    });
-
-TVM_REGISTER_GLOBAL("instrument.RegisterSetUpCallback")
-    .set_body_typed([](PassInstrument pass_instrument, InstrumentEnvFunc callback) {
-      pass_instrument->RegisterSetUpCallback(callback);
-    });
-
-TVM_REGISTER_GLOBAL("instrument.RegisterTearDownCallback")
-    .set_body_typed([](PassInstrument pass_instrument, InstrumentEnvFunc callback) {
-      pass_instrument->RegisterTearDownCallback(callback);
-    });
-
-TVM_REGISTER_GLOBAL("instrument.RegisterRunBeforePassCallback")
-    .set_body_typed([](PassInstrument pass_instrument, PassInstrumentFunc<bool> callback) {
-      pass_instrument->RegisterRunBeforePassCallback(callback);
-    });
-
-TVM_REGISTER_GLOBAL("instrument.RegisterRunAfterPassCallback")
-    .set_body_typed([](PassInstrument pass_instrument, PassInstrumentFunc<> callback) {
-      pass_instrument->RegisterRunAfterPassCallback(callback);
     });
 
 /*! \brief PassProfile stores profiling information for a given pass and its sub-passes. */
@@ -274,20 +213,22 @@ String RenderPassProfiles() {
 TVM_REGISTER_GLOBAL("instrument.RenderTimePassProfiles").set_body_typed(RenderPassProfiles);
 
 TVM_REGISTER_GLOBAL("instrument.MakePassesTimeInstrument").set_body_typed([]() {
-  auto pi = PassInstrument("PassesTimeInstrument");
-
-  // No set up function for this time instrumentation.
-
-  pi->RegisterTearDownCallback([]() { PassProfileThreadLocalStore::Get()->root.children.clear(); });
-
-  pi->RegisterRunBeforePassCallback([](const IRModule&, const transform::PassInfo& pass_info) {
+  auto run_before_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
     PassProfile::EnterPass(pass_info->name);
     return true;
-  });
+  };
 
-  pi->RegisterRunAfterPassCallback(
-      [](const IRModule&, const transform::PassInfo&) { PassProfile::ExitPass(); });
+  auto run_after_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
+    PassProfile::ExitPass();
+  };
 
+  auto tear_down = []() { PassProfileThreadLocalStore::Get()->root.children.clear(); };
+
+  auto pi = PassInstrument("PassesTimeInstrument");
+  pi->run_before_pass_callback = run_before_pass;
+  pi->run_after_pass_callback = run_after_pass;
+
+  pi->tear_down_callback = tear_down;
   return pi;
 });
 

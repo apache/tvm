@@ -536,14 +536,13 @@ def test_print_ir(capfd):
 
 __TRACE_COUNTER__ = 0
 
-pi = _instrument.PassInstrument("my_instrument")
 
-
-@pi.register_run_before_pass
-def _tracer(module, info):
-    global __TRACE_COUNTER__
-    __TRACE_COUNTER__ += 1
-    return True
+@tvm.instrument.pass_instrument
+class MyInstrument:
+    def run_before_pass(self, module, info):
+        global __TRACE_COUNTER__
+        __TRACE_COUNTER__ += 1
+        return True
 
 
 def test_print_debug_callback():
@@ -566,9 +565,7 @@ def test_print_debug_callback():
     assert __TRACE_COUNTER__ == 0
     mod = tvm.IRModule({"main": func})
 
-    with tvm.transform.PassContext(
-        opt_level=3, pass_instrumentor=_instrument.PassInstrumentor([pi])
-    ):
+    with tvm.transform.PassContext(opt_level=3, instruments=[MyInstrument()]):
         mod = seq(mod)
 
     # TODO(@jroesch): when we remove new fn pass behavior we need to remove

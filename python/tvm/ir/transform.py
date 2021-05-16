@@ -65,8 +65,8 @@ class PassContext(tvm.runtime.Object):
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
 
-    pass_instrumentor : Optional[tvm.instrument.PassInstrumentor]
-        The pass instrumentor that collects pass instrument implementations
+    instruments : Optional[Union[List[PassInstrument], Set[PassInstrument], Tuple[PassInstrument]]]
+        The list of pass instrument implementations.
 
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
@@ -77,7 +77,7 @@ class PassContext(tvm.runtime.Object):
         opt_level=2,
         required_pass=None,
         disabled_pass=None,
-        pass_instrumentor=None,
+        instruments=None,
         config=None,
     ):
         required = list(required_pass) if required_pass else []
@@ -88,9 +88,13 @@ class PassContext(tvm.runtime.Object):
         if not isinstance(disabled, (list, tuple)):
             raise TypeError("disabled_pass is expected to be the type of " + "list/tuple/set.")
 
+        instruments = list(instruments) if instruments else []
+        if not isinstance(instruments, (list, tuple)):
+            raise TypeError("disabled_pass is expected to be the type of " + "list/tuple/set.")
+
         config = config if config else None
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassContext, opt_level, required, disabled, pass_instrumentor, config
+            _ffi_transform_api.PassContext, opt_level, required, disabled, instruments, config
         )
 
     def __enter__(self):

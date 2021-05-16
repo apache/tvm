@@ -16,6 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass instrumentation across IR variants."""
+import types
+import inspect
+import functools
+
 import tvm._ffi
 import tvm.runtime
 
@@ -26,88 +30,111 @@ from . import _ffi_instrument_api
 class PassInstrument(tvm.runtime.Object):
     """A pass instrument implementation.
 
-    Parameters
-    ----------
-    name : str
-        The name for this instrument implementation.
-
-    Examples
-    --------
-
-    .. code-block:: python
-        pi = tvm.instrument.PassInstrument("print-before-after")
-
-        @pi.register_set_up
-        def set_up():
-          pass
-
-        @pi.register_tear_down
-        def tear_down():
-          pass
-
-        @pi.register_run_before_pass
-        def run_before_pass(mod, info):
-          print("Before pass: " + info.name)
-          print(mod)
-          return True
-
-        @pi.register_run_after_pass
-        def run_after_pass(mod, info):
-          print("After pass: " + info.name)
-          print(mod)
-
+    Users don't need to interact with this class directly.
+    Instead, a `PassInstrument` instance should be created through `pass_instrument`.
 
     See Also
     --------
-    instrument.PassInstrumentor
+    `pass_instrument`
     """
 
-    def __init__(self, name):
-        self.__init_handle_by_constructor__(_ffi_instrument_api.PassInstrument, name)
 
-    def register_set_up(self, callback):
-        _ffi_instrument_api.RegisterSetUpCallback(self, callback)
+def _wrap_class_pass_instrument(pi_cls):
+    """Wrap a python class as pass instrument"""
 
-    def register_tear_down(self, callback):
-        _ffi_instrument_api.RegisterTearDownCallback(self, callback)
+    class PyPassInstrument(PassInstrument):
+        """Internal wrapper class to create a class instance."""
 
-    def register_run_before_pass(self, callback):
-        _ffi_instrument_api.RegisterRunBeforePassCallback(self, callback)
+        def __init__(self, *args, **kwargs):
+            # initialize handle in cass pi_cls creation failed.fg
+            self.handle = None
+            inst = pi_cls(*args, **kwargs)
 
-    def register_run_after_pass(self, callback):
-        _ffi_instrument_api.RegisterRunAfterPassCallback(self, callback)
+            # check method declartion within class, if found, wrap it.
+            def create_method(method):
+                if hasattr(inst, method) and inspect.ismethod(getattr(inst, method)):
+
+                    def func(*args):
+                        return getattr(inst, method)(*args)
+
+                    func.__name__ = "_" + method
+                    return func
+                return None
+
+            # create runtime pass instrument object
+            # reister instance's run_before_pass, run_after_pass, set_up and tear_down method to it if present.
+            self.__init_handle_by_constructor__(
+                _ffi_instrument_api.PassInstrument,
+                pi_cls.__name__,
+                create_method("run_before_pass"),
+                create_method("run_after_pass"),
+                create_method("set_up"),
+                create_method("tear_down"),
+            )
+
+            self._inst = inst
+
+        def __getattr__(self, name):
+            # fall back to instance attribute if there is not any
+            return self._inst.__getattribute__(name)
+
+    functools.update_wrapper(PyPassInstrument.__init__, pi_cls.__init__)
+    PyPassInstrument.__name__ = pi_cls.__name__
+    PyPassInstrument.__doc__ = pi_cls.__doc__
+    PyPassInstrument.__module__ = pi_cls.__module__
+    return PyPassInstrument
 
 
-@tvm._ffi.register_object("instrument.PassInstrumentor")
-class PassInstrumentor(tvm.runtime.Object):
-    """A pass instrumentor collects a set of pass instrument implementations.
+def pass_instrument(pi_cls=None):
+    """Decorate a pass instrument.
 
     Parameters
     ----------
-    pass_instruments : List[tvm.instrument.PassInstrument]
-        List of instrumentation to run within pass context
+    pi_class :
 
     Examples
     --------
+    The following code block decorates a pass instrument class.
+
     .. code-block:: python
+        @tvm.instrument.pass_instrument
+        class SkipPass:
+            def __init__(self, skip_pass_name):
+                self.skip_pass_name = skip_pass_name
 
-        passes_mem = #... Impl of memory instrument
-        passes_time = tvm.instrument.PassesTimeInstrument()
+            # Uncomment to customize
+            # def set_up():
+            #    pass
 
-        with tvm.transform.PassContext(
-            pass_instrumentor=tvm.instrument.PassInstrumentor([passes_mem, passes_time])):
-            tvm.relay.build(mod, 'llvm')
+            # Uncomment to customize
+            # def tear_down():
+            #    pass
 
-            print(passes_time.rendor())
+            # If pass name contains keyword, skip it by return False. (return True: not skip)
+            def run_before_pass(mod, pass_info):
+                if self.skip_pass_name in pass_info.name:
+                    return False
+                return True
 
-    See Also
-    -------
-    instrument.PassInstrument
-    instrument.PassesTimeInstrument
+            # Uncomment to customize
+            # def run_after_pass(mod, pass_info):
+            #    pass
+
+        skip_annotate = SkipPass("AnnotateSpans")
+        with tvm.transform.PassContext(instruments=[skip_annotate]):
+            tvm.relay.build(mod, "llvm")
     """
 
-    def __init__(self, pass_instruments):
-        self.__init_handle_by_constructor__(_ffi_instrument_api.PassInstrumentor, pass_instruments)
+    def create_pass_instrument(pi_cls):
+        if not inspect.isclass(pi_cls):
+            raise TypeError("pi_cls must be a class")
+
+        name = pi_cls.__name__
+        return _wrap_class_pass_instrument(pi_cls)
+
+    if pi_cls:
+        return create_pass_instrument(pi_cls)
+    return create_pass_instrument
 
 
 @tvm._ffi.register_object("instrument.PassInstrument")
