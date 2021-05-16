@@ -29,11 +29,11 @@ import tvm.testing
 
 @tvm.instrument.pass_instrument
 class Trace:
-    def run_before_pass(module, pass_info):
+    def run_before_pass(self, module, pass_info):
         if pass_info.name == "ManifestAlloc":
             pass  # import pdb; pdb.set_trace()
 
-    def run_after_pass(module, pass_info):
+    def run_after_pass(self, module, pass_info):
         if pass_info.name == "ManifestAlloc":
             pass  # import pdb; pdb.set_trace()
 

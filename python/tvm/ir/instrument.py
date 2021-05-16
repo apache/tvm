@@ -103,21 +103,21 @@ def pass_instrument(pi_cls=None):
                 self.skip_pass_name = skip_pass_name
 
             # Uncomment to customize
-            # def set_up():
+            # def set_up(self):
             #    pass
 
             # Uncomment to customize
-            # def tear_down():
+            # def tear_down(self):
             #    pass
 
             # If pass name contains keyword, skip it by return False. (return True: not skip)
-            def run_before_pass(mod, pass_info):
+            def run_before_pass(self, mod, pass_info):
                 if self.skip_pass_name in pass_info.name:
                     return False
                 return True
 
             # Uncomment to customize
-            # def run_after_pass(mod, pass_info):
+            # def run_after_pass(self, mod, pass_info):
             #    pass
 
         skip_annotate = SkipPass("AnnotateSpans")
