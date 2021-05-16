@@ -504,19 +504,28 @@ def uniform(gen, low, high, out_shape, out_dtype):
         Tensor of random numbers with shape `out_shape` and type `out_dtype`.
     """
     new_gen, random_bits = threefry_generate(gen, out_shape)
-    nbits = 64
     if out_dtype == "float32":
+        random_dtype = "uint32"
+        nbits = 32
         nfraction = 23
     elif out_dtype == "float64":
+        random_dtype = "uint64"
+        nbits = 64
         nfraction = 52
+    nexp = nbits - nfraction - 1
+    random_bits = random_bits.astype(random_dtype)
 
-    def uniform_scalar(bits):
-        bits = bits >> (nbits - nfraction)
-        standard_uniform = bits.astype(out_dtype) / tir.const(1 << nfraction, dtype=out_dtype)
-        return standard_uniform
-
-    standard_uniform_values = tvm.te.compute(out_shape, lambda *i: uniform_scalar(random_bits(*i)))
-
+    fraction = tvm.topi.right_shift(
+        random_bits, tvm.tir.const(nbits - nfraction, dtype=random_dtype)
+    )
+    exponent = tvm.topi.left_shift(
+        tvm.topi.full(out_shape, random_dtype, (1 << (nexp - 1)) - 1),
+        tvm.tir.const(nfraction, dtype=random_dtype),
+    )
+    mantissa = tvm.topi.bitwise_or(fraction, exponent).astype(random_dtype)
+    standard_uniform_values = tvm.topi.reinterpret(mantissa, out_dtype) - tvm.tir.const(
+        1, dtype=out_dtype
+    )
     uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
 
     return new_gen, uniform_values
