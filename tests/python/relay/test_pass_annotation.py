@@ -32,6 +32,7 @@ class Trace:
     def run_before_pass(self, module, pass_info):
         if pass_info.name == "ManifestAlloc":
             pass  # import pdb; pdb.set_trace()
+        return True
 
     def run_after_pass(self, module, pass_info):
         if pass_info.name == "ManifestAlloc":
