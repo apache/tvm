@@ -54,7 +54,7 @@ ExternalProject_Add(custom_dso_loader
             -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=${CMAKE_BUILD_WITH_INSTALL_NAME_DIR}
         )
 
-# To Xcode project wrapper to integrate into Cmake
+# iOS RPC Xcode project wrapper to integrate into Cmake
 ExternalProject_Add(ios_rpc
         PREFIX ios_rpc
         DEPENDS custom_dso_loader
