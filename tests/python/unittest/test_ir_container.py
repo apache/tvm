@@ -44,6 +44,7 @@ def test_map():
     assert a in dd
     assert b in dd
     assert a + 1 not in amap
+    assert {x for x in amap} == {a, b}
 
 
 def test_str_map():
