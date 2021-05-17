@@ -313,8 +313,10 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
     temp << "NAN";
   } else {
     temp << std::scientific << op->value;
-    if (op->dtype.bits() == 32) temp << 'f';
-    else if (op->dtype.bits() == 16) temp << 'h';
+    if (op->dtype.bits() == 32)
+      temp << 'f';
+    else if (op->dtype.bits() == 16)
+      temp << 'h';
   }
   MarkConst(temp.str());
   os << temp.str();
