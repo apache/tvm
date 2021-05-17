@@ -57,7 +57,6 @@ class CodeGenMetal final : public CodeGenC {
   using CodeGenC::PrintType;
 
  private:
-  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenMetal* p);
   int thread_index_bits_{32};
 };
 }  // namespace codegen

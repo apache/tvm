@@ -101,10 +101,8 @@ static PrimExpr DispatchFastErf(const PrimExpr& e) {
   int bits = arg.dtype().bits();
   bool isFloat = arg.dtype().is_float();
   PrimExpr res;
-  if (isFloat && bits == 16)
-    res = topi::fast_erf_float_expr(arg, 16);
-  else if (isFloat && bits == 32)
-    res = topi::fast_erf_float_expr(arg, 32);
+  if (isFloat && (bits == 16 || bits == 32))
+    res = topi::fast_erf_float_expr(arg, bits);
   else
     LOG(FATAL) << "Unsupported type in Metal fast_erf";
   return res;
