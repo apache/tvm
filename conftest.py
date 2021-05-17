@@ -33,6 +33,11 @@ def dev(target):
 
 def pytest_generate_tests(metafunc):
     tvm.testing._auto_parametrize_target(metafunc)
+    tvm.testing._parametrize_correlated_parameters(metafunc)
+
+
+def pytest_collection_modifyitems(config, items):
+    tvm.testing._count_num_fixture_uses(items)
 
 
 def pytest_sessionfinish(session, exitstatus):

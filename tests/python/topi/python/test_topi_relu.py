@@ -29,14 +29,13 @@ import pytest
 import tvm.testing
 
 
-@pytest.mark.parametrize(
-    "m, n, dtype",
-    [
-        (10, 128, "float32"),
-        (128, 64, "float16"),
-        (1024 * 100, 512, "float32"),
-    ],
+m, n, dtype = tvm.testing.parameters(
+    (10, 128, "float32"),
+    (128, 64, "float16"),
+    (1024 * 100, 512, "float32"),
 )
+
+
 def test_relu(target, dev, m, n, dtype):
     A = te.placeholder((m, n), name="A", dtype=dtype)
     B = topi.nn.relu(A)
@@ -58,9 +57,11 @@ def test_relu(target, dev, m, n, dtype):
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 
-@pytest.mark.parametrize("m, alpha", [(100, 0.1)])
-def test_leaky_relu(m, alpha):
-    A = te.placeholder((m,), name="A")
+size, alpha = tvm.testing.parameters((100, 0.1))
+
+
+def test_leaky_relu(size, alpha):
+    A = te.placeholder((size,), name="A")
     B = topi.nn.leaky_relu(A, alpha)
     s = te.create_schedule([B.op])
 
@@ -74,14 +75,13 @@ def test_leaky_relu(m, alpha):
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
-@pytest.mark.parametrize(
-    "x, w, axis, weight_reshape",
-    [
-        ((1, 3, 2, 2), (3,), 1, (3, 1, 1)),
-        ((1, 3, 2, 2), (2,), 2, (2, 1)),
-        ((1, 3), (3,), 1, (3,)),
-    ],
+x, w, axis, weight_reshape = tvm.testing.parameters(
+    ((1, 3, 2, 2), (3,), 1, (3, 1, 1)),
+    ((1, 3, 2, 2), (2,), 2, (2, 1)),
+    ((1, 3), (3,), 1, (3,)),
 )
+
+
 def test_prelu(x, w, axis, weight_reshape):
     X = te.placeholder((x), name="X")
     W = te.placeholder((w), name="W")
