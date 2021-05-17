@@ -3148,7 +3148,7 @@ class OperatorConverter(object):
         input_expr = self.get_tensor_expr(input_tensors[0])
         axis = self.get_tensor_value(input_tensors[1])
         if isinstance(axis, np.ndarray):
-            assert len(axis) == 1, "only one value is expected."
+            assert axis.size == 1, "only one value is expected."
             axis = int(axis)
 
         ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
