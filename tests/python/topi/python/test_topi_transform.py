@@ -873,7 +873,7 @@ def test_transpose():
 
 @tvm.testing.parametrize_targets
 def test_transpose_schedule(target, dev):
-    shape = (100, 34)
+    shape = (100, target.thread_warp_size + 3)
     x = relay.var("x", relay.TensorType(shape, "float32"))
     f = relay.transpose(x)
     ex = relay.create_executor(
@@ -882,7 +882,8 @@ def test_transpose_schedule(target, dev):
     r = np.random.rand(*shape)
     tvm.testing.assert_allclose(ex.evaluate()(r).asnumpy(), np.transpose(r))
 
-    # make sure schedule does not fire here
+    # We want to make sure schedule does not fire here, but there is no way of
+    # inspecting which schedules were used.
     x = relay.var("x", relay.TensorType(shape, "float32"))
     y = relay.var("y", relay.TensorType(shape, "float32"))
     f = relay.transpose(x + y)
