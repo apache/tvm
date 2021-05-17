@@ -184,7 +184,7 @@ def check_result(res):
     predictions = np.squeeze(res)
     prediction = np.argmax(predictions)
     # 387 is the elephant
-    tvm.testing.assert_allclose(prediction, 387, rtol=1e-5, atol=1e-5)
+    assert prediction == 387
 
 
 def print_test_info(lanes, cycles):
