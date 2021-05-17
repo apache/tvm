@@ -18,11 +18,12 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm.contrib.thrust import can_use_thrust
-from .generic import *
+from tvm.te import SpecializedCondition
+
 from .. import op as _op
+from .generic import *
 
 
 @schedule_injective.register(["cuda", "gpu"])
@@ -721,12 +722,21 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     """batch_matmul cuda strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.cuda.batch_matmul),
-        wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
-        name="batch_matmul.cuda",
-        plevel=10,
-    )
+    x, y = inputs
+    if x.dtype == "int8" and y.dtype == "int8" and out_type.dtype == "int32":
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.cuda.batch_matmul_int8, need_out_dtype=True),
+            wrap_topi_schedule(topi.cuda.schedule_batch_matmul_int8),
+            name="batch_matmul_int8.cuda",
+            plevel=10,
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.cuda.batch_matmul),
+            wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
+            name="batch_matmul.cuda",
+            plevel=10,
+        )
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),
@@ -777,7 +787,7 @@ def sparse_reshape_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@sparse_dense_padded_strategy.register(["cuda", "gpu"])
+@sparse_dense_padded_strategy.register(["cuda", "gpu", "rocm"])
 def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     """sparse dense cuda strategy"""
     strategy = _op.OpStrategy()
@@ -945,6 +955,18 @@ def nms_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@all_class_nms_strategy.register(["cuda", "gpu"])
+def all_class_nms_strategy_cuda(attrs, inputs, out_type, target):
+    """all class nms cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_all_class_nms(topi.cuda.all_class_non_max_suppression),
+        wrap_topi_schedule(topi.cuda.schedule_nms),
+        name="all_class_nms.cuda",
+    )
+    return strategy
+
+
 @roi_align_strategy.register(["cuda", "gpu"])
 def roi_align_strategy_cuda(attrs, inputs, out_type, target):
     """roi_align cuda strategy"""
@@ -1017,9 +1039,21 @@ def cumsum_strategy_cuda(attrs, inputs, out_type, target):
     """cumsum cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_cumsum(topi.cuda.cumsum),
+        wrap_compute_scanop(topi.cuda.cumsum),
         wrap_topi_schedule(topi.cuda.schedule_scan),
         name="cumsum.cuda",
+    )
+    return strategy
+
+
+@cumprod_strategy.register(["cuda", "gpu"])
+def cumprod_strategy_cuda(attrs, inputs, out_type, target):
+    """cumprod cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.cuda.cumprod),
+        wrap_topi_schedule(topi.cuda.schedule_scan),
+        name="cumprod.cuda",
     )
     return strategy
 

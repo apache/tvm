@@ -174,7 +174,7 @@ class PackedFuncCell implements Disposable {
 
 const DeviceEnumToStr: Record<number, string> = {
   1: "cpu",
-  2: "gpu",
+  2: "cuda",
   4: "opencl",
   8: "metal",
   15: "webgpu"
@@ -182,7 +182,6 @@ const DeviceEnumToStr: Record<number, string> = {
 
 const DeviceStrToEnum: Record<string, number> = {
   cpu: 1,
-  gpu: 2,
   cuda: 2,
   cl: 4,
   opencl: 4,
@@ -194,8 +193,8 @@ const DeviceStrToEnum: Record<string, number> = {
 /**
  * Represent a runtime context where a NDArray can reside.
  */
-export class DLContext {
-  /** The device type code of the context. */
+export class DLDevice {
+  /** The device type code of the device. */
   deviceType: number;
   /** The device index. */
   deviceId: number;
@@ -219,7 +218,7 @@ export class DLContext {
   }
 
   /**
-   * Synchronize the context
+   * Synchronize the device
    */
   async sync(): Promise<void> {
     if (this.deviceType == DeviceStrToEnum.webgpu) {
@@ -294,8 +293,8 @@ export class NDArray implements Disposable {
   dtype: string;
   /** Shape of the array. */
   shape: Array<number>;
-  /** Context of the array. */
-  context: DLContext;
+  /** Device of the array. */
+  device: DLDevice;
   /** Whether it is a temporary view that can become invalid after the call. */
   private isView: boolean;
   private byteOffset: number;
@@ -319,7 +318,7 @@ export class NDArray implements Disposable {
     const arrayOffsetContext = arrayOffsetData + this.lib.sizeofPtr();
     const arrayOffsetDevType = arrayOffsetContext;
     const arrayOffsetDevId = arrayOffsetContext + SizeOf.I32;
-    const arrayOffsetNdim = arrayOffsetContext + SizeOf.DLContext;
+    const arrayOffsetNdim = arrayOffsetContext + SizeOf.DLDevice;
     const arrayOffsetDtype = arrayOffsetNdim + SizeOf.I32;
     const arrayOffsetDtypeCode = arrayOffsetDtype;
     const arrayOffsetDtypeBits = arrayOffsetDtype + SizeOf.U8;
@@ -344,10 +343,10 @@ export class NDArray implements Disposable {
     this.dlDataType = new DLDataType(code, bits, lanes);
     this.dtype = this.dlDataType.toString();
 
-    // ctx
+    // device
     const deviceType = lib.memory.loadI32(this.dltensor + arrayOffsetDevType);
     const deviceId = lib.memory.loadI32(this.dltensor + arrayOffsetDevId);
-    this.context = new DLContext(deviceType, deviceId, lib);
+    this.device = new DLDevice(deviceType, deviceId, lib);
 
     // byte_offset
     this.byteOffset = lib.memory.loadI64(this.dltensor + arrayOffsetByteOffset);
@@ -442,7 +441,7 @@ export class NDArray implements Disposable {
    * @returns The result array.
    */
   toRawBytes(): Uint8Array {
-    if (this.context.deviceType != DeviceStrToEnum.cpu) {
+    if (this.device.deviceType != DeviceStrToEnum.cpu) {
       throw new Error("Can only synchronize copy for GPU array, use copyfrom instead.");
     }
     const size = this.shape.reduce((a, b) => {
@@ -570,13 +569,13 @@ export class Module implements Disposable {
 }
 
 /**
- *  Graph runtime.
+ *  Graph executor.
  *
  *  This is a thin wrapper of the underlying TVM module.
  *  you can also directly call set_input, run, and get_output
  *  of underlying module functions
  */
-class GraphRuntime implements Disposable {
+class GraphExecutor implements Disposable {
   module: Module;
   private packedSetInput: PackedFunc;
   private packedRun: PackedFunc;
@@ -648,22 +647,22 @@ class GraphRuntime implements Disposable {
 
   /**
    * Benchmark stable execution of the graph(without data copy).
-   * @params ctx The context to sync during each run.
+   * @params dev The device to sync during each run.
    * @number The number of times to compute the average.
    * @repeat The number of times to repeat the run.
    */
-  async benchmarkRuns(ctx: DLContext, number=10, repeat=4): Promise<number[]> {
+  async benchmarkRuns(dev: DLDevice, number=10, repeat=4): Promise<number[]> {
     // Skip first run as it can involve GPU warmup and module loading time.
     const perf = compact.getPeformance();
     const results = [];
     this.run();
-    await ctx.sync();
+    await dev.sync();
     for (let k = 0; k < repeat; ++k) {
       const tstart = perf.now();
       for (let i = 0; i < number; ++i) {
         this.run();
       }
-      await ctx.sync();
+      await dev.sync();
       const tend = perf.now();
       results.push((tend - tstart) / number);
     }
@@ -917,29 +916,29 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Create a new {@link DLContext}
+   * Create a new {@link DLDevice}
    * @param deviceType The device type.
    * @param deviceId The device index.
-   * @returns The created context.
+   * @returns The created device.
    */
-  context(deviceType: number | string, deviceId = 0): DLContext {
-    return new DLContext(deviceType, deviceId, this.lib);
+  device(deviceType: number | string, deviceId = 0): DLDevice {
+    return new DLDevice(deviceType, deviceId, this.lib);
   }
 
   /**
-   * Create a new cpu {@link DLContext}
+   * Create a new cpu {@link DLDevice}
    * @param deviceId The device index.
    */
-  cpu(deviceId = 0): DLContext {
-    return this.context("cpu", deviceId);
+  cpu(deviceId = 0): DLDevice {
+    return this.device("cpu", deviceId);
   }
 
   /**
-   * Create a new webgpu {@link DLContext}
+   * Create a new webgpu {@link DLDevice}
    * @param deviceId The device index.
    */
-  webgpu(deviceId = 0): DLContext {
-    return this.context("webgpu", deviceId);
+  webgpu(deviceId = 0): DLDevice {
+    return this.device("webgpu", deviceId);
   }
 
   /**
@@ -947,13 +946,13 @@ export class Instance implements Disposable {
    *
    * @param shape The shape of the array.
    * @param dtype The data type of the array.
-   * @param ctx The context of the ndarray.
+   * @param dev The device of the ndarray.
    * @returns The created ndarray.
    */
   empty(
     shape: Array<number> | number,
     dtype: string | DLDataType = "float32",
-    ctx: DLContext = this.context("cpu", 0)
+    dev: DLDevice = this.device("cpu", 0)
   ): NDArray {
     dtype = this.toDLDataType(dtype);
     shape = typeof shape == "number" ? [shape] : shape;
@@ -975,8 +974,8 @@ export class Instance implements Disposable {
         dtype.code,
         dtype.bits,
         dtype.lanes,
-        ctx.deviceType,
-        ctx.deviceId,
+        dev.deviceType,
+        dev.deviceId,
         outPtr
       )
     );
@@ -986,24 +985,20 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Create a new graph runtime.
+   * Create a new graph executor.
    *
-   * @param graphJson The graph runtime json file.
+   * @param graphJson The graph executor json file.
    * @param lib The underlying library.
-   * @param ctx The execution context of the graph.
+   * @param dev The execution device of the graph.
    */
-  createGraphRuntime(
-    graphJson: string,
-    lib: Module,
-    ctx: DLContext
-  ): GraphRuntime {
-    const fcreate = this.getGlobalFunc("tvm.graph_runtime.create");
+  createGraphExecutor(graphJson: string, lib: Module, dev: DLDevice): GraphExecutor {
+    const fcreate = this.getGlobalFunc('tvm.graph_executor.create');
     const module = fcreate(
       graphJson,
       lib,
-      this.scalar(ctx.deviceType, "int32"),
-      this.scalar(ctx.deviceId, "int32")) as Module;
-    return new GraphRuntime(module);
+      this.scalar(dev.deviceType, "int32"),
+      this.scalar(dev.deviceId, "int32")) as Module;
+    return new GraphExecutor(module);
   }
 
 
@@ -1059,13 +1054,13 @@ export class Instance implements Disposable {
     // Helper function to time the finvoke
     const timeExecution = async (
       finvoke: PackedFunc,
-      ctx: DLContext,
+      dev: DLDevice,
       nstep: number,
       repeat: number,
       minRepeatMs: number
     ): Promise<Uint8Array> => {
       finvoke(this.scalar(1, "int32"));
-      await ctx.sync();
+      await dev.sync();
       const result = [];
       let setupNumber: number = nstep;
 
@@ -1079,7 +1074,7 @@ export class Instance implements Disposable {
           }
           const tstart: number = perf.now();
           finvoke(this.scalar(setupNumber, "int32"));
-          await ctx.sync();
+          await dev.sync();
           const tend: number = perf.now();
 
           durationMs = tend - tstart;
@@ -1162,10 +1157,10 @@ export class Instance implements Disposable {
           stack.storePtr(valueOffset, val.value);
           stack.storeI32(codeOffset, ArgTypeCode.TVMOpaqueHandle);
         }
-      } else if (val instanceof DLContext) {
+      } else if (val instanceof DLDevice) {
         stack.storeI32(valueOffset, val.deviceType);
         stack.storeI32(valueOffset + SizeOf.I32, val.deviceType);
-        stack.storeI32(codeOffset, ArgTypeCode.TVMContext);
+        stack.storeI32(codeOffset, ArgTypeCode.DLDevice);
       } else if (tp == "number") {
         stack.storeF64(valueOffset, val);
         stack.storeI32(codeOffset, ArgTypeCode.Float);
@@ -1328,10 +1323,10 @@ export class Instance implements Disposable {
         );
       }
       case ArgTypeCode.Null: return undefined;
-      case ArgTypeCode.TVMContext: {
+      case ArgTypeCode.DLDevice: {
         const deviceType = this.memory.loadI32(rvaluePtr);
         const deviceId = this.memory.loadI32(rvaluePtr + SizeOf.I32);
-        return this.context(deviceType, deviceId);
+        return this.device(deviceType, deviceId);
       }
       case ArgTypeCode.TVMStr: {
         const ret = this.memory.loadCString(this.memory.loadPointer(rvaluePtr));

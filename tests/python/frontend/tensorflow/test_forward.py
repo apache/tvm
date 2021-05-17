@@ -48,6 +48,7 @@ from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
 from packaging import version as package_version
 
 import tvm.testing
@@ -110,7 +111,7 @@ def run_tvm_graph(
     target="llvm",
     out_names=None,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     layout=None,
     disabled_pass=None,
@@ -132,9 +133,9 @@ def run_tvm_graph(
     mod, params = relay.frontend.from_tensorflow(
         graph_def, layout=layout, shape=shape_dict, outputs=out_names
     )
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -164,10 +165,11 @@ def run_tvm_graph(
         return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
-            graph, lib, params = relay.build(mod, target, target_host, params)
-        from tvm.contrib import graph_runtime
+            target = tvm.target.Target(target, target_host)
+            graph, lib, params = relay.build(mod, target=target, params=params)
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_executor.create(graph, lib, dev)
         # set inputs
         for e, i in zip(input_node, input_data):
             if e != "":
@@ -207,9 +209,11 @@ def compare_tf_with_tvm(
     init_global_variables=False,
     no_gpu=False,
     opt_level=3,
-    mode="graph_runtime",
+    mode="graph_executor",
     cuda_layout="NCHW",
     add_shapes_to_graph_def=True,
+    targets=None,
+    ignore_in_shape=False,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -233,12 +237,17 @@ def compare_tf_with_tvm(
 
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
-        for device in ["llvm", "cuda"]:
-            ctx = tvm.context(device, 0)
+        devices = targets if targets else ["llvm", "cuda"]
+
+        for device in devices:
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
             if no_gpu and device == "cuda":
+                continue
+            if "cublas" in device and not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+                print("Skip because cublas is not enabled: %s" % device)
                 continue
 
             tvm_output = run_tvm_graph(
@@ -251,6 +260,7 @@ def compare_tf_with_tvm(
                 opt_level=opt_level,
                 mode=mode,
                 cuda_layout=cuda_layout,
+                ignore_in_shape=ignore_in_shape,
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
@@ -306,6 +316,22 @@ def _test_pooling(input_shape, **kwargs):
             _test_pooling_iteration(input_shape, **kwargs)
 
 
+def _test_pooling_dynamic(input_shape, np_shape, **kwargs):
+    """ Pooling with dynamic height and width dimensions. """
+    x = -np.arange(np.prod(np_shape), dtype=np.float32).reshape(np_shape) - 1
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype="float32")
+        nn_ops.pool(in_data, **kwargs)
+
+        if kwargs["pooling_type"] == "MAX":
+            out_name = "max_pool:0"
+        else:
+            out_name = "avg_pool:0"
+
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, mode="vm", ignore_in_shape=True)
+
+
 @tvm.testing.uses_gpu
 def test_forward_pooling():
     """ Pooling """
@@ -337,6 +363,16 @@ def test_forward_pooling():
             pooling_type=pool_type,
             dilation_rate=[1, 1, 1],
             strides=[2, 2, 2],
+        )
+
+        _test_pooling_dynamic(
+            input_shape=[1, None, None, 3],
+            np_shape=[1, 32, 32, 3],
+            window_shape=[2, 2],
+            padding="SAME",
+            pooling_type=pool_type,
+            dilation_rate=[1, 1],
+            strides=[1, 1],
         )
 
         # test cases for max_pool3d & avg_pool3d with layout NCDHW
@@ -1683,7 +1719,7 @@ def test_forward_variable():
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
-def test_read_variable_op(target, ctx):
+def test_read_variable_op(target, dev):
     """ Read Variable op test """
 
     tf.reset_default_graph()
@@ -1781,6 +1817,23 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
         compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
 
 
+def _test_batch_matmul_dynamic(
+    A_shape, B_shape, A_np_shape, B_np_shape, dtype, adjoint_a=False, adjoint_b=False
+):
+    with tf.Graph().as_default():
+        A = tf.placeholder(shape=A_shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+        result = tf.matmul(A, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
+
+        A_np = np.random.uniform(high=5.0, size=A_np_shape).astype(dtype)
+        B_np = np.random.uniform(high=5.0, size=B_np_shape).astype(dtype)
+        # for now, in TOPI, only cublas's implementation support dynamic shape
+        # TODO add more backends support in TOPI
+        compare_tf_with_tvm(
+            [A_np, B_np], [A.name, B.name], result.name, mode="vm", targets=["cuda -libs=cublas"]
+        )
+
+
 def test_forward_batch_matmul():
     """ TF op BatchMatMul, BatchMatMulV2 test"""
     _test_batch_matmul((3, 5, 4), (3, 4, 5), "int32")
@@ -1791,6 +1844,33 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
+
+
+@tvm.testing.requires_cuda
+def test_forward_batch_matmul_dynamic():
+    _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "float32", True, True
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 5, 4), (3, 5, 4), (3, 5, 4), "int32", True, False
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 4), (None, 5, 4), (3, 5, 4), (3, 5, 4), "float32", False, True
+    )
+    _test_batch_matmul_dynamic(
+        (None, 4, 5, 6), (None, 4, 6, 5), (3, 4, 5, 6), (3, 4, 6, 5), "float32"
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, 5, 6), (None, None, 6, 5), (3, 4, 5, 6), (3, 4, 6, 5), "float32"
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, None, 5, 6),
+        (None, None, None, 6, 5),
+        (2, 3, 4, 5, 6),
+        (2, 3, 4, 6, 5),
+        "float32",
+    )
 
 
 #######################################################################
@@ -2625,14 +2705,14 @@ def test_forward_truncatemod():
 # --------------------------
 
 
-def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
+def _test_gather(ip_shape, indice_shape, indice_value, axis, batch_dims, dtype):
     """ One iteration of a GatherV2 """
 
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data = tf.placeholder(dtype, ip_shape, name="in_data")
         indices = tf.placeholder("int32", indice_shape, name="indices")
-        out = tf.gather(in_data, indices, axis=axis)
+        out = tf.gather(in_data, indices, axis=axis, batch_dims=batch_dims)
         np_data = np.random.uniform(1, 10, size=ip_shape).astype(dtype)
 
         def _fill_indices(indice_value):
@@ -2644,22 +2724,34 @@ def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
             return indices
 
         np_indices = _fill_indices(indice_value)
-
         compare_tf_with_tvm([np_data, np_indices], ["in_data:0", "indices:0"], out.name)
 
 
 def test_forward_gather():
     """test Gather/GatherV2 layer"""
-    _test_gather((4,), (1,), 1, 0, "int32")
-    _test_gather((4,), (1,), 1, 0, "float32")
-    _test_gather((1, 4), (1,), [0], 0, "int32")
-    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "float32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "int32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, "int32")
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, "float32")
-    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, "int32")
-    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, "int32")
-    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, "float32")
+    _test_gather((4,), (1,), 1, 0, 1, "int32")
+    _test_gather((4,), (1,), 1, 0, 0, "float32")
+    _test_gather((1, 4), (1,), [0], 0, 0, "int32")
+    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "float32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "int32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, 0, "int32")
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 0, "float32")
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 0, "int32")
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 0, "int32")
+    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 0, "float32")
+    _test_gather((2, 2), (2, 2), [[0, 0], [0, 0]], 1, 1, "float32")
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 2, 2, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 1, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 2, "float32"
+    )
+    _test_gather(
+        (2, 2, 3, 6), (2, 2, 3), [[[1, 1, 0], [0, 0, 1]], [[0, 1, 0], [1, 0, 1]]], 3, 0, "float32"
+    )
 
 
 #######################################################################
@@ -2996,6 +3088,33 @@ def test_forward_resize():
     _test_resize_bilinear_from_tensor((6, 50, 50, 3), True)
     _test_resize_nearest_neighbor((6, 32, 32, 3), [20, 20])
     _test_resize_nearest_neighbor_dynamic_shape((1, 16, 16, 3), scale=[2, 2])
+
+
+#######################################################################
+# BroadcastArgs
+# -----------
+
+
+def _test_broadcast_args(in_shape_1, in_shape_2):
+    """ One iteration of broadcast_args"""
+
+    shape_1 = np.array(in_shape_1).astype("int32")
+    shape_2 = np.array(in_shape_2).astype("int32")
+
+    with tf.Graph().as_default():
+        shape_1 = constant_op.constant(shape_1, shape=shape_1.shape, dtype=shape_1.dtype)
+        shape_2 = constant_op.constant(shape_2, shape=shape_2.shape, dtype=shape_2.dtype)
+        tf.raw_ops.BroadcastArgs(s0=shape_1, s1=shape_2)
+
+        compare_tf_with_tvm(None, "", "BroadcastArgs:0", opt_level=0)
+
+
+def test_forward_broadcast_args():
+    """ Resize Bilinear """
+
+    _test_broadcast_args((4, 1, 32, 32), [4, 8, 32, 32])
+    _test_broadcast_args((6, 32, 32, 1), [6, 32, 32, 16])
+    _test_broadcast_args((32, 32, 16), [6, 32, 32, 16])
 
 
 #######################################################################
@@ -3541,7 +3660,7 @@ def test_forward_logical():
 
 
 #######################################################################
-# Where, Select
+# Where, Select, SelectV2
 # -------------
 def test_forward_where():
     """ Where: return elements depending on conditions"""
@@ -3667,7 +3786,7 @@ def test_forward_resnetv2():
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, "input_tensor:0", out_node + ":0")
                 for device in ["llvm", "cuda"]:
-                    ctx = tvm.context(device, 0)
+                    dev = tvm.device(device, 0)
                     if not tvm.testing.device_enabled(device):
                         print("Skip because %s is not enabled" % device)
                         continue
@@ -3704,7 +3823,7 @@ def _test_ssd_impl():
             )
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -3806,10 +3925,10 @@ def test_forward_ptb():
         target = "llvm"
         with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod, target, params=params)
-        from tvm.contrib import graph_runtime
+        from tvm.contrib import graph_executor
 
-        ctx = tvm.cpu(0)
-        return params, graph_runtime.create(graph, lib, ctx)
+        dev = tvm.cpu(0)
+        return params, graph_executor.create(graph, lib, dev)
 
     def _do_tvm_sample(model, data, in_states, params, num_samples):
         """Sampled from the model"""
@@ -4023,7 +4142,7 @@ def test_forward_floor():
 def test_forward_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.relu(in1)
@@ -4033,7 +4152,7 @@ def test_forward_relu():
 def test_forward_leaky_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    for mode in ["graph_runtime", "vm"]:
+    for mode in ["graph_executor", "vm"]:
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.nn.leaky_relu(in1, alpha=0.4)
@@ -5221,7 +5340,7 @@ def test_forward_dynamic_input_shape():
             tf_output = run_tf_graph(sess, np_data, "data:0", ["{}:0".format(out_name)])
             # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
             for device in ["llvm"]:
-                ctx = tvm.context(device, 0)
+                dev = tvm.device(device, 0)
                 if not tvm.testing.device_enabled(device):
                     print("Skip because %s is not enabled" % device)
                     continue
@@ -5398,6 +5517,38 @@ def test_forward_unique_with_counts():
         for is_dyn in [False, True]:
             _test_unique_with_counts(10, dtype, is_dyn)
             _test_unique_with_counts(20, dtype, is_dyn)
+
+
+#######################################################################
+# check graph ir for nn.moments
+# ------------
+
+
+def test_moments():
+    g = tf.Graph()
+    shape = [4, 176, 8, 8]
+    dtype = "float32"
+    with g.as_default():
+        A = tf.placeholder(shape=shape, dtype=dtype, name="A")
+        B = tf.placeholder(shape=shape, dtype=dtype, name="B")
+        mean, variance = tf.nn.moments(A, [1], keep_dims=True)
+        normalised_input = (A - mean) / tf.sqrt(variance + 0.0005)
+
+    mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
+    program = """
+    def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
+        %527 = mean(%A, axis=[1], keepdims=True) /* moments/mean */;
+        %528 = subtract(%A, %527) /* sub */;
+        %529 = subtract(%A, %527);
+        %530 = multiply(%529, %529) /* moments/SquaredDifference */;
+        %531 = mean(%530, axis=[1], keepdims=True) /* moments/variance */;
+        %532 = add(%531, 0.0005f) /* add */;
+        %533 = sqrt(%532) /* Sqrt */;
+        divide(%528, %533) /* truediv */
+    }
+    """
+    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 
 if __name__ == "__main__":

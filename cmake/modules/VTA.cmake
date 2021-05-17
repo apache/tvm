@@ -60,6 +60,7 @@ elseif(PYTHON)
     # Target lib: vta_fsim
     add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
     target_include_directories(vta_fsim SYSTEM PUBLIC ${VTA_HW_PATH}/include)
+    target_compile_definitions(vta_fsim PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_fsim PUBLIC ${__strip_def})
@@ -81,6 +82,7 @@ elseif(PYTHON)
     # Target lib: vta_tsim
     add_library(vta_tsim SHARED ${TSIM_RUNTIME_SRCS})
     target_include_directories(vta_tsim SYSTEM PUBLIC ${VTA_HW_PATH}/include)
+    target_compile_definitions(vta_tsim PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_tsim PUBLIC ${__strip_def})
@@ -101,12 +103,18 @@ elseif(PYTHON)
       # Rules for Pynq v2.4
       find_library(__cma_lib NAMES cma PATH /usr/lib)
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
-      file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/de10nano/*.cc ${VTA_HW_PATH}/src/*.cc)
+      file(GLOB DE10_FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/de10nano/*.cc ${VTA_HW_PATH}/src/*.cc)
+      list(APPEND FPGA_RUNTIME_SRCS ${DE10_FPGA_RUNTIME_SRCS})
+    elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
+      file(GLOB FOCL_SRC ${VTA_HW_PATH}/src/oclfpga/*.cc)
+      list(APPEND FPGA_RUNTIME_SRCS ${FOCL_SRC})
+      list(APPEND FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/vmem/virtual_memory.cc ${VTA_HW_PATH}/src/vmem/virtual_memory.h)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
     target_include_directories(vta PUBLIC vta/runtime)
     target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
+    target_compile_definitions(vta PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta PUBLIC ${__strip_def})
@@ -120,6 +128,10 @@ elseif(PYTHON)
       target_include_directories(vta SYSTEM PUBLIC 3rdparty)
       target_include_directories(vta SYSTEM PUBLIC
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
+    elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
+      target_include_directories(vta PUBLIC 3rdparty)
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+      target_link_libraries(vta -lOpenCL)
     endif()
   endif()
 

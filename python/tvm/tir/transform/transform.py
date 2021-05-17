@@ -536,3 +536,90 @@ def HoistIfThenElse(variant=None):
         return _ffi_api.HoistIfThenElseBasic()
     elif variant is None:
         return _ffi_api.HoistIfThenElse()
+
+
+def LowerInitBlock():
+    """Lower block init stmt into IfThenElse stmts
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerInitBlock()
+
+
+def PlanAndUpdateBufferAllocationLocation():
+    """Locate the buffer allocation to the exact position (usually is
+    the lca of buffer access). This pass will inject opaque block
+    with alloc_buffers at the allocation site.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.PlanAndUpdateBufferAllocationLocation()
+
+
+def ConvertBlocksToOpaque():
+    """Substitute all the block vars with the PrimExprs they are bound to, indicated by
+    the corresponding iter_values in BlockRealize, and then convert the blocks into
+    opaque ones by removing all the iter_values in BlockRealize and iter_vars in Block.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ConvertBlocksToOpaque()
+
+
+def CompactBufferAllocation():
+    """Compact the buffer access region. by removing the buffer regions that are not accessed,
+    i.e. narrowing the buffer shape and adjust the access region if necessary.
+
+    Example
+    -------
+    Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+    .. code-block:: python
+
+        for i in range(0, 16):
+            with tir.block([]):
+                B = tir.alloc_buffer(16, 16)
+                for j in range(0, 16):
+                    B[i, j] = A[i, j] + 1
+                for j in range(0, 16):
+                    C[i, j] = B[i, j] + 1
+    This pass narrows the buffer shape and adjust its accessed region accordingly.
+    In this particular case, because only a `1 * 16` vector of `B` is accessed,
+    the pass narrows `B` to shape `[1, 16]`, and changes the access to `B[i, j]` to `B[0, j]`.
+    .. code-block:: python
+
+        for i in range(0, 16):
+            with tir.block([]):
+                B = tir.alloc_buffer(1, 16)
+                for j in range(0, 16):
+                    B[0, j] = A[i, j] + 1
+                for j in range(0, 16):
+                    C[i, j] = B[0, j] + 1
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CompactBufferAllocation()
+
+
+def FlattenBuffer():
+    """Flatten the multi-dimensional BufferLoad and BufferStore
+    to single dimensional Load/Store. Also remove Block to
+    ensure that the flattened TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FlattenBuffer()

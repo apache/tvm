@@ -16,8 +16,10 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-
+from typing import Dict
 from . import _ffi_api
+from ..function import PrimFunc
+from .. import Buffer, Stmt
 
 
 def expr_deep_equal(lhs, rhs):
@@ -106,3 +108,63 @@ def verify_gpu_code(func, constraints):
         The result of verification.
     """
     return _ffi_api.verify_gpu_code(func, constraints)
+
+
+def get_block_access_region(block, buffer_var_map):
+    """Detect which regions of tensors in this block are read or written to.
+       Regions are sorted by order of appearance in the AST.
+
+    Parameters
+    ----------
+    block: tvm.tir.Block
+        The block in which we are detecting read/write regions.
+
+    buffer_var_map : Dict[Var, Buffer]
+        The outside buffers which may access the block. Mapping from buffer var to the buffer
+
+    Returns
+    -------
+    result : List[List[BufferRegion]]
+        Array of access regions. There are three arrays of BufferRegion:
+            - first: read regions
+            - second: write regions
+            - third: opaque regions
+    """
+    return _ffi_api.get_block_access_region(block, buffer_var_map)
+
+
+def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int):
+    """Calculate the workspace size in bytes needed by the TIR allocates inside the TIR
+    PrimFunc.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to be detected.
+    workspace_byte_alignment : int
+        The byte alignment required for each tensor
+
+    Returns
+    -------
+    result : int
+        Workspace size in bytes.
+    """
+    return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)
+
+
+def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
+    """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
+    access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
+    The LCA may be a For loop or a Block.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to be detected.
+
+    Returns
+    -------
+    result : Dict[Buffer, Stmt]
+        Map from buffer to the LCA of all access to it.
+    """
+    return _ffi_api.detect_buffer_access_lca(func)  # pylint: disable=no-member

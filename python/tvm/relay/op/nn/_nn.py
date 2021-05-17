@@ -504,6 +504,16 @@ reg.register_schedule("nn.avg_pool2d_grad", strategy.schedule_pool_grad)
 reg.register_pattern("nn.avg_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# adaptive_max_pool1d
+reg.register_schedule("nn.adaptive_max_pool1d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_max_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_avg_pool1d
+reg.register_schedule("nn.adaptive_avg_pool1d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # global_max_pool2d
 reg.register_schedule("nn.global_max_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)

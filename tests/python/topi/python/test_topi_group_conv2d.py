@@ -89,15 +89,15 @@ def verify_group_conv2d_nchw(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
 
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _group_conv2d_nchw_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _group_conv2d_nchw_implement)
             C = fcompute(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
                 C = topi.add(C, bias)
@@ -105,15 +105,15 @@ def verify_group_conv2d_nchw(
                 C = topi.nn.relu(C)
             s = fschedule([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
@@ -132,7 +132,7 @@ def verify_group_conv2d_nchw(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
@@ -149,8 +149,8 @@ def verify_group_conv2d_nchw(
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ["llvm", "cuda"]:
-        check_device(device)
+    for target in ["llvm", "cuda"]:
+        check_target(target)
 
 
 oc_block_factor = 4
@@ -213,17 +213,17 @@ def verify_group_conv2d_NCHWc_int8(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
+        if target == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
 
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
             C = topi.cuda.group_conv2d_NCHWc_int8(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
                 C = topi.add(C, bias)
@@ -231,15 +231,15 @@ def verify_group_conv2d_NCHWc_int8(
                 C = topi.nn.relu(C)
             s = topi.cuda.schedule_group_conv2d_NCHWc_int8([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
@@ -258,7 +258,7 @@ def verify_group_conv2d_NCHWc_int8(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
@@ -275,8 +275,8 @@ def verify_group_conv2d_NCHWc_int8(
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ["cuda"]:
-        check_device(device)
+    for target in ["cuda"]:
+        check_target(target)
 
 
 def verify_group_conv2d_nhwc(
@@ -328,15 +328,15 @@ def verify_group_conv2d_nhwc(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
 
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _group_conv2d_nhwc_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _group_conv2d_nhwc_implement)
             C = fcompute(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
                 C = topi.add(C, bias)
@@ -344,15 +344,15 @@ def verify_group_conv2d_nhwc(
                 C = topi.nn.relu(C)
             s = fschedule([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
@@ -371,7 +371,7 @@ def verify_group_conv2d_nhwc(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
@@ -388,8 +388,8 @@ def verify_group_conv2d_nhwc(
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ["llvm"]:
-        check_device(device)
+    for target in ["llvm"]:
+        check_target(target)
 
 
 @tvm.testing.uses_gpu

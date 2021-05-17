@@ -911,7 +911,7 @@ def _mx_take(inputs, attrs):
     if mode == "raise":
         raise tvm.error.OpAttributeUnimplemented("take with raise mode is not supported yet")
     axis = attrs.get_int("axis", 0)
-    return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
+    return _op.take(inputs[0], inputs[1].astype("int32"), axis=axis, mode=mode)
 
 
 def _mx_gather_nd(inputs, attrs):

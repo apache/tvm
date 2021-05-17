@@ -42,7 +42,7 @@ from .sparse_fill_empty_rows import *
 from .sparse_reshape import *
 from .scatter_add import *
 from .argwhere import *
-from .cumsum import *
+from .scan import *
 from .einsum import *
 from .unique import *
 from . import generic

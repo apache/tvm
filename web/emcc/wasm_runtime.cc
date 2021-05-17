@@ -22,24 +22,26 @@
  * \brief TVM wasm runtime library pack.
  */
 
-// configurations for the dmlc log.
-#define DMLC_LOG_CUSTOMIZE 0
-#define DMLC_LOG_STACK_TRACE 0
-#define DMLC_LOG_DEBUG 0
-#define DMLC_LOG_NODATE 1
-#define DMLC_LOG_FATAL_THROW 0
+// configurations for tvm logging
+#define TVM_LOG_STACK_TRACE 0
+#define TVM_LOG_DEBUG 0
+#define TVM_LOG_CUSTOMIZE 1
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/logging.h>
 
 #include "src/runtime/c_runtime_api.cc"
+#include "src/runtime/contrib/sort/sort.cc"
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/file_utils.cc"
-#include "src/runtime/graph/graph_runtime.cc"
+#include "src/runtime/graph_executor/graph_executor.cc"
 #include "src/runtime/library_module.cc"
+#include "src/runtime/logging.cc"
 #include "src/runtime/module.cc"
 #include "src/runtime/ndarray.cc"
 #include "src/runtime/object.cc"
+#include "src/runtime/profiling.cc"
 #include "src/runtime/registry.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
@@ -64,9 +66,29 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) { return 0
 // --- Environment PackedFuncs for testing ---
 namespace tvm {
 namespace runtime {
+namespace detail {
+// Override logging mechanism
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  std::cerr << "[FATAL] " << file << ":" << lineno << ": " << message << std::endl;
+  abort();
+}
+
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+  std::cout << "[INFO] " << file << ":" << lineno << ": " << message << std::endl;
+}
+
+}  // namespace detail
 
 TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0];
+});
+
+TVM_REGISTER_GLOBAL("testing.log_info_str").set_body([](TVMArgs args, TVMRetValue* ret) {
+  LOG(INFO) << args[0].operator String();
+});
+
+TVM_REGISTER_GLOBAL("testing.log_fatal_str").set_body([](TVMArgs args, TVMRetValue* ret) {
+  LOG(FATAL) << args[0].operator String();
 });
 
 TVM_REGISTER_GLOBAL("testing.add_one").set_body_typed([](int x) { return x + 1; });

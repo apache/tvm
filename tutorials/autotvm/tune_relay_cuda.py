@@ -67,7 +67,7 @@ import tvm
 from tvm import relay, autotvm
 import tvm.relay.testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-import tvm.contrib.graph_runtime as runtime
+import tvm.contrib.graph_executor as runtime
 
 #################################################################
 # Define Network
@@ -237,14 +237,14 @@ def tune_and_evaluate(tuning_opt):
             lib = relay.build_module.build(mod, target=target, params=params)
 
         # load parameters
-        ctx = tvm.context(str(target), 0)
-        module = runtime.GraphModule(lib["default"](ctx))
+        dev = tvm.device(str(target), 0)
+        module = runtime.GraphModule(lib["default"](dev))
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input("data", data_tvm)
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=600)
+        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=600)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print(
             "Mean inference time (std dev): %.2f ms (%.2f ms)"
@@ -345,13 +345,13 @@ def tune_and_evaluate(tuning_opt):
 #
 # .. code-block:: bash
 #
-#     python -m tvm.exec.rpc_server --tracker=0.0.0.0:9190 --key=1080ti
+#     python -m tvm.exec.rpc_server --tracker=127.0.0.1:9190 --key=1080ti
 #
 # After registering devices, we can confirm it by querying rpc_tracker
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=127.0.0.1 --port=9190
 #
 # For example, if we have four 1080ti, two titanx and one gfx900, the output can be
 #
@@ -378,7 +378,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(timeout=10),
         runner=autotvm.RPCRunner(
             "1080ti",  # change the device key to your key
-            "0.0.0.0",
+            "127.0.0.1",
             9190,
             number=20,
             repeat=3,

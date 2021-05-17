@@ -103,7 +103,7 @@ static int ExtractIntWithPrefix(const std::string& str, const std::string& prefi
  * \param val The detected value
  * \return A boolean indicating if detection succeeds
  */
-static bool DetectDeviceFlag(TVMContext device, runtime::DeviceAttrKind flag, TVMRetValue* val) {
+static bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, TVMRetValue* val) {
   using runtime::DeviceAPI;
   DeviceAPI* api = DeviceAPI::Get(device, true);
   // Check if compiled with the corresponding device api
@@ -152,7 +152,7 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
   } else {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
-    if (!DetectDeviceFlag({kDLGPU, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
       arch = 20;
     } else {
@@ -227,9 +227,11 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("runtime")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
+    .add_attr_option<String>("executor")
+    .add_attr_option<Integer>("workspace-byte-alignment")
     .set_default_keys({"cpu"});
 
-TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
+TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
     .add_attr_option<Bool>("system-lib")
@@ -240,7 +242,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
     .add_attr_option<Integer>("max_threads_per_block")
     .set_default_keys({"cuda", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("nvptx", kDLGPU)
+TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
@@ -308,8 +310,7 @@ TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
 TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
-    .add_attr_option<Array<Target>>("devices");
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/
 

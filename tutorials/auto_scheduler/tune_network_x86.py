@@ -17,7 +17,8 @@
 """
 Auto-scheduling a Neural Network for x86 CPU
 ============================================
-**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
+            `Chengfan Jia <https://github.com/jcf94/>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
@@ -48,8 +49,9 @@ import numpy as np
 
 import tvm
 from tvm import relay, auto_scheduler
+from tvm.relay import data_dep_optimization as ddo
 import tvm.relay.testing
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 #################################################################
 # Define a Network
@@ -66,7 +68,7 @@ from tvm.contrib import graph_runtime
 # You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
 
 
-def get_network(name, batch_size, layout="NHWC", dtype="float32"):
+def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=False):
     """Get the symbol definition and random weight of a network"""
 
     # auto-scheduler prefers NHWC layout
@@ -126,6 +128,17 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
             net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
         )
         mod = tvm.IRModule.from_expr(net)
+    elif name == "mlp":
+        mod, params = relay.testing.mlp.get_workload(
+            batch_size=batch_size, dtype=dtype, image_shape=image_shape, num_classes=1000
+        )
+    else:
+        raise ValueError("Network not found.")
+
+    if use_sparse:
+        from tvm.topi.sparse.utils import convert_model_dense_to_sparse
+
+        mod, params = convert_model_dense_to_sparse(mod, params, random_params=True)
 
     return mod, params, input_shape, output_shape
 
@@ -134,6 +147,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 # If the target machine supports avx512 instructions, replace the
 # "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
 network = "resnet-50"
+use_sparse = False
 batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("llvm -mcpu=core-avx2")
@@ -152,8 +166,11 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 # The task scheduler will just optimize this objective.
 
 # Extract tasks from the network
+print("Get model...")
+mod, params, input_shape, output_shape = get_network(
+    network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
+)
 print("Extract tasks...")
-mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
@@ -251,7 +268,7 @@ def run_tuning():
 #   The last line also prints the total number of measurement trials,
 #   total time spent on auto-tuning and the id of the next task to tune.
 #
-#   There will also be some "dmlc::Error"s errors, because the
+#   There will also be some "tvm::Error"s errors, because the
 #   auto-scheduler will try some invalid schedules.
 #   You can safely ignore them if the tuning can continue, because these
 #   errors are isolated from the main process.
@@ -279,15 +296,15 @@ with auto_scheduler.ApplyHistoryBest(log_file):
     with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         lib = relay.build(mod, target=target, params=params)
 
-# Create graph runtime
-ctx = tvm.context(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](ctx))
+# Create graph executor
+dev = tvm.device(str(target), 0)
+module = graph_executor.GraphModule(lib["default"](dev))
 data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
 module.set_input("data", data_tvm)
 
 # Evaluate
 print("Evaluate inference time cost...")
-ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
 prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
 print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
 

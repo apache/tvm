@@ -23,6 +23,7 @@ from tvm.ir.module import IRModule
 
 from tvm.driver import tvmc
 from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc.model import TVMCModel
 
 
 def test_get_frontends_contains_only_strings():
@@ -93,7 +94,7 @@ def test_load_model__invalid_path__no_language():
     pytest.importorskip("tflite")
 
     with pytest.raises(FileNotFoundError):
-        tvmc.frontends.load_model("not/a/file.tflite")
+        tvmc.load("not/a/file.tflite")
 
 
 def test_load_model__invalid_path__with_language():
@@ -101,51 +102,63 @@ def test_load_model__invalid_path__with_language():
     pytest.importorskip("onnx")
 
     with pytest.raises(FileNotFoundError):
-        tvmc.frontends.load_model("not/a/file.txt", model_format="onnx")
+        tvmc.load("not/a/file.txt", model_format="onnx")
 
 
 def test_load_model__tflite(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
-    mod, params = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
-    assert type(mod) is IRModule
-    assert type(params) is dict
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
     # check whether one known value is part of the params dict
-    assert "_param_1" in params.keys()
+    assert "_param_1" in tvmc_model.params.keys()
 
 
-def test_load_model__keras(keras_resnet50):
+@pytest.mark.parametrize("load_model_kwargs", [{}, {"layout": "NCHW"}])
+def test_load_model__keras(keras_resnet50, load_model_kwargs):
     # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    mod, params = tvmc.frontends.load_model(keras_resnet50)
-    assert type(mod) is IRModule
-    assert type(params) is dict
+    tvmc_model = tvmc.frontends.load_model(keras_resnet50, **load_model_kwargs)
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
     ## check whether one known value is part of the params dict
-    assert "_param_1" in params.keys()
+    assert "_param_1" in tvmc_model.params.keys()
+
+
+def verify_load_model__onnx(model, **kwargs):
+    tvmc_model = tvmc.frontends.load_model(model, **kwargs)
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
+    return tvmc_model
 
 
 def test_load_model__onnx(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
-
-    mod, params = tvmc.frontends.load_model(onnx_resnet50)
-    assert type(mod) is IRModule
-    assert type(params) is dict
-    ## check whether one known value is part of the params dict
-    assert "resnetv24_batchnorm0_gamma" in params.keys()
+    tvmc_model = verify_load_model__onnx(onnx_resnet50)
+    # check whether one known value is part of the params dict
+    assert "resnetv24_batchnorm0_gamma" in tvmc_model.params.keys()
+    tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=True)
+    # check that the parameter dict is empty, implying that they have been folded into constants
+    assert tvmc_model.params == {}
 
 
 def test_load_model__pb(pb_mobilenet_v1_1_quant):
     # some CI environments wont offer TensorFlow, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
-    mod, params = tvmc.frontends.load_model(pb_mobilenet_v1_1_quant)
-    assert type(mod) is IRModule
-    assert type(params) is dict
+    tvmc_model = tvmc.load(pb_mobilenet_v1_1_quant)
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
     # check whether one known value is part of the params dict
-    assert "MobilenetV1/Conv2d_0/weights" in params.keys()
+    assert "MobilenetV1/Conv2d_0/weights" in tvmc_model.params.keys()
 
 
 def test_load_model___wrong_language__to_keras(tflite_mobilenet_v1_1_quant):
@@ -153,7 +166,7 @@ def test_load_model___wrong_language__to_keras(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tensorflow")
 
     with pytest.raises(OSError):
-        tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="keras")
+        tvmc.load(tflite_mobilenet_v1_1_quant, model_format="keras")
 
 
 def test_load_model___wrong_language__to_tflite(keras_resnet50):
@@ -171,7 +184,7 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
     from google.protobuf.message import DecodeError
 
     with pytest.raises(DecodeError):
-        tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="onnx")
+        tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
 @pytest.mark.skip(reason="https://github.com/apache/tvm/issues/7455")
@@ -180,13 +193,12 @@ def test_load_model__pth(pytorch_resnet18):
     pytest.importorskip("torch")
     pytest.importorskip("torchvision")
 
-    mod, params = tvmc.frontends.load_model(
-        pytorch_resnet18, shape_dict={"input": [1, 3, 224, 224]}
-    )
-    assert type(mod) is IRModule
-    assert type(params) is dict
+    tvmc_model = tvmc.load(pytorch_resnet18, shape_dict={"input": [1, 3, 224, 224]})
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
     # check whether one known value is part of the params dict
-    assert "layer1.0.conv1.weight" in params.keys()
+    assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
 def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
@@ -194,7 +206,7 @@ def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("torch")
 
     with pytest.raises(RuntimeError) as e:
-        tvmc.frontends.load_model(
+        tvmc.load(
             tflite_mobilenet_v1_1_quant,
             model_format="pytorch",
             shape_dict={"input": [1, 3, 224, 224]},

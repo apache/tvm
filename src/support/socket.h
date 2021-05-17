@@ -49,7 +49,8 @@ using ssize_t = int;
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/registry.h>
 
 #include <cstring>
 #include <string>
@@ -68,6 +69,7 @@ static inline int poll(struct pollfd* pfd, int nfds, int timeout) {
 
 namespace tvm {
 namespace support {
+
 /*!
  * \brief Get current host name.
  * \return The hostname.
@@ -306,7 +308,7 @@ class Socket {
     }
   }
   /*!
-   * \return last error of socket 2operation
+   * \return last error of socket operation
    */
   static int GetLastError() {
 #ifdef _WIN32
@@ -361,6 +363,42 @@ class Socket {
 #endif
   }
 
+  /*!
+   * \brief Call a function and retry if an EINTR error is encountered.
+   *
+   *  Socket operations can return EINTR when the interrupt handler
+   *  is registered by the execution environment(e.g. python).
+   *  We should retry if there is no KeyboardInterrupt recorded in
+   *  the environment.
+   *
+   * \note This function is needed to avoid rare interrupt event
+   *       in long running server code.
+   *
+   * \param func The function to retry.
+   * \return The return code returned by function f or error_value on retry failure.
+   */
+  template <typename FuncType>
+  ssize_t RetryCallOnEINTR(FuncType func) {
+    ssize_t ret = func();
+    // common path
+    if (ret != -1) return ret;
+    // less common path
+    do {
+      if (GetLastError() == EINTR) {
+        // Call into env check signals to see if there are
+        // environment specific(e.g. python) signal exceptions.
+        // This function will throw an exception if there is
+        // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
+        runtime::EnvCheckSignals();
+      } else {
+        // other errors
+        return ret;
+      }
+      ret = func();
+    } while (ret == -1);
+    return ret;
+  }
+
  protected:
   explicit Socket(SockType sockfd) : sockfd(sockfd) {}
 };
@@ -407,7 +445,7 @@ class TCPSocket : public Socket {
    * \return The accepted socket connection.
    */
   TCPSocket Accept() {
-    SockType newfd = accept(sockfd, nullptr, nullptr);
+    SockType newfd = RetryCallOnEINTR([&]() { return accept(sockfd, nullptr, nullptr); });
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -420,7 +458,8 @@ class TCPSocket : public Socket {
    */
   TCPSocket Accept(SockAddr* addr) {
     socklen_t addrlen = sizeof(addr->addr);
-    SockType newfd = accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen);
+    SockType newfd = RetryCallOnEINTR(
+        [&]() { return accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen); });
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -460,7 +499,8 @@ class TCPSocket : public Socket {
    */
   ssize_t Send(const void* buf_, size_t len, int flag = 0) {
     const char* buf = reinterpret_cast<const char*>(buf_);
-    return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
+    return RetryCallOnEINTR(
+        [&]() { return send(sockfd, buf, static_cast<sock_size_t>(len), flag); });
   }
   /*!
    * \brief receive data using the socket
@@ -472,7 +512,8 @@ class TCPSocket : public Socket {
    */
   ssize_t Recv(void* buf_, size_t len, int flags = 0) {
     char* buf = reinterpret_cast<char*>(buf_);
-    return recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
+    return RetryCallOnEINTR(
+        [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); });
   }
   /*!
    * \brief peform block write that will attempt to send all data out
@@ -485,7 +526,8 @@ class TCPSocket : public Socket {
     const char* buf = reinterpret_cast<const char*>(buf_);
     size_t ndone = 0;
     while (ndone < len) {
-      ssize_t ret = send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0);
+      ssize_t ret = RetryCallOnEINTR(
+          [&]() { return send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0); });
       if (ret == -1) {
         if (LastErrorWouldBlock()) return ndone;
         Socket::Error("SendAll");
@@ -506,7 +548,8 @@ class TCPSocket : public Socket {
     char* buf = reinterpret_cast<char*>(buf_);
     size_t ndone = 0;
     while (ndone < len) {
-      ssize_t ret = recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
+      ssize_t ret = RetryCallOnEINTR(
+          [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL); });
       if (ret == -1) {
         if (LastErrorWouldBlock()) {
           LOG(FATAL) << "would block";

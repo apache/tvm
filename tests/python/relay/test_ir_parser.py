@@ -827,8 +827,8 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 
-def test_resnet():
-    mod, _ = relay.testing.resnet.get_workload()
+def test_mlp():
+    mod, _ = relay.testing.mlp.get_workload(1)
     text = mod.astext()
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
@@ -850,8 +850,8 @@ def inline_params(mod, params):
     return mod
 
 
-def test_resnet_inlined_params():
-    mod, params = relay.testing.resnet.get_workload()
+def test_mlp_inlined_params():
+    mod, params = relay.testing.mlp.get_workload(1)
     mod = inline_params(mod, params)
     mod = relay.transform.InferType()(mod)
     text = mod.astext()
@@ -957,6 +957,13 @@ def test_tokenize_inf():
     mod = tvm.IRModule.from_expr(f)
 
     mod = relay.transform.AnnotateSpans()(mod)
+
+
+def test_func_attrs():
+    attrs = tvm.ir.make_node("DictAttrs", **{"Primitive": 1, "relay.reshape_only": 1})
+    x = relay.var("x", shape=(2, 3))
+    func = relay.Function([x], relay.reshape(x, (-1,)), attrs=attrs)
+    assert_parses_as(func.astext(), func)
 
 
 if __name__ == "__main__":

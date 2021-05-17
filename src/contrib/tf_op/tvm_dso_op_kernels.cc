@@ -69,7 +69,7 @@ class TensorAsBuf {
     if (device_type == kDLCPU) {
       memcpy(origin_buf, buf + offset, size);
 #ifdef TF_TVMDSOOP_ENABLE_GPU
-    } else if (device_type == kDLGPU) {
+    } else if (device_type == kDLCUDA) {
       cudaMemcpy(origin_buf, buf + offset, size, cudaMemcpyDeviceToDevice);
 #endif
     } else {
@@ -85,7 +85,7 @@ class TensorAsBuf {
     if (device_type == kDLCPU) {
       memcpy(buf + offset, origin_buf, size);
 #ifdef TF_TVMDSOOP_ENABLE_GPU
-    } else if (device_type == kDLGPU) {
+    } else if (device_type == kDLCUDA) {
       cudaMemcpy(buf + offset, origin_buf, size, cudaMemcpyDeviceToDevice);
 #endif
     } else {
@@ -154,7 +154,7 @@ void EnsureAlignment(OpKernelContext* ctx, const tensorflow::Tensor& tensor, Ten
 }
 
 // Create DLPack tensor from TensorFlow tensor
-tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLContext& ctx, int64_t* tf_shape,
+tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLDevice& dev, int64_t* tf_shape,
                                 DLTensor* out) {
   DLDataType dlpack_type;
   const tensorflow::Tensor& tensor = *src.tensor;
@@ -163,7 +163,7 @@ tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLContext& ctx, in
   if (!status.ok()) {
     return status;
   }
-  out->ctx = ctx;
+  out->device = dev;
   out->ndim = tensor.shape().dims();
   out->shape = tf_shape;
   out->strides = nullptr;
@@ -192,7 +192,7 @@ class TVMDSOOpTrait<CPUDevice> {
 template <>
 class TVMDSOOpTrait<GPUDevice> {
  public:
-  static const int device_type = kDLGPU;
+  static const int device_type = kDLCUDA;
 
   static int device_id(OpKernelContext* context) {
     auto device_base = context->device();
@@ -256,7 +256,7 @@ class TVMDSOOp : public OpKernel {
     int device_id = TVMDSOOpTrait<DEVICE_TYPE>::device_id(context);
     int device_type = TVMDSOOpTrait<DEVICE_TYPE>::device_type;
 
-    DLContext dl_ctx = {DLDeviceType(device_type), device_id};
+    DLDevice dl_dev = {DLDeviceType(device_type), device_id};
 
     // Get output shape
     tensorflow::TensorShape output_shape;
@@ -287,7 +287,7 @@ class TVMDSOOp : public OpKernel {
       EnsureAlignment(context, input_tensor, &input);
       input.CopyFromOrigin();
 
-      status = MakeDLTensor(input, dl_ctx, shape_ptr, &args[i]);
+      status = MakeDLTensor(input, dl_dev, shape_ptr, &args[i]);
       OP_REQUIRES_OK(context, status);
     }
 
@@ -302,7 +302,7 @@ class TVMDSOOp : public OpKernel {
     output.device_type = device_type;
     EnsureAlignment(context, *output_tensor, &output);
 
-    status = MakeDLTensor(output, dl_ctx, output_shape_ptr, &args[num_inputs]);
+    status = MakeDLTensor(output, dl_dev, output_shape_ptr, &args[num_inputs]);
     OP_REQUIRES_OK(context, status);
 
     // Prepare PackedFunc arguments

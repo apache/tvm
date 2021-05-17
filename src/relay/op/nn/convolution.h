@@ -25,7 +25,7 @@
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
 #include <tvm/auto_scheduler/compute_dag.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/analysis.h>
 
 #include <string>

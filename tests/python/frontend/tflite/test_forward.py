@@ -160,7 +160,7 @@ def run_tvm_graph(
     num_output=1,
     target="llvm",
     out_names=None,
-    mode="graph_runtime",
+    mode="graph_executor",
 ):
     """ Generic function to compile on relay and execute on tvm """
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
@@ -189,7 +189,7 @@ def run_tvm_graph(
     )
 
     if mode in ["debug", "vm"]:
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -207,10 +207,10 @@ def run_tvm_graph(
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target, params=params)
 
-        ctx = tvm.context(target, 0)
-        from tvm.contrib import graph_runtime
+        dev = tvm.device(target, 0)
+        from tvm.contrib import graph_executor
 
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_executor.GraphModule(lib["default"](dev))
         # set inputs
         for i, e in enumerate(input_node):
             m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
@@ -264,8 +264,9 @@ def compare_tflite_with_tvm(
     out_names=None,
     quantized=False,
     input_range=None,
-    mode="graph_runtime",
+    mode="graph_executor",
     experimental_new_converter=False,
+    fp16_quantized=False,
 ):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
@@ -298,12 +299,15 @@ def compare_tflite_with_tvm(
                 mean = -input_range[i][0] * quant_scale
                 input_stats[i] = (mean, quant_scale)
             converter.quantized_input_stats = input_stats
+        elif fp16_quantized:
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.float16]
 
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
         for device in ["llvm"]:
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("Skip because %s is not enabled" % device)
                 continue
@@ -321,7 +325,7 @@ def compare_tflite_with_tvm(
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
             # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
-            if quantized:
+            if quantized and not fp16_quantized:
                 for i in range(len(tflite_output)):
                     # allow absolute tolerance of 1 in the quantized results
                     tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1, rtol=1e-5)
@@ -647,19 +651,28 @@ def test_forward_transpose():
 # ----
 
 
-def _test_cast(data, cast_dtype):
+def _test_cast(data, cast_dtype, use_mlir=False):
     """ One iteration of CAST """
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
         out = math_ops.cast(in_data, cast_dtype)
-        compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out])
+        compare_tflite_with_tvm(
+            data, "Placeholder:0", [in_data], [out], experimental_new_converter=use_mlir
+        )
 
 
 def test_forward_cast():
     """ CAST """
-    _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.int32)
-    _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.uint8)
-    _test_cast(np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64)
+    for use_mlir in [False, True]:
+        _test_cast(
+            np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.int32, use_mlir=use_mlir
+        )
+        _test_cast(
+            np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.uint8, use_mlir=use_mlir
+        )
+        _test_cast(
+            np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64, use_mlir=use_mlir
+        )
 
 
 #######################################################################
@@ -935,6 +948,7 @@ def _test_convolution(
     data_format,
     is_depthwise=False,
     quantized=False,
+    fp16_quantized=False,
 ):
     """ One iteration of convolution with given shapes and attributes """
 
@@ -970,7 +984,7 @@ def _test_convolution(
                 in_data, in_filter, strides=strides, padding=padding, data_format=data_format
             )
 
-        if quantized:
+        if quantized and not fp16_quantized:
             if is_depthwise:
                 # Quantized the inputs and feed them to the convolution
                 inq_data = tf.quantization.fake_quant_with_min_max_args(
@@ -1026,6 +1040,7 @@ def _test_convolution(
                     quantized=quantized,
                     input_range=input_range,
                     experimental_new_converter=True,
+                    fp16_quantized=fp16_quantized,
                 )
         else:
             data_array = np.reshape(data_array, tensor_in_sizes).astype("float32")
@@ -1034,74 +1049,116 @@ def _test_convolution(
 
 def test_forward_convolution():
     for quantized in [False, True]:
-        _test_convolution(
-            [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], "SAME", "NHWC", quantized=quantized
-        )
-        _test_convolution(
-            [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], "VALID", "NHWC", quantized=quantized
-        )
-        _test_convolution(
-            [4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC", quantized=quantized
-        )
-        _test_convolution(
-            [4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], "VALID", "NHWC", quantized=quantized
-        )
+        for fp16_quantized in [False, True]:
+            _test_convolution(
+                [4, 8, 8, 176],
+                [1, 1, 176, 32],
+                [1, 1],
+                [1, 1],
+                "SAME",
+                "NHWC",
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 19],
+                [3, 3, 19, 19],
+                [1, 1],
+                [2, 2],
+                "VALID",
+                "NHWC",
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 124],
+                [1, 1, 124, 19],
+                [1, 1],
+                [1, 1],
+                "SAME",
+                "NHWC",
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 12],
+                [3, 3, 12, 32],
+                [1, 1],
+                [2, 2],
+                "VALID",
+                "NHWC",
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
 
-        # depthwise convolution
-        _test_convolution(
-            [4, 8, 8, 176],
-            [1, 1, 176, 1],
-            [1, 1],
-            [1, 1],
-            "SAME",
-            "NHWC",
-            True,
-            quantized=quantized,
-        )
-        _test_convolution(
-            [4, 17, 17, 19],
-            [3, 3, 19, 1],
-            [1, 1],
-            [2, 2],
-            "VALID",
-            "NHWC",
-            True,
-            quantized=quantized,
-        )
-        _test_convolution(
-            [4, 17, 17, 124],
-            [1, 1, 124, 1],
-            [1, 1],
-            [1, 1],
-            "SAME",
-            "NHWC",
-            True,
-            quantized=quantized,
-        )
-        _test_convolution(
-            [4, 17, 17, 12],
-            [3, 3, 12, 1],
-            [1, 1],
-            [2, 2],
-            "VALID",
-            "NHWC",
-            True,
-            quantized=quantized,
-        )
-        _test_convolution(
-            [4, 17, 17, 12],
-            [3, 3, 12, 2],
-            [1, 1],
-            [2, 2],
-            "VALID",
-            "NHWC",
-            True,
-            quantized=quantized,
-        )
-        # depthwise convolution with single input channel
-        _test_convolution(
-            [1, 76, 64, 1], [9, 5, 1, 96], [1, 1], [1, 1], "SAME", "NHWC", True, quantized=quantized
-        )
+            # depthwise convolution
+            _test_convolution(
+                [4, 8, 8, 176],
+                [1, 1, 176, 1],
+                [1, 1],
+                [1, 1],
+                "SAME",
+                "NHWC",
+                True,
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 19],
+                [3, 3, 19, 1],
+                [1, 1],
+                [2, 2],
+                "VALID",
+                "NHWC",
+                True,
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 124],
+                [1, 1, 124, 1],
+                [1, 1],
+                [1, 1],
+                "SAME",
+                "NHWC",
+                True,
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 12],
+                [3, 3, 12, 1],
+                [1, 1],
+                [2, 2],
+                "VALID",
+                "NHWC",
+                True,
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            _test_convolution(
+                [4, 17, 17, 12],
+                [3, 3, 12, 2],
+                [1, 1],
+                [2, 2],
+                "VALID",
+                "NHWC",
+                True,
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
+            # depthwise convolution with single input channel
+            _test_convolution(
+                [1, 76, 64, 1],
+                [9, 5, 1, 96],
+                [1, 1],
+                [1, 1],
+                "SAME",
+                "NHWC",
+                True,
+                quantized=quantized,
+                fp16_quantized=fp16_quantized,
+            )
 
     # TFLite2 quantized convolution testing
     if package_version.parse(tf.VERSION) >= package_version.parse("2.3.0"):
@@ -1134,7 +1191,13 @@ def test_forward_convolution():
 
 
 def _test_transpose_conv(
-    tensor_in_sizes, filter_in_sizes, output_shape, strides, padding, quantized=False
+    tensor_in_sizes,
+    filter_in_sizes,
+    output_shape,
+    strides,
+    padding,
+    quantized=False,
+    fp16_quantized=False,
 ):
     """ One iteration of transpose convolution with given shapes and attributes """
 
@@ -1146,7 +1209,7 @@ def _test_transpose_conv(
         total_size_2 *= s
 
     with tf.Graph().as_default():
-        if quantized:
+        if quantized and not fp16_quantized:
             # Initializes the input tensor with array containing incrementing
             # numbers from 1.
             data_array = [max(f, 255) for f in range(1, total_size_1 + 1)]
@@ -1192,76 +1255,187 @@ def _test_transpose_conv(
                 in_data, in_filter, output_shape=output_shape, strides=strides, padding=padding
             )
             data_array = np.reshape(data_array, tensor_in_sizes).astype("float32")
-            compare_tflite_with_tvm([data_array], ["in_data"], [in_data], [out])
+            compare_tflite_with_tvm(
+                [data_array], ["in_data"], [in_data], [out], fp16_quantized=fp16_quantized
+            )
 
 
 def test_forward_transpose_conv():
     for quantized in [True, False]:
-        # kernel 3x3, padding VALID
-        _test_transpose_conv(
-            [4, 32, 32, 16], [3, 3, 5, 16], [4, 34, 34, 5], [1, 1], "VALID", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], "VALID", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], "VALID", quantized
-        )
+        for fp16_quantized in [True, False]:
+            # kernel 3x3, padding VALID
+            _test_transpose_conv(
+                [4, 32, 32, 16],
+                [3, 3, 5, 16],
+                [4, 34, 34, 5],
+                [1, 1],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [3, 3, 5, 16],
+                [1, 65, 65, 5],
+                [2, 2],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [3, 3, 5, 16],
+                [1, 65, 34, 5],
+                [2, 1],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
 
-        # kernel 3x3, padding SAME
-        _test_transpose_conv(
-            [4, 32, 32, 16], [3, 3, 5, 16], [4, 32, 32, 5], [1, 1], "SAME", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 64, 5], [2, 2], "SAME", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 32, 5], [2, 1], "SAME", quantized
-        )
+            # kernel 3x3, padding SAME
+            _test_transpose_conv(
+                [4, 32, 32, 16],
+                [3, 3, 5, 16],
+                [4, 32, 32, 5],
+                [1, 1],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [3, 3, 5, 16],
+                [1, 64, 64, 5],
+                [2, 2],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [3, 3, 5, 16],
+                [1, 64, 32, 5],
+                [2, 1],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
 
-        # kernel 2x2, padding VALID
-        _test_transpose_conv(
-            [4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], "VALID", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], "VALID", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], "VALID", quantized
-        )
+            # kernel 2x2, padding VALID
+            _test_transpose_conv(
+                [4, 32, 32, 16],
+                [2, 2, 5, 16],
+                [4, 33, 33, 5],
+                [1, 1],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [2, 2, 5, 16],
+                [1, 64, 64, 5],
+                [2, 2],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [2, 2, 5, 16],
+                [1, 64, 33, 5],
+                [2, 1],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
 
-        # kernel 2x2, padding SAME
-        _test_transpose_conv(
-            [4, 32, 32, 16], [2, 2, 5, 16], [4, 32, 32, 5], [1, 1], "SAME", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], "SAME", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 32, 5], [2, 1], "SAME", quantized
-        )
+            # kernel 2x2, padding SAME
+            _test_transpose_conv(
+                [4, 32, 32, 16],
+                [2, 2, 5, 16],
+                [4, 32, 32, 5],
+                [1, 1],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [2, 2, 5, 16],
+                [1, 64, 64, 5],
+                [2, 2],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [2, 2, 5, 16],
+                [1, 64, 32, 5],
+                [2, 1],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
 
-        # kernel 1x1, padding VALID
-        _test_transpose_conv(
-            [4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], "VALID", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], "VALID", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "VALID", quantized
-        )
+            # kernel 1x1, padding VALID
+            _test_transpose_conv(
+                [4, 32, 32, 16],
+                [1, 1, 5, 16],
+                [4, 32, 32, 5],
+                [1, 1],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [1, 1, 5, 16],
+                [1, 63, 63, 5],
+                [2, 2],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [1, 1, 5, 16],
+                [1, 63, 32, 5],
+                [2, 1],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
 
-        # kernel 1x1, padding SAME
-        _test_transpose_conv(
-            [4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], "SAME", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], "SAME", quantized
-        )
-        _test_transpose_conv(
-            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "SAME", quantized
-        )
+            # kernel 1x1, padding SAME
+            _test_transpose_conv(
+                [4, 32, 32, 16],
+                [1, 1, 5, 16],
+                [4, 32, 32, 5],
+                [1, 1],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [1, 1, 5, 16],
+                [1, 63, 63, 5],
+                [2, 2],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
+            _test_transpose_conv(
+                [1, 32, 32, 16],
+                [1, 1, 5, 16],
+                [1, 63, 32, 5],
+                [2, 1],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
 
 
 #######################################################################
@@ -1342,32 +1516,74 @@ def test_forward_reshape():
 # ------
 
 
-def _test_resize(tf_resize_op, data, align_corners):
+def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=False):
     """ One iteration of Resize """
-
-    assert len(data) == 2
-
     # Test with tensor and constant
     with tf.Graph().as_default():
-        images_tensor = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name="in")
-        size = ops.convert_to_tensor(data[1], dtype=data[1].dtype)
-        out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
-        compare_tflite_with_tvm([data[0]], ["in:0"], [images_tensor], [out_tensor])
+        images_tensor = array_ops.placeholder(shape=images_data.shape, dtype="float32", name="in")
+        size = ops.convert_to_tensor(size_data, dtype=size_data.dtype)
+
+        if quantized:
+            images_tensor_q = tf.quantization.fake_quant_with_min_max_args(
+                images_tensor, min=-3, max=2, name="in"
+            )
+            input_range = {"in": (-3, 2)}
+            out_tensor = tf_resize_op(
+                images=images_tensor_q, size=size, align_corners=align_corners
+            )
+            out_tensor = tf.quantization.fake_quant_with_min_max_args(
+                out_tensor, min=-3, max=2, name="out_tensor"
+            )
+
+            compare_tflite_with_tvm(
+                [images_data],
+                ["in:0"],
+                [images_tensor],
+                [out_tensor],
+                quantized=True,
+                input_range=input_range,
+            )
+        else:
+            out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
+            compare_tflite_with_tvm([images_data], ["in:0"], [images_tensor], [out_tensor])
 
 
 def test_all_resize():
     """ Resize """
-    data = [np.random.rand(1, 16, 16, 3).astype("float32"), np.array([8, 8], dtype=np.int32)]
+    images_data = np.random.uniform(0, 255, (1, 16, 16, 3))
+    images_data_float32 = images_data.astype(np.float32)
+    images_data_uint8 = images_data.astype(np.uint8)
+    size_data = np.array([8, 8]).astype("int32")
     ### RESIZE_BILINEAR
-    _test_resize(tf.image.resize_bilinear, data, align_corners=False)
-    _test_resize(tf.image.resize_bilinear, data, align_corners=True)
+    _test_resize(
+        tf.image.resize_bilinear,
+        images_data_float32,
+        size_data,
+        align_corners=False,
+        quantized=False,
+    )
+    _test_resize(
+        tf.image.resize_bilinear,
+        images_data_float32,
+        size_data,
+        align_corners=True,
+        quantized=False,
+    )
+    _test_resize(
+        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=False, quantized=True
+    )
+    _test_resize(
+        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=True, quantized=True
+    )
     ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
     # According to topi resize.h
     # Align corners not supported for nearest neighbour
     from tflite.BuiltinOperator import BuiltinOperator
 
     if "RESIZE_NEAREST_NEIGHBOR" in dir(BuiltinOperator()):
-        _test_resize(tf.image.resize_nearest_neighbor, data, align_corners=False)
+        _test_resize(
+            tf.image.resize_nearest_neighbor, images_data_float32, size_data, align_corners=False
+        )
 
 
 #######################################################################
@@ -3361,7 +3577,12 @@ def test_forward_sparse_to_dense():
 # Fully Connected
 # ---------------
 def _test_fully_connected(
-    tensor_in_sizes, const_input, filter_in_sizes, bias_in_size=None, quantized=False
+    tensor_in_sizes,
+    const_input,
+    filter_in_sizes,
+    bias_in_size=None,
+    quantized=False,
+    fp16_quantized=False,
 ):
     """ One iteration of fully connected """
 
@@ -3374,8 +3595,12 @@ def _test_fully_connected(
 
     # Initializes the input tensor with array containing incrementing
     # numbers from 1.
-    data_array = np.arange(1, total_size_1 + 1, dtype=np.uint8 if quantized else np.float32)
-    filter_array = np.arange(1, total_size_2 + 1, dtype=np.uint8 if quantized else np.float32)
+    data_array = np.arange(
+        1, total_size_1 + 1, dtype=np.uint8 if quantized and not fp16_quantized else np.float32
+    )
+    filter_array = np.arange(
+        1, total_size_2 + 1, dtype=np.uint8 if quantized and not fp16_quantized else np.float32
+    )
     in_name = "input"
 
     with tf.Graph().as_default():
@@ -3396,7 +3621,7 @@ def _test_fully_connected(
             )
             in_bias = constant_op.constant(bias_array, shape=bias_in_size, dtype=np.float32)
 
-        if quantized:
+        if quantized and not fp16_quantized:
             inq_data = tf.quantization.fake_quant_with_min_max_args(
                 in_data, min=-100, max=100, name="inq_0"
             )
@@ -3433,7 +3658,12 @@ def _test_fully_connected(
                 out = nn_ops.bias_add(out, in_bias)
 
             compare_tflite_with_tvm(
-                data_array, in_data.name, [in_data], [out], experimental_new_converter=True
+                data_array,
+                in_data.name,
+                [in_data],
+                [out],
+                experimental_new_converter=True,
+                fp16_quantized=fp16_quantized,
             )
 
 
@@ -3452,7 +3682,15 @@ def test_forward_fully_connected():
     ]:
         for const_input in [False, True]:
             for quantized in [False, True]:
-                _test_fully_connected(input_shape, const_input, weight_shape, bias_shape, quantized)
+                for fp16_quantized in [False, True]:
+                    _test_fully_connected(
+                        input_shape,
+                        const_input,
+                        weight_shape,
+                        bias_shape,
+                        quantized,
+                        fp16_quantized,
+                    )
 
 
 #######################################################################

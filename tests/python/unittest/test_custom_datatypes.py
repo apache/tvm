@@ -17,22 +17,23 @@
 """Unit tests for the Bring Your Own Datatype framework.
 
 TODO(@gussmith23 @hypercubestart) link to documentation"""
-import tvm
-import tvm.topi.testing
 import numpy as np
 import pytest
+import tvm
+import tvm.topi.testing
 from tvm import relay
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.target.datatype import (
+    create_lower_func,
+    create_min_lower_func,
+    lower_call_pure_extern,
+    lower_ite,
     register,
     register_min_func,
     register_op,
-    create_lower_func,
-    lower_ite,
-    lower_call_pure_extern,
-    create_min_lower_func,
 )
 from tvm.tir.op import call_pure_extern
+
 
 # note: we can't use relay.testing models because params are randomly initialized,
 # which lead the output to have the same values
@@ -50,8 +51,8 @@ def get_mobilenet():
 # use real image instead of random data for end-to-end model training
 # or else output would all be around the same value
 def get_cat_image(dimensions):
-    from tvm.contrib.download import download_testdata
     from PIL import Image
+    from tvm.contrib.download import download_testdata
 
     url = "https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png"
     dst = "cat.png"

@@ -712,7 +712,7 @@ def test_fuse_bcast_reduce_scalar():
 
     orig = before()
     m = fuse2(tvm.IRModule.from_expr(orig))
-    for tgt, ctx in tvm.testing.enabled_targets():
+    for tgt, dev in tvm.testing.enabled_targets():
         relay.build(m, tgt)
     after = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(m["main"], after)
@@ -775,7 +775,7 @@ def test_fuse_dynamic_squeeze_slice_take():
     take = relay.op.take(strided_slice, take_val, axis=0)
 
     mod = tvm.IRModule.from_expr(take)
-    ex = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(), target="llvm")
+    ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
 
     result = ex.evaluate()(*input_data)
 

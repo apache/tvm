@@ -157,7 +157,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
             runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
         ICHECK(fauto_schedule != nullptr)
             << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
-        ObjectRef obj = (*fauto_schedule)(tensor_outs);
+        ObjectRef obj = (*fauto_schedule)(String(cache_node->func_name), tensor_outs);
         if (obj.defined()) {
           schedule = Downcast<te::Schedule>(obj);
         }
@@ -251,7 +251,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
           << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
     }
-    if (op_pattern >= anchor_op_pattern_) {
+    if (op_pattern > anchor_op_pattern_) {
       anchor_op_ = op;
       anchor_attrs_ = call_node->attrs;
       anchor_op_pattern_ = op_pattern;
@@ -262,7 +262,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       ICHECK(tuple_type) << "Expect output to be a tuple type";
       ICHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
-    // Set the name to `__copy`. It will be detected in graph runtime to perform
+    // Set the name to `__copy`. It will be detected in graph executor to perform
     // data copy across devices.
     if (op == device_copy_op_) {
       readable_name_stream_.str(std::string());
@@ -309,7 +309,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   tvm::Target target_;
   Op anchor_op_;
   Attrs anchor_attrs_;
-  int anchor_op_pattern_{0};
+  int anchor_op_pattern_{-1};
   OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;

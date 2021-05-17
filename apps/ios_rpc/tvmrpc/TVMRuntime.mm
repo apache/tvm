@@ -45,17 +45,27 @@
 #include "../../../src/runtime/rpc/rpc_server_env.cc"
 #include "../../../src/runtime/rpc/rpc_session.cc"
 #include "../../../src/runtime/rpc/rpc_socket_impl.cc"
-// Graph runtime
-#include "../../../src/runtime/graph/graph_runtime.cc"
+// Graph executor
+#include "../../../src/runtime/graph_executor/graph_executor.cc"
 // Metal
 #include "../../../src/runtime/metal/metal_device_api.mm"
 #include "../../../src/runtime/metal/metal_module.mm"
 // CoreML
 #include "../../../src/runtime/contrib/coreml/coreml_runtime.mm"
 
-namespace dmlc {
+namespace tvm {
+namespace runtime {
+namespace detail {
 // Override logging mechanism
-void CustomLogMessage::Log(const std::string& msg) { NSLog(@"%s", msg.c_str()); }
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  throw tvm::runtime::InternalError(file, lineno, message);
+}
+
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+  NSLog(@"%s:%d: %s", file.c_str(), lineno, message.c_str());
+}
+}
+}
 }  // namespace dmlc
 
 namespace tvm {
@@ -69,7 +79,7 @@ class NSStreamChannel final : public RPCChannel {
     ssize_t nbytes = [stream_ write:reinterpret_cast<const uint8_t*>(data) maxLength:size];
     if (nbytes < 0) {
       NSLog(@"%@", [stream_ streamError].localizedDescription);
-      throw dmlc::Error("Stream error");
+      throw tvm::Error("Stream error");
     }
     return nbytes;
   }

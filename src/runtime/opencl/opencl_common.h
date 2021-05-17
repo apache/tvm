@@ -26,8 +26,9 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -38,6 +39,17 @@
  * define.
  */
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
+/* Newer releases of OpenCL header files (after May 2018) work with
+ * any OpenCL version, with an application's target version
+ * specified. Setting the target version disables APIs from after that
+ * version, and sets appropriate USE_DEPRECATED macros.  The above
+ * macro for CL_USE_DEPRECATED_OPENCL_1_2_APIS is still needed in case
+ * we are compiling against the earlier version-specific OpenCL header
+ * files.  This also allows us to expose the OpenCL version through
+ * tvm.runtime.Device.
+ */
+#define CL_TARGET_OPENCL_VERSION 120
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -218,23 +230,23 @@ class OpenCLWorkspace : public DeviceAPI {
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
   // Check whether the context is OpenCL or not.
-  virtual bool IsOpenCLDevice(TVMContext ctx) { return ctx.device_type == kDLOpenCL; }
-  // get the queue of the context
-  cl_command_queue GetQueue(TVMContext ctx) {
-    ICHECK(IsOpenCLDevice(ctx));
+  virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
+  // get the queue of the device
+  cl_command_queue GetQueue(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
-        << "Invalid OpenCL device_id=" << ctx.device_id;
-    return queues[ctx.device_id];
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << dev.device_id;
+    return queues[dev.device_id];
   }
   // override device API
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -246,7 +258,7 @@ class OpenCLWorkspace : public DeviceAPI {
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
 };
 
@@ -260,16 +272,17 @@ class OpenCLThreadEntry {
     // timestamp used to recognize stale kernel
     size_t version{0};
   };
-  /*! \brief The current context */
-  TVMContext context;
+  /*! \brief The current device */
+  Device device;
   /*! \brief The thread-local kernel table */
   std::vector<KTEntry> kernel_table;
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device) : pool(device_type, device) {
-    context.device_id = 0;
-    context.device_type = device_type;
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
+      : pool(device_type, device_api) {
+    device.device_id = 0;
+    device.device_type = device_type;
   }
   OpenCLThreadEntry() : OpenCLThreadEntry(kDLOpenCL, OpenCLWorkspace::Global()) {}
 
@@ -313,6 +326,14 @@ class OpenCLModuleNode : public ModuleNode {
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
 
+  /*
+   * \brief Splits the provided serialized source file into separate
+   * source for each kernel primitive.
+   * \param source The serialized program source file (fmt: cl)
+   * \return Mapping from primitive name to kernel source
+   */
+  std::unordered_map<std::string, std::string> SplitKernels(std::string source) const;
+
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
@@ -327,14 +348,14 @@ class OpenCLModuleNode : public ModuleNode {
   std::mutex build_lock_;
   // The OpenCL source.
   std::string source_;
-  // the binary data
-  cl_program program_{nullptr};
-  // build info
-  std::vector<bool> device_built_flag_;
+  // Mapping from primitive name to cl program for each device.
+  std::unordered_map<std::string, std::vector<cl_program>> programs_;
   // kernel id cache
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
+  // parsed kernel data
+  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 
 }  // namespace runtime

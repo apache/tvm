@@ -858,6 +858,8 @@ TIR_REGISTER_PURE_UNARY_OP("tir.asinh");
 
 TIR_REGISTER_PURE_UNARY_OP("tir.atanh");
 
+TIR_REGISTER_PURE_UNARY_OP("tir.clz");
+
 // binary intrinsics
 TIR_REGISTER_PURE_BINARY_OP("tir.atan2");
 

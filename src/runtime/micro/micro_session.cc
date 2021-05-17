@@ -25,8 +25,8 @@
 
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <chrono>

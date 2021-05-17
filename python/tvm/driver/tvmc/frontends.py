@@ -25,12 +25,14 @@ import os
 import sys
 from abc import ABC
 from abc import abstractmethod
+from typing import Optional, List, Dict
 from pathlib import Path
 
 import numpy as np
 
 from tvm import relay
 from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc.model import TVMCModel
 
 
 # pylint: disable=invalid-name
@@ -54,7 +56,7 @@ class Frontend(ABC):
         """File suffixes (extensions) used by this frontend"""
 
     @abstractmethod
-    def load(self, path, shape_dict=None):
+    def load(self, path, shape_dict=None, **kwargs):
         """Load a model from a given path.
 
         Parameters
@@ -101,7 +103,7 @@ class KerasFrontend(Frontend):
     def suffixes():
         return ["h5"]
 
-    def load(self, path, shape_dict=None):
+    def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0103
         tf, keras = import_keras()
 
@@ -130,7 +132,8 @@ class KerasFrontend(Frontend):
         input_shapes = {name: x.shape for (name, x) in zip(model.input_names, inputs)}
         if shape_dict is not None:
             input_shapes.update(shape_dict)
-        return relay.frontend.from_keras(model, input_shapes, layout="NHWC")
+        kwargs.setdefault("layout", "NHWC")
+        return relay.frontend.from_keras(model, input_shapes, **kwargs)
 
     def is_sequential_p(self, model):
         _, keras = import_keras()
@@ -158,14 +161,14 @@ class OnnxFrontend(Frontend):
     def suffixes():
         return ["onnx"]
 
-    def load(self, path, shape_dict=None):
+    def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
         import onnx
 
         # pylint: disable=E1101
         model = onnx.load(path)
 
-        return relay.frontend.from_onnx(model, shape=shape_dict)
+        return relay.frontend.from_onnx(model, shape=shape_dict, **kwargs)
 
 
 class TensorflowFrontend(Frontend):
@@ -179,7 +182,7 @@ class TensorflowFrontend(Frontend):
     def suffixes():
         return ["pb"]
 
-    def load(self, path, shape_dict=None):
+    def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
         import tensorflow as tf
         import tvm.relay.testing.tf as tf_testing
@@ -192,7 +195,7 @@ class TensorflowFrontend(Frontend):
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
         logger.debug("parse TensorFlow model and convert into Relay computation graph")
-        return relay.frontend.from_tensorflow(graph_def, shape=shape_dict)
+        return relay.frontend.from_tensorflow(graph_def, shape=shape_dict, **kwargs)
 
 
 class TFLiteFrontend(Frontend):
@@ -206,7 +209,7 @@ class TFLiteFrontend(Frontend):
     def suffixes():
         return ["tflite"]
 
-    def load(self, path, shape_dict=None):
+    def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
         import tflite.Model as model
 
@@ -229,7 +232,7 @@ class TFLiteFrontend(Frontend):
             raise TVMCException("input file not tflite version 3")
 
         logger.debug("parse TFLite model and convert into Relay computation graph")
-        mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict)
+        mod, params = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict, **kwargs)
         return mod, params
 
 
@@ -245,7 +248,7 @@ class PyTorchFrontend(Frontend):
         # Torch Script is a zip file, but can be named pth
         return ["pth", "zip"]
 
-    def load(self, path, shape_dict=None):
+    def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
         import torch
 
@@ -259,7 +262,7 @@ class PyTorchFrontend(Frontend):
         input_shapes = list(shape_dict.items())
 
         logger.debug("parse Torch model and convert into Relay computation graph")
-        return relay.frontend.from_pytorch(traced_model, input_shapes)
+        return relay.frontend.from_pytorch(traced_model, input_shapes, **kwargs)
 
 
 ALL_FRONTENDS = [
@@ -283,7 +286,7 @@ def get_frontend_names():
     return [frontend.name() for frontend in ALL_FRONTENDS]
 
 
-def get_frontend_by_name(name):
+def get_frontend_by_name(name: str):
     """
     This function will try to get a frontend instance, based
     on the name provided.
@@ -310,7 +313,7 @@ def get_frontend_by_name(name):
     )
 
 
-def guess_frontend(path):
+def guess_frontend(path: str):
     """
     This function will try to imply which framework is being used,
     based on the extension of the file provided in the path parameter.
@@ -339,7 +342,12 @@ def guess_frontend(path):
     raise TVMCException("failed to infer the model format. Please specify --model-format")
 
 
-def load_model(path, model_format=None, shape_dict=None):
+def load_model(
+    path: str,
+    model_format: Optional[str] = None,
+    shape_dict: Optional[Dict[str, List[int]]] = None,
+    **kwargs,
+):
     """Load a model from a supported framework and convert it
     into an equivalent relay representation.
 
@@ -355,10 +363,8 @@ def load_model(path, model_format=None, shape_dict=None):
 
     Returns
     -------
-    mod : tvm.relay.Module
-        The produced relay module.
-    params : dict
-        The parameters (weights) for the relay module.
+    tvmc_model : TVMCModel
+        The produced model package.
 
     """
 
@@ -367,6 +373,6 @@ def load_model(path, model_format=None, shape_dict=None):
     else:
         frontend = guess_frontend(path)
 
-    mod, params = frontend.load(path, shape_dict)
+    mod, params = frontend.load(path, shape_dict, **kwargs)
 
-    return mod, params
+    return TVMCModel(mod, params)
