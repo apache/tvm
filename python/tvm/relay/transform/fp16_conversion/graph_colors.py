@@ -42,6 +42,7 @@ class DefaultColorer:
         # These ops add new data or change shape
         "nn.pad",
         "nn.batch_flatten",
+        "concatenate",
         # Simple arithmetic
         "add",
         "nn.bias_add",
