@@ -20,6 +20,7 @@ import json
 import os
 from enum import Enum
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -90,21 +91,22 @@ class Device:
     cross_compile = ""
     lib_export_type = LibExportType.X64_X86
 
-    def __init__(self):
+    def __init__(self, connection_type):
         """Keep remote device for lifetime of object."""
-        self._set_parameters_from_environment_variables()
+        self.connection_type = connection_type
+        if self.connection_type == Device.ConnectionType.TRACKER and have_device_and_tracker_variables():
+            self._set_parameters_from_environment_variables()
         self.device = self._get_remote()
 
     @classmethod
     def _set_parameters_from_environment_variables(cls):
-        if have_tracker_flag() and have_device_and_tracker_variables():
-            cls.connection_type = Device.ConnectionType.TRACKER
-            cls.host = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_HOST.value]
-            cls.port = int(os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_PORT.value])
-            cls.device_key = os.environ[Device.TrackerEnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
+        cls.connection_type = Device.ConnectionType.TRACKER
+        cls.host = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_HOST.value]
+        cls.port = int(os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_PORT.value])
+        cls.device_key = os.environ[Device.TrackerEnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
 
-            cls.target = "llvm -mtriple=arm64-apple-darwin"
-            cls.lib_export_type = Device.LibExportType.ARM64
+        cls.target = "llvm -mtriple=arm64-apple-darwin"
+        cls.lib_export_type = Device.LibExportType.ARM64
 
     @classmethod
     def _get_remote(cls):
@@ -115,9 +117,6 @@ class Device:
             device = rpc.connect(cls.host, cls.port)
         elif cls.connection_type == Device.ConnectionType.LOCAL:
             device = rpc.LocalSession()
-        elif cls.connection_type == Device.ConnectionType.TRACKER_CONNECTION:
-            tracker = rpc.connect_tracker(url=cls.host, port=cls.port)
-            device = tracker.request(cls.device_key)
         else:
             raise ValueError(
                 "connection_type in test_config.json should be one of: " "local, tracker, remote."
@@ -126,29 +125,12 @@ class Device:
         return device
 
 
-def skip_runtime_test():
-    """Skip test if it requires the runtime and it's not present."""
-    # BNNS codegen not present.
-    if not tvm.get_global_func("runtime.RuntimeEnabled", True):
-        print("Skip because BNNS codegen is not available.")
-        return True
-    return False
+def bnns_is_absent():
+    return tvm.get_global_func("relay.ext.bnns", True) is None
 
 
-def skip_codegen_test():
-    """Skip test if it requires the BNNS codegen and it's not present."""
-    if not tvm.get_global_func("relay.ext.bnns", True):
-        print("Skip because BNNS codegen is not available.")
-        return True
-    return False
-
-
-def have_tracker_flag():
-    try:
-        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_USE_TRACKER.value]
-        return True
-    except KeyError:
-        return False
+def get_run_modes():
+    return [Device.ConnectionType.LOCAL, Device.ConnectionType.TRACKER]
 
 
 def have_device_and_tracker_variables():
@@ -161,9 +143,19 @@ def have_device_and_tracker_variables():
         return False
 
 
-def skip_tracker_connection():
-    """Skip test if it requires RPC connection, but no environment variables set for the device"""
-    return have_tracker_flag() and not have_device_and_tracker_variables()
+def check_test_parameters(mode):
+    skip = False
+    reason = ""
+
+    if bnns_is_absent():
+        skip = True
+        reason = f"{reason}; Skip because BNNS codegen is not available"
+    if mode == Device.ConnectionType.TRACKER and not have_device_and_tracker_variables():
+        skip = True
+        reason = f"{reason}; Skip because no environment variables set for the launch mode {mode}"
+
+    if skip:
+        pytest.skip(reason)
 
 
 def build_module(mod, target, params=None, enable_bnns=True, tvm_ops=0):
@@ -293,7 +285,7 @@ def verify_codegen(
         )
 
 
-def compare_inference_with_ref(func, params, atol=0.002, rtol=0.007):
+def compare_inference_with_ref(func, params, mode, atol=0.002, rtol=0.007):
     """Compare scoring results for compilation with and without BNNS.
 
     Provided function will be compiled two times with and without BNNS.
@@ -311,7 +303,7 @@ def compare_inference_with_ref(func, params, atol=0.002, rtol=0.007):
         inputs[name] = tvm.nd.array(np.random.uniform(0, 127, shape).astype(dtype))
 
     # Run for both type of compilation
-    device = Device()
+    device = Device(mode)
     outputs = []
     for bnns in [False, True]:
         outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])

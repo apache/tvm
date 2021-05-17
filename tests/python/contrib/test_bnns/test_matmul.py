@@ -22,8 +22,8 @@ import tvm
 from tvm import relay
 from infrastructure import (
     Device,
-    skip_runtime_test,
-    skip_tracker_connection,
+    get_run_modes,
+    check_test_parameters,
     build_and_run,
     verify
 )
@@ -46,11 +46,11 @@ def _get_model(a_shape, b_shape, dtype, var_names, is_a_constant=False, is_b_con
     return out, params
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
-def test_matmul():
-    device = Device()
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_matmul(mode):
+    check_test_parameters(mode)
 
+    device = Device(mode)
     np.random.seed(0)
     dtype = "float32"
 
@@ -108,4 +108,5 @@ def test_matmul():
 
 
 if __name__ == "__main__":
-    test_matmul()
+    for _mode in get_run_modes():
+        test_matmul(_mode)

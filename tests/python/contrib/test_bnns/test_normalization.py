@@ -22,9 +22,9 @@ import tvm
 from tvm import relay
 from infrastructure import (
     Device,
-    skip_runtime_test,
-    skip_codegen_test,
-    skip_tracker_connection,
+    bnns_is_absent,
+    get_run_modes,
+    check_test_parameters,
     verify_codegen,
     build_and_run,
     verify,
@@ -90,10 +90,11 @@ def _get_expected_codegen(shape, axis, center, scale, dtype, offload_on_bnns):
     return inputs
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
-def test_normalization():
-    device = Device()
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_normalization(mode):
+    check_test_parameters(mode)
+
+    device = Device(mode)
     np.random.seed(0)
     dtype = "float32"
 
@@ -144,7 +145,7 @@ def test_normalization():
                     verify(outputs, atol=0.001, rtol=0.01, config=config)
 
 
-@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_normalization():
     np.random.seed(0)
 
@@ -196,5 +197,6 @@ def test_codegen_normalization():
 
 
 if __name__ == "__main__":
-    test_normalization()
+    for _mode in get_run_modes():
+        test_normalization()
     test_codegen_normalization()

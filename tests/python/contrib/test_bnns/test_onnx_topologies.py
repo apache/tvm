@@ -18,6 +18,7 @@
 
 import onnx
 import pytest
+import itertools
 import numpy as np
 
 import tvm
@@ -26,10 +27,14 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib.download import download_testdata
 
-from infrastructure import Device, build_and_run, verify
+from infrastructure import (
+    Device,
+    get_run_modes,
+    check_test_parameters,
+    build_and_run,
+    verify
+)
 
-
-bnns_is_absent = tvm.get_global_func("relay.ext.bnns", True) is None
 
 DTYPE = 'float32'
 INPUT_SHAPE = [1, 3, 224, 224]
@@ -101,8 +106,10 @@ def simplify_model(mod):
     return seq(mod)
 
 
-def process(model_name):
-    device = Device()
+def process(mode, model_name):
+    check_test_parameters(mode)
+
+    device = Device(mode)
     model, params, input_dict = get_model(model_name)
     with tvm.transform.PassContext(opt_level=3):
         model = simplify_model(model)
@@ -123,16 +130,15 @@ def process(model_name):
     verify(outputs, atol=0.002, rtol=0.007)
 
 
-# @pytest.mark.skip(reason="Manually disabled because of huge complexity")
-@pytest.mark.skipif(bnns_is_absent, reason="BNNS runtime is absent")
 @pytest.mark.parametrize("model_name", MODEL_URL_COLLECTION.keys())
-def test_topology(model_name):
-    process(model_name)
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_topology(mode, model_name):
+    process(mode, model_name)
 
 
 def main():
-    for model_name in MODEL_URL_COLLECTION.keys():
-        test_topology(model_name)
+    for mode, model_name in itertools.product(get_run_modes(), MODEL_URL_COLLECTION.keys()):
+        test_topology(mode, model_name)
 
 
 if __name__ == "__main__":

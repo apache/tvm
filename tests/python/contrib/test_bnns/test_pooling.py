@@ -22,9 +22,9 @@ import tvm
 from tvm import relay
 from infrastructure import (
     Device,
-    skip_runtime_test,
-    skip_codegen_test,
-    skip_tracker_connection,
+    bnns_is_absent,
+    get_run_modes,
+    check_test_parameters,
     build_and_run,
     verify,
     verify_codegen,
@@ -132,10 +132,11 @@ def _get_expected_global_pooling_codegen(shape, dtype, typef):
     return [input, node]
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
-def test_pooling():
-    device = Device()
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_pooling(mode):
+    check_test_parameters(mode)
+
+    device = Device(mode)
     np.random.seed(0)
 
     dtype = "float32"
@@ -191,10 +192,13 @@ def test_pooling():
         verify(outputs, atol=0.001, rtol=0.001, config=config)
 
 
-@pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-@pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
-def test_global_pooling():
-    device = Device()
+# @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
+# @pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
+@pytest.mark.parametrize("mode", get_run_modes())
+def test_global_pooling(mode):
+    check_test_parameters(mode)
+
+    device = Device(mode)
     np.random.seed(0)
 
     dtype = "float32"
@@ -232,7 +236,7 @@ def test_global_pooling():
         verify(outputs, atol=0.001, rtol=0.001, config=config)
 
 
-@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_pooling():
     dtype = "float32"
 
@@ -262,7 +266,7 @@ def test_codegen_pooling():
         verify_codegen(func, exp_codegen, 1)
 
 
-@pytest.mark.skipif(skip_codegen_test(), reason="Skip because BNNS codegen is not available")
+@pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_global_pooling():
     dtype = "float32"
 
@@ -285,7 +289,8 @@ def test_codegen_global_pooling():
 
 
 if __name__ == "__main__":
-    test_pooling()
-    test_global_pooling()
+    for _mode in get_run_modes():
+        test_pooling(_mode)
+        test_global_pooling(_mode)
     test_codegen_pooling()
     test_codegen_global_pooling()
