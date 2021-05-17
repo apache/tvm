@@ -886,6 +886,17 @@ reg.register_reduce_schedule("nn.cross_entropy_with_logits")
 reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 
 
+# nll_loss
+@reg.register_compute("nn.nll_loss")
+def compute_nll_loss(attrs, inputs, out_dtype):
+    input, target, weights = inputs
+    return [topi.nn.nll_loss(input, target, weights, attrs.reduction, attrs.ignore_index)]
+
+
+reg.register_reduce_schedule("nn.nll_loss")
+reg.register_pattern("nn.nll_loss", OpPattern.OPAQUE)
+
+
 # depth_to_space
 @reg.register_compute("nn.depth_to_space")
 def compute_depth_to_space(attrs, inputs, out_dtype):

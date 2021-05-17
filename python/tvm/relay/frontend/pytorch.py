@@ -2305,6 +2305,20 @@ class PyTorchOpConverter:
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             return (unique_sliced, indices)
 
+    def nll_loss(self, inputs, input_types):
+        assert len(inputs) == 5
+        [input, target, weight, reduction, ignore_index] = inputs
+        num_class = self.infer_shape(input)[1]
+        if reduction == 0:
+            reduction = "none"
+        elif reduction == 1:
+            reduction = "mean"
+        else:
+            reduction = "sum"
+        if weight is None:
+            weight = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
+        return _op.nn.nll_loss(input, target, weight, reduction, ignore_index)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2517,6 +2531,7 @@ class PyTorchOpConverter:
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
+            "aten::nll_loss": self.nll_loss,
         }
 
     def update_convert_map(self, custom_map):
