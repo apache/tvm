@@ -60,7 +60,7 @@ TVM_REGISTER_GLOBAL("ir.PointerType")
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PointerTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const PointerTypeNode*>(ref.get());
-      if (node->storage_scope.size()) {
+      if (!node->storage_scope.empty()) {
         p->stream << node->storage_scope << " ";
       }
       p->Print(node->element_type);
