@@ -74,7 +74,7 @@ class RecastMutator(ExprMutator):
 
             # If out_dtype is in the attributes, we need to update it.
             orig_dtype = None
-            if "out_dtype" in call.attrs.keys():
+            if call.attrs is not None and "out_dtype" in call.attrs.keys():
                 new_attr_dict = {}
                 for attr in call.attrs.keys():
                     attr_value = call.attrs[attr]
