@@ -24,7 +24,7 @@
 #include <limits>
 #include <memory>
 
-#include "texture.h"
+#include "../texture.h"
 
 namespace tvm {
 namespace runtime {
