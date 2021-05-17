@@ -79,4 +79,3 @@ def test_metal_erf():
 if __name__ == "__main__":
     test_metal_inf_nan()
     test_metal_erf()
-
