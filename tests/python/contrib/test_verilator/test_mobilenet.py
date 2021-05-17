@@ -179,7 +179,7 @@ def get_labels():
 
 
 def check_result(res):
-    """Check prediction against labels."""
+    """Check prediction."""
     labels = get_labels()
     predictions = np.squeeze(res)
     prediction = np.argmax(predictions)
