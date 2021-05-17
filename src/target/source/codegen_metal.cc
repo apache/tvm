@@ -302,6 +302,26 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   }
 }
 
+void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+  std::ostringstream temp;
+  if (std::isinf(op->value)) {
+    if (op->value < 0) {
+      temp << "-";
+    }
+    temp << "INFINITY";
+  } else if (std::isnan(op->value)) {
+    temp << "NAN";
+  } else {
+    temp << std::scientific << op->value;
+    if (op->dtype.bits() == 32)
+      temp << 'f';
+    else if (op->dtype.bits() == 16)
+      temp << 'h';
+  }
+  MarkConst(temp.str());
+  os << temp.str();
+}
+
 runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
