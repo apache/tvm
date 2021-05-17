@@ -103,7 +103,7 @@ This custom `dlopen` mechanic is integrated into TVM RPC as plugin and registere
 application.
 
 The custom implementation of `dlopen` and other functions from `dlfcn.h` header are placed in separate repository,
-and well be downloaded automatically during cmake build for iOS. To run cmake build you may use next flags:
+and will be downloaded automatically during cmake build for iOS. To run cmake build you may use next flags:
 ```shell
 export DEVELOPER_DIR=/Applications/Xcode.app  # iOS SDK is part of Xcode bundle. Have to set it as default Dev Env
 cmake ..
@@ -122,7 +122,7 @@ cmake --build . --target custom_dso_loader ios_rpc  # Will use custom DSO loader
 ```
 
 To enable using of Custom DSO Plugin during xcode build outsde of Cmake you should specify two additional variables.
-You can do it manually inside Xcode IDE or as command line args for `xcodebuild`. Make sure that `custom_dso_loader`
+You can do it manually inside Xcode IDE or via command line args for `xcodebuild`. Make sure that `custom_dso_loader`
 target from previous step is already built.
 * TVM_BUILD_DIR=path-to-tvm-ios-build-dir
 * USE_CUSTOM_DSO_LOADER=1
