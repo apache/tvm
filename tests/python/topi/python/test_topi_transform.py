@@ -872,7 +872,7 @@ def test_transpose():
 
 
 @tvm.testing.parametrize_targets
-def test_transpose_schedule(target, dev):
+def test_transpose_unfused_schedule(target, dev):
     shape = (100, target.thread_warp_size + 3)
     x = relay.var("x", relay.TensorType(shape, "float32"))
     f = relay.transpose(x)
