@@ -56,7 +56,9 @@ def test_bsr_sparse_conv2d_nchw():
 
     params = {
         "weight": tvm.nd.array(
-            np.array(random_bsr_matrix(128, 64, 8, 1, 0.1).todense()).reshape(128, 64, 1, 1)
+            np.array(random_bsr_matrix(128, 64, 8, 1, 0.1, "float32").todense()).reshape(
+                128, 64, 1, 1
+            )
         )
     }
 
@@ -81,7 +83,9 @@ def test_bsr_sparse_conv2d_nhwc():
 
     params = {
         "weight": tvm.nd.array(
-            np.array(random_bsr_matrix(128, 64, 8, 1, 0.1).todense()).T.reshape(1, 1, 64, 128)
+            np.array(random_bsr_matrix(128, 64, 8, 1, 0.1, "float32").todense()).T.reshape(
+                1, 1, 64, 128
+            )
         )
     }
 

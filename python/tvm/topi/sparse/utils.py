@@ -188,6 +188,7 @@ def convert_model_dense_to_sparse(
 
 
 def sparse_sketch_rules():
+    """Return the sketch rules for sparse op"""
     sparse_sketch_rule_list = [
         auto_scheduler.PreloadCustomSketchRule(
             sparse_conv2d_meet_condition_func, sparse_conv2d_apply_func, "SparseConv2D"
