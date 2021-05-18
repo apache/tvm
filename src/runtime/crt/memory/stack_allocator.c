@@ -18,12 +18,10 @@
  */
 // LINT_C_FILE
 #include <tvm/runtime/crt/stack_allocator.h>
-#ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
-#include <tvm/runtime/crt/logging.h>
-#endif
 
-tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes,
-                                            void** current_alloc) {
+tvm_crt_error_t StackMemoryManager_Allocate_Body(tvm_workspace_t* tvm_runtime_workspace,
+                                                 int32_t nbytes, void** current_alloc,
+                                                 uint8_t do_lifo_check) {
   // reserve bytes at the end of the allocation such that
   // next_alloc % TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES == 0.
   uint32_t offset_bytes =
@@ -34,28 +32,49 @@ tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspa
   }
   (*current_alloc) = tvm_runtime_workspace->next_alloc;
   uint8_t* next_alloc = tvm_runtime_workspace->next_alloc + nbytes + offset_bytes;
-#ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
-  if (next_alloc + STACK_ALLOCATOR_TAG_SIZE_BYTES > workspace_end) {
-    return kTvmErrorPlatformNoMemory;
+  if (do_lifo_check != 0) {
+    if (next_alloc + STACK_ALLOCATOR_TAG_SIZE_BYTES > workspace_end) {
+      return kTvmErrorPlatformNoMemory;
+    }
+    const uint32_t total_size = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES);
+    *((uint32_t*)next_alloc) = total_size ^ STACK_ALLOCATOR_TAG;
+    next_alloc += STACK_ALLOCATOR_TAG_SIZE_BYTES;
   }
-  const uint32_t total_size = (nbytes + offset_bytes + STACK_ALLOCATOR_TAG_SIZE_BYTES);
-  *((uint32_t*)next_alloc) = total_size ^ STACK_ALLOCATOR_TAG;
-  next_alloc += STACK_ALLOCATOR_TAG_SIZE_BYTES;
-#endif
 
   tvm_runtime_workspace->next_alloc = next_alloc;
   return kTvmErrorNoError;
 }
 
-tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr) {
-#ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
-  uint32_t tag = *(((uint32_t*)tvm_runtime_workspace->next_alloc) - 1);
-  uint32_t actual_size = (tvm_runtime_workspace->next_alloc - (uint8_t*)ptr);
-  uint32_t expected_size = tag ^ STACK_ALLOCATOR_TAG;
-  CHECK_EQ(expected_size, actual_size, "Deallocation not in FIFO ordering");
+tvm_crt_error_t StackMemoryManager_Allocate(tvm_workspace_t* tvm_runtime_workspace, int32_t nbytes,
+                                            void** current_alloc) {
+  uint8_t do_lifo_check = 0;
+#ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
+  do_lifo_check = 1;
 #endif
-  tvm_runtime_workspace->next_alloc = ptr;
+  return StackMemoryManager_Allocate_Body(tvm_runtime_workspace, nbytes, current_alloc,
+                                          do_lifo_check);
+}
+
+tvm_crt_error_t StackMemoryManager_Free_Body(tvm_workspace_t* tvm_runtime_workspace, void* ptr,
+                                             uint8_t do_lifo_check) {
+  if (do_lifo_check != 0) {
+    uint32_t tag = *(((uint32_t*)tvm_runtime_workspace->next_alloc) - 1);
+    uint32_t actual_size = (tvm_runtime_workspace->next_alloc - (uint8_t*)ptr);
+    uint32_t expected_size = tag ^ STACK_ALLOCATOR_TAG;
+    if (expected_size != actual_size) {
+      return kTvmErrorPlatformStackAllocBadFree;
+    }
+  }
+  tvm_runtime_workspace->next_alloc = (uint8_t*)ptr;
   return kTvmErrorNoError;
+}
+
+tvm_crt_error_t StackMemoryManager_Free(tvm_workspace_t* tvm_runtime_workspace, void* ptr) {
+  uint8_t do_lifo_check = 0;
+#ifdef TVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK
+  do_lifo_check = 1;
+#endif
+  return StackMemoryManager_Free_Body(tvm_runtime_workspace, ptr, do_lifo_check);
 }
 
 tvm_crt_error_t StackMemoryManager_Init(tvm_workspace_t* tvm_runtime_workspace,

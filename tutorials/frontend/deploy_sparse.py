@@ -105,7 +105,7 @@ seq_len = 128
 # TVM platform identifier. Note that best cpu performance can be achieved by setting -mcpu
 # appropriately for your specific machine. CUDA and ROCm are also supported.
 target = "llvm"
-# Which device to run on. Should be one of tvm.cpu() or tvm.gpu().
+# Which device to run on. Should be one of tvm.cpu() or tvm.cuda().
 dev = tvm.cpu()
 # If true, then a sparse variant of the network will be run and
 # benchmarked.

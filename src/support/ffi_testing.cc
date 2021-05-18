@@ -28,6 +28,8 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
+#include <thread>
+
 namespace tvm {
 // Attrs used to python API
 struct TestAttrs : public AttrsNode<TestAttrs> {
@@ -79,6 +81,14 @@ TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue
   CHECK_EQ(static_cast<int>(dev.device_type), dtype);
   CHECK_EQ(static_cast<int>(dev.device_id), did);
   *ret = dev;
+});
+
+TVM_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
+  for (int i = 0; i < nsec; ++i) {
+    tvm::runtime::EnvCheckSignals();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  LOG(INFO) << "Function finished without catching signal";
 });
 
 // in src/api_test.cc

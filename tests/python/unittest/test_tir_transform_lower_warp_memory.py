@@ -92,7 +92,7 @@ def test_lower_warp_memory_correct_indices():
 @tvm.testing.requires_cuda
 def test_lower_warp_memory_cuda_end_to_end():
     def check_cuda(dtype):
-        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+        if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
 
@@ -114,7 +114,7 @@ def test_lower_warp_memory_cuda_end_to_end():
             xo, xi = s[AA].split(s[AA].op.axis[0], 32)
             s[AA].bind(xi, tx)
 
-            dev = tvm.gpu(0)
+            dev = tvm.cuda(0)
             func = tvm.build(s, [A, B], "cuda")
             A_np = np.array(list(range(m)), dtype=dtype)
             B_np = np.array(
@@ -141,7 +141,7 @@ def test_lower_warp_memory_cuda_end_to_end():
 @tvm.testing.requires_cuda
 def test_lower_warp_memory_cuda_half_a_warp():
     def check_cuda(dtype):
-        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+        if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
 
@@ -181,7 +181,7 @@ def test_lower_warp_memory_cuda_half_a_warp():
             _, x = AA.op.axis
             s[AA].bind(x, tx)
 
-            dev = tvm.gpu(0)
+            dev = tvm.cuda(0)
             func = tvm.build(s, [A, B], "cuda")
             A_np = np.array([list(range(i, m + i)) for i in range(n)], dtype=dtype)
             B_np = np.array([list(range(1 + i, m + i)) + [i] for i in range(n)], dtype=dtype)
@@ -198,7 +198,7 @@ def test_lower_warp_memory_cuda_half_a_warp():
 @tvm.testing.requires_cuda
 def test_lower_warp_memory_cuda_2_buffers():
     def check_cuda(dtype):
-        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+        if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
 
@@ -228,7 +228,7 @@ def test_lower_warp_memory_cuda_2_buffers():
             s[BB].bind(xo, bx)
             s[BB].bind(xi, tx)
 
-            dev = tvm.gpu(0)
+            dev = tvm.cuda(0)
             func = tvm.build(s, [A, B, C], "cuda")
             AB_np = np.array(list(range(m)), dtype=dtype)
             C_np = np.array(list(range(1, m)) + [0], dtype=dtype) * 2

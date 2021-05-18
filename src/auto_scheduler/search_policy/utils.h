@@ -53,7 +53,7 @@ inline bool IsCPUTask(const SearchTask& task) {
 
 /*! \brief Return whether the search task is targeting a GPU. */
 inline bool IsGPUTask(const SearchTask& task) {
-  return (task)->target->kind->device_type == kDLGPU ||
+  return (task)->target->kind->device_type == kDLCUDA ||
          (task)->target->kind->device_type == kDLOpenCL ||
          (task)->target->kind->device_type == kDLVulkan ||
          (task)->target->kind->device_type == kDLMetal ||
@@ -63,7 +63,7 @@ inline bool IsGPUTask(const SearchTask& task) {
 
 /*! \brief Return whether the search task is targeting a CUDA GPU. */
 inline bool IsCUDATask(const SearchTask& task) {
-  return (task)->target->kind->device_type == kDLGPU;
+  return (task)->target->kind->device_type == kDLCUDA;
 }
 
 /*! \brief Return whether the search task is targeting a OpenCL GPU. */

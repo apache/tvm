@@ -95,7 +95,7 @@ def verify_vectorization(n, m, dtype):
         if not tvm.testing.device_enabled(targeta):
             print("Skip because %s is not enabled" % targeta)
             return
-        if dtype == "float16" and targeta == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
+        if dtype == "float16" and targeta == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
         with tvm.target.Target(targeta):

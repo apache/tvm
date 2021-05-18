@@ -35,7 +35,7 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
@@ -70,7 +70,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a_old = np.random.uniform(0, 128, size=(n, l))
         b_old = np.random.uniform(0, 128, size=(l, m))
@@ -126,7 +126,7 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a = tvm.nd.array(np.random.uniform(size=(j, n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=(j, l, m)).astype(B.dtype), dev)

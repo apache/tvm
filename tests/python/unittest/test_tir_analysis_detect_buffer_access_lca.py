@@ -64,6 +64,12 @@ def buffer_opaque_access(b: ty.handle, c: ty.handle) -> None:
             C[vi, vj] = B[vi, vj]
 
 
+@tvm.script.tir
+def lca_is_func_root(a: ty.handle) -> None:
+    A = tir.match_buffer(a, [0, 0], "float32")
+    A.data[0] = 1.0
+
+
 def test_buffer_load_store():
     func = buffer_load_store_func
     A, B = [func.buffer_map[x] for x in func.params]
@@ -102,6 +108,14 @@ def test_opaque_access():
     assert lca[C] == root_block.body[1].body.body.block
 
 
+def test_lca_func_root():
+    func = lca_is_func_root
+    (A,) = [func.buffer_map[x] for x in func.params]
+    lca = tir.analysis.detect_buffer_access_lca(func)
+    assert lca[A] is None
+
+
 if __name__ == "__main__":
     test_buffer_load_store()
     test_opaque_access()
+    test_lca_func_root()

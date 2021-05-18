@@ -124,7 +124,7 @@ have to be built.
 
 .. code:: python
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     loaded_lib = tvm.runtime.load_module('compiled.so')
     gen_module = tvm.contrib.graph_executor.GraphModule(loaded_lib['default'](dev))
     input_data = np.random.uniform(0, 1, input_shape).astype(dtype)

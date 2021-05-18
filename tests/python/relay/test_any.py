@@ -508,7 +508,7 @@ def verify_any_conv2d(
 
     targets = None
     if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
-        targets = [("cuda -libs=cudnn", tvm.gpu(0))]
+        targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 
@@ -811,7 +811,7 @@ def verify_any_dense(
 
     targets = None
     if use_cublas and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
-        targets = [("cuda -libs=cublas", tvm.gpu(0))]
+        targets = [("cuda -libs=cublas", tvm.cuda(0))]
 
     check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 

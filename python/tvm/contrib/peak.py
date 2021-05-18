@@ -377,7 +377,7 @@ def measure_peak_all(target, target_host, host, port):
     if str(target).startswith("opencl"):
         dev = remote.cl()
     elif str(target).startswith("cuda"):
-        dev = remote.gpu()
+        dev = remote.cuda()
     elif str(target).startswith("metal"):
         dev = remote.metal()
     else:
