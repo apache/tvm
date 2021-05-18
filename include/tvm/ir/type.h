@@ -153,8 +153,15 @@ class PointerTypeNode : public TypeNode {
    * \brief The type of the element which the pointer points to.
    */
   Type element_type;
+  /*!
+   * \brief The storage scope of the pointer
+   */
+  String storage_scope;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("element_type", &element_type); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("element_type", &element_type);
+    v->Visit("storage_scope", &storage_scope);
+  }
 
   bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
     return equal(element_type, other->element_type);
@@ -175,8 +182,9 @@ class PointerType : public Type {
   /*!
    * \brief Constructor
    * \param element_type The type of the element which the pointer points to.
+   * \param storage_scope The storage scope into which the pointer addresses
    */
-  TVM_DLL explicit PointerType(Type element_type);
+  TVM_DLL explicit PointerType(Type element_type, String storage_scope = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
 };
