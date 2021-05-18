@@ -2973,22 +2973,30 @@ def cross_entropy_with_logits(predictions, targets):
     return _make.cross_entropy_with_logits(predictions, targets)
 
 
-def nll_loss(input, target, weight, reduction="mean", ignore_index=-100):
+def nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-100):
     """Negative log likelihood loss.
+
+    output{n, i_1, i_2, ..., i_k} = -p * w
+      where t = target{n, i_1, i_2, ..., i_k}
+            p = predictions{n, t, i_1, i_2, i_k}
+            w = weights{n, i_1, i_2, ..., i_k} if t != ignore_index else 0
+
+    result = reduction(output)
 
     Parameters
     ----------
-    input : tvm.relay.Expr
-      The input.
+    predictions : tvm.relay.Expr
+      The predictions.
 
-    target : tvm.relay.Expr
-      The target value of the input.
+    targets : tvm.relay.Expr
+      The target value of each prediction.
 
-    weight : tvm.relay.Expr
+    weights : tvm.relay.Expr
       The weight of each target value.
 
     reduction : string
       The reduction method to apply to the output.
+      Possible values are "mean", "sum" and "none".
 
     ignore_index : int
       The target value to ignore.
@@ -2998,7 +3006,7 @@ def nll_loss(input, target, weight, reduction="mean", ignore_index=-100):
     result : tvm.relay.Expr
       The computed result.
     """
-    return _make.nll_loss(input, target, weight, reduction, ignore_index)
+    return _make.nll_loss(predictions, targets, weights, reduction, ignore_index)
 
 
 def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):

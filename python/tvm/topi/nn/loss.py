@@ -15,25 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-argument
-"""TVM operator negative log likelihood loss compute."""
+"""Loss functions definitions."""
 from __future__ import absolute_import
 from . import cpp
 
 
-def nll_loss(input, target, weight, reduction, ignore_index):
+def nll_loss(predictions, targets, weights, reduction, ignore_index):
     """Negative log likelihood loss on the input data.
+
+    output{n, i_1, i_2, ..., i_k} = -p * w
+      where t = target{n, i_1, i_2, ..., i_k}
+            p = predictions{n, t, i_1, i_2, i_k}
+            w = weights{n, i_1, i_2, ..., i_k} if t != ignore_index else 0
+
+    result = reduction(output)
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    predictions : tvm.te.Tensor
         (k+2)-D with shape (N, C, d_1, d_2, ..., d_k),
         where C is the number of target classes
 
-    target : tvm.te.Tensor
+    targets : tvm.te.Tensor
         (k+1)-D with shape (N, d_1, d_2, ..., d_k)
         The target value of the input.
 
-    weight : tvm.te.Tensor
+    weights : tvm.te.Tensor
         1-D with shape (C,)
         The weight of each target value.
 
@@ -50,4 +57,4 @@ def nll_loss(input, target, weight, reduction, ignore_index):
         a scalar if the reduction type is "mean" or "sum",
         otherwise the same shape as `target`.
     """
-    return cpp.nn.nll_loss(input, target, weight, reduction, ignore_index)
+    return cpp.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)

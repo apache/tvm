@@ -889,8 +889,8 @@ reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 # nll_loss
 @reg.register_compute("nn.nll_loss")
 def compute_nll_loss(attrs, inputs, out_dtype):
-    input, target, weights = inputs
-    return [topi.nn.nll_loss(input, target, weights, attrs.reduction, attrs.ignore_index)]
+    predictions, targets, weights = inputs
+    return [topi.nn.nll_loss(predictions, targets, weights, attrs.reduction, attrs.ignore_index)]
 
 
 reg.register_reduce_schedule("nn.nll_loss")
