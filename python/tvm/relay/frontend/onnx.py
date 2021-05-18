@@ -2844,6 +2844,28 @@ class BitShift(OnnxOpConverter):
             raise ValueError("Unsupported Shift Direction: " + direction)
         return out
 
+class Unique(OnnxOpConverter):
+    """Operator converter for unique"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) != 1:
+            raise ValueError("Unique expects 1 input")
+
+        data = inputs[0]
+        axis = attr.get("axis", None)
+        if axis is None: # If axis is None, flatten the input before calling unique
+            data = _op.reshape(data, _op.const([-1]))
+        else:
+            data_shape = infer_shape(data)
+            if len(data_shape) != 1:
+                raise ValueError("TVM only supports 1D Unique operator.")
+        sorted = attr.get("sorted", 1) # sorted is 0 or 1, 1 by default
+
+        # ONNX documentation doesn't list return_counts as an attribute, but it lists return_counts as optional.
+        # Therefore we'll just always return it.
+        print(type(data))
+        return _op.unique(data, is_sorted=(sorted == 1), return_counts=True)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -3008,6 +3030,7 @@ def _get_convert_map(opset):
         "NonZero": NonZero.get_converter(opset),
         "Range": Range.get_converter(opset),
         "CumSum": CumSum.get_converter(opset),
+        "Unique": Unique.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
@@ -3229,6 +3252,11 @@ class GraphProto:
             if outputs_num == 1:
                 self._nodes[node_output[0]] = fold_constant(op)
             else:
+                print("op: ", op)
+                print()
+                print("op.astuple(): ", op.astuple())
+                print()
+                print("type of op.astuple(): ", type(op.astuple()))
                 op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]

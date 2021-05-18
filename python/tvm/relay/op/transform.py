@@ -1648,7 +1648,7 @@ def unique(data, is_sorted=True, return_counts=False):
     data : relay.Expr
         A 1-D tensor of integers.
 
-    sorted : bool
+    is_sorted : bool
         Whether to sort the unique elements in ascending order before returning as output.
 
     return_counts : bool
@@ -1656,11 +1656,14 @@ def unique(data, is_sorted=True, return_counts=False):
 
     Returns
     -------
-    output : relay.Expr
+    unique : relay.Expr
         A 1-D tensor containing the unique elements of the input data tensor.
 
     indices : relay.Expr
         A 1-D tensor containing the index of each data element in the output tensor.
+
+    inverse_indices : relay.Expr
+        A 1-D tensor. For each entry in data, it contains the index of that data element in the unique array.
 
     num_unique : relay.Expr
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.

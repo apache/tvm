@@ -293,7 +293,7 @@ def unique(data, is_sorted=True, return_counts=False):
 
     Returns
     -------
-    output : tvm.te.Tensor
+    unique : tvm.te.Tensor
         A 1-D tensor containing the unique elements of the input data tensor. The same size as
         the input data. If there are less unique elements than input data, the end of the tensor
         is padded with zeros.
@@ -304,7 +304,7 @@ def unique(data, is_sorted=True, return_counts=False):
         with the length of the input data.
 
     inverse_indices : tvm.te.Tensor
-        A 1-D tensor. For each entry in data, it contains the index of that entry in output.
+        A 1-D tensor. For each entry in data, it contains the index of that data element in the unique array.
         (Note that inverse_indices is very similar to indices if output is not sorted.)
 
     num_unique : tvm.te.Tensor
@@ -412,5 +412,5 @@ def unique(data, is_sorted=True, return_counts=False):
         tag="_calc_unique_gpu",
     )
     if return_counts:
-        return [outs[0], outs[1], num_unique_elements, outs[2]]
-    return [*outs, num_unique_elements]
+        return [outs[0], first_occurence, outs[1], num_unique_elements, outs[2]]
+    return [outs[0], first_occurence, outs[1], num_unique_elements]

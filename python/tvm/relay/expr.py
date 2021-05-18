@@ -405,7 +405,7 @@ class TupleWrapper(object):
 
     def astuple(self):
         """Returns the underlying Relay tuple if this wrapper is passed
-        as an argument to an FFI function."""
+        as an argumentn to an FFI function."""
         return self.tuple_value
 
     def astext(self):
