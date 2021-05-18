@@ -187,6 +187,19 @@ def convert_model_dense_to_sparse(
     return tvm.IRModule.from_expr(mod), params
 
 
+def sparse_sketch_rules():
+    sparse_sketch_rule_list = [
+        auto_scheduler.PreloadCustomSketchRule(
+            sparse_conv2d_meet_condition_func, sparse_conv2d_apply_func, "SparseConv2D"
+        ),
+        auto_scheduler.PreloadCustomSketchRule(
+            sparse_dense_meet_condition_func, sparse_dense_apply_func, "SparseDense"
+        ),
+        # Add more sketch rules for sparse
+    ]
+    return sparse_sketch_rule_list
+
+
 def sparse_conv2d_meet_condition_func(search_policy, state, stage_id):
     state = auto_scheduler.loop_state.State(state, search_policy.search_task.compute_dag)
     if state.stages[stage_id].op.tag in [

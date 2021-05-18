@@ -24,28 +24,7 @@ import scipy.sparse as sp
 import tvm
 from tvm.ir import IRModule
 from tvm import relay
-
-
-def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype="float32"):
-    Y = np.zeros((M, N), dtype=dtype)
-    assert M % BS_R == 0
-    assert N % BS_C == 0
-    nnz = int(density * M * N)
-    num_blocks = int(nnz / (BS_R * BS_C)) + 1
-    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
-    assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
-    chosen_blocks = candidate_blocks[
-        np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
-    ]
-    for i in range(len(chosen_blocks)):
-        r, c = chosen_blocks[i]
-        Y[r : r + BS_R, c : c + BS_C] = np.random.randn(BS_R, BS_C)
-    s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
-    assert s.data.shape == (num_blocks, BS_R, BS_C)
-    assert s.data.size >= nnz
-    assert s.indices.shape == (num_blocks,)
-    assert s.indptr.shape == (M // BS_R + 1,)
-    return s
+from tvm.topi.sparse.utils import random_bsr_matrix
 
 
 def run_func(func, params, x):
@@ -75,13 +54,19 @@ def test_bsr_sparse_conv2d_nchw():
     z = relay.nn.relu(y)
     func = relay.Function(relay.analysis.free_vars(z), z)
 
-    params = {"weight": tvm.nd.array(np.array(random_bsr_matrix(128, 64, 8, 1, 0.1).todense()).reshape(128, 64, 1, 1))}
+    params = {
+        "weight": tvm.nd.array(
+            np.array(random_bsr_matrix(128, 64, 8, 1, 0.1).todense()).reshape(128, 64, 1, 1)
+        )
+    }
 
     x_np = np.random.randn(1, 64, 32, 32).astype("float32")
     # dense output
     dense_output = run_func(func, params, x_np)
     # sparse
-    sparse_func, params = relay.data_dep_optimization.bsr_conv2d.convert(func, params, (8, 1), 0.2, "NCHW")
+    sparse_func, params = relay.data_dep_optimization.bsr_conv2d.convert(
+        func, params, (8, 1), 0.2, "NCHW"
+    )
     sparse_output = run_func(sparse_func, params, x_np)
     np.testing.assert_allclose(sparse_output, dense_output, atol=1e-5, rtol=1e-5)
 
@@ -94,13 +79,19 @@ def test_bsr_sparse_conv2d_nhwc():
     z = relay.nn.relu(y)
     func = relay.Function(relay.analysis.free_vars(z), z)
 
-    params = {"weight": tvm.nd.array(np.array(random_bsr_matrix(128, 64, 8, 1, 0.1).todense()).T.reshape(1, 1, 64, 128))}
+    params = {
+        "weight": tvm.nd.array(
+            np.array(random_bsr_matrix(128, 64, 8, 1, 0.1).todense()).T.reshape(1, 1, 64, 128)
+        )
+    }
 
     x_np = np.random.randn(1, 32, 32, 64).astype("float32")
     # dense output
     dense_output = run_func(func, params, x_np)
     # sparse
-    sparse_func, params = relay.data_dep_optimization.bsr_conv2d.convert(func, params, (8, 1), 0.2, "NHWC")
+    sparse_func, params = relay.data_dep_optimization.bsr_conv2d.convert(
+        func, params, (8, 1), 0.2, "NHWC"
+    )
     sparse_output = run_func(sparse_func, params, x_np)
     np.testing.assert_allclose(sparse_output, dense_output, atol=1e-5, rtol=1e-5)
 

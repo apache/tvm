@@ -68,9 +68,7 @@ from tvm.contrib import graph_executor
 # You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
 
 
-def get_network(
-    name, batch_size, layout="NHWC", dtype="float32", use_sparse=False, sparse_block_size=(1, 1)
-):
+def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=False):
     """Get the symbol definition and random weight of a network"""
 
     # auto-scheduler prefers NHWC layout
@@ -140,9 +138,7 @@ def get_network(
     if use_sparse:
         from tvm.topi.sparse.utils import convert_model_dense_to_sparse
 
-        mod, params = convert_model_dense_to_sparse(
-            mod, params, bs_r=sparse_block_size[0], bs_c=sparse_block_size[1], random_params=True
-        )
+        mod, params = convert_model_dense_to_sparse(mod, params, bs_r=4, random_params=True)
 
     return mod, params, input_shape, output_shape
 
@@ -152,7 +148,6 @@ def get_network(
 # "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
 network = "resnet-50"
 use_sparse = False
-sparse_block_size = (8, 1)
 batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("llvm -mcpu=core-avx2")
@@ -178,7 +173,6 @@ mod, params, input_shape, output_shape = get_network(
     layout,
     dtype=dtype,
     use_sparse=use_sparse,
-    sparse_block_size=sparse_block_size,
 )
 print("Extract tasks...")
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
@@ -216,25 +210,13 @@ def run_tuning():
     )
 
     if use_sparse:
-        from tvm.topi.sparse.utils import (
-            sparse_conv2d_meet_condition_func,
-            sparse_conv2d_apply_func,
-            sparse_dense_meet_condition_func,
-            sparse_dense_apply_func,
-        )
+        from tvm.topi.sparse.utils import sparse_sketch_rules
 
         search_policy = [
             auto_scheduler.SketchPolicy(
                 task,
                 program_cost_model=auto_scheduler.XGBModel(),
-                init_search_callbacks=[
-                    auto_scheduler.PreloadCustomSketchRule(
-                        sparse_conv2d_meet_condition_func, sparse_conv2d_apply_func, "SparseConv2D"
-                    ),
-                    auto_scheduler.PreloadCustomSketchRule(
-                        sparse_dense_meet_condition_func, sparse_dense_apply_func, "SparseDense"
-                    ),
-                ],
+                init_search_callbacks=sparse_sketch_rules(),
             )
             for task in tasks
         ]

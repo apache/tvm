@@ -87,8 +87,10 @@ def process_params(expr, params, block_size, sparsity_threshold, layout):
         name = str(name)
         w_np = params[name].asnumpy()
         # currently only support conv2d_1*1
-        if not ((w_np.shape[0] == 1 and w_np.shape[1] == 1) or \
-             (w_np.shape[2] == 1 and w_np.shape[3] == 1)):
+        if not (
+            (w_np.shape[0] == 1 and w_np.shape[1] == 1)
+            or (w_np.shape[2] == 1 and w_np.shape[3] == 1)
+        ):
             continue
         sparsity = 1.0 - (np.count_nonzero(w_np) / w_np.size)
         if sparsity >= sparsity_threshold:
@@ -102,7 +104,8 @@ def process_params(expr, params, block_size, sparsity_threshold, layout):
             # when bs_c=1, remove this dim
             if block_size[1] == 1:
                 sparse_weight_data = sparse_weight.data.reshape(
-                    sparse_weight.data.shape[0], block_size[0])
+                    sparse_weight.data.shape[0], block_size[0]
+                )
             else:
                 sparse_weight_data = sparse_weight.data
 

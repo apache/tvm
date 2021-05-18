@@ -51,8 +51,8 @@ def convert(func, params, blocksize, sparsity_threshold, layout="NHWC"):
     """
     weight_info = process_params(func, params, blocksize, sparsity_threshold, layout)
     new_func = _run_opt_pass(
-        func, relay.transform.Conv2dToSparse(weight_info.weight_name,
-            weight_info.weight_shape, layout)
+        func,
+        relay.transform.Conv2dToSparse(weight_info.weight_name, weight_info.weight_shape, layout),
     )
 
     return new_func, params
