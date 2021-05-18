@@ -1252,25 +1252,38 @@ def test_gather(data, axis, indices, ref_res):
 
 @tvm.testing.uses_gpu
 def test_gather_nd():
-    def verify_gather_nd(xshape, yshape, y_data):
+    def verify_gather_nd(xshape, yshape, y_data, batch_dim=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         y = relay.var("y", relay.TensorType(yshape, "int32"))
-        z = relay.gather_nd(x, y)
+        z = relay.gather_nd(x, y, batch_dim)
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(size=xshape).astype("float32")
-        ref_res = x_data[tuple(y_data)]
+
+        if batch_dim > 0:
+            res = []
+            for row, ind in zip(x_data, np.transpose(y_data)):
+                res.append(row[ind])
+            ref_res = np.vstack(res)
+            print(ref_res.shape)
+        else:
+            ref_res = x_data[tuple(y_data)]
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
+                print(op_res.shape)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
-    verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
-    verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
-    verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
+    # verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
+    # verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    # verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    # verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
+
+    # verify_gather_nd((2, 2, 2), (1, 2), [[1, 0]], 1)
+    # verify_gather_nd((2, 2, 2), (1, 1, 2), [[[1, 0]]], 1)
+    verify_gather_nd((2, 2, 2), (2, 1, 2), [[[1, 0]], [[0, 1]]], 1)
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):
@@ -1970,4 +1983,5 @@ def test_unique():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_gather_nd()

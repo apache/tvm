@@ -1424,7 +1424,7 @@ class GatherND(OnnxOpConverter):
         indices_shape = infer_shape(inputs[1])
         indices_dims = len(indices_shape)
         indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
-        batch_dim = attr.get('batch_dims', 0)
+        batch_dim = attr.get("batch_dims", 0)
         return _op.gather_nd(inputs[0], indices, batch_dim)
 
 
