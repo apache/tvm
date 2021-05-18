@@ -46,8 +46,8 @@ class RecordToFile(MeasureCallback):
 
     def __init__(self, filename):
         dirname = os.path.dirname(filename)
-        if dirname == '':
-            dirname = '.'
+        if dirname == "":
+            dirname = "."
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         self.__init_handle_by_constructor__(_ffi_api.RecordToFile, filename)
@@ -210,8 +210,8 @@ def save_records(filename, inputs, results):
         The MeasureResults to be written.
     """
     dirname = os.path.dirname(filename)
-    if dirname == '':
-        dirname = '.'
+    if dirname == "":
+        dirname = "."
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     _ffi_api.SaveRecords(filename, inputs, results)
@@ -296,8 +296,8 @@ def distill_record_file(in_file, out_file):
     context = load_records(in_file)
 
     dirname = os.path.dirname(out_file)
-    if dirname == '':
-        dirname = '.'
+    if dirname == "":
+        dirname = "."
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
