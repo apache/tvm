@@ -504,6 +504,7 @@ def uniform(gen, low, high, out_shape, out_dtype):
         Tensor of random numbers with shape `out_shape` and type `out_dtype`.
     """
     new_gen, random_bits = threefry_generate(gen, out_shape)
+    assert out_dtype in ("float32", "float64")
     if out_dtype == "float32":
         random_dtype = "uint32"
         nbits = 32

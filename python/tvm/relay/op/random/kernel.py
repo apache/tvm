@@ -147,7 +147,7 @@ def uniform(key, shape, dtype="float32", low=0.0, high=1.0):
     .. code-block:: python
 
         key = threefry_key(0)
-        random_values = uniform(key, (100,), low=0, high=10)
+        key, random_values = uniform(key, (100,), low=0, high=10)
 
     Parameters
     ----------

@@ -98,7 +98,12 @@ bool UniformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   DataType out_dtype = param->out_dtype;
   // we are supporting float32 and float64 at the moment.
-  ICHECK(out_dtype.is_float() && (out_dtype.bits() == 32 || out_dtype.bits() == 64));
+  if (!(out_dtype.is_float() && (out_dtype.bits() == 32 || out_dtype.bits() == 64))) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "We only support generating uniform random value of "
+                                     << "type float32 or float64, got " << out_dtype << ".");
+    return false;
+  }
   reporter->Assign(types[0], ThreefryKeyType());
   reporter->Assign(types[1], TensorType({}, out_dtype));
   reporter->Assign(types[2], TensorType({}, out_dtype));
