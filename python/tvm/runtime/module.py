@@ -45,7 +45,8 @@ class Module(object):
         self.entry_name = "__tvm_main__"
 
     def __del__(self):
-        check_call(_LIB.TVMModFree(self.handle))
+        if _LIB:
+            check_call(_LIB.TVMModFree(self.handle))
 
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
