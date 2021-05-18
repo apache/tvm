@@ -59,6 +59,14 @@ class Map(Object):
         for i in range(len(self)):
             yield akvs[i * 2]
 
+    def keys(self):
+        return iter(self)
+
+    def values(self):
+        akvs = _ffi_api.MapItems(self)
+        for i in range(len(self)):
+            yield akvs[i * 2 + 1]
+
     def items(self):
         """Get the items from the map"""
         akvs = _ffi_api.MapItems(self)
