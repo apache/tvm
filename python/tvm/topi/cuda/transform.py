@@ -59,5 +59,3 @@ def schedule_transpose_from_existing(s, out):
         s[c].bind(ao, thread_y)
 
     traverse_inline(s, out.op, _callback)
-
-
