@@ -573,7 +573,7 @@ class OperatorConverter(object):
 
         # Currently, only reduction along ALL "tail" axes is supported in Caffe;
         # reduction of axis M through N, where N < num_axes - 1, is unsupported.
-        if axis > 0 and axis < num_axes - 1:
+        if 0 < axis < (num_axes - 1):
             for _axis in reversed(range(axis + 1, num_axes)):
                 in_expr = _op.sum(in_expr, axis=_axis)
             in_expr = _op.squeeze(in_expr)
