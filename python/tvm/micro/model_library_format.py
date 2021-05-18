@@ -29,7 +29,6 @@ from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
 from ..runtime import ndarray as _nd
-from ..relay import build_module as relay_build_module
 from ..relay.backend import executor_factory
 from ..relay import param_dict
 from ..tir import expr

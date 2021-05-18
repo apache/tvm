@@ -387,6 +387,8 @@ def build(
 
 
 class OperatorModule(Module):
+    """Wraps the Module returned by tvm.build() and captures additional outputs of that function."""
+
     @classmethod
     def from_module(cls, mod, **kwargs):
         # NOTE(areusch): It is generally unsafe to continue using `mod` from this point forward.
