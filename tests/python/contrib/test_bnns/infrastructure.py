@@ -73,11 +73,12 @@ class Device:
         REMOTE = "remote"
         LOCAL = "local"
 
-    class TrackerEnvironmentVariables(Enum):
+    class EnvironmentVariables(Enum):
         TVM_USE_TRACKER = "TVM_USE_TRACKER"
         TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
         TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
         TVM_REMOTE_DEVICE_KEY = "TVM_REMOTE_DEVICE_KEY"
+        TVM_RUN_COMPLEXITY_TEST = "TVM_RUN_COMPLEXITY_TEST"
 
     class LibExportType(Enum):
         X64_X86 = 0
@@ -101,9 +102,9 @@ class Device:
     @classmethod
     def _set_parameters_from_environment_variables(cls):
         cls.connection_type = Device.ConnectionType.TRACKER
-        cls.host = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_HOST.value]
-        cls.port = int(os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_PORT.value])
-        cls.device_key = os.environ[Device.TrackerEnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
+        cls.host = os.environ[Device.EnvironmentVariables.TVM_TRACKER_HOST.value]
+        cls.port = int(os.environ[Device.EnvironmentVariables.TVM_TRACKER_PORT.value])
+        cls.device_key = os.environ[Device.EnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
 
         cls.target = "llvm -mtriple=arm64-apple-darwin"
         cls.lib_export_type = Device.LibExportType.ARM64
@@ -133,11 +134,19 @@ def get_run_modes():
     return [Device.ConnectionType.LOCAL, Device.ConnectionType.TRACKER]
 
 
+def skip_complexity_test():
+    try:
+        _ = os.environ[Device.EnvironmentVariables.TVM_RUN_COMPLEXITY_TEST.value]
+        return False
+    except KeyError:
+        return True
+
+
 def have_device_and_tracker_variables():
     try:
-        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_HOST.value]
-        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_TRACKER_PORT.value]
-        _ = os.environ[Device.TrackerEnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
+        _ = os.environ[Device.EnvironmentVariables.TVM_TRACKER_HOST.value]
+        _ = os.environ[Device.EnvironmentVariables.TVM_TRACKER_PORT.value]
+        _ = os.environ[Device.EnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
         return True
     except KeyError:
         return False
