@@ -581,7 +581,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
       [&](const Array<tvm::tir::Var>& indices) {
         Array<PrimExpr> real_indices;
         // dynamic slicing
-        for (int32_t i = 0; i < num_dynamic_axes; ++i) {
+        for (int64_t i = 0; i < num_dynamic_axes; ++i) {
           real_indices.push_back(indices[i] * strides(i) + tvm::min(begin(i), x->shape[i] - 1));
         }
         // keep input dim

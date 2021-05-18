@@ -472,7 +472,7 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   // calculate output shape
   std::vector<IndexExpr> oshape(num_axis);
   int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
-  for (size_t i = 0; i < num_dynamic_axes; ++i) {
+  for (int64_t i = 0; i < num_dynamic_axes; ++i) {
     oshape[i] = Any();
   }
 
