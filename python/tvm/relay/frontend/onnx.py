@@ -3324,12 +3324,21 @@ class GraphProto:
                 outputs_num = len(op)
 
             if outputs_num == 1:
-                node_output[0] = fold_constant(op)
-            elif len(outputs) != outputs_num:
-                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
-                for k, i in zip(list(node_output), range(len(node_output))):
-                    self._nodes[k] = op[i]
-
+                op = fold_constant(op)
+            else:
+                #elif len(outputs) != outputs_num:
+                print("op before: ", op)
+                tuple_list = []
+                for i in range(len(node_output)):
+                    print("index: ", type(i))
+                    folded_op_i = fold_constant(op[i])
+                    print("folded op[i]: ", folded_op_i)
+                    tuple_list.append(folded_op_i)
+                    
+                op = _expr.TupleWrapper(_expr.Tuple(tuple_list), len(node_output))
+                print("op after: ", op)
+                # somehow tuplegetitem is getting a string??
+            self._nodes = op
 
             if outputs_num > 1:
                 # ONNX supports optional outputs for some nodes.

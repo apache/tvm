@@ -419,6 +419,8 @@ class TupleWrapper(object):
         return self.tuple_value.astext()
 
     def __getitem__(self, index):
+        print("INdex is: ", index)
+        print("Type of index is: ", type(index))
         if index >= len(self):
             raise IndexError("Tuple index out of range")
         return TupleGetItem(self.tuple_value, index)
