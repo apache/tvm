@@ -20,12 +20,19 @@
 import datetime
 import json
 import os
+import pathlib
 import re
 import tarfile
+import typing
 
+from .._ffi import get_global_func
 from ..contrib import utils
+from ..driver import build_module
+from ..runtime import ndarray as _nd
+from ..relay import build_module as relay_build_module
 from ..relay.backend import executor_factory
 from ..relay import param_dict
+from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
@@ -203,7 +210,161 @@ def _build_function_memory_map(function_metadata):
     return ret
 
 
-def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, file_name):
+def _make_tar(source_dir, tar_file_path):
+    """Build a tar file from source_dir."""
+    with tarfile.open(tar_file_path, "w") as tar_f:
+        def reset(tarinfo):
+            tarinfo.uid = tarinfo.gid = 0
+            tarinfo.uname = tarinfo.gname = "root"
+            return tarinfo
+
+        tar_f.add(str(source_dir), arcname=".", filter=reset)
+
+
+_GENERATED_VERSION = 2
+
+
+def _export_graph_model_library_format(mod: executor_factory.GraphExecutorFactoryModule, tempdir: pathlib.Path):
+    """Export a tvm.relay.build artifact in Model Library Format.
+
+    Parameters
+    ----------
+    mod : tvm.relay.backend.executor_factory.ExecutorFactoryModule
+        The return value of tvm.relay.build, which will be exported into Model Library Format.
+    tempdir : pathlib.Path
+        Temporary directory to populate with Model Library Format contents.
+    """
+    is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+    runtime = ["aot"] if is_aot else ["graph"]
+
+    metadata = {
+        "version": _GENERATED_VERSION,
+        "model_name": mod.libmod_name,
+        "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
+        "memory": _build_memory_map(mod),
+        "target": {int(k): str(v) for k, v in mod.target.items()},
+        "runtimes": runtime,
+        "style": "full-model",
+    }
+
+    with open(tempdir / "metadata.json", "w") as json_f:
+        json.dump(metadata, json_f, indent=2, sort_keys=True)
+
+    codegen_dir = tempdir / "codegen"
+    codegen_dir.mkdir()
+    _populate_codegen_dir(mod.lib, codegen_dir)
+
+    parameters_dir = tempdir / "parameters"
+    parameters_dir.mkdir()
+    param_filename = parameters_dir / f"{mod.libmod_name}.params"
+    with open(param_filename, "wb") as f:
+        f.write(param_dict.save_param_dict(mod.params))
+
+    src_dir = tempdir / "src"
+    src_dir.mkdir()
+    with open(src_dir / "relay.txt", "w") as f:
+        f.write(str(mod.ir_mod))
+
+    if not is_aot:
+        graph_config_dir = tempdir / "runtime-config" / "graph"
+        graph_config_dir.mkdir(parents=True)
+        with open(graph_config_dir / "graph.json", "w") as f:
+            f.write(mod.get_executor_config())
+
+
+class NonStaticShapeError(Exception):
+    """Raised when a shape has elements other than IntImm."""
+
+
+def _shape_to_size(shape, dtype):
+    bits_per_item = int(re.match(r"((float)|(int))(?P<width_bits>[0-9]+)", dtype).group('width_bits'))
+    assert bits_per_item is not None, f"don't know how to compute size of type {dtype}"
+    total_bits = bits_per_item
+    for s in shape:
+        total_bits *= s
+
+    return (total_bits + 7) // 8
+
+
+def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_target):
+    def _eval_shape(param_name, buffer_shape):
+        shape = []
+        for x in buffer_shape:
+            if not isinstance(x, expr.IntImm):
+                raise NonStaticShapeError(f"Parameter {param_name} has shape with non-IntImm elements: {buffer_shape}")
+            shape.append(x.value)
+        return shape
+
+    memory_map = []
+    storage_id = 0
+    for target_device_type, target in targets.items():
+        ir_mod = ir_module_by_target[target]
+        printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
+        with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:
+            f.write(printer["print"](ir_mod))
+
+        for v in ir_mod.get_global_vars():
+            for p, b in ir_mod[v.name_hint].buffer_map.items():
+                shape = _eval_shape(p.name, b.shape)
+                buffer_size_bytes = _shape_to_size(shape, str(b.dtype))
+                # NOTE: cannot tell what is an input or output at this point.
+                map_entry = {
+                    "storage_id": storage_id,
+                    "size_bytes": buffer_size_bytes,
+                    "input_binding": printer["get_var_name"](p),
+                }
+                storage_id += 1
+                memory_map.append(map_entry)
+
+    return memory_map
+
+
+def _export_operator_model_library_format(mod: build_module.OperatorModule, tempdir):
+    """Export the result of tvm.build() in Model Library Format.
+
+    Parameters
+    ----------
+    mod : runtime.Module
+        The Module returned from tvm.build().
+    args : list of Buffer or Tensor or Var, optional
+        The args supplied to tvm.build().
+    file_name : str
+        Path to the .tar archive to generate.
+    """
+    targets = {}
+    for target in mod.ir_module_by_target.keys():
+        if str(target.kind) not in ("llvm", "c"):
+            raise UnsupportedInModelLibraryFormatError(
+                f"Operator has non-DSO-exportable target {target!s}, which is not yet supported in "
+                "Model Library Format")
+
+        targets[int(_nd.device(str(target)).device_type)] = target
+
+    src_dir = tempdir / "src"
+    src_dir.mkdir()
+    memory_map = _write_tir_and_build_operator_memory_map(src_dir, targets, mod.ir_module_by_target)
+
+    metadata = {
+        "version": _GENERATED_VERSION,
+        "model_name": mod.name,
+        "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
+        "memory": memory_map,
+        "target": {k: str(v) for k, v in targets.items()},
+        "runtimes": [],
+        "style": "operator",
+    }
+    with open(tempdir / "metadata.json", "w") as metadata_f:
+        json.dump(metadata, metadata_f)
+
+    codegen_dir = tempdir / "codegen"
+    codegen_dir.mkdir()
+    _populate_codegen_dir(mod, codegen_dir)
+
+
+ExportableModule = typing.Union[build_module.OperatorModule,
+                                executor_factory.GraphExecutorFactoryModule]
+
+def export_model_library_format(mod: ExportableModule, file_name: typing.Union[str, pathlib.Path]):
     """Export the build artifact in Model Library Format.
 
     This function creates a .tar archive containing the build artifacts in a standardized
@@ -212,8 +373,8 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
 
     Parameters
     ----------
-    mod : tvm.relay.backend.executor_factory.ExecutorFactoryModule
-        The return value of tvm.relay.build, which will be exported into Model Library Format.
+    mod : ExportableModule
+        The return value of tvm.build or tvm.relay.build.
     file_name : str
         Path to the .tar archive to generate.
 
@@ -222,48 +383,18 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
     file_name : str
         The path to the generated .tar archive.
     """
-    tempdir = utils.tempdir()
-    is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
-    runtime = ["aot"] if is_aot else ["graph"]
+    file_name = pathlib.Path(file_name)
 
-    metadata = {
-        "version": 2,
-        "model_name": mod.libmod_name,
-        "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
-        "memory": _build_memory_map(mod),
-        "target": {int(k): str(v) for k, v in mod.target.items()},
-        "runtimes": runtime,
-    }
+    tempdir = pathlib.Path(utils.tempdir().temp_dir)
+    tempdir.mkdir()
 
-    with open(tempdir.relpath("metadata.json"), "w") as json_f:
-        json.dump(metadata, json_f, indent=2, sort_keys=True)
+    if isinstance(mod, build_module.OperatorModule):
+        _export_operator_model_library_format(mod, tempdir)
+    elif isinstance(mod, executor_factory.GraphExecutorFactoryModule):
+        _export_graph_model_library_format(mod, tempdir)
+    else:
+        raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
-    codegen_dir_path = tempdir.relpath("codegen")
-    os.mkdir(codegen_dir_path)
-    _populate_codegen_dir(mod.lib, codegen_dir_path)
-
-    parameters_dir_path = tempdir.relpath("parameters")
-    os.mkdir(parameters_dir_path)
-    param_filename = os.path.join(parameters_dir_path, f"{mod.libmod_name}.params")
-    with open(param_filename, "wb") as f:
-        f.write(param_dict.save_param_dict(mod.params))
-
-    with open(tempdir.relpath("relay.txt"), "w") as f:
-        f.write(str(mod.ir_mod))
-
-    if not is_aot:
-        graph_config_dir_path = tempdir.relpath(os.path.join("runtime-config", "graph"))
-        os.makedirs(graph_config_dir_path)
-        with open(os.path.join(graph_config_dir_path, "graph.json"), "w") as f:
-            f.write(mod.get_executor_config())
-
-    with tarfile.open(file_name, "w") as tar_f:
-
-        def reset(tarinfo):
-            tarinfo.uid = tarinfo.gid = 0
-            tarinfo.uname = tarinfo.gname = "root"
-            return tarinfo
-
-        tar_f.add(tempdir.temp_dir, arcname=".", filter=reset)
+    _make_tar(tempdir, file_name)
 
     return file_name
