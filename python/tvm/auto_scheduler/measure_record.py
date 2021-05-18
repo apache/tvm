@@ -63,9 +63,9 @@ class RecordReader(Object):
     """
 
     def __init__(self, filename):
-        # a set to prevent print duplicated message
         if not os.path.exists(filename):
-            raise FileExistsError("%s does not exists!" % filename)
+            logger.warning("%s does not exist!" % filename)
+        # a set to prevent print duplicated message
         self.messages = set()
         self.__init_handle_by_constructor__(_ffi_api.RecordReader, filename)
 
