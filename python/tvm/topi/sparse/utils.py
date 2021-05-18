@@ -173,13 +173,15 @@ def convert_model_dense_to_sparse(
 
     mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
     if random_params:
-        # Manually replace the parameters of dense model to sparse tensors
+        # Manually replace the parameters of dense to sparse tensors
         params = random_sparse_dense_params(mod, params, bs_r=bs_r, bs_c=bs_c, density=1 - sparsity)
+        # Manually replace the parameters of conv2d to sparse tensors
         params = random_sparse_conv2d_params(
             mod, params, bs_r=bs_r, bs_c=bs_c, density=1 - sparsity, layout=layout
         )
-    # Currently we only support to conver dense matmul to sparse dense matmul
+    # convert dense matmul to sparse matmul
     mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, bs_c), sparsity_threshold=0.8)
+    # convert dense conv2d to sparse conv2d
     mod, params = ddo.bsr_conv2d.convert(
         mod, params, (bs_r, bs_c), sparsity_threshold=0.8, layout=layout
     )
