@@ -207,18 +207,14 @@ void PassContext::InstrumentAfterPass(const IRModule& ir_module, const PassInfo&
 IRModule Pass::operator()(IRModule mod) const {
   const PassNode* node = operator->();
   ICHECK(node != nullptr);
-  // PassProfile::EnterPass(node->Info()->name);
   auto ret = node->operator()(std::move(mod));
-  // PassProfile::ExitPass();
   return std::move(ret);
 }
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassNode* node = operator->();
   ICHECK(node != nullptr);
-  // PassProfile::EnterPass(node->Info()->name);
   auto ret = node->operator()(std::move(mod), pass_ctx);
-  // PassProfile::ExitPass();
   return std::move(ret);
 }
 

@@ -20,26 +20,8 @@
 /*!
  * \file tvm/ir/instrument.h
  *
- * This file introduces a pass instrument infrastructure, inspired from LLVM and MLIR.
- * It inserts instrumentation points between passes run.
- *
- * Within a pass context (tvm::transfom::PassContext), the instrumentation call sequence will like:
- *
- *   Instrument SetUp
- *
- *     if (Instrument Before Pass)
- *       Pass Run
- *       Instrument After Pass
- *
- *     if (Instrument Before Pass)
- *       Pass Run
- *       Instrument After Pass
- *
- *   Instrument TearDown
- *
- *
- * Instrument point before pass can determine particular pass is disable or not depends on the
- * callback registered.
+ * This file introduces a pass instrument infrastructure, inspired by LLVM and MLIR.
+ * It inserts instrumentation points around passes.
  */
 #ifndef TVM_IR_INSTRUMENT_H_
 #define TVM_IR_INSTRUMENT_H_
@@ -63,7 +45,25 @@ namespace instrument {
 
 /*!
  * \brief PassInstrumentNode forms an instrument implementation.
- * It provides API for users to register callbacks at different instrument point.
+ * It provides API for users to register callbacks at different instrumentation points.
+ *
+ * Within a pass context (tvm::transfom::PassContext), the instrumentation call sequence will like:
+ *
+ *   Instrument SetUp
+ *
+ *     if (Instrument Before Pass1())
+ *       Pass1()
+ *       Instrument After Pass1()
+ *
+ *     if (Instrument Before Pass2())
+ *       Pass2()
+ *       Instrument After Pass2()
+ *
+ *   Instrument TearDown
+ *
+ * The `Before Pass` instrumentation point can selectively disable passes by returning true (to
+ * enable) or false (to disable).
+ *
  * \sa PassInstrument
  */
 class PassInstrumentNode : public Object {

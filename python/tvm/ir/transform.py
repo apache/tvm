@@ -65,7 +65,7 @@ class PassContext(tvm.runtime.Object):
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
 
-    instruments : Optional[Union[List[PassInstrument], Set[PassInstrument], Tuple[PassInstrument]]]
+    instruments : Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
 
     config : Optional[Dict[str, Object]]
@@ -90,7 +90,7 @@ class PassContext(tvm.runtime.Object):
 
         instruments = list(instruments) if instruments else []
         if not isinstance(instruments, (list, tuple)):
-            raise TypeError("disabled_pass is expected to be the type of " + "list/tuple/set.")
+            raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
 
         config = config if config else None
         self.__init_handle_by_constructor__(
