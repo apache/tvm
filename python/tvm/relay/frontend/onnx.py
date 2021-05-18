@@ -3218,6 +3218,15 @@ class GraphProto:
                 outputs_num = 1
             else:
                 outputs_num = len(op)
+
+            if outputs_num == 1:
+                node_output[0] = fold_constant(op)
+            elif len(outputs) != outputs_num:
+                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
+                for k, i in zip(list(node_output), range(len(node_output))):
+                    self._nodes[k] = op[i]
+
+
             if outputs_num > 1:
                 # ONNX supports optional outputs for some nodes.
                 # This block searches for missing outputs in the ONNX graph
@@ -3239,7 +3248,7 @@ class GraphProto:
                     # Create the new op with valid outputs
                     if len(outputs) == 1:
                         op = outputs[0]
-                    else:
+                    elif len(outputs) != outputs_num:
                         op = _expr.TupleWrapper(outputs, len(outputs))
                     # Drop invalid outputs for the onnx node
                     outputs_num = len(outputs)
@@ -3249,17 +3258,6 @@ class GraphProto:
             ), "Number of output mismatch {} vs {} in {}.".format(
                 len(node_output), outputs_num, op_name
             )
-            if outputs_num == 1:
-                self._nodes[node_output[0]] = fold_constant(op)
-            else:
-                print("op: ", op)
-                print()
-                print("op.astuple(): ", op.astuple())
-                print()
-                print("type of op.astuple(): ", type(op.astuple()))
-                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
-                for k, i in zip(list(node_output), range(len(node_output))):
-                    self._nodes[k] = op[i]
 
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
