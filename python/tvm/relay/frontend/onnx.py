@@ -1419,6 +1419,14 @@ class GatherND(OnnxOpConverter):
         indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
         return _op.gather_nd(inputs[0], indices)
 
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        indices_shape = infer_shape(inputs[1])
+        indices_dims = len(indices_shape)
+        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
+        batch_dim = attr.get('batch_dims', 0)
+        return _op.gather_nd(inputs[0], indices, batch_dim)
+
 
 class Scatter(OnnxOpConverter):
     """Operator converter for Scatter."""

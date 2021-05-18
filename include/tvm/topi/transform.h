@@ -1243,8 +1243,8 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
  *
  * \return A Tensor whose op member is the gather_nd operation
  */
-inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string name = "T_gather_nd",
-                        std::string tag = kInjective) {
+inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim = 0,
+                        std::string name = "T_gather_nd", std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
   ICHECK_GE(ndim_i, 1) << "indices tensor must have at least 1 dimensions";
@@ -1255,7 +1255,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string n
   for (size_t i = 1; i < ndim_i; ++i) {
     out_shape.push_back(indices->shape[i]);
   }
-  for (size_t i = indices_dim0; i < ndim_d; ++i) {
+  for (size_t i = indices_dim0 + batch_dim; i < ndim_d; ++i) {
     out_shape.push_back(data->shape[i]);
   }
   return compute(
@@ -1267,6 +1267,9 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string n
           indices_position.push_back(out_index[i]);
         }
         Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < batch_dim; ++i) {
+          real_indices.push_back(out_index[i]);
+        }
         for (size_t i = 0; i < indices_dim0; ++i) {
           indices_position.Set(0, make_const(DataType::Int(32), i));
           if (indices->dtype.is_int()) {

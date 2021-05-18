@@ -3350,21 +3350,29 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const size_t kdim = indices->shape.size() - 1;
   ICHECK(size_t(mdim->value) <= ndim) << "GatherND: indices shape does satisfy.";
 
+  const auto param = attrs.as<GatherNDAttrs>();
+  ICHECK(param != nullptr);
+
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
-  for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
+  for (size_t i = mdim->value + param->batch_dim->value; i < ndim; ++i)
+    oshape.push_back(data->shape[i]);
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
 Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  return {topi::gather_nd(inputs[0], inputs[1])};
+  const auto* param = attrs.as<GatherNDAttrs>();
+  ICHECK(param);
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dim)};
 }
 
-Expr MakeGatherND(Expr data, Expr indices) {
+Expr MakeGatherND(Expr data, Expr indices, int batch_dim = 0) {
   static const Op& op = Op::Get("gather_nd");
-  return Call(op, {data, indices}, {});
+  auto attrs = make_object<GatherNDAttrs>();
+  attrs->batch_dim = std::move(batch_dim);
+  return Call(op, {data, indices}, Attrs(attrs));
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.gather_nd").set_body_typed(MakeGatherND);
