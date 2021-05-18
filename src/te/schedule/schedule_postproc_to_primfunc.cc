@@ -71,7 +71,7 @@ class TensorToBufferMapper : public StmtExprMutator {
     // Buffer's scope field in this pass.
     if (op->attr_key == tir::attr::realize_scope ||
         op->attr_key == tir::attr::double_buffer_scope ||
-        op->attr_key == tir::attr::rolling_buffer) {
+        op->attr_key == tir::attr::rolling_buffer_scope) {
       Stmt body = op->body;
       Operation operation = Downcast<Operation>(op->node);
       for (int i = operation->num_outputs(); i != 0; --i) {

@@ -16,7 +16,8 @@
 # under the License.
 """Inject rolling buffers through a TIR transformation."""
 # pylint: disable=invalid-name,unused-argument,inconsistent-return-statements
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+import math
 
 import tvm
 from tvm import arith
@@ -24,6 +25,18 @@ from tvm import arith
 
 def InjectRollingBuffer():
     """Inject rolling buffer statements.
+
+    Rolling buffers are buffers where one of the dimensions has been made into
+    a circular buffer. Two optimizations are implemented in order to accomplish
+    this: sliding window and storage folding. In particular, the sliding window
+    optimization is applied to the entire buffer (to avoid recomputing elements)
+    and storage folding is then applied to just the rolling dimension.
+
+    Rolling buffers must be inside a loop with only part of the buffer used per
+    iteration. The outermost axis will be rolled over.
+
+    For more information, see the RFC:
+    https://discuss.tvm.apache.org/t/rfc-introducing-a-rolling-buffer-scheduling-primitive/9836
 
     Returns
     -------
@@ -36,12 +49,9 @@ def InjectRollingBuffer():
     iter_vars = list()
     hoist_buffer_to_for = defaultdict(list)
 
-    class RollingBufferInfo:
-        def __init__(self, rolling_axis, rolling_extent, axis_overlaps, axis_iter_vars):
-            self.rolling_axis = rolling_axis
-            self.rolling_extent = rolling_extent
-            self.axis_overlaps = axis_overlaps
-            self.axis_iter_vars = axis_iter_vars
+    RollingBufferInfo = namedtuple(
+        "RollingBufferInfo", ["rolling_axis", "rolling_extent", "axis_overlaps", "axis_iter_vars"]
+    )
 
     def _pre_visit(stmt):
         if isinstance(stmt, tvm.tir.For):
@@ -50,7 +60,7 @@ def InjectRollingBuffer():
 
         elif isinstance(stmt, tvm.tir.AttrStmt):
             if isinstance(stmt.node, tvm.tir.Buffer):
-                if stmt.attr_key == "rolling_buffer" and stmt.value.value:
+                if stmt.attr_key == "rolling_buffer_scope" and stmt.value.value:
                     # If the attribute is indicating that a buffer should be a rolling
                     # buffer, then update the rolling_buffers set to include the bufffer
                     rolling_buffers.add(stmt.node)
@@ -64,11 +74,17 @@ def InjectRollingBuffer():
                 # If a BufferRealize has been identified as needing to be made into
                 # a rolling buffer, begin the analysis...
                 bound_iter_vars = []
-                bound_strides = []
                 bound_overlaps = []
                 # We use the bound information of the BufferRealize to calculate
                 # how we can legally roll
                 for bound in stmt.bounds:
+                    divisor = 1
+                    # Handle the case of fractional strides
+                    # They take this form: floordiv(hh.outer, 2)
+                    # Strip the floordiv and keep track of the divisor
+                    if isinstance(bound.min, tvm.tir.FloorDiv):
+                        divisor = bound.min.b.value
+                        bound.min = bound.min.a
                     # If the bound is an int, we can't roll over it
                     if isinstance(bound.min, tvm.tir.IntImm):
                         iter_var = None
@@ -80,13 +96,19 @@ def InjectRollingBuffer():
                     # Otherwise, it's the iter var multiplied by the stride
                     # If not we're in unknown behaviour, so assert
                     else:
-                        assert isinstance(bound.min, tvm.tir.Mul)
-                        assert isinstance(bound.min.a, tvm.tir.Var)
-                        assert isinstance(bound.min.b, tvm.tir.IntImm)
+                        assert isinstance(
+                            bound.min, tvm.tir.Mul
+                        ), "Rolling buffer injection failed: the buffer striding is unsupported"
+                        assert isinstance(
+                            bound.min.a, tvm.tir.Var
+                        ), "Rolling buffer injection failed: the buffer striding is unsupported"
+                        assert isinstance(
+                            bound.min.b, tvm.tir.IntImm
+                        ), "Rolling buffer injection failed: the buffer striding is unsupported"
                         iter_var = bound.min.a
                         stride = bound.min.b.value
+                    stride = math.ceil(stride / divisor)
                     bound_iter_vars.append(iter_var)
-                    bound_strides.append(stride)
                     if iter_var is not None:
                         bound_overlaps.append(bound.extent.value - stride)
                     else:
@@ -104,8 +126,10 @@ def InjectRollingBuffer():
                         break
 
                 # We must have found an axis to roll over
-                assert roll_iter_var is not None
-                assert roll_axis != -1
+                assert (
+                    roll_iter_var is not None
+                ), "Rolling buffer injection failed: no rolling axis found"
+                assert roll_axis != -1, "Rolling buffer injection failed: no rolling axis found"
                 rolling_buffer_info = RollingBufferInfo(
                     roll_axis, stmt.bounds[roll_axis].extent.value, bound_overlaps, bound_iter_vars
                 )
@@ -136,7 +160,7 @@ def InjectRollingBuffer():
                     )
                     # The attributes attached to the BufferRealize need hoisting too
                     for attr in attrs:
-                        if attr.attr_key == "rolling_buffer":
+                        if attr.attr_key == "rolling_buffer_scope":
                             continue
                         new_realize = tvm.tir.AttrStmt(
                             attr.node, attr.attr_key, attr.value, new_realize, attr.span

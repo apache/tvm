@@ -57,6 +57,12 @@ def _verify_schedule(sch, inputs, output):
     mods = []
     mods.append(mod)
     mod = tvm.tir.transform.InjectRollingBuffer()(mod)
+
+    def _check(stmt):
+        if isinstance(stmt, tvm.tir.AttrStmt):
+            assert stmt.attr_key != "rolling_buffer_scope", "Failed to lower rolling buffers"
+
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, _check)
     mods.append(mod)
 
     outputs = []
@@ -85,8 +91,8 @@ def _verify_schedule(sch, inputs, output):
 @pytest.mark.parametrize("tile_shape", [(1, 4, 8, 16), (1, 8, 7, 11), (1, 8, 3, 8), (1, 7, 5, 3)])
 def test_tile_shapes(tile_shape):
     A = te.placeholder((1, 12, 14, 16), name="A", dtype="int8")
-    pool_a = topi.nn.pool(A, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_b = topi.nn.pool(pool_a, (3, 5), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_a = topi.nn.pool2d(A, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_b = topi.nn.pool2d(pool_a, (3, 5), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
 
     sch = tvm.te.create_schedule([pool_b.op])
     oi, ii = _tile_nd(sch, pool_b, tile_shape)
@@ -98,8 +104,8 @@ def test_tile_shapes(tile_shape):
 
 def test_implied_split():
     A = te.placeholder((1, 12, 12, 16), name="A", dtype="int8")
-    pool_a = topi.nn.pool(A, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_b = topi.nn.pool(pool_a, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_a = topi.nn.pool2d(A, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_b = topi.nn.pool2d(pool_a, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
 
     sch = tvm.te.create_schedule([pool_b.op])
     n, h, w, c = pool_b.op.axis
@@ -110,12 +116,25 @@ def test_implied_split():
     _verify_schedule(sch, [A], pool_b)
 
 
+def test_upscale():
+    A = te.placeholder((1, 12, 12, 16), name="A", dtype="int8")
+    pool = topi.nn.pool2d(A, (1, 1), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    upscale = te.compute((1, 24, 24, 16), lambda nn, hh, ww, cc: pool[nn, hh // 2, ww // 2, cc])
+
+    sch = tvm.te.create_schedule([upscale.op])
+    oi, ii = _tile_nd(sch, upscale, (1, 5, 5, 16))
+    sch[pool].compute_at(sch[upscale], oi[-1])
+    sch[pool].rolling_buffer()
+
+    _verify_schedule(sch, [A], upscale)
+
+
 @pytest.mark.parametrize("tile_shape", [(1, 4, 8, 16), (1, 8, 7, 11), (1, 8, 3, 8), (1, 7, 5, 3)])
 def test_3_tiled_poolings(tile_shape):
     A = te.placeholder((1, 14, 14, 16), name="A", dtype="int8")
-    pool_a = topi.nn.pool(A, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_b = topi.nn.pool(pool_a, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_c = topi.nn.pool(pool_b, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_a = topi.nn.pool2d(A, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_b = topi.nn.pool2d(pool_a, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_c = topi.nn.pool2d(pool_b, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
 
     sch = tvm.te.create_schedule([pool_c.op])
     oi, ii = _tile_nd(sch, pool_c, tile_shape)
@@ -131,10 +150,10 @@ def test_3_tiled_poolings(tile_shape):
 def test_tiled_added_poolings(tile_shape):
     A = te.placeholder((1, 12, 12, 16), name="A", dtype="int8")
     B = te.placeholder((1, 14, 14, 16), name="A", dtype="int8")
-    pool_a = topi.nn.pool(A, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_b = topi.nn.pool(B, (5, 5), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_a = topi.nn.pool2d(A, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_b = topi.nn.pool2d(B, (5, 5), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
     add = topi.add(pool_a, pool_b)
-    pool_c = topi.nn.pool(add, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_c = topi.nn.pool2d(add, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
 
     sch = tvm.te.create_schedule([pool_c.op])
     oi, ii = _tile_nd(sch, pool_c, tile_shape)
@@ -151,9 +170,9 @@ def test_tiled_added_poolings(tile_shape):
 @pytest.mark.parametrize("make_rolling", [(0, 0), (1, 0), (0, 1), (1, 1)])
 def test_mixed_buffers(make_rolling):
     A = te.placeholder((1, 14, 14, 16), name="A", dtype="int8")
-    pool_a = topi.nn.pool(A, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_b = topi.nn.pool(pool_a, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
-    pool_c = topi.nn.pool(pool_b, (3, 3), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_a = topi.nn.pool2d(A, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_b = topi.nn.pool2d(pool_a, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
+    pool_c = topi.nn.pool2d(pool_b, (3, 3), (1, 1), (1, 1), (0, 0, 0, 0), "max", layout="NHWC")
 
     sch = tvm.te.create_schedule([pool_c.op])
     oi, ii = _tile_nd(sch, pool_c, (1, 4, 8, 16))
@@ -180,7 +199,7 @@ class PreRollingBuffer:
         # body
         tir.realize(tensor_1[0:1, 0:8, 0:8, 0:16], "")
         for ax1_outer in tir.serial(0, 2):
-            tir.attr(tensor_2, "rolling_buffer", True)
+            tir.attr(tensor_2, "rolling_buffer_scope", True)
             tir.realize(tensor_2[0:1, (ax1_outer*4):((ax1_outer*4) + 6), 0:12, 0:16], "")
             for ax1 in tir.serial(0, 6):
                 for ax2 in tir.serial(0, 12):
