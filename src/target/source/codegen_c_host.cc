@@ -409,7 +409,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.LinkParameters(linked_params);
   }
 
-  if (aot_executor_fn.defined()) {
+  if (could_have_linked_params && aot_executor_fn.defined()) {
     cg.DeclareParameters(linked_params);
     cg.AddFunction(aot_executor_fn);
   }
