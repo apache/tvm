@@ -68,28 +68,13 @@ namespace instrument {
  */
 class PassInstrumentNode : public Object {
  public:
-  /*! \brief Name of this pass instrument object. */
-  String name;
-
-  /*! \brief Callback for instrumentation environment set up. */
-  runtime::TypedPackedFunc<void()> set_up_callback;
-  /*! \brief Callback for instrumentation environment clean up. */
-  runtime::TypedPackedFunc<void()> tear_down_callback;
-
-  /*! \brief Callback to run before a pass. */
-  runtime::TypedPackedFunc<bool(const IRModule&, const transform::PassInfo&)>
-      run_before_pass_callback;
-  /*! \brief Callback to run after a pass. */
-  runtime::TypedPackedFunc<void(const IRModule&, const transform::PassInfo&)>
-      run_after_pass_callback;
-
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+  virtual ~PassInstrumentNode() {}
 
   /*! \brief Set up environment for instrumentation. */
-  void SetUp() const;
+  virtual void SetUp() const = 0;
 
   /*! \brief Clean up instrumentation environment. */
-  void TearDown() const;
+  virtual void TearDown() const = 0;
 
   /*!
    * \brief Instrument before pass run, determine whether to run the pass or not.
@@ -98,7 +83,7 @@ class PassInstrumentNode : public Object {
    *
    * \return true to run the pass; false to skip the pass.
    */
-  bool RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const;
+  virtual bool RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const = 0;
 
   /*!
    * \brief Instrument after pass run.
@@ -106,7 +91,9 @@ class PassInstrumentNode : public Object {
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
    */
-  void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const;
+  virtual void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+
+  void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "instrument.PassInstrument";
   TVM_DECLARE_BASE_OBJECT_INFO(PassInstrumentNode, Object);
@@ -118,21 +105,6 @@ class PassInstrumentNode : public Object {
  */
 class PassInstrument : public ObjectRef {
  public:
-  /*!
-   * \brief Constructor
-   * \param name Name for this instrumentation.
-   */
-  TVM_DLL PassInstrument(String name);
-
-  /*!
-   * \brief mutable accessor.
-   * \return mutable access pointer.
-   */
-  PassInstrumentNode* operator->() {
-    ICHECK(get() != nullptr);
-    return static_cast<PassInstrumentNode*>(get_mutable());
-  }
-
   TVM_DEFINE_OBJECT_REF_METHODS(PassInstrument, ObjectRef, PassInstrumentNode);
 };
 

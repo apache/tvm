@@ -32,26 +32,100 @@
 namespace tvm {
 namespace instrument {
 
-PassInstrument::PassInstrument(String name) {
-  auto pi = make_object<PassInstrumentNode>();
+/*!
+ * \brief A named PassInstrument implementation
+ * \sa NamedPassInstrument
+ */
+class NamedPassInstrumentNode : public PassInstrumentNode {
+ public:
+  /*! \brief Name of this pass instrument object. */
+  String name;
+
+  /*! \brief Callback for instrumentation environment set up. */
+  runtime::TypedPackedFunc<void()> set_up_callback;
+  /*! \brief Callback for instrumentation environment clean up. */
+  runtime::TypedPackedFunc<void()> tear_down_callback;
+
+  /*! \brief Callback to run before a pass. */
+  runtime::TypedPackedFunc<bool(const IRModule&, const transform::PassInfo&)>
+      run_before_pass_callback;
+  /*! \brief Callback to run after a pass. */
+  runtime::TypedPackedFunc<void(const IRModule&, const transform::PassInfo&)>
+      run_after_pass_callback;
+
+  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+
+  /*! \brief Set up environment for instrumentation. */
+  void SetUp() const final;
+
+  /*! \brief Clean up instrumentation environment. */
+  void TearDown() const final;
+
+  /*!
+   * \brief Instrument before pass run, determine whether to run the pass or not.
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   *
+   * \return true to run the pass; false to skip the pass.
+   */
+  bool RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const final;
+
+  /*!
+   * \brief Instrument after pass run.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   */
+  void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const final;
+
+  static constexpr const char* _type_key = "instrument.NamedPassInstrument";
+  TVM_DECLARE_FINAL_OBJECT_INFO(NamedPassInstrumentNode, PassInstrumentNode);
+};
+
+/*!
+ * \brief Managed reference class for NamedPassInstrumentNode
+ * \sa NamedPassInstrumentNode
+ */
+class NamedPassInstrument : public PassInstrument {
+ public:
+  /*!
+   * \brief Constructor
+   * \param name Name for this instrumentation.
+   */
+  TVM_DLL NamedPassInstrument(String name);
+
+  /*!
+   * \brief mutable accessor.
+   * \return mutable access pointer.
+   */
+  NamedPassInstrumentNode* operator->() {
+    ICHECK(get() != nullptr);
+    return static_cast<NamedPassInstrumentNode*>(get_mutable());
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(NamedPassInstrument, PassInstrument, NamedPassInstrumentNode);
+};
+
+NamedPassInstrument::NamedPassInstrument(String name) {
+  auto pi = make_object<NamedPassInstrumentNode>();
   pi->name = std::move(name);
   data_ = std::move(pi);
 }
 
-void PassInstrumentNode::SetUp() const {
+void NamedPassInstrumentNode::SetUp() const {
   if (set_up_callback != nullptr) {
     set_up_callback();
   }
 }
 
-void PassInstrumentNode::TearDown() const {
+void NamedPassInstrumentNode::TearDown() const {
   if (tear_down_callback != nullptr) {
     tear_down_callback();
   }
 }
 
-bool PassInstrumentNode::RunBeforePass(const IRModule& ir_module,
-                                       const transform::PassInfo& pass_info) const {
+bool NamedPassInstrumentNode::RunBeforePass(const IRModule& ir_module,
+                                            const transform::PassInfo& pass_info) const {
   if (run_before_pass_callback == nullptr) {
     return true;
   }
@@ -59,16 +133,16 @@ bool PassInstrumentNode::RunBeforePass(const IRModule& ir_module,
   return run_before_pass_callback(ir_module, pass_info);
 }
 
-void PassInstrumentNode::RunAfterPass(const IRModule& ir_module,
-                                      const transform::PassInfo& pass_info) const {
+void NamedPassInstrumentNode::RunAfterPass(const IRModule& ir_module,
+                                           const transform::PassInfo& pass_info) const {
   if (run_after_pass_callback != nullptr) {
     run_after_pass_callback(ir_module, pass_info);
   }
 }
 
-TVM_REGISTER_NODE_TYPE(PassInstrumentNode);
+TVM_REGISTER_NODE_TYPE(NamedPassInstrumentNode);
 
-TVM_REGISTER_GLOBAL("instrument.PassInstrument")
+TVM_REGISTER_GLOBAL("instrument.NamedPassInstrument")
     .set_body_typed([](String name,
                        runtime::TypedPackedFunc<bool(const IRModule&, const transform::PassInfo&)>
                            run_before_pass,
@@ -76,7 +150,7 @@ TVM_REGISTER_GLOBAL("instrument.PassInstrument")
                            run_after_pass,
                        runtime::TypedPackedFunc<void()> set_up,
                        runtime::TypedPackedFunc<void()> tear_down) {
-      auto pi = PassInstrument(name);
+      auto pi = NamedPassInstrument(name);
       pi->run_before_pass_callback = std::move(run_before_pass);
       pi->run_after_pass_callback = std::move(run_after_pass);
 
@@ -86,8 +160,8 @@ TVM_REGISTER_GLOBAL("instrument.PassInstrument")
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PassInstrumentNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PassInstrumentNode*>(ref.get());
+    .set_dispatch<NamedPassInstrumentNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const NamedPassInstrumentNode*>(ref.get());
       p->stream << node->name;
     });
 
@@ -224,7 +298,7 @@ TVM_REGISTER_GLOBAL("instrument.MakePassesTimeInstrument").set_body_typed([]() {
 
   auto tear_down = []() { PassProfileThreadLocalStore::Get()->root.children.clear(); };
 
-  auto pi = PassInstrument("PassesTimeInstrument");
+  auto pi = NamedPassInstrument("PassesTimeInstrument");
   pi->run_before_pass_callback = run_before_pass;
   pi->run_after_pass_callback = run_after_pass;
 

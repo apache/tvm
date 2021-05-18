@@ -64,7 +64,7 @@ def _wrap_class_pass_instrument(pi_cls):
             # reister instance's run_before_pass, run_after_pass, set_up and tear_down method
             # to it if present.
             self.__init_handle_by_constructor__(
-                _ffi_instrument_api.PassInstrument,
+                _ffi_instrument_api.NamedPassInstrument,
                 pi_cls.__name__,
                 create_method("run_before_pass"),
                 create_method("run_after_pass"),
