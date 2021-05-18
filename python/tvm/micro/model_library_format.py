@@ -213,6 +213,7 @@ def _build_function_memory_map(function_metadata):
 def _make_tar(source_dir, tar_file_path):
     """Build a tar file from source_dir."""
     with tarfile.open(tar_file_path, "w") as tar_f:
+
         def reset(tarinfo):
             tarinfo.uid = tarinfo.gid = 0
             tarinfo.uname = tarinfo.gname = "root"
@@ -224,7 +225,9 @@ def _make_tar(source_dir, tar_file_path):
 _GENERATED_VERSION = 2
 
 
-def _export_graph_model_library_format(mod: executor_factory.GraphExecutorFactoryModule, tempdir: pathlib.Path):
+def _export_graph_model_library_format(
+    mod: executor_factory.GraphExecutorFactoryModule, tempdir: pathlib.Path
+):
     """Export a tvm.relay.build artifact in Model Library Format.
 
     Parameters
@@ -277,7 +280,9 @@ class NonStaticShapeError(Exception):
 
 
 def _shape_to_size(shape, dtype):
-    bits_per_item = int(re.match(r"((float)|(int))(?P<width_bits>[0-9]+)", dtype).group('width_bits'))
+    bits_per_item = int(
+        re.match(r"((float)|(int))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
+    )
     assert bits_per_item is not None, f"don't know how to compute size of type {dtype}"
     total_bits = bits_per_item
     for s in shape:
@@ -291,7 +296,9 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
         shape = []
         for x in buffer_shape:
             if not isinstance(x, expr.IntImm):
-                raise NonStaticShapeError(f"Parameter {param_name} has shape with non-IntImm elements: {buffer_shape}")
+                raise NonStaticShapeError(
+                    f"Parameter {param_name} has shape with non-IntImm elements: {buffer_shape}"
+                )
             shape.append(x.value)
         return shape
 
@@ -336,7 +343,8 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
         if str(target.kind) not in ("llvm", "c"):
             raise UnsupportedInModelLibraryFormatError(
                 f"Operator has non-DSO-exportable target {target!s}, which is not yet supported in "
-                "Model Library Format")
+                "Model Library Format"
+            )
 
         targets[int(_nd.device(str(target)).device_type)] = target
 
@@ -361,9 +369,12 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
     _populate_codegen_dir(mod, codegen_dir)
 
 
-ExportableModule = typing.Union[build_module.OperatorModule,
-                                executor_factory.AOTExecutorFactoryModule,
-                                executor_factory.GraphExecutorFactoryModule]
+ExportableModule = typing.Union[
+    build_module.OperatorModule,
+    executor_factory.AOTExecutorFactoryModule,
+    executor_factory.GraphExecutorFactoryModule,
+]
+
 
 def export_model_library_format(mod: ExportableModule, file_name: typing.Union[str, pathlib.Path]):
     """Export the build artifact in Model Library Format.
@@ -390,8 +401,10 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
 
     if isinstance(mod, build_module.OperatorModule):
         _export_operator_model_library_format(mod, tempdir.path)
-    elif isinstance(mod, (executor_factory.AOTExecutorFactoryModule,
-                          executor_factory.GraphExecutorFactoryModule)):
+    elif isinstance(
+        mod,
+        (executor_factory.AOTExecutorFactoryModule, executor_factory.GraphExecutorFactoryModule),
+    ):
         _export_graph_model_library_format(mod, tempdir.path)
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")

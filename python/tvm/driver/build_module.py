@@ -387,7 +387,6 @@ def build(
 
 
 class OperatorModule(Module):
-
     @classmethod
     def from_module(cls, mod, **kwargs):
         # NOTE(areusch): It is generally unsafe to continue using `mod` from this point forward.

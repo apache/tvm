@@ -126,7 +126,9 @@ class TempDirectory(object):
 
     def __div__(self, other):
         if not isinstance(other, (str, pathlib.Path)):
-            raise TypeError("TempDirectory / operator: must supply str or pathlib.Path; got %r" % (other,))
+            raise TypeError(
+                "TempDirectory / operator: must supply str or pathlib.Path; got %r" % (other,)
+            )
 
         return self.path / other
 

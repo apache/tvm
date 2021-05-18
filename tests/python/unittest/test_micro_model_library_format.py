@@ -72,7 +72,9 @@ def test_export_operator_model_library_format():
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib0.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib1.c"))
 
-    assert len(mod.ir_module_by_target) == 1, f"expect 1 ir_modele_by_target: {ir_module_by_target!r}"
+    assert (
+        len(mod.ir_module_by_target) == 1
+    ), f"expect 1 ir_modele_by_target: {ir_module_by_target!r}"
     for target, ir_mod in mod.ir_module_by_target.items():
         assert int(tvm.runtime.ndarray.device(str(target)).device_type) == 1
         with open(os.path.join(extract_dir, "src", "tir-1.txt")) as tir_f:
