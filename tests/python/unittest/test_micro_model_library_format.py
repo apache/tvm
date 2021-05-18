@@ -168,7 +168,7 @@ def test_export_model_library_format_c(target):
         if executor == "graph":
             validate_graph_json(extract_dir, factory)
 
-        with open(os.path.join(extract_dir, "relay.txt")) as relay_f:
+        with open(os.path.join(extract_dir, "src", "relay.txt")) as relay_f:
             assert relay_f.read() == str(relay_mod)
 
         with open(os.path.join(extract_dir, "parameters", "add.params"), "rb") as params_f:
@@ -245,7 +245,7 @@ def test_export_model_library_format_llvm():
 
         validate_graph_json(extract_dir, factory)
 
-        with open(os.path.join(extract_dir, "relay.txt")) as relay_f:
+        with open(os.path.join(extract_dir, "src", "relay.txt")) as relay_f:
             assert relay_f.read() == str(relay_mod)
 
         with open(os.path.join(extract_dir, "parameters", "add.params"), "rb") as params_f:
@@ -316,7 +316,7 @@ def test_export_model_library_format_workspace(target):
 
 
 @tvm.testing.requires_micro
-def test_export_model():
+def test_export_non_dso_exportable():
     module = tvm.support.FrontendTestModule()
     factory = executor_factory.GraphExecutorFactoryModule(
         None, tvm.target.target.micro("host"), '"graph_json"', module, "test_module", {}, {}

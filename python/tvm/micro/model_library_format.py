@@ -362,6 +362,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
 
 
 ExportableModule = typing.Union[build_module.OperatorModule,
+                                executor_factory.AOTExecutorFactoryModule,
                                 executor_factory.GraphExecutorFactoryModule]
 
 def export_model_library_format(mod: ExportableModule, file_name: typing.Union[str, pathlib.Path]):
@@ -385,16 +386,16 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
     """
     file_name = pathlib.Path(file_name)
 
-    tempdir = pathlib.Path(utils.tempdir().temp_dir)
-    tempdir.mkdir()
+    tempdir = utils.tempdir()
 
     if isinstance(mod, build_module.OperatorModule):
-        _export_operator_model_library_format(mod, tempdir)
-    elif isinstance(mod, executor_factory.GraphExecutorFactoryModule):
-        _export_graph_model_library_format(mod, tempdir)
+        _export_operator_model_library_format(mod, tempdir.path)
+    elif isinstance(mod, (executor_factory.AOTExecutorFactoryModule,
+                          executor_factory.GraphExecutorFactoryModule)):
+        _export_graph_model_library_format(mod, tempdir.path)
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
-    _make_tar(tempdir, file_name)
+    _make_tar(tempdir.path, file_name)
 
     return file_name
