@@ -73,8 +73,7 @@ TVM_REGISTER_GLOBAL("relay.analysis.search_conv2d_op_weight").set_body_typed(Sea
 class Conv2dToSparseConv2dMutator : public ExprRewriter {
  public:
   Conv2dToSparseConv2dMutator(const Array<ObjectRef>& weight_name,
-                              const Array<Array<PrimExpr>>& weight_shape,
-                              const String& layout)
+                              const Array<Array<PrimExpr>>& weight_shape, const String& layout)
       : conv2d_op_(Op::Get("nn.conv2d")), sparse_conv2d_op_(Op::Get("nn.sparse_conv2d")) {
     ICHECK_EQ(weight_name.size(), weight_shape.size());
     layout_ = layout;
@@ -114,7 +113,7 @@ class Conv2dToSparseConv2dMutator : public ExprRewriter {
           auto attrs = make_object<SparseConv2DAttrs>();
           attrs->layout = std::move(layout_);
           return Call(sparse_conv2d_op_, {data, weight_data, weight_indices, weight_indptr},
-                        Attrs(attrs));
+                      Attrs(attrs));
         }
       }
     }
@@ -137,8 +136,7 @@ Expr Conv2dToSparse(const Expr& e, const Array<ObjectRef>& weight_name,
 
 namespace transform {
 
-Pass Conv2dToSparse(const Array<ObjectRef>& weight_name,
-                    const Array<Array<PrimExpr>>& weight_shape,
+Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimExpr>>& weight_shape,
                     const String& layout) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
