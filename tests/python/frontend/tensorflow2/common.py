@@ -29,6 +29,7 @@ import tvm.testing
 import tensorflow as tf
 from tensorflow.python.eager.def_function import Function
 
+
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
         out = o.asnumpy().tolist()
@@ -40,6 +41,7 @@ def vmobj_to_list(o):
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
     return out
+
 
 def run_tf_code(func, input_):
     if type(func) is Function:
@@ -62,33 +64,40 @@ def run_tf_code(func, input_):
             a = a.numpy()
     return a
 
-def compile_graph_runtime(mod, params, target = "llvm", target_host = "llvm",
-            opt_level=3, output_sig=None):
+
+def compile_graph_runtime(
+    mod, params, target="llvm", target_host="llvm", opt_level=3, output_sig=None
+):
     with tvm.transform.PassContext(opt_level):
         lib = relay.build(mod, target=target, target_host=target_host, params=params)
     return lib
 
-def compile_vm(mod, params, target = "llvm", target_host = "llvm",
-               opt_level=3, disabled_pass=None, output_sig=None):
+
+def compile_vm(
+    mod, params, target="llvm", target_host="llvm", opt_level=3, disabled_pass=None, output_sig=None
+):
     with tvm.transform.PassContext(opt_level, disabled_pass=disabled_pass):
         mod = relay.transform.InferType()(mod)
         vm_exec = relay.vm.compile(mod, target, target_host, params=params)
     return vm_exec
 
-def run_vm(vm_exec, input_, ctx = tvm.cpu(0)):
+
+def run_vm(vm_exec, input_, ctx=tvm.cpu(0)):
     vm = VirtualMachine(vm_exec, ctx)
     _out = vm.invoke("main", input_)
     return vmobj_to_list(_out)
 
-def run_graph(lib, input_, ctx = tvm.cpu(0)):
+
+def run_graph(lib, input_, ctx=tvm.cpu(0)):
     mod = runtime.GraphModule(lib["default"](ctx))
     mod.set_input(0, input_)
     mod.run()
     _out = mod.get_output(0).asnumpy()
     return _out
 
+
 def compare_tf_tvm(gdef, input_, output_, vm=True, output_sig=None):
-    """ compare tf and tvm execution for the same input.
+    """compare tf and tvm execution for the same input.
 
     Parameters
     ----------
