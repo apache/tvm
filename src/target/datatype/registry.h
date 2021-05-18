@@ -62,7 +62,7 @@ class Registry {
    * manually allocated by the user, and the user must ensure that no two custom types share the
    * same code. Generally, this should be straightforward, as the user will be manually registering
    * all of their custom types.
-   * \param type_name The name of the type, e.g. "posites2"
+   * \param type_name The name of the type, e.g. "posit"
    * \param type_code The type code, which should be greater than TVMArgTypeCode::kTVMExtEnd
    */
   void Register(const std::string& type_name, uint8_t type_code);

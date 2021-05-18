@@ -257,7 +257,7 @@ TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
 TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
 
 /*!
- * \brief Runtime utility for parsing string of the form "custom[<typename>]"
+ * \brief Runtime utility for parsing string of the form "custom_<typename>"
  * \param s String to parse
  * \param scan pointer to parsing pointer, which is scanning across s
  * \return type code of custom type parsed
@@ -315,7 +315,7 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (t.code < DataType::kCustomBegin) {
     os << DLDataTypeCode2Str(static_cast<DLDataTypeCode>(t.code));
   } else {
-    os << "custom[" << GetCustomTypeName(t.code) << "]";
+    os << "custom_" << GetCustomTypeName(t.code);
   }
   if (t.code == kTVMOpaqueHandle) return os;
   os << static_cast<int>(t.bits);
@@ -367,7 +367,7 @@ inline DLDataType String2DLDataType(std::string s) {
   } else if (s.substr(0, 6) == "bfloat") {
     t.code = DataType::kBFloat;
     scan = s.c_str() + 6;
-  } else if (s.substr(0, 6) == "custom") {
+  } else if (s.substr(0, 7) == "custom_") {
     t.code = ParseCustomDatatype(s, &scan);
   } else {
     scan = s.c_str();
