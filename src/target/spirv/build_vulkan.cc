@@ -75,7 +75,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
 
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 
-  CodeGenSPIRV cg;
+  CodeGenSPIRV cg(target);
 
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
