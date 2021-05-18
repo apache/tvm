@@ -86,9 +86,7 @@ def test_dynamic_strided_slice():
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1])
     verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
     verify((20, 10, 5), [20, 10, 4], [0, 0, 1], [-1, -3, -2])
-    verify(
-        (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], slice_mode="size", test_ref=False
-    )
+    verify((3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], slice_mode="size", test_ref=False)
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], slice_mode="size", test_ref=True)
 
     # Slicing along first few axes, where the rest of axes remain static
