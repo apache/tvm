@@ -402,9 +402,7 @@ class TextPrinter {
   /*! \brief TIR Text Printer */
   tir::TIRTextPrinter tir_text_printer_;
 
-  bool GetVarName(::tvm::tir::Var v, std::string* s) {
-    return tir_text_printer_.GetVarName(v, s);
-  }
+  bool GetVarName(::tvm::tir::Var v, std::string* s) { return tir_text_printer_.GetVarName(v, s); }
 
   Doc PrintFinal(const ObjectRef& node) {
     Doc doc;
