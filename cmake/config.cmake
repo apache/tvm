@@ -291,3 +291,15 @@ set(USE_LIBBACKTRACE AUTO)
 
 # Whether to enable MLAS library that provides sgemm pre-packing optimization
 set(USE_MLAS OFF)
+
+# Whether to build static libtvm_runtime.a, the default is to build the dynamic
+# version: libtvm_runtime.so.
+#
+# The static runtime library needs to be linked into executables with the linker
+# option --whole-archive (or its equivalent). The reason is that the TVM registry
+# mechanism relies on global constructors being executed at program startup.
+# Global constructors alone are not sufficient for the linker to consider a
+# library member to be used, and some of such library members (object files) may
+# not be included in the final executable. This would make the corresponding
+# runtime functions to be unavailable to the program.
+set(BUILD_STATIC_RUNTIME OFF)
