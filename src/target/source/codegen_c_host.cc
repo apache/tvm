@@ -424,6 +424,5 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
 }
 
 TVM_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);
-TVM_REGISTER_GLOBAL("target.build.micro_dev").set_body_typed(BuildCHost);
 }  // namespace codegen
 }  // namespace tvm
