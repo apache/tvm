@@ -190,7 +190,6 @@ bool PassContext::InstrumentBeforePass(const IRModule& ir_module, const PassInfo
         return false;
       }
     }
-    return true;
   }
   return true;
 }
@@ -359,7 +358,7 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   ICHECK(mod.defined()) << "The input module must be set.";
 
   if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
-    DLOG(INFO) << "Skipping function pass : " << pass_info->name
+    DLOG(INFO) << "Skipping module pass : " << pass_info->name
                << " with opt level: " << pass_info->opt_level;
 
     pass_ctx->diag_ctx = previous;

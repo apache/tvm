@@ -49,22 +49,35 @@ namespace instrument {
  *
  * Within a pass context (tvm::transfom::PassContext), the instrumentation call sequence will like:
  *
- *   Instrument SetUp
+ *   Instrument SetUp()
  *
- *     if (Instrument Before Pass1())
+ *     if (Instrument Before Pass())
  *       Pass1()
- *       Instrument After Pass1()
+ *       Instrument After Pass()
  *
- *     if (Instrument Before Pass2())
+ *     if (Instrument Before Pass())
  *       Pass2()
- *       Instrument After Pass2()
+ *       Instrument After Pass()
  *
- *   Instrument TearDown
+ *   Instrument TearDown()
+ *
  *
  * The `Before Pass` instrumentation point can selectively disable passes by returning true (to
  * enable) or false (to disable).
  *
+ * If there are multiple pass instrumentations provided, `Before Pass` callbacks are applied in
+ * order. If one return false, then the pass will be skipped:
+ *
+ *    for (auto pi : PassInstruments)
+ *       if (pi->BeforePass())
+ *          return False  // Disable pass
+ *
+ *    return True  // All ok, enable pass
+ *
+ *
  * \sa PassInstrument
+ * \sa PassContextNode::InstrumentBeforePass()
+ * \sa src/ir/transform.cc
  */
 class PassInstrumentNode : public Object {
  public:

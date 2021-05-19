@@ -87,7 +87,7 @@ PrimFuncPass::PrimFuncPass(
 
 // Perform Module -> Module optimizations at the PrimFunc level.
 IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  // const PassInfo& pass_info = Info();
+  const PassInfo& pass_info = Info();
   ICHECK(mod.defined());
   if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
     return mod;
