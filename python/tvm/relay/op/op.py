@@ -40,6 +40,42 @@ def get(op_name):
     return tvm.ir.Op.get(op_name)
 
 
+def register(op_name, describe=""):
+    """Get the Op for a given name
+
+    Parameters
+    ----------
+    op_name : str
+        The operator name
+
+    describe : str
+        The operator description
+
+    Returns
+    -------
+    op : Op
+        The op of the corresponding name
+    """
+    return tvm.ir.register_op(op_name, describe)
+
+
+def register_stateful(op_name, stateful, level=10):
+    """Register operator pattern for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    stateful : bool
+        The stateful flag.
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "TOpIsStateful", stateful, level)
+
+
 class OpPattern(object):
     """Operator generic patterns
 
