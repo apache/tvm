@@ -192,7 +192,7 @@ class PassContext : public ObjectRef {
   TVM_DLL void InstrumentTearDown() const;
 
   /*!
-   * \brief Call intrument implementatations before a pass run.
+   * \brief Call intrument implementations before a pass run.
    *
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
