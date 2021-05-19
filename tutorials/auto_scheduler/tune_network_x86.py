@@ -138,7 +138,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32", use_sparse=Fal
     if use_sparse:
         from tvm.topi.sparse.utils import convert_model_dense_to_sparse
 
-        mod, params = convert_model_dense_to_sparse(mod, params, random_params=True)
+        mod, params = convert_model_dense_to_sparse(mod, params, bs_r=4, random_params=True)
 
     return mod, params, input_shape, output_shape
 
@@ -168,7 +168,11 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 # Extract tasks from the network
 print("Get model...")
 mod, params, input_shape, output_shape = get_network(
-    network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
+    network,
+    batch_size,
+    layout,
+    dtype=dtype,
+    use_sparse=use_sparse,
 )
 print("Extract tasks...")
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
@@ -205,7 +209,21 @@ def run_tuning():
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
 
-    tuner.tune(tune_option)
+    if use_sparse:
+        from tvm.topi.sparse.utils import sparse_sketch_rules
+
+        search_policy = [
+            auto_scheduler.SketchPolicy(
+                task,
+                program_cost_model=auto_scheduler.XGBModel(),
+                init_search_callbacks=sparse_sketch_rules(),
+            )
+            for task in tasks
+        ]
+
+        tuner.tune(tune_option, search_policy=search_policy)
+    else:
+        tuner.tune(tune_option)
 
 
 # We do not run the tuning in our webpage server since it takes too long.

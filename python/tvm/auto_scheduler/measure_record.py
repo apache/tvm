@@ -45,6 +45,9 @@ class RecordToFile(MeasureCallback):
     """
 
     def __init__(self, filename):
+        dirname = os.path.dirname(os.path.abspath(filename))
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
         self.__init_handle_by_constructor__(_ffi_api.RecordToFile, filename)
 
 
@@ -60,9 +63,10 @@ class RecordReader(Object):
     """
 
     def __init__(self, filename):
+        if not os.path.exists(filename):
+            logger.warning("%s does not exist!", filename)
         # a set to prevent print duplicated message
         self.messages = set()
-
         self.__init_handle_by_constructor__(_ffi_api.RecordReader, filename)
 
     def check_workload_key(self, inputs):
@@ -203,6 +207,9 @@ def save_records(filename, inputs, results):
     results: List[MeasureResults]
         The MeasureResults to be written.
     """
+    dirname = os.path.dirname(os.path.abspath(filename))
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
     _ffi_api.SaveRecords(filename, inputs, results)
 
 
@@ -283,6 +290,11 @@ def distill_record_file(in_file, out_file):
     from .dispatcher import ApplyHistoryBest
 
     context = load_records(in_file)
+
+    dirname = os.path.dirname(os.path.abspath(out_file))
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
     if os.path.isfile(out_file):
         out_context = load_records(out_file)
         context = itertools.chain(context, out_context)

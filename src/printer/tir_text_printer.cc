@@ -620,7 +620,11 @@ Doc TIRTextPrinter::VisitType_(const PrimTypeNode* node) {
 
 Doc TIRTextPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
-  doc << "Pointer(" << Print(node->element_type) << ")";
+  doc << "Pointer(";
+  if (!node->storage_scope.empty()) {
+    doc << node->storage_scope << " ";
+  }
+  doc << Print(node->element_type) << ")";
   return doc;
 }
 

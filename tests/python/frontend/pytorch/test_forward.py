@@ -32,6 +32,7 @@ from torch.nn import functional as F
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
+import pytest
 
 sys.setrecursionlimit(10000)
 
@@ -965,17 +966,63 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
-def test_forward_conv_transpose():
-    torch.set_grad_enabled(False)
-    conv2d_input_shape = [1, 3, 10, 10]
-    conv2d_input_data = torch.rand(conv2d_input_shape).float()
-    verify_model(torch.nn.ConvTranspose2d(3, 6, 7, bias=True), input_data=conv2d_input_data)
-    verify_model(torch.nn.ConvTranspose2d(3, 12, 3, bias=False), input_data=conv2d_input_data)
+@pytest.mark.parametrize("in_channels", [3], ids=lambda x: "in_channels=" + str(x))
+@pytest.mark.parametrize("out_channels", [5], ids=lambda x: "out_channels=" + str(x))
+@pytest.mark.parametrize("kernel_size", [3], ids=lambda x: "kernel_size=" + str(x))
+@pytest.mark.parametrize("output_padding", [0, 1, 2], ids=lambda x: "output_padding=" + str(x))
+@pytest.mark.parametrize("groups", [1], ids=lambda x: "groups=" + str(x))
+@pytest.mark.parametrize("bias", [True, False], ids=lambda x: "bias=" + str(x))
+def test_forward_conv_transpose(
+    in_channels, out_channels, kernel_size, output_padding, bias, groups
+):
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
 
-    conv1d_input_shape = [1, 3, 10]
+    # Output padding must be smaller than either stride or dilation so we
+    # opt to make the stride 1 + output padding
+    stride = output_padding + 1
+
+    # Conv 3D Transpose Tests
+    conv3d_input_shape = [1, in_channels, 16, 16, 16]
+    conv3d_input_data = torch.rand(conv3d_input_shape).float()
+    conv3d_transpose = torch.nn.ConvTranspose3d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv3d_transpose, conv3d_input_data)
+
+    # Conv 2D Transpose Tests
+    conv2d_input_shape = [1, in_channels, 128, 256]
+    conv2d_input_data = torch.rand(conv2d_input_shape).float()
+    conv2d_transpose = torch.nn.ConvTranspose2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv2d_transpose, conv2d_input_data)
+
+    # # Conv 1D Transpose Tests
+    conv1d_input_shape = [1, in_channels, 10]
     conv1d_input_data = torch.rand(conv1d_input_shape).float()
-    verify_model(torch.nn.ConvTranspose1d(3, 6, 7, bias=True), input_data=conv1d_input_data)
-    verify_model(torch.nn.ConvTranspose1d(3, 12, 3, bias=False), input_data=conv1d_input_data)
+    conv1d_transpose = torch.nn.ConvTranspose1d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv1d_transpose, conv1d_input_data)
 
 
 def test_forward_deform_conv():

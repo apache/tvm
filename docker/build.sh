@@ -74,9 +74,12 @@ if [[ "$1" == "--net=host" ]]; then
     shift 1
 fi
 
+DOCKER_NO_CACHE_ARG=--no-cache
+
 if [[ "$1" == "--cache-from" ]]; then
     shift 1
     cached_image="$1"
+    DOCKER_NO_CACHE_ARG=
     CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE")
     CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
     shift 1
@@ -154,6 +157,7 @@ echo ""
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 docker build -t ${DOCKER_IMG_SPEC} \
+    ${DOCKER_NO_CACHE_ARG} \
     -f "${DOCKERFILE_PATH}" \
     ${CI_DOCKER_BUILD_EXTRA_PARAMS[@]} \
     "${DOCKER_CONTEXT_PATH}"
