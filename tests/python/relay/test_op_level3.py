@@ -1259,13 +1259,15 @@ def test_gather_nd():
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(size=xshape).astype("float32")
+        y_data = np.array(y_data).astype(np.int32)
 
         if batch_dim > 0:
             res = []
-            for row, ind in zip(x_data, np.transpose(y_data)):
-                res.append(row[ind])
-            ref_res = np.vstack(res)
-            print(ref_res.shape)
+            axes = (tuple(range(1, len(y_data.shape))) + (0,))
+            swapped = np.transpose(y_data, axes)
+            for row, ind in zip(x_data, swapped):
+                res.append(row[tuple(ind.T)])
+            ref_res = np.stack(res, 0)
         else:
             ref_res = x_data[tuple(y_data)]
 
@@ -1273,7 +1275,6 @@ def test_gather_nd():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                print(op_res.shape)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
     # verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
@@ -1281,9 +1282,9 @@ def test_gather_nd():
     # verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     # verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
-    # verify_gather_nd((2, 2, 2), (1, 2), [[1, 0]], 1)
-    # verify_gather_nd((2, 2, 2), (1, 1, 2), [[[1, 0]]], 1)
-    verify_gather_nd((2, 2, 2), (2, 1, 2), [[[1, 0]], [[0, 1]]], 1)
+    verify_gather_nd((2, 2, 2), (1, 2), [[1, 0]], 1)
+    verify_gather_nd((2, 2, 2), (1, 2, 1), [[[1], [0]]], 1)
+    verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1)
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):
