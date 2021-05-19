@@ -147,8 +147,8 @@ def test_uniform(target, dev):
         new_gen, rands = uniform(target, dev, gen, low, high, (m, n), dtype)
         assert (gen != new_gen).any()
         assert abs(np.mean(rands) - 7.5) < 1e-1
-        assert abs(np.min(rands) - 5.0) < 1e-3
-        assert abs(np.max(rands) - 10.0) < 1e-3
+        assert np.min(rands) >= 5.0
+        assert np.max(rands) <= 10.0
 
 
 if __name__ == "__main__":
