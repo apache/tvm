@@ -137,11 +137,11 @@ def pass_instrument(pi_cls=None):
 
 
 @tvm._ffi.register_object("instrument.PassInstrument")
-class PassesTimeInstrument(tvm.runtime.Object):
+class PassTimingInstrument(tvm.runtime.Object):
     """A wrapper to create a passes time instrument that implemented in C++"""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_instrument_api.MakePassesTimeInstrument)
+        self.__init_handle_by_constructor__(_ffi_instrument_api.MakePassTimingInstrument)
 
     @staticmethod
     def render():

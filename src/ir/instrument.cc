@@ -294,7 +294,7 @@ String RenderPassProfiles() {
 
 TVM_REGISTER_GLOBAL("instrument.RenderTimePassProfiles").set_body_typed(RenderPassProfiles);
 
-TVM_REGISTER_GLOBAL("instrument.MakePassesTimeInstrument").set_body_typed([]() {
+TVM_REGISTER_GLOBAL("instrument.MakePassTimingInstrument").set_body_typed([]() {
   auto run_before_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
     PassProfile::EnterPass(pass_info->name);
     return true;

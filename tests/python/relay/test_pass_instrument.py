@@ -17,23 +17,23 @@
 import tvm
 import tvm.relay
 from tvm.relay import op
-from tvm.ir.instrument import PassesTimeInstrument, pass_instrument
+from tvm.ir.instrument import PassTimingInstrument, pass_instrument
 
 
-def test_pass_time_instrument():
+def test_pass_timing_instrument():
     x, y, z = [tvm.relay.var(c, shape=(3, 4), dtype="float32") for c in "xyz"]
     e1 = op.add(x, y)
     e2 = op.subtract(x, z)
     e3 = op.multiply(e1, e1 / e2)
     mod = tvm.IRModule.from_expr(e3 + e2)
 
-    time_instrument = PassesTimeInstrument()
-    with tvm.transform.PassContext(instruments=[time_instrument]):
+    pass_timing = PassTimingInstrument()
+    with tvm.transform.PassContext(instruments=[pass_timing]):
         mod = tvm.relay.transform.AnnotateSpans()(mod)
         mod = tvm.relay.transform.ToANormalForm()(mod)
         mod = tvm.relay.transform.InferType()(mod)
 
-        profiles = time_instrument.render()
+        profiles = pass_timing.render()
         assert "AnnotateSpans" in profiles
         assert "ToANormalForm" in profiles
         assert "InferType" in profiles
