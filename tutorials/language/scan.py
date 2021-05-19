@@ -83,7 +83,7 @@ print(tvm.lower(s, [X, s_scan], simple_mode=True))
 # numpy to verify the correctness of the result.
 #
 fscan = tvm.build(s, [X, s_scan], "cuda", name="myscan")
-dev = tvm.gpu(0)
+dev = tvm.cuda(0)
 n = 1024
 m = 10
 a_np = np.random.uniform(size=(m, n)).astype(s_scan.dtype)

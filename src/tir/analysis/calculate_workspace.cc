@@ -50,7 +50,12 @@ size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
   size_t element_size_bytes = op->dtype.bytes();
   size_t num_elements = 1;
   for (const auto& ext : op->extents) {
-    num_elements *= Downcast<IntImm>(ext)->value;
+    if (ext->IsInstance<IntImmNode>()) {
+      num_elements *= Downcast<IntImm>(ext)->value;
+    } else {
+      // We cant statically calculate workspace for dynamic shapes
+      num_elements = 0;
+    }
   }
   return num_elements * element_size_bytes;
 }

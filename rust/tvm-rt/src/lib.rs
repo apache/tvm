@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn device() {
-        let c = Device::from_str("gpu").unwrap();
+        let c = Device::from_str("cuda").unwrap();
         let tvm: Device = RetValue::from(c).try_into().unwrap();
         assert_eq!(tvm, c);
     }

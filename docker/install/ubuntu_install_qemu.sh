@@ -47,3 +47,6 @@ cd qemu-5.1.0
 ./configure --target-list=aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu
 make -j2
 sudo make install
+
+# For debugging with qemu
+apt-get -y install libpython3.8

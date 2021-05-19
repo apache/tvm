@@ -212,8 +212,8 @@ def threefry_generate(gen, out_shape):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
-        reused in another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.random.threefry_key`. This should
+        not be reused in another function, otherwise random numbers will be repeated.
 
     out_shape : Sequence[int]
         Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
@@ -352,8 +352,8 @@ def threefry_split(gen):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
-        reused in another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.random.threefry_key`. This should
+        not be reused in another function, otherwise random numbers will be repeated.
 
     Returns
     -------

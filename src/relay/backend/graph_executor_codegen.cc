@@ -28,6 +28,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/function.h>
 
 #include <list>
 #include <string>
@@ -182,9 +184,96 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     targets_ = targets;
   }
 
+  /*!
+   * \brief Update the "main" control function's metadata
+   *
+   * \param func The main function that contains calls to relay primitive functions
+   */
+  void UpdateMainWorkspaceSize(const Function& func) {
+    // This is a Map<device,Map<storage_id, size>>
+    std::unordered_map<int, std::unordered_map<int, int>> sid_workspace;
+    // This is a Map<device, size_of_inputs_and_outputs>
+    std::unordered_map<int, int> device_io;
+    // This is a Map<device, size_of_constants>
+    std::unordered_map<int, int> device_consts;
+
+    // Initialize the maps to zero
+    for (const auto& kv : storage_device_map_) {
+      auto sids = kv.second[0];
+      auto devices = kv.second[1];
+      CHECK_EQ(sids.size(), devices.size());
+      for (uint32_t i = 0; i < sids.size(); i++) {
+        sid_workspace[devices[i]][sids[i]] = 0;
+        device_io[devices[i]] = 0;
+        device_consts[devices[i]] = 0;
+      }
+    }
+
+    // Collect sizes of tensors
+    for (const auto& kv : storage_device_map_) {
+      auto size_bytes = CalculateRelayExprSizeBytes(kv.first->checked_type());
+      auto sids = kv.second[0];
+      auto devices = kv.second[1];
+      if (kv.first->IsInstance<ConstantNode>()) {
+        for (const auto& dev : devices) {
+          device_consts[dev] += size_bytes;
+        }
+        continue;
+      } else if (kv.first->IsInstance<VarNode>() || kv.first == func->body) {
+        for (const auto& dev : devices) {
+          device_io[dev] += size_bytes;
+        }
+        continue;
+      }
+      for (uint32_t i = 0; i < sids.size(); i++) {
+        // Here we record the largest size of the tensor
+        // that share the same storage id, because storage_id will
+        // be shared between multiple tensors that are not live simultaneously.
+        if (size_bytes > sid_workspace[devices[i]][sids[i]]) {
+          sid_workspace[devices[i]][sids[i]] = size_bytes;
+        }
+      }
+    }
+
+    // This is a Map<device, workspace_size>
+    std::unordered_map<int, int> device_workspace;
+    // Once we know the sizes of sids, we need to accumulate per device
+    for (const auto& dev_sid_size : sid_workspace) {
+      auto dev = dev_sid_size.first;
+      device_workspace[dev] = 0;
+      for (const auto& sid_size : dev_sid_size.second) {
+        device_workspace[dev] += sid_size.second;
+      }
+    }
+
+    // Populate FunctionInfo
+    auto fi_node = make_object<FunctionInfoNode>();
+    // Initialize all target workspaces to zero
+    for (const auto& kv : targets_) {
+      auto tgt = kv.second;
+      fi_node->workspace_sizes.Set(tgt, 0);
+    }
+    for (const auto& dev_and_size : device_workspace) {
+      auto tgt = GetTargetFromInteger(dev_and_size.first);
+      fi_node->workspace_sizes.Set(tgt, dev_and_size.second);
+      fi_node->relay_primfuncs.Set(tgt, func);
+    }
+    for (const auto& dev_and_size : device_io) {
+      auto tgt = GetTargetFromInteger(dev_and_size.first);
+      fi_node->io_sizes.Set(tgt, dev_and_size.second);
+    }
+    for (const auto& dev_and_size : device_consts) {
+      auto tgt = GetTargetFromInteger(dev_and_size.first);
+      fi_node->constant_sizes.Set(tgt, dev_and_size.second);
+    }
+
+    function_metadata_.Set(String(runtime::symbol::tvm_module_main), FunctionInfo(fi_node));
+  }
+
   LoweredOutput Codegen(relay::Function func) {
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
+    UpdateMainWorkspaceSize(func);
     // First we convert all the parameters into input nodes.
     for (auto param : func->params) {
       auto node_ptr = GraphInputNode::make_node_ptr(param->name_hint(), GraphAttrs());
@@ -212,6 +301,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       ret.lowered_funcs.Set(kv.first, mod);
     }
     ret.external_mods = compile_engine_->LowerExternalFunctions();
+    ret.function_metadata = std::move(function_metadata_);
     return ret;
   }
 
@@ -352,6 +442,75 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return lhs_storage_id == rhs_storage_id;
   }
 
+  /*!
+   * \brief Obtain the Target from the device type.
+   * If homogenous compilation, this will return the only target.
+   * If heteregenous compilation, this will select associated using the targets_ Map.
+   *
+   * \param dev_type
+   * \return Target
+   */
+  Target GetTargetFromInteger(int64_t dev_type) {
+    if (targets_.size() == 1) {
+      // homogeneous execution.
+      const auto& it = targets_.begin();
+      return (*it).second;
+    } else {
+      // heterogeneous execution.
+      std::string call_dev_name;
+      if (dev_type == 0) {
+        call_dev_name = "llvm";
+      } else {
+        call_dev_name = runtime::DeviceName(dev_type);
+      }
+      if (targets_.count(dev_type) == 0) {
+        LOG(FATAL) << "No target is provided for device " << call_dev_name;
+      }
+      return targets_[dev_type];
+    }
+  }
+
+  /*!
+   * \brief Update the function metadata for a given cached function and its relay
+   * primitive function.
+   *
+   * \param cfunc The cached function as provided the by the compile engine
+   * \param relay_func The source relay primitive function
+   * \param relay_target The target associated with relay primitive function
+   */
+  void UpdateFunctionMetadata(const CachedFunc& cfunc, const Function& relay_func,
+                              const Target& relay_target) {
+    auto fi_node = make_object<FunctionInfoNode>();
+    for (const auto& kv : cfunc->funcs->functions) {
+      auto primfunc = Downcast<tir::PrimFunc>(kv.second);
+      Integer workspace_size = CalculateWorkspaceBytes(primfunc);
+      Target primfunc_target = relay_target;
+      if (primfunc->attrs->dict.count("target")) {
+        primfunc_target = Downcast<Target>(primfunc->attrs->dict["target"]);
+      }
+      fi_node->workspace_sizes.Set(primfunc_target, workspace_size);
+      // Calculating size for I/O
+      for (auto const& param : primfunc->params) {
+        auto p_shape = primfunc->buffer_map[param]->shape;
+        int num_of_elements = 1;
+        for (const auto& dim_index_expr : p_shape) {
+          if (dim_index_expr->IsInstance<IntImmNode>()) {
+            num_of_elements *= dim_index_expr.as<IntImmNode>()->value;
+          } else {
+            // If shape is dynamic, we cannot calculate workspace in compile time.
+            num_of_elements = 0;
+          }
+        }
+        int element_size = primfunc->buffer_map[param]->dtype.bytes();
+        fi_node->io_sizes.Set(primfunc_target, element_size * num_of_elements);
+      }
+      fi_node->constant_sizes.Set(primfunc_target, 0);
+      fi_node->tir_primfuncs.Set(primfunc_target, primfunc);
+      fi_node->relay_primfuncs.Set(primfunc_target, relay_func);
+    }
+    function_metadata_.Set(cfunc->func_name, FunctionInfo(fi_node));
+  }
+
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* op) override {
     Expr expr = GetRef<Expr>(op);
     Function func;
@@ -408,30 +567,18 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     ICHECK_GE(storage_device_map_.count(expr), 0);
     auto& device_type = storage_device_map_[expr][1];
     auto call_dev_type = device_type[0]->value;
+    target = GetTargetFromInteger(call_dev_type);
     // Normal Relay Function
-    if (targets_.size() == 1) {
-      // homogeneous execution.
-      const auto& it = targets_.begin();
-      target = (*it).second;
-    } else {
-      // heterogeneous execution.
-      std::string call_dev_name;
-      if (call_dev_type == 0) {
-        call_dev_name = "llvm";
-      } else {
-        call_dev_name = runtime::DeviceName(call_dev_type);
-      }
-      if (targets_.count(call_dev_type) == 0) {
-        LOG(FATAL) << "No target is provided for device " << call_dev_name;
-      }
-      target = targets_[call_dev_type];
-    }
+
     CCacheKey key = (*pf0)(func, target);
     CachedFunc lowered_func = (*pf1)(compile_engine_, key);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
+
+    // Update function metadata via looking at all primfuncs
+    UpdateFunctionMetadata(lowered_func, func, target);
     return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name,
                             attrs);
   }
@@ -577,6 +724,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   Map<Expr, Array<IntegerArray>> storage_device_map_;
   /*! \brief lowered funcs */
   std::unordered_map<std::string, IRModule> lowered_funcs_;
+  /*! \brief lowered funcs */
+  Map<String, FunctionInfo> function_metadata_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
   /*! \brief compile engine */
@@ -643,6 +792,10 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });
+    } else if (name == "get_function_metadata") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->output_.function_metadata;
+      });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});
     }

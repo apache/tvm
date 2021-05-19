@@ -37,10 +37,10 @@ def test_add(target_dir):
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     fadd_cuda = tvm.build(s, [A, B, C], "cuda", target_host="llvm", name="myadd")
 
-    fadd_cuda.save(os.path.join(target_dir, "add_gpu.o"))
-    fadd_cuda.imported_modules[0].save(os.path.join(target_dir, "add_gpu.ptx"))
+    fadd_cuda.save(os.path.join(target_dir, "add_cuda.o"))
+    fadd_cuda.imported_modules[0].save(os.path.join(target_dir, "add_cuda.ptx"))
     cc.create_shared(
-        os.path.join(target_dir, "add_gpu.so"), [os.path.join(target_dir, "add_gpu.o")]
+        os.path.join(target_dir, "add_cuda.so"), [os.path.join(target_dir, "add_cuda.o")]
     )
 
 

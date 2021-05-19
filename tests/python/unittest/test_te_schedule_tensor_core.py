@@ -256,7 +256,7 @@ def test_tensor_core_batch_matmal():
 
     func = tvm.build(s, [A, B, C], "cuda")
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(size=(batch_size, nn, ll, 32, 16)).astype(A.dtype)
     b_np = np.random.uniform(size=(batch_size, ll, mm, 16, 8)).astype(B.dtype)
     a = tvm.nd.array(a_np, dev)
@@ -432,7 +432,7 @@ def test_tensor_core_batch_conv():
 
     func = tvm.build(s, [A, W, Conv], "cuda")
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)
     a = tvm.nd.array(a_np, dev)

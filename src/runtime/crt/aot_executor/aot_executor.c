@@ -37,29 +37,26 @@ tvm_crt_error_t tvm_runtime_run(const tvm_model_t* model, void** inputs, void** 
   TVMValue tvm_values[model->num_input_tensors + model->num_output_tensors];  // NOLINT
   int32_t tvm_typeids[model->num_input_tensors + model->num_output_tensors];  // NOLINT
 
-  for (int i = 0; i < model->num_input_tensors; i++) {
-    tensors[i] = (DLTensor){
-        .device = fake_device,
-        .data = inputs[i],
-        .shape = &fake_shape,
-        .ndim = fake_dims,
-        .byte_offset = 0,
-        .strides = NULL,
-    };
+  for (size_t i = 0; i < model->num_input_tensors; i++) {
+    tensors[i].device = fake_device;
+    tensors[i].data = inputs[i];
+    tensors[i].shape = &fake_shape;
+    tensors[i].ndim = fake_dims;
+    tensors[i].byte_offset = 0;
+    tensors[i].strides = NULL;
     tvm_values[i].v_handle = &tensors[i];
   }
 
-  for (int i = 0; i < model->num_output_tensors; i++) {
-    tensors[model->num_input_tensors + i] = (DLTensor){
-        .device = fake_device,
-        .data = outputs[i],
-        .shape = &fake_shape,
-        .ndim = fake_dims,
-        .byte_offset = 0,
-        .strides = NULL,
-    };
-    tvm_values[model->num_input_tensors + i].v_handle = &tensors[model->num_input_tensors + i];
+  for (size_t i = 0; i < model->num_output_tensors; i++) {
+    size_t j = model->num_input_tensors + i;
+    tensors[j].device = fake_device;
+    tensors[j].data = outputs[i];
+    tensors[j].shape = &fake_shape;
+    tensors[j].ndim = fake_dims;
+    tensors[j].byte_offset = 0;
+    tensors[j].strides = NULL;
+    tvm_values[j].v_handle = &tensors[j];
   }
 
-  return model->run_func(tvm_values, tvm_typeids, 0, NULL, 0, NULL);
+  return (tvm_crt_error_t)model->run_func(tvm_values, tvm_typeids, 0, NULL, 0, NULL);
 }

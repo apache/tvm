@@ -164,7 +164,7 @@ class Device(ctypes.Structure):
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
         1: "cpu",
-        2: "gpu",
+        2: "cuda",
         4: "opencl",
         5: "aocl",
         6: "sdaccel",
@@ -182,7 +182,6 @@ class Device(ctypes.Structure):
         "stackvm": 1,
         "cpu": 1,
         "c": 1,
-        "gpu": 2,
         "cuda": 2,
         "nvptx": 2,
         "cl": 4,

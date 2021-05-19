@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,20 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM runtime namespace."""
 
-# class exposures
-from .packed_func import PackedFunc
-from .object import Object
-from .object_generic import ObjectGeneric, ObjectTypes
-from .ndarray import NDArray, DataType, DataTypeCode, Device
-from .module import Module
-from .profiling import Report
+set -e
+set -u
+set -o pipefail
 
-# function exposures
-from .object_generic import convert_to_object, convert, const
-from .ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, ext_dev, micro_dev
-from .module import load_module, enabled, system_lib
-from .container import String
-from .params import save_param_dict, load_param_dict
+apt-get update --fix-missing
+
+# deps
+apt-get install -y linux-tools-common linux-tools-generic
+
+cd /
+git clone https://bitbucket.org/icl/papi.git
+cd papi/src
+export PAPI_CUDA_ROOT=/usr/local/cuda
+./configure --with-components="$1"
+make -j $(nproc) && make install
