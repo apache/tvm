@@ -419,17 +419,33 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_ARC = NO;
 				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
 				DEVELOPMENT_TEAM = 3FR42MXLK9;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"USE_CUSTOM_DSO_LOADER=${USE_CUSTOM_DSO_LOADER}",
+				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					../../include,
 					../../3rdparty/dlpack/include,
 					"../../3rdparty/dmlc-core/include",
+					"${TVM_BUILD_DIR}/apps/ios_rpc/custom_dso_loader/include",
 				);
 				INFOPLIST_FILE = tvmrpc/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"${TVM_BUILD_DIR}/apps/ios_rpc/custom_dso_loader/lib",
+					"${TVM_BUILD_DIR}",
+				);
+				OTHER_LDFLAGS = "${_DSO_LOADER_NAME_${USE_CUSTOM_DSO_LOADER}}";
 				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmrpc;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				TVM_BUILD_DIR = "path-to-tvm-ios-build-folder";
+				USE_CUSTOM_DSO_LOADER = 0;
+				WARNING_CFLAGS = "-Wno-shorten-64-to-32";
+				_DSO_LOADER_NAME_0 = "";
+				_DSO_LOADER_NAME_1 = "-lmacho_dyld";
 			};
 			name = Debug;
 		};
@@ -439,17 +455,33 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_ARC = NO;
 				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
 				DEVELOPMENT_TEAM = 3FR42MXLK9;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"USE_CUSTOM_DSO_LOADER=${USE_CUSTOM_DSO_LOADER}",
+				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					../../include,
 					../../3rdparty/dlpack/include,
 					"../../3rdparty/dmlc-core/include",
+					"${TVM_BUILD_DIR}/apps/ios_rpc/custom_dso_loader/include",
 				);
 				INFOPLIST_FILE = tvmrpc/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"${TVM_BUILD_DIR}/apps/ios_rpc/custom_dso_loader/lib",
+					"${TVM_BUILD_DIR}",
+				);
+				OTHER_LDFLAGS = "${_DSO_LOADER_NAME_${USE_CUSTOM_DSO_LOADER}}";
 				PRODUCT_BUNDLE_IDENTIFIER = org.apache.tvmrpc;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				TVM_BUILD_DIR = "path-to-tvm-ios-build-folder";
+				USE_CUSTOM_DSO_LOADER = 0;
+				WARNING_CFLAGS = "-Wno-shorten-64-to-32";
+				_DSO_LOADER_NAME_0 = "";
+				_DSO_LOADER_NAME_1 = "-lmacho_dyld";
 			};
 			name = Release;
 		};
