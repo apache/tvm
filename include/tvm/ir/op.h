@@ -251,6 +251,12 @@ class OpRegEntry {
   template <typename AttrsType>
   inline OpRegEntry& set_attrs_type();
   /*!
+   * \brief Set the the attrs type key and index to be AttrsType.
+   * \tparam key the attribute type key to be set.
+   * \return reference to self.
+   */
+  inline OpRegEntry& set_attrs_type_key(const String& key);
+  /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
    * \return reference to self.
@@ -451,6 +457,12 @@ template <typename AttrsType>
 inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
   get()->attrs_type_key = AttrsType::_type_key;
   get()->attrs_type_index = AttrsType::RuntimeTypeIndex();
+  return *this;
+}
+
+inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
+  get()->attrs_type_key = key;
+  get()->attrs_type_index = Object::TypeKey2Index(key);
   return *this;
 }
 

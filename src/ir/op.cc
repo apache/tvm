@@ -102,10 +102,57 @@ TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name)
   reg.reset_attr(attr_name);
 });
 
-TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name) {
-  const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
-  ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
-  OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+  reg.describe(descr);
+});
+
+TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
+    .set_body_typed([](Op op, String rel_name, runtime::TVMArgValue value) {
+      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+      if (value.type_code() == kTVMPackedFuncHandle) {
+        // do an eager copy of the PackedFunc to avoid deleting function from frontend.
+        PackedFunc* fcopy = new PackedFunc(value.operator tvm::runtime::PackedFunc());
+        auto f = [=](const Array<Type>& args, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) -> bool {
+          Array<Type> input_types(args.begin(), args.end() - 1);
+          Type ret_type = (*fcopy)(input_types, attrs);
+          if (ret_type.defined()) {
+            reporter->Assign(args[args.size() - 1], ret_type);
+            return true;
+          }
+          return false;
+        };
+        auto type_rel = runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&,
+                                                      const TypeReporter&)>(f);
+        reg.add_type_rel(rel_name, type_rel);
+      } else if (value.type_code() == kTVMNullptr) {
+        auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
+        auto* f = runtime::Registry::Get(func_name);
+        CHECK(f != nullptr) << "AddTypeRel error: no type_relation registered.";
+        reg.add_type_rel(rel_name, *f);
+      }
+    });
+
+TVM_REGISTER_GLOBAL("ir.OpAddArgument")
+    .set_body_typed([](Op op, String name, String type, String description) {
+      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+      reg.add_argument(name, type, description);
+    });
+
+TVM_REGISTER_GLOBAL("ir.OpSetSupportLevel").set_body_typed([](Op op, int level) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+  reg.set_support_level(level);
+});
+
+TVM_REGISTER_GLOBAL("ir.OpSetNumInputs").set_body_typed([](Op op, int n) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+  reg.set_num_inputs(n);
+});
+
+TVM_REGISTER_GLOBAL("ir.OpSetAttrsTypeKey").set_body_typed([](Op op, String key) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+  reg.set_attrs_type_key(key);
 });
 
 TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
