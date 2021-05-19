@@ -49,6 +49,7 @@ tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
+tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -276,8 +277,18 @@ file(GLOB RUNTIME_SRCS
 )
 
 if(BUILD_FOR_HEXAGON)
-  # Add file implementing posix_memalign.
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+  # Add file implementing posix_memalign when building the runtime as
+  # a shared library.
+  # This function is actually defined in the static libc, but when linking
+  # a shared library, libc is not linked into it. Some runtime systems
+  # don't implement posix_runtime, which causes runtime failires.
+  # To avoid this issue, Hexagon runtime contains an implementation of
+  # posix_memalign, but it should only be used with the dynamic TVM
+  # runtime, since it would cause multiple definition errors with the
+  # static one.
+  if(NOT BUILD_STATIC_RUNTIME)
+    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+  endif()
 
   add_definitions(-D_MACH_I32=int)
 endif()
@@ -403,7 +414,17 @@ add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs>)
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+if(BUILD_STATIC_RUNTIME)
+  add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs>)
+  set(NOTICE_MULTILINE
+    "You have build static version of the TVM runtime library. Make "
+    "sure to use --whole-archive when linking it into your project.")
+  string(CONCAT NOTICE ${NOTICE_MULTILINE})
+  add_custom_command(TARGET tvm_runtime POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
+else()
+  add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+endif()
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
