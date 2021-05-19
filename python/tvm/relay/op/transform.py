@@ -1085,7 +1085,7 @@ def gather_nd(data, indices, batch_dims=0):
         The shape of output tensor.
 
     batch_dims : int
-        The number of batch dimensions
+        The number of batch dimensions.
 
     Returns
     -------

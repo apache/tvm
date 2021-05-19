@@ -1252,10 +1252,10 @@ def test_gather(data, axis, indices, ref_res):
 
 @tvm.testing.uses_gpu
 def test_gather_nd():
-    def verify_gather_nd(xshape, yshape, y_data, batch_dim=0):
+    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         y = relay.var("y", relay.TensorType(yshape, "int32"))
-        z = relay.gather_nd(x, y, batch_dim)
+        z = relay.gather_nd(x, y, batch_dims)
 
         func = relay.Function([x, y], z)
 
@@ -1266,7 +1266,7 @@ def test_gather_nd():
         else:
             y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
 
-        def gather_nd_batch_dim_1_ref(data, indices):
+        def gather_nd_batch_dims_1_ref(data, indices):
             res = []
             for i, row in enumerate(data):
                 indices_tuple = tuple(indices[:, i])  # the indices for the i-th batch
@@ -1274,16 +1274,16 @@ def test_gather_nd():
             # stack on the batch dim
             return np.stack(res, 0)
 
-        if batch_dim > 1:
-            x_data_reshape = np.reshape(x_data, (-1,) + xshape[batch_dim:])
-            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dim + 1) :])
+        if batch_dims > 1:
+            x_data_reshape = np.reshape(x_data, (-1,) + xshape[batch_dims:])
+            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dims + 1):])
 
-            ref_res = gather_nd_batch_dim_1_ref(x_data_reshape, y_data_reshape)
+            ref_res = gather_nd_batch_dims_1_ref(x_data_reshape, y_data_reshape)
 
-            out_shape = yshape[1 : (batch_dim + 1)] + ref_res.shape[1:]
+            out_shape = yshape[1: (batch_dims + 1)] + ref_res.shape[1:]
             ref_res = np.reshape(ref_res, out_shape)
-        elif batch_dim == 1:
-            ref_res = gather_nd_batch_dim_1_ref(x_data, y_data)
+        elif batch_dims == 1:
+            ref_res = gather_nd_batch_dims_1_ref(x_data, y_data)
         else:
             ref_res = x_data[tuple(y_data)]
 
