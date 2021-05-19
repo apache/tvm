@@ -241,6 +241,7 @@ def popen_test_rpc(host, port, key, destination, libs=None, options=None):
         curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
         rpc_root = os.path.join(curr_path, "../../../apps/ios_rpc")
     proj_path = os.path.realpath(os.path.join(rpc_root, "tvmrpc.xcodeproj"))
+    team_id = os.environ["TVM_IOS_TEAM_ID"]
     if not os.path.exists(proj_path):
         raise RuntimeError(
             "Cannot find tvmrpc.xcodeproj in %s,"
@@ -269,5 +270,6 @@ def popen_test_rpc(host, port, key, destination, libs=None, options=None):
     if options:
         cmd += options
     cmd += ["test"]
+    cmd += [f"DEVELOPMENT_TEAM={team_id}"]
 
     return XCodeRPCServer(cmd, lock)

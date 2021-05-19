@@ -74,6 +74,7 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" ON)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
+tvm_option(USE_IOS_RPC "Build iOS RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
@@ -443,6 +444,10 @@ endif()
 
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
+endif()
+
+if(USE_IOS_RPC)
+  add_subdirectory("apps/ios_rpc")
 endif()
 
 if(USE_RELAY_DEBUG)
