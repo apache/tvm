@@ -107,7 +107,7 @@ def get_standalone_crt_lib(name: str) -> str:
 
 
 def get_runtime_libs(runtime: str) -> str:
-    """Return abspath to all CRT directories in link order which contain 
+    """Return abspath to all CRT directories in link order which contain
     source (i.e. not header) files.
     """
     if runtime == "host-driven":

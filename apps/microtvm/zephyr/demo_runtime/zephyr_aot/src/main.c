@@ -188,7 +188,6 @@ void main(void) {
     TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
   }
 
-  // int8_t* results = (int8_t*)(&output_data);
   size_t max_ind = -1;
   float max_val = -FLT_MAX;
   for (size_t i = 0; i < output_data_len; i++) {

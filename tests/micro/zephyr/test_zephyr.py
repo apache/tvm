@@ -69,8 +69,9 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
     parent_dir = os.path.dirname(__file__)
     filename = os.path.splitext(os.path.basename(__file__))[0]
     prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
-    workspace_root = (
-        os.path.join(f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}", datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
+    workspace_root = os.path.join(
+        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
+        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
     )
     workspace_parent = os.path.dirname(workspace_root)
     if not os.path.exists(workspace_parent):
