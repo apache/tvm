@@ -20,14 +20,14 @@ set -e
 set -u
 set -o pipefail
 
-# Script to setup additional python env.
-#
-# Use the following command to install the
-# package to /workspace/.local, these additional
-# packages will have precedence over the system packages.
-#
-# command: python3 -m pip install --user <package>==<version>
-#
-echo "Addtiional setup in" ${CI_IMAGE_NAME}
+apt-get update --fix-missing
 
-python3 -m pip install --user tlcpack-sphinx-addon==0.1.4 synr==0.3.0
+# deps
+apt-get install -y linux-tools-common linux-tools-generic
+
+cd /
+git clone https://bitbucket.org/icl/papi.git
+cd papi/src
+export PAPI_CUDA_ROOT=/usr/local/cuda
+./configure --with-components="$1"
+make -j $(nproc) && make install

@@ -14,18 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
+
 import numpy as np
 import pytest
-
 import tvm
-from tvm import te
-from tvm import relay
+import tvm.topi.testing
+from tvm import relay, te
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
-from utils.assert_diagnostic import DiagnosticTesting
-import tvm.topi.testing
 
-import os
+from utils.assert_diagnostic import DiagnosticTesting
 
 
 def int32(val):
@@ -509,7 +508,7 @@ def verify_any_conv2d(
 
     targets = None
     if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
-        targets = [("cuda -libs=cudnn", tvm.gpu(0))]
+        targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 
@@ -669,13 +668,21 @@ def test_any_conv2d_transpose_nchw():
 
 
 def verify_any_pool2d(
-    pool_type, data_shape, pool_size, strides, padding, layout, static_data_shape, ref_out_shape
+    pool_type,
+    data_shape,
+    pool_size,
+    strides,
+    dilation,
+    padding,
+    layout,
+    static_data_shape,
+    ref_out_shape,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
     pool_func = relay.nn.max_pool2d if pool_type == "max" else relay.nn.avg_pool2d
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = pool_func(data, pool_size, strides, padding, layout)
+    y = pool_func(data, pool_size, strides, dilation, padding, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
@@ -689,6 +696,7 @@ def test_any_pool2d():
         (3, 3),
         (1, 1),
         (1, 1),
+        (1, 1),
         "NCHW",
         (2, 3, 220, 220),
         (2, 3, 220, 220),
@@ -698,6 +706,7 @@ def test_any_pool2d():
         (relay.Any(), relay.Any(), relay.Any(), 4),
         (1, 1),
         (2, 2),
+        (1, 1),
         (0, 0),
         "NHWC",
         (3, 220, 220, 4),
@@ -708,6 +717,7 @@ def test_any_pool2d():
         (relay.Any(), 3, relay.Any(), relay.Any(), 4),
         (3, 3),
         (2, 2),
+        (1, 1),
         (1, 1),
         "NCHW4c",
         (2, 3, 220, 220, 4),
@@ -801,7 +811,7 @@ def verify_any_dense(
 
     targets = None
     if use_cublas and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
-        targets = [("cuda -libs=cublas", tvm.gpu(0))]
+        targets = [("cuda -libs=cublas", tvm.cuda(0))]
 
     check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 

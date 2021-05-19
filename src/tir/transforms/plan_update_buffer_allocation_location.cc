@@ -32,7 +32,7 @@ namespace tir {
 class BufferAllocationLocator : public StmtExprMutator {
  public:
   explicit BufferAllocationLocator(const PrimFunc& func) {
-    Map<Buffer, Stmt> buffer_lca = DetectBufferAccessLCA(func);
+    Map<Buffer, Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
     std::unordered_set<const BufferNode*> arg_buffers;
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
@@ -42,7 +42,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     // create buffers to be allocated at each stmts
     for (const auto& kv : buffer_lca) {
       const Buffer& buffer = kv.first;
-      const StmtNode* stmt = kv.second.get();
+      const StmtNode* stmt = kv.second.defined() ? kv.second.value().get() : nullptr;
       if (arg_buffers.count(buffer.get())) {
         continue;
       }

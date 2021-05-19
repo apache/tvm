@@ -69,7 +69,7 @@ class TensorAsBuf {
     if (device_type == kDLCPU) {
       memcpy(origin_buf, buf + offset, size);
 #ifdef TF_TVMDSOOP_ENABLE_GPU
-    } else if (device_type == kDLGPU) {
+    } else if (device_type == kDLCUDA) {
       cudaMemcpy(origin_buf, buf + offset, size, cudaMemcpyDeviceToDevice);
 #endif
     } else {
@@ -85,7 +85,7 @@ class TensorAsBuf {
     if (device_type == kDLCPU) {
       memcpy(buf + offset, origin_buf, size);
 #ifdef TF_TVMDSOOP_ENABLE_GPU
-    } else if (device_type == kDLGPU) {
+    } else if (device_type == kDLCUDA) {
       cudaMemcpy(buf + offset, origin_buf, size, cudaMemcpyDeviceToDevice);
 #endif
     } else {
@@ -192,7 +192,7 @@ class TVMDSOOpTrait<CPUDevice> {
 template <>
 class TVMDSOOpTrait<GPUDevice> {
  public:
-  static const int device_type = kDLGPU;
+  static const int device_type = kDLCUDA;
 
   static int device_id(OpKernelContext* context) {
     auto device_base = context->device();

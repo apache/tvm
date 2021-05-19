@@ -852,8 +852,11 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
-  std::string scope = alloc_storage_scope_.at(buffer);
-  PrintStorageScope(scope, stream);
+  auto it = alloc_storage_scope_.find(buffer);
+  if (it != alloc_storage_scope_.end()) {
+    std::string scope = alloc_storage_scope_.at(buffer);
+    PrintStorageScope(scope, stream);
+  }
   PrintType(op->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 

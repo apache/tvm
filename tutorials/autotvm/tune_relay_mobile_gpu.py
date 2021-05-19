@@ -225,7 +225,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(build_func="ndk" if use_android else "default"),
         runner=autotvm.RPCRunner(
             device_key,
-            host="0.0.0.0",
+            host="127.0.0.1",
             port=9190,
             number=10,
             timeout=5,
@@ -340,7 +340,7 @@ def tune_and_evaluate(tuning_opt):
 
         # upload module to device
         print("Upload...")
-        remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9190, timeout=10000)
+        remote = autotvm.measure.request_remote(device_key, "127.0.0.1", 9190, timeout=10000)
         remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
 

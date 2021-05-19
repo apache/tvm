@@ -266,7 +266,7 @@ _register_external_op_helper("clip")
 
 def reduce_annotate_fn(attrs, args, op_name):
     """Helper for reduce operations."""
-    if not attrs.axis or len(attrs.axis) == 0:
+    if get_tensorrt_use_implicit_batch_mode() and (not attrs.axis or len(attrs.axis) == 0):
         logger.info("%s: cannot reduce to scalar.", op_name)
         return False
     if attrs.exclude:
@@ -304,6 +304,7 @@ _register_external_op_helper_with_checker("sin", trt_version_annotate_fn((5, 1, 
 _register_external_op_helper_with_checker("cos", trt_version_annotate_fn((5, 1, 5)))
 _register_external_op_helper_with_checker("atan", trt_version_annotate_fn((5, 1, 5)))
 _register_external_op_helper_with_checker("ceil", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker("erf", trt_version_annotate_fn((7, 0, 0)))
 
 
 @_register_external_dynamic_check_func("add")
@@ -317,10 +318,9 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
         for arg in args
     ]
 
-    # RelayVM + TRT doesn't support scalar addition yet.
-    for shape in shapes:
-        if len(shape) < 1:
-            return False
+    # Scalars require explicit batch mode.
+    if get_tensorrt_use_implicit_batch_mode() and any([len(shape) < 1 for shape in shapes]):
+        return False
 
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
@@ -328,6 +328,8 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
     if (
         not get_tensorrt_use_implicit_batch_mode()
         and (isinstance(args[0], Constant) or isinstance(args[1], Constant))
+        and len(shapes[0]) > 0
+        and len(shapes[1]) > 0
         and shapes[0][0] == shapes[1][0]
         and shapes[0][0] != 1
         and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
@@ -406,6 +408,34 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     if weight_rank != 2:
         logger.info("nn.dense: weight has rank %d but must be 2.", weight_rank)
+        return False
+    return True
+
+
+@_register_external_dynamic_check_func("nn.batch_matmul")
+def batch_matmul_annotate_fn(expr):
+    """Check if dense is supported by TensorRT."""
+
+    if any([x.checked_type.dtype != "float32" for x in expr.args]):
+        logger.info("Only float32 inputs are supported for TensorRT.")
+        return False
+    if get_tensorrt_use_implicit_batch_mode() and len(expr.args[0].checked_type.shape) != len(
+        expr.args[1].checked_type.shape
+    ):
+        logger.info("nn.batch_matmul: requires use_implict_batch=False.")
+        return False
+    return True
+
+
+@_register_external_dynamic_check_func("nn.layer_norm")
+def layer_norm_annotate_fn(expr):
+    """Check if dense is supported by TensorRT."""
+
+    if any([x.checked_type.dtype != "float32" for x in expr.args]):
+        logger.info("Only float32 inputs are supported for TensorRT.")
+        return False
+    if get_tensorrt_use_implicit_batch_mode() and int(expr.attrs.axis) == 0:
+        logger.info("nn.layer_norm: requires use_implict_batch=False.")
         return False
     return True
 
@@ -549,6 +579,19 @@ def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
             if isinstance(tuple_input, Constant):
                 logger.info("concatenate: can't concatenate tensors with constants.")
                 return False
+    return True
+
+
+@_register_external_dynamic_check_func("split")
+def split_annotate_fn(expr):
+    """Check if split is supported by TensorRT."""
+
+    if any([x.checked_type.dtype != "float32" for x in expr.args]):
+        logger.info("Only float32 inputs are supported for TensorRT.")
+        return False
+    if get_tensorrt_use_implicit_batch_mode() and int(expr.attrs.axis) == 0:
+        logger.info("split: can't modify batch dimension.")
+        return False
     return True
 
 
@@ -870,6 +913,11 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.conv3d_transpose",
                 "nn.dense",
                 "nn.batch_matmul",
+                "sum",
+                "prod",
+                "max",
+                "min",
+                "mean",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
@@ -968,6 +1016,7 @@ def prune_tensorrt_subgraphs(mod):
     # Create new pruned module
     new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
     new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
+    new_mod = transform.RemoveUnusedFunctions()(new_mod)
     return new_mod
 
 

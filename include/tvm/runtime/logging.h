@@ -199,6 +199,24 @@ class Error : public ::dmlc::Error {  // for backwards compatibility
 };
 
 /*!
+ * \brief Error message already set in frontend env.
+ *
+ *  This error can be thrown by EnvCheckSignals to indicate
+ *  that there is an error set in the frontend environment(e.g.
+ *  python interpreter). The TVM FFI should catch this error
+ *  and return a proper code tell the frontend caller about
+ *  this fact.
+ */
+class EnvErrorAlreadySet : public ::dmlc::Error {
+ public:
+  /*!
+   * \brief Construct an error.
+   * \param s The message to be displayed with the error.
+   */
+  explicit EnvErrorAlreadySet(const std::string& s) : ::dmlc::Error(s) {}
+};
+
+/*!
  * \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
  * contains a backtrace of where it occurred.
  */

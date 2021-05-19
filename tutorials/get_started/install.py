@@ -35,7 +35,7 @@ methods for installing TVM. These include:
 # support (uTVM), and a debugging runtime, and other features. You will also
 # want to install from source if you want to actively contribute to the TVM
 # project. The full instructions are on the `Install TVM From Source
-# </install/from_source.html>`_ page.
+# <https://tvm.apache.org/docs/install/from_source.html>`_ page.
 
 ################################################################################
 # Installing From Binary Packages

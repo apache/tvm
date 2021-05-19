@@ -55,10 +55,12 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky - relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Masahiro Masuda](https://github.com/masahi) (PMC): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
+- [Leandro Nunes](https://github.com/leandron): @leandron - tvmc
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, µTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
@@ -106,11 +108,13 @@ We do encourage everyone to work anything they are interested in.
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
+- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005
+- [Xin Liu](https://github.com/Meteorix): @Meteorix
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -123,6 +127,7 @@ We do encourage everyone to work anything they are interested in.
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
+- [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238

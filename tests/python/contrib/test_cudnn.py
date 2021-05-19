@@ -41,7 +41,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
         print("skip because cudnn is not enabled...")
         return
-    if data_dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+    if data_dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
         print("Skip because gpu does not have fp16 support")
         return
 
@@ -71,7 +71,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     s = te.create_schedule(Y.op)
 
     # validation
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     f = tvm.build(s, [X, W, Y], "cuda --host=llvm", name="conv2d")
     x_np = np.random.uniform(-1, 1, xshape).astype(data_dtype)
     w_np = np.random.uniform(-1, 1, wshape).astype(data_dtype)
@@ -149,7 +149,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
     s = te.create_schedule(Y.op)
 
     # validation
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     f = tvm.build(s, [X, W, Y], target="cuda --host=llvm", name="conv3d")
     x_np = np.random.uniform(-1, 1, xshape).astype(data_dtype)
     w_np = np.random.uniform(-1, 1, wshape).astype(data_dtype)
@@ -177,7 +177,7 @@ def verify_softmax(shape, axis, dtype="float32"):
     B = cudnn.softmax(A, axis)
     s = te.create_schedule([B.op])
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(size=shape).astype(dtype)
     b_np = tvm.topi.testing.softmax_python(a_np)
     a = tvm.nd.array(a_np, dev)
@@ -192,7 +192,7 @@ def verify_softmax_4d(shape, dtype="float32"):
     B = cudnn.softmax(A, axis=1)
     s = te.create_schedule([B.op])
 
-    dev = tvm.gpu(0)
+    dev = tvm.cuda(0)
     n, c, h, w = shape
     a_np = np.random.uniform(size=shape).astype(dtype)
     b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))

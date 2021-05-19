@@ -97,7 +97,7 @@ def test_gpu():
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-    dev = tvm.gpu()
+    dev = tvm.cuda()
 
     # raw api
     gmod = complied_graph_lib["default"](dev)
@@ -190,7 +190,7 @@ def test_mod_export():
         # test the robustness wrt to parent module destruction
         def setup_gmod():
             loaded_lib = tvm.runtime.load_module(path_lib)
-            dev = tvm.gpu()
+            dev = tvm.cuda()
             return loaded_lib["default"](dev)
 
         gmod = setup_gmod()
@@ -275,12 +275,12 @@ def test_mod_export():
 
         from tvm import rpc
 
-        server = rpc.Server("localhost", port=9094)
+        server = rpc.Server("127.0.0.1", port=9094)
         remote = rpc.connect(server.host, server.port)
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = remote.gpu()
+        dev = remote.cuda()
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -378,7 +378,7 @@ def test_remove_package_params():
             fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
         loaded_lib = tvm.runtime.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = tvm.gpu(0)
+        dev = tvm.cuda(0)
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -484,7 +484,7 @@ def test_remove_package_params():
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
-        dev = remote.gpu()
+        dev = remote.cuda()
 
         # raw api
         gmod = loaded_lib["default"](dev)
@@ -543,7 +543,7 @@ def test_debug_graph_executor():
     debug_g_mod = debug_executor.GraphModuleDebug(
         complied_graph_lib["debug_create"]("default", dev),
         [dev],
-        complied_graph_lib.get_json(),
+        complied_graph_lib.get_graph_json(),
         None,
     )
     debug_g_mod.set_input("data", data)
@@ -559,7 +559,7 @@ def test_cuda_graph_executor():
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
 
-    dev = tvm.gpu()
+    dev = tvm.cuda()
     try:
         gmod = complied_graph_lib["cuda_graph_create"](dev)
     except:

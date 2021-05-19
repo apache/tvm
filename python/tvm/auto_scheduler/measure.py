@@ -552,20 +552,18 @@ class LocalRPCMeasureContext:
         if dev.exist:
             cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
-        host = "0.0.0.0"
-        self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
+        self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(
-            host,
             port=self.tracker.port,
             port_end=10000,
             key=device_key,
             silent=True,
-            tracker_addr=(self.tracker.host, self.tracker.port),
+            tracker_addr=("127.0.0.1", self.tracker.port),
         )
         self.runner = RPCRunner(
             device_key,
-            host,
+            "127.0.0.1",
             self.tracker.port,
             priority,
             n_parallel,
@@ -888,7 +886,7 @@ def _timed_eval_func(
                     random_fill(empty_array)
                     args.append(empty_array)
             if task_inputs_count != len(task_input_names):
-                logger.warning(
+                raise RuntimeError(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
             dev.sync()
