@@ -1445,7 +1445,7 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        dtype = attr.get("mode", "float32")
+        dtype = attr.get("dtype", "float32")
         in_dtype = infer_type(inputs[0]).checked_type.dtype
         zeros = _op.zeros_like(inputs[0])
         dim = infer_shape(zeros)[0]
