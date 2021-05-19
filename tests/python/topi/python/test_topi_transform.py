@@ -871,9 +871,9 @@ def test_transpose():
     verify_transpose((3, 10), None)
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("cuda", "rocm")
 def test_transpose_unfused_schedule(target, dev):
-    shape = (100, target.thread_warp_size + 3)
+    shape = (100, tvm.target.Target(target).thread_warp_size + 3)
     x = relay.var("x", relay.TensorType(shape, "float32"))
     f = relay.transpose(x)
     ex = relay.create_executor(

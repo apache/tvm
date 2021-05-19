@@ -16,8 +16,13 @@
 # under the License.
 """CUDA implementations of transforms"""
 
+from ... import te
+from ...target import Target
+from ..utils import traverse_inline
+
 
 def schedule_transpose(outs):
+    """Schedule a unfused transpose"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     schedule_transpose_from_existing(s, outs[0])
@@ -38,7 +43,7 @@ def schedule_transpose_from_existing(s, out):
     def _callback(op):
         # pylint: disable=invalid-name
         m, n = s[op].op.axis
-        warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
+        warp_size = int(Target.current(allow_none=False).thread_warp_size)
         no, ni = s[op].split(n, factor=warp_size)
         mo, mi = s[op].split(m, factor=warp_size)
         s[op].reorder(mo, no, mi, ni)
