@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 # pylint: disable=import-outside-toplevel, redefined-builtin
-"""TF2 to relay converter test: x+1 as a very basic example"""
+"""TF2 to relay converter test: testing models built with tf.keras.Sequential()"""
 
 import tempfile
 import numpy as np
