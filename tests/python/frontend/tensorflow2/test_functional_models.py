@@ -25,14 +25,12 @@ import pytest
 from common import compare_tf_tvm
 from common import run_tf_code
 
-""" simple function to test x=x+1"""
-
 
 class AddOne(tf.Module):
+    """ simple function to test x=x+1; scalar as input"""
+
     def get_input(self):
         return np.array(1.0, dtype="float32")
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(), dtype=tf.float32)])
     def func(self, x):
@@ -40,10 +38,10 @@ class AddOne(tf.Module):
 
 
 class AddOne2D(AddOne):
+    """2D array as input"""
+
     def get_input(self):
         return np.ones((2, 2), dtype="float32")
-
-    """2D array as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
     def func(self, x):
@@ -51,10 +49,10 @@ class AddOne2D(AddOne):
 
 
 class AddOne2DConstant(AddOne):
+    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
+
     def get_input(self):
         return np.ones((2, 2), dtype="float32")
-
-    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
     def func(self, x):
@@ -62,10 +60,10 @@ class AddOne2DConstant(AddOne):
 
 
 class SubOne2DConstant(tf.Module):
+    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
+
     def get_input(self):
         return np.ones((2, 2), dtype="float32")
-
-    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
     def func(self, x):
@@ -73,10 +71,10 @@ class SubOne2DConstant(tf.Module):
 
 
 class MulOne2DConstant(tf.Module):
+    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
+
     def get_input(self):
         return np.ones((2, 2), dtype="float32")
-
-    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
     def func(self, x):
@@ -84,10 +82,10 @@ class MulOne2DConstant(tf.Module):
 
 
 class DivOne2DConstant(tf.Module):
+    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
+
     def get_input(self):
         return np.ones((2, 2), dtype="float32")
-
-    """2D array as input with 2D constant as well; 2D constant stored in params after convert"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
     def func(self, x):
@@ -98,8 +96,6 @@ class StridedSlice(tf.Module):
     def get_input(self):
         return np.ones((3, 2, 3), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(3, 2, 3), dtype=tf.float32)])
     def func(self, x):
         return tf.strided_slice(x, [1, 0, 0], [2, 1, 3], [1, 1, 1])
@@ -108,8 +104,6 @@ class StridedSlice(tf.Module):
 class Shape(tf.Module):
     def get_input(self):
         return np.ones((3, 2, 3), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(3, 2, 3), dtype=tf.float32)])
     def func(self, x):
@@ -121,8 +115,6 @@ class Pack(tf.Module):
     def get_input(self):
         return np.ones((2, 3), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
     def func(self, x):
         return tf.raw_ops.Pack(values=[x, x], axis=0)
@@ -131,8 +123,6 @@ class Pack(tf.Module):
 class Split(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
@@ -144,8 +134,6 @@ class Maximum(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         a, b = tf.split(x, 2, axis=1)
@@ -155,8 +143,6 @@ class Maximum(tf.Module):
 class Less(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
@@ -168,8 +154,6 @@ class Equal(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         a, b = tf.split(x, 2, axis=1)
@@ -180,8 +164,6 @@ class Cast(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         return tf.cast(x, tf.int32)
@@ -191,8 +173,6 @@ class ExpandDims(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         return tf.expand_dims(x, axis=2)
@@ -201,8 +181,6 @@ class ExpandDims(tf.Module):
 class Transpose(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
@@ -214,8 +192,6 @@ class Reshape(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         return tf.reshape(x, (1, 2, 15))
@@ -224,8 +200,6 @@ class Reshape(tf.Module):
 class Tanh(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
@@ -236,8 +210,6 @@ class Sigmoid(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         return tf.math.sigmoid(x)
@@ -246,8 +218,6 @@ class Sigmoid(tf.Module):
 class Relu(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
@@ -258,8 +228,6 @@ class Floor(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
 
-    """scalar as input"""
-
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
         return tf.math.floor(x)
@@ -268,8 +236,6 @@ class Floor(tf.Module):
 class FloorMod(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
@@ -280,8 +246,6 @@ class FloorMod(tf.Module):
 class ConcatV2(tf.Module):
     def get_input(self):
         return np.ones((1, 30), dtype=np.float32)
-
-    """scalar as input"""
 
     @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
     def func(self, x):
