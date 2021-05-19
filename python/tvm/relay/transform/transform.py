@@ -1092,6 +1092,29 @@ def DenseToSparse(weight_name, weight_shape):
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
 
+def Conv2dToSparse(weight_name, weight_shape, layout):
+    """
+    Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    weight_name: Array[String]
+      Names of weights which qualified sparse contrains
+
+    weight_shape: Array[Array[IntImm]]
+      Weights shape in BSR format.
+
+    layout : str
+        layout of data
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout)
+
+
 def SimplifyFCTranspose(target_weight_name):
     """
     Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, wt)```
