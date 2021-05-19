@@ -1238,12 +1238,13 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
  *
  * \param data The source array.
  * \param indices The indices of the values to extract.
+ * \param batch_dims The number of batch dimensions.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
  *
  * \return A Tensor whose op member is the gather_nd operation
  */
-inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim = 0,
+inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dims = 0,
                         std::string name = "T_gather_nd", std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
@@ -1255,7 +1256,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
   for (size_t i = 1; i < ndim_i; ++i) {
     out_shape.push_back(indices->shape[i]);
   }
-  for (size_t i = indices_dim0 + batch_dim; i < ndim_d; ++i) {
+  for (size_t i = indices_dim0 + batch_dims; i < ndim_d; ++i) {
     out_shape.push_back(data->shape[i]);
   }
   return compute(
@@ -1267,7 +1268,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           indices_position.push_back(out_index[i]);
         }
         Array<PrimExpr> real_indices;
-        for (size_t i = 0; i < batch_dim; ++i) {
+        for (size_t i = 0; i < batch_dims; ++i) {
           real_indices.push_back(out_index[i]);
         }
         for (size_t i = 0; i < indices_dim0; ++i) {

@@ -3355,7 +3355,7 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
-  for (size_t i = mdim->value + param->batch_dim->value; i < ndim; ++i)
+  for (size_t i = mdim->value + param->batch_dims->value; i < ndim; ++i)
     oshape.push_back(data->shape[i]);
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
@@ -3365,13 +3365,13 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
                                   const Type& out_type) {
   const auto* param = attrs.as<GatherNDAttrs>();
   ICHECK(param);
-  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dim)};
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
 }
 
-Expr MakeGatherND(Expr data, Expr indices, int batch_dim = 0) {
+Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0) {
   static const Op& op = Op::Get("gather_nd");
   auto attrs = make_object<GatherNDAttrs>();
-  attrs->batch_dim = std::move(batch_dim);
+  attrs->batch_dims = std::move(batch_dims);
   return Call(op, {data, indices}, Attrs(attrs));
 }
 
