@@ -1263,10 +1263,9 @@ def test_gather_nd():
 
         if batch_dim > 0:
             res = []
-            axes = (tuple(range(1, len(y_data.shape))) + (0,))
-            swapped = np.transpose(y_data, axes)
-            for row, ind in zip(x_data, swapped):
-                res.append(row[tuple(ind.T)])
+            for i, row in enumerate(x_data):
+                indices = y_data[:, i]  # the indices for the i-th batch
+                res.append(row[tuple(indices)])
             ref_res = np.stack(res, 0)
         else:
             ref_res = x_data[tuple(y_data)]
