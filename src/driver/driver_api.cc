@@ -185,9 +185,12 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("tvm.driver.lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  return lower(sch, args, name, binds);
+TVM_REGISTER_GLOBAL("tvm.driver.lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name, const Map<te::Tensor, tir::Buffer>& binds) {
+  std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+  for (auto kv : binds) {
+    c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+  }
+  return lower(sch, args, name, c_binds);
 });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
