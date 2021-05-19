@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib.download import download_testdata
 
-from infrastructure import (
+from .infrastructure import (
     Device,
     skip_complexity_test,
     get_run_modes,
@@ -131,9 +131,9 @@ def process(mode, model_name):
     verify(outputs, atol=0.002, rtol=0.007)
 
 
-@pytest.mark.skipif(skip_complexity_test(), reason="Disabled because of huge complexity")
 @pytest.mark.parametrize("model_name", MODEL_URL_COLLECTION.keys())
 @pytest.mark.parametrize("mode", get_run_modes())
+@skip_complexity_test
 def test_topology(mode, model_name):
     process(mode, model_name)
 

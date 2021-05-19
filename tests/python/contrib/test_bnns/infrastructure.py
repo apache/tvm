@@ -64,8 +64,6 @@ class Device:
         The compilation target.
     device_key : str
         The device key of the remote target. Use when connecting to a remote device via a tracker.
-    cross_compile : str
-        Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
     """
 
     class ConnectionType(Enum):
@@ -80,43 +78,38 @@ class Device:
         TVM_REMOTE_DEVICE_KEY = "TVM_REMOTE_DEVICE_KEY"
         TVM_RUN_COMPLEXITY_TEST = "TVM_RUN_COMPLEXITY_TEST"
 
-    class LibExportType(Enum):
-        X64_X86 = 0
-        ARM64 = 1
-
-    connection_type = ConnectionType("local")
-    host = "localhost"
-    port = 9090
-    target = "llvm"
-    device_key = ""
-    cross_compile = ""
-    lib_export_type = LibExportType.X64_X86
+    host = os.environ.get(EnvironmentVariables.TVM_TRACKER_HOST.value)
+    port = int(os.environ.get(EnvironmentVariables.TVM_TRACKER_PORT.value) or 0) or None
+    device_key = os.environ.get(EnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value)
 
     def __init__(self, connection_type):
         """Keep remote device for lifetime of object."""
         self.connection_type = connection_type
-        if self.connection_type == Device.ConnectionType.TRACKER and have_device_and_tracker_variables():
-            self._set_parameters_from_environment_variables()
+        if self.connection_type == Device.ConnectionType.TRACKER and not Device.is_tracker_compatible():
+            raise Exception('Can\'t create Device instance. No environment variables set for the RPC Tracker')
+
+        if self.connection_type == Device.ConnectionType.TRACKER:
+            self.target = "llvm -mtriple=arm64-apple-darwin"
+            self.fcompile = lambda output, objects, **kwargs: xcode.create_dylib(output, objects, arch="arm64", sdk="iphoneos")
+        else:
+            self.target = "llvm"
+            self.fcompile = None
+
         self.device = self._get_remote()
 
     @classmethod
-    def _set_parameters_from_environment_variables(cls):
-        cls.connection_type = Device.ConnectionType.TRACKER
-        cls.host = os.environ[Device.EnvironmentVariables.TVM_TRACKER_HOST.value]
-        cls.port = int(os.environ[Device.EnvironmentVariables.TVM_TRACKER_PORT.value])
-        cls.device_key = os.environ[Device.EnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
+    def is_tracker_compatible(cls):
+        def ok(attr):
+            return attr is not None
+        return ok(cls.host) and ok(cls.port) and ok(cls.device_key)
 
-        cls.target = "llvm -mtriple=arm64-apple-darwin"
-        cls.lib_export_type = Device.LibExportType.ARM64
-
-    @classmethod
-    def _get_remote(cls):
+    def _get_remote(self):
         """Get a remote (or local) device to use for testing."""
-        if cls.connection_type == Device.ConnectionType.TRACKER:
-            device = request_remote(cls.device_key, cls.host, cls.port, timeout=1000)
-        elif cls.connection_type == Device.ConnectionType.REMOTE:
-            device = rpc.connect(cls.host, cls.port)
-        elif cls.connection_type == Device.ConnectionType.LOCAL:
+        if self.connection_type == Device.ConnectionType.TRACKER:
+            device = request_remote(self.device_key, self.host, self.port, timeout=1000)
+        elif self.connection_type == Device.ConnectionType.REMOTE:
+            device = rpc.connect(self.host, self.port)
+        elif self.connection_type == Device.ConnectionType.LOCAL:
             device = rpc.LocalSession()
         else:
             raise ValueError(
@@ -134,35 +127,20 @@ def get_run_modes():
     return [Device.ConnectionType.LOCAL, Device.ConnectionType.TRACKER]
 
 
-def skip_complexity_test():
-    try:
-        _ = os.environ[Device.EnvironmentVariables.TVM_RUN_COMPLEXITY_TEST.value]
-        return False
-    except KeyError:
-        return True
-
-
-def have_device_and_tracker_variables():
-    try:
-        _ = os.environ[Device.EnvironmentVariables.TVM_TRACKER_HOST.value]
-        _ = os.environ[Device.EnvironmentVariables.TVM_TRACKER_PORT.value]
-        _ = os.environ[Device.EnvironmentVariables.TVM_REMOTE_DEVICE_KEY.value]
-        return True
-    except KeyError:
-        return False
+def skip_complexity_test(f):
+    skip = os.environ.get('TVM_RUN_COMPLEXITY_TEST') is None
+    return pytest.mark.skipif(skip, reason='Disabled because of huge complexity')(f)
 
 
 def check_test_parameters(mode):
     skip = False
     reason = ""
-
     if bnns_is_absent():
         skip = True
         reason = f"{reason}; Skip because BNNS codegen is not available"
-    if mode == Device.ConnectionType.TRACKER and not have_device_and_tracker_variables():
+    if mode == Device.ConnectionType.TRACKER and not Device.is_tracker_compatible():
         skip = True
         reason = f"{reason}; Skip because no environment variables set for the launch mode {mode}"
-
     if skip:
         pytest.skip(reason)
 
@@ -202,7 +180,7 @@ def build_and_run(
         err_msg += str(e)
         raise Exception(err_msg)
 
-    loaded_lib = update_lib(lib, device.device, device.cross_compile, device.lib_export_type)
+    loaded_lib = update_lib(lib, device.device, device.fcompile)
     gen_module = graph_executor.GraphModule(loaded_lib["default"](device.device.cpu(0)))
     gen_module.set_input(**inputs)
     out = []
@@ -212,17 +190,12 @@ def build_and_run(
     return out
 
 
-def update_lib(lib, device, cross_compile, lib_export_type):
+def update_lib(lib, device, fcompile):
     """Export the library to the remote/local device."""
     lib_name = "mod.so"
     temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
-    if lib_export_type != Device.LibExportType.ARM64 and cross_compile:
-        lib.export_library(lib_path, cc=cross_compile)
-    if lib_export_type == Device.LibExportType.ARM64:
-        lib.export_library(lib_path, xcode.create_dylib, arch="arm64", sdk="iphoneos")
-    else:
-        lib.export_library(lib_path)
+    lib.export_library(lib_path, fcompile=fcompile)
     device.upload(lib_path)
     lib = device.load_module(lib_name)
     return lib
@@ -265,8 +238,8 @@ def verify_codegen(
     module,
     known_good_codegen,
     num_bnns_modules,
+    target,
     tvm_ops=0,
-    target=Device.target,
 ):
     """Check BNNS codegen against a known good output."""
     module = build_module(module, target, tvm_ops=tvm_ops)

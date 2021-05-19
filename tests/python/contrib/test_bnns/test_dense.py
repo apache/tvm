@@ -21,7 +21,7 @@ import math
 import pytest
 import tvm
 from tvm import relay
-from infrastructure import (
+from .infrastructure import (
     Device,
     bnns_is_absent,
     get_run_modes,
@@ -163,6 +163,7 @@ def test_dense(mode):
 
 @pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_dense():
+    device = Device(Device.ConnectionType.LOCAL)
     np.random.seed(0)
 
     dtype = ["float32"]
@@ -185,7 +186,7 @@ def test_codegen_dense():
             *args, var_names=iter(inputs), has_bias=with_bias, has_gelu=with_gelu
         )
         exp_codegen = _get_expected_codegen(*args, has_bias=with_bias, has_gelu=with_gelu)
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, 1, device.target)
 
 
 if __name__ == "__main__":

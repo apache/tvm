@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
-from infrastructure import (
+from .infrastructure import (
     Device,
     bnns_is_absent,
     get_run_modes,
@@ -192,8 +192,6 @@ def test_pooling(mode):
         verify(outputs, atol=0.001, rtol=0.001, config=config)
 
 
-# @pytest.mark.skipif(skip_runtime_test(), reason="Skip because BNNS codegen is not available")
-# @pytest.mark.skipif(skip_tracker_connection(), reason="Skip because no environment variables set for the device")
 @pytest.mark.parametrize("mode", get_run_modes())
 def test_global_pooling(mode):
     check_test_parameters(mode)

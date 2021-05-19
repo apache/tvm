@@ -21,7 +21,7 @@ import pytest
 import tvm
 from tvm import relay
 
-from infrastructure import (
+from .infrastructure import (
     get_run_modes,
     check_test_parameters,
     compare_inference_with_ref,

@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
-from infrastructure import (
+from .infrastructure import (
     Device,
     bnns_is_absent,
     get_run_modes,
@@ -147,6 +147,7 @@ def test_normalization(mode):
 
 @pytest.mark.skipif(bnns_is_absent(), reason="Skip because BNNS codegen is not available")
 def test_codegen_normalization():
+    device = Device(Device.ConnectionType.LOCAL)
     np.random.seed(0)
 
     dtype = "float32"
@@ -193,7 +194,7 @@ def test_codegen_normalization():
                     else:
                         bnns_blocks = 0
                     exp_codegen = _get_expected_codegen(*args, offload_on_bnns)
-                    verify_codegen(func, exp_codegen, bnns_blocks)
+                    verify_codegen(func, exp_codegen, bnns_blocks, device.target)
 
 
 if __name__ == "__main__":

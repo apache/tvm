@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
-from infrastructure import (
+from .infrastructure import (
     Device,
     get_run_modes,
     check_test_parameters,
