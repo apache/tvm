@@ -1103,6 +1103,10 @@ def gather_nd(data, indices, batch_dims=0):
         data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
         indices = [[0, 1], [1, 0]]
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
+
+        data    = [[[0,1],[2,3]],[[4,5],[6,7]]]
+        indices = [[1, 0]]
+        relay.gather_nd(data, indices, batch_dims=1) = [[2,3],[4,5]]
     """
     return _make.gather_nd(data, indices, batch_dims)
 
