@@ -78,11 +78,11 @@ class SimplifyReshape : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyCast matches the pattern of cast data to the same dtype.
+ * \brief SimplifySameCast matches the pattern of cast data to the same dtype.
  */
-class SimplifyCast : public DFPatternRewrite {
+class SimplifySameCast : public DFPatternRewrite {
  public:
-  SimplifyCast() {
+  SimplifySameCast() {
     data_pat_ = IsWildcard();
     like_pat_ = IsWildcard();
     pattern_ = IsOp("cast_like")({data_pat_, like_pat_}) || IsOp("cast")({data_pat_});
@@ -102,6 +102,36 @@ class SimplifyCast : public DFPatternRewrite {
  protected:
   DFPattern data_pat_;
   DFPattern like_pat_;
+};
+
+/*!
+ * \brief SimplifyConsecutiveCast matches the pattern of consecutive cast/cast_like ops
+ */
+class SimplifyConsecutiveCast : public DFPatternRewrite {
+ public:
+  SimplifyConsecutiveCast() {
+    data_ = IsWildcard();
+    auto cast1 = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
+    pattern_ = IsOp("cast_like")({cast1, IsWildcard()}) || IsOp("cast")({cast1});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    static const Op& cast_op = Op::Get("cast");
+    static const Op& cast_like_op = Op::Get("cast_like");
+    auto data = node_map[data_][0];
+    const CallNode* call = post.as<CallNode>();
+    if (call->op == cast_op) {
+      auto attr = call->attrs.as<CastAttrs>();
+      CHECK(attr);
+      return MakeCast(data, attr->dtype);
+    }
+    // cast_like op
+    return Call(cast_like_op, {data, call->args[1]}, Attrs(), {});
+  }
+
+ protected:
+  DFPattern data_;
 };
 
 /*!
@@ -597,7 +627,8 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
-  composer.AddRewrite<SimplifyCast>();
+  composer.AddRewrite<SimplifySameCast>();
+  composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }

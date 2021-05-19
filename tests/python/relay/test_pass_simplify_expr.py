@@ -402,7 +402,7 @@ def test_eliminate_identity():
         check(id_op(const, x), id_op(op_like(x), x))
 
 
-def test_simplify_cast():
+def test_simplify_same_cast():
     dtype = "int32"
     data = relay.var("data", shape=(3, 4, 5), dtype=dtype)
     expr1 = relay.cast(data, dtype)
@@ -414,6 +414,27 @@ def test_simplify_cast():
     assert tvm.ir.structural_equal(actual1, expected)
     actual2 = run_opt_pass(expr2, relay.transform.SimplifyExpr())
     assert tvm.ir.structural_equal(actual2, expected)
+
+
+def test_simplify_consecutive_cast():
+    dtype = "int32"
+    x = relay.var("x", shape=(3, 4, 5), dtype="int32")
+    y = relay.var("y", shape=(3, 4), dtype="int8")
+    z = relay.var("z", shape=(3,), dtype="float32")
+    expr1 = relay.cast(x, "int64")
+    expr2 = relay.cast(expr1, "int16")
+    expr3 = relay.cast_like(expr2, y)
+    expr4 = relay.cast_like(expr3, z)
+
+    actual1 = run_opt_pass(expr2, relay.transform.SimplifyExpr())
+    expected = run_infer_type(relay.cast(x, "int16"))
+    assert tvm.ir.structural_equal(actual1, expected)
+    actual2 = run_opt_pass(expr3, relay.transform.SimplifyExpr())
+    expected = run_infer_type(relay.cast_like(x, y))
+    assert tvm.ir.structural_equal(actual2, expected)
+    actual3 = run_opt_pass(expr4, relay.transform.SimplifyExpr())
+    expected = run_infer_type(relay.cast_like(x, z))
+    assert tvm.ir.structural_equal(actual3, expected)
 
 
 def test_concretize_reshape_like():
