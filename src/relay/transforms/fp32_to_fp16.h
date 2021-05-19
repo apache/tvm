@@ -9,10 +9,14 @@
 namespace tvm {
 namespace relay {
 
+struct FP16OpDType {
+  DataType accumulation_dtype;
+  DataType output_dtype;
+};
+
 enum FP16ConversionCategory { RED, GRAY, GREEN };
-std::unordered_map<FP16ConversionCategory, std::string> conversion_category_strings({{RED, "Red"},
-                                                                                 {GRAY, "Gray"},
-                                                                                 {GREEN, "Green"}});
+std::unordered_map<FP16ConversionCategory, std::string> conversion_category_strings(
+    {{RED, "Red"}, {GRAY, "Gray"}, {GREEN, "Green"}});
 
 using OpStringSet = std::unordered_set<std::string>;
 
@@ -72,13 +76,14 @@ OpStringSet DEFAULT_RED_LIST({
     "nn.l2_normalize",
 });
 
-class DefaultColorer {
+class DefaultFP16Colorer {
  private:
   std::unordered_map<std::string, FP16ConversionCategory> op_to_initial_color;
 
  public:
-  DefaultColorer(OpStringSet red_list = DEFAULT_RED_LIST, OpStringSet gray_list = DEFAULT_GRAY_LIST,
-                 OpStringSet green_list = DEFAULT_GREEN_LIST) {
+  DefaultFP16Colorer(OpStringSet red_list = DEFAULT_RED_LIST,
+                     OpStringSet gray_list = DEFAULT_GRAY_LIST,
+                     OpStringSet green_list = DEFAULT_GREEN_LIST) {
     std::vector<std::pair<OpStringSet, FP16ConversionCategory>> lists_and_colors{
         {red_list, RED}, {gray_list, GRAY}, {green_list, GREEN}};
 
@@ -91,7 +96,7 @@ class DefaultColorer {
     }
   }
 
-  FP16ConversionCategory operator()(const tvm::relay::CallNode* call, bool ignore_missing = false) {
+  FP16ConversionCategory operator()(const CallNode* call, bool ignore_missing = false) {
     auto* op_node = (call->op).as<tvm::OpNode>();
     if (op_node == nullptr) {
       throw std::invalid_argument("FP16 conversion only supports call nodes with op calls.");
@@ -109,6 +114,19 @@ class DefaultColorer {
     }
 
     return color->second;
+  }
+};
+
+class DefaultFP16OpDefinition {
+ public:
+  FP16OpDType operator()(const CallNode* call) {
+    if (call->attrs != NullValue<Attrs>()) {
+      Array<AttrFieldInfo> fields = call->attrs->ListFieldInfo();
+      for (AttrFieldInfo field_info : fields) {
+        if (field_info->name == "out_dtype") return {DataType::Float(32), DataType::Float(16)};
+      }
+    }
+    return {DataType::Float(16), DataType::Float(16)};
   }
 };
 
