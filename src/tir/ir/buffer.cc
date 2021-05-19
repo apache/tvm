@@ -166,8 +166,7 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   if (storage_dtype == DataType::Bool()) {
     storage_dtype = DataType::Int(8);
   }
-  ICHECK(IsPointerType(data->type_annotation, storage_dtype) ||
-         IsTextureType(data->type_annotation, storage_dtype))
+  ICHECK(IsPointerType(data->type_annotation, storage_dtype))
       << "Buffer data field expect to have the right pointer type annotation"
       << " annotation=" << data->type_annotation << ", storage_dtype=" << storage_dtype;
 

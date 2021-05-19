@@ -28,6 +28,7 @@
 
 #include "../../runtime/opencl/opencl_module.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../runtime/texture.h"
 #include "../build_common.h"
 
 namespace tvm {
@@ -77,10 +78,10 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   this->SetTextureScope(InferTextureAccess().Infer(f->body));
   for (Var arg : f->params) {
-    if (arg->type_annotation.as<TextureTypeNode>())
-    {
+    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
       // Storage scope qualifiers for textures are inferred
-      // and set prior function codegen.
+      // and set prior to function codegen.
       continue;
     }
     else if (arg.dtype().is_handle()) {
@@ -211,10 +212,12 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return PrintType(ptr->dtype, os);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
-    PrintType(ptr->element_type, os);
-    os << '*';
-  } else if (type.as<TextureTypeNode>()){
-    os << "image2d_t";
+    if (runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
+      os << "image2d_t";
+    } else {
+      PrintType(ptr->element_type, os);
+      os << '*';
+    }
   } else if (IsVoidType(type)) {
     os << "void";
   } else {
@@ -278,10 +281,11 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
 }
 
 void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
-  // Only apply restrict qualifer for non-texture types
-  if (v->type_annotation.as<TextureTypeNode>() == nullptr)
-  {
-    os << ' ' << restrict_keyword_;
+  // Apply restrict qualifer for non-texture types only
+  if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+    if (!runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
+      os << ' ' << restrict_keyword_;
+    }
   }
 }
 
@@ -349,10 +353,11 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(load->index, os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
-    auto* texture_type = op->args[0].as<VarNode>()->type_annotation.as<TextureTypeNode>();
-    ICHECK(texture_type != nullptr)
+    auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();
+    ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
+    ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
         << "builtin::texture2d_store() only supports storing to texture buffers";
-    DataType buffer_type = texture_type->element_type.as<PrimTypeNode>()->dtype;
+    DataType buffer_type = ptr_type->element_type.as<PrimTypeNode>()->dtype;
     if (buffer_type.is_float16()) {
       os << "write_imageh(";
     }
