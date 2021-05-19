@@ -665,11 +665,10 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
       [&](const tvm::Array<tvm::tir::Var>& target_indices) {
         auto c = targets(target_indices);
         tvm::Array<tvm::PrimExpr> pred_indices;
-        for (size_t i = 0; i < target_indices.size(); i++) {
-          pred_indices.push_back(target_indices[i]);
-          if (i == 0) {
-            pred_indices.push_back(c);
-          }
+        pred_indices.push_back(target_indices[0]);  // batch index
+        pred_indices.push_back(c);                  // class index
+        for (size_t i = 1; i < target_indices.size(); i++) {
+          pred_indices.push_back(target_indices[i]);  // indices for multidimensional loss
         }
         return tvm::tir::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
                                 tvm::tir::make_const(predictions->dtype, 0));
