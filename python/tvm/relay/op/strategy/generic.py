@@ -842,6 +842,29 @@ def schedule_sparse_transpose(attrs, outs, target):
         return topi.generic.schedule_sparse_transpose(outs)
 
 
+# sparse conv2d
+def wrap_compute_sparse_conv2d(topi_compute):
+    """wrap sparse conv2d topi compute"""
+
+    def _compute_sparse_conv2d(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"])]
+
+    return _compute_sparse_conv2d
+
+
+@override_native_generic_func("sparse_conv2d_strategy")
+def sparse_conv2d_strategy(attrs, inputs, out_type, target):
+    """sparse conv2d generic strategy"""
+    logger.warning("sparse conv2d is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
+        wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
+        name="sparse_conv2d.generic",
+    )
+    return strategy
+
+
 # sort
 def wrap_compute_sort(topi_compute):
     """Wrap sort topi compute"""
