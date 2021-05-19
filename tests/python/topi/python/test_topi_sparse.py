@@ -552,7 +552,7 @@ def test_sparse_add_csr():
             tvm.testing.assert_allclose(Z_tvm.asnumpy(), Z_np, atol=1e-4, rtol=1e-4)
 
 
-def test_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
+def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
     if layout == "NHWC":
         X_np = np.random.randn(M, H, W, K).astype("float32")
     elif layout == "NCHW":
@@ -576,35 +576,45 @@ def test_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
 
     Y = topi.nn.sparse_conv2d(X, W_data, W_indices, W_indptr, layout)
     s = te.create_schedule(Y.op)
-    func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-    Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype="float32"))
-    func(
-        tvm.nd.array(X_np),
-        tvm.nd.array(W_sp_np_data),
-        tvm.nd.array(W_sp_np.indices),
-        tvm.nd.array(W_sp_np.indptr),
-        Y_tvm,
-    )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
+
+    def check_device(device):
+        dev = tvm.device(device, 0)
+        if not tvm.testing.device_enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+
+        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype="float32"))
+        func(
+            tvm.nd.array(X_np, dev),
+            tvm.nd.array(W_sp_np_data, dev),
+            tvm.nd.array(W_sp_np.indices, dev),
+            tvm.nd.array(W_sp_np.indptr, dev),
+            Y_tvm,
+        )
+        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
+
+    check_device("llvm")
 
 
-def test_sparse_conv2d():
+def test_sparse_conv2d_bsr():
     M, H, W, N, K, BS_R, BS_C, density = 1, 32, 32, 128, 64, 8, 16, 0.9
-    test_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, "NHWC")
-    test_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, "NCHW")
-    test_sparse_conv2d_bsr(M, H, W, N, K, BS_R, 1, density, "NHWC")
+    verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, "NHWC")
+    verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, "NCHW")
+    verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, 1, density, "NHWC")
 
 
 if __name__ == "__main__":
-    test_csrmv()
-    test_csrmm()
-    test_dense()
-    test_sparse_dense_csr()
-    test_sparse_dense_bsr_randomized()
-    test_sparse_transpose_csr()
-    test_sparse_dense_padded_cuda()
-    test_sparse_dense_padded_alter_op()
-    test_sparse_dense_csr_reverse()
-    test_sparse_dense_bsr_reverse()
-    test_sparse_add_csr()
+    # test_csrmv()
+    # test_csrmm()
+    # test_dense()
+    # test_sparse_dense_csr()
+    # test_sparse_dense_bsr_randomized()
+    # test_sparse_transpose_csr()
+    # test_sparse_dense_padded_cuda()
+    # test_sparse_dense_padded_alter_op()
+    # test_sparse_dense_csr_reverse()
+    # test_sparse_dense_bsr_reverse()
+    # test_sparse_add_csr()
     test_sparse_conv2d()

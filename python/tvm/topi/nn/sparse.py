@@ -574,8 +574,8 @@ def sparse_conv2d(dense_data, sparse_data, sparse_indices, sparse_indptr, layout
     Parameters
     ----------
     dense_data : tvm.te.Tensor
-        4-D with shape [M, H, W, K], float32 (layout=NHWC)
-        4-D with shape [M, K, H, W], float32 (layout=NCHW)
+        4-D with shape [M, H, W, K] (layout=NHWC)
+        4-D with shape [M, K, H, W] (layout=NCHW)
 
     sparse_data : tvm.te.Tensor
         2-D with shape [num_blocks, bs_r] (BSR)

@@ -55,7 +55,7 @@ def _search_conv2d_op_weight(expr):
 
 
 def process_params(expr, params, block_size, sparsity_threshold, layout):
-    """[summary]
+    """Process parameters of conv2d from dense to sparse.
 
     Parameters
     ----------

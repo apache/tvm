@@ -21,7 +21,7 @@
  *
  * \file convert_sparse_conv2d.cc
  *
- * \brief Mutate dense operator to sparse dense operator
+ * \brief Mutate conv2d operator to sparse conv2d operator
  */
 #include <tvm/ir/expr.h>
 #include <tvm/relay/analysis.h>

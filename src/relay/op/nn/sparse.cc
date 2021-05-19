@@ -268,7 +268,8 @@ bool SparseConv2dRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       return true;
     }
   }
-  LOG(FATAL) << "Unknown weight ndim for nn.sparse_conv2d, should be 3 (BSR)";
+  LOG(FATAL) << "Unknown weight ndim " << weight_data->shape.size() 
+             << " for nn.sparse_conv2d, should be 2 or 3 (BSR)";
   return false;
 }
 
