@@ -359,7 +359,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}),
                                     throw_last_error),
                          let->body});
-    DataType dtype = let->var->type_annotation.as<TextureTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
+    DataType dtype = let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
 
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
