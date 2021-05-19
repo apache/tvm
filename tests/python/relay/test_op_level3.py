@@ -1261,12 +1261,16 @@ def test_gather_nd():
         x_data = np.random.uniform(size=xshape).astype("float32")
         y_data = np.array(y_data).astype(np.int32)
 
-        if batch_dim > 0:
+        def gather_nd_batch_dim_1_ref(data, indices):
             res = []
-            for i, row in enumerate(x_data):
-                indices = y_data[:, i]  # the indices for the i-th batch
-                res.append(row[tuple(indices)])
-            ref_res = np.stack(res, 0)
+            for i, row in enumerate(data):
+                indices_tuple = tuple(indices[:, i])  # the indices for the i-th batch
+                res.append(row[indices_tuple])
+            # stack on the batch dim
+            return np.stack(res, 0)
+
+        if batch_dim > 0:
+            ref_res = gather_nd_batch_dim_1_ref(x_data, y_data)
         else:
             ref_res = x_data[tuple(y_data)]
 
