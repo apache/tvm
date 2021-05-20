@@ -978,6 +978,9 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
 
 transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   Array<Pass> pass_seqs;
+  // Remove unused functions
+  Array<runtime::String> entry_functions{"main"};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
   pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
