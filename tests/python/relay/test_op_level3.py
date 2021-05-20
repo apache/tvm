@@ -1276,11 +1276,11 @@ def test_gather_nd():
 
         if batch_dims > 1:
             x_data_reshape = np.reshape(x_data, (-1,) + xshape[batch_dims:])
-            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dims + 1):])
+            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dims + 1) :])
 
             ref_res = gather_nd_batch_dims_1_ref(x_data_reshape, y_data_reshape)
 
-            out_shape = yshape[1: (batch_dims + 1)] + ref_res.shape[1:]
+            out_shape = yshape[1 : (batch_dims + 1)] + ref_res.shape[1:]
             ref_res = np.reshape(ref_res, out_shape)
         elif batch_dims == 1:
             ref_res = gather_nd_batch_dims_1_ref(x_data, y_data)
