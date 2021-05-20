@@ -3371,7 +3371,7 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
 Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0) {
   static const Op& op = Op::Get("gather_nd");
   auto attrs = make_object<GatherNDAttrs>();
-  attrs->batch_dims = std::move(batch_dims);
+  attrs->batch_dims = batch_dims;
   return Call(op, {data, indices}, Attrs(attrs));
 }
 
