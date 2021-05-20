@@ -25,16 +25,19 @@ import tvm.topi.testing
 
 @tvm.testing.uses_gpu
 def test_dynamic_strided_slice():
-    def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
+    def verify(dshape, begin, end, strides, slice_mode="end", test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
+        slice_dim = len(begin)
         begin = begin if begin else [0] * ndim
-        end = end if end else list(dshape)
+        end = end if end else list(dshape)[:slice_dim]
         if strides:
             if len(strides) == 1:
-                strides = strides * ndim
+                strides = strides * slice_dim
         else:
-            strides = [1] * ndim
+            strides = [1] * slice_dim
+
+        num_static_axes = len(dshape) - len(begin)
 
         # target numpy result
         x_data = np.random.uniform(size=dshape).astype("float32")
@@ -54,7 +57,10 @@ def test_dynamic_strided_slice():
         func = relay.Function(inputs, z)
 
         func = run_infer_type(func)
-        text = func.astext()
+
+        if num_static_axes > 0:
+            oshape = run_infer_type(z).checked_type.shape
+            assert tuple(oshape[-num_static_axes:]) == dshape[-num_static_axes:]
 
         if not test_ref:
             return
@@ -69,22 +75,24 @@ def test_dynamic_strided_slice():
         [0, 20, 20, 0],
         [1, 140, 140, 3],
         [1, 1, 1, 1],
-        (1, 120, 120, 3),
         dtype="int64",
     )
-    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
-    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
-    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
-    verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
-    verify((3, 4, 3), [1, 1, 0], [4, 4, 4], None, (2, 3, 3))
-    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
-    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
-    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
-    verify((20, 10, 5), [20, 10, 4], [0, 0, 1], [-1, -3, -2], (19, 3, 2))
-    verify(
-        (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
-    )
-    verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], dtype="int16")
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None)
+    verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None)
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 4], None)
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None)
+    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1])
+    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
+    verify((20, 10, 5), [20, 10, 4], [0, 0, 1], [-1, -3, -2])
+    verify((3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], slice_mode="size", test_ref=False)
+    verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], slice_mode="size", test_ref=True)
+
+    # Slicing along first few axes, where the rest of axes remain static
+    verify((3, 4, 3), [0], [2], None)
+    verify((3, 4, 3), [1], [4], [2])
+    verify((3, 4, 3), [1, 0], [4, 2], [2, 1])
 
 
 if __name__ == "__main__":

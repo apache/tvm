@@ -569,15 +569,24 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
                                         std::string tag = topi::kInjective) {
   int64_t src_tensor_dim = x->shape.size();
   Array<PrimExpr> out_shape;
-  for (int64_t i = 0; i < src_tensor_dim; ++i) {
+  const int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
+  for (int64_t i = 0; i < num_dynamic_axes; ++i) {
     out_shape.push_back(tvm::tir::Var("dim"));
+  }
+  for (int64_t i = num_dynamic_axes; i < src_tensor_dim; ++i) {
+    out_shape.push_back(x->shape[i]);
   }
   return te::compute(
       out_shape,
       [&](const Array<tvm::tir::Var>& indices) {
         Array<PrimExpr> real_indices;
-        for (int32_t i = 0; i < src_tensor_dim; ++i) {
+        // dynamic slicing
+        for (int32_t i = 0; i < num_dynamic_axes; ++i) {
           real_indices.push_back(indices[i] * strides(i) + tvm::min(begin(i), x->shape[i] - 1));
+        }
+        // keep input dim
+        for (int32_t i = num_dynamic_axes; i < src_tensor_dim; ++i) {
+          real_indices.push_back(indices[i]);
         }
         return x(real_indices);
       },
