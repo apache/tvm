@@ -1413,7 +1413,8 @@ class GatherElements(OnnxOpConverter):
 class GatherND(OnnxOpConverter):
     """Operator converter for GatherND."""
 
-    def _impl_common(data, indices, batch_dims=0):
+    @classmethod
+    def _impl_common(cls, data, indices, batch_dims=0):
         indices_dims = len(infer_shape(indices))
         indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
         return _op.gather_nd(data, indices, batch_dims)
