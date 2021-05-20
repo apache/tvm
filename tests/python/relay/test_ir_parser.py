@@ -118,7 +118,7 @@ def assert_parse_module_as(code, mod):
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
-    return x.data.asnumpy().item()
+    return x.data.numpy().item()
 
 
 int32 = relay.scalar_type("int32")

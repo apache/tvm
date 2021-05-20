@@ -144,7 +144,7 @@ def test_build(build_dir):
     module = graph_executor.create(graph, lib, dev)
     module.load_params(params)
     module.run(data=input_data)
-    out = module.get_output(0).asnumpy()
+    out = module.get_output(0).numpy()
     top1 = np.argmax(out[0])
     synset = download_img_labels()
     print("TVM prediction top-1:", top1, synset[top1])

@@ -826,7 +826,7 @@ class RelayToONNXConverter(ExprVisitor):
             param_name in self._params
         ), "The parameter {0} is not present" "in params dict provided.".format(param_name)
         value = self._params[param_name]
-        numpy_array = value.asnumpy()
+        numpy_array = value.numpy()
         tensor = numpy_helper.from_array(numpy_array, param_name)
         self._mc.add_initializers([tensor])
         dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy_array.dtype]

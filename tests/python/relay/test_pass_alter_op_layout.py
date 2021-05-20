@@ -766,7 +766,7 @@ def test_alter_layout_strided_slice():
                 result_before = ex_before.evaluate()(np_data, np_weight)
                 result_new = ex_new.evaluate()(np_data, np_weight)
                 tvm.testing.assert_allclose(
-                    result_before.asnumpy(), result_new.asnumpy(), rtol=1e-5, atol=1e-5
+                    result_before.numpy(), result_new.numpy(), rtol=1e-5, atol=1e-5
                 )
 
 

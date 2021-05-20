@@ -563,7 +563,7 @@ class PyTorchOpConverter:
             if isinstance(r, int):
                 reps.append(r)
             else:
-                reps.append(int(_infer_value(r, {}).asnumpy()))
+                reps.append(int(_infer_value(r, {}).numpy()))
 
         return _op.transform.tile(data, reps=reps)
 
@@ -603,7 +603,7 @@ class PyTorchOpConverter:
         for dim in data:
             if isinstance(dim, _expr.Expr):
                 if isinstance(dim, _expr.Constant):
-                    dim = int(dim.data.asnumpy())
+                    dim = int(dim.data.numpy())
                     if isinstance(size, list):
                         size.append(dim)
                     new_shape.append(dim)
@@ -868,7 +868,7 @@ class PyTorchOpConverter:
         if isinstance(data, list):
             for i, _ in enumerate(data):
                 if isinstance(data[i], _expr.Expr):
-                    data[i] = int(_infer_value_simulated(data[i], {}).asnumpy())
+                    data[i] = int(_infer_value_simulated(data[i], {}).numpy())
         return data
 
     def maxpool_2d(self, inputs, input_types):
@@ -1302,7 +1302,7 @@ class PyTorchOpConverter:
         for i, shape in enumerate(shape_inp):
             if isinstance(shape, _expr.Expr):
                 val = _infer_value_simulated(shape, {})
-                new_shape[i] = np.asscalar(val.asnumpy())
+                new_shape[i] = np.asscalar(val.numpy())
 
         return _op.transform.reshape(data, new_shape)
 
@@ -1314,7 +1314,7 @@ class PyTorchOpConverter:
         is_dyn = False
         for s in new_shape:
             if isinstance(s, _expr.Constant):
-                tmp_shape.append(int(s.data.asnumpy()))
+                tmp_shape.append(int(s.data.numpy()))
             elif isinstance(s, _expr.Expr):
                 dim, success = try_infer_value(s, lambda ret: int(ret))
                 tmp_shape.append(dim)
@@ -1684,7 +1684,7 @@ class PyTorchOpConverter:
         for i in range(out_dims):
             if sizes[i] != -1 and shape[i] == 1:
                 if not isinstance(sizes[i], int):
-                    sizes[i] = int(_infer_value(sizes[i], {}).asnumpy())
+                    sizes[i] = int(_infer_value(sizes[i], {}).numpy())
                 out = _op.repeat(out, sizes[i], axis=i)
 
         return out
@@ -1730,7 +1730,7 @@ class PyTorchOpConverter:
                 const_paddings.append([])
                 for p in pad:
                     if not isinstance(p, int):
-                        p = int(_infer_value(p, {}).asnumpy())
+                        p = int(_infer_value(p, {}).numpy())
                     const_paddings[-1].append(p)
 
             if mode == "constant":
@@ -1745,7 +1745,7 @@ class PyTorchOpConverter:
 
         def get_v(v, default_v):
             if isinstance(v, _expr.Constant):
-                return float(v.data.asnumpy())
+                return float(v.data.numpy())
             if isinstance(v, _expr.Expr):
                 infer_v, success = try_infer_value(v, lambda ret: float(ret))
                 if success:
@@ -1790,7 +1790,7 @@ class PyTorchOpConverter:
         if inputs[1] is not None:
             for size in inputs[1]:
                 if not isinstance(size, int):
-                    out_size.append(int(_infer_value(size, {}).asnumpy()))
+                    out_size.append(int(_infer_value(size, {}).numpy()))
                 else:
                     out_size.append(size)
         else:
@@ -2169,7 +2169,7 @@ class PyTorchOpConverter:
         }
         type_key = inputs[1]
         if isinstance(data, _expr.Constant):
-            data = data.data.asnumpy().tolist()
+            data = data.data.numpy().tolist()
         return _expr.const(data, cast_map[type_key])
 
     def interpolate(self, inputs, input_types):

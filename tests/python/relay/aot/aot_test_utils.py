@@ -243,5 +243,5 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     grt_mod.set_input(**input_data)
     grt_mod.run()
     output_count = grt_mod.get_num_outputs()
-    out = [grt_mod.get_output(i).asnumpy() for i in range(output_count)]
+    out = [grt_mod.get_output(i).numpy() for i in range(output_count)]
     return out

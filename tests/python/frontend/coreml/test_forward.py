@@ -43,7 +43,7 @@ def get_tvm_output(
     m.run()
     # get outputs
     out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
-    return out.asnumpy()
+    return out.numpy()
 
 
 def run_model_checkonly(model_file, model_name="", input_name="image"):
@@ -105,14 +105,14 @@ def run_tvm_graph(
         tvm_output_list = []
         for i, s in enumerate(output_shape):
             tvm_output = m.get_output(i, tvm.nd.empty((s), output_dtype[i]))
-            tvm_output_list.append(tvm_output.asnumpy())
+            tvm_output_list.append(tvm_output.numpy())
         return tvm_output_list
     else:
         if not output_shape:
             tvm_output = m.get_output(0)
         else:
             tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
-        return tvm_output.asnumpy()
+        return tvm_output.numpy()
 
 
 def verify_AddLayerParams(input_dim, alpha=2):

@@ -456,7 +456,7 @@ def _dequantize():
 
 
 def _get_numpy(relay_const_scalar):
-    return relay_const_scalar.data.asnumpy()
+    return relay_const_scalar.data.numpy()
 
 
 def _get_scalar(relay_const_scalar):

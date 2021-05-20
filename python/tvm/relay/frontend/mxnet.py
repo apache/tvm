@@ -1753,13 +1753,13 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
 
     def _get_quantized_kernel(_kernel, _bias, _data_scale):
         # For quantizing, we need min/max of kernel. So, we have to pre compute this expr.
-        np_kernel = _infer_value(_kernel, params).asnumpy()
+        np_kernel = _infer_value(_kernel, params).numpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1, 2, 3))
         kernel_channel_max = np.amax(np_kernel, axis=(1, 2, 3))
 
         np_bias = None
         if _bias is not None:
-            np_bias = _infer_value(_bias, params).asnumpy()
+            np_bias = _infer_value(_bias, params).numpy()
         return quantize_conv_weights_bias_channel_mkldnn_from_var(
             _kernel, np_bias, kernel_channel_min, kernel_channel_max, _data_scale
         )
@@ -2091,15 +2091,15 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
             )
 
         if isinstance(_kernel, tvm.relay.Call) and _kernel.op.name == "qnn.quantize":
-            _kernel_scale = _kernel.args[1].data.asnumpy()
-            _kernel_zp = _kernel.args[2].data.asnumpy()
+            _kernel_scale = _kernel.args[1].data.numpy()
+            _kernel_zp = _kernel.args[2].data.numpy()
             return _kernel_scale, _kernel_zp
 
         kernel_min_idx, kernel_max_idx = (5, 6) if _has_bias else (4, 5)
         kernel_min_name = _get_name(_inputs[kernel_min_idx])
-        kernel_min = params[kernel_min_name].asnumpy()[0]
+        kernel_min = params[kernel_min_name].numpy()[0]
         kernel_max_name = _get_name(_inputs[kernel_max_idx])
-        kernel_max = params[kernel_max_name].asnumpy()[0]
+        kernel_max = params[kernel_max_name].numpy()[0]
         _kernel_scale = (
             get_mkldnn_uint8_scale(kernel_min, kernel_max)
             if kernel_dtype == "uint8"
@@ -2116,13 +2116,13 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
             )
 
         # Get the FP32 values, calculate min/max and then channel quantize them
-        np_kernel = _infer_value(_kernel, params).asnumpy()
+        np_kernel = _infer_value(_kernel, params).numpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1,))
         kernel_channel_max = np.amax(np_kernel, axis=(1,))
 
         np_bias = None
         if _bias is not None:
-            np_bias = _infer_value(_bias, params).asnumpy()
+            np_bias = _infer_value(_bias, params).numpy()
         return quantize_conv_weights_bias_channel_mkldnn_from_var(
             _kernel, np_bias, kernel_channel_min, kernel_channel_max, _data_scale
         )
@@ -2130,15 +2130,15 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
     def _get_bias_requantize_scale(_inputs, _data_scale, _kernel_scale):
         _bias = _inputs[2]
         if isinstance(_bias, tvm.relay.Call) and _bias.op.name == "qnn.quantize":
-            _bias_scale = _bias.args[1].data.asnumpy()
+            _bias_scale = _bias.args[1].data.numpy()
             _bias_requantize_scale = _bias_scale / (_data_scale * _kernel_scale)
             _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
             return _bias_requantize_scale
 
         bias_min_name = _get_name(_inputs[7])
-        bias_min = params[bias_min_name].asnumpy()[0]
+        bias_min = params[bias_min_name].numpy()[0]
         bias_max_name = _get_name(_inputs[8])
-        bias_max = params[bias_max_name].asnumpy()[0]
+        bias_max = params[bias_max_name].numpy()[0]
         bias_scale = get_mkldnn_int8_scale(bias_min, bias_max)
         _bias_requantize_scale = bias_scale / (_data_scale * _kernel_scale)
         _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
@@ -2894,9 +2894,9 @@ def from_mxnet(symbol, shape=None, dtype="float32", arg_params=None, aux_params=
         arg_params = arg_params if arg_params else {}
         aux_params = aux_params if aux_params else {}
         for k, v in arg_params.items():
-            params[k] = _nd.array(v.asnumpy())
+            params[k] = _nd.array(v.numpy())
         for k, v in aux_params.items():
-            params[k] = _nd.array(v.asnumpy())
+            params[k] = _nd.array(v.numpy())
         shape, dtype = _update_shape_dtype(shape, dtype, params)
         func = _from_mxnet_impl(symbol, shape, dtype, params, mod)
     elif isinstance(symbol, mx.gluon.HybridBlock):
@@ -2904,7 +2904,7 @@ def from_mxnet(symbol, shape=None, dtype="float32", arg_params=None, aux_params=
             raise ValueError("arg_params and aux_params ae not used when importing HybridBlock")
         params = {}
         for k, v in symbol.collect_params().items():
-            params[k] = _nd.array(v.data().asnumpy())
+            params[k] = _nd.array(v.data().numpy())
         inputs = []
         for name in shape:
             inputs.append(mx.sym.Variable(name))

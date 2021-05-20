@@ -112,7 +112,7 @@ def get_real_image_object_detection(im_height, im_width):
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.numpy().tolist()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -129,7 +129,7 @@ def vmobj_to_list(o):
         elif "tensor_nil" in o.constructor.name_hint:
             return [0]
         elif "tensor" in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
+            return [o.fields[0].numpy()]
         else:
             raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     else:
@@ -223,7 +223,7 @@ def run_tvm_graph(
         tvm_output_list = []
         for i in range(0, num_output):
             tvm_output = m.get_output(i)
-            tvm_output_list.append(tvm_output.asnumpy())
+            tvm_output_list.append(tvm_output.numpy())
         return tvm_output_list
 
 

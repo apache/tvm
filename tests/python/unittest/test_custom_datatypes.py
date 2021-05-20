@@ -104,7 +104,7 @@ def compare(module, input, src_dtype, dst_dtype, rtol, atol, params={}, target="
         # currently this only works for comparing single output
         maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
     np.testing.assert_allclose(
-        maybe_correct_converted.asnumpy(), correct.asnumpy(), rtol=rtol, atol=atol
+        maybe_correct_converted.numpy(), correct.numpy(), rtol=rtol, atol=atol
     )
 
 

@@ -899,7 +899,7 @@ class BatchnormCallback(DFPatternCallback):
         beta = node_map[self.beta][0]
         gamma = node_map[self.gamma][0]
         eps = node_map[self.eps][0]
-        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=eps.data.asnumpy().item())[
+        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=eps.data.numpy().item())[
             0
         ]
 

@@ -465,7 +465,7 @@ def threefry_test_wrapping(target, device):
     s = tvm.te.create_schedule([f.op])
     out_ary = tvm.nd.array(np.ones((1,), "uint64"), device)
     tvm.build(s, [f], target=target)(out_ary)
-    return out_ary.asnumpy()[0] == 0
+    return out_ary.numpy()[0] == 0
 
 
 def uniform(gen, low, high, out_shape, out_dtype):

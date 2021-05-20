@@ -218,7 +218,7 @@ def qnn_dense_driver(test_configuration):
             mod.set_input(bias_name, test_configuration[bias_name])
         mod.set_input(**params)
         mod.run()
-        res = mod.get_output(0).asnumpy()
+        res = mod.get_output(0).numpy()
         np.testing.assert_equal(res, test_configuration["output"])
         assert res.dtype == expected_out_dtype
 

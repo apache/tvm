@@ -29,9 +29,9 @@ def _check_module_with_numpy(mod, shape=(128, 128, 128)):
     a = tvm.nd.array(np.random.rand(m, k).astype("float32"))
     b = tvm.nd.array(np.random.rand(n, k).astype("float32"))
     c = tvm.nd.array(np.zeros((m, n), dtype="float32"))
-    c_np = np.dot(a.asnumpy(), b.asnumpy().transpose())
+    c_np = np.dot(a.numpy(), b.numpy().transpose())
     mod(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
 
 # pylint: disable=no-self-argument, missing-class-docstring, missing-function-docstring

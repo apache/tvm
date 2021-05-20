@@ -86,7 +86,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0, groups=1):
         c_np = tvm.topi.testing.conv2d_nhwc_python(x_np, wt, 1, 1, groups=groups)
 
     f(x, w, y)
-    tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=1e-2, rtol=1e-2)
+    tvm.testing.assert_allclose(y.numpy(), c_np, atol=1e-2, rtol=1e-2)
 
 
 @tvm.testing.requires_gpu
@@ -163,7 +163,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0, groups=1):
         raise AssertionError("For now, conv3d tensor format only support: 0(NCHW)")
 
     f(x, w, y)
-    tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=3e-5, rtol=1e-4)
+    tvm.testing.assert_allclose(y.numpy(), c_np, atol=3e-5, rtol=1e-4)
 
 
 @tvm.testing.requires_gpu
@@ -184,7 +184,7 @@ def verify_softmax(shape, axis, dtype="float32"):
     b = tvm.nd.array(b_np, dev)
     f = tvm.build(s, [A, B], target="cuda --host=llvm", name="softmax")
     f(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3)
 
 
 def verify_softmax_4d(shape, dtype="float32"):
@@ -201,7 +201,7 @@ def verify_softmax_4d(shape, dtype="float32"):
     b = tvm.nd.array(b_np, dev)
     f = tvm.build(s, [A, B], target="cuda --host=llvm", name="softmax")
     f(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3)
 
 
 @tvm.testing.requires_gpu

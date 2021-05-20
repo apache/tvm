@@ -72,7 +72,7 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
         func(a, d, s, z, q)
 
         # Check correctness against the true qnn output.
-        mismatch = q.asnumpy() != real_q_out.asnumpy().astype("float32")
+        mismatch = q.numpy() != real_q_out.numpy().astype("float32")
         # Allow some rounding errors due to GPU fp32 arithmetic.
         assert np.sum(mismatch) <= 3
 
@@ -140,7 +140,7 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
 
         # Check correctness against the true qnn output.
         tvm.testing.assert_allclose(
-            dq.asnumpy(), real_dq_out.asnumpy().astype("float32"), rtol=1e-5
+            dq.numpy(), real_dq_out.numpy().astype("float32"), rtol=1e-5
         )
 
     for target, dev in tvm.testing.enabled_targets():

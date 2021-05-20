@@ -51,7 +51,7 @@ def test_fastmath():
         m.run()
         # Get outputs
         tvm_output = m.get_output(0)
-        tvm.testing.assert_allclose(tvm_output.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(tvm_output.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
     test_apply(relay.exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(relay.erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)

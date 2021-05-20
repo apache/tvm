@@ -92,7 +92,7 @@ def test_local():
         runtime.set_input(0, tvm.nd.array(tflite_input))
         runtime.invoke()
         out = runtime.get_output(0)
-        np.testing.assert_equal(out.asnumpy(), tflite_output)
+        np.testing.assert_equal(out.numpy(), tflite_output)
 
 
 def test_remote():
@@ -137,7 +137,7 @@ def test_remote():
         runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
         runtime.invoke()
         out = runtime.get_output(0)
-        np.testing.assert_equal(out.asnumpy(), tflite_output)
+        np.testing.assert_equal(out.numpy(), tflite_output)
 
     server.terminate()
 

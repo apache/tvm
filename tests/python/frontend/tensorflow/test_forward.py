@@ -79,7 +79,7 @@ tf_dtypes = {
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy()]
+        return [o.numpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -96,7 +96,7 @@ def vmobj_to_list(o):
         elif "tensor_nil" in o.constructor.name_hint:
             return [0]
         elif "tensor" in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
+            return [o.fields[0].numpy()]
         else:
             raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     else:
@@ -182,7 +182,7 @@ def run_tvm_graph(
         assert out_names is None or num_output == len(
             out_names
         ), "out_names: {} num_output: {}".format(out_names, num_output)
-        tvm_output_list = [m.get_output(i).asnumpy() for i in range(num_output)]
+        tvm_output_list = [m.get_output(i).numpy() for i in range(num_output)]
         return tvm_output_list
 
 
@@ -3958,12 +3958,12 @@ def test_forward_ptb():
             )
             model.set_input(**params)
             model.run()
-            tvm_output = model.get_output(0, tvm.nd.empty(out_sample_shape, "float32")).asnumpy()
+            tvm_output = model.get_output(0, tvm.nd.empty(out_sample_shape, "float32")).numpy()
 
             state_output = []
             for i in range(4):
                 state_output.append(
-                    model.get_output(i + 1, tvm.nd.empty(out_state_shape, "float32")).asnumpy()
+                    model.get_output(i + 1, tvm.nd.empty(out_state_shape, "float32")).numpy()
                 )
             sample = tf_testing.pick_from_weight(tvm_output[0])
 

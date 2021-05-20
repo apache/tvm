@@ -216,7 +216,7 @@ def _run_tvm(data, proto_file, blob_file):
     tvm_output = list()
     # get outputs
     for i in range(m.get_num_outputs()):
-        tvm_output.append(m.get_output(i).asnumpy())
+        tvm_output.append(m.get_output(i).numpy())
     return tvm_output
 
 

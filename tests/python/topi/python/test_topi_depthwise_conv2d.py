@@ -248,10 +248,10 @@ def depthwise_conv2d_with_workload_nchw(
             timer_3 = f3.time_evaluator(f3.entry_name, dev, number=1)
             tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
             tvm.testing.assert_allclose(
-                depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5
+                depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5
             )
-            tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-            tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+            tvm.testing.assert_allclose(scale_shift_tvm.numpy(), scale_shift_scipy, rtol=1e-5)
+            tvm.testing.assert_allclose(relu_tvm.numpy(), relu_scipy, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         with autotvm.tophub.context(target):  # load tophub pre-tuned parameters
@@ -375,10 +375,10 @@ def depthwise_conv2d_with_workload_nhwc(
         tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
         relu_scipy = np.maximum(scale_shift_scipy, 0)
         tvm.testing.assert_allclose(
-            depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5
+            depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5
         )
-        tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(scale_shift_tvm.numpy(), scale_shift_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.numpy(), relu_scipy, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         with autotvm.tophub.context(target):  # load tophub pre-tuned parameters
@@ -510,9 +510,9 @@ def depthwise_conv2d_with_workload_NCHWc(
         # launch kernel 2 (depthwise_conv2d + relu)
         f2(input_tvm, filter_tvm, relu_tvm)
         tvm.testing.assert_allclose(
-            depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5
+            depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5
         )
-        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.numpy(), relu_scipy, rtol=1e-5)
 
     # test llvm only for now since depthwise_conv2d_NCHWc implement is missing in other backend.
     for target in ["llvm"]:

@@ -98,7 +98,7 @@ def test_fc_int8_acc32():
 
         gops_per_sec = gops_per_mm / result.mean / 1e9
         # verify the correctness
-        tvm.testing.assert_allclose(y.asnumpy(), np.dot(a_, b_.T), rtol=0)
+        tvm.testing.assert_allclose(y.numpy(), np.dot(a_, b_.T), rtol=0)
         print(
             "Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}".format(
                 result.mean * 1000, gops_per_sec, gops_per_sec / peak

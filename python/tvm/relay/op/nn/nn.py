@@ -1339,9 +1339,9 @@ def upsampling(
         The computed result.
     """
     if isinstance(scale_h, Constant):
-        scale_h = scale_h.data.asnumpy().item()
+        scale_h = scale_h.data.numpy().item()
     if isinstance(scale_w, Constant):
-        scale_w = scale_w.data.asnumpy().item()
+        scale_w = scale_w.data.numpy().item()
     if isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
         if not isinstance(scale_h, Expr):
             scale_h = const(scale_h, "float64")
@@ -1402,11 +1402,11 @@ def upsampling3d(
         The computed result.
     """
     if isinstance(scale_d, Constant):
-        scale_d = scale_d.data.asnumpy().item()
+        scale_d = scale_d.data.numpy().item()
     if isinstance(scale_h, Constant):
-        scale_h = scale_h.data.asnumpy().item()
+        scale_h = scale_h.data.numpy().item()
     if isinstance(scale_w, Constant):
-        scale_w = scale_w.data.asnumpy().item()
+        scale_w = scale_w.data.numpy().item()
     if isinstance(scale_d, Expr) or isinstance(scale_h, Expr) or isinstance(scale_w, Expr):
         if not isinstance(scale_d, Expr):
             scale_d = const(scale_d, "float64")
@@ -1666,7 +1666,7 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
         The computed result.
     """
     if isinstance(pad_width, Constant):
-        pad_width = [list(i) for i in pad_width.data.asnumpy()]
+        pad_width = [list(i) for i in pad_width.data.numpy()]
     if not isinstance(pad_value, Expr):
         pad_value = const(pad_value)
     if isinstance(pad_width, Expr):

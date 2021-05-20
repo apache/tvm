@@ -85,7 +85,7 @@ def process_params(expr, params, block_size, sparsity_threshold, layout):
     weight_names = _search_conv2d_op_weight(expr)
     for name in weight_names:
         name = str(name)
-        w_np = params[name].asnumpy()
+        w_np = params[name].numpy()
         # currently only support conv2d_1*1
         if not (
             (w_np.shape[0] == 1 and w_np.shape[1] == 1)

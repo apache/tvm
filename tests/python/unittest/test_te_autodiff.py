@@ -63,7 +63,7 @@ def check_grad(
         grad_data = [tvm.nd.empty(get_const_tuple(i.shape), g.dtype) for i, g in zip(inputs, grads)]
 
         mgrad(*grad_data, *input_data, *arg_vals)
-        g_res = [g.asnumpy() for g in grad_data]
+        g_res = [g.numpy() for g in grad_data]
 
         if desired_grads:
             assert isinstance(desired_grads, list)
@@ -74,10 +74,10 @@ def check_grad(
             def forward(*in_data):
                 out_data = tvm.nd.empty(out_shape, out.dtype)
                 mout(out_data, *[tvm.nd.array(d) for d in list(in_data)])
-                return out_data.asnumpy().sum()
+                return out_data.numpy().sum()
 
             tvm.testing.check_numerical_grads(
-                forward, [d.asnumpy() for d in input_data + arg_vals], g_res
+                forward, [d.numpy() for d in input_data + arg_vals], g_res
             )
 
     check_device("cpu")

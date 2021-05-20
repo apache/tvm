@@ -420,6 +420,6 @@ def run_module(
     outputs = {}
     for i in range(num_outputs):
         output_name = "output_{}".format(i)
-        outputs[output_name] = module.get_output(i).asnumpy()
+        outputs[output_name] = module.get_output(i).numpy()
 
     return TVMCResult(outputs, times)

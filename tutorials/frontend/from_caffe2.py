@@ -117,7 +117,7 @@ m.set_input(input_name, tvm.nd.array(data.astype("float32")))
 m.run()
 # get outputs
 tvm_out = m.get_output(0)
-top1_tvm = np.argmax(tvm_out.asnumpy()[0])
+top1_tvm = np.argmax(tvm_out.numpy()[0])
 
 #####################################################################
 # Look up synset name

@@ -422,9 +422,9 @@ class OperatorConverter(object):
         rhs_zero_point = rhs_tensor.qnn_params["zero_point"]
         # 0.1 + 0.2 != 0.3
         return np.allclose(
-            lhs_scale.data.asnumpy(), rhs_scale.data.asnumpy(), rtol=1e-5, atol=1e-5
+            lhs_scale.data.numpy(), rhs_scale.data.numpy(), rtol=1e-5, atol=1e-5
         ) and np.allclose(
-            lhs_zero_point.data.asnumpy(), rhs_zero_point.data.asnumpy(), rtol=1e-5, atol=1e-5
+            lhs_zero_point.data.numpy(), rhs_zero_point.data.numpy(), rtol=1e-5, atol=1e-5
         )
 
     def is_quantized(self, op):
@@ -2539,7 +2539,7 @@ class OperatorConverter(object):
             ), "TFLite PADV2 requires input and output scale and zero points to be equal"
 
             # The pad value for quantized pad is the input zero point by default.
-            pad_value = float(input_tensor.qnn_params["zero_point"].data.asnumpy())
+            pad_value = float(input_tensor.qnn_params["zero_point"].data.numpy())
 
         if len(input_tensors) == 3:
             pad_value = self.get_tensor_value(input_tensors[2])
@@ -3492,7 +3492,7 @@ def get_scalar_from_constant(expr):
     assert (
         isinstance(expr, _expr.Constant) and not expr.data.shape
     ), "Expr is not a constant scalar."
-    value = expr.data.asnumpy()
+    value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"
@@ -3502,7 +3502,7 @@ def get_scalar_from_constant(expr):
 def get_tensor_from_constant(expr):
     """ Returns tensor of values from Relay constant node. """
     assert isinstance(expr, _expr.Constant)
-    value = expr.data.asnumpy()
+    value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"

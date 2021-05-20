@@ -52,7 +52,7 @@ def test_binary_op():
             for target, dev in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     for opfunc, ref in [(relay.power, np.power)]:
         check_binary_op(opfunc, ref)
@@ -90,7 +90,7 @@ def test_cmp_type():
             for target, dev in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
 @tvm.testing.uses_gpu
@@ -115,7 +115,7 @@ def test_binary_int_broadcast_1():
             for target, dev in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
 @tvm.testing.uses_gpu
@@ -140,7 +140,7 @@ def test_binary_int_broadcast_2():
             for target, dev in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", device=dev, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
 @tvm.testing.uses_gpu
@@ -150,7 +150,7 @@ def test_where():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, device=dev, target=target)
                 op_res = intrp.evaluate(func)(*inputs)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     def verify(x_np, y_np, cond_np):
         ref_res = np.where(cond_np, x_np, y_np)
@@ -261,9 +261,9 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
         op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -355,11 +355,11 @@ def verify_mean_var_std(funcs, shape, axis, keepdims):
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1[0].asnumpy(), ref_mean, rtol=1e-5)
-        tvm.testing.assert_allclose(op_res1[1].asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1[0].numpy(), ref_mean, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1[1].numpy(), ref_res, rtol=1e-5)
         op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2[0].asnumpy(), ref_mean, rtol=1e-5)
-        tvm.testing.assert_allclose(op_res2[1].asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2[0].numpy(), ref_mean, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2[1].numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -408,7 +408,7 @@ def test_strided_slice():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
     verify(
@@ -467,7 +467,7 @@ def test_dyn_strided_slice():
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor("vm", mod=mod, device=dev, target=target)
             op_res = intrp.evaluate()(x_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify(
         (1, 224, 224, 3),
@@ -518,7 +518,7 @@ def test_strided_set():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor("graph", device=dev, target=target)
             op_res = intrp.evaluate(func)(x_data, v_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify((3, 4, 16), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
