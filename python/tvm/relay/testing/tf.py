@@ -28,6 +28,8 @@ import numpy as np
 # Tensorflow imports
 import tensorflow as tf
 from tensorflow.core.framework import graph_pb2
+
+import tvm
 from tvm.contrib.download import download_testdata
 
 try:
@@ -71,6 +73,32 @@ def convert_to_list(x):
     if not isinstance(x, list):
         x = [x]
     return x
+
+
+def vmobj_to_list(o):
+    if isinstance(o, tvm.nd.NDArray):
+        return [o.asnumpy()]
+    elif isinstance(o, tvm.runtime.container.ADT):
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f))
+        return result
+    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+        if o.constructor.name_hint == "Cons":
+            tl = vmobj_to_list(o.fields[1])
+            hd = vmobj_to_list(o.fields[0])
+            hd.extend(tl)
+            return hd
+        elif o.constructor.name_hint == "Nil":
+            return []
+        elif "tensor_nil" in o.constructor.name_hint:
+            return [0]
+        elif "tensor" in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
 
 
 def AddShapesToGraphDef(session, out_node):
