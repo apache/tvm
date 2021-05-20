@@ -77,28 +77,28 @@ def convert_to_list(x):
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy()]
+        result = [o.asnumpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
-        return result
     elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
         if o.constructor.name_hint == "Cons":
             tl = vmobj_to_list(o.fields[1])
             hd = vmobj_to_list(o.fields[0])
             hd.extend(tl)
-            return hd
+            result = hd
         elif o.constructor.name_hint == "Nil":
-            return []
+            result = []
         elif "tensor_nil" in o.constructor.name_hint:
-            return [0]
+            result = [0]
         elif "tensor" in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
+            result = [o.fields[0].asnumpy()]
         else:
             raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
+    return result
 
 
 def AddShapesToGraphDef(session, out_node):
