@@ -24,42 +24,28 @@ from tvm import relay
 from tvm.runtime.vm import VirtualMachine
 import tvm.contrib.graph_executor as runtime
 from tvm.relay.frontend.tensorflow import from_tensorflow
+
 import tvm.testing
+from tvm.relay.testing.tf import vmobj_to_list as vmobj_to_list
 
 import tensorflow as tf
 from tensorflow.python.eager.def_function import Function
 
 
-def vmobj_to_list(o):
-    if isinstance(o, tvm.nd.NDArray):
-        out = o.asnumpy().tolist()
-    elif isinstance(o, tvm.runtime.container.ADT):
-        result = []
-        for f in o:
-            result.append(vmobj_to_list(f))
-        out = result
-    else:
-        raise RuntimeError("Unknown object type: %s" % type(o))
-    return out
-
-
 def run_tf_code(func, input_):
+    print(type(func))
     if type(func) is Function:
         out = func(input_)
         if isinstance(out, list):
             a = [x.numpy() for x in out]
         else:
-            a = out.numpy()
+            a = [out.numpy()]
     else:
         a = func(tf.constant(input_))
         if type(a) is dict:
             a = [x.numpy() for x in a.values()]
-            if len(a) == 1:
-                a = a[0]
         elif type(a) is list:
             a = [x.numpy() for x in a]
-            if len(a) == 1:
-                a = a[0]
         else:
             a = a.numpy()
     return a
@@ -87,8 +73,7 @@ def run_graph_executor(lib, input_, ctx=tvm.cpu(0)):
     mod = runtime.GraphModule(lib["default"](ctx))
     mod.set_input(0, input_)
     mod.run()
-    _out = mod.get_output(0).asnumpy()
-    return _out
+    return [mod.get_output(0).asnumpy()]
 
 
 def compare_tf_tvm(gdef, input_, output_, runtime="vm", output_tensors=None):
@@ -117,4 +102,5 @@ def compare_tf_tvm(gdef, input_, output_, runtime="vm", output_tensors=None):
         tvm_out = run_graph_executor(lib, input_)
     else:
         raise RuntimeError("Runtime input not supported: %s" % runtime)
+
     tvm.testing.assert_allclose(output_, tvm_out, atol=1e-5)
