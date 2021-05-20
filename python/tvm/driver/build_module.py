@@ -31,7 +31,7 @@ from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
 
-from . import _ffi_api
+from . import _ffi_api as ffi
 
 
 def get_binds(args, compact=False, binds=None):
@@ -120,39 +120,46 @@ def form_irmodule(sch, args, name, binds):
         func = func.with_attr("tir.noalias", True)
     return tvm.IRModule({name: func})
 
+# bla = tvm.driver.lower(sch, fhdkslaje, ewakl fjelka)
 
 def lower(sch, args, name="main", binds=None, simple_mode=False):
+    return ffi.lower(sch, args, name, binds)
 
-    mod = self.__init_handler_by_constructor__(_ffi_api.tvm.driver.lower, sch, args, name, binds)   
+# def lower(sch, args, name="main", binds=None, simple_mode=False):
+#     return _ffi_api.lower(sch, args, name, binds)
+
+# def lower(sch, args, name="main", binds=None, simple_mode=False):
+
+#     mod = self.__init_handler_by_constructor__(_ffi_api.tvm.driver.lower, sch, args, name, binds)   
     
-    """Lowering step before build into target.
+#     """Lowering step before build into target.
 
-    Parameters
-    ----------
-    sch : tvm.te.schedule.Schedule
-        The schedule to be built
+#     Parameters
+#     ----------
+#     sch : tvm.te.schedule.Schedule
+#         The schedule to be built
 
-    args : list of Buffer or Tensor or Var
-        The argument lists to the function.
+#     args : list of Buffer or Tensor or Var
+#         The argument lists to the function.
 
-    name : str, optional
-        The name of result function.
+#     name : str, optional
+#         The name of result function.
 
-    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
-        Dictionary that maps the Tensor to Buffer which specified the data layout
-        requirement of the function. By default, a new compact buffer is created
-        for each tensor in the argument.
+#     binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+#         Dictionary that maps the Tensor to Buffer which specified the data layout
+#         requirement of the function. By default, a new compact buffer is created
+#         for each tensor in the argument.
 
-    simple_mode : bool, optional
-        Whether only output simple and compact statement, this will skip
-        LoopPartition, api wrapper generation and Unrolling.
+#     simple_mode : bool, optional
+#         Whether only output simple and compact statement, this will skip
+#         LoopPartition, api wrapper generation and Unrolling.
 
-    Returns
-    -------
-    m : IRModule or Stmt
-       The result IRModule, if simple_mode=False
-       Then the Stmt before make api is returned.
-    """
+#     Returns
+#     -------
+#     m : IRModule or Stmt
+#        The result IRModule, if simple_mode=False
+#        Then the Stmt before make api is returned.
+#     """
     # config setup
     # pass_ctx = PassContext.current()
     # instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
@@ -210,7 +217,7 @@ def lower(sch, args, name="main", binds=None, simple_mode=False):
 
     # optimize = tvm.transform.Sequential(pass_list)
     # mod = optimize(mod)
-    return mod
+    # return mod
 
 
 def _build_for_device(input_mod, target, target_host):
