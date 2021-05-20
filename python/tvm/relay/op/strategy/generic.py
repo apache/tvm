@@ -1570,3 +1570,10 @@ def unique_strategy(attrs, inputs, out_type, target):
         name="unique.generic",
     )
     return strategy
+
+
+@generic_func
+def schedule_transpose(attrs, outs, target):
+    """schedule transpose"""
+    with target:
+        return schedule_injective(attrs, outs, target)

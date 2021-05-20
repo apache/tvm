@@ -24,6 +24,7 @@ from tvm import relay, te
 
 from .. import nn
 from ..utils import traverse_inline, get_const_tuple, prod, get_const_int, ceil_div
+from .transform import schedule_transpose_from_existing
 
 
 def sparse_dense(data, weight_data, weight_indices, weight_indptr, sparse_lhs=False):
@@ -103,42 +104,6 @@ def schedule_sparse_dense(outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
-
-
-def schedule_cuda_transpose(s, out):
-    """Schedule for transpose on the gpu.
-
-    Roughly follows this:
-    https://developer.nvidia.com/blog/efficient-matrix-transpose-cuda-cc/, but
-    without the padding for shared memory. For better performance, we could
-    rewrite it in tir to add the padding.
-    """
-
-    def _callback(op):
-        # pylint: disable=invalid-name
-        m, n = s[op].op.axis
-        warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
-        no, ni = s[op].split(n, factor=warp_size)
-        mo, mi = s[op].split(m, factor=warp_size)
-        s[op].reorder(mo, no, mi, ni)
-        s[op].bind(mo, te.thread_axis("blockIdx.x"))
-        s[op].bind(no, te.thread_axis("blockIdx.y"))
-        c = s.cache_read(op.input_tensors[0], "shared", op)
-        s[c].compute_at(s[op], no)
-        thread_x = te.thread_axis("threadIdx.x")
-        thread_y = te.thread_axis("threadIdx.y")
-        s[op].bind(ni, thread_x)
-        # This is a hack to make the scheduling language realize that this axis
-        # can be scheduled.
-        a, _ = s[c].split(s[c].op.axis[1], factor=1)
-        s[c].bind(a, thread_x)
-        # Use 4 warps per block. Slightly faster than 1 warp per block
-        ao, _ = s[op].split(mi, nparts=4)
-        s[op].bind(ao, thread_y)
-        ao, _ = s[c].split(s[c].op.axis[0], nparts=4)
-        s[c].bind(ao, thread_y)
-
-    traverse_inline(s, out.op, _callback)
 
 
 def sparse_dense_tir(data, w_data, w_indices, w_indptr):
@@ -388,7 +353,7 @@ def schedule_sparse_dense_padded(outs):
     # necessary
     data_t = outs[0].op.input_tensors[0]
     s = te.create_schedule([outs[0].op, data_t.op])
-    schedule_cuda_transpose(s, outs[0].op.input_tensors[0])
+    schedule_transpose_from_existing(s, outs[0].op.input_tensors[0])
     return s
 
 
