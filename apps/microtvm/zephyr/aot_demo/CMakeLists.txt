@@ -11,16 +11,7 @@ project(microtvm_zephyr_runtime)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-if($ENV{ZEPHYR_RUNTIME} STREQUAL "HOST-DRIVEN")
-  target_sources(app PRIVATE
-                      host_driven/src/main.c
-  )
-elseif($ENV{ZEPHYR_RUNTIME} STREQUAL "ZEPHYR-AOT")
-  file(GLOB TVM_SOURCES zephyr_aot/src/*.c)
-  target_sources(app PRIVATE
-                      ${TVM_SOURCES}         
-  )
-endif()
+target_sources(app PRIVATE src/main.c)
 
 foreach(tvm_lib ${TVM_LIBS})
   string(LENGTH ${tvm_lib} tvm_lib_length)

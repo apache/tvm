@@ -79,8 +79,8 @@ def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path):
     )
 
     opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
-    opts["bin_opts"]["include_dirs"].append(os.path.join(runtime_path, "zephyr_aot", "include"))
-    opts["lib_opts"]["include_dirs"].append(os.path.join(runtime_path, "zephyr_aot", "include"))
+    opts["bin_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
+    opts["lib_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
 
     flasher_kw = {}
     if DEBUG:
@@ -165,7 +165,7 @@ def test_tflite(platform, west_cmd):
 
     this_dir = os.path.dirname(__file__)
     tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
+    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "aot_demo")
     model_path = os.path.join(this_dir, "testdata", "ic_fp32.tflite")
 
     # Import TFLite model
@@ -190,7 +190,7 @@ def test_tflite(platform, west_cmd):
 
     # Load sample and generate input/expected_output header files
     sample = np.load(os.path.join(this_dir, "testdata", "ic_sample_fp32_8.npy"))
-    model_files_path = os.path.join(runtime_path, "zephyr_aot", "include")
+    model_files_path = os.path.join(runtime_path, "include")
     _create_header_file((f"input_data"), sample, model_files_path)
     _create_header_file(
         "output_data", np.zeros(shape=output_shape, dtype="float32"), model_files_path

@@ -80,13 +80,12 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
 
     test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
+    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "host_driven_demo")
     compiler = zephyr.ZephyrCompiler(
         project_dir=runtime_path,
         board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
         west_cmd=west_cmd,
-        env_vars={"ZEPHYR_RUNTIME": "HOST-DRIVEN"},
     )
 
     opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
@@ -233,7 +232,7 @@ def test_onnx(platform, west_cmd):
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
     # We add the -link-params=1 option to ensure the model parameters are compiled in.
-    # There is currently a bug preventing the demo_runtime environment from receiving
+    # There is currently a bug preventing the host_driven_demo environment from receiving
     # the model weights when set using graph_mod.set_input().
     # See: https://github.com/apache/tvm/issues/7567
     target = tvm.target.target.micro(model, options=["-link-params=1"])
