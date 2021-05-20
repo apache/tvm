@@ -137,12 +137,10 @@ def test_threefry_split_infer_fail():
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.xfail(raises=tvm.error.TVMError)
-def test_threefry_generate_incorrect_out_size():
+def test_threefry_generate_out_size():
     key = tvm.relay.random.threefry_key(1)
-    # xfail: output size should be multiple of 4
     key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (5,)), 2)
-    out1, out2 = tvm.relay.create_executor(
+    out = tvm.relay.create_executor(
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], rand1)),
         target=tvm.target.Target("llvm"),
