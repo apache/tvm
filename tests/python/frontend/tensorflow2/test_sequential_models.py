@@ -48,69 +48,64 @@ def run_sequential_model(model_fn, input_shape):
         gdef = f.graph.as_graph_def(add_shapes=True)
         return gdef, _input, _output
 
-    compare_tf_tvm(*model_graph(model_fn, input_shape), vm=True, output_sig=None)
-
-
-def dense_model(input_shape, num_units=128):
-    return tf.keras.Sequential(
-        [tf.keras.layers.Flatten(input_shape=input_shape[1:]), tf.keras.layers.Dense(num_units)]
-    )
-
-
-def mnist_model(input_shape):
-    return tf.keras.Sequential(
-        [
-            tf.keras.layers.Flatten(input_shape=input_shape[1:]),
-            tf.keras.layers.Dense(128, activation="relu"),
-            tf.keras.layers.Dense(10),
-        ]
-    )
-
-
-def conv2d_model(input_shape, kernel=(3, 3), filters=16):
-    model = tf.keras.Sequential(
-        [
-            tf.keras.layers.Input(shape=input_shape[1:], batch_size=1),
-            tf.keras.layers.Conv2D(filters, kernel),
-        ]
-    )
-    return model
-
-
-def maxpool_model(input_shape, pool_size=(2, 2)):
-    model = tf.keras.Sequential(
-        [tf.keras.layers.MaxPool2D(pool_size=pool_size, input_shape=input_shape[1:])]
-    )
-    return model
-
-
-def maxpool_batchnorm_model(input_shape, pool_size=(2, 2)):
-    model = tf.keras.Sequential(
-        [
-            tf.keras.layers.MaxPool2D(pool_size=pool_size, input_shape=input_shape[1:]),
-            tf.keras.layers.BatchNormalization(),
-        ]
-    )
-    return model
+    compare_tf_tvm(*model_graph(model_fn, input_shape), runtime="vm")
 
 
 def test_dense_model():
+    def dense_model(input_shape, num_units=128):
+        return tf.keras.Sequential(
+            [tf.keras.layers.Flatten(input_shape=input_shape[1:]), tf.keras.layers.Dense(num_units)]
+        )
+
     run_sequential_model(dense_model, input_shape=(1, 28, 28))
 
 
 def test_mnist_model():
+    def mnist_model(input_shape):
+        return tf.keras.Sequential(
+            [
+                tf.keras.layers.Flatten(input_shape=input_shape[1:]),
+                tf.keras.layers.Dense(128, activation="relu"),
+                tf.keras.layers.Dense(10),
+            ]
+        )
+
     run_sequential_model(mnist_model, input_shape=(1, 28, 28))
 
 
 def test_conv2d_model():
+    def conv2d_model(input_shape, kernel=(3, 3), filters=16):
+        model = tf.keras.Sequential(
+            [
+                tf.keras.layers.Input(shape=input_shape[1:], batch_size=1),
+                tf.keras.layers.Conv2D(filters, kernel),
+            ]
+        )
+        return model
+
     run_sequential_model(conv2d_model, input_shape=(1, 32, 32, 3))
 
 
 def test_maxpool_model():
+    def maxpool_model(input_shape, pool_size=(2, 2)):
+        model = tf.keras.Sequential(
+            [tf.keras.layers.MaxPool2D(pool_size=pool_size, input_shape=input_shape[1:])]
+        )
+        return model
+
     run_sequential_model(maxpool_model, input_shape=(1, 32, 32, 3))
 
 
 def test_maxpool_batchnorm_model():
+    def maxpool_batchnorm_model(input_shape, pool_size=(2, 2)):
+        model = tf.keras.Sequential(
+            [
+                tf.keras.layers.MaxPool2D(pool_size=pool_size, input_shape=input_shape[1:]),
+                tf.keras.layers.BatchNormalization(),
+            ]
+        )
+        return model
+
     run_sequential_model(maxpool_batchnorm_model, input_shape=(1, 32, 32, 3))
 
 

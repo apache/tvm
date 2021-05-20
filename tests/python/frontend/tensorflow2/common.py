@@ -65,19 +65,14 @@ def run_tf_code(func, input_):
     return a
 
 
-def compile_graph_runtime(
-    mod, params, target="llvm", target_host="llvm", opt_level=3, output_sig=None
-):
+def compile_graph_executor(mod, params, target="llvm", target_host="llvm", opt_level=3):
     with tvm.transform.PassContext(opt_level):
         lib = relay.build(mod, target=target, target_host=target_host, params=params)
     return lib
 
 
-def compile_vm(
-    mod, params, target="llvm", target_host="llvm", opt_level=3, disabled_pass=None, output_sig=None
-):
+def compile_vm(mod, params, target="llvm", target_host="llvm", opt_level=3, disabled_pass=None):
     with tvm.transform.PassContext(opt_level, disabled_pass=disabled_pass):
-        mod = relay.transform.InferType()(mod)
         vm_exec = relay.vm.compile(mod, target, target_host, params=params)
     return vm_exec
 
@@ -88,7 +83,7 @@ def run_vm(vm_exec, input_, ctx=tvm.cpu(0)):
     return vmobj_to_list(_out)
 
 
-def run_graph(lib, input_, ctx=tvm.cpu(0)):
+def run_graph_executor(lib, input_, ctx=tvm.cpu(0)):
     mod = runtime.GraphModule(lib["default"](ctx))
     mod.set_input(0, input_)
     mod.run()
@@ -96,25 +91,30 @@ def run_graph(lib, input_, ctx=tvm.cpu(0)):
     return _out
 
 
-def compare_tf_tvm(gdef, input_, output_, vm=True, output_sig=None):
+def compare_tf_tvm(gdef, input_, output_, runtime="vm", output_tensors=None):
     """compare tf and tvm execution for the same input.
 
     Parameters
     ----------
-    func: tf function. can be from saved model or not. different ways to pass input
-        from saved model: <class 'tensorflow.python.saved_model.load._WrapperFunction'>
-        not from saved model:  <class 'tensorflow.python.eager.def_function.Function'>
-
-    mod: compiled relay module (vm or graph runtime). converted from tf func.
+    gdef: TF2 graph def extracted to be fed into from_tensorflow parser.
+    (https://www.tensorflow.org/code/tensorflow/core/framework/graph.proto)
 
     input_: a single numpy array object
 
+    output_: the expected output from TF to match TVM output with
+
+    runtime: choose TVM runtime; either "vm" for VirtualMachine or "graph" for GraphExecutor
+
+    output_tensors : List of output tensor names (Optional)
+            if not specified then the last node is assumed as graph output.
     """
-    mod, params = from_tensorflow(gdef, outputs=output_sig)
-    if vm:
-        exec_ = compile_vm(mod, params, output_sig=output_sig)
+    mod, params = from_tensorflow(gdef, outputs=output_tensors)
+    if runtime == "vm":
+        exec_ = compile_vm(mod, params)
         tvm_out = run_vm(exec_, input_)
+    elif runtime == "graph":
+        lib = compile_graph_executor(mod, params)
+        tvm_out = run_graph_executor(lib, input_)
     else:
-        lib = compile_graph_runtime(mod, params, output_sig=output_sig)
-        tvm_out = run_graph(lib, input_)
+        raise RuntimeError("Runtime input not supported: %s" % runtime)
     tvm.testing.assert_allclose(output_, tvm_out, atol=1e-5)
