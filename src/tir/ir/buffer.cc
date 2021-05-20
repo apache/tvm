@@ -32,6 +32,7 @@
 #include <iterator>
 #include <stack>
 
+#include "../../arith/pattern_match.h"
 namespace tvm {
 namespace tir {
 
@@ -180,59 +181,12 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   //                     a list that contain all the elements that match Mod.
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
-  PrimExpr simplified_base = analyzer->Simplify(base);
-  std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
-  std::list<PrimExpr> mult_exprs;
-  std::list<std::pair<PrimExpr, PrimExpr> > mod_exprs;
-  PrimExpr no_opt_sum;
-  bool has_mult;
-  bool has_mod;
-  MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs, &no_opt_sum, &has_mult, &has_mod);
-  bool find_opt = false;
-  std::list<std::pair<PrimExpr, PrimExpr> >::iterator search_mod_it = mod_exprs.begin();
-  // 2. Exhaustive Search
-  while (search_mod_it != mod_exprs.end()) {
-    std::list<PrimExpr>::iterator mult_it = mult_exprs.begin();
-    bool inner_find_opt = false;
-    while (mult_it != mult_exprs.end()) {
-      std::pair<bool, PrimExpr> ret =
-          MergeMulModInner(*mult_it, search_mod_it->first, search_mod_it->second);
-      if (ret.first) {
-        inner_find_opt = true;
-        auto temp_mod_it = search_mod_it;
-        ++search_mod_it;
-        mod_exprs.erase(temp_mod_it);
-        mult_exprs.erase(mult_it);
-        std::vector<const PrimExpr*> ret_eles = ExprSplitAddition(ret.second);
-        MergeMulModInsertElements(ret_eles, &mult_exprs, &mod_exprs, &no_opt_sum, &has_mult,
-                                  &has_mod);
-        if (has_mult) {
-          search_mod_it = mod_exprs.begin();
-        } else if (has_mod && search_mod_it == mod_exprs.end()) {
-          search_mod_it--;
-        }
-        break;
-      } else {
-        ++mult_it;
-      }
-    }
-    find_opt = find_opt || inner_find_opt;
-    if (!inner_find_opt) {
-      ++search_mod_it;
-    }
+  arith::PVar<PrimExpr> x;
+  arith::PVar<IntImm> c;
+  if ((floordiv(x, c) * c + floormod(x, c)).Match(base)) {
+    base = x.Eval();
   }
-  if (!find_opt) {
-    return simplified_base;
-  }
-  for (std::list<PrimExpr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
-    no_opt_sum = no_opt_sum.get() ? no_opt_sum + *it : *it;
-  }
-  for (std::list<std::pair<PrimExpr, PrimExpr> >::iterator it = mod_exprs.begin();
-       it != mod_exprs.end(); ++it) {
-    no_opt_sum = no_opt_sum.get() ? no_opt_sum + indexmod(it->first, it->second)
-                                  : indexmod(it->first, it->second);
-  }
-  return no_opt_sum;
+  return analyzer->Simplify(base);
 }
 
 // The buffer offset in convention of number of elements of
