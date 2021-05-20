@@ -183,10 +183,11 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   // The result will then be split and pushed back to these two lists.
   arith::PVar<PrimExpr> x;
   arith::PVar<IntImm> c;
-  if ((floordiv(x, c) * c + floormod(x, c)).Match(base)) {
-    base = x.Eval();
+  PrimExpr expr = base;
+  if ((floordiv(x, c) * c + floormod(x, c)).Match(expr)) {
+    expr = x.Eval();
   }
-  return analyzer->Simplify(base);
+  return analyzer->Simplify(expr);
 }
 
 // The buffer offset in convention of number of elements of
