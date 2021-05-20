@@ -45,6 +45,7 @@ tvm_workspace_t app_workspace;
 
 const unsigned char g_wakeup_sequence[12] = {0xfe, 0xff, 0xfd, 0x03, 0x00, 0x00,
                                              0x00, 0x00, 0x00, 0x02, 0x66, 0x77};
+const char g_start_cmd[] = "start\n";
 
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args) {
@@ -162,11 +163,34 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   return err;
 }
 
+static uint8_t main_rx_buf[128];
+static uint8_t cmd_buf[128];
+static size_t g_cmd_buf_ind;
+
 void main(void) {
+  g_cmd_buf_ind = 0;
+  memset((char*)cmd_buf, 0, sizeof(cmd_buf));
   TVMPlatformUARTInit();
   k_timer_init(&g_utvm_timer, NULL, NULL);
   // Wake up host side.
   write_serial(g_wakeup_sequence, 12);
+
+  // Wait for start command
+  while (true) {
+    int bytes_read = uart_rx_buf_read(main_rx_buf, sizeof(main_rx_buf));
+    if (bytes_read > 0) {
+      memcpy((char*)cmd_buf + g_cmd_buf_ind, main_rx_buf, bytes_read);
+      g_cmd_buf_ind += bytes_read;
+    }
+    if (g_cmd_buf_ind >= 6) {
+      if (!strcmp((char*)(cmd_buf), g_start_cmd)) {
+        break;
+      } else {
+        memset((char*)cmd_buf, 0, sizeof(cmd_buf));
+        g_cmd_buf_ind = 0;
+      }
+    }
+  }
   TVMLogf("Zephyr AOT Runtime\n");
 
   void* inputs[1] = {

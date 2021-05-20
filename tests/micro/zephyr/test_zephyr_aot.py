@@ -142,11 +142,17 @@ def _create_header_file(tensor_name, npy_data, output_path):
 
 def _read_line(fd):
     data = ""
-    new_c = ""
-    while new_c != "\n":
-        new_c = fd.read(1, timeout_sec=10)
-        new_c = new_c.decode("ascii")
-        data = data + new_c
+    new_line = False
+    while True:
+        if new_line:
+            break
+        new_data = fd.read(1, timeout_sec=10)
+        for item in new_data:
+            new_c = chr(item)
+            data = data + new_c
+            if new_c == "\n":
+                new_line = True
+                break
     return data
 
 
@@ -188,7 +194,7 @@ def test_tflite(platform, west_cmd):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
 
-    # Load sample and generate input/expected_output header files
+    # Load sample and generate input/output header files
     sample = np.load(os.path.join(this_dir, "testdata", "ic_sample_fp32_8.npy"))
     model_files_path = os.path.join(runtime_path, "include")
     _create_header_file((f"input_data"), sample, model_files_path)
@@ -199,6 +205,7 @@ def test_tflite(platform, west_cmd):
     session_kw = _build_session_kw(model, target, zephyr_board, west_cmd, lowered.lib, runtime_path)
     transport = session_kw["flasher"].flash(session_kw["binary"])
     transport.open()
+    transport.write(b"start\n", timeout_sec=5)
 
     result_line = _get_result_line(transport)
     result_line.strip("\n")

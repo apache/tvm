@@ -67,9 +67,9 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 }
 
 // Used to read data from the UART.
-int uart_rx_buf_read(struct ring_buf* rbuf, uint8_t* data, size_t data_size_bytes) {
+int uart_rx_buf_read(uint8_t* data, size_t data_size_bytes) {
   unsigned int key = irq_lock();
-  int bytes_read = ring_buf_get(rbuf, data, data_size_bytes);
+  int bytes_read = ring_buf_get(&uart_rx_rbuf, data, data_size_bytes);
   irq_unlock(key);
   return bytes_read;
 }
