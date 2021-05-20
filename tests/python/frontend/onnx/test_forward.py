@@ -1045,7 +1045,7 @@ def test_gather_nd():
     verify_gather_nd([2, 2, 2], [[0, 1], [1, 0]], [2, 2])
     verify_gather_nd([2, 2, 2], [[[0, 1]], [[1, 0]]], [2, 1, 2])
 
-    if is_version_greater_than("1.7.0"):
+    if is_version_greater_than("1.6.0"):
         verify_gather_nd([2, 2, 2], [[1], [0]], [2, 2], batch_dims=1, opset=12)
         verify_gather_nd(
             (3, 2, 2, 3, 4),
