@@ -25,6 +25,7 @@ from PIL import Image
 import numpy as np
 
 from test_verilator.infrastructure import (
+    skip_test,
     compile_hardware,
     compiler_opts,
     offload,
@@ -220,6 +221,8 @@ def tmobilenet(lanes):
     lanes : Int
         The number of vector lanes.
     """
+    if skip_test():
+        return
     if not is_tflite_available():
         return
     model = get_mobilenet_model()
