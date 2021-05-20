@@ -1268,7 +1268,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           indices_position.push_back(out_index[i]);
         }
         Array<PrimExpr> real_indices;
-        for (size_t i = 0; i < batch_dims; ++i) {
+        for (size_t i = 0; i < static_cast<size_t>(batch_dims); ++i) {
           real_indices.push_back(out_index[i]);
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
