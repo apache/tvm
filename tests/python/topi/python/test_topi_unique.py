@@ -70,9 +70,7 @@ def test_unique(dev, target):
             func(tvm_data, tvm_unique, tvm_indices, tvm_num_unique)
 
         assert tvm_num_unique.numpy()[0] == np_num_unique
-        np.testing.assert_allclose(
-            tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
-        )
+        np.testing.assert_allclose(tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5)
         np.testing.assert_allclose(tvm_indices.numpy(), np_indices, atol=1e-5, rtol=1e-5)
 
         # with counts
@@ -87,13 +85,9 @@ def test_unique(dev, target):
         np_unique, np_indices, _, np_num_unique = calc_numpy_unique(data, is_sorted)
         num_unique = np_num_unique[0]
         assert tvm_num_unique.numpy()[0] == np_num_unique
-        np.testing.assert_allclose(
-            tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
-        )
+        np.testing.assert_allclose(tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5)
         np.testing.assert_allclose(tvm_indices.numpy(), np_indices, atol=1e-5, rtol=1e-5)
-        np.testing.assert_allclose(
-            tvm_counts.numpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
-        )
+        np.testing.assert_allclose(tvm_counts.numpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5)
 
     for in_dtype in ["int32", "int64"]:
         for is_sorted in [True, False]:

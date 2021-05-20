@@ -684,7 +684,7 @@ class ModelContainer(object):
         return opsets
 
     def make_model(self):
-        """ Creates the onnx model from the graph """
+        """Creates the onnx model from the graph"""
         onnx_graph = onnx.helper.make_graph(
             self._nodes, self._name, self._inputs, self._outputs, self._initializers
         )
@@ -734,7 +734,7 @@ class RelayToONNXConverter(ExprVisitor):
         }
 
     def convert_to_onnx(self, func):
-        """ Traverse Relay graph and generate a ONNX model"""
+        """Traverse Relay graph and generate a ONNX model"""
 
         self.visit(func)
         self._add_output(self._node_dict[self.last_node])

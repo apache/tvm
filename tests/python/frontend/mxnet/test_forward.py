@@ -504,9 +504,7 @@ def test_forward_unary_ops():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(a_np)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -911,9 +909,7 @@ def test_forward_grid_generator():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
     verify((4, 6), "affine", (16, 32))
     verify((4, 2, 16, 16), "warp", None)
@@ -933,9 +929,7 @@ def test_forward_bilinear_sampler():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(data, grid)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
     verify((4, 4, 16, 32), (4, 2, 8, 8))
     verify((4, 4, 16, 32), (4, 2, 32, 32))
@@ -1237,9 +1231,7 @@ def test_forward_instance_norm():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x, gamma, beta)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
 
     verify((2, 3, 4, 5))
     verify((32, 64, 80, 64))
@@ -1263,9 +1255,7 @@ def test_forward_layer_norm():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x, gamma, beta)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((2, 5))
     verify((2, 5), axis=0)
@@ -1293,9 +1283,7 @@ def test_forward_group_norm():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x, gamma, beta)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 4, 2), num_groups=4)
     # TODO(trevmorr): MXNet GroupNorm implementation is bugged for cases when num_groups != num_channels
@@ -1316,9 +1304,7 @@ def test_forward_one_hot():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x.astype("float32"))
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((3,), 3, 1, 0, "int32")
     verify((3,), 3, 1.0, 0.0, "float32")
@@ -1525,9 +1511,7 @@ def test_forward_deconvolution():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x, weight, bias)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify(data_shape=(1, 1, 1024 * 16), kernel_size=(17,), stride=(2,), pad=(8,), num_filter=4)
     verify(data_shape=(20, 1, 1024 * 16), kernel_size=(17,), stride=(2,), pad=(8,), num_filter=4)
@@ -1668,9 +1652,7 @@ def test_forward_depth_to_space():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 18, 3, 3), 3)
 
@@ -1689,9 +1671,7 @@ def test_forward_space_to_depth():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 1, 9, 9), 3)
 
@@ -1727,9 +1707,7 @@ def test_forward_correlation():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(data1, data2)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify(
         (1, 3, 10, 10),
@@ -1938,9 +1916,7 @@ def test_forward_box_nms():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(data)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 10, 6))
     # No valid boxes
@@ -1979,9 +1955,7 @@ def test_forward_box_decode():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(data, anchors)
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((1, 10, 4), (1, 10, 4))
     verify((4, 10, 4), (1, 10, 4))
@@ -2025,9 +1999,7 @@ def test_forward_softmax():
                 else:
                     op_res = intrp.evaluate()(x)
 
-                tvm.testing.assert_allclose(
-                    op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5
-                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
 
     verify((2, 3, 5), -1, False, None)
     verify((2, 3, 5), 2, False, None)

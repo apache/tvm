@@ -1683,7 +1683,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return has_fused_activation
 
     def _get_data_scale_and_zp(_data, _inputs, _data_min_idx, _data_max_idx):
-        """ Finds the Qnn params for the data expr. """
+        """Finds the Qnn params for the data expr."""
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
         assert data_min <= data_max
@@ -1702,7 +1702,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return _data_scale, _data_zero_point
 
     def _get_bn_alpha_coeff(_bn_gamma_idx, _bn_beta_idx, _bn_running_mean_idx, _bn_running_var_idx):
-        """ Extract the BN coeff. These will be use later for BN folding into convolution. """
+        """Extract the BN coeff. These will be use later for BN folding into convolution."""
         # Extract relevant attrs from bn.
         bn_attrs = _get_subgraph_op(subgraphs, "BatchNorm")["attrs"]
         bn_epsilon_param = float(bn_attrs["eps"])
@@ -1730,7 +1730,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return _bn_scale, _bn_shift
 
     def _fold_bn(_bn_scale, _bn_shift, _has_bias, _has_bn):
-        """ Fold BN into kernel and bias. Get new kernel and bias. """
+        """Fold BN into kernel and bias. Get new kernel and bias."""
         _kernel = inputs[1]
         if _bn_scale:
             assert attrs.get_bool("with_bn", False)
@@ -1803,7 +1803,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         )
 
     def _get_sum(_res, _output_scale, out_dtype):
-        """ Handles sum of the second quantized tensor. """
+        """Handles sum of the second quantized tensor."""
         # This is done in following steps
         #   1) rhs is the add's second operand. First rhs will be requantized to output scale with
         #   dtype int32. The int32 dtype is to keep precision high before adding.

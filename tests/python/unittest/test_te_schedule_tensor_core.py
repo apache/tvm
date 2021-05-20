@@ -448,9 +448,7 @@ def test_tensor_core_batch_conv():
             kernel_h, kernel_w, in_channels, out_channels
         )
         c_np = (
-            c.numpy()
-            .transpose((0, 4, 1, 2, 3, 5))
-            .reshape(batch_size, height, width, out_channels)
+            c.numpy().transpose((0, 4, 1, 2, 3, 5)).reshape(batch_size, height, width, out_channels)
         )
         c_std = conv2d_nhwc_python(
             a_np.astype(Conv.dtype), w_np.astype(Conv.dtype), (stride_h, stride_w), (pad_h, pad_w)

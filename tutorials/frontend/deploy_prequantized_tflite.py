@@ -135,7 +135,7 @@ except AttributeError:
 ###############################################################################
 # Lets run TFLite pre-quantized model inference and get the TFLite prediction.
 def run_tflite_model(tflite_model_buf, input_data):
-    """ Generic function to execute TFLite """
+    """Generic function to execute TFLite"""
     try:
         from tensorflow import lite as interpreter_wrapper
     except ImportError:

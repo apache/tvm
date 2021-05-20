@@ -73,7 +73,7 @@ def test_resnet50_checkonly():
 def run_tvm_graph(
     coreml_model, target, device, input_data, input_name, output_shape, output_dtype="float32"
 ):
-    """ Generic function to compile on relay and execute on tvm """
+    """Generic function to compile on relay and execute on tvm"""
     if isinstance(input_data, list):
         shape_dict = {}
         dtype_dict = {}

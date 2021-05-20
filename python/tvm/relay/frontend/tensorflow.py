@@ -155,7 +155,7 @@ def _rsqrt():
 
 
 def _argx(func, func_name):
-    """ A common wrapper for argmin and argmax operations """
+    """A common wrapper for argmin and argmax operations"""
 
     def _impl(inputs, attr, params, mod):
         try:

@@ -115,9 +115,7 @@ def test_binary_intrin():
         b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(
-            c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5
-        )
+        tvm.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
     for func in test_funcs:
         run_test(*func)
@@ -138,9 +136,7 @@ def test_ldexp():
     b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), dev)
     c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     f(a, b, c)
-    tvm.testing.assert_allclose(
-        c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5
-    )
+    tvm.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
 
 def test_clz():

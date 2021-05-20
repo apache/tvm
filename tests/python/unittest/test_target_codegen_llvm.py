@@ -710,7 +710,7 @@ def np_bf162np_float(arr):
 
 
 def np_bf16_cast_and_cast_back(arr):
-    """ Convert a numpy array of float to bf16 and cast back"""
+    """Convert a numpy array of float to bf16 and cast back"""
     return np_bf162np_float(np_float2np_bf16(arr))
 
 

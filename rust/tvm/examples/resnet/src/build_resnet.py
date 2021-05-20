@@ -63,7 +63,7 @@ data_shape = (batch_size,) + image_shape
 
 
 def build(target_dir):
-    """ Compiles resnet18 with TVM"""
+    """Compiles resnet18 with TVM"""
     # Download the pretrained model in MxNet's format.
     block = get_model("resnet18_v1", pretrained=True)
 
@@ -92,7 +92,7 @@ def build(target_dir):
 
 
 def download_img_labels():
-    """ Download an image and imagenet1k class labels for test"""
+    """Download an image and imagenet1k class labels for test"""
     from mxnet.gluon.utils import download
 
     synset_url = "".join(
@@ -135,7 +135,7 @@ def get_cat_image():
 
 
 def test_build(build_dir):
-    """ Sanity check with the cat image we download."""
+    """Sanity check with the cat image we download."""
     graph = open(osp.join(build_dir, "deploy_graph.json")).read()
     lib = tvm.runtime.load_module(osp.join(build_dir, "deploy_lib.so"))
     params = bytearray(open(osp.join(build_dir, "deploy_param.params"), "rb").read())

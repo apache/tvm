@@ -190,9 +190,7 @@ def verify_partition(mod, params):
 
     partitioned_mod_result = _eval_mod(partitioned_mod)
     unpartitioned_mod_result = _eval_mod(unpartitioned_mod)
-    tvm.testing.assert_allclose(
-        unpartitioned_mod_result.numpy(), partitioned_mod_result.numpy()
-    )
+    tvm.testing.assert_allclose(unpartitioned_mod_result.numpy(), partitioned_mod_result.numpy())
 
 
 def test_add_partition():

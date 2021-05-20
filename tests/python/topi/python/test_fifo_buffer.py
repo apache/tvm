@@ -177,9 +177,7 @@ def verify_conv1d_integration():
             conv2d(input_window_tvm, kernel_tvm, output_window_ref_tvm)
             # Incrementally updating the output window should be equivalent to computing it from
             # scratch using the input window
-            tvm.testing.assert_allclose(
-                output_window_tvm.numpy(), output_window_ref_tvm.numpy()
-            )
+            tvm.testing.assert_allclose(output_window_tvm.numpy(), output_window_ref_tvm.numpy())
 
     for target, dev in tvm.testing.enabled_targets():
         check_device(target, dev)

@@ -2523,7 +2523,7 @@ class PyTorchOpConverter:
         self.convert_map.update(custom_map)
 
     def report_missing_conversion(self, op_names):
-        """ Check if all ops in an input graph are supported by TVM """
+        """Check if all ops in an input graph are supported by TVM"""
         known_ops = [
             "prim::Constant",
             "prim::GetAttr",
@@ -2545,13 +2545,13 @@ class PyTorchOpConverter:
             raise NotImplementedError(msg)
 
     def convert_block(self, block, outputs):
-        """ Translate Torch "Block", used for prim::If and prim::Loop """
+        """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(block.nodes())
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
 
     def convert_if(self, if_node, outputs):
-        """ Translate Torch prim::If to Relay If """
+        """Translate Torch prim::If to Relay If"""
         cond = outputs[if_node.inputsAt(0).debugName()]
         blocks = list(if_node.blocks())
         true_branch = self.convert_block(blocks[0], outputs)
@@ -2560,7 +2560,7 @@ class PyTorchOpConverter:
         return _expr.If(cond, true_branch[0], false_branch[0])
 
     def convert_loop(self, loop_node, outputs):
-        """ Translate Torch prim::Loop to Relay while_loop """
+        """Translate Torch prim::Loop to Relay while_loop"""
 
         def get_input(index):
             ivalue = loop_node.inputsAt(index)
@@ -2690,7 +2690,7 @@ class PyTorchOpConverter:
         return [_expr.TupleGetItem(loop_val, i + 1) for i in range(num_loop_var)]
 
     def convert_operators(self, operators, outputs, ret_names):
-        """ Convert each Torch IR operators to Relay equivalent """
+        """Convert each Torch IR operators to Relay equivalent"""
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -2872,7 +2872,7 @@ def _wrap_const(c):
 
 
 def _run_jit_passes(graph):
-    """ The inline pass is necessary to unwrap prim::CallMethod """
+    """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
 
@@ -2978,7 +2978,7 @@ def _get_input_types(op_node, outputs, default_dtype="float32"):
 
 
 def _get_constant(node):
-    """ Retrieve a constant associated with this prim::Constant node """
+    """Retrieve a constant associated with this prim::Constant node"""
     attribute_names = node.attributeNames()
     num_attributes = len(attribute_names)
 
@@ -3012,7 +3012,7 @@ def _get_constant(node):
 
 
 def _get_operator_nodes(nodes):
-    """ Returns torch IR nodes that need conversion to Relay """
+    """Returns torch IR nodes that need conversion to Relay"""
     ops = []
     # Traverse nodes and add to graph
     for node in nodes:
@@ -3226,7 +3226,7 @@ def convert_params(graph, state_dict):
 
 
 def get_all_op_names(graph):
-    """ Return all operator names in the input graph """
+    """Return all operator names in the input graph"""
     nodes = list(graph.nodes())
     prim_with_blocks = ["prim::If", "prim::Loop"]
     for prim in prim_with_blocks:

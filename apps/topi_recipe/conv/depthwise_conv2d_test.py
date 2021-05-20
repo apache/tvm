@@ -146,9 +146,7 @@ def test_depthwise_conv2d_nchw():
                 depthwise_conv2d_scipy[:, c, :, :] * scale_np[c] + shift_np[c]
             )
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        tvm.testing.assert_allclose(
-            depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5
-        )
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(scale_shift_tvm.numpy(), scale_shift_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.numpy(), relu_scipy, rtol=1e-5)
         print("success")
@@ -253,9 +251,7 @@ def test_depthwise_conv2d_nhwc():
                 depthwise_conv2d_scipy[:, :, :, c] * scale_np[c] + shift_np[c]
             )
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        tvm.testing.assert_allclose(
-            depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5
-        )
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.numpy(), depthwise_conv2d_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(scale_shift_tvm.numpy(), scale_shift_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.numpy(), relu_scipy, rtol=1e-5)
         print("success")

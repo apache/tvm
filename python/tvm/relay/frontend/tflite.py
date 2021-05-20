@@ -434,7 +434,7 @@ class OperatorConverter(object):
         return first_tensor.qnn_params is not None
 
     def quantize(self, expr, tensor_to_quantize):
-        """ Helper function to quantize a tensor with Relay """
+        """Helper function to quantize a tensor with Relay"""
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
         quantized = _qnn.op.quantize(
@@ -446,7 +446,7 @@ class OperatorConverter(object):
         return quantized
 
     def dequantize(self, expr, tensor):
-        """ Helper function to dequantize a tensor with Relay """
+        """Helper function to dequantize a tensor with Relay"""
         dequantized = _qnn.op.dequantize(
             data=expr,
             input_scale=tensor.qnn_params["scale"],
@@ -640,7 +640,7 @@ class OperatorConverter(object):
         return self._convert_resize("nearest_neighbor", op)
 
     def convert_l2_normalization(self, op):
-        """Convert TFLite L2_NORMALIZATION """
+        """Convert TFLite L2_NORMALIZATION"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.L2NormOptions import L2NormOptions
@@ -683,7 +683,7 @@ class OperatorConverter(object):
         return out
 
     def convert_lrn(self, op):
-        """Convert TFLite LOCAL_RESPONSE_NORMALIZATION """
+        """Convert TFLite LOCAL_RESPONSE_NORMALIZATION"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
@@ -2389,7 +2389,7 @@ class OperatorConverter(object):
         return out
 
     def convert_topk_v2(self, op):
-        """ Convert TFLite TOPK_v2 """
+        """Convert TFLite TOPK_v2"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
         input_tensor = input_tensors[0]
@@ -3328,7 +3328,7 @@ class OperatorConverter(object):
         return self.prefetched_nodes[get_tensor_name(self.subgraph, input_tensor_idx)]
 
     def get_tensor_expr(self, tensor, is_sparse=False):
-        """ Return the Relay expr for tensor. """
+        """Return the Relay expr for tensor."""
         if self.has_expr(tensor.tensor_idx):
             expr = self.get_expr(tensor.tensor_idx)
         else:
@@ -3337,7 +3337,7 @@ class OperatorConverter(object):
         return expr
 
     def get_tensor_shape(self, tensor_wrapper):
-        """ Returns tensor shape. Infers shape if the shape is empty. """
+        """Returns tensor shape. Infers shape if the shape is empty."""
         assert isinstance(tensor_wrapper, TensorWrapper), "Expecting TensorWrapper here"
         return (
             tensor_wrapper.tensor.ShapeAsNumpy()
@@ -3348,7 +3348,7 @@ class OperatorConverter(object):
 
 # pylint: disable=no-else-return
 def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_tensor_type):
-    """ Prepare sparse indices and dense matrix from TFLite sparse parameters. """
+    """Prepare sparse indices and dense matrix from TFLite sparse parameters."""
     # The function is implemented based on TFLite sparse parameter specifications
     # Please refer
     # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/schema/schema.fbs#L89
@@ -3488,7 +3488,7 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
 
 
 def get_scalar_from_constant(expr):
-    """ Returns scalar value from Relay constant scalar. """
+    """Returns scalar value from Relay constant scalar."""
     assert (
         isinstance(expr, _expr.Constant) and not expr.data.shape
     ), "Expr is not a constant scalar."
@@ -3500,7 +3500,7 @@ def get_scalar_from_constant(expr):
 
 
 def get_tensor_from_constant(expr):
-    """ Returns tensor of values from Relay constant node. """
+    """Returns tensor of values from Relay constant node."""
     assert isinstance(expr, _expr.Constant)
     value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(

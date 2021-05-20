@@ -254,9 +254,7 @@ def verify(answers, atol, rtol, verify_saturation=False, config=None):
                     assert (
                         np.count_nonzero(outs[0].numpy() == 0) < 0.25 * outs[0].numpy().size
                     ), "Output is saturated: {}".format(outs[0])
-                tvm.testing.assert_allclose(
-                    outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol
-                )
+                tvm.testing.assert_allclose(outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol)
             except AssertionError as e:
                 err_msg = "Results not within the acceptable tolerance.\n"
                 if config:

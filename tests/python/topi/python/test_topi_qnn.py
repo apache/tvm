@@ -139,9 +139,7 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
         func(a, d, s, z, dq)
 
         # Check correctness against the true qnn output.
-        tvm.testing.assert_allclose(
-            dq.numpy(), real_dq_out.numpy().astype("float32"), rtol=1e-5
-        )
+        tvm.testing.assert_allclose(dq.numpy(), real_dq_out.numpy().astype("float32"), rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)

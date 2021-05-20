@@ -1756,7 +1756,7 @@ def test_upsample():
 
 @tvm.testing.uses_gpu
 def test_to():
-    """ test for aten::to(...) """
+    """test for aten::to(...)"""
 
     class ToCPU(Module):
         def forward(self, x):
@@ -2160,7 +2160,7 @@ def verify_trace_model(pt_model, idata, targets):
 
 
 def convert_pt_to_tvm_type(idtype):
-    """ Accepts a pytorch dtype and returns string TVM dtype."""
+    """Accepts a pytorch dtype and returns string TVM dtype."""
     # TVM does not support PyTorch complex dtypes
     if idtype == torch.float64:
         curr_dtype = "float64"
