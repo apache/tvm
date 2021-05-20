@@ -98,8 +98,8 @@ class Op(RelayExpr):
         """
         _ffi_api.OpAddTypeRel(self, rel_name, type_rel_func)
 
-    def add_argument(self, name, type, description):
-        """Add argument information to the function.
+    def add_op_argument(self, name, type, description):
+        """Add arguments information to the function.
 
         Parameters
         ----------
