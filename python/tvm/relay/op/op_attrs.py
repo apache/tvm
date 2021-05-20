@@ -534,6 +534,11 @@ class SparseTransposeAttrs(Attrs):
     """Attributes used in sparse_transpose operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.SparseConv2DAttrs")
+class SparseConv2DAttrs(Attrs):
+    """Attributes used in sparse_conv2d operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.TopkAttrs")
 class TopkAttrs(Attrs):
     """Attributes used in topk operators"""

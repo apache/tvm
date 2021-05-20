@@ -30,12 +30,15 @@
 // clang-format off
 #include <algorithm>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 #include <spirv.hpp>
 // clang-format on
+
+#include "spirv_support.h"
 
 namespace tvm {
 namespace codegen {
@@ -268,6 +271,14 @@ class InstrBuilder {
  */
 class IRBuilder {
  public:
+  /*!
+   * \brief Initialize the codegen based on a specific feature set.
+   *
+   * \param support The features in SPIRV that are supported by the
+   * target device.
+   */
+  explicit IRBuilder(const SPIRVSupport& support);
+
   /*! \brief Initialize header */
   void InitHeader();
   /*! \brief Initialize the predefined contents */
@@ -278,29 +289,21 @@ class IRBuilder {
    * \return The finalized binary instruction.
    */
   Value ExtInstImport(const std::string& name) {
+    auto it = ext_inst_tbl_.find(name);
+    if (it != ext_inst_tbl_.end()) {
+      return it->second;
+    }
     Value val = NewValue(SType(), kExtInst);
-    ib_.Begin(spv::OpExtInstImport).AddSeq(val, name).Commit(&header_);
+    ib_.Begin(spv::OpExtInstImport).AddSeq(val, name).Commit(&extended_instruction_section_);
+    ext_inst_tbl_[name] = val;
     return val;
   }
   /*!
    * \brief Get the final binary built from the builder
    * \return The finalized binary instruction.
    */
-  std::vector<uint32_t> Finalize() {
-    std::vector<uint32_t> data;
-    // set bound
-    const int kBoundLoc = 3;
-    header_[kBoundLoc] = id_counter_;
-    data.insert(data.end(), header_.begin(), header_.end());
-    data.insert(data.end(), entry_.begin(), entry_.end());
-    data.insert(data.end(), exec_mode_.begin(), exec_mode_.end());
-    data.insert(data.end(), debug_.begin(), debug_.end());
-    data.insert(data.end(), decorate_.begin(), decorate_.end());
-    data.insert(data.end(), global_.begin(), global_.end());
-    data.insert(data.end(), func_header_.begin(), func_header_.end());
-    data.insert(data.end(), function_.begin(), function_.end());
-    return data;
-  }
+  std::vector<uint32_t> Finalize();
+
   /*!
    * \brief Create new label
    * \return The created new label
@@ -599,6 +602,19 @@ class IRBuilder {
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
   // declare type
   SType DeclareType(const DataType& dtype);
+
+  // Declare the appropriate SPIR-V capabilities and extensions to use
+  // this data type.
+  void AddCapabilityFor(const DataType& dtype);
+
+  /*! \brief SPIRV-related capabilities of the target
+   *
+   * This SPIRVSupport object is owned by the same CodeGenSPIRV
+   * object that owns the IRBuilder.  Therefore, safe to use a
+   * reference as the CodeGenSPIRV will live longer.
+   */
+  const SPIRVSupport& spirv_support_;
+
   /*! \brief internal instruction builder  */
   InstrBuilder ib_;
   /*! \brief Current label */
@@ -623,9 +639,22 @@ class IRBuilder {
   std::map<std::pair<uint32_t, spv::StorageClass>, SType> pointer_type_tbl_;
   /*! \brief map from constant int to its value */
   std::map<std::pair<uint32_t, uint64_t>, Value> const_tbl_;
-  /*! \brief Header segment, include import */
+  /*! \brief map from name of a ExtInstImport to its value */
+  std::map<std::string, Value> ext_inst_tbl_;
+
+  /*! \brief Header segment
+   *
+   * 5 words long, described in "First Words of Physical Layout"
+   * section of SPIR-V documentation.
+   */
   std::vector<uint32_t> header_;
-  /*! \brief engtry point segment */
+  /*! \brief SPIR-V capabilities used by this module. */
+  std::set<spv::Capability> capabilities_used_;
+  /*! \brief SPIR-V extensions used by this module. */
+  std::set<std::string> extensions_used_;
+  /*! \brief entry point segment */
+  std::vector<uint32_t> extended_instruction_section_;
+  /*! \brief entry point segment */
   std::vector<uint32_t> entry_;
   /*! \brief Header segment */
   std::vector<uint32_t> exec_mode_;

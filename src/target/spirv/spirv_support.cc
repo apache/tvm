@@ -18,28 +18,35 @@
  */
 
 /*!
- * \file src/runtime/contrib/verilator/verilator_kernel.h
- * \brief Use external verilator library kernels.
+ * \file spirv_support
+ *
+ * \brief Utility for determining which spirv capabilities a TVM
+ * target supports.
  */
 
-#ifndef TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_KERNEL_H_
-#define TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_KERNEL_H_
+#include "spirv_support.h"
 
-#include <tvm/runtime/c_runtime_api.h>
-
-#include "verilator_device.h"
+#include <spirv.hpp>
 
 namespace tvm {
-namespace runtime {
-namespace contrib {
+namespace codegen {
 
-extern "C" TVM_DLL void verilator_add(VerilatorHandle handle, int* left, int* right, int* out,
-                                      int p_h_, int p_w_);
+SPIRVSupport::SPIRVSupport(tvm::Target target) {
+  ICHECK_EQ(target->kind->device_type, kDLVulkan)
+      << "SPIRVSupport can only be checked for vulkan device type";
 
-extern "C" TVM_DLL void verilator_bias_add(VerilatorHandle handle, int* data, int* bias, int* out,
-                                           int p_n_, int p_c_, int p_h_, int p_w_);
+  // Currently, this codifies the assumptions that were present and
+  // implicit in previous implementations.  In the future, this will
+  // pull information from the specified `Target`.
 
-}  // namespace contrib
-}  // namespace runtime
+  supports_storage_buffer_storage_class = (SPV_VERSION >= 0x10300);
+  supports_storage_buffer_8bit_access = true;
+  supports_storage_buffer_16bit_access = true;
+  supports_float16 = true;
+  supports_int8 = true;
+  supports_int16 = true;
+  supports_int64 = true;
+}
+
+}  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_KERNEL_H_

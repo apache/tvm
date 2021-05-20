@@ -29,6 +29,7 @@ from tvm.relay import testing
 from tvm.contrib import utils
 from tvm import rpc
 import tvm.testing
+from tvm.relay.transform import InferType
 
 
 def check_result(args, expected_result, mod=None):
@@ -184,6 +185,31 @@ def test_multiple_ifs():
     vm = relay.create_executor(device=dev, mod=mod, kind="vm")
     res = vmobj_to_list(vm.evaluate()(False))
     assert res == [1, 0]
+
+
+@tvm.testing.uses_gpu
+def test_unused_function():
+    cond = relay.const(True)
+    mod = tvm.IRModule()
+    then_name = relay.GlobalVar("times_2")
+    # define unused function
+    else_name = relay.GlobalVar("times_3")
+    t1 = relay.TensorType((2, 2), dtype="float32")
+    x1 = relay.var("x1", t1, dtype="float32")
+    x2 = relay.var("x2", t1, dtype="float32")
+    f2 = relay.multiply(x1, relay.const(2.0))
+    f3 = relay.multiply(x2, relay.const(3.0))
+    mod[then_name] = relay.Function([x1], f2)
+    mod[else_name] = relay.Function([x2], f3)
+    mod = InferType()(mod)
+    x3 = relay.var("x3", t1, dtype="float32")
+    # put unused function in else branch
+    f = relay.If(cond, then_name(x3), else_name(x3))
+    mod["main"] = relay.Function([x3], f)
+    x_data = np.random.rand(2, 2).astype("float32")
+    y_data = x_data * 2
+
+    check_result([x_data], y_data, mod=mod)
 
 
 @tvm.testing.uses_gpu
