@@ -3255,17 +3255,30 @@ def test_forward_log_softmax():
 # ----
 
 
-def _test_tanh(data):
+def _test_tanh(data, quantized=False):
     """ One iteration of TANH """
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = math_ops.tanh(in_data)
-        compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out])
+        in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=-3, max=3, name="inq_0"
+            )
+            input_range = {"inq_0": (-3, 3)}
+            out = math_ops.tanh(inq_data)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-1, max=1, name="out")
+            compare_tflite_with_tvm(
+                data, "inq_0:0", [inq_data], [out], quantized=True, input_range=input_range
+            )
+        else:
+            out = math_ops.tanh(in_data)
+            compare_tflite_with_tvm(data, "in_0:0", [in_data], [out])
 
 
 def test_forward_tanh():
-    """ TANH """
-    _test_tanh(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+    """TANH"""
+    _test_tanh(np.arange(6.0, dtype=np.float32).reshape((1, 6)), quantized=False)
+    _test_tanh(np.arange(0, 256, 30, dtype=np.uint8), quantized=True)
 
 
 #######################################################################
