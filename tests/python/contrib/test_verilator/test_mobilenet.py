@@ -214,6 +214,7 @@ def is_tflite_available():
         return False
 
 
+@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
 def tmobilenet(lanes):
     """Mobilenet test template.
     Paramters
