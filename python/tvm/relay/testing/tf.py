@@ -76,6 +76,20 @@ def convert_to_list(x):
 
 
 def vmobj_to_list(o):
+    """Converts TVM objects returned by VM execution to Python List.
+
+    Parameters
+    ----------
+    o : Obj
+        VM Object as output from VM runtime executor.
+
+    Returns
+    -------
+    result : list
+        Numpy objects as list with equivalent values to the input object.
+
+    """
+
     if isinstance(o, tvm.nd.NDArray):
         result = [o.asnumpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
