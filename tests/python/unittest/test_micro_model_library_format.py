@@ -63,18 +63,25 @@ def test_export_operator_model_library_format():
         )
         assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
         assert metadata["target"] == {"1": str(target)}
-        assert metadata["memory"] == [
-            {"storage_id": 0, "size_bytes": 2, "input_binding": "placeholder_2"},
-            {"storage_id": 1, "size_bytes": 1, "input_binding": "placeholder_3"},
-            {"storage_id": 2, "size_bytes": 2, "input_binding": "C_1"},
-        ]
+
+        assert metadata["memory"]["add"][0]["dtype"] == "int8"
+        assert metadata["memory"]["add"][0]["shape"] == [2]
+        assert metadata["memory"]["add"][0]["size_bytes"] == 2
+
+        assert metadata["memory"]["add"][1]["dtype"] == "int8"
+        assert metadata["memory"]["add"][1]["shape"] == [1]
+        assert metadata["memory"]["add"][1]["size_bytes"] == 1
+
+        assert metadata["memory"]["add"][2]["dtype"] == "int8"
+        assert metadata["memory"]["add"][2]["shape"] == [2]
+        assert metadata["memory"]["add"][2]["size_bytes"] == 2
 
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib0.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "lib1.c"))
 
     assert (
         len(mod.ir_module_by_target) == 1
-    ), f"expect 1 ir_modele_by_target: {ir_module_by_target!r}"
+    ), f"expect 1 ir_model_by_target: {ir_module_by_target!r}"
     for target, ir_mod in mod.ir_module_by_target.items():
         assert int(tvm.runtime.ndarray.device(str(target)).device_type) == 1
         with open(os.path.join(extract_dir, "src", "tir-1.txt")) as tir_f:

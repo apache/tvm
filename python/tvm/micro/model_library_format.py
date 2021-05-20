@@ -301,8 +301,7 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
             shape.append(x.value)
         return shape
 
-    memory_map = []
-    storage_id = 0
+    memory_map = {}
     for target_device_type, target in targets.items():
         ir_mod = ir_module_by_target[target]
         printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
@@ -310,17 +309,20 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
             f.write(printer["print"](ir_mod))
 
         for v in ir_mod.get_global_vars():
+            map_entry = []
             for p, b in ir_mod[v.name_hint].buffer_map.items():
                 shape = _eval_shape(p.name, b.shape)
                 buffer_size_bytes = _shape_to_size(shape, str(b.dtype))
                 # NOTE: cannot tell what is an input or output at this point.
-                map_entry = {
-                    "storage_id": storage_id,
-                    "size_bytes": buffer_size_bytes,
-                    "input_binding": printer["get_var_name"](p),
-                }
-                storage_id += 1
-                memory_map.append(map_entry)
+                map_entry.append(
+                    {
+                        "size_bytes": buffer_size_bytes,
+                        "shape": [int(x) for x in b.shape],
+                        "dtype": b.dtype,
+                        "input_binding": printer["get_var_name"](p),
+                    }
+                )
+            memory_map[v.name_hint] = map_entry
 
     return memory_map
 
