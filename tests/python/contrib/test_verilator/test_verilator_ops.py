@@ -20,6 +20,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+import pytest
 
 from test_verilator.infrastructure import (
     skip_test,

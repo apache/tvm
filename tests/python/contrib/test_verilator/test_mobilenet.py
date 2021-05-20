@@ -21,6 +21,7 @@ from tvm.contrib.download import download_testdata
 from tvm.contrib import graph_executor as runtime
 
 import os
+import pytest
 from PIL import Image
 import numpy as np
 
