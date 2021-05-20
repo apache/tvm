@@ -61,20 +61,7 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
   CodeGenC::AddFunction(f);
 }
 
-void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
-  PrintFuncPrefix();
-  stream << " " << tvm::runtime::symbol::tvm_lookup_linked_param
-         << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
-         << "int* out_ret_tcode, void* resource_handle) {\n";
-  ICHECK_EQ(GetUniqueName(tvm::runtime::symbol::tvm_lookup_linked_param),
-            tvm::runtime::symbol::tvm_lookup_linked_param)
-      << "builtin PackedFunc name already taken: " << tvm::runtime::symbol::tvm_lookup_linked_param;
-  stream << "    switch (((int64_t*) args)[0]) {\n"
-         << "    default:\n"
-         << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
-         << "        return 0;\n";
-
-  function_names_.push_back(tvm::runtime::symbol::tvm_lookup_linked_param);
+void CodeGenCHost::DeclareParameters(Map<String, LinkedParam> params) {
   for (auto kv : params) {
     decl_stream << "\n"
                 << "#ifdef __cplusplus\n"
@@ -93,6 +80,24 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
                 << "#ifdef __cplusplus\n"
                 << "}  // extern \"C\"\n"
                 << "#endif\n";
+  }
+}
+
+void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
+  PrintFuncPrefix();
+  stream << " " << tvm::runtime::symbol::tvm_lookup_linked_param
+         << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
+         << "int* out_ret_tcode, void* resource_handle) {\n";
+  ICHECK_EQ(GetUniqueName(tvm::runtime::symbol::tvm_lookup_linked_param),
+            tvm::runtime::symbol::tvm_lookup_linked_param)
+      << "builtin PackedFunc name already taken: " << tvm::runtime::symbol::tvm_lookup_linked_param;
+  stream << "    switch (((int64_t*) args)[0]) {\n"
+         << "    default:\n"
+         << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
+         << "        return 0;\n";
+
+  function_names_.push_back(tvm::runtime::symbol::tvm_lookup_linked_param);
+  for (auto kv : params) {
     stream << "    case " << kv.second->id << ":\n"
            << "        ((uint64_t*)out_ret_value)[0] = (uint64_t) (uintptr_t) "
            << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
@@ -398,12 +403,14 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.AddFunction(f);
   }
 
-  if (could_have_linked_params) {
+  if (could_have_linked_params && !aot_executor_fn.defined()) {
     ICHECK(found_linked_params) << "-link-params given but none found";
+    cg.DeclareParameters(linked_params);
     cg.LinkParameters(linked_params);
   }
 
-  if (aot_executor_fn.defined()) {
+  if (could_have_linked_params && aot_executor_fn.defined()) {
+    cg.DeclareParameters(linked_params);
     cg.AddFunction(aot_executor_fn);
   }
 
