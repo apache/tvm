@@ -73,5 +73,5 @@ ExternalProject_Add(ios_rpc
                 IPHONEOS_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
                 DEVELOPMENT_TEAM=${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM}
                 TVM_BUILD_DIR=${CMAKE_BINARY_DIR}
-                USE_CUSTOM_DSO_LOADER=YES
+                USE_CUSTOM_DSO_LOADER=1
         )
