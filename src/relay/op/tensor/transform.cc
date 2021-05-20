@@ -3390,12 +3390,15 @@ Optionally, batch_dims, the number of batch dimensions, can be given, whose
 default value is 0.
 
 Let B denote batch_dims, and data, indices shape be (X_0, X_1, ..., X_{N-1}),
-(M, Y_0, ..., Y_{K-1}) respectively. When B > 0, indexing will start from the B-th axis,
-and it must be the case that X_0, ... X_{B-1} == Y_0, ... Y_{B-1}.
+(M, Y_0, ..., Y_{K-1}) respectively.
 
-The output will have shape
-(Y_0, ..., Y_{B-1}, ..., Y_{K-1}, X_{M+B}, ..., X_{N-1}), where M + B <= N. If M + B == N,
-output shape will simply be (Y_0, ..., Y_{K-1}).
+When B > 0, indexing will start from the B-th axis, and it must be the case that
+X_0, ... X_{B-1} == Y_0, ... Y_{B-1}. The output will have a shape
+(X_0, ..., X_{B-1}, Y_B, ..., Y_{K-1}, X_{M+B}, ..., X_{N-1}), where M + B <= N.
+
+When B == 0 (the default case), the output shape will be (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}).
+
+In both cases, if M + B == N, the output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
