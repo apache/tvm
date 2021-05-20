@@ -165,7 +165,7 @@ class ScheduleNode : public runtime::Object {
   virtual void RemoveRV(const LoopRV& loop_rv) = 0;
   /*!
    * \brief Remove an integer random variable from the symbol table
-   * \param int_rv The random variable to be removed
+   * \param expr_rv The random variable to be removed
    */
   virtual void RemoveRV(const ExprRV& expr_rv) = 0;
 
