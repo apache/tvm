@@ -98,7 +98,7 @@ class Op(RelayExpr):
         """
         _ffi_api.OpAddTypeRel(self, rel_name, type_rel_func)
 
-    def add_argument(self, name, type, description): #pylint: disable=redefined-builtin
+    def add_argument(self, name, type, description):  # pylint: disable=redefined-builtin
         """Add arguments information to the function.
 
         Parameters
