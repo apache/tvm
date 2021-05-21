@@ -62,8 +62,8 @@ def get_tvm_output_with_vm(
     ex = relay.create_executor("vm", mod=mod, device=device, target=target)
     result = ex.evaluate()(*input_data, **params)
     if isinstance(result, tvm.runtime.NDArray):
-        return result.asnumpy()
-    return [r.asnumpy() for r in result]
+        return result.numpy()
+    return [r.numpy() for r in result]
 
 
 def get_tvm_output(
@@ -109,11 +109,11 @@ def get_tvm_output(
         tvm_output_list = []
         for i, _ in enumerate(output_shape):
             tvm_output = m.get_output(i)
-            tvm_output_list.append(tvm_output.asnumpy())
+            tvm_output_list.append(tvm_output.numpy())
         return tvm_output_list
     else:
         tvm_output = m.get_output(0)
-        return tvm_output.asnumpy()
+        return tvm_output.numpy()
 
 
 def get_onnxruntime_output(model, inputs):
@@ -641,7 +641,7 @@ def test_dynamic_gather():
     for target, device in tvm.testing.enabled_targets():
         ex = relay.create_executor("vm", mod=mod, device=device, target=target)
         result = ex.evaluate()(x, **params)
-        tvm.testing.assert_allclose(out_np, result.asnumpy(), rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out_np, result.numpy(), rtol=1e-5, atol=1e-5)
 
 
 def verify_gatherelements(in_shape, indices, axis):
@@ -1191,7 +1191,7 @@ def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
         # relu
         out_np[out_np < 0] = 0
 
-        tvm_out = ex.evaluate()(a_array, b_array).asnumpy()
+        tvm_out = ex.evaluate()(a_array, b_array).numpy()
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])

@@ -65,7 +65,7 @@ def test_resize():
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(x_data, size)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:

@@ -219,7 +219,7 @@ def verify_model(
             relay_model.run()
 
             for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = relay_model.get_output(i).asnumpy()
+                compiled_output = relay_model.get_output(i).numpy()
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
@@ -1756,7 +1756,7 @@ def test_upsample():
 
 @tvm.testing.uses_gpu
 def test_to():
-    """ test for aten::to(...) """
+    """test for aten::to(...)"""
 
     class ToCPU(Module):
         def forward(self, x):
@@ -2160,7 +2160,7 @@ def verify_trace_model(pt_model, idata, targets):
 
 
 def convert_pt_to_tvm_type(idtype):
-    """ Accepts a pytorch dtype and returns string TVM dtype."""
+    """Accepts a pytorch dtype and returns string TVM dtype."""
     # TVM does not support PyTorch complex dtypes
     if idtype == torch.float64:
         curr_dtype = "float64"
@@ -2236,13 +2236,13 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
         if isinstance(pt_result, tuple):
             # handle multiple outputs
             for i in range(len(pt_result)):
-                tvm_res = vm_res[i].asnumpy()
+                tvm_res = vm_res[i].numpy()
                 tvm.testing.assert_allclose(tvm_res, pt_result[i].numpy(), rtol=1e-5, atol=1e-5)
         elif not isinstance(pt_result, torch.Tensor):
-            tvm_res = vm_res.asnumpy().item()
+            tvm_res = vm_res.numpy().item()
             assert pt_result == tvm_res
         else:
-            tvm.testing.assert_allclose(vm_res.asnumpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(vm_res.numpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -3669,7 +3669,7 @@ def test_forward_pretrained_bert_base_uncased():
     relay_model.set_input(input_1, tokens_tensor)
     relay_model.set_input(input_2, segments_tensors)
     relay_model.run()
-    compiled_output = relay_model.get_output(0).asnumpy()
+    compiled_output = relay_model.get_output(0).numpy()
 
     ######################################################################
     # Validate the outputs

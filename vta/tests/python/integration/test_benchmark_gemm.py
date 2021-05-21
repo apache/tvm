@@ -99,7 +99,7 @@ def test_gemm():
                 print("Execution statistics:")
                 for k, v in stats.items():
                     print("\t{:<16}: {:>16}".format(k, v))
-            res_unpack = res_arr.asnumpy().reshape(
+            res_unpack = res_arr.numpy().reshape(
                 batch_size // env.BATCH, channel // env.BLOCK_OUT, env.BATCH, env.BLOCK_OUT
             )
             return cost

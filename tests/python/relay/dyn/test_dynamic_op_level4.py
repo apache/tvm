@@ -68,7 +68,7 @@ def test_dynamic_strided_slice():
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor("vm", mod=mod, device=dev, target=target)
             op_res = intrp.evaluate()(*data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify(
         (1, 224, 224, 3),

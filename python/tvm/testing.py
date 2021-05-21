@@ -294,7 +294,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         sch = tvm.te.create_schedule(A.op)
         mod = tvm.build(sch, [A])
         mod(*args)
-        return args[0].asnumpy()
+        return args[0].numpy()
 
     res = _run_expr(bool_expr, vranges)
     if not np.all(res):

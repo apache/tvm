@@ -95,7 +95,7 @@ def test_alloc():
         ctx = tvm.micro_dev(0)
         np_tensor = np.random.uniform(size=shape).astype(dtype)
         micro_tensor = tvm.nd.array(np_tensor, ctx)
-        tvm.testing.assert_allclose(np_tensor, micro_tensor.asnumpy())
+        tvm.testing.assert_allclose(np_tensor, micro_tensor.numpy())
 
 
 def test_add():
@@ -130,10 +130,10 @@ def test_add():
         micro_func(a, b, c)
 
         # ensure inputs weren't corrupted
-        tvm.testing.assert_allclose(a.asnumpy(), a_np)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np)
+        tvm.testing.assert_allclose(a.numpy(), a_np)
+        tvm.testing.assert_allclose(b.numpy(), b_np)
         # ensure output is correct
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
 def test_workspace_add():
@@ -166,9 +166,9 @@ def test_workspace_add():
         micro_func(a, c)
 
         # ensure input wasn't corrupted
-        tvm.testing.assert_allclose(a.asnumpy(), a_np)
+        tvm.testing.assert_allclose(a.numpy(), a_np)
         # ensure output is correct
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 2.0)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 2.0)
 
 
 def test_graph_executor():
@@ -189,9 +189,9 @@ def test_graph_executor():
 
         x_in = np.random.uniform(size=shape[0]).astype(dtype)
         mod.run(x=x_in)
-        result = mod.get_output(0).asnumpy()
+        result = mod.get_output(0).numpy()
 
-        tvm.testing.assert_allclose(mod.get_input(0).asnumpy(), x_in)
+        tvm.testing.assert_allclose(mod.get_input(0).numpy(), x_in)
         tvm.testing.assert_allclose(result, x_in * x_in + 1.0)
 
 
@@ -241,11 +241,11 @@ def test_conv2d():
         micro_func(x_data, w_data, result)
 
         out_data = np.zeros(out_shape, dtype=dtype)
-        params = {"x": x_data.asnumpy(), "w": w_data.asnumpy()}
+        params = {"x": x_data.numpy(), "w": w_data.numpy()}
         intrp = create_executor("debug")
         expected_result = intrp.evaluate(mod["main"])(x_data, w_data)
 
-        tvm.testing.assert_allclose(result.asnumpy(), expected_result.asnumpy())
+        tvm.testing.assert_allclose(result.numpy(), expected_result.numpy())
 
 
 def test_interleave_sessions():
@@ -271,12 +271,12 @@ def test_interleave_sessions():
     with sess_a:
         add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_A)
         add_const_mod.run(x=micro_tensor_a)
-        add_result = add_const_mod.get_output(0).asnumpy()
+        add_result = add_const_mod.get_output(0).numpy()
         tvm.testing.assert_allclose(add_result, np_tensor_a + 1.0)
     with sess_b:
         add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_B)
         add_const_mod.run(x=micro_tensor_b)
-        add_result = add_const_mod.get_output(0).asnumpy()
+        add_result = add_const_mod.get_output(0).numpy()
         tvm.testing.assert_allclose(add_result, np_tensor_b + 1.0)
 
 
@@ -302,7 +302,7 @@ def test_nested_sessions():
             micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
         add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_A)
         add_const_mod.run(x=micro_tensor_a)
-        add_result = add_const_mod.get_output(0).asnumpy()
+        add_result = add_const_mod.get_output(0).numpy()
         tvm.testing.assert_allclose(add_result, np_tensor_a + 1.0)
 
 
@@ -328,7 +328,7 @@ def test_inactive_session_use():
     with sess_b:
         # These objects belong to `sess_a`.
         add_const_mod.run(x=micro_tensor_a)
-        add_result = add_const_mod.get_output(0).asnumpy()
+        add_result = add_const_mod.get_output(0).numpy()
         tvm.testing.assert_allclose(add_result, np_tensor_a + 1.0)
 
 

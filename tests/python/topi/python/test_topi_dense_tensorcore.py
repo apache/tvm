@@ -65,7 +65,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
             f = tvm.build(s, [A, B, C, D], device, name="dense")
             f(a, b, c, d)
-            tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-3)
+            tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-3)
 
     check_device("cuda")
 

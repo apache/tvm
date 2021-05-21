@@ -160,7 +160,7 @@ def rnn_matexp():
         print("Time cost=%g" % tgap)
         # correctness
         if not SKIP_CHECK:
-            res_cuda = res_a.asnumpy()
+            res_cuda = res_a.numpy()
             res_cmp = np.ones_like(res_np).astype("float64")
             Whh_np = Whh_np.astype("float64")
             for t in range(1, n_num_step):

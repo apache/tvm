@@ -118,7 +118,7 @@ def run_and_check(xshape, yshape, dtype, mod, opts):
     clear_stats()
     out = run_module(inp, mod, params=None, opts=opts)
     values = stats()
-    tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
     return values["cycle_counter"]
 
 

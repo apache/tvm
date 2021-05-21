@@ -234,7 +234,7 @@ def _save_buffer_to_file(buffer_name, buffer_data):
 
     File name will be: {buffer_name}.{buffer_shape}_{buffer_data_type}.npy
     """
-    np_data = buffer_data.asnumpy()
+    np_data = buffer_data.numpy()
 
     buffer_name += "."
     for i in np_data.shape:

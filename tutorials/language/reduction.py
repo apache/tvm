@@ -141,7 +141,7 @@ dev = tvm.cuda(0)
 a = tvm.nd.array(np.random.uniform(size=(nn, nn)).astype(A.dtype), dev)
 b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
 fcuda(a, b)
-tvm.testing.assert_allclose(b.asnumpy(), np.sum(a.asnumpy(), axis=1), rtol=1e-4)
+tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=1), rtol=1e-4)
 
 ######################################################################
 # Describe Convolution via 2D Reduction

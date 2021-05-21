@@ -44,7 +44,7 @@ def check_graph_executor(
         mod = graph_executor.create(graph, lib, contexts)
         mod.set_input(**new_params)
         mod.run()
-        res = mod.get_output(0).asnumpy()
+        res = mod.get_output(0).numpy()
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -56,7 +56,7 @@ def check_vm_runtime(target, ref_res, device, func, params, config, opt_level, e
         dev = [tvm.cpu(0), tvm.device(device)]
         vm = tvm.runtime.vm.VirtualMachine(exe, dev)
         res = vm.invoke("main", **params)
-        tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(res.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 def run_opt_pass(expr, passes):
@@ -186,7 +186,7 @@ def check_annotated_graph(annotated_func, expected_func):
 
 
 def test_conv_network():
-    R"""The network is as following:
+    r"""The network is as following:
     data1     data2
       |         |
     conv2d    conv2d
@@ -389,7 +389,7 @@ def run_fusible_network(dev, tgt):
         return func
 
     def test_fuse_log_add(device, tgt):
-        """ Only log and add are fused."""
+        """Only log and add are fused."""
         fallback_device = tvm.device("cpu")
         target = {"cpu": "llvm", device: tgt}
         cpu_dev = fallback_device
@@ -530,7 +530,7 @@ def run_fusible_network(dev, tgt):
 
 
 def run_unpropagatable_graph(dev, tgt):
-    R"""The network is as following:
+    r"""The network is as following:
     a     b  c     d
      \   /    \   /
       add      mul

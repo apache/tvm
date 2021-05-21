@@ -46,7 +46,7 @@ def verify_relu(m, n, dtype="float32"):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
         foo = tvm.build(s, [A, B], target, name="relu")
         foo(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -64,7 +64,7 @@ def verify_leaky_relu(m, alpha):
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     foo = tvm.build(s, [A, B], "llvm", name="leaky_relu")
     foo(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 def verify_prelu(x, w, axis, weight_reshape):
@@ -87,7 +87,7 @@ def verify_prelu(x, w, axis, weight_reshape):
     foo = tvm.build(s, [X, W, B], "llvm", name="prelu")
     foo(x_tvm, w_tvm, b)
     out_np = _prelu_numpy(x_np, w_np)
-    tvm.testing.assert_allclose(b.asnumpy(), out_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.numpy(), out_np, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu

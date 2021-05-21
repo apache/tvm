@@ -78,7 +78,7 @@ def random_sparse_dense_params(func, params, bs_r, bs_c, density):
     def deepcopy(param_dic):
         ret = {}
         for k, v in param_dic.items():
-            ret[k] = tvm.nd.array(v.asnumpy())
+            ret[k] = tvm.nd.array(v.numpy())
         return ret
 
     new_params = deepcopy(params)
@@ -121,7 +121,7 @@ def random_sparse_conv2d_params(func, params, bs_r, bs_c, density, layout):
     def deepcopy(param_dic):
         ret = {}
         for k, v in param_dic.items():
-            ret[k] = tvm.nd.array(v.asnumpy())
+            ret[k] = tvm.nd.array(v.numpy())
         return ret
 
     new_params = deepcopy(params)

@@ -52,7 +52,7 @@ def verify_elemwise_sum(num_args, dtype):
         tvm_nd = [tvm.nd.array(nd, dev) for nd in np_nd] + [out]
         f(*tvm_nd)
         np_out = np.sum(np.array(np_nd), axis=0)
-        tvm.testing.assert_allclose(out.asnumpy(), np_out, rtol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), np_out, rtol=1e-5)
 
     for target in ["llvm"]:
         check_target(target)
@@ -80,11 +80,11 @@ def verify_full(shape, dtype, fill_value):
         out = tvm.nd.array(np.zeros(shape, dtype=dtype), dev)
         f = tvm.build(s1, [A, B], target, name="full_like")
         f(tvm.nd.array(np.zeros(shape, dtype), dev), out)
-        tvm.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), np_nd, rtol=1e-5)
 
         f = tvm.build(s2, [C], target, name="full")
         f(out)
-        tvm.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), np_nd, rtol=1e-5)
 
     for target in ["llvm"]:
         check_target(target)
@@ -108,7 +108,7 @@ def verify_vectorization(n, m, dtype):
             np_A = tvm.nd.empty((n, m), A.dtype, dev).copyfrom(np.random.uniform(size=(n, m)))
             np_B = tvm.nd.empty((n, m), B.dtype, dev)
             fun(np_A, np_B)
-            tvm.testing.assert_allclose(np_B.asnumpy(), np_A.asnumpy() + 1, rtol=1e-5)
+            tvm.testing.assert_allclose(np_B.numpy(), np_A.numpy() + 1, rtol=1e-5)
 
     for targeta in ["cuda"]:
         check_targeta(targeta)

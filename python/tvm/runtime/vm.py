@@ -135,7 +135,7 @@ class Executable(object):
             x_data = np.random.rand(10, 10).astype('float32')
             des_vm = tvm.runtime.vm.VirtualMachine(des_exec, dev)
             res = des_vm.run(x_data)
-            print(res.asnumpy())
+            print(res.numpy())
         """
         return self._save(), self._get_lib()
 

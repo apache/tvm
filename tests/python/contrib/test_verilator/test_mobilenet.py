@@ -158,7 +158,7 @@ def run_model(mod, params=None, opts=None):
     input_tensor = get_input_tensor_name()
     module.set_input(input_tensor, image_data)
     module.run()
-    out = module.get_output(0).asnumpy()
+    out = module.get_output(0).numpy()
     return out
 
 

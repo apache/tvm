@@ -187,7 +187,7 @@ dtype = "float32"
 module.set_input(input_name, img_data)
 module.run()
 output_shape = (1, 1000)
-tvm_output = module.get_output(0, tvm.nd.empty(output_shape)).asnumpy()
+tvm_output = module.get_output(0, tvm.nd.empty(output_shape)).numpy()
 
 ################################################################################
 # Collect Basic Performance Data
@@ -419,7 +419,7 @@ dtype = "float32"
 module.set_input(input_name, img_data)
 module.run()
 output_shape = (1, 1000)
-tvm_output = module.get_output(0, tvm.nd.empty(output_shape)).asnumpy()
+tvm_output = module.get_output(0, tvm.nd.empty(output_shape)).numpy()
 
 scores = softmax(tvm_output)
 scores = np.squeeze(scores)

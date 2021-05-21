@@ -92,7 +92,7 @@ def verify_conv1d(
 
         func = tvm.build(s, [A, W, B], target)
         func(a, w, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
