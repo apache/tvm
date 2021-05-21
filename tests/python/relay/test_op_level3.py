@@ -1252,14 +1252,40 @@ def test_gather(data, axis, indices, ref_res):
 
 @tvm.testing.uses_gpu
 def test_gather_nd():
-    def verify_gather_nd(xshape, yshape, y_data):
+    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         y = relay.var("y", relay.TensorType(yshape, "int32"))
-        z = relay.gather_nd(x, y)
+        z = relay.gather_nd(x, y, batch_dims)
 
         func = relay.Function([x, y], z)
+
         x_data = np.random.uniform(size=xshape).astype("float32")
-        ref_res = x_data[tuple(y_data)]
+
+        if y_data:
+            y_data = np.array(y_data, dtype="int32")
+        else:
+            y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
+
+        def gather_nd_batch_dims_1_ref(data, indices):
+            res = []
+            for i, row in enumerate(data):
+                indices_tuple = tuple(indices[:, i])  # the indices for the i-th batch
+                res.append(row[indices_tuple])
+            # stack on the batch dim
+            return np.stack(res, 0)
+
+        if batch_dims > 1:
+            x_data_reshape = np.reshape(x_data, (-1,) + xshape[batch_dims:])
+            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dims + 1) :])
+
+            ref_res = gather_nd_batch_dims_1_ref(x_data_reshape, y_data_reshape)
+
+            out_shape = yshape[1 : (batch_dims + 1)] + ref_res.shape[1:]
+            ref_res = np.reshape(ref_res, out_shape)
+        elif batch_dims == 1:
+            ref_res = gather_nd_batch_dims_1_ref(x_data, y_data)
+        else:
+            ref_res = x_data[tuple(y_data)]
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1271,6 +1297,29 @@ def test_gather_nd():
     verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
+
+    # Examples from tensorflow gather_nd doc
+    # https://www.tensorflow.org/api_docs/python/tf/gather_nd
+    verify_gather_nd((2, 2, 2), (1, 2), [[1, 0]], 1)
+    verify_gather_nd((2, 2, 2), (1, 2, 1), [[[1], [0]]], 1)
+    verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1)
+
+    # Test cases from tensorflow gather_nd tests kernel_tests/array_ops_test.py
+    verify_gather_nd((2, 2, 2), (1, 2), None, 1)
+    verify_gather_nd((2, 2, 2), (2, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (3, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (2, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (1, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (3, 2, 1), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (2, 2, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (1, 2, 3), None, 1)
+
+    verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2, 1), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2)
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):

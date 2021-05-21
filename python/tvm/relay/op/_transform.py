@@ -53,7 +53,6 @@ _reg.register_injective_schedule("strided_slice")
 _reg.register_injective_schedule("slice_like")
 _reg.register_injective_schedule("split")
 _reg.register_injective_schedule("take")
-_reg.register_injective_schedule("transpose")
 _reg.register_injective_schedule("stack")
 _reg.register_injective_schedule("contrib_reverse_reshape")
 _reg.register_injective_schedule("gather")
@@ -744,6 +743,9 @@ def transpose_shape_func(attrs, inputs, _):
         if axis < 0:
             axes[i] = inputs[0].shape[0] + axis
     return [_transpose_shape_func(inputs[0], convert(axes))]
+
+
+_reg.register_schedule("transpose", strategy.schedule_transpose)
 
 
 @script

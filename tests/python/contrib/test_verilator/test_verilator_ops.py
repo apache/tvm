@@ -20,6 +20,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+import pytest
 
 from test_verilator.infrastructure import (
     skip_test,
@@ -138,6 +139,7 @@ def print_test_info(test, lanes, cycles):
     print("test:{} vector-lanes:{} number of cycles:{}".format(test, lanes, cycles))
 
 
+@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
 def tadd(lanes):
     """Print counter
 
@@ -158,6 +160,7 @@ def tadd(lanes):
     print_test_info("add", lanes, cycles)
 
 
+@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
 def tbias(lanes):
     """Print counter
 
