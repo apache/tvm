@@ -293,8 +293,9 @@ def threefry_generate(gen, out_shape):
                 _shift_right(irb, gen[8], gen[9], tmp, 8, tmp, 9)
 
         # Compute random values
-        _threefry(irb, tmp, 0, tmp, 4, out_array, 0, out_len // 4)
-        with irb.if_scope(out_len % 4 != 0):
+        if out_len.value >= 4:
+            _threefry(irb, tmp, 0, tmp, 4, out_array, 0, out_len // 4)
+        if out_len.value % 4 != 0:
             remaining = irb.allocate(gen.dtype, 4, name="remaining", scope="global")
             tmp[7] = tmp[7] + tir.Cast(gen.dtype, out_len // 4 * 4)  # increment counter
             _threefry(irb, tmp, 0, tmp, 4, remaining, 0, 1)
@@ -309,9 +310,9 @@ def threefry_generate(gen, out_shape):
         out_gen[4] = tmp[4]  # path stays the same
         out_gen[5] = tmp[5]
         out_gen[6] = tir.const(0, dtype=gen.dtype)  # unused, leave it as 0
-        with irb.if_scope(out_len % 4 != 0):
-            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len % 4)
-        with irb.else_scope():
+        if out_len.value % 4 != 0:
+            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, 4)  # increment counter for the remaining
+        else:
             out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
         out_gen[8] = tmp[8]  # path unchanged, so no update here
         out_gen[9] = tmp[9]

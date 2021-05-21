@@ -115,7 +115,7 @@ def test_threefry_generate(target, dev):
     # check that we can generate data whose total number of elements is not a multiple of 4.
     a, rands = threefry_generate(target, dev, gen, (7,))
     assert (
-        rands.shape[0] == 7 and len(rands.shape) == 2
+        rands.shape[0] == 7 and len(rands.shape) == 1
     ), "Output shape should match requested shape"
 
     # test enough generates to go over generate limit

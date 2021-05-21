@@ -79,6 +79,23 @@ def test_threefry_sequential_generate(target, dev):
     ).any(), "Sequential generates should not have the same output"
 
 
+@tvm.testing.parametrize_targets
+def test_threefry_sequential_generate_remaining(target, dev):
+    key = tvm.relay.random.threefry_key(1)
+    key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (3,)), 2)
+    _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (3,)), 2)
+    out1, out2 = tvm.relay.create_executor(
+        "vm",
+        tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
+        target=target,
+        device=dev,
+    ).evaluate()()
+
+    assert (
+        out1.asnumpy() != out2.asnumpy()
+    ).any(), "Sequential generates should not have the same output"
+
+
 def test_threefry_generate_infer():
     oshape = (12,)
     key_type = tvm.relay.TensorType([10], dtype="uint64")
@@ -152,3 +169,4 @@ if __name__ == "__main__":
     test_threefry_repeatability(tvm.target.Target("llvm"), tvm.device("cpu"))
     test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
     test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_sequential_generate_remaining(tvm.target.Target("llvm"), tvm.device("cpu"))
