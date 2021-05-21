@@ -182,7 +182,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         return self._info
 
     def _init_conn(self, message):
-        """Initialie the connection"""
+        """Initialize the connection"""
         if len(message) != 4:
             logger.warning("Invalid connection from %s", self.name())
             self.close()
