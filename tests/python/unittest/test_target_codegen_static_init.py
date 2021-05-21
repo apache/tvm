@@ -39,7 +39,7 @@ def test_static_callback():
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
     f(a)
-    np.testing.assert_equal(a.asnumpy(), np.ones(a.shape[0]))
+    np.testing.assert_equal(a.numpy(), np.ones(a.shape[0]))
 
 
 def test_static_init():

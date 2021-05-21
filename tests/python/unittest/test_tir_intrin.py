@@ -44,7 +44,7 @@ def test_nearbyint():
     # This is the default rounding mode with libc as well.
     # However one can set a different rounding mode and in that
     # case numpy result might differ.
-    tvm.testing.assert_allclose(a_rounded.asnumpy(), np.rint(a.asnumpy()))
+    tvm.testing.assert_allclose(a_rounded.numpy(), np.rint(a.numpy()))
 
 
 def test_round_intrinsics_on_int():
@@ -86,7 +86,7 @@ def test_unary_intrin():
         a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-5, rtol=1e-5)
 
     for func in test_funcs:
         run_test(*func)
@@ -115,9 +115,7 @@ def test_binary_intrin():
         b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(
-            c.asnumpy(), np_func(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5
-        )
+        tvm.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
     for func in test_funcs:
         run_test(*func)
@@ -138,9 +136,7 @@ def test_ldexp():
     b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), dev)
     c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
     f(a, b, c)
-    tvm.testing.assert_allclose(
-        c.asnumpy(), np.ldexp(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5
-    )
+    tvm.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
 
 def test_clz():
@@ -182,7 +178,7 @@ def test_clz():
                 b = tvm.nd.array(np.zeros((n,)).astype("int32"), dev)
                 f(a, b)
                 ref = clz_np(a_np, dtype)
-                np.testing.assert_equal(b.asnumpy(), ref)
+                np.testing.assert_equal(b.numpy(), ref)
 
 
 @tvm.script.tir
