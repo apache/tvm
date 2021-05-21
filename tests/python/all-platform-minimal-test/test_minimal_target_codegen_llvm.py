@@ -62,7 +62,7 @@ def test_llvm_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_llvm()
 
@@ -101,7 +101,7 @@ def test_llvm_import():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1.0)
+        tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1.0)
 
     check_llvm(use_file=True)
     check_llvm(use_file=False)

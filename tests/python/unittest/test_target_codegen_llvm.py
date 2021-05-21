@@ -108,7 +108,7 @@ def test_llvm_large_uintimm():
         # launch the kernel.
         a = tvm.nd.empty((), dtype=A.dtype, device=dev)
         f(a)
-        assert a.asnumpy() == value + 3
+        assert a.numpy() == value + 3
 
     check_llvm()
 
@@ -137,7 +137,7 @@ def test_llvm_persist_parallel():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), np.sqrt(a.asnumpy() + 1) * 2 + 2, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
 
     check_llvm()
 
@@ -160,7 +160,7 @@ def test_llvm_flip_pipeline():
         a = tvm.nd.array(np.random.uniform(size=(n + base)).astype(A.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy()[::-1][:n])
+        tvm.testing.assert_allclose(c.numpy(), a.numpy()[::-1][:n])
 
     check_llvm(4, 0)
     check_llvm(128, 8)
@@ -189,7 +189,7 @@ def test_llvm_vadd_pipeline():
         a = tvm.nd.empty((n,), A.dtype).copyfrom(np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), C.dtype, dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
     check_llvm(64, 2)
     check_llvm(512, 2)
@@ -213,7 +213,7 @@ def test_llvm_madd_pipeline():
         a = tvm.nd.array(np.random.uniform(size=(n + base, stride)).astype(A.dtype), dev)
         c = tvm.nd.array(np.zeros((n, stride), dtype=C.dtype), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy()[base:] + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy()[base:] + 1)
 
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
@@ -240,7 +240,7 @@ def test_llvm_temp_space():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1 + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
 
     check_llvm()
 
@@ -272,9 +272,9 @@ def test_multiple_func():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd1(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
         fadd2(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_llvm()
 
@@ -292,9 +292,9 @@ def test_llvm_condition():
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         f(a, c)
-        c_np = a.asnumpy()
+        c_np = a.numpy()
         c_np[:offset] = 0
-        tvm.testing.assert_allclose(c.asnumpy(), c_np)
+        tvm.testing.assert_allclose(c.numpy(), c_np)
 
     check_llvm(64, 8)
 
@@ -312,8 +312,8 @@ def test_llvm_bool():
         a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
         c = tvm.nd.empty((n,), C.dtype, dev)
         f(a, c)
-        c_np = a.asnumpy() == 1
-        tvm.testing.assert_allclose(c.asnumpy(), c_np)
+        c_np = a.numpy() == 1
+        tvm.testing.assert_allclose(c.numpy(), c_np)
 
     check_llvm(64)
 
@@ -335,8 +335,8 @@ def test_rank_zero():
         sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
         d = tvm.nd.empty((), D.dtype, dev)
         f(a, sc, d)
-        d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
-        tvm.testing.assert_allclose(d.asnumpy(), d_np)
+        d_np = np.sum(a.numpy()) * sc.numpy() + 1
+        tvm.testing.assert_allclose(d.numpy(), d_np)
 
     check_llvm(64)
 
@@ -359,8 +359,8 @@ def test_rank_zero_bound_checkers():
             sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
             d = tvm.nd.empty((), D.dtype, dev)
             f(a, sc, d)
-            d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
-            tvm.testing.assert_allclose(d.asnumpy(), d_np)
+            d_np = np.sum(a.numpy()) * sc.numpy() + 1
+            tvm.testing.assert_allclose(d.numpy(), d_np)
 
     check_llvm(64)
 
@@ -461,8 +461,8 @@ def test_llvm_div():
 
         # Run the function and convert the results to numpy
         f(A_arr, B_arr, D_arr, M_arr)
-        D_arr = D_arr.asnumpy()
-        M_arr = M_arr.asnumpy()
+        D_arr = D_arr.numpy()
+        M_arr = M_arr.numpy()
 
         # This helper just prints additional info on failure
         def _show_info():
@@ -555,7 +555,7 @@ def test_llvm_fp_math():
         a = tvm.nd.array(np.full((n,), 100, "float32"))
         b = tvm.nd.empty((n,), "float32")
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np.zeros((n,), "float32"))
+        tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
     check_llvm_reciprocal(4)
     check_llvm_reciprocal(8)
@@ -571,7 +571,7 @@ def test_llvm_fp_math():
         a = tvm.nd.array(np.full((n,), -1000, "float32"))
         b = tvm.nd.empty((n,), "float32")
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np.zeros((n,), "float32"))
+        tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
     check_llvm_sigmoid(4)
     check_llvm_sigmoid(8)
@@ -684,7 +684,7 @@ def test_llvm_shuffle():
         b_ = tvm.nd.array(np.arange(8, 0, -1, dtype="int32"))
         c_ = tvm.nd.array(np.zeros((8,), dtype="int32"))
         module(a_, b_, c_)
-        tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype("int32"))
+        tvm.testing.assert_allclose(c_.numpy(), (a_.numpy() * 2).astype("int32"))
 
 
 def np_float2np_bf16(arr):
@@ -710,7 +710,7 @@ def np_bf162np_float(arr):
 
 
 def np_bf16_cast_and_cast_back(arr):
-    """ Convert a numpy array of float to bf16 and cast back"""
+    """Convert a numpy array of float to bf16 and cast back"""
     return np_bf162np_float(np_float2np_bf16(arr))
 
 
@@ -735,7 +735,7 @@ def test_llvm_bf16():
         b_ = np_float2tvm_bf16(npb)
         c_ = tvm.nd.empty((32,), "uint16")
         module(a_, b_, c_)
-        tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
+        tvm.testing.assert_allclose(np_bf162np_float(c_.numpy()), res)
 
     dotest(True)
     dotest(False)
@@ -815,7 +815,7 @@ def test_llvm_gpu_lower_atomic():
         f(a)
         ref = np.zeros((size,)).astype(A.dtype)
         ref[0] = size
-        tvm.testing.assert_allclose(a.asnumpy(), ref, rtol=1e-5)
+        tvm.testing.assert_allclose(a.numpy(), ref, rtol=1e-5)
 
 
 if __name__ == "__main__":

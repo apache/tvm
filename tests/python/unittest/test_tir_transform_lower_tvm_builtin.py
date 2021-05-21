@@ -22,7 +22,7 @@ from tvm import testing
 
 @tvm.register_func("tvm.test_matmul")
 def my_matmul(a, b, c):
-    c.copyfrom(np.dot(a.asnumpy(), b.asnumpy()))
+    c.copyfrom(np.dot(a.numpy(), b.numpy()))
 
 
 def check_packed_func(target="llvm"):
@@ -169,7 +169,7 @@ def test_call_packed_return_non_i32():
     f = tvm.build(mod, None, "llvm")
     a = tvm.nd.array(np.zeros(2, dtype="float32"))
     f(a)
-    tvm.testing.assert_allclose(a.asnumpy(), expected_value)
+    tvm.testing.assert_allclose(a.numpy(), expected_value)
 
 
 if __name__ == "__main__":

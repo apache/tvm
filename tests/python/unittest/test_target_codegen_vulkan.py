@@ -28,7 +28,7 @@ def check_mod(mod, x_np, res_np):
     target = "vulkan"
     dev = tvm.device(target, 0)
     ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    res = ex.evaluate()(x_np).asnumpy()
+    res = ex.evaluate()(x_np).numpy()
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
@@ -79,9 +79,9 @@ def test_vulkan_copy():
         dev = tvm.vulkan(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(a_np)
-        b_np = a.asnumpy()
+        b_np = a.numpy()
         tvm.testing.assert_allclose(a_np, b_np)
-        tvm.testing.assert_allclose(a_np, a.asnumpy())
+        tvm.testing.assert_allclose(a_np, a.numpy())
 
     for _ in range(100):
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
@@ -106,7 +106,7 @@ def test_vulkan_vectorize_add():
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
     check_vulkan("float32", 64, 2)
     check_vulkan("float16", 64, 2)
@@ -158,7 +158,7 @@ def test_vulkan_stress():
                 f(a, b, c)
 
             for ((_, ref), c) in zip(fs, cs):
-                tvm.testing.assert_allclose(c.asnumpy(), ref(a.asnumpy(), b.asnumpy()))
+                tvm.testing.assert_allclose(c.numpy(), ref(a.numpy(), b.numpy()))
 
         ts = [threading.Thread(target=worker) for _ in range(np.random.randint(1, 10))]
         for t in ts:
@@ -214,7 +214,7 @@ def test_vulkan_bool_load():
     b = tvm.nd.array(b_np, dev)
     func(a, b)
     ref = a_np.astype(np.int32)
-    tvm.testing.assert_allclose(b.asnumpy(), ref)
+    tvm.testing.assert_allclose(b.numpy(), ref)
 
 
 @tvm.testing.requires_vulkan
@@ -289,7 +289,7 @@ def test_vulkan_constant_passing():
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         f_add(*scalars, a, b)
 
-        tvm.testing.assert_allclose(a.asnumpy() + sum(scalars), b.asnumpy())
+        tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
 
     # f_add has 3+num_int_params scalar parameters.  The other three
     # are length_n, stride1, and stride2.
@@ -349,12 +349,12 @@ def test_vulkan_while_if(target, dev):
     a = tvm.nd.array(np.array([5], dtype=A.dtype), dev)
     b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
     func(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), [55])
+    tvm.testing.assert_allclose(b.numpy(), [55])
 
     a = tvm.nd.array(np.array([-5], dtype=A.dtype), dev)
     b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
     func(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), [210])
+    tvm.testing.assert_allclose(b.numpy(), [210])
 
 
 if __name__ == "__main__":
