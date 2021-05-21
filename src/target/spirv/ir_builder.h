@@ -35,6 +35,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <tuple>
 #include <spirv.hpp>
 // clang-format on
 
