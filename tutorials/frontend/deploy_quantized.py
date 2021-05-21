@@ -57,7 +57,7 @@ def get_val_data(num_workers=4):
     std_rgb = [58.393, 57.12, 57.375]
 
     def batch_fn(batch):
-        return batch.data[0].numpy(), batch.label[0].numpy()
+        return batch.data[0].asnumpy(), batch.label[0].asnumpy()
 
     img_size = 299 if model_name == "inceptionv3" else 224
     val_data = mx.io.ImageRecordIter(
