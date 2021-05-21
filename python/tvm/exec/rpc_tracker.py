@@ -22,7 +22,7 @@ from ..rpc.tracker import Tracker
 
 
 def main(args):
-    """Main funciton"""
+    """Main function"""
     tracker = Tracker(args.host, port=args.port, port_end=args.port_end, silent=args.silent)
     tracker.proc.join()
 
