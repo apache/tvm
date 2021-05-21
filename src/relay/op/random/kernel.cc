@@ -85,5 +85,52 @@ RELAY_REGISTER_OP("random.threefry_split")
     .add_argument("key", "Tensor", "Input Threefry key")
     .add_type_rel("ThreefrySplit", ThreefrySplitRel);
 
+TVM_REGISTER_NODE_TYPE(UniformAttrs);
+
+bool UniformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  const UniformAttrs* param = attrs.as<UniformAttrs>();
+  ICHECK_EQ(types.size(), 4) << "Uniform should have three inputs and one output";
+
+  std::vector<IndexExpr> oshape;
+  for (auto& x : param->out_shape) {
+    oshape.push_back(x);
+  }
+  DataType out_dtype = param->out_dtype;
+  // we are supporting float32 and float64 at the moment.
+  if (!(out_dtype.is_float() && (out_dtype.bits() == 32 || out_dtype.bits() == 64))) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "We only support generating uniform random value of "
+                                     << "type float32 or float64, got " << out_dtype << ".");
+    return false;
+  }
+  reporter->Assign(types[0], ThreefryKeyType());
+  reporter->Assign(types[1], TensorType({}, out_dtype));
+  reporter->Assign(types[2], TensorType({}, out_dtype));
+  // generate returns the next key and an array of random values
+  reporter->Assign(types[3], TupleType({ThreefryKeyType(), TensorType(oshape, out_dtype)}));
+  return true;
+}
+
+Expr MakeUniform(Expr key, Expr low, Expr high, Array<Integer> out_shape, DataType out_dtype) {
+  auto attrs = make_object<UniformAttrs>();
+  attrs->out_shape = out_shape;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("random.uniform");
+  return Call(op, {key, low, high}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.random._make.uniform").set_body_typed(MakeUniform);
+
+RELAY_REGISTER_OP("random.uniform")
+    .describe(
+        R"doc(Generate an array of random numbers under uniform distribution.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .set_attrs_type<UniformAttrs>()
+    .add_argument("key", "Tensor", "Input Threefry key")
+    .add_argument("low", "Tensor", "Lower bound of the distribution")
+    .add_argument("high", "Tensor", "Higher bound of the distribution")
+    .add_type_rel("Uniform", UniformRel);
+
 }  // namespace relay
 }  // namespace tvm
