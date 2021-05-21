@@ -2012,17 +2012,17 @@ def test_unique():
                 )  # unique, indices, inverse_indices, num_unique, counts
                 num_unique = np_res[3][0]
                 # num_unique
-                assert num_unique == tvm_res[3].asnumpy()[0]
+                assert num_unique == tvm_res[3].numpy()[0]
                 # unique
-                tvm.testing.assert_allclose(tvm_res[0].asnumpy()[:num_unique], np_res[0], rtol=1e-5)
+                tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
                 # indices
-                tvm.testing.assert_allclose(tvm_res[1].asnumpy()[:num_unique], np_res[1], rtol=1e-5)
+                tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
                 # inverse_indices
-                tvm.testing.assert_allclose(tvm_res[2].asnumpy(), np_res[2], rtol=1e-5)
+                tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
                 # counts
                 if return_counts:
                     tvm.testing.assert_allclose(
-                        tvm_res[4].asnumpy()[:num_unique], np_res[4], rtol=1e-5
+                        tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5
                     )
 
     for dtype in ["int32", "int64"]:
