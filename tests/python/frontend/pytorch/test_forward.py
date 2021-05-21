@@ -205,6 +205,7 @@ def verify_model(
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+    print(mod["main"])
     for arg in mod["main"].params[: len(input_names)]:
         assert arg.name_hint in input_names
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
@@ -3710,6 +3711,7 @@ def test_convert_torch_script_with_input_types():
     input_y = torch.randint(low=0, high=100, size=ishape, dtype=torch.int32)
     inputs = [input_x, input_y]
     script_module = torch.jit.trace(model_fn, inputs)
+    print(script_module)
 
     fname = "tmp.pt"
     torch.jit.save(script_module, fname)
@@ -3867,6 +3869,7 @@ def test_unique():
 
 
 if __name__ == "__main__":
+    """
     # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
@@ -4042,6 +4045,6 @@ if __name__ == "__main__":
 
     # Test bert model
     test_forward_pretrained_bert_base_uncased()
-
+    """
     # Test convert torch script(jit) with specific inputs' types
     test_convert_torch_script_with_input_types()

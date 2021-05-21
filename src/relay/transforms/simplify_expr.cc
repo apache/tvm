@@ -111,27 +111,60 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
  public:
   SimplifyConsecutiveCast() {
     data_ = IsWildcard();
-    auto cast1 = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
-    pattern_ = IsOp("cast_like")({cast1, IsWildcard()}) || IsOp("cast")({cast1});
+    cast1_ = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
+    pattern_ = IsOp("cast_like")({cast1_, IsWildcard()}) || IsOp("cast")({cast1_});
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
     static const Op& cast_op = Op::Get("cast");
-    static const Op& cast_like_op = Op::Get("cast_like");
     auto data = node_map[data_][0];
-    const CallNode* call = post.as<CallNode>();
-    if (call->op == cast_op) {
-      auto attr = call->attrs.as<CastAttrs>();
+    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
+    auto data_type = Downcast<TensorType>(data->checked_type());
+    DataType cast1_dtype;
+    if (cast1->op == cast_op) {
+      auto attr = cast1->attrs.as<CastAttrs>();
       CHECK(attr);
-      return MakeCast(data, attr->dtype);
+      cast1_dtype = attr->dtype;
+    } else {  // cast_like
+      cast1_dtype = Downcast<TensorType>(cast1->args[1]->checked_type())->dtype;
     }
-    // cast_like op
-    return Call(cast_like_op, {data, call->args[1]}, Attrs(), {});
+    if (!IsWidenCast(data_type->dtype, cast1_dtype)) {
+      // Cannot remove the narrow cast
+      return post;
+    }
+    const CallNode* cast2 = post.as<CallNode>();
+    DataType cast2_dtype;
+    if (cast2->op == cast_op) {
+      auto attr = cast2->attrs.as<CastAttrs>();
+      CHECK(attr);
+      cast2_dtype = attr->dtype;
+    } else {  // cast_like
+      cast2_dtype = Downcast<TensorType>(cast2->args[1]->checked_type())->dtype;
+    }
+    auto expr = MakeCast(data, cast2_dtype);
+    // We need to set the checked type as it may be needed in the next callback
+    expr->checked_type_ = TensorType(data_type->shape, cast2_dtype);
+    return expr;
+  }
+
+  bool IsWidenCast(DataType origin, DataType cast) const {
+    if (origin.code() == cast.code() && origin.bits() <= cast.bits()) {
+      return true;
+    }
+    if (origin.code() == DataType::kBFloat || cast.code() == DataType::kBFloat) {
+      // BFloat cast cannot be omitted
+      return false;
+    }
+    if (origin.code() < cast.code()) {
+      return true;
+    }
+    return false;
   }
 
  protected:
   DFPattern data_;
+  DFPattern cast1_;
 };
 
 /*!
