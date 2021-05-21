@@ -186,7 +186,7 @@ class NDArray(NDArrayBase):
         """Convert this array to numpy array. This API will be deprecated in TVM v0.8 release.
         Please use `numpy` instead."""
         warnings.warn(
-            "NDArray.asnumpy() will be deprecated in TVM v0.8 release. "
+            "NDArray.numpy() will be deprecated in TVM v0.8 release. "
             "Please use NDArray.numpy() instead.",
             DeprecationWarning,
         )

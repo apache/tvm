@@ -83,22 +83,22 @@ def test_unique(dev, target):
                 func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique)
         
         num_unique = np_num_unique[0]
-        assert tvm_num_unique.asnumpy()[0] == np_num_unique
+        assert tvm_num_unique.numpy()[0] == np_num_unique
 
         np.testing.assert_allclose(
-            tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
+            tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
         np.testing.assert_allclose(
-            tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
+            tvm_indices.numpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
         )
 
         np.testing.assert_allclose(
-            tvm_inverse_indices.asnumpy()[:num_unique], np_inverse_indices, atol=1e-5, rtol=1e-5
+            tvm_inverse_indices.numpy()[:num_unique], np_inverse_indices, atol=1e-5, rtol=1e-5
         )
         
         if with_counts:
             np.testing.assert_allclose(
-                tvm_counts.asnumpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
+                tvm_counts.numpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
             )
 
     for in_dtype in ["int32", "int64"]:

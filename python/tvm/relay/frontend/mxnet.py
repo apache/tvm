@@ -2894,9 +2894,9 @@ def from_mxnet(symbol, shape=None, dtype="float32", arg_params=None, aux_params=
         arg_params = arg_params if arg_params else {}
         aux_params = aux_params if aux_params else {}
         for k, v in arg_params.items():
-            params[k] = _nd.array(v.asnumpy())
+            params[k] = _nd.array(v.numpy())
         for k, v in aux_params.items():
-            params[k] = _nd.array(v.asnumpy())
+            params[k] = _nd.array(v.numpy())
         shape, dtype = _update_shape_dtype(shape, dtype, params)
         func = _from_mxnet_impl(symbol, shape, dtype, params, mod)
     elif isinstance(symbol, mx.gluon.HybridBlock):
@@ -2904,7 +2904,7 @@ def from_mxnet(symbol, shape=None, dtype="float32", arg_params=None, aux_params=
             raise ValueError("arg_params and aux_params ae not used when importing HybridBlock")
         params = {}
         for k, v in symbol.collect_params().items():
-            params[k] = _nd.array(v.data().asnumpy())
+            params[k] = _nd.array(v.data().numpy())
         inputs = []
         for name in shape:
             inputs.append(mx.sym.Variable(name))

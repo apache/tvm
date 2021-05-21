@@ -129,7 +129,7 @@ def block2symbol(block):
     args = {}
     auxs = {}
     for k, v in block.collect_params().items():
-        args[k] = mx.nd.array(v.data().asnumpy())
+        args[k] = mx.nd.array(v.data().numpy())
     return sym, args, auxs
 
 
