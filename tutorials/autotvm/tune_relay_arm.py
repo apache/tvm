@@ -278,6 +278,10 @@ def tune_tasks(
             tuner_obj = XGBTuner(tsk, loss_type="rank")
         elif tuner == "xgb_knob":
             tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == 'xgb_itervar':
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == 'xgb_curve':
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == "random":
