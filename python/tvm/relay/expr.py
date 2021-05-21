@@ -405,7 +405,7 @@ class TupleWrapper(object):
 
     def astuple(self):
         """Returns the underlying Relay tuple if this wrapper is passed
-        as an argumentn to an FFI function."""
+        as an argument to an FFI function."""
         return self.tuple_value
 
     def astext(self):
@@ -419,8 +419,6 @@ class TupleWrapper(object):
         return self.tuple_value.astext()
 
     def __getitem__(self, index):
-        print("INdex is: ", index)
-        print("Type of index is: ", type(index))
         if index >= len(self):
             raise IndexError("Tuple index out of range")
         return TupleGetItem(self.tuple_value, index)
