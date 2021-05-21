@@ -2967,8 +2967,19 @@ class Unique(OnnxOpConverter):
 
         # ONNX documentation doesn't list return_counts as an attribute, but it lists return_counts as optional.
         # Therefore we'll just always return it.
-        print(type(data))
-        return _op.unique(data, is_sorted=(sorted == 1), return_counts=True)
+        unique = _op.unique(data, is_sorted=(sorted == 1), return_counts=True)
+        unique_shape = infer_type(unique[0]).checked_type.shape
+        num_unique = unique[3]
+
+        trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
+
+        unique_vals = trim_unique_lambda(unique[0])
+        indices = trim_unique_lambda(unique[1])
+        inverse_indices = unique[2]
+        counts = trim_unique_lambda(unique[4])
+        # ONNX unique returns unique, indices, inverse_indices, (optional) counts
+        return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -3326,19 +3337,7 @@ class GraphProto:
             if outputs_num == 1:
                 op = fold_constant(op)
             else:
-                #elif len(outputs) != outputs_num:
-                print("op before: ", op)
-                tuple_list = []
-                for i in range(len(node_output)):
-                    print("index: ", type(i))
-                    folded_op_i = fold_constant(op[i])
-                    print("folded op[i]: ", folded_op_i)
-                    tuple_list.append(folded_op_i)
-                    
-                op = _expr.TupleWrapper(_expr.Tuple(tuple_list), len(node_output))
-                print("op after: ", op)
-                # somehow tuplegetitem is getting a string??
-            self._nodes = op
+                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
 
             if outputs_num > 1:
                 # ONNX supports optional outputs for some nodes.
@@ -3362,7 +3361,7 @@ class GraphProto:
                     if len(outputs) == 1:
                         op = outputs[0]
                     elif len(outputs) != outputs_num:
-                        op = _expr.TupleWrapper(outputs, len(outputs))
+                        op = _expr.TupleWrapper(_expr.Tuple(outputs), len(outputs))
                     # Drop invalid outputs for the onnx node
                     outputs_num = len(outputs)
                     node_output = [output for output in node_output if output != ""]
@@ -3371,6 +3370,13 @@ class GraphProto:
             ), "Number of output mismatch {} vs {} in {}.".format(
                 len(node_output), outputs_num, op_name
             )
+
+        if outputs_num == 1:
+            self._nodes[node_output[0]] = op
+        else:
+            for k, i in zip(list(node_output), range(len(node_output))):
+                self._nodes[k] = op[i]
+
 
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]

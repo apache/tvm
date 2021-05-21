@@ -3952,7 +3952,7 @@ bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const int ndim = static_cast<int>(data->shape.size());
   ICHECK_EQ(ndim, 1) << "Unique: input must be 1-D tensor";
-  ICHECK_EQ(data->dtype.is_int(), true) << "Unique: input must have int32 or int64 dtype";
+
   std::vector<Type> fields;
   fields.push_back(TensorType(data->shape, data->dtype));               // unique
   fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
