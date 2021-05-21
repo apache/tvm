@@ -2965,10 +2965,9 @@ class Unique(OnnxOpConverter):
                 raise ValueError("TVM only supports 1D Unique operator.")
         sorted = attr.get("sorted", 1) # sorted is 0 or 1, 1 by default
 
-        # ONNX documentation doesn't list return_counts as an attribute, but it lists return_counts as optional.
+        # ONNX documentation lists return_counts as optional but there is no input to specify whether it is returned.
         # Therefore we'll just always return it.
         unique = _op.unique(data, is_sorted=(sorted == 1), return_counts=True)
-        unique_shape = infer_type(unique[0]).checked_type.shape
         num_unique = unique[3]
 
         trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
