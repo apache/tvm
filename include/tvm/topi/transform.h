@@ -1222,7 +1222,7 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
         }
         Array<PrimExpr> real_indices;
         for (size_t i = 0; i < ndim_i; ++i) {
-          if (i == (size_t)axis) {
+          if (i == static_cast<size_t>(axis)) {
             real_indices.push_back(indices(indices_position));
           } else {
             real_indices.push_back(indices_position[i]);
