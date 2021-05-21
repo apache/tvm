@@ -427,6 +427,33 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
 
  private:
+  std::vector<const char*> find_enabled_extensions(
+      const std::vector<VkExtensionProperties>& ext_prop,
+      const std::vector<const char*>& required_extensions,
+      const std::vector<const char*>& optional_extensions) {
+    std::set<std::string> available_extensions;
+    for (const auto& prop : ext_prop) {
+      if (prop.specVersion > 0) {
+        available_extensions.insert(prop.extensionName);
+      }
+    }
+
+    std::vector<const char*> enabled_extensions;
+    for (const auto& ext : required_extensions) {
+      ICHECK(available_extensions.count(ext))
+          << "Required vulkan extension \"" << ext << "\" not supported by driver";
+      enabled_extensions.push_back(ext);
+    }
+
+    for (const auto& ext : optional_extensions) {
+      if (available_extensions.count(ext)) {
+        enabled_extensions.push_back(ext);
+      }
+    }
+
+    return enabled_extensions;
+  }
+
   VkInstance instance_{nullptr};
   // The physical devices, have 1 to 1 mapping to devices
   std::vector<VulkanContext> context_;
@@ -516,20 +543,6 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 }
 
 VulkanDeviceAPI::VulkanDeviceAPI() {
-  VkApplicationInfo app_info;
-  app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.pNext = nullptr;
-  app_info.pApplicationName = "TVM";
-  app_info.applicationVersion = 0;
-  app_info.pEngineName = "";
-  app_info.engineVersion = 0;
-  app_info.apiVersion = VK_MAKE_VERSION(1, 0, 0);
-
-  VkInstanceCreateInfo inst_info;
-  inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  inst_info.pNext = nullptr;
-  inst_info.flags = 0;
-
   const auto layers = []() -> std::vector<const char*> {
     uint32_t inst_layer_prop_count;
     VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, nullptr));
@@ -554,29 +567,42 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     return l;
   }();
 
-  const auto instance_extensions = []() -> std::vector<const char*> {
+  const auto instance_extensions = [this]() {
+    std::vector<const char*> required_extensions{"VK_KHR_get_physical_device_properties2"};
+    std::vector<const char*> optional_extensions{};
+
     uint32_t inst_extension_prop_count;
     VULKAN_CALL(
         vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count, nullptr));
     std::vector<VkExtensionProperties> inst_extension_prop(inst_extension_prop_count);
     VULKAN_CALL(vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count,
                                                        inst_extension_prop.data()));
-    std::vector<const char*> extensions;
-    for (const auto& ip : inst_extension_prop) {
-      if (std::strcmp(ip.extensionName, "VK_KHR_get_physical_device_properties2") == 0) {
-        extensions.push_back("VK_KHR_get_physical_device_properties2");
-      }
-    }
-    return extensions;
+
+    return find_enabled_extensions(inst_extension_prop, required_extensions, optional_extensions);
   }();
 
-  inst_info.pApplicationInfo = &app_info;
-  inst_info.enabledLayerCount = layers.size();
-  inst_info.ppEnabledLayerNames = layers.data();
-  inst_info.enabledExtensionCount = instance_extensions.size();
-  inst_info.ppEnabledExtensionNames = instance_extensions.data();
+  {
+    VkApplicationInfo app_info;
+    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pNext = nullptr;
+    app_info.pApplicationName = "TVM";
+    app_info.applicationVersion = 0;
+    app_info.pEngineName = "";
+    app_info.engineVersion = 0;
+    app_info.apiVersion = VK_MAKE_VERSION(1, 0, 0);
 
-  VULKAN_CALL(vkCreateInstance(&inst_info, nullptr, &instance_));
+    VkInstanceCreateInfo inst_info;
+    inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    inst_info.pNext = nullptr;
+    inst_info.flags = 0;
+    inst_info.pApplicationInfo = &app_info;
+    inst_info.enabledLayerCount = layers.size();
+    inst_info.ppEnabledLayerNames = layers.data();
+    inst_info.enabledExtensionCount = instance_extensions.size();
+    inst_info.ppEnabledExtensionNames = instance_extensions.data();
+
+    VULKAN_CALL(vkCreateInstance(&inst_info, nullptr, &instance_));
+  }
 
   uint32_t phy_dev_count = 0;
   VULKAN_CALL(vkEnumeratePhysicalDevices(instance_, &phy_dev_count, nullptr));
@@ -603,32 +629,30 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     ctx.phy_device = phy_dev;
     vkGetPhysicalDeviceProperties(ctx.phy_device, &(ctx.phy_device_prop));
 
-    const auto extensions = [&]() {
+    const auto device_extensions = [&]() {
+      std::vector<const char*> required_extensions{};
+      std::vector<const char*> optional_extensions{
+          "VK_KHR_driver_properties",
+          "VK_KHR_storage_buffer_storage_class",
+          "VK_KHR_8bit_storage",
+          "VK_KHR_16bit_storage",
+          "VK_KHR_shader_float16_int8",
+          "VK_KHR_push_descriptor",
+          "VK_KHR_descriptor_update_template",
+          "VK_KHR_get_memory_requirements2",
+          "VK_KHR_dedicated_allocation",
+          "VK_KHR_spirv_1_4",
+      };
+
       uint32_t device_extension_prop_count;
       VULKAN_CALL(vkEnumerateDeviceExtensionProperties(ctx.phy_device, nullptr,
                                                        &device_extension_prop_count, nullptr));
       std::vector<VkExtensionProperties> device_extension_prop(device_extension_prop_count);
       VULKAN_CALL(vkEnumerateDeviceExtensionProperties(
           ctx.phy_device, nullptr, &device_extension_prop_count, device_extension_prop.data()));
-      std::vector<const char*> extensions;
-      for (const auto& dp : device_extension_prop) {
-        if ((std::strcmp(dp.extensionName, "VK_KHR_push_descriptor") == 0) && dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_push_descriptor");
-        }
-        if ((std::strcmp(dp.extensionName, "VK_KHR_descriptor_update_template") == 0) &&
-            dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_descriptor_update_template");
-        }
-        if ((std::strcmp(dp.extensionName, "VK_KHR_get_memory_requirements2") == 0) &&
-            dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_get_memory_requirements2");
-        }
-        if ((std::strcmp(dp.extensionName, "VK_KHR_dedicated_allocation") == 0) &&
-            dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_dedicated_allocation");
-        }
-      }
-      return extensions;
+
+      return find_enabled_extensions(device_extension_prop, required_extensions,
+                                     optional_extensions);
     }();
 
     // All TVM-generated spirv shaders are marked as requiring int64
@@ -644,8 +668,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     device_create_info.pQueueCreateInfos = &queue_create_info;
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = nullptr;
-    device_create_info.enabledExtensionCount = extensions.size();
-    device_create_info.ppEnabledExtensionNames = extensions.data();
+    device_create_info.enabledExtensionCount = device_extensions.size();
+    device_create_info.ppEnabledExtensionNames = device_extensions.data();
     device_create_info.pEnabledFeatures = &enabled_features;
     VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(ctx.device)));
     ctx.queue_mutex.reset(new std::mutex());
@@ -718,28 +742,16 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       }
     }
     ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
-    auto has_extension = [&extensions](const char* query) {
-      return std::any_of(extensions.begin(), extensions.end(),
+    auto has_extension = [&device_extensions](const char* query) {
+      return std::any_of(device_extensions.begin(), device_extensions.end(),
                          [&](const char* extension) { return std::strcmp(query, extension) == 0; });
     };
 
 #ifdef USE_VULKAN_IMMEDIATE_MODE
     if (has_extension("VK_KHR_push_descriptor") &&
         has_extension("VK_KHR_descriptor_update_template")) {
-      ctx.descriptor_template_khr_functions = std::unique_ptr<VulkanDescriptorTemplateKHRFunctions>(
-          new VulkanDescriptorTemplateKHRFunctions());
-      ctx.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR =
-          CHECK_NOTNULL((PFN_vkCreateDescriptorUpdateTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkCreateDescriptorUpdateTemplateKHR"));
-      ctx.descriptor_template_khr_functions->vkDestroyDescriptorUpdateTemplateKHR =
-          CHECK_NOTNULL((PFN_vkDestroyDescriptorUpdateTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkDestroyDescriptorUpdateTemplateKHR"));
-      ctx.descriptor_template_khr_functions->vkUpdateDescriptorSetWithTemplateKHR =
-          CHECK_NOTNULL((PFN_vkUpdateDescriptorSetWithTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkUpdateDescriptorSetWithTemplateKHR"));
-      ctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR =
-          CHECK_NOTNULL((PFN_vkCmdPushDescriptorSetWithTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkCmdPushDescriptorSetWithTemplateKHR"));
+      ctx.descriptor_template_khr_functions =
+          std::make_unique<VulkanDescriptorTemplateKHRFunctions>(ctx.device);
     }
 #endif
 
@@ -747,11 +759,7 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     if (has_extension("VK_KHR_get_memory_requirements2") &&
         has_extension("VK_KHR_dedicated_allocation")) {
       ctx.get_buffer_memory_requirements_2_functions =
-          std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>(
-              new VulkanGetBufferMemoryRequirements2Functions());
-      ctx.get_buffer_memory_requirements_2_functions->vkGetBufferMemoryRequirements2KHR =
-          CHECK_NOTNULL((PFN_vkGetBufferMemoryRequirements2KHR)vkGetDeviceProcAddr(
-              ctx.device, "vkGetBufferMemoryRequirements2KHR"));
+          std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(ctx.device);
     }
 #endif
     context_.push_back(std::move(ctx));

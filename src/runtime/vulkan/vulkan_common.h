@@ -87,10 +87,10 @@ inline const char* VKGetErrorString(VkResult error) {
  * \brief Protected Vulkan call
  * \param func Expression to call.
  */
-#define VULKAN_CHECK_ERROR(__e)                                      \
-  {                                                                  \
-    ICHECK(__e == VK_SUCCESS) << "Vulan Error, code=" << __e << ": " \
-                              << vulkan::VKGetErrorString(__e);      \
+#define VULKAN_CHECK_ERROR(__e)                                       \
+  {                                                                   \
+    ICHECK(__e == VK_SUCCESS) << "Vulkan Error, code=" << __e << ": " \
+                              << vulkan::VKGetErrorString(__e);       \
   }
 
 #define VULKAN_CALL(func)    \
@@ -100,6 +100,18 @@ inline const char* VKGetErrorString(VkResult error) {
   }
 
 struct VulkanDescriptorTemplateKHRFunctions {
+  explicit VulkanDescriptorTemplateKHRFunctions(VkDevice device) {
+    vkCreateDescriptorUpdateTemplateKHR = (PFN_vkCreateDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkCreateDescriptorUpdateTemplateKHR"));
+    vkDestroyDescriptorUpdateTemplateKHR = (PFN_vkDestroyDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkDestroyDescriptorUpdateTemplateKHR"));
+    vkUpdateDescriptorSetWithTemplateKHR = (PFN_vkUpdateDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkUpdateDescriptorSetWithTemplateKHR"));
+    vkCmdPushDescriptorSetWithTemplateKHR =
+        (PFN_vkCmdPushDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
+            vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplateKHR"));
+  }
+
   PFN_vkCreateDescriptorUpdateTemplateKHR vkCreateDescriptorUpdateTemplateKHR{nullptr};
   PFN_vkDestroyDescriptorUpdateTemplateKHR vkDestroyDescriptorUpdateTemplateKHR{nullptr};
   PFN_vkUpdateDescriptorSetWithTemplateKHR vkUpdateDescriptorSetWithTemplateKHR{nullptr};
@@ -107,6 +119,11 @@ struct VulkanDescriptorTemplateKHRFunctions {
 };
 
 struct VulkanGetBufferMemoryRequirements2Functions {
+  explicit VulkanGetBufferMemoryRequirements2Functions(VkDevice device) {
+    vkGetBufferMemoryRequirements2KHR = (PFN_vkGetBufferMemoryRequirements2KHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements2KHR"));
+  }
+
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
 };
 
