@@ -42,7 +42,7 @@ def test_unique(dev, target):
             num_uniq,
         ]
 
-    def check_unique(data, is_sorted=False):
+    def check_unique(data, is_sorted=False, with_counts=False):
         # numpy reference
         np_unique, np_indices, np_inverse_indices, np_counts, np_num_unique = calc_numpy_unique(
             data, is_sorted
@@ -70,68 +70,46 @@ def test_unique(dev, target):
         tvm_inverse_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
         tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), device=dev)
 
-        # without counts
         with tvm.target.Target(target):
             te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
-            outs = fcompute(te_input, False)
+            outs = fcompute(te_input, with_counts)
             s = fschedule(outs)
             func = tvm.build(s, [te_input, *outs])
-            func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique)
 
-        print("TVM_DATA: ", tvm_data)
-        print("TVM_UNIQUE: ", tvm_unique)
-        print("TVM_INDICES: ", tvm_indices)
-        print("TVM_INVERSE_INDICES: ", tvm_inverse_indices)
-        print("TVM_NUM_UNIQUE: ", tvm_num_unique)
-
-        print("NP_DATA: ", data)
-        print("NP_UNIQUE: ", np_unique)
-        print("NP_INDICES: ", np_indices)
-        print("NP_INVERSE_INDICES: ", np_inverse_indices)
-        print("NP_NUM_UNIQUE: ", np_num_unique)
-
-        assert tvm_num_unique.asnumpy()[0] == np_num_unique
-        np.testing.assert_allclose(
-            tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
-        )
-
-        np.testing.assert_allclose(
-            tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
-        )
-
-        # with counts
-        tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
-        with tvm.target.Target(target):
-            te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
-            outs = fcompute(te_input, True)
-            s = fschedule(outs)
-            func = tvm.build(s, [te_input, *outs])
-            print("Trying func")
-            func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique, tvm_counts)
-            print("Succeeded")
-        np_unique, np_indices, np_inverse_indices, _, np_num_unique = calc_numpy_unique(
-            data, is_sorted
-        )  # TODO this is incorrect??
+            if with_counts:
+                tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
+                func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique, tvm_counts)
+            else:
+                func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique)
+        
         num_unique = np_num_unique[0]
         assert tvm_num_unique.asnumpy()[0] == np_num_unique
+
         np.testing.assert_allclose(
             tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
         np.testing.assert_allclose(
             tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
         )
+
         np.testing.assert_allclose(
-            tvm_counts.asnumpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
+            tvm_inverse_indices.asnumpy()[:num_unique], np_inverse_indices, atol=1e-5, rtol=1e-5
         )
+        
+        if with_counts:
+            np.testing.assert_allclose(
+                tvm_counts.asnumpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
+            )
 
     for in_dtype in ["int32", "int64"]:
         for is_sorted in [True, False]:
-            data = np.random.randint(0, 100, size=(1)).astype(in_dtype)
-            check_unique(data, is_sorted)
-            data = np.random.randint(0, 10, size=(10)).astype(in_dtype)
-            check_unique(data, is_sorted)
-            data = np.random.randint(0, 100, size=(10000)).astype(in_dtype)
-            check_unique(data, is_sorted)
+            for with_counts in [True, False]:
+                data = np.random.randint(0, 100, size=(1)).astype(in_dtype)
+                check_unique(data, is_sorted, with_counts)
+                data = np.random.randint(0, 10, size=(10)).astype(in_dtype)
+                check_unique(data, is_sorted, with_counts)
+                data = np.random.randint(0, 100, size=(10000)).astype(in_dtype)
+                check_unique(data, is_sorted, with_counts)
 
 
 if __name__ == "__main__":

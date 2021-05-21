@@ -177,14 +177,14 @@ def test_module_pass():
         # Execute the add function.
         x_nd = get_rand(shape, dtype)
         y_nd = get_rand(shape, dtype)
-        ref_res = x_nd.asnumpy() + y_nd.asnumpy()
+        ref_res = x_nd.numpy() + y_nd.numpy()
         for target, dev in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", device=dev, target=target)
             exe2 = relay.create_executor("debug", device=dev, target=target)
             res1 = exe1.evaluate(new_add)(x_nd, y_nd)
-            tvm.testing.assert_allclose(res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res1.numpy(), ref_res, rtol=1e-5)
             res2 = exe2.evaluate(new_add)(x_nd, y_nd)
-            tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res2.numpy(), ref_res, rtol=1e-5)
 
     test_pass_registration()
     test_pass_registration_no_decorator
@@ -274,14 +274,14 @@ def test_function_pass():
 
         # Execute the add function.
         x_nd = get_rand(shape, dtype)
-        ref_res = np.log(x_nd.asnumpy() * 2)
+        ref_res = np.log(x_nd.numpy() * 2)
         for target, dev in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", device=dev, target=target)
             exe2 = relay.create_executor("debug", device=dev, target=target)
             res1 = exe1.evaluate(new_log)(x_nd)
-            tvm.testing.assert_allclose(res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res1.numpy(), ref_res, rtol=1e-5)
             res2 = exe2.evaluate(new_log)(x_nd)
-            tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res2.numpy(), ref_res, rtol=1e-5)
 
     test_pass_registration()
     test_pass_registration_no_decorator()
@@ -436,25 +436,25 @@ def test_sequential_pass():
         # Execute the updated subtract function.
         x_nd = get_rand(shape, dtype)
         y_nd = get_rand(shape, dtype)
-        ref_res = np.subtract(x_nd.asnumpy() * 2, y_nd.asnumpy() * 2)
+        ref_res = np.subtract(x_nd.numpy() * 2, y_nd.numpy() * 2)
         for target, dev in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", device=dev, target=target)
             exe2 = relay.create_executor("debug", device=dev, target=target)
             res1 = exe1.evaluate(new_sub)(x_nd, y_nd)
-            tvm.testing.assert_allclose(res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res1.numpy(), ref_res, rtol=1e-5)
             res2 = exe2.evaluate(new_sub)(x_nd, y_nd)
-            tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res2.numpy(), ref_res, rtol=1e-5)
 
         # Execute the updated abs function.
         x_nd = get_rand((5, 10), dtype)
-        ref_res = np.abs(x_nd.asnumpy() * 2)
+        ref_res = np.abs(x_nd.numpy() * 2)
         for target, dev in tvm.testing.enabled_targets():
             exe1 = relay.create_executor("graph", device=dev, target=target)
             exe2 = relay.create_executor("debug", device=dev, target=target)
             res1 = exe1.evaluate(new_abs)(x_nd)
-            tvm.testing.assert_allclose(res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res1.numpy(), ref_res, rtol=1e-5)
             res2 = exe2.evaluate(new_abs)(x_nd)
-            tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(res2.numpy(), ref_res, rtol=1e-5)
 
     test_pass_registration()
     test_no_pass()

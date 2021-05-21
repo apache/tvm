@@ -48,7 +48,7 @@ def verify_clip(N, a_min, a_max, dtype):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B], target, name="clip")
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)

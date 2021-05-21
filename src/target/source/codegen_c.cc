@@ -662,6 +662,11 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
+    } else if (op->op.same_as(builtin::lookup_param())) {
+      ICHECK_EQ(op->args.size(), 1);
+      const StringImmNode* str = op->args[0].as<StringImmNode>();
+      ICHECK(str != nullptr);
+      os << "__tvm_param__" << str->value;
     } else {
       LOG(FATAL) << "Unresolved call " << op->op;
     }

@@ -38,7 +38,7 @@ def test_dot():
         b = tvm.nd.array(np.random.uniform(size=(nn,)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((), dtype=C.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-4)
+        tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-4)
 
     verify("llvm")
 

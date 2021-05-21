@@ -38,7 +38,7 @@ dtype = sys.argv[2]
 ff = tvm.runtime.load_module(path_dso)
 a = tvm.nd.array(np.zeros(10, dtype=dtype))
 ff(a)
-np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
+np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 print("Finish runtime checking...")
 """
 
@@ -79,10 +79,10 @@ def test_dso_module_load():
     f2 = tvm.runtime.load_module(path_ll)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f1(a)
-    np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
+    np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f2(a)
-    np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
+    np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
     path_runtime_py = temp.relpath("runtime.py")
     with open(path_runtime_py, "w") as fo:
@@ -126,11 +126,11 @@ def test_device_module_dump():
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
         f1(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         if sys.platform != "win32":
             f2 = tvm.runtime.system_lib()
             f2[name](a, b)
-            np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     def check_stackvm(device):
         dev = tvm.device(device, 0)
@@ -146,7 +146,7 @@ def test_device_module_dump():
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
         f(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     for device in ["cuda", "vulkan", "opencl", "metal"]:
         check_device(device)
@@ -183,9 +183,9 @@ def test_combine_module_llvm():
         a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
         fadd1(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         fadd2(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     def check_system_lib():
         dev = tvm.cpu(0)
@@ -208,9 +208,9 @@ def test_combine_module_llvm():
         a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
         mm["myadd1"](a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         mm["myadd2"](a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     if sys.platform != "win32":
         check_system_lib()

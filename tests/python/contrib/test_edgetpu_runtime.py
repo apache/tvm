@@ -80,7 +80,7 @@ def skipped_test_tflite_runtime():
             runtime.set_input(0, tvm.nd.array(tflite_input, dev))
             runtime.invoke()
             out = runtime.get_output(0)
-            np.testing.assert_equal(out.asnumpy(), tflite_output)
+            np.testing.assert_equal(out.numpy(), tflite_output)
 
     # Target CPU on coral board
     check_remote()

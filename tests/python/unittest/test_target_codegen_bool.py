@@ -46,8 +46,8 @@ def test_cmp_load_store():
         d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
         np.testing.assert_equal(
-            d.asnumpy(),
-            np.logical_and(a.asnumpy() > b.asnumpy(), a.asnumpy() > 1).astype("float32"),
+            d.numpy(),
+            np.logical_and(a.numpy() > b.numpy(), a.numpy() > 1).astype("float32"),
         )
 
     def check_device(device):
@@ -66,8 +66,8 @@ def test_cmp_load_store():
         d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
         np.testing.assert_equal(
-            d.asnumpy(),
-            np.logical_and(a.asnumpy() > b.asnumpy(), a.asnumpy() > 1).astype("float32"),
+            d.numpy(),
+            np.logical_and(a.numpy() > b.numpy(), a.numpy() > 1).astype("float32"),
         )
 
     check_llvm()

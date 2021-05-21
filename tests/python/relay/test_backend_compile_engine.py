@@ -190,7 +190,7 @@ def test_compile_engine():
             x = tvm.nd.array(np.ones(10).astype("float32"), device=dev)
             y = tvm.nd.empty((10,), device=dev)
             f(x, y)
-            tvm.testing.assert_allclose(y.asnumpy(), x.asnumpy() * 3)
+            tvm.testing.assert_allclose(y.numpy(), x.numpy() * 3)
     engine.dump()
 
 

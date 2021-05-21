@@ -361,7 +361,7 @@ c_np = a_np.dot(b_np)
 c_tvm = tvm.nd.empty(c_np.shape)
 func(tvm.nd.array(a_np), tvm.nd.array(b_np), c_tvm)
 
-tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-4)
+tvm.testing.assert_allclose(c_np, c_tvm.numpy(), rtol=1e-4)
 
 ################################################################################
 # Final Notes and Summary

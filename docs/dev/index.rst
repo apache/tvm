@@ -147,7 +147,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(a)
-    print(a.asnumpy())
+    print(a.numpy())
 
 
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
@@ -172,7 +172,7 @@ The above example only deals with a simple `addone` function. The code snippet b
    # execute the model
    gmod["run"]()
    # get the output
-   result = gmod["get_output"](0).asnumpy()
+   result = gmod["get_output"](0).numpy()
 
 The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 

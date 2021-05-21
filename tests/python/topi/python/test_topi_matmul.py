@@ -38,7 +38,7 @@ def with_tvm(lam, *args):
     s = te.create_schedule([out.op])
     m = tvm.build(s, pls + [out], "llvm")
     m(*(vals_nd + [out_nd]))
-    return out_nd.asnumpy()
+    return out_nd.numpy()
 
 
 def verify_matmul(sa, sb, transp_a, transp_b):

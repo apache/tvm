@@ -32,7 +32,7 @@ def verify(mod, goldens):
         rt_mod.set_input("quantized_data", golden_data)
         rt_mod.set_input(**params)
         rt_mod.run()
-        res = rt_mod.get_output(0).asnumpy()
+        res = rt_mod.get_output(0).numpy()
         np.testing.assert_equal(res, golden_output)
 
 

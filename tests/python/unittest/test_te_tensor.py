@@ -355,7 +355,7 @@ def test_tensor_scalar_mixed():
 
     @tvm.register_func("tvm.test_tensor_scalar_scale")
     def my_scale(tensor, scalar, out):
-        out_np = tensor.asnumpy() * scalar.asnumpy()
+        out_np = tensor.numpy() * scalar.numpy()
         tvm.nd.array(out_np).copyto(out)
 
     A = te.placeholder(a.shape, name="A")
@@ -375,7 +375,7 @@ def test_tensor_scalar_mixed():
     tb = tvm.nd.array(b)
     tc = tvm.nd.array(c)
     f(ta, tb, tc)
-    tvm.testing.assert_allclose(a * b, tc.asnumpy())
+    tvm.testing.assert_allclose(a * b, tc.numpy())
 
 
 def test_tensor_scalar():
@@ -400,7 +400,7 @@ def test_tensor_scalar():
     ta = tvm.nd.array(a)
     tb = tvm.nd.array(b)
     f(ta, tb)
-    tvm.testing.assert_allclose(ta.asnumpy(), tb.asnumpy())
+    tvm.testing.assert_allclose(ta.numpy(), tb.numpy())
 
 
 if __name__ == "__main__":

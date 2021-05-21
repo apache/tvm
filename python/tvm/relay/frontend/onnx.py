@@ -981,7 +981,7 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
-            shape = tuple(params[inputs[1].name_hint].asnumpy().astype("int32"))
+            shape = tuple(params[inputs[1].name_hint].numpy().astype("int32"))
             out = _op.reshape(inputs[0], shape)
         else:
             out = _op.reshape(*inputs)
@@ -1143,11 +1143,11 @@ class Upsample(OnnxOpConverter):
             assert len(inputs) == 2, "Upsample op takes 2 inputs, {} given".format(len(inputs))
 
             if get_name(inputs[1]) in params:
-                scales = params[inputs[1].name_hint].asnumpy()
+                scales = params[inputs[1].name_hint].numpy()
             else:
                 scales = inputs[1]
         if isinstance(scales, _expr.Constant):
-            scales = list(scales.data.asnumpy())
+            scales = list(scales.data.numpy())
         if not isinstance(scales, _expr.Expr):
             assert scales[0] == 1.0 and scales[1] == 1.0
 
@@ -1224,7 +1224,7 @@ class CumSum(OnnxOpConverter):
         dim = inputs[1]
 
         if dim is not None:
-            dim = int(infer_value(dim, params).asnumpy())
+            dim = int(infer_value(dim, params).numpy())
 
         exclusive = attr.get("exclusive", 0)
         reverse = attr.get("reverse", 0)
@@ -1376,7 +1376,7 @@ def normalize_gather_indices(data, indices, axis):
     s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
     if isinstance(cond, _expr.Constant):
-        val = cond.data.asnumpy()
+        val = cond.data.numpy()
         if val.size == 1:
             cond = val.item()
             if cond:
@@ -1414,10 +1414,19 @@ class GatherND(OnnxOpConverter):
     """Operator converter for GatherND."""
 
     @classmethod
+    def _impl_common(cls, data, indices, batch_dims=0):
+        indices_dims = len(infer_shape(indices))
+        indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
+        return _op.gather_nd(data, indices, batch_dims)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        indices_dims = len(infer_shape(inputs[1]))
-        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
-        return _op.gather_nd(inputs[0], indices)
+        return cls._impl_common(inputs[0], inputs[1])
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        batch_dims = attr.get("batch_dims", 0)
+        return cls._impl_common(inputs[0], inputs[1], batch_dims)
 
 
 class Scatter(OnnxOpConverter):
@@ -2703,11 +2712,7 @@ class NonMaxSuppression(OnnxOpConverter):
             boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
         )
 
-        three = _op.const(np.array([3]), dtype="int64")
-        begin = _op.const(np.array([0, 0]), dtype="int64")
-        end = _op.concatenate([nms_out[1], three], axis=0)
-        strides = _op.const(np.array([1, 1]), dtype="int64")
-        return _op.strided_slice(nms_out[0], begin, end, strides)
+        return _op.strided_slice(nms_out[0], _op.const([0], dtype="int64"), nms_out[1])
 
 
 class ATen(OnnxOpConverter):
@@ -2834,7 +2839,7 @@ class QLinearConv(OnnxOpConverter):
     def _impl_v10(cls, inputs, attr, params):
         def get_scalar(x, dtype="float32"):
             if isinstance(x, _expr.Var) and x.name_hint in params:
-                return _op.const(params[x.name_hint].asnumpy(), dtype)
+                return _op.const(params[x.name_hint].numpy(), dtype)
             rank = len(infer_shape(x))
             assert rank <= 1, "QLinearConv scale and zero_point input must be scalars"
             if rank == 1:

@@ -63,7 +63,7 @@ def test_dyn_upsampling_run():
                 op_res = intrp.evaluate()(
                     x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32")
                 )
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     verify_upsampling((1, 16, 32, 32), 3, 2.0, "NCHW", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 5, 2.0, "NCHW", "bilinear", True)
@@ -135,7 +135,7 @@ def test_dyn_upsampling3d_run():
                     np.array(scale_h).astype("float32"),
                     np.array(scale_w).astype("float32"),
                 )
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     verify_upsampling3d((1, 1, 1, 1, 1), 2, 3, 4, "NCDHW", "nearest_neighbor")
     verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 3.0, 4.0, "NCDHW", "nearest_neighbor")

@@ -136,7 +136,7 @@ def test_gemm():
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
         for i in range(2):
             f(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(b_np.T, a_np), rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), np.dot(b_np.T, a_np), rtol=1e-5)
 
         num_flops = 2 * nn * nn * nn
         num_runs = 10

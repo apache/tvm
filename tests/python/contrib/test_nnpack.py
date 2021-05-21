@@ -49,7 +49,7 @@ def test_fully_connected_inference():
         d = tvm.nd.array(np.zeros((m,), dtype=D.dtype), dev)
         bb = 10.0
         f(a, b, d, bb)
-        tvm.testing.assert_allclose(d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy().T) + bb, rtol=1e-5)
+        tvm.testing.assert_allclose(d.numpy(), np.dot(a.numpy(), b.numpy().T) + bb, rtol=1e-5)
 
     verify()
 
@@ -135,7 +135,7 @@ def test_convolution_inference():
         nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(
             1, bshape[0], 1, 1
         )
-        tvm.testing.assert_allclose(td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+        tvm.testing.assert_allclose(td.numpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
 
     for algorithm in [
         nnpack.ConvolutionAlgorithm.AUTO,
@@ -209,7 +209,7 @@ def test_convolution_inference_without_weight_transform():
         nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(
             1, bshape[0], 1, 1
         )
-        tvm.testing.assert_allclose(td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+        tvm.testing.assert_allclose(td.numpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
 
     for algorithm in [nnpack.ConvolutionAlgorithm.WT_8x8]:
         for with_bias in [True, False]:

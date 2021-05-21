@@ -3350,21 +3350,34 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const size_t kdim = indices->shape.size() - 1;
   ICHECK(size_t(mdim->value) <= ndim) << "GatherND: indices shape does satisfy.";
 
+  const auto param = attrs.as<GatherNDAttrs>();
+  ICHECK(param != nullptr);
+
+  for (int i = 0; i < param->batch_dims->value; ++i) {
+    ICHECK(reporter->AssertEQ(
+        data->shape[i], indices->shape[i + 1]));  // +1 since the first axis is the index tuple
+  }
+
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
-  for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
+  for (size_t i = mdim->value + param->batch_dims->value; i < ndim; ++i)
+    oshape.push_back(data->shape[i]);
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
 Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  return {topi::gather_nd(inputs[0], inputs[1])};
+  const auto* param = attrs.as<GatherNDAttrs>();
+  ICHECK(param);
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
 }
 
-Expr MakeGatherND(Expr data, Expr indices) {
+Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0) {
   static const Op& op = Op::Get("gather_nd");
-  return Call(op, {data, indices}, {});
+  auto attrs = make_object<GatherNDAttrs>();
+  attrs->batch_dims = batch_dims;
+  return Call(op, {data, indices}, Attrs(attrs));
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.gather_nd").set_body_typed(MakeGatherND);
@@ -3373,10 +3386,19 @@ RELAY_REGISTER_OP("gather_nd")
     .describe(R"code(Gather elements or slices from data and store to
                  a tensor whose shape is defined by indices.
 
-Given data with shape (X_0, X_1, ..., X_{N-1}) and indices with
-shape (M, Y_0, ..., Y_{K-1}), the output will have shape
-(Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), where M <= N. If M == N,
-output shape will simply be (Y_0, ..., Y_{K-1}).
+Optionally, batch_dims, the number of batch dimensions, can be given, whose
+default value is 0.
+
+Let B denote batch_dims, and data, indices shape be (X_0, X_1, ..., X_{N-1}),
+(M, Y_0, ..., Y_{K-1}) respectively.
+
+When B > 0, indexing will start from the B-th axis, and it must be the case that
+X_0, ... X_{B-1} == Y_0, ... Y_{B-1}. The output will have a shape
+(X_0, ..., X_{B-1}, Y_B, ..., Y_{K-1}, X_{M+B}, ..., X_{N-1}), where M + B <= N.
+
+When B == 0 (the default case), the output shape will be (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}).
+
+In both cases, if M + B == N, the output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")

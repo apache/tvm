@@ -48,6 +48,11 @@ def add_compile_parser(subparsers):
         help="the cross compiler to generate target libraries, e.g. 'aarch64-linux-gnu-gcc'",
     )
     parser.add_argument(
+        "--cross-compiler-options",
+        default="",
+        help="the cross compiler options to generate target libraries, e.g. '-mfpu=neon-vfpv4'",
+    )
+    parser.add_argument(
         "--desired-layout",
         choices=["NCHW", "NHWC"],
         default=None,
@@ -126,6 +131,7 @@ def drive_compile(args):
         tuning_records=args.tuning_records,
         package_path=args.output,
         cross=args.cross_compiler,
+        cross_options=args.cross_compiler_options,
         dump_code=dump_code,
         target_host=None,
         desired_layout=args.desired_layout,
@@ -141,6 +147,7 @@ def compile_model(
     tuning_records: Optional[str] = None,
     package_path: Optional[str] = None,
     cross: Optional[Union[str, Callable]] = None,
+    cross_options: Optional[str] = None,
     export_format: str = "so",
     dump_code: Optional[List[str]] = None,
     target_host: Optional[str] = None,
@@ -168,6 +175,8 @@ def compile_model(
         be saved in a temporary directory.
     cross : str or callable object, optional
         Function that performs the actual compilation
+    cross_options : str, optional
+        Command line options to be passed to the cross compiler.
     export_format : str
         What format to use when saving the function library. Must be one of "so" or "tar".
         When compiling for a remote device without a cross compiler, "tar" will likely work better.
@@ -252,7 +261,9 @@ def compile_model(
         dumps[source_type] = source
 
     # Create a new tvmc model package object from the graph definition.
-    package_path = tvmc_model.export_package(graph_module, package_path, cross, export_format)
+    package_path = tvmc_model.export_package(
+        graph_module, package_path, cross, cross_options, export_format
+    )
 
     # Write dumps to file.
     if dumps:
