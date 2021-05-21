@@ -119,7 +119,7 @@ def _calc_num_unique(inc_scan):
 
 
 def _calc_unique_ir(
-    data, argsorted_indices, inc_scan, index_converter, unique_elements, indices, counts
+    data, argsorted_indices, inc_scan, index_converter, unique_elements, inverse_indices, counts
 ):
     """Low level IR to calculate unique elements, inverse indices, and counts (optional) of
     unique elements of 1-D array.
@@ -143,7 +143,7 @@ def _calc_unique_ir(
     unique_elements : Buffer
         A buffer that stores the unique elements.
 
-    indices : Buffer
+    inverse_indices : Buffer
         A buffer that stores the the index of each input data element in the unique element array.
 
     counts (optional) : Buffer
@@ -154,7 +154,7 @@ def _calc_unique_ir(
     argsorted_indices_ptr = ib.buffer_ptr(argsorted_indices)
     inc_scan_ptr = ib.buffer_ptr(inc_scan)
     unique_elements_ptr = ib.buffer_ptr(unique_elements)
-    indices_ptr = ib.buffer_ptr(indices)
+    inverse_indices_ptr = ib.buffer_ptr(inverse_indices)
 
     index_converter_ptr = None
     if isinstance(index_converter, tir.Buffer):
@@ -163,7 +163,7 @@ def _calc_unique_ir(
     if isinstance(counts, tir.Buffer):
         counts_ptr = ib.buffer_ptr(counts)
         # use indices_ptr as a tmp buffer to store tids with inc_scan[tid] != inc_scan[tid-1]
-        unique_seq_indices_ptr = ib.buffer_ptr(indices)
+        unique_seq_indices_ptr = ib.buffer_ptr(inverse_indices)
 
     batch_size = data.shape[0]
     max_threads = _get_max_threads(batch_size)
@@ -218,7 +218,7 @@ def _calc_unique_ir(
                 if not index_converter_ptr
                 else index_converter_ptr[inc_scan_ptr[tid]]
             )
-            indices_ptr[data_idx] = unique_idx
+            inverse_indices_ptr[data_idx] = unique_idx
             with ib.if_scope(tid == 0):
                 unique_elements_ptr[unique_idx] = data_ptr[data_idx]
             with ib.else_scope():
@@ -366,6 +366,20 @@ def unique(data, is_sorted=True, return_counts=False):
         out_buffers = [unique_elements_buf, inverse_indices_buf]
         out_dtypes = [data.dtype, "int32"]
     # prepare inputs and fcompute
+    # calculate first occurence
+    first_occurence_buf = tir.decl_buffer(
+        data.shape, "int32", "first_occurence_buf", data_alignment=8
+    )
+    first_occurence = te.extern(
+        [data.shape],
+        [argsorted_indices, inc_scan],
+        lambda ins, outs: _calc_first_occurence_ir(ins[0], ins[1], outs[0]),
+        dtype=["int32"],
+        in_buffers=[argsorted_indices_buf, inc_scan_buf],
+        out_buffers=[first_occurence_buf],
+        name="_calc_first_occurence",
+        tag="_calc_first_occurence_gpu",
+    )
     if is_sorted:
         in_data = [data, argsorted_indices, inc_scan]
         in_buffers = [data_buf, argsorted_indices_buf, inc_scan_buf]
@@ -373,22 +387,8 @@ def unique(data, is_sorted=True, return_counts=False):
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs)
         else:
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs, None)
+        indices = first_occurence
     else:
-        # calculate the index converter if the unique elements should not be sorted
-        # calculate first occurence
-        first_occurence_buf = tir.decl_buffer(
-            data.shape, "int32", "first_occurence_buf", data_alignment=8
-        )
-        first_occurence = te.extern(
-            [data.shape],
-            [argsorted_indices, inc_scan],
-            lambda ins, outs: _calc_first_occurence_ir(ins[0], ins[1], outs[0]),
-            dtype=["int32"],
-            in_buffers=[argsorted_indices_buf, inc_scan_buf],
-            out_buffers=[first_occurence_buf],
-            name="_calc_first_occurence",
-            tag="_calc_first_occurence_gpu",
-        )
         # calculate index converter by sorting unique elements by their first occurence
         argsorted_first_occurence = argsort(first_occurence, dtype="int32")
         index_converter = argsort(argsorted_first_occurence, dtype="int32")
@@ -401,6 +401,7 @@ def unique(data, is_sorted=True, return_counts=False):
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, *outs)
         else:
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, *outs, None)
+        indices = sort(first_occurence)
     outs = te.extern(
         out_data_shape,
         in_data,
@@ -412,5 +413,5 @@ def unique(data, is_sorted=True, return_counts=False):
         tag="_calc_unique_gpu",
     )
     if return_counts:
-        return [outs[0], first_occurence, outs[1], num_unique_elements, outs[2]]
-    return [outs[0], first_occurence, outs[1], num_unique_elements]
+        return [outs[0], indices, outs[1], num_unique_elements, outs[2]]
+    return [outs[0], indices, outs[1], num_unique_elements]
