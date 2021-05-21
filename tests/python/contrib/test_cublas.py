@@ -112,7 +112,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
     verify()
 
 
-def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
+def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-2):
     j = 16
     n = 1024
     l = 128
@@ -128,14 +128,15 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
             return
         dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=(j, n, l)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(j, l, m)).astype(B.dtype), dev)
+        a = tvm.nd.array(np.random.uniform(size=(j, n, l)).astype(A.dtype) + 1, dev)
+        b = tvm.nd.array(np.random.uniform(size=(j, l, m)).astype(B.dtype) + 1, dev)
         c = tvm.nd.array(np.zeros((j, n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.asnumpy(),
             np.matmul(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)).astype(C.dtype),
             rtol=rtol,
+            atol=1e-2,
         )
 
     verify()
