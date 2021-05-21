@@ -130,6 +130,7 @@ transform::Pass Filter(FCond fcond) {
 
 IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  bool simple_mode = false;  // TODO(@electriclilies): add as argument to IRModule Lower
   Array<ObjectRef> out_arg_list;
   auto pass_ctx = transform::PassContext::Current();
 
@@ -166,7 +167,11 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
-  pass_list.push_back(tir::transform::LoopPartition());
+
+  if (!simple_mode) {
+    pass_list.push_back(tir::transform::LoopPartition());
+  }
+
   pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
   pass_list.push_back(tir::transform::InjectVirtualThread());
   pass_list.push_back(tir::transform::InjectDoubleBuffer());
@@ -176,6 +181,8 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
+  // HoistIfThenElse
+  pass_list.push_back(tir::transform::HoistIfThenElse());
   if (instrument_bound_checkers) {
     pass_list.push_back(tir::transform::InstrumentBoundCheckers());
   }
@@ -185,16 +192,18 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("driver.lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name, const Map<te::Tensor, tir::Buffer>& binds) {
-  std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-  // Check to make sure binds is not null before doing hte conversion;
-  if (binds->count) { // TODO: figure out why this is not compiling C++ sucks
-    for (auto kv : binds) {
-      c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
-    }
-  }
-  return lower(sch, args, name, c_binds);
-});
+TVM_REGISTER_GLOBAL("driver.lower")
+    .set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != NULL) {
+        for (auto kv : binds) {
+          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+        }
+      }
+      return lower(sch, args, name, c_binds);
+    });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,
@@ -350,4 +359,3 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
 }
 
 }  // namespace tvm
-
