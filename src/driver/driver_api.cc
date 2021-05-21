@@ -185,10 +185,13 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("tvm.driver.lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name, const Map<te::Tensor, tir::Buffer>& binds) {
+TVM_REGISTER_GLOBAL("driver.lower").set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name, const Map<te::Tensor, tir::Buffer>& binds) {
   std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-  for (auto kv : binds) {
-    c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+  // Check to make sure binds is not null before doing hte conversion;
+  if (binds->count) { // TODO: figure out why this is not compiling C++ sucks
+    for (auto kv : binds) {
+      c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+    }
   }
   return lower(sch, args, name, c_binds);
 });
