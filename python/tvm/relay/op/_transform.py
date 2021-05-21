@@ -1083,7 +1083,7 @@ def _gather_nd_shape(data_shape, indices_shape, batch_dims, num_indices_per_tupl
     # depend on a runtime shape dimension of indices tensor, even if the
     # dimension is always a known, fixed value. As a workaround, we assume that
     # the fixed gather dimension (the size of an indexing tuple) is recorded
-    # in `gather_nd` op attribute.
+    # in gather_nd op attributes.
     mdim = num_indices_per_tuple
     kdim = indices_shape.shape[0] - 1
     out_shape = output_tensor((kdim + ndim - (mdim + batch_dims),), "int64")
@@ -1097,7 +1097,7 @@ def _gather_nd_shape(data_shape, indices_shape, batch_dims, num_indices_per_tupl
 @_reg.register_shape_func("gather_nd", False)
 def gather_nd_shape_func(attrs, inputs, _):
     """
-    Shape func for ghater_nd operator.
+    Shape func for gather_nd operator.
     """
     batch_dims = get_const_int(attrs.batch_dims)
     num_indices_per_tuple = get_const_int(attrs.num_indices_per_tuple)
