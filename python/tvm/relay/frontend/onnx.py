@@ -2947,6 +2947,7 @@ class BitShift(OnnxOpConverter):
             raise ValueError("Unsupported Shift Direction: " + direction)
         return out
 
+
 class Unique(OnnxOpConverter):
     """Operator converter for unique"""
 
@@ -2957,13 +2958,13 @@ class Unique(OnnxOpConverter):
 
         data = inputs[0]
         axis = attr.get("axis", None)
-        if axis is None: # If axis is None, flatten the input before calling unique
+        if axis is None:  # If axis is None, flatten the input before calling unique
             data = _op.reshape(data, _op.const([-1]))
         else:
             data_shape = infer_shape(data)
             if len(data_shape) != 1:
                 raise ValueError("TVM only supports 1D Unique operator.")
-        sorted = attr.get("sorted", 1) # sorted is 0 or 1, 1 by default
+        sorted = attr.get("sorted", 1)  # sorted is 0 or 1, 1 by default
 
         # ONNX documentation lists return_counts as optional but there is no input to specify whether it is returned.
         # Therefore we'll just always return it.
@@ -3375,7 +3376,6 @@ class GraphProto:
         else:
             for k, i in zip(list(node_output), range(len(node_output))):
                 self._nodes[k] = op[i]
-
 
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]

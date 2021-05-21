@@ -34,11 +34,19 @@ def test_unique(dev, target):
             uniq = uniq[order].astype(data.dtype)
             inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
             counts = counts[order].astype("int32")
-        return [uniq.astype(data.dtype), index.astype("int32"), inverse.astype("int32"), counts, num_uniq]
+        return [
+            uniq.astype(data.dtype),
+            index.astype("int32"),
+            inverse.astype("int32"),
+            counts,
+            num_uniq,
+        ]
 
     def check_unique(data, is_sorted=False):
         # numpy reference
-        np_unique, np_indices, np_inverse_indices, np_counts, np_num_unique = calc_numpy_unique(data, is_sorted)
+        np_unique, np_indices, np_inverse_indices, np_counts, np_num_unique = calc_numpy_unique(
+            data, is_sorted
+        )
         num_unique = np_num_unique[0]
 
         implementations = {
@@ -87,7 +95,9 @@ def test_unique(dev, target):
             tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
 
-        np.testing.assert_allclose(tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(
+            tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
+        )
 
         # with counts
         tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
@@ -99,13 +109,17 @@ def test_unique(dev, target):
             print("Trying func")
             func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique, tvm_counts)
             print("Succeeded")
-        np_unique, np_indices, np_inverse_indices, _, np_num_unique = calc_numpy_unique(data, is_sorted) # TODO this is incorrect??
+        np_unique, np_indices, np_inverse_indices, _, np_num_unique = calc_numpy_unique(
+            data, is_sorted
+        )  # TODO this is incorrect??
         num_unique = np_num_unique[0]
         assert tvm_num_unique.asnumpy()[0] == np_num_unique
         np.testing.assert_allclose(
             tvm_unique.asnumpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5
         )
-        np.testing.assert_allclose(tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(
+            tvm_indices.asnumpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
+        )
         np.testing.assert_allclose(
             tvm_counts.asnumpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
         )
