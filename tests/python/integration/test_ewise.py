@@ -40,6 +40,9 @@ def test_exp():
         if not tvm.testing.device_enabled(host):
             return
         dev = tvm.device(device, 0)
+        if not tvm.testing.device_enabled(device):
+            print("skip because %s is not enabled.." % device)
+            return
         fexp = tvm.build(s, [A, B], device, host, name="myexp")
         dev = tvm.device(device, 0)
         # launch the kernel.
