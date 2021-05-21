@@ -103,7 +103,7 @@ def build(target):
 def run(lib, dev):
     # Build TVM runtime
     m = graph_executor.GraphModule(lib["default"](dev))
-    tvm_input = tvm.nd.array(x.numpy(), device=dev)
+    tvm_input = tvm.nd.array(x.asnumpy(), device=dev)
     m.set_input("data", tvm_input)
     # execute
     m.run()

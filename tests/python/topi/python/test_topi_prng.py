@@ -40,7 +40,7 @@ def threefry_generate(target, dev, gen, size):
     out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
     rands = tvm.nd.array(np.zeros(size, dtype="uint64"))
     f(tvm.nd.array(gen), out_gen, rands)
-    return out_gen.numpy(), rands.numpy()
+    return out_gen.asnumpy(), rands.asnumpy()
 
 
 def uniform(target, dev, gen, low, high, size, dtype):
@@ -63,7 +63,7 @@ def uniform(target, dev, gen, low, high, size, dtype):
 @tvm.testing.parametrize_targets
 def test_threefry_split(target, dev):
     # test that results of split do not equal eachother or the input
-    gen = tvm.relay.random.threefry_key(0).data.numpy()
+    gen = tvm.relay.random.threefry_key(0).data.asnumpy()
     a, b = threefry_split(target, dev, gen)
     assert (a != b).any() and (
         a != gen

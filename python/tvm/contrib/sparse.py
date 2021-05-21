@@ -85,7 +85,7 @@ class CSRNDArray(object):
         """Construct a full matrix and convert it to numpy array. This API will be deprecated
         in TVM v0.8 release. Please use `numpy` instead."""
         warnings.warn(
-            "CSRNDArray.numpy() will be deprecated in TVM v0.8 release. "
+            "CSRNDArray.asnumpy() will be deprecated in TVM v0.8 release. "
             "Please use CSRNDArray.numpy() instead.",
             DeprecationWarning,
         )
