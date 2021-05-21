@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
 import numpy as np
 import pytest
 import scipy
@@ -215,6 +216,12 @@ def make_constant_node(name, data_type, dims, vals):
         inputs=[],
         outputs=[name],
         value=helper.make_tensor(name=name, data_type=data_type, dims=dims, vals=vals),
+    )
+
+
+def is_version_greater_than(ver):
+    return "".join(re.findall(r"(\d+\.)(\d+\.)(\d)", onnx.__version__)[0]) > "".join(
+        re.findall(r"(\d+\.)(\d+\.)(\d)", ver)[0]
     )
 
 
@@ -1002,11 +1009,15 @@ def test_isnan():
     _test_finite_ops((2, 4, 5, 6), np.isnan, {}, "float32", "IsNaN", {})
 
 
-def verify_gather_nd(in_shape, indices, out_shape, dtype="float32"):
+def verify_gather_nd(in_shape, indices, out_shape, dtype="float32", batch_dims=0, opset=11):
     x = np.random.uniform(size=in_shape).astype(dtype)
     indices = np.array(indices, dtype="int64")
 
     y = helper.make_node("GatherND", ["in", "indices"], ["out"])
+
+    if opset >= 12:
+        batch_dims_attr = helper.make_attribute("batch_dims", batch_dims)
+        y.attribute.append(batch_dims_attr)
 
     graph = helper.make_graph(
         [y],
@@ -1024,7 +1035,7 @@ def verify_gather_nd(in_shape, indices, out_shape, dtype="float32"):
         ],
     )
     model = helper.make_model(graph, producer_name="gather_test")
-    verify_with_ort_with_inputs(model, [x, indices], [out_shape])
+    verify_with_ort_with_inputs(model, [x, indices], [out_shape], opset=opset)
 
 
 @tvm.testing.uses_gpu
@@ -1033,6 +1044,16 @@ def test_gather_nd():
     verify_gather_nd([2, 2], [[1], [0]], [2, 2])
     verify_gather_nd([2, 2, 2], [[0, 1], [1, 0]], [2, 2])
     verify_gather_nd([2, 2, 2], [[[0, 1]], [[1, 0]]], [2, 1, 2])
+
+    if is_version_greater_than("1.6.0"):
+        verify_gather_nd([2, 2, 2], [[1], [0]], [2, 2], batch_dims=1, opset=12)
+        verify_gather_nd(
+            (3, 2, 2, 3, 4),
+            np.random.randint(low=0, high=2, size=(3, 2, 3), dtype="int64"),
+            (3, 2),
+            batch_dims=2,
+            opset=12,
+        )
 
 
 @tvm.testing.uses_gpu
