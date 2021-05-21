@@ -103,6 +103,21 @@ def test_threefry_split_infer():
     assert tvm.ir.structural_equal(f.ret_type, expected_type)
 
 
+def test_uniform_infer():
+    oshape = (12,)
+    odtypes = ["float32", "float64"]
+    for odtype in odtypes:
+        key_type = tvm.relay.TensorType([10], dtype="uint64")
+        gen_type = tvm.relay.TensorType(oshape, dtype=odtype)
+        expected_type = tvm.relay.TupleType([key_type, gen_type])
+
+        key = tvm.relay.random.threefry_key(1)
+        rand1 = tvm.relay.random.uniform(key, oshape, odtype)
+        f = tvm.relay.Function([], rand1)
+        f = run_infer_type(f)
+        assert tvm.ir.structural_equal(f.ret_type, expected_type)
+
+
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_threefry_generate_infer_fail():
     # xfail: key size should be 10
