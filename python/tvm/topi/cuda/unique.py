@@ -304,8 +304,8 @@ def unique(data, is_sorted=True, return_counts=False):
         with the length of the input data.
 
     inverse_indices : tvm.te.Tensor
-        A 1-D tensor. For each entry in data, it contains the index of that data element in the unique array.
-        (Note that inverse_indices is very similar to indices if output is not sorted.)
+        A 1-D tensor. For each entry in data, it contains the index of that data element in the
+        unique array. (Note that inverse_indices is very similar to indices if output is not sorted.)
 
     num_unique : tvm.te.Tensor
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
