@@ -200,6 +200,8 @@ def scatter(data, indices, updates, axis=0):
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
+    # TODO(masahi): revisit
+    return
     mdim = int(indices.shape[0])
     assert mdim <= len(data.shape), (
         f"The first dimension of the indices ({mdim}) must be less than or equal to "
