@@ -138,7 +138,7 @@ class AOTExecutorCodegen : public ExprVisitor {
       auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
       auto sid_value = sids_table_[sid];
 
-      if (target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
+      if (use_typed_operators_) {
         tvm::PrimExpr set_tensor =
             tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                            {sid_array, 0, tir::builtin::kArrData, sid_value});
@@ -168,7 +168,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                        {tir::StringImm(params_by_expr_[expr])});
 
-    if (target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
+    if (use_typed_operators_) {
       tvm::PrimExpr set_param_array =
           tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                          {param_array, 0, tir::builtin::kArrData, param_handle});
@@ -220,7 +220,7 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Use tvm_call_packed to execute the function unless we're calling directly
     auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
-    if (!target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
+    if (!use_typed_operators_) {
       calling_pattern = tvm::tir::builtin::call_extern();
     }
 
@@ -248,7 +248,7 @@ class AOTExecutorCodegen : public ExprVisitor {
                                          {in, 0, tir::builtin::kArrData});
     PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
                                       {out, 0, tir::builtin::kArrData});
-    if (!target_host_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
+    if (!use_typed_operators_) {
       retval_get = in;
       tostore = out;
     }
@@ -551,6 +551,8 @@ class AOTExecutorCodegen : public ExprVisitor {
   TargetsMap targets_;
   /*! \brief target host */
   Target target_host_;
+  /*! \brief untyped operators flag */
+  Bool use_typed_operators_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -580,10 +582,11 @@ class AOTExecutorCodegen : public ExprVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
-      : mod_(mod), return_sid_() {
+      : mod_(mod), use_typed_operators_(true) {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
     target_host_ = target_host;
+    use_typed_operators_ = target_host->GetAttr<Bool>("typed-operators").value_or(Bool(true));
   }
 
   LoweredOutput Codegen(relay::Function func) {
@@ -607,8 +610,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     // Find the return sid
     return_sid_ = AotReturnSidVisitor(storage_device_map_).FindReturnSid(func);
     for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
-      auto output_var = tir::Var("output", DataType::Handle());
-      main_signature_.push_back(output_var);
+      main_signature_.push_back(tir::Var("output", DataType::Handle()));
     }
 
     VisitExpr(func->body);
