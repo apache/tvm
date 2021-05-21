@@ -880,7 +880,7 @@ def test_transpose_unfused_schedule(target, dev):
         kind="graph", mod=tvm.IRModule.from_expr(relay.Function([x], f)), device=dev, target=target
     )
     r = np.random.rand(*shape)
-    tvm.testing.assert_allclose(ex.evaluate()(r).numpy(), np.transpose(r))
+    tvm.testing.assert_allclose(ex.evaluate()(r).asnumpy(), np.transpose(r))
 
     # We want to make sure schedule does not fire here, but there is no way of
     # inspecting which schedules were used.
@@ -893,7 +893,7 @@ def test_transpose_unfused_schedule(target, dev):
         device=dev,
         target=target,
     )
-    tvm.testing.assert_allclose(ex.evaluate()(r, r).numpy(), np.transpose(r + r))
+    tvm.testing.assert_allclose(ex.evaluate()(r, r).asnumpy(), np.transpose(r + r))
 
 
 @tvm.testing.uses_gpu
