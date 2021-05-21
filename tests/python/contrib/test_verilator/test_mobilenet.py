@@ -21,10 +21,12 @@ from tvm.contrib.download import download_testdata
 from tvm.contrib import graph_executor as runtime
 
 import os
+import pytest
 from PIL import Image
 import numpy as np
 
 from test_verilator.infrastructure import (
+    skip_test,
     compile_hardware,
     compiler_opts,
     offload,
@@ -213,6 +215,7 @@ def is_tflite_available():
         return False
 
 
+@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
 def tmobilenet(lanes):
     """Mobilenet test template.
     Paramters
@@ -220,6 +223,8 @@ def tmobilenet(lanes):
     lanes : Int
         The number of vector lanes.
     """
+    if skip_test():
+        return
     if not is_tflite_available():
         return
     model = get_mobilenet_model()
