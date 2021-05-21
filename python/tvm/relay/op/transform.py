@@ -1669,7 +1669,8 @@ def unique(data, is_sorted=True, return_counts=False):
         A 1-D tensor containing the index of each data element in the output tensor.
 
     inverse_indices : relay.Expr
-        A 1-D tensor. For each entry in data, it contains the index of that data element in the unique array.
+        A 1-D tensor. For each entry in data, it contains the index of that data element in the
+        unique array.
 
     num_unique : relay.Expr
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
