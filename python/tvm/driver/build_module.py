@@ -18,6 +18,8 @@
 # pylint: disable=invalid-name
 """The build utils in python.
 """
+
+from typing import Union, Optional, List, Mapping
 import warnings
 
 import tvm.tir
@@ -25,11 +27,15 @@ import tvm.tir
 from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
+from tvm.tir import PrimFunc
+from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
+from tvm.tir.buffer import Buffer
+from tvm.tir.expr import Var
 
 from . import _ffi_api as ffi
 
@@ -174,22 +180,29 @@ def _build_for_device(input_mod, target, target_host):
     return mod_host, rt_mod_dev
 
 
-def build(inputs, args=None, target=None, target_host=None, name="default_function", binds=None):
+def build(
+    inputs: Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]],
+    args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
+    target: Optional[Union[str, Target]] = None,
+    target_host: Optional[Union[str, Target]] = None,
+    name: Optional[str] = "default_function",
+    binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
+):
     """Build a function with arguments as signature. Code will be generated
     for devices coupled with target information.
 
     Parameters
     ----------
-    inputs : tvm.te.Schedule, IRModule, or dict of target to IRModule
-        The schedule to be built
+    inputs : Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]]
+        The input to be built
 
-    args : list of Buffer or Tensor or Var, optional
+    args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
         The argument lists to the function.
 
-    target : str or :any:`tvm.target.Target`, optional
+    target : Optional[Union[str, Target]]
         The target and option of the compilation.
 
-    target_host : str or :any:`tvm.target.Target` optional
+    target_host : Optional[Union[str, Target]]
         Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
         we also need host(CPU) side code to interact with the driver
@@ -198,10 +211,10 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
         By default, llvm is used if it is enabled,
         otherwise a stackvm intepreter is used.
 
-    name : str, optional
+    name : Optional[str]
         The name of result function.
 
-    binds : dict, optional
+    binds : Optional[Mapping[tensor.Tensor, Buffer]]
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
@@ -252,10 +265,10 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     elif isinstance(inputs, (list, tuple, container.Array)):
         merged_mod = tvm.IRModule({})
         for x in inputs:
-            merged_mod.update(x)
+            merged_mod.update(lower(x))
         input_mod = merged_mod
-    elif isinstance(inputs, tvm.IRModule):
-        input_mod = inputs
+    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
+        input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
             f"Inputs must be Schedule, IRModule or dict of target to IRModule, "

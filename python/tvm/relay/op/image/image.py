@@ -80,7 +80,7 @@ def resize(
         The resized result.
     """
     if isinstance(size, Constant):
-        size = list(size.data.asnumpy().astype("int32"))
+        size = list(size.data.numpy().astype("int32"))
     if isinstance(size, Expr):
         return _dyn_make.resize(
             data,

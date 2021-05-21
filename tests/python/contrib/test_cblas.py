@@ -67,7 +67,7 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         bb = 10.0
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), bb, transa, transb), rtol=1e-5
+            d.numpy(), get_numpy(a.numpy(), b.numpy(), bb, transa, transb), rtol=1e-5
         )
 
     verify("llvm")
@@ -138,8 +138,8 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         bb = 10
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(),
-            get_numpy(a.asnumpy().astype("int32"), b.asnumpy().astype("int32"), bb, transa, transb),
+            d.numpy(),
+            get_numpy(a.numpy().astype("int32"), b.numpy().astype("int32"), bb, transa, transb),
             rtol=1e-5,
         )
 
@@ -199,7 +199,7 @@ def verify_batch_matmul(
         d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5
+            d.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5
         )
 
     verify("llvm")

@@ -26,7 +26,7 @@ from .profiling import Report
 
 # function exposures
 from .object_generic import convert_to_object, convert, const
-from .ndarray import device, cpu, gpu, opencl, cl, vulkan, metal, mtl
+from .ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, ext_dev, micro_dev
 from .module import load_module, enabled, system_lib
 from .container import String

@@ -200,12 +200,17 @@ class Tuner(object):
         self.best_flops = 0
         self.best_measure_pair = None
 
-    def load_history(self, data_set):
+    def load_history(self, data_set, min_seed_records=500):
         """load history data for transfer learning
 
         Parameters
         ----------
         data_set: Array of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult) pair
             Previous tuning records
+        min_seed_records: int
+            Defaults to 500. Indicates the minimum number of records to
+            train the tuner with. If there are less than `min_seed_records`
+            number of records in `data_set`, no training of the tuner
+            will be done.
         """
         raise NotImplementedError()

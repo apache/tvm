@@ -61,7 +61,7 @@ def run_relay(mod, params, in_data):
     dev = tvm.device("llvm", 0)
     intrp = relay.create_executor("graph", mod, device=dev, target=target)
     in_data = [tvm.nd.array(value) for value in in_data.values()]
-    return intrp.evaluate()(*in_data, **params).asnumpy()
+    return intrp.evaluate()(*in_data, **params).numpy()
 
 
 def _verify_results(mod, params, in_data):

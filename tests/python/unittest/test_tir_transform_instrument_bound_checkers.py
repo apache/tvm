@@ -114,7 +114,7 @@ def test_in_bounds_vectorize_llvm():
     a = tvm.nd.empty((n,), A.dtype).copyfrom(np.random.uniform(size=(n, lanes)))
     c = tvm.nd.empty((n,), C.dtype, dev)
     f(a, c)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
 
 @tvm.testing.requires_llvm
@@ -507,8 +507,8 @@ def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
     sc = tvm.nd.array(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
     d = tvm.nd.empty((), D.dtype, dev)
     f(a, sc, d)
-    d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
-    tvm.testing.assert_allclose(d.asnumpy(), d_np)
+    d_np = np.sum(a.numpy()) * sc.numpy() + 1
+    tvm.testing.assert_allclose(d.numpy(), d_np)
 
 
 if __name__ == "__main__":

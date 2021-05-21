@@ -34,7 +34,7 @@ def test_debug():
     prog = debug(x, debug_func=did_exec)
     result = ex.evaluate(prog, {x: const(1, "int32")})
     assert _test_debug_hit
-    assert result.asnumpy() == 1
+    assert result.numpy() == 1
 
 
 def test_debug_with_expr():
@@ -51,4 +51,4 @@ def test_debug_with_expr():
     prog = debug(x + x * x, debug_func=did_exec)
     result = ex.evaluate(prog, {x: const(2, "int32")})
     assert _test_debug_hit
-    assert result.asnumpy() == 6
+    assert result.numpy() == 6

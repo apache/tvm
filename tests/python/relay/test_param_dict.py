@@ -35,8 +35,8 @@ def test_save_load():
     assert isinstance(param_bytes, bytearray)
     param2 = relay.load_param_dict(param_bytes)
     assert len(param2) == 2
-    np.testing.assert_equal(param2["x"].asnumpy(), x)
-    np.testing.assert_equal(param2["y"].asnumpy(), y)
+    np.testing.assert_equal(param2["x"].numpy(), x)
+    np.testing.assert_equal(param2["y"].numpy(), y)
 
 
 def test_ndarray_reflection():
@@ -48,9 +48,9 @@ def test_ndarray_reflection():
     # Serialize then deserialize `param_dict`.
     deser_param_dict = relay.load_param_dict(runtime.save_param_dict(param_dict))
     # Make sure the data matches the original data and `x` and `y` contain the same data.
-    np.testing.assert_equal(deser_param_dict["x"].asnumpy(), tvm_array.asnumpy())
+    np.testing.assert_equal(deser_param_dict["x"].numpy(), tvm_array.numpy())
     # Make sure `x` and `y` contain the same data.
-    np.testing.assert_equal(deser_param_dict["x"].asnumpy(), deser_param_dict["y"].asnumpy())
+    np.testing.assert_equal(deser_param_dict["x"].numpy(), deser_param_dict["y"].numpy())
 
 
 def test_bigendian_rpc_param():
@@ -80,7 +80,7 @@ def test_bigendian_rpc_param():
         mod.load_params(runtime.save_param_dict(params))
         mod.run()
         out = mod.get_output(0, tvm.nd.empty(shape, dtype=dtype, device=dev))
-        tvm.testing.assert_allclose(x_in + 1, out.asnumpy())
+        tvm.testing.assert_allclose(x_in + 1, out.numpy())
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)

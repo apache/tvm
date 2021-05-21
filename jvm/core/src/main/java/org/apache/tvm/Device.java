@@ -28,7 +28,7 @@ public class Device {
 
   static {
     MASK2STR.put(1, "cpu");
-    MASK2STR.put(2, "gpu");
+    MASK2STR.put(2, "cuda");
     MASK2STR.put(4, "opencl");
     MASK2STR.put(7, "vulkan");
     MASK2STR.put(8, "metal");
@@ -36,7 +36,6 @@ public class Device {
     MASK2STR.put(14, "hexagon");
 
     STR2MASK.put("cpu", 1);
-    STR2MASK.put("gpu", 2);
     STR2MASK.put("cuda", 2);
     STR2MASK.put("cl", 4);
     STR2MASK.put("opencl", 4);
@@ -60,16 +59,16 @@ public class Device {
   }
 
   /**
-   * Construct a GPU device.
+   * Construct a CUDA GPU device.
    * @param devId The device id
    * @return The created device
    */
-  public static Device gpu(int devId) {
+  public static Device cuda(int devId) {
     return new Device(2, devId);
   }
 
-  public static Device gpu() {
-    return gpu(0);
+  public static Device cuda() {
+    return cuda(0);
   }
 
   /**

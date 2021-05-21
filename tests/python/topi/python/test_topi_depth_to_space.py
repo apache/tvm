@@ -59,7 +59,7 @@ def verify_depth_to_space(
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
     for device, dev in tvm.testing.enabled_targets():
         check_device(device, dev)

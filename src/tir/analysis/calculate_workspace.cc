@@ -22,6 +22,7 @@
  * \brief Calculate any intermediary memory required by PrimFuncs.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -33,10 +34,12 @@ class WorkspaceCalculator : public StmtExprVisitor {
  public:
   WorkspaceCalculator() = default;
   size_t operator()(const PrimFunc& func);
+  size_t byte_alignment = tvm::runtime::kDefaultWorkspaceAlignment;
 
  private:
   void VisitStmt_(const AllocateNode* op) override;
   size_t CalculateExtentsSize(const AllocateNode* op);
+  size_t GetByteAlignedSize(size_t non_aligned_size);
   size_t current_size = 0;
   size_t max_size = 0;
 };
@@ -44,6 +47,10 @@ class WorkspaceCalculator : public StmtExprVisitor {
 size_t WorkspaceCalculator::operator()(const PrimFunc& func) {
   this->VisitStmt(func->body);
   return this->max_size;
+}
+
+size_t WorkspaceCalculator::GetByteAlignedSize(size_t non_aligned_size) {
+  return ((non_aligned_size + byte_alignment - 1) / byte_alignment) * byte_alignment;
 }
 
 size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
@@ -57,7 +64,7 @@ size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
       num_elements = 0;
     }
   }
-  return num_elements * element_size_bytes;
+  return GetByteAlignedSize(num_elements * element_size_bytes);
 }
 
 void WorkspaceCalculator::VisitStmt_(const AllocateNode* op) {
@@ -70,14 +77,16 @@ void WorkspaceCalculator::VisitStmt_(const AllocateNode* op) {
   current_size -= size;
 }
 
-size_t CalculateWorkspaceBytes(const PrimFunc& func) {
+size_t CalculateWorkspaceBytes(const PrimFunc& func, const Integer& workspace_byte_alignment) {
   WorkspaceCalculator wc;
+  wc.byte_alignment = workspace_byte_alignment->value;
   return wc(func);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes").set_body_typed([](PrimFunc func) {
-  return static_cast<int>(CalculateWorkspaceBytes(func));
-});
+TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes")
+    .set_body_typed([](PrimFunc func, Integer workspace_byte_alignment) {
+      return static_cast<int>(CalculateWorkspaceBytes(func, workspace_byte_alignment));
+    });
 
 }  // namespace tir
 }  // namespace tvm

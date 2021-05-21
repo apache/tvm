@@ -29,6 +29,8 @@ from tvm.contrib.target.vitis_ai import vitis_ai_available
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCPackage
 
+from tvm.contrib import utils
+
 
 def test_save_dumps(tmpdir_factory):
     tmpdir = tmpdir_factory.mktemp("data")
@@ -92,6 +94,33 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     assert os.path.exists(dumps_path)
 
 
+# This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
+def test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+
+    fake_sysroot_dir = utils.tempdir().relpath("")
+
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    tvmc_package = tvmc.compile(
+        tvmc_model,
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
+        dump_code="asm",
+        cross="aarch64-linux-gnu-gcc",
+        cross_options="--sysroot=" + fake_sysroot_dir,
+    )
+    dumps_path = tvmc_package.package_path + ".asm"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
 def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -126,6 +155,34 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
         cross="aarch64-linux-gnu-gcc",
+    )
+    dumps_path = tvmc_package.package_path + ".asm"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
+# This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
+def test_cross_compile_options_aarch64_keras_module(keras_resnet50):
+    # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
+    pytest.importorskip("tensorflow")
+
+    fake_sysroot_dir = utils.tempdir().relpath("")
+
+    tvmc_model = tvmc.load(keras_resnet50)
+    tvmc_package = tvmc.compile(
+        tvmc_model,
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
+        dump_code="asm",
+        cross="aarch64-linux-gnu-gcc",
+        cross_options="--sysroot=" + fake_sysroot_dir,
     )
     dumps_path = tvmc_package.package_path + ".asm"
 
@@ -175,6 +232,34 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
         dump_code="asm",
         cross="aarch64-linux-gnu-gcc",
+    )
+    dumps_path = tvmc_package.package_path + ".asm"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
+# This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
+def test_cross_compile_options_aarch64_onnx_module(onnx_resnet50):
+    # some CI environments wont offer onnx, so skip in case it is not present
+    pytest.importorskip("onnx")
+
+    fake_sysroot_dir = utils.tempdir().relpath("")
+
+    tvmc_model = tvmc.load(onnx_resnet50)
+    tvmc_package = tvmc.compile(
+        tvmc_model,
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        dump_code="asm",
+        cross="aarch64-linux-gnu-gcc",
+        cross_options="--sysroot=" + fake_sysroot_dir,
     )
     dumps_path = tvmc_package.package_path + ".asm"
 

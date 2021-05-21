@@ -180,6 +180,7 @@ class TVMCModel(object):
         executor_factory: GraphExecutorFactoryModule,
         package_path: Optional[str] = None,
         cross: Optional[Union[str, Callable]] = None,
+        cross_options: Optional[str] = None,
         lib_format: str = "so",
     ):
         """Save this TVMCModel to file.
@@ -192,6 +193,8 @@ class TVMCModel(object):
             If not provided, the package will be saved to a generically named file in tmp.
         cross : str or callable object, optional
             Function that performs the actual compilation.
+        cross_options : str, optional
+            Command line options to be passed to the cross compiler.
         lib_format : str
             How to export the modules function library. Must be one of "so" or "tar".
 
@@ -214,9 +217,14 @@ class TVMCModel(object):
         if not cross:
             executor_factory.get_lib().export_library(path_lib)
         else:
-            executor_factory.get_lib().export_library(
-                path_lib, tvm.contrib.cc.cross_compiler(cross)
-            )
+            if not cross_options:
+                executor_factory.get_lib().export_library(
+                    path_lib, tvm.contrib.cc.cross_compiler(cross)
+                )
+            else:
+                executor_factory.get_lib().export_library(
+                    path_lib, tvm.contrib.cc.cross_compiler(cross, options=cross_options.split(" "))
+                )
         self.lib_path = path_lib
 
         with open(temp.relpath(graph_name), "w") as graph_file:

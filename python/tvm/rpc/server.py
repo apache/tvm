@@ -250,7 +250,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             import psutil
 
             parent = psutil.Process(server_proc.pid)
-            # terminate worker childs
+            # terminate worker children
             for child in parent.children(recursive=True):
                 child.terminate()
             # terminate the worker

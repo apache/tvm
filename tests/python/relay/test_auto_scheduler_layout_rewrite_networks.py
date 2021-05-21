@@ -173,7 +173,7 @@ def tune_and_check(mod, data, weight):
             module.set_input("data", data)
             module.run()
 
-            return module.get_output(0).asnumpy()
+            return module.get_output(0).numpy()
 
         # Check correctness
         actual_output = get_output(data, lib)

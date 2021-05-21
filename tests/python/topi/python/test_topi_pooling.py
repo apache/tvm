@@ -116,7 +116,7 @@ def verify_pool_grad(
         pool_grad = tvm.nd.array(np.zeros(get_const_tuple(PoolGrad.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, OutGrad, PoolGrad], target)
         f(a, out_grad, pool_grad)
-        tvm.testing.assert_allclose(pool_grad.asnumpy(), pool_grad_np, rtol=1e-5)
+        tvm.testing.assert_allclose(pool_grad.numpy(), pool_grad_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -174,7 +174,7 @@ def verify_global_pool(dshape, pool_type, layout="NCHW"):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
         f = tvm.build(s, [A, B], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -218,7 +218,7 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
         b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), dev)
         f = tvm.build(s, [data, out], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_out, rtol=4e-5, atol=1e-6)
+        tvm.testing.assert_allclose(b.numpy(), np_out, rtol=4e-5, atol=1e-6)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -329,7 +329,7 @@ def verify_poolnd(
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), ref_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)

@@ -23,6 +23,8 @@ from tvm.contrib.thrust import can_use_thrust
 from tvm.te import SpecializedCondition
 
 from .. import op as _op
+from ....target import Target
+from ....tir import IntImm
 from .generic import *
 
 
@@ -1068,3 +1070,23 @@ def unique_strategy_cuda(attrs, inputs, out_type, target):
         name="unique.cuda",
     )
     return strategy
+
+
+@schedule_transpose.register(["cuda", "gpu", "rocm"])
+def schedule_transpose_cuda(attrs, outs, target):
+    """
+    Transpose cuda strategy
+    Dispatches to and optimized schedule if the transpose is standalone (not fused).
+    """
+    warp_size = int(Target.current(allow_none=False).thread_warp_size)
+    if (
+        isinstance(outs[0].op.input_tensors[0].op, te.PlaceholderOp)
+        and len(outs[0].shape) == 2
+        and (attrs.axes is None or (len(attrs.axes) == 2 and attrs.axes == [1, 0]))
+        and isinstance(outs[0].shape[0], (int, IntImm))
+        and outs[0].shape[0] >= warp_size
+        and isinstance(outs[0].shape[1], (int, IntImm))
+        and outs[0].shape[1] >= warp_size
+    ):
+        return topi.cuda.schedule_transpose(outs)
+    return schedule_injective(attrs, outs, target)

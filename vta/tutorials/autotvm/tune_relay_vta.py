@@ -357,7 +357,7 @@ def tune_and_evaluate(tuning_opt):
     )
 
     # filter out non-packed conv2d task
-    tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
+    tasks = list(filter(lambda t: len(t.args[0][1]) > 4 and "conv" in t.name, tasks))
 
     # We should have extracted 10 convolution tasks
     assert len(tasks) == 10
