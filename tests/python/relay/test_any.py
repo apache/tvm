@@ -1728,5 +1728,28 @@ def test_gather_nd():
     )
 
 
+@tvm.testing.uses_gpu
+def test_scatter_nd():
+    def verify_scatter_nd(data_np, indices_np, updates_np, ref_res):
+        indices_shape = (2, relay.Any())
+        updates_shape = (relay.Any(),)
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices = relay.var("indices", relay.TensorType(indices_shape, str(indices_np.dtype)))
+        updates = relay.var("updates", relay.TensorType(updates_shape, str(updates_np.dtype)))
+
+        out = relay.op.scatter_nd(data, indices, updates, "add")
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([data, indices, updates], out)
+
+        check_result([data_np, indices_np, updates_np], mod, [ref_res])
+
+    data = np.zeros((2, 2)).astype("int64")
+    indices = np.array([[1, 1, 0], [0, 1, 0]])
+    updates = np.array([2, 3, 0])
+    out = np.array([[0, 0], [2, 3]])
+    verify_scatter_nd(data, indices, updates, out)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
