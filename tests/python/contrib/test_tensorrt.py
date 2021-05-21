@@ -56,7 +56,7 @@ def skip_runtime_test():
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy()]
+        return [o.numpy()]
     elif isinstance(o, tvm.runtime.container.ADT) or isinstance(o, list):
         return [vmobj_to_list(f) for f in o]
     else:
@@ -1370,7 +1370,7 @@ def test_maskrcnn_resnet50() -> None:
     # Descending sort by scores and get the high confidence indices. In this example 9 is chosen,
     # because this image has 9 boxes over 0.9 confidence
     num_high_confidence_boxes = 9
-    tvm_indices = np.argsort(-1 * tvm_res[1].asnumpy())[:num_high_confidence_boxes]
+    tvm_indices = np.argsort(-1 * tvm_res[1].numpy())[:num_high_confidence_boxes]
 
     with torch.no_grad():
         out = traced_module(torch.Tensor(np_sample_input))
@@ -1386,7 +1386,7 @@ def test_maskrcnn_resnet50() -> None:
     # 0.1 pixel difference of a box in a 300X300 image wont make any change.
     for i, tol_val in zip(range(4), tol):
         np.testing.assert_allclose(
-            tvm_res[i].asnumpy()[tvm_indices],
+            tvm_res[i].numpy()[tvm_indices],
             out[i].numpy()[pt_indices],
             rtol=tol_val,
             atol=tol_val,

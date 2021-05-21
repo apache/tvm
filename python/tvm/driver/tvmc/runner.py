@@ -42,7 +42,7 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_run_parser(subparsers):
-    """ Include parser for 'run' subcommand """
+    """Include parser for 'run' subcommand"""
 
     parser = subparsers.add_parser("run", help="run a compiled module")
     parser.set_defaults(func=drive_run)
@@ -420,6 +420,6 @@ def run_module(
     outputs = {}
     for i in range(num_outputs):
         output_name = "output_{}".format(i)
-        outputs[output_name] = module.get_output(i).asnumpy()
+        outputs[output_name] = module.get_output(i).numpy()
 
     return TVMCResult(outputs, times)

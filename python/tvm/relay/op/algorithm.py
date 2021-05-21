@@ -107,7 +107,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
         The computed result.
     """
     if isinstance(k, Constant):
-        k = k.data.asnumpy().item()
+        k = k.data.numpy().item()
     if isinstance(k, Expr):
         out = _dyn_make.topk(data, k, axis, ret_type, is_ascend, dtype)
     else:

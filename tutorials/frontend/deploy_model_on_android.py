@@ -328,7 +328,7 @@ module.run()
 out = module.get_output(0)
 
 # get top1 result
-top1 = np.argmax(out.asnumpy())
+top1 = np.argmax(out.numpy())
 print("TVM prediction top-1: {}".format(synset[top1]))
 
 print("Evaluate inference time cost...")

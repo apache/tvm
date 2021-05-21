@@ -139,15 +139,15 @@ def test_compile_runtime(platform, west_cmd):
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
         A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
-        assert (B_data.asnumpy() == np.array([4])).all()
+        assert (B_data.numpy() == np.array([4])).all()
         C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
-        assert (C_data.asnumpy() == np.array([0, 0])).all()
+        assert (C_data.numpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         system_lib.get_function("add")(A_data, B_data, C_data)
-        assert (C_data.asnumpy() == np.array([6, 7])).all()
+        assert (C_data.numpy() == np.array([6, 7])).all()
 
     with _make_add_sess(model, zephyr_board, west_cmd) as sess:
         test_basic_add(sess)
@@ -161,18 +161,18 @@ def test_platform_timer(platform, west_cmd):
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
         A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
-        assert (B_data.asnumpy() == np.array([4])).all()
+        assert (B_data.numpy() == np.array([4])).all()
         C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
-        assert (C_data.asnumpy() == np.array([0, 0])).all()
+        assert (C_data.numpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         time_eval_f = system_lib.time_evaluator(
             "add", sess.device, number=20, repeat=3, min_repeat_ms=40
         )
         result = time_eval_f(A_data, B_data, C_data)
-        assert (C_data.asnumpy() == np.array([6, 7])).all()
+        assert (C_data.numpy() == np.array([6, 7])).all()
         assert result.mean > 0
         assert len(result.results) == 3
 
@@ -203,8 +203,8 @@ def test_relay(platform, west_cmd):
         graph_mod.set_input(**params)
         x_in = np.random.randint(10, size=shape[0], dtype=dtype)
         graph_mod.run(x=x_in)
-        result = graph_mod.get_output(0).asnumpy()
-        tvm.testing.assert_allclose(graph_mod.get_input(0).asnumpy(), x_in)
+        result = graph_mod.get_output(0).numpy()
+        tvm.testing.assert_allclose(graph_mod.get_input(0).numpy(), x_in)
         tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 
@@ -245,13 +245,13 @@ def test_onnx(platform, west_cmd):
         # Send the digit-2 image and confirm that the correct result is returned.
         graph_mod.set_input("Input3", tvm.nd.array(digit_2))
         graph_mod.run()
-        result = graph_mod.get_output(0).asnumpy()
+        result = graph_mod.get_output(0).numpy()
         assert np.argmax(result) == 2
 
         # Send the digit-9 image and confirm that the correct result is returned.
         graph_mod.set_input("Input3", tvm.nd.array(digit_9))
         graph_mod.run()
-        result = graph_mod.get_output(0).asnumpy()
+        result = graph_mod.get_output(0).numpy()
         assert np.argmax(result) == 9
 
 
@@ -332,7 +332,7 @@ def check_result(relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape
         for idx, shape in enumerate(out_shapes):
             out = tvm.nd.empty(shape, device=session.device)
             out = rt_mod.get_output(idx, out)
-            tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
+            tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=TOL, atol=TOL)
 
 
 def test_byoc_utvm(platform, west_cmd):

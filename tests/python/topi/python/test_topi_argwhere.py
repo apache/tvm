@@ -57,7 +57,7 @@ def verify_argwhere(data_shape):
         args.append(tvm.nd.empty(out.shape, device=dev, dtype=condition.dtype))
         func(*args)
         np.set_printoptions(threshold=np.inf)
-        tvm.testing.assert_allclose(args[-1].asnumpy(), np.array(np_out))
+        tvm.testing.assert_allclose(args[-1].numpy(), np.array(np_out))
 
     for target, _ in tvm.testing.enabled_targets():
         check_device(target)

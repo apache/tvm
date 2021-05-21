@@ -170,7 +170,7 @@ def run_gemm(
     # Check correctness
     correct = False
     if check_correctness:
-        res_orig = res_arr.asnumpy()
+        res_orig = res_arr.numpy()
         if data_pack:
             res_orig = res_orig.reshape(batch_size, out_feat)
         res_ref = res_ref >> 8

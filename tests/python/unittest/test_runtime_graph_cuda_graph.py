@@ -83,7 +83,7 @@ def test_graph_simple():
             a = np.random.uniform(size=(n,)).astype(A.dtype)
             mod.run(x=a)  # The first run captured a CUDA graph
             out = mod.get_output(0, tvm.nd.empty((n,)))
-            np.testing.assert_equal(out.asnumpy(), a + 1)
+            np.testing.assert_equal(out.numpy(), a + 1)
 
         # capture / run CUDA graph manually
         mod.capture_cuda_graph()
@@ -91,7 +91,7 @@ def test_graph_simple():
         mod.set_input(x=a)
         mod.run_cuda_graph()
         out = mod.get_output(0, tvm.nd.empty((n,)))
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
     check_verify()
 

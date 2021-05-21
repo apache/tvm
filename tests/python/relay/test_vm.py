@@ -48,7 +48,7 @@ def check_result(args, expected_result, mod=None):
     for target, dev in tvm.testing.enabled_targets():
         vm = relay.create_executor("vm", device=dev, target=target, mod=mod)
         rts_result = vm.evaluate()(*args)
-        tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
+        tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
 def veval(f, *args, device=tvm.cpu(), target="llvm"):
@@ -65,7 +65,7 @@ def veval(f, *args, device=tvm.cpu(), target="llvm"):
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.numpy().tolist()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -88,7 +88,7 @@ def test_split():
     for tgt, dev in tvm.testing.enabled_targets():
         res = veval(f, x_data, device=dev, target=tgt)
         for i in range(3):
-            tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
+            tvm.testing.assert_allclose(res[i].numpy(), ref_res[i])
 
 
 @tvm.testing.uses_gpu
@@ -103,7 +103,7 @@ def test_split_no_fuse():
     ).astype("float32")
     for tgt, dev in tvm.testing.enabled_targets():
         res = veval(f, x_data, device=dev, target=tgt)
-        tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+        tvm.testing.assert_allclose(res.numpy(), np.split(x_data, 3, axis=0)[0])
 
 
 @tvm.testing.uses_gpu
@@ -246,7 +246,7 @@ def test_count_loop():
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     for tgt, dev in tvm.testing.enabled_targets():
         result = veval(mod, i_data, device=dev, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), i_data)
+        tvm.testing.assert_allclose(result.numpy(), i_data)
     check_result([i_data], i_data, mod=mod)
 
 
@@ -393,7 +393,7 @@ def test_compose():
     x_data = np.array(np.random.rand()).astype("float32")
     for tgt, dev in tvm.testing.enabled_targets():
         result = veval(mod, [x_data], device=dev, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
+        tvm.testing.assert_allclose(result.numpy(), x_data + 2.0)
 
 
 @tvm.testing.uses_gpu
@@ -414,7 +414,7 @@ def test_list_hd():
 
     for tgt, dev in tvm.testing.enabled_targets():
         result = veval(mod, device=dev, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), 3)
+        tvm.testing.assert_allclose(result.numpy(), 3)
 
 
 @pytest.mark.xfail
@@ -473,7 +473,7 @@ def test_list_nth():
         mod["main"] = f
         for tgt, dev in tvm.testing.enabled_targets():
             result = veval(mod, device=dev, target=tgt)
-            tvm.testing.assert_allclose(result.asnumpy(), expected[i])
+            tvm.testing.assert_allclose(result.numpy(), expected[i])
 
 
 @tvm.testing.uses_gpu
@@ -523,7 +523,7 @@ def test_list_length():
     mod["main"] = f
     for tgt, dev in tvm.testing.enabled_targets():
         result = veval(mod, device=dev, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), 10)
+        tvm.testing.assert_allclose(result.numpy(), 10)
 
 
 @tvm.testing.uses_gpu
@@ -599,7 +599,7 @@ def test_list_sum():
     mod["main"] = f
     for tgt, dev in tvm.testing.enabled_targets():
         result = veval(mod, device=dev, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), 6)
+        tvm.testing.assert_allclose(result.numpy(), 6)
 
 
 @tvm.testing.uses_gpu
@@ -635,7 +635,7 @@ def test_closure():
     main = clo(relay.const(2.0))
     for tgt, dev in tvm.testing.enabled_targets():
         res = veval(main, device=dev, target=tgt)
-        tvm.testing.assert_allclose(res.asnumpy(), 3.0)
+        tvm.testing.assert_allclose(res.numpy(), 3.0)
 
 
 @tvm.testing.uses_gpu
@@ -801,7 +801,7 @@ def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
 
     for tgt, dev in tvm.testing.enabled_targets():
         res = veval(f, (x_data, y_data), device=dev, target=tgt)
-        tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
+        tvm.testing.assert_allclose(res.numpy(), np.reshape(x_data, (1, -1)))
 
 
 def test_constant_shape_with_external_codegen():
@@ -869,7 +869,7 @@ def test_vm_rpc():
     # Invoke its "main" function.
     out = vm_factory.invoke("main", input_tensor)
     # Check the result.
-    np.testing.assert_allclose(out.asnumpy(), np_input + np_input)
+    np.testing.assert_allclose(out.numpy(), np_input + np_input)
 
     # delete tensors before the server shuts down so we don't throw errors.
     del input_tensor
@@ -893,7 +893,7 @@ def test_get_output_single():
     vm_factory.invoke_stateful("main", inp)
     outputs = vm_factory.get_outputs()
     assert len(outputs) == 1
-    np.testing.assert_allclose(outputs[0].asnumpy(), inp + inp)
+    np.testing.assert_allclose(outputs[0].numpy(), inp + inp)
 
 
 def test_get_output_multiple():
@@ -911,8 +911,8 @@ def test_get_output_multiple():
     vm_factory.invoke_stateful("main", inp)
     outputs = vm_factory.get_outputs()
     assert len(outputs) == 2
-    np.testing.assert_allclose(outputs[0].asnumpy(), inp + inp)
-    np.testing.assert_allclose(outputs[1].asnumpy(), inp)
+    np.testing.assert_allclose(outputs[0].numpy(), inp + inp)
+    np.testing.assert_allclose(outputs[1].numpy(), inp)
 
 
 if __name__ == "__main__":

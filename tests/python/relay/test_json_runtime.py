@@ -58,7 +58,7 @@ def check_result(
     rt_mod.run()
     out = tvm.nd.empty(out_shape, device=device)
     out = rt_mod.get_output(0, out)
-    ref_result = out.asnumpy()
+    ref_result = out.numpy()
 
     def check_vm_result():
         compile_engine.get().clear()
@@ -68,7 +68,7 @@ def check_result(
         exe = runtime.vm.Executable.load_exec(code, lib)
         vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
-        tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), ref_result, rtol=tol, atol=tol)
 
     def check_graph_executor_result():
         compile_engine.get().clear()
@@ -82,7 +82,7 @@ def check_result(
         rt_mod.run()
         out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
-        tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), ref_result, rtol=tol, atol=tol)
 
     check_vm_result()
     check_graph_executor_result()

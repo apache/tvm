@@ -75,7 +75,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         assert a.indptr.dtype == A.indptr.dtype
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv")
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
     for device in ["llvm"]:
         check_device(device)
@@ -119,7 +119,7 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmm")
 
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-2, atol=1e-2)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-2, atol=1e-2)
 
     for device in ["llvm"]:
         check_device(device)
@@ -163,7 +163,7 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
         f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
         f(a.data, a.indices, a.indptr, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
     check_device("llvm")
 
@@ -206,7 +206,7 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype="float32"):
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B.data, B.indices, B.indptr, C, D], device, name="dense")
         f(a, b.data, b.indices, b.indptr, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-4, atol=1e-4)
 
     check_device("llvm")
 
@@ -269,7 +269,7 @@ def test_sparse_dense_csr():
         tvm.nd.array(W_sp_np.indptr),
         Y_tvm,
     )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+    tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 def test_sparse_dense_csr_reverse():
@@ -294,7 +294,7 @@ def test_sparse_dense_csr_reverse():
         tvm.nd.array(W_sp_np.indptr),
         Y_tvm,
     )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+    tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 def test_sparse_transpose_csr():
@@ -327,7 +327,7 @@ def test_sparse_transpose_csr():
     )
 
     X_T_out = sp.csr_matrix(
-        (X_T_data_tvm.asnumpy(), X_T_indices_tvm.asnumpy(), X_T_indptr_tvm.asnumpy()), shape=(N, N)
+        (X_T_data_tvm.numpy(), X_T_indices_tvm.numpy(), X_T_indptr_tvm.numpy()), shape=(N, N)
     ).todense()
     tvm.testing.assert_allclose(X_np_T, X_T_out, atol=1e-4, rtol=1e-4)
 
@@ -383,7 +383,7 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu, device, targ
             tvm.nd.array(W_sp_np.indptr, device=device),
             Y_tvm,
         )
-        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+        tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.parametrize_targets("llvm", "cuda")
@@ -415,7 +415,7 @@ def test_sparse_dense_bsr_reverse():
         tvm.nd.array(W_sp_np.indptr),
         Y_tvm,
     )
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+    tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
@@ -457,7 +457,7 @@ def test_sparse_dense_bsr_randomized():
                     tvm.nd.array(W_sp_np.indptr, device=dev),
                     Y_tvm,
                 )
-                tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+                tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-5, rtol=1e-5)
 
         for device in ["llvm", "cuda"]:
             check_device(device)
@@ -495,7 +495,7 @@ def test_sparse_dense_padded_gpu(target, dev):
             tvm.nd.array(W_sp_np_padded.indptr, device=dev),
             Y_tvm,
         )
-        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np, atol=1e-5, rtol=1e-5)
 
 
 @tvm.testing.parametrize_targets("cuda", "rocm")
@@ -549,7 +549,7 @@ def test_sparse_add_csr():
                 tvm.nd.array(Y_sp_np.indptr.astype(indices_dtype)),
                 Z_tvm,
             )
-            tvm.testing.assert_allclose(Z_tvm.asnumpy(), Z_np, atol=1e-4, rtol=1e-4)
+            tvm.testing.assert_allclose(Z_tvm.numpy(), Z_np, atol=1e-4, rtol=1e-4)
 
 
 def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
@@ -593,7 +593,7 @@ def verify_sparse_conv2d_bsr(M, H, W, N, K, BS_R, BS_C, density, layout):
             tvm.nd.array(W_sp_np.indptr, dev),
             Y_tvm,
         )
-        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
+        tvm.testing.assert_allclose(Y_tvm.numpy(), Y_np.astype("float32"), atol=1e-4, rtol=1e-4)
 
     check_device("llvm")
 

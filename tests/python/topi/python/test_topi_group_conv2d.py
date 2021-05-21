@@ -147,7 +147,7 @@ def verify_group_conv2d_nchw(
                 ),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for target in ["llvm", "cuda"]:
         check_target(target)
@@ -273,7 +273,7 @@ def verify_group_conv2d_NCHWc_int8(
                 ),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for target in ["cuda"]:
         check_target(target)
@@ -386,7 +386,7 @@ def verify_group_conv2d_nhwc(
                 ),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for target in ["llvm"]:
         check_target(target)

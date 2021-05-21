@@ -271,7 +271,7 @@ Y_tvm = tvm.nd.empty(Y_np.shape, device=dev)
 func(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm)
 
 # Check results
-tvm.testing.assert_allclose(Y_np, Y_tvm.asnumpy(), atol=1e-4, rtol=1e-4)
+tvm.testing.assert_allclose(Y_np, Y_tvm.numpy(), atol=1e-4, rtol=1e-4)
 
 # Evaluate execution time.
 evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)

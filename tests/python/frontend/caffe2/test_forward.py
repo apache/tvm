@@ -27,7 +27,7 @@ import tvm.testing
 
 
 def get_tvm_output(model, input_data, target, device, output_shape, output_dtype="float32"):
-    """ Generic function to execute and get tvm output"""
+    """Generic function to execute and get tvm output"""
     # supporting multiple inputs in caffe2 in a bit tricky,
     # because the input names can appear at the beginning or end of model.predict_net.external_input
     assert isinstance(input_data, np.ndarray)
@@ -55,11 +55,11 @@ def get_tvm_output(model, input_data, target, device, output_shape, output_dtype
         tvm_output_list = []
         for i, s in enumerate(output_shape):
             tvm_output = m.get_output(i, tvm.nd.empty((s), output_dtype[i]))
-            tvm_output_list.append(tvm_output.asnumpy())
+            tvm_output_list.append(tvm_output.numpy())
         return tvm_output_list
     else:
         tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
-        return tvm_output.asnumpy()
+        return tvm_output.numpy()
 
 
 def get_caffe2_output(model, x, dtype="float32"):
