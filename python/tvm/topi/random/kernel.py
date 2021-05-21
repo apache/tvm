@@ -466,3 +466,69 @@ def threefry_test_wrapping(target, device):
     out_ary = tvm.nd.array(np.ones((1,), "uint64"), device)
     tvm.build(s, [f], target=target)(out_ary)
     return out_ary.asnumpy()[0] == 0
+
+
+def uniform(gen, low, high, out_shape, out_dtype):
+    """Draw samples from a uniform distribution.
+
+    Samples are uniformly distributed over the half-open interval [low, high)
+    (includes low, but excludes high). In other words, any value within the
+    given interval is equally likely to be drawn by uniform.
+
+    Parameters
+    ----------
+    gen : ThreefryKey
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
+
+    low : Tensor[(), out_dtype]
+        Lower boundary of the output interval. All values generated will be
+        greater than or equal to low.
+
+    high : Tensor[(), out_dtype]
+        Upper boundary of the output interval. All values generated will be
+        less than high.
+
+    out_shape : Sequence[int]
+        Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    new_gen : ThreefryKey
+        New generator state that is distinct from `gen`.
+
+    out : Tensor[out_shape, out_dtype]
+        Tensor of random numbers with shape `out_shape` and type `out_dtype`.
+    """
+    new_gen, random_bits = threefry_generate(gen, out_shape)
+    assert out_dtype in ("float32", "float64"), (
+        "Only support float32 or float64 for now, got %s" % out_dtype
+    )
+    if out_dtype == "float32":
+        random_dtype = "uint32"
+        nbits = 32
+        nfraction = 23
+    elif out_dtype == "float64":
+        random_dtype = "uint64"
+        nbits = 64
+        nfraction = 52
+    nexp = nbits - nfraction - 1
+    random_bits = random_bits.astype(random_dtype)
+
+    fraction = tvm.topi.right_shift(
+        random_bits, tvm.tir.const(nbits - nfraction, dtype=random_dtype)
+    )
+    exponent = tvm.topi.left_shift(
+        tvm.topi.full(out_shape, random_dtype, (1 << (nexp - 1)) - 1),
+        tvm.tir.const(nfraction, dtype=random_dtype),
+    )
+    mantissa = tvm.topi.bitwise_or(fraction, exponent).astype(random_dtype)
+    standard_uniform_values = tvm.topi.reinterpret(mantissa, out_dtype) - tvm.tir.const(
+        1, dtype=out_dtype
+    )
+    uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
+
+    return new_gen, uniform_values

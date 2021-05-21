@@ -1518,6 +1518,28 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# uniform
+def wrap_compute_uniform(topi_compute):
+    """Wrap uniform topi compute"""
+
+    def _compute_uniform(attrs, inputs, _):
+        return list(topi_compute(inputs[0], inputs[1], inputs[2], attrs.out_shape, attrs.out_dtype))
+
+    return _compute_uniform
+
+
+@override_native_generic_func("uniform_strategy")
+def uniform_strategy(attrs, inputs, out_type, target):
+    """uniform generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_uniform(topi.random.uniform),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="uniform.generic",
+    )
+    return strategy
+
+
 def wrap_compute_scanop(topi_compute):
     """Wrap scanop style topi compute"""
 
