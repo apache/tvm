@@ -29,10 +29,10 @@ import "C"
 
 // KDLCPU is golang enum correspond to TVM device type kDLCPU.
 var KDLCPU                  = int32(C.kDLCPU)
-// KDLGPU is golang enum correspond to TVM device type kDLGPU.
-var KDLGPU                  = int32(C.kDLGPU)
-// KDLCPUPinned is golang enum correspond to TVM device type kDLCPUPinned.
-var KDLCPUPinned            = int32(C.kDLCPUPinned)
+// kDLCUDA is golang enum correspond to TVM device type kDLCUDA.
+var kDLCUDA                  = int32(C.kDLCUDA)
+// kDLCUDAHost is golang enum correspond to TVM device type kDLCUDAHost.
+var kDLCUDAHost            = int32(C.kDLCUDAHost)
 // KDLOpenCL is golang enum correspond to TVM device type kDLOpenCL.
 var KDLOpenCL               = int32(C.kDLOpenCL)
 // KDLMetal is golang enum correspond to TVM device type kDLMetal.
@@ -61,14 +61,14 @@ func CPU(index int32) Device {
     return Device{KDLCPU, index}
 }
 
-// GPU returns the Device object for GPU target on given index
-func GPU(index int32) Device {
-    return Device{KDLGPU, index}
+// CUDA returns the Device object for CUDA target on given index
+func CUDA(index int32) Device {
+    return Device{kDLCUDA, index}
 }
 
-// CPUPinned returns the Device object for CPUPinned target on given index
-func CPUPinned(index int32) Device {
-    return Device{KDLCPUPinned, index}
+// CUDAHost returns the Device object for CUDAHost target on given index
+func CUDAHost(index int32) Device {
+    return Device{kDLCUDAHost, index}
 }
 
 // OpenCL returns the Device object for OpenCL target on given index

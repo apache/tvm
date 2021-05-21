@@ -135,7 +135,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
           ICHECK_NE(binding_index, -1);
-          if (data_entry_[eid]->device.device_type == kDLGPU) {
+          if (data_entry_[eid]->device.device_type == kDLCUDA) {
             bindings[binding_index] = data_entry_[eid]->data;
           } else {
             device_buffers[binding_index].CopyFrom(data_entry_[eid]);
@@ -150,7 +150,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
-      if (data_entry_[eid]->device.device_type == kDLGPU) {
+      if (data_entry_[eid]->device.device_type == kDLCUDA) {
         bindings[binding_index] = data_entry_[eid]->data;
       } else {
         bindings[binding_index] = device_buffers[binding_index]->data;
@@ -173,7 +173,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
-      if (data_entry_[eid]->device.device_type != kDLGPU) {
+      if (data_entry_[eid]->device.device_type != kDLCUDA) {
         device_buffers[binding_index].CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
       }
     }

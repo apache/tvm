@@ -23,22 +23,23 @@
  */
 #include "ir_builder.h"
 
+#include <spirv.hpp>
+
 namespace tvm {
 namespace codegen {
 namespace spirv {
 
 // implementations
 
+IRBuilder::IRBuilder(const SPIRVSupport& support) : spirv_support_(support) {}
+
 void IRBuilder::InitHeader() {
   ICHECK_EQ(header_.size(), 0U);
   header_.push_back(spv::MagicNumber);
 
-  // Use the spirv version as indicated in the SDK.
-#if SPV_VERSION >= 0x10300
-  header_.push_back(0x10300);
-#else
+  // Target SPIR-V version 1.0.  Additional functionality will be
+  // enabled through extensions.
   header_.push_back(0x10000);
-#endif
 
   // generator: set to 0, unknown
   header_.push_back(0U);
@@ -46,10 +47,11 @@ void IRBuilder::InitHeader() {
   header_.push_back(0U);
   // Schema: reserved
   header_.push_back(0U);
-  // shader
-  ib_.Begin(spv::OpCapability).Add(spv::CapabilityShader).Commit(&header_);
-  // Declare int64 capability by default
-  ib_.Begin(spv::OpCapability).Add(spv::CapabilityInt64).Commit(&header_);
+
+  // Declare CapabilityShader by default.  All other capabilities are
+  // determined by the types declared.
+  capabilities_used_.insert(spv::CapabilityShader);
+
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
@@ -69,6 +71,30 @@ void IRBuilder::InitPreDefs() {
   ib_.Begin(spv::OpTypeVoid).Add(t_void_).Commit(&global_);
   t_void_func_.id = id_counter_++;
   ib_.Begin(spv::OpTypeFunction).AddSeq(t_void_func_, t_void_).Commit(&global_);
+}
+
+std::vector<uint32_t> IRBuilder::Finalize() {
+  std::vector<uint32_t> data;
+  // Index for upper bound of id numbers.
+  const int kBoundLoc = 3;
+  header_[kBoundLoc] = id_counter_;
+  data.insert(data.end(), header_.begin(), header_.end());
+  for (const auto& capability : capabilities_used_) {
+    ib_.Begin(spv::OpCapability).Add(capability).Commit(&data);
+  }
+  for (const auto& ext_name : extensions_used_) {
+    ib_.Begin(spv::OpExtension).Add(ext_name).Commit(&data);
+  }
+  data.insert(data.end(), extended_instruction_section_.begin(),
+              extended_instruction_section_.end());
+  data.insert(data.end(), entry_.begin(), entry_.end());
+  data.insert(data.end(), exec_mode_.begin(), exec_mode_.end());
+  data.insert(data.end(), debug_.begin(), debug_.end());
+  data.insert(data.end(), decorate_.begin(), decorate_.end());
+  data.insert(data.end(), global_.begin(), global_.end());
+  data.insert(data.end(), func_header_.begin(), func_header_.end());
+  data.insert(data.end(), function_.begin(), function_.end());
+  return data;
 }
 
 SType IRBuilder::GetSType(const DataType& dtype) {
@@ -145,16 +171,19 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems)
       .AddSeq(struct_type, 0, spv::DecorationOffset, 0)
       .Commit(&decorate_);
 
-#if SPV_VERSION < 0x10300
-  // NOTE: BufferBlock was deprecated in SPIRV 1.3
-  // use StorageClassStorageBuffer instead.
-  // runtime array are always decorated as BufferBlock(shader storage buffer)
-  if (num_elems == 0) {
-    this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBufferBlock);
+  // Runtime array are always decorated as Block or BufferBlock
+  // (shader storage buffer)
+  if (spirv_support_.supports_storage_buffer_storage_class) {
+    // If SPIRV 1.3+, or with extension
+    // SPV_KHR_storage_buffer_storage_class, BufferBlock is
+    // deprecated.
+    extensions_used_.insert("SPV_KHR_storage_buffer_storage_class");
+    this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
+  } else {
+    if (num_elems == 0) {
+      this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBufferBlock);
+    }
   }
-#else
-  this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
-#endif
   struct_array_type_tbl_[key] = struct_type;
   return struct_type;
 }
@@ -186,13 +215,14 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
 
 Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set,
                                 uint32_t binding) {
-  // NOTE: BufferBlock was deprecated in SPIRV 1.3
-  // use StorageClassStorageBuffer instead.
-#if SPV_VERSION >= 0x10300
-  spv::StorageClass storage_class = spv::StorageClassStorageBuffer;
-#else
-  spv::StorageClass storage_class = spv::StorageClassUniform;
-#endif
+  // If SPIRV 1.3+, or with extension SPV_KHR_storage_buffer_storage_class, BufferBlock is
+  // deprecated.
+  spv::StorageClass storage_class;
+  if (spirv_support_.supports_storage_buffer_storage_class) {
+    storage_class = spv::StorageClassStorageBuffer;
+  } else {
+    storage_class = spv::StorageClassUniform;
+  }
 
   SType sarr_type = GetStructArrayType(value_type, 0);
   SType ptr_type = GetPointerType(sarr_type, storage_class);
@@ -383,6 +413,8 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
 }
 
 SType IRBuilder::DeclareType(const DataType& dtype) {
+  AddCapabilityFor(dtype);
+
   if (dtype.lanes() == 1) {
     SType t;
     t.id = id_counter_++;
@@ -407,6 +439,60 @@ SType IRBuilder::DeclareType(const DataType& dtype) {
     SType base_type = GetSType(dtype.element_of());
     ib_.Begin(spv::OpTypeVector).AddSeq(t, base_type, dtype.lanes()).Commit(&global_);
     return t;
+  }
+}
+
+void IRBuilder::AddCapabilityFor(const DataType& dtype) {
+  // Declare appropriate capabilities for int/float types
+  if (dtype.is_int() || dtype.is_uint()) {
+    if (dtype.bits() == 8) {
+      ICHECK(spirv_support_.supports_int8) << "Vulkan target does not support Int8 capability";
+      capabilities_used_.insert(spv::CapabilityInt8);
+    } else if (dtype.bits() == 16) {
+      ICHECK(spirv_support_.supports_int16) << "Vulkan target does not support Int16 capability";
+      capabilities_used_.insert(spv::CapabilityInt16);
+    } else if (dtype.bits() == 64) {
+      ICHECK(spirv_support_.supports_int64) << "Vulkan target does not support Int64 capability";
+      capabilities_used_.insert(spv::CapabilityInt64);
+    }
+
+  } else if (dtype.is_float()) {
+    if (dtype.bits() == 16) {
+      ICHECK(spirv_support_.supports_float16)
+          << "Vulkan target does not support Float16 capability";
+      capabilities_used_.insert(spv::CapabilityFloat16);
+    } else if (dtype.bits() == 64) {
+      ICHECK(spirv_support_.supports_float64)
+          << "Vulkan target does not support Float64 capability";
+      capabilities_used_.insert(spv::CapabilityFloat64);
+    }
+  }
+
+  // Declare ability to read type to/from storage buffers.  Doing so
+  // here is a little bit overzealous, should be relaxed in the
+  // future.  Requiring StorageBuffer8BitAccess in order to declare an
+  // Int8 prevents use of an 8-bit loop iterator on a device that
+  // supports Int8 but doesn't support 8-bit buffer access.
+  if (dtype.bits() == 8) {
+    ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
+        << "Vulkan target does not support StorageBuffer8BitAccess";
+    capabilities_used_.insert(spv::CapabilityStorageBuffer8BitAccess);
+    extensions_used_.insert("SPV_KHR_8bit_storage");
+
+    ICHECK(spirv_support_.supports_storage_buffer_storage_class)
+        << "Illegal Vulkan target description.  "
+        << "Vulkan spec requires extension VK_KHR_storage_buffer_storage_class "
+        << "if VK_KHR_8bit_storage is supported";
+  } else if (dtype.bits() == 16) {
+    ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
+        << "Vulkan target does not support StorageBuffer16BitAccess";
+
+    extensions_used_.insert("SPV_KHR_16bit_storage");
+    if (spirv_support_.supports_storage_buffer_storage_class) {
+      capabilities_used_.insert(spv::CapabilityStorageBuffer16BitAccess);
+    } else {
+      capabilities_used_.insert(spv::CapabilityStorageUniformBufferBlock16);
+    }
   }
 }
 

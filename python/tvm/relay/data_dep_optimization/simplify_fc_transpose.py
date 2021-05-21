@@ -47,7 +47,7 @@ def convert(func, params):
     weight_info = search_fc_transpose(func)
     for item in weight_info:
         name = str(item)
-        w_np = params[name].asnumpy()
+        w_np = params[name].numpy()
         new_w = np.transpose(w_np, axes=[1, 0])
         params[name + ".T"] = tvm.nd.array(new_w)
         del params[name]

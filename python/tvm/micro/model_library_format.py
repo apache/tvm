@@ -27,6 +27,9 @@ from ..contrib import utils
 from ..relay.backend import executor_factory
 from ..relay import param_dict
 
+# This should be kept identical to runtime::symbol::tvm_module_main
+MAIN_FUNC_NAME_STR = "__tvm_main__"
+
 
 class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
@@ -73,8 +76,16 @@ def _populate_codegen_dir(mod, codegen_dir: str):
         dso_mod.save(file_name)
 
 
-def _build_memory_map(graph_json):
-    """Build a simpler memory map from graph JSON.
+def _build_memory_map(mod):
+    ret = dict()
+    if isinstance(mod, executor_factory.GraphExecutorFactoryModule):
+        ret["sids"] = _build_sid_map(mod.graph_json)
+    ret["functions"] = _build_function_memory_map(mod.function_metadata)
+    return ret
+
+
+def _build_sid_map(graph_json):
+    """Build a simpler storage id info map from graph JSON.
 
     Parameters
     ----------
@@ -117,6 +128,81 @@ def _build_memory_map(graph_json):
     return memory_map
 
 
+def _build_function_memory_map(function_metadata):
+    """Build a simple map that shows how much workspace is required to execute
+    each primitive function. The main_func describes how much memory is required
+    to execute the main control code.
+
+    Parameters
+    ----------
+    function_metadata : Map<String, FunctionInfo>
+        This contains all the compiled metadata on a function basis
+
+    Returns
+    -------
+    dict :
+        This will have two entries:
+        1.) A list with one entry per function describing local memory it is using.
+        2.) A global memory requirement if all functions are executed sequentially
+    """
+    device_max_workspace = dict()
+    main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
+    num_targets = len(main_func_metadata.workspace_sizes.items())
+    func_entries = []
+    target_local_entries = dict()
+    for i in range(num_targets):
+        target = main_func_metadata.workspace_sizes.items()[i][0]
+        device_max_workspace[target] = 0
+        for func_name, finfo in function_metadata.items():
+            if func_name == MAIN_FUNC_NAME_STR:
+                continue
+            target_local_entries[func_name] = list()
+
+        for func_name, finfo in function_metadata.items():
+            if func_name == MAIN_FUNC_NAME_STR:
+                continue
+            assert len(finfo.constant_sizes.items()) == num_targets
+            assert len(finfo.io_sizes.items()) == num_targets
+            target = finfo.workspace_sizes.items()[i][0]
+            workspace_size = finfo.workspace_sizes.items()[i][1]
+            target_entry = {
+                "device": int(target.kind.device_type),
+                "workspace_size_bytes": int(workspace_size),
+            }
+            target_local_entries[func_name].append(target_entry)
+            if workspace_size > device_max_workspace[target]:
+                device_max_workspace[target] = workspace_size
+
+    for func_name, target_entries_ in target_local_entries.items():
+        func_entry = {
+            "function_name": str(func_name),
+            "workspace": target_entries_,
+        }
+        func_entries.append(func_entry)
+
+    target_main_entries = list()
+    for i in range(num_targets):
+        target = main_func_metadata.workspace_sizes.items()[i][0]
+        main_func_local_workspace = main_func_metadata.workspace_sizes.items()[i][1]
+        main_func_constants = main_func_metadata.constant_sizes.items()[i][1]
+        main_func_io = main_func_metadata.io_sizes.items()[i][1]
+        target_main_entries.append(
+            {
+                "device": int(target.kind.device_type),
+                "workspace_size_bytes": int(device_max_workspace[target])
+                + int(main_func_local_workspace),
+                "constants_size_bytes": int(main_func_constants),
+                "io_size_bytes": int(main_func_io),
+            }
+        )
+
+    ret = {
+        "operator_functions": func_entries,
+        "main": target_main_entries,
+    }
+    return ret
+
+
 def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, file_name):
     """Export the build artifact in Model Library Format.
 
@@ -133,14 +219,13 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
     """
     tempdir = utils.tempdir()
     is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
-    memory_map = [] if is_aot else _build_memory_map(mod.get_executor_config())
     runtime = ["aot"] if is_aot else ["graph"]
 
     metadata = {
-        "version": 1,
+        "version": 2,
         "model_name": mod.libmod_name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
-        "memory": memory_map,
+        "memory": _build_memory_map(mod),
         "target": {int(k): str(v) for k, v in mod.target.items()},
         "runtimes": runtime,
     }

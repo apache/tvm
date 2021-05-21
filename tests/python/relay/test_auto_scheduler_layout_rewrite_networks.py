@@ -146,7 +146,7 @@ def tune_and_check(mod, data, weight):
         log_file = fp.name
 
         # Tune tasks
-        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights, callbacks=[])
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=1,
             num_measures_per_round=1,
@@ -173,7 +173,7 @@ def tune_and_check(mod, data, weight):
             module.set_input("data", data)
             module.run()
 
-            return module.get_output(0).asnumpy()
+            return module.get_output(0).numpy()
 
         # Check correctness
         actual_output = get_output(data, lib)

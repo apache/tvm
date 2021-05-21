@@ -304,6 +304,7 @@ _register_external_op_helper_with_checker("sin", trt_version_annotate_fn((5, 1, 
 _register_external_op_helper_with_checker("cos", trt_version_annotate_fn((5, 1, 5)))
 _register_external_op_helper_with_checker("atan", trt_version_annotate_fn((5, 1, 5)))
 _register_external_op_helper_with_checker("ceil", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker("erf", trt_version_annotate_fn((7, 0, 0)))
 
 
 @_register_external_dynamic_check_func("add")
@@ -407,6 +408,34 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     if weight_rank != 2:
         logger.info("nn.dense: weight has rank %d but must be 2.", weight_rank)
+        return False
+    return True
+
+
+@_register_external_dynamic_check_func("nn.batch_matmul")
+def batch_matmul_annotate_fn(expr):
+    """Check if dense is supported by TensorRT."""
+
+    if any([x.checked_type.dtype != "float32" for x in expr.args]):
+        logger.info("Only float32 inputs are supported for TensorRT.")
+        return False
+    if get_tensorrt_use_implicit_batch_mode() and len(expr.args[0].checked_type.shape) != len(
+        expr.args[1].checked_type.shape
+    ):
+        logger.info("nn.batch_matmul: requires use_implict_batch=False.")
+        return False
+    return True
+
+
+@_register_external_dynamic_check_func("nn.layer_norm")
+def layer_norm_annotate_fn(expr):
+    """Check if dense is supported by TensorRT."""
+
+    if any([x.checked_type.dtype != "float32" for x in expr.args]):
+        logger.info("Only float32 inputs are supported for TensorRT.")
+        return False
+    if get_tensorrt_use_implicit_batch_mode() and int(expr.attrs.axis) == 0:
+        logger.info("nn.layer_norm: requires use_implict_batch=False.")
         return False
     return True
 
@@ -697,11 +726,15 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     if float(attrs.pad_value) != 0.0:
         logger.info("nn.pad: pad value is %f but must be 0.0.", float(attrs.pad_value))
         return False
+    if len(attrs.pad_width) not in [4, 5]:
+        logger.info("nn.pad: can only pad 4D or 5D inputs")
+        return False
     if any([x != 0 for x in attrs.pad_width[0]]) or any([x != 0 for x in attrs.pad_width[1]]):
         logger.info("nn.pad: can't pad batch or channel dimensions.")
         return False
     if len(attrs.pad_width) == 5 and any([x != 0 for x in attrs.pad_width[2]]):
         logger.info("nn.pad: can only pad last two dimensions for 5D inputs.")
+        return False
     return True
 
 

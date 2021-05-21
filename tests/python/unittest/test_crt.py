@@ -94,15 +94,15 @@ def test_compile_runtime():
 
     with _make_add_sess(workspace) as sess:
         A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
-        assert (B_data.asnumpy() == np.array([4])).all()
+        assert (B_data.numpy() == np.array([4])).all()
         C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
-        assert (C_data.asnumpy() == np.array([0, 0])).all()
+        assert (C_data.numpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         system_lib.get_function("add")(A_data, B_data, C_data)
-        assert (C_data.asnumpy() == np.array([6, 7])).all()
+        assert (C_data.numpy() == np.array([6, 7])).all()
 
 
 @tvm.testing.requires_micro
@@ -161,14 +161,14 @@ def test_graph_executor():
             factory.get_graph_json(), sess.get_system_lib(), sess.device
         )
         A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), device=sess.device)
-        assert (B_data.asnumpy() == np.array([4, 7])).all()
+        assert (B_data.numpy() == np.array([4, 7])).all()
 
         graph_mod.run(a=A_data, b=B_data)
 
         out = graph_mod.get_output(0)
-        assert (out.asnumpy() == np.array([6, 10])).all()
+        assert (out.numpy() == np.array([6, 10])).all()
 
 
 @tvm.testing.requires_micro
@@ -180,11 +180,11 @@ def test_std_math_functions():
 
     with _make_add_sess(workspace) as sess:
         A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), device=sess.device)
-        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        assert (A_data.numpy() == np.array([2, 3])).all()
         B_data = tvm.nd.array(np.array([4], dtype="int8"), device=sess.device)
-        assert (B_data.asnumpy() == np.array([4])).all()
+        assert (B_data.numpy() == np.array([4])).all()
         C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), device=sess.device)
-        assert (C_data.asnumpy() == np.array([0, 0])).all()
+        assert (C_data.numpy() == np.array([0, 0])).all()
 
         system_lib = sess.get_system_lib()
         system_lib.get_function("add")(A_data, B_data, C_data)
@@ -200,7 +200,7 @@ def test_std_math_functions():
         lib = sess.get_system_lib()
         func = lib["myexpf"]
         func(A_data, B_data)
-        np.testing.assert_allclose(B_data.asnumpy(), np.array([7.389056, 20.085537]))
+        np.testing.assert_allclose(B_data.numpy(), np.array([7.389056, 20.085537]))
 
 
 @tvm.testing.requires_micro

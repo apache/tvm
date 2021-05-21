@@ -174,7 +174,7 @@ class PackedFuncCell implements Disposable {
 
 const DeviceEnumToStr: Record<number, string> = {
   1: "cpu",
-  2: "gpu",
+  2: "cuda",
   4: "opencl",
   8: "metal",
   15: "webgpu"
@@ -182,7 +182,6 @@ const DeviceEnumToStr: Record<number, string> = {
 
 const DeviceStrToEnum: Record<string, number> = {
   cpu: 1,
-  gpu: 2,
   cuda: 2,
   cl: 4,
   opencl: 4,

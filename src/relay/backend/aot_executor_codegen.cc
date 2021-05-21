@@ -25,8 +25,11 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/object.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
 
 #include <algorithm>
@@ -149,40 +152,23 @@ class AOTExecutorCodegen : public ExprVisitor {
    * \return Variable that represents the DLTensor associated with the parameters
    */
   tir::Var PackParam(Expr expr) {
-    // TODO(giuseros): Using call_extern to call into lookup_linked_param. This is because the
-    // builtin::ret is not supported yet in the c target. Once return is supported we can use
-    // tvm_call_packed_lowered().
     int param_sid = param_storage_ids_[params_by_expr_[expr]];
-    auto lookup_linked_param_fn = tir::StringImm(::tvm::runtime::symbol::tvm_lookup_linked_param);
     auto param_array = te::Var(MakeString("param_", param_sid, "_array"), DataType::Handle());
 
     // Compose the lookup_call using a local stack
     Array<tir::Stmt> lookup_call;
-    auto param_var = te::Var(MakeString("param_", param_sid, "_value"), DataType::Handle());
-    auto ret_var = te::Var("ret_value", DataType::Handle());
-    auto ret_code = te::Var("ret_value", DataType::Handle());
-
-    lookup_call.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                       {param_var, 0, tir::builtin::kTVMValueContent, ConstInt32(param_sid)})));
-    lookup_call.push_back(tir::Evaluate(
-        tvm::tir::Call(DataType::Handle(), tir::builtin::call_extern(),
-                       {lookup_linked_param_fn, param_var, 0, 0, ret_var, ret_code, 0})));
-    auto ret_var_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                         {ret_var, 0, tir::builtin::kTVMValueContent});
-
     // Set the param to the value returned by lookup_call
+    auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                       {tir::StringImm(params_by_expr_[expr])});
+
     tvm::PrimExpr set_param_array =
         tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                       {param_array, 0, tir::builtin::kArrData, ret_var_handle});
+                       {param_array, 0, tir::builtin::kArrData, param_handle});
     lookup_call.push_back(tir::Evaluate(set_param_array));
 
     tir::Stmt lookup_body = tir::SeqStmt(lookup_call);
 
     // Allocate the DLTensors on the stack
-    lookup_body = tir::LetStmt(param_var, StackAlloca("arg_value", 1), lookup_body);
-    lookup_body = tir::LetStmt(ret_var, StackAlloca("arg_value", 1), lookup_body);
-    lookup_body = tir::LetStmt(ret_code, StackAlloca("arg_value", 1), lookup_body);
     lookup_body = tir::LetStmt(param_array, StackAlloca("arg_value", 1), lookup_body);
     stmts_.push_back(lookup_body);
     return param_array;
@@ -270,6 +256,83 @@ class AOTExecutorCodegen : public ExprVisitor {
     return ss.str();
   }
 
+  /*!
+   * \brief Update the "main" control function's metadata
+   *
+   * \param func The main function that contains calls to operator tir primitive functions
+   */
+  void UpdateMainWorkspaceSize(const tir::PrimFunc& primfunc, const relay::Function& func) {
+    auto workspace_byte_alignment = target_host_->GetAttr<Integer>("workspace-byte-alignment")
+                                        .value_or(tvm::runtime::kDefaultWorkspaceAlignment);
+    Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
+    // Populate FunctionInfo
+    auto fi_node = make_object<FunctionInfoNode>();
+    // Initialize all target workspaces to zero
+    for (const auto& kv : targets_) {
+      auto tgt = kv.second;
+      fi_node->workspace_sizes.Set(tgt, 0);
+    }
+    fi_node->workspace_sizes.Set(target_host_, workspace_size);
+    fi_node->relay_primfuncs.Set(target_host_, func);
+
+    int64_t io_size = 0;
+    for (const auto& input : input_vars_) {
+      io_size += CalculateRelayExprSizeBytes(input->checked_type());
+    }
+    io_size += CalculateRelayExprSizeBytes(func->body->checked_type());
+    fi_node->io_sizes.Set(target_host_, io_size);
+
+    int64_t const_size = 0;
+    for (const auto& kv : params_by_expr_) {
+      const_size += CalculateRelayExprSizeBytes(kv.first->checked_type());
+    }
+    fi_node->constant_sizes.Set(target_host_, const_size);
+    function_metadata_.Set(String(runtime::symbol::tvm_module_main), FunctionInfo(fi_node));
+  }
+
+  /*!
+   * \brief Update the function metadata for a given cached function and its relay
+   * primitive function.
+   *
+   * \param cfunc The cached function as provided the by the compile engine
+   * \param relay_func The source relay primitive function
+   * \param relay_target The target associated with relay primitive function
+   */
+  void UpdateFunctionMetadata(const CachedFunc& cfunc, const Function& relay_func,
+                              const Target& relay_target) {
+    auto fi_node = make_object<FunctionInfoNode>();
+    for (const auto& kv : cfunc->funcs->functions) {
+      auto primfunc = Downcast<tir::PrimFunc>(kv.second);
+      auto workspace_byte_alignment =
+          target_host_->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+      Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
+      Target primfunc_target = relay_target;
+      if (primfunc->attrs->dict.count("target")) {
+        primfunc_target = Downcast<Target>(primfunc->attrs->dict["target"]);
+      }
+      fi_node->workspace_sizes.Set(primfunc_target, workspace_size);
+      // Calculating size for I/O
+      for (auto const& param : primfunc->params) {
+        auto p_shape = primfunc->buffer_map[param]->shape;
+        int num_of_elements = 1;
+        for (const auto& dim_index_expr : p_shape) {
+          if (dim_index_expr->IsInstance<IntImmNode>()) {
+            num_of_elements *= dim_index_expr.as<IntImmNode>()->value;
+          } else {
+            // If shape is dynamic, we cannot calculate workspace in compile time.
+            num_of_elements = 0;
+          }
+        }
+        int element_size = primfunc->buffer_map[param]->dtype.bytes();
+        fi_node->io_sizes.Set(primfunc_target, element_size * num_of_elements);
+      }
+      fi_node->constant_sizes.Set(primfunc_target, 0);
+      fi_node->tir_primfuncs.Set(primfunc_target, primfunc);
+      fi_node->relay_primfuncs.Set(primfunc_target, relay_func);
+    }
+    function_metadata_.Set(cfunc->func_name, FunctionInfo(fi_node));
+  }
+
   void VisitExpr_(const CallNode* op) override {
     // Descend the call tree
     for (auto arg : op->args) {
@@ -336,6 +399,8 @@ class AOTExecutorCodegen : public ExprVisitor {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
+    // Update function metadata via looking at all primfuncs
+    UpdateFunctionMetadata(lowered_func, func, target);
 
     // Generate the TIR function call
     CreateFuncCall(GetRef<Call>(op), lowered_func->func_name);
@@ -488,6 +553,8 @@ class AOTExecutorCodegen : public ExprVisitor {
   std::unordered_map<int, te::Var> sids_table_;
   /*! \brief lowered funcs */
   std::unordered_map<std::string, IRModule> lowered_funcs_;
+  /*! \brief lowered funcs */
+  Map<String, FunctionInfo> function_metadata_;
   /*! \brief compile engine */
   CompileEngine compile_engine_;
   /*! \brief the set of statements that make the program */
@@ -531,6 +598,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     VisitExpr(func->body);
 
     auto prim_func = CreateMainFunc(func->params.size());
+    UpdateMainWorkspaceSize(prim_func, func);
     LoweredOutput ret;
 
     ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
@@ -559,7 +627,7 @@ class AOTExecutorCodegen : public ExprVisitor {
       symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_prefix), prim_func);
       ret.lowered_funcs.Set(target_host_str, IRModule(symbol_map));
     }
-
+    ret.function_metadata = std::move(function_metadata_);
     ret.metadata =
         runtime::Metadata(input_vars_.size(), return_sid_.size(), runtime::kTvmExecutorAot);
     return ret;
@@ -602,6 +670,10 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_external_modules") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_external_modules(); });
+    } else if (name == "get_function_metadata") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->output_.function_metadata;
+      });
     } else if (name == "get_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = output_.metadata; });

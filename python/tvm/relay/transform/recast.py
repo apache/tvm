@@ -57,14 +57,24 @@ class RecastMutator(ExprMutator):
         # Downcast this op if its the correct type and not skipped.
         if call.op in self.valid_ops and current_layer not in self.skip_layers:
             # Recast inputs to specified type.
-            args = [self.visit(arg) for arg in call.args]
-            new_args = list()
-            for arg in args:
-                new_args.append(relay.cast(arg, dtype=self.dtype))
+            if call.op == relay.op.get("concatenate"):
+                if len(call.args) != 1 or not isinstance(call.args[0], relay.expr.Tuple):
+                    return Call(new_fn, args, call.attrs)
+
+                tuple_args = [self.visit(arg) for arg in call.args[0].fields]
+                new_args = list()
+                for arg in tuple_args:
+                    new_args.append(relay.cast(arg, dtype=self.dtype))
+                new_args = [relay.expr.Tuple(new_args)]
+            else:
+                args = [self.visit(arg) for arg in call.args]
+                new_args = list()
+                for arg in args:
+                    new_args.append(relay.cast(arg, dtype=self.dtype))
 
             # If out_dtype is in the attributes, we need to update it.
             orig_dtype = None
-            if "out_dtype" in call.attrs.keys():
+            if call.attrs is not None and "out_dtype" in call.attrs.keys():
                 new_attr_dict = {}
                 for attr in call.attrs.keys():
                     attr_value = call.attrs[attr]

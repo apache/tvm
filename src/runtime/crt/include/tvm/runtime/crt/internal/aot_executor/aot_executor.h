@@ -62,8 +62,8 @@ extern "C" {
  *  model to the runtime.
  */
 typedef struct {
-  uint32_t num_input_tensors;     /** Number of expected input tensors */
-  uint32_t num_output_tensors;    /** Number of expected output tensors */
+  size_t num_input_tensors;       /** Number of expected input tensors */
+  size_t num_output_tensors;      /** Number of expected output tensors */
   TVMBackendPackedCFunc run_func; /** Generated model function, called through tvm_runtime_run */
 } tvm_model_t;
 

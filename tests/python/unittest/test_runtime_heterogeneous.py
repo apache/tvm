@@ -181,7 +181,7 @@ def test_simplex_data_transferring():
         mod.set_input(**params)
         mod.run()
         out = mod.get_output(0, tvm.nd.empty(shape))
-        np.testing.assert_equal(out.asnumpy(), (tensor_a + tensor_b) - tensor_c)
+        np.testing.assert_equal(out.numpy(), (tensor_a + tensor_b) - tensor_c)
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
@@ -414,7 +414,7 @@ def test_duplex_data_transferring():
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
-            np.testing.assert_equal(out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
+            np.testing.assert_equal(out.numpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         def check_load_module():
             temp = utils.tempdir()
@@ -428,7 +428,7 @@ def test_duplex_data_transferring():
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
-            np.testing.assert_equal(out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
+            np.testing.assert_equal(out.numpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         check_verify()
         check_load_module()

@@ -103,7 +103,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
         for _ in range(1):
             foo(data_tvm, out_tvm)
         if type == "argmax" or type == "argmin":
-            out_tvm_indices = out_tvm.asnumpy()
+            out_tvm_indices = out_tvm.numpy()
             if keepdims:
                 out_tvm_indices = np.take(out_tvm_indices, indices=0, axis=axis)
             if axis is None:
@@ -117,7 +117,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             elif type == "argmin":
                 tvm.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1e-3, 1e-3)
         else:
-            tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1e-3, 1e-3)
+            tvm.testing.assert_allclose(out_tvm.numpy(), out_npy, 1e-3, 1e-3)
 
     for device, dev in tvm.testing.enabled_targets():
         check_device(device, dev)
@@ -174,7 +174,7 @@ def test_complex_reduce():
         data_tvm = tvm.nd.array(in_npy, device=dev)
         out_tvm = tvm.nd.empty(shape=out_npy.shape, device=dev, dtype=dtype)
         foo(data_tvm, out_tvm)
-        tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1e-3, 1e-3)
+        tvm.testing.assert_allclose(out_tvm.numpy(), out_npy, 1e-3, 1e-3)
 
 
 if __name__ == "__main__":

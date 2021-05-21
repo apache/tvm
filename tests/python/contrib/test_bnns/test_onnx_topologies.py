@@ -120,7 +120,7 @@ def process(model_name):
 
         module = graph_executor.GraphModule(loaded_lib["default"](dev))
         module.run()
-        return module.get_output(0).asnumpy()
+        return module.get_output(0).numpy()
 
     res_llvm = run(model, TARGET, simplify=True, with_bnns=False)
     res_bnns = run(model, TARGET, simplify=True, with_bnns=True)

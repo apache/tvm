@@ -96,7 +96,7 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 
 CuDNNThreadEntry::CuDNNThreadEntry() {
   auto stream = runtime::CUDAThreadEntry::ThreadLocal()->stream;
-  auto func = runtime::Registry::Get("device_api.gpu");
+  auto func = runtime::Registry::Get("device_api.cuda");
   void* ret = (*func)();
   cuda_api = static_cast<runtime::DeviceAPI*>(ret);
   CUDNN_CALL(cudnnCreate(&handle));

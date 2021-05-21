@@ -279,6 +279,14 @@ TVM_DLL const Op& tvm_struct_get();
 TVM_DLL const Op& tvm_struct_set();
 
 /*!
+ * \brief See pseudo code
+ * Type lookup_param(String param_name) {
+ *     return __tvm_param__param_name;
+ * }
+ */
+TVM_DLL const Op& lookup_param();
+
+/*!
  * \brief See pesudo code
  *
  *  void tvm_throw_last_error() {

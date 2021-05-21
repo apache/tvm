@@ -730,6 +730,23 @@ def schedule_sparse_transpose(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_sparse_conv2d(outs):
+    """Schedule for sparse_conv2d
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of sparse_conv2d
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_batch_matmul(outs):
     """Schedule for batch_matmul
 

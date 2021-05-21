@@ -235,7 +235,7 @@ target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 # Also replace this with the device key, rpc host and rpc port in your tracker
 device_key = "rasp4b-64"
 rpc_host = "127.0.0.1"
-rpc_port = 9191
+rpc_port = 9190
 
 # Set this to True if you use ndk tools for cross compiling
 # And also set the environment variable below to point to the cross compiler

@@ -83,6 +83,7 @@ class BuildModule(object):
         self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
+        self._get_function_metadata = self.mod["get_function_metadata"]
 
     def build(self, mod, target=None, target_host=None, params=None, executor="graph"):
         """
@@ -199,6 +200,12 @@ class BuildModule(object):
     def get_module(self):
         """Return the built module."""
         return self._get_module()
+
+    def get_function_metadata(self):
+        """Return the compiled function metadata.
+        Currently, the metadata contains workspace size required by
+        each PrimFunc"""
+        return self._get_function_metadata()
 
     def get_params(self):
         """Return the updated weights."""
@@ -325,14 +332,15 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         executor_config, runtime_mod, params = bld_mod.build(
             mod=ir_mod, target=target, params=params, executor=executor
         )
+        func_metadata = bld_mod.get_function_metadata()
 
         if executor == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
-                ir_mod, target, runtime_mod, mod_name, params
+                ir_mod, target, runtime_mod, mod_name, params, func_metadata
             )
         elif executor == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, executor_config, runtime_mod, mod_name, params
+                ir_mod, target, executor_config, runtime_mod, mod_name, params, func_metadata
             )
         else:
             assert False, "Executor " + executor + " not supported"

@@ -115,7 +115,7 @@ class DeviceDomain {
   struct Hash {
     size_t operator()(const DeviceDomainPtr& domain) const {
       if (domain->IsEmptyDomain()) {
-        return (size_t)(domain.get());
+        return static_cast<size_t>(reinterpret_cast<uintptr_t>(domain.get()));
       } else {
         size_t const h1(std::hash<int>()(static_cast<int>(domain->device_.device_type)));
         size_t const h2(std::hash<int>()(domain->device_.device_id));

@@ -37,6 +37,8 @@
 namespace tvm {
 namespace codegen {
 
+CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
+
 runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
@@ -44,7 +46,8 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   uint32_t num_buffer = 0;
 
   // Currently, all storage and uniform buffer arguments are passed as
-  // a single descriptor set at index 0.
+  // a single descriptor set at index 0.  If ever non-zero, must
+  // ensure it is less than maxBoundDescriptorSets.
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
@@ -114,7 +117,7 @@ void CodeGenSPIRV::InitFuncState() {
   var_map_.clear();
   storage_info_.clear();
   analyzer_.reset(new arith::Analyzer());
-  builder_.reset(new spirv::IRBuilder());
+  builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
 }
 
@@ -549,6 +552,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
   spirv::Label head_label = builder_->NewLabel();
+  spirv::Label condition_label = builder_->NewLabel();
   spirv::Label body_label = builder_->NewLabel();
   spirv::Label continue_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
@@ -556,9 +560,15 @@ void CodeGenSPIRV::VisitStmt_(const WhileNode* op) {
 
   // Loop head
   builder_->StartLabel(head_label);
-  spirv::Value loop_cond = MakeValue(op->condition);
   uint32_t control = spv::LoopControlMaskNone;
   builder_->MakeInst(spv::OpLoopMerge, merge_label, continue_label, control);
+  builder_->MakeInst(spv::OpBranch, condition_label);
+
+  // Loop condition evaluation.  The condition could contain if/else
+  // blocks that introduce additional labels, so the condition cannot
+  // be in the loop head's block.
+  builder_->StartLabel(condition_label);
+  spirv::Value loop_cond = MakeValue(op->condition);
   builder_->MakeInst(spv::OpBranchConditional, loop_cond, body_label, merge_label,
                      weight_likely_branch_, 1);
 
