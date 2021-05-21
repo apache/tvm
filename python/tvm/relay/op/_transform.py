@@ -1088,7 +1088,7 @@ def _gather_nd_shape(data_shape, indices_shape, batch_dims, num_indices_per_tupl
     kdim = indices_shape.shape[0] - 1
     out_shape = output_tensor((kdim + ndim - (mdim + batch_dims),), "int64")
     for i in range(1, kdim + 1):
-        out_shape[i-1] = indices_shape[i]
+        out_shape[i - 1] = indices_shape[i]
     for i in range(mdim + batch_dims, ndim):
         out_shape[kdim + i - (mdim + batch_dims)] = data_shape[i]
     return out_shape
@@ -1101,5 +1101,11 @@ def gather_nd_shape_func(attrs, inputs, _):
     """
     batch_dims = get_const_int(attrs.batch_dims)
     num_indices_per_tuple = get_const_int(attrs.num_indices_per_tuple)
-    assert num_indices_per_tuple > 0, "num_indices_per_tuple needs to be specified for dynamic gather_nd"
-    return [_gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(num_indices_per_tuple))]
+
+    assert (
+        num_indices_per_tuple > 0
+    ), "num_indices_per_tuple needs to be specified for dynamic gather_nd"
+
+    return [
+        _gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(num_indices_per_tuple))
+    ]
