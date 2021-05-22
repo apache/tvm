@@ -35,6 +35,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <tuple>
 #include <spirv.hpp>
 // clang-format on
 
@@ -432,10 +433,12 @@ class IRBuilder {
    * \param value_type the content value type.
    * \param num_elems number of elements in array
    *   num_elems = 0 means runtime array with BufferBlock Decoration
+   * \param interface_block if this array type for interface blocks(input, output, uniform,
+   *   storage buffer).
    *
    * \return The corresponding spirv type.
    */
-  SType GetStructArrayType(const SType& value_type, uint32_t num_elems);
+  SType GetStructArrayType(const SType& value_type, uint32_t num_elems, bool interface_block);
   /*!
    * \brief Get a struct array access with a given index.
    * \param ptr_type The pointer type.
@@ -634,7 +637,7 @@ class IRBuilder {
   /*! \brief map from type code to the type */
   std::unordered_map<uint32_t, SType> pod_type_tbl_;
   /*! \brief map from value to array type */
-  std::map<std::pair<uint32_t, uint32_t>, SType> struct_array_type_tbl_;
+  std::map<std::tuple<uint32_t, uint32_t, bool>, SType> struct_array_type_tbl_;
   /*! \brief map from value to its pointer type */
   std::map<std::pair<uint32_t, spv::StorageClass>, SType> pointer_type_tbl_;
   /*! \brief map from constant int to its value */
