@@ -215,7 +215,7 @@ void PassContext::InstrumentAfterPass(const IRModule& ir_module, const PassInfo&
 }
 
 IRModule Pass::operator()(IRModule mod) const {
-  return this->operator()(mod, PassContext::Current());
+  return this->operator()(std::move(mod), PassContext::Current());
 }
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
