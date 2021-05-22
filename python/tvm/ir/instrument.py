@@ -45,7 +45,7 @@ def _wrap_class_pass_instrument(pi_cls):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pi_cls creation failed.fg
+            # initialize handle in case pi_cls creation failed.
             self.handle = None
             inst = pi_cls(*args, **kwargs)
 
@@ -61,15 +61,16 @@ def _wrap_class_pass_instrument(pi_cls):
                 return None
 
             # create runtime pass instrument object
-            # reister instance's run_before_pass, run_after_pass, set_up and tear_down method
-            # to it if present.
+            # reister instance's enter_pass_ctx,exit_pass_ctx, should_run, run_before_pass and
+            # run_after_pass methods to it if present.
             self.__init_handle_by_constructor__(
-                _ffi_instrument_api.NamedPassInstrument,
+                _ffi_instrument_api.PassInstrument,
                 pi_cls.__name__,
+                create_method("enter_pass_ctx"),
+                create_method("exit_pass_ctx"),
+                create_method("should_run"),
                 create_method("run_before_pass"),
                 create_method("run_after_pass"),
-                create_method("set_up"),
-                create_method("tear_down"),
             )
 
             self._inst = inst
@@ -103,18 +104,22 @@ def pass_instrument(pi_cls=None):
                 self.skip_pass_name = skip_pass_name
 
             # Uncomment to customize
-            # def set_up(self):
+            # def enter_pass_ctx(self):
             #    pass
 
             # Uncomment to customize
-            # def tear_down(self):
+            # def exit_pass_ctx(self):
             #    pass
 
             # If pass name contains keyword, skip it by return False. (return True: not skip)
-            def run_before_pass(self, mod, pass_info):
+            def should_run(self, mod, pass_info)
                 if self.skip_pass_name in pass_info.name:
                     return False
                 return True
+
+            # Uncomment to customize
+            # def run_before_pass(self, mod, pass_info):
+            #    pass
 
             # Uncomment to customize
             # def run_after_pass(self, mod, pass_info):

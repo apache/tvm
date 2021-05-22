@@ -28,6 +28,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <stack>
@@ -58,14 +59,14 @@ typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> RelayPassContextThre
 void PassContext::EnterWithScope() {
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   entry->context_stack.push(*this);
-  InstrumentSetUp();
+  InstrumentEnterPassContext();
 }
 
 void PassContext::ExitWithScope() {
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
-  InstrumentTearDown();
+  InstrumentExitPassContext();
   entry->context_stack.pop();
 }
 
@@ -164,34 +165,44 @@ void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_inde
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
 
-void PassContext::InstrumentSetUp() const {
+void PassContext::InstrumentEnterPassContext() const {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
     for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-      pi->SetUp();
+      pi->EnterPassContext();
     }
   }
 }
 
-void PassContext::InstrumentTearDown() const {
+void PassContext::InstrumentExitPassContext() const {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
     for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-      pi->TearDown();
+      pi->ExitPassContext();
     }
   }
 }
 
 bool PassContext::InstrumentBeforePass(const IRModule& ir_module, const PassInfo& pass_info) const {
   auto pass_ctx_node = this->operator->();
-  if (pass_ctx_node->instruments.defined()) {
+  if (!pass_ctx_node->instruments.defined()) {
+    return true;
+  }
+
+  const bool pass_required = PassArrayContains(pass_ctx_node->required_pass, pass_info->name);
+  bool should_run = true;
+  if (!pass_required) {
+    const Array<instrument::PassInstrument>& instruments = pass_ctx_node->instruments;
+    should_run &= std::all_of(instruments.begin(), instruments.end(),
+                              [&](auto pi) { return pi->ShouldRun(ir_module, pass_info); });
+  }
+
+  if (should_run) {
     for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-      if (!pi->RunBeforePass(ir_module, pass_info)) {
-        return false;
-      }
+      pi->RunBeforePass(ir_module, pass_info);
     }
   }
-  return true;
+  return should_run;
 }
 
 void PassContext::InstrumentAfterPass(const IRModule& ir_module, const PassInfo& pass_info) const {
@@ -204,16 +215,20 @@ void PassContext::InstrumentAfterPass(const IRModule& ir_module, const PassInfo&
 }
 
 IRModule Pass::operator()(IRModule mod) const {
-  const PassNode* node = operator->();
-  ICHECK(node != nullptr);
-  auto ret = node->operator()(std::move(mod));
-  return std::move(ret);
+  return this->operator()(mod, PassContext::Current());
 }
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassNode* node = operator->();
   ICHECK(node != nullptr);
+  const PassInfo& pass_info = node->Info();
+  if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
+    DLOG(INFO) << "Skipping pass : " << pass_info->name
+               << " with opt level: " << pass_info->opt_level;
+    return mod;
+  }
   auto ret = node->operator()(std::move(mod), pass_ctx);
+  pass_ctx.InstrumentAfterPass(ret, pass_info);
   return std::move(ret);
 }
 
@@ -357,14 +372,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   const PassInfo& pass_info = Info();
   ICHECK(mod.defined()) << "The input module must be set.";
 
-  if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
-    DLOG(INFO) << "Skipping module pass : " << pass_info->name
-               << " with opt level: " << pass_info->opt_level;
-
-    pass_ctx->diag_ctx = previous;
-    return mod;
-  }
-
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
 
@@ -378,7 +385,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
-  pass_ctx.InstrumentAfterPass(mod, pass_info);
   return mod;
 }
 
@@ -541,17 +547,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "\n";
       p->stream << "\topt_level: " << node->opt_level << "\n";
 
-      p->stream << "\trequired passes: [";
-      for (const auto& it : node->required_pass) {
-        p->stream << it << " ";
-      }
-      p->stream << "]\n";
+      p->stream << "\trequired passes: " << node->required_pass << "\n";
+      p->stream << "\tdisabled passes: " << node->disabled_pass << "\n";
+      p->stream << "\tinstruments: " << node->instruments << "\n";
 
-      p->stream << "\tdisabled passes: [";
-      for (const auto& it : node->disabled_pass) {
-        p->stream << it << " ";
-      }
-      p->stream << "]\n";
       p->stream << "\tconfig: " << node->config;
     });
 
@@ -567,6 +566,13 @@ TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContex
 TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::Internal::EnterScope);
 
 TVM_REGISTER_GLOBAL("transform.ExitPassContext").set_body_typed(PassContext::Internal::ExitScope);
+
+TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
+    .set_body_typed([](PassContext pass_ctx, Array<instrument::PassInstrument> instruments) {
+      pass_ctx.InstrumentExitPassContext();
+      pass_ctx->instruments = instruments;
+      pass_ctx.InstrumentEnterPassContext();
+    });
 
 Pass PrintIR(String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {

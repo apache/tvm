@@ -47,66 +47,96 @@ namespace instrument {
  * \brief PassInstrumentNode forms an instrument implementation.
  * It provides API for users to register callbacks at different instrumentation points.
  *
- * Within a pass context (tvm::transfom::PassContext), the instrumentation call sequence will like:
+ * Within a PassContext, call sequence of a PassInstrument implementation is like:
  *
- *   Instrument SetUp()
+ *   with PassContext(instruments=[pi]):  # pi = a PassInstrument implementation
+ *       pi.EnterPassContext()
  *
- *     if (Instrument Before Pass())
- *       Pass1()
- *       Instrument After Pass()
+ *       if pi.ShouldRun(Pass1):
+ *           pi.RunBeforePass()
+ *           Pass1()
+ *           pi.RunAfterPass()
  *
- *     if (Instrument Before Pass())
- *       Pass2()
- *       Instrument After Pass()
+ *       if pi.ShouldRun(Pass2):
+ *           pi.RunBeforePass()
+ *           Pass2()
+ *           pi.RunAfterPass()
  *
- *   Instrument TearDown()
+ *       pi.ExitPassContext()
  *
+ * `EnterPassContext` and `ExitPassContext` are only called once when entering/exiting a
+ * PassContext. `ShouldRun`, `RunBeforePass` and `RunAfterPass` are called multiple times depending
+ * on how many passes.
  *
- * The `Before Pass` instrumentation point can selectively disable passes by returning true (to
- * enable) or false (to disable).
+ * If there are multiple pass instrumentations provided, the instrument points are the same.
+ * PassInstrument implementations' callbacks are called in order:
  *
- * If there are multiple pass instrumentations provided, `Before Pass` callbacks are applied in
- * order. If one return false, then the pass will be skipped:
+ *   with PassContext(instruments=[pi1, pi2]):  # pi1, pi2 = two distinct PassInstrument impls
+ *       pi.EnterPassContext() for pi in instruments
  *
- *    for (auto pi : PassInstruments)
- *       if (pi->BeforePass())
- *          return False  // Disable pass
+ *       should_run = all([pi.ShoudRun(Pass1) for pi in instruments)])
+ *       if (should_run)
+ *           pi.RunBeforePass() for pi in instruments
+ *           Pass1()
+ *           pi.RunAfterPass()  for pi in instruments
  *
- *    return True  // All ok, enable pass
+ *       should_run = all([pi.ShouldRun(Pass2) for pi in instruments)])
+ *       if (should_run)
+ *           pi.RunBeforePass() for pi in instruments
+ *           Pass2()
+ *           pi.RunAfterPass() for pi in instruments
  *
+ *       pi.ExitPassContext() for pi in instruments
+ *
+ * Note:
+ *   1. Assume there is no dependency between PassInstrument implementations in `instruments` .
+ *   2. `EnterPassContext` and `ExitPassContext` have `with` behavior (see PassContext and its FFI):
+ *        If there is any exception raised in `ShouldRun()`, `RunBeforePass()`, `RunAfterPass()` and
+ *        `Pass()`, `ExitPassContext()` is still called.
+ *   3. In mutiple PassInstrument instances scenario, callbacks are called in order:
+ *        If one throws exceptions, remainings will not be called.
  *
  * \sa PassInstrument
- * \sa PassContextNode::InstrumentBeforePass()
  * \sa src/ir/transform.cc
  */
 class PassInstrumentNode : public Object {
  public:
+  /*! \brief Name of this pass instrument object. */
+  String name;
+
   virtual ~PassInstrumentNode() {}
 
-  /*! \brief Set up environment for instrumentation. */
-  virtual void SetUp() const = 0;
+  /*! \brief Instrument when entering PassContext. Called once within a PassContext. */
+  virtual void EnterPassContext() const = 0;
 
-  /*! \brief Clean up instrumentation environment. */
-  virtual void TearDown() const = 0;
+  /*! \brief Instrument when exiting PassContext. Called once within a PassContext. */
+  virtual void ExitPassContext() const = 0;
 
   /*!
-   * \brief Instrument before pass run, determine whether to run the pass or not.
+   * \brief Determine whether to run the pass or not. Called multiple times depend on number of
+   *        passes.
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
    *
    * \return true to run the pass; false to skip the pass.
    */
-  virtual bool RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+  virtual bool ShouldRun(const IRModule& mod, const transform::PassInfo& info) const = 0;
 
   /*!
-   * \brief Instrument after pass run.
-   *
+   * \brief Instrument before pass run. Called multiple times depend on number of passes.
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   */
+  virtual void RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+
+  /*!
+   * \brief Instrument after pass run. Called multiple time depend on number of passes.
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
    */
   virtual void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const = 0;
 
-  void VisitAttrs(AttrVisitor* v) {}
+  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "instrument.PassInstrument";
   TVM_DECLARE_BASE_OBJECT_INFO(PassInstrumentNode, Object);

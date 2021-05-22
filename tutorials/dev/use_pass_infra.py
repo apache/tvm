@@ -280,7 +280,6 @@ class PrintIR:
     def run_before_pass(self, mod, info):
         print("Running pass: {}", info)
         print(mod)
-        return True
 
 
 with tvm.transform.PassContext(opt_level=3, instruments=[PrintIR()]):

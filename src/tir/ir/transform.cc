@@ -87,11 +87,7 @@ PrimFuncPass::PrimFuncPass(
 
 // Perform Module -> Module optimizations at the PrimFunc level.
 IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  const PassInfo& pass_info = Info();
   ICHECK(mod.defined());
-  if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
-    return mod;
-  }
   std::vector<ObjectRef> deleted_list;
   IRModuleNode* mod_ptr = mod.CopyOnWrite();
   auto* func_dict = mod_ptr->functions.CopyOnWrite();
@@ -114,7 +110,6 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   for (const auto& gv : deleted_list) {
     func_dict->erase(gv);
   }
-  pass_ctx.InstrumentAfterPass(mod, pass_info);
   return mod;
 }
 

@@ -540,15 +540,14 @@ class PassCounter:
         # Just setting a garbage value to test set_up callback
         self.counts = 1234
 
-    def set_up(self):
+    def enter_pass_ctx(self):
         self.counts = 0
 
-    def tear_down(self):
+    def exit_pass_ctx(self):
         self.counts = 0
 
     def run_before_pass(self, module, info):
         self.counts += 1
-        return True
 
     def get_counts(self):
         return self.counts
@@ -579,8 +578,8 @@ def test_print_debug_callback():
         mod = seq(mod)
 
         # TODO(@jroesch): when we remove new fn pass behavior we need to remove
-        # change this back to 3
-        assert pass_counter.get_counts() == 5
+        # change this back to match correct behavior
+        assert pass_counter.get_counts() == 6
 
     # Should be cleanned up after exiting pass context
     assert pass_counter.get_counts() == 0

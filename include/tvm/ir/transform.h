@@ -127,6 +127,7 @@ class PassContextNode : public Object {
     v->Visit("opt_level", &opt_level);
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
+    v->Visit("instruments", &instruments);
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
   }
@@ -182,17 +183,20 @@ class PassContext : public ObjectRef {
   TVM_DLL static PassContext Current();
 
   /*!
-   * \brief Set up for all the instrument implementations.
+   * \brief Call instrument implementations' callbacks when entering PassContex.
+   *        In order, if one raises exceptions, remaings will not be called.
    */
-  TVM_DLL void InstrumentSetUp() const;
+  TVM_DLL void InstrumentEnterPassContext() const;
 
   /*!
-   * \brief Clean up for all the instrument implementations.
+   * \brief Call instrument implementations' callback when exiting PassContext.
+   *        In order, if one raises exceptions, remaings will not be called.
    */
-  TVM_DLL void InstrumentTearDown() const;
+  TVM_DLL void InstrumentExitPassContext() const;
 
   /*!
-   * \brief Call intrument implementations before a pass run.
+   * \brief Call intrument implementations' callbacks before a pass run.
+   *        In order, if one raises exceptions, remaings will not be called.
    *
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
@@ -202,7 +206,8 @@ class PassContext : public ObjectRef {
   TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
 
   /*!
-   * \brief Call instrument implementations after a pass run.
+   * \brief Call instrument implementations callbacks after a pass run.
+   *        In order, if one raises exceptions, remaings will not be called.
    *
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
