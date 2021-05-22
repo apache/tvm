@@ -116,17 +116,21 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
         auto f = [=](const Array<Type>& args, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) -> bool {
           Array<Type> input_types(args.begin(), args.end() - 1);
+          // call customized relation functions
           Type ret_type = (*fcopy)(input_types, attrs);
           if (ret_type.defined()) {
+            // the last argument is output
             reporter->Assign(args[args.size() - 1], ret_type);
             return true;
           }
           return false;
         };
+        // adjust function call to relay type system with TypeReporter
         auto type_rel = runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&,
                                                       const TypeReporter&)>(f);
         reg.add_type_rel(rel_name, type_rel);
       } else if (value.type_code() == kTVMNullptr) {
+        // Call relation functions of relay
         auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
         auto* f = runtime::Registry::Get(func_name);
         CHECK(f != nullptr) << "AddTypeRel error: no type_relation registered.";

@@ -22,6 +22,7 @@ import tvm
 
 from tvm import IRModule, te, relay, parser
 from tvm.relay import op, transform, analysis
+from tvm.relay.op import op as _op
 
 
 def infer_mod(mod, annotate_spans=True):
@@ -414,6 +415,60 @@ def test_dynamic_function():
     mod["main"] = relay.Function([y], c)
     mod = transform.InferType()(mod)
     assert mod["main"].params[0].checked_type == s_tt
+
+
+def test_custom_op_infer():
+    """" Tests infer type for custom_op """
+    op_name = "custom_log"
+    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.get(op_name).set_num_inputs(1)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    # call default relation functions
+    _op.get(op_name).add_type_rel("IdentityRel")
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
+
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", _op.get(op_name)(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    fchecked = infer_expr(f)
+    assert fchecked.checked_type == relay.FuncType([tp], tp)
+
+
+def test_custom_op_rel_infer():
+    """" Tests infer type for custom_op """
+    def custom_log1_rel(arg_types, attrs):
+        assert len(arg_types) == 1, "type relation arg number mismatch!"
+        if attrs:
+            assert isinstance(attrs, DictAttrs)
+        inputa_type = arg_types[0]
+        return relay.TensorType(inputa_type.shape, inputa_type.dtype)
+
+    op_name = "custom_log1"
+    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.get(op_name).set_num_inputs(1)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).set_attrs_type_key("DictAttrs")
+    # call customized relation functions
+    _op.get(op_name).add_type_rel("custom_log1", custom_log1_rel)
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
+
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", _op.get(op_name)(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    fchecked = infer_expr(f)
+    assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
 if __name__ == "__main__":

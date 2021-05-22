@@ -43,6 +43,8 @@ bool IdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
+TVM_REGISTER_GLOBAL("tvm.relay.type_relation.IdentityRel").set_body_typed(IdentityRel);
+
 bool EqualCheck(const IndexExpr& lhs, const IndexExpr& rhs) {
   IndexExpr diff = lhs - rhs;
   if (const int64_t* pdiff = tir::as_const_int(diff)) {
@@ -116,6 +118,7 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   return false;
 }
+TVM_REGISTER_GLOBAL("tvm.relay.type_relation.BroadcastRel").set_body_typed(BroadcastRel);
 
 bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
