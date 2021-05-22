@@ -429,10 +429,13 @@ def test_custom_op_infer():
     _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
     _op.register_stateful(op_name, False)
 
+    def clog(x):
+        return relay.Call(_op.get(op_name), [x])
+
     tp = relay.TensorType((10, 10), "float32")
     x = relay.var("x", tp)
     sb = relay.ScopeBuilder()
-    t1 = sb.let("t1", _op.get(op_name)(x))
+    t1 = sb.let("t1", clog(x))
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
@@ -442,6 +445,7 @@ def test_custom_op_infer():
 
 def test_custom_op_rel_infer():
     """" Tests infer type for custom_op """
+
     def custom_log1_rel(arg_types, attrs):
         assert len(arg_types) == 1, "type relation arg number mismatch!"
         if attrs:
@@ -460,10 +464,13 @@ def test_custom_op_rel_infer():
     _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
     _op.register_stateful(op_name, False)
 
+    def clog(x):
+        return relay.Call(_op.get(op_name), [x])
+
     tp = relay.TensorType((10, 10), "float32")
     x = relay.var("x", tp)
     sb = relay.ScopeBuilder()
-    t1 = sb.let("t1", _op.get(op_name)(x))
+    t1 = sb.let("t1", clog(op_name)(x))
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
