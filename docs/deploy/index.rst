@@ -64,9 +64,6 @@ If you want to include additional runtime such as OpenCL,
 you can modify ``config.cmake`` to enable these options.
 After you get the TVM runtime library, you can link the compiled library
 
-Cross compiling a TVM model should not be confused with cross compiling the runtime
-shared library. 
-
 .. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/dev/tvm_deploy_crosscompile.svg
    :align: center
    :width: 85%
