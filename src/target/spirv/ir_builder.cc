@@ -137,8 +137,9 @@ SType IRBuilder::GetPointerType(const SType& value_type, spv::StorageClass stora
   return t;
 }
 
-SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems) {
-  auto key = std::make_pair(value_type.id, num_elems);
+SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
+                                    bool interface_block) {
+  auto key = std::make_tuple(value_type.id, num_elems, interface_block);
   auto it = struct_array_type_tbl_.find(key);
   if (it != struct_array_type_tbl_.end()) {
     return it->second;
@@ -171,17 +172,19 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems)
       .AddSeq(struct_type, 0, spv::DecorationOffset, 0)
       .Commit(&decorate_);
 
-  // Runtime array are always decorated as Block or BufferBlock
-  // (shader storage buffer)
-  if (spirv_support_.supports_storage_buffer_storage_class) {
-    // If SPIRV 1.3+, or with extension
-    // SPV_KHR_storage_buffer_storage_class, BufferBlock is
-    // deprecated.
-    extensions_used_.insert("SPV_KHR_storage_buffer_storage_class");
-    this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
-  } else {
-    if (num_elems == 0) {
-      this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBufferBlock);
+  if (interface_block) {
+    // Runtime array are always decorated as Block or BufferBlock
+    // (shader storage buffer)
+    if (spirv_support_.supports_storage_buffer_storage_class) {
+      // If SPIRV 1.3+, or with extension
+      // SPV_KHR_storage_buffer_storage_class, BufferBlock is
+      // deprecated.
+      extensions_used_.insert("SPV_KHR_storage_buffer_storage_class");
+      this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBlock);
+    } else {
+      if (num_elems == 0) {
+        this->Decorate(spv::OpDecorate, struct_type, spv::DecorationBufferBlock);
+      }
     }
   }
   struct_array_type_tbl_[key] = struct_type;
@@ -224,7 +227,7 @@ Value IRBuilder::BufferArgument(const SType& value_type, uint32_t descriptor_set
     storage_class = spv::StorageClassUniform;
   }
 
-  SType sarr_type = GetStructArrayType(value_type, 0);
+  SType sarr_type = GetStructArrayType(value_type, 0, true);
   SType ptr_type = GetPointerType(sarr_type, storage_class);
   Value val = NewValue(ptr_type, kStructArrayPtr);
 
@@ -335,7 +338,7 @@ void IRBuilder::SetLocalSize(const Value& func, uint32_t local_size[3]) {
 Value IRBuilder::Allocate(const SType& value_type, uint32_t num_elems,
                           spv::StorageClass storage_class) {
   ICHECK_NE(num_elems, 0U);
-  SType sarr_type = GetStructArrayType(value_type, num_elems);
+  SType sarr_type = GetStructArrayType(value_type, num_elems, false);
   SType ptr_type = GetPointerType(sarr_type, storage_class);
   Value val = NewValue(ptr_type, kStructArrayPtr);
   if (storage_class == spv::StorageClassFunction) {
