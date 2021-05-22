@@ -470,7 +470,7 @@ def test_custom_op_rel_infer():
     tp = relay.TensorType((10, 10), "float32")
     x = relay.var("x", tp)
     sb = relay.ScopeBuilder()
-    t1 = sb.let("t1", clog(op_name)(x))
+    t1 = sb.let("t1", clog(x))
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
