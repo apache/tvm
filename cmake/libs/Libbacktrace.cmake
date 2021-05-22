@@ -14,6 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# On MacOS, the default C compiler (/usr/bin/cc) is actually a small script that dispatches to a
+# compiler the default SDK (usually /Library/Developer/CommandLineTools/usr/bin/ or
+# /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/). CMake
+# automatically detects what is being dispatched and uses it instead along with all the flags it
+# needs. CMake makes this second compiler avaliable through the CMAKE_C_COMPILER variable, but it
+# does not make the necessary flags available. This leads to configuration errors in libbacktrace
+# because it can't find system libraries. Our solution is to detect if CMAKE_C_COMPILER lives in
+# /Library or /Applications and switch to the default compiler instead.
 include(ExternalProject)
 
 
