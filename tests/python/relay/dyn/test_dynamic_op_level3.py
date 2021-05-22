@@ -38,9 +38,9 @@ def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()
                     ref_res
                 ), "Outputs from TVM and Python implementation must be equal "
                 for op_result, ref_result in zip(op_res, ref_res):
-                    tvm.testing.assert_allclose(op_result.asnumpy(), ref_result, rtol=1e-5)
+                    tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
             else:
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
 

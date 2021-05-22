@@ -86,7 +86,7 @@ def collect_stats(mod, dataset, chunk_by=-1):
             runtime.set_input(**batch)
             runtime.run()
             for j in range(i, min(i + chunk_by, num_outputs)):
-                outputs[j - i].append(runtime.get_output(j).asnumpy())
+                outputs[j - i].append(runtime.get_output(j).numpy())
         yield [np.concatenate(output).reshape(-1) for output in outputs]
 
 
@@ -179,7 +179,7 @@ def _power2_scale(sq_call):  # pylint: disable=unused-argument
     """calculate weight scale with nearest mode-2 scale"""
     var = sq_call.args[0]
     assert isinstance(var, _expr.Constant)
-    val = np.amax(np.abs(var.data.asnumpy()))
+    val = np.amax(np.abs(var.data.numpy()))
     return 2 ** np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
 
@@ -187,7 +187,7 @@ def _max_scale(sq_call):
     """calculate weight scale with maximum absolute value"""
     var = sq_call.args[0]
     assert isinstance(var, _expr.Constant)
-    val = np.amax(np.abs(var.data.asnumpy()))
+    val = np.amax(np.abs(var.data.numpy()))
     return val
 
 

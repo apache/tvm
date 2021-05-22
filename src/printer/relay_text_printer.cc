@@ -219,6 +219,7 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
   if (var->type_annotation.defined()) {
     val << ": " << Print(var->type_annotation);
   }
+  val << PrintOptionalInfo(var);
   return val;
 }
 

@@ -59,6 +59,7 @@ def convert_graph_layout(mod, desired_layout):
     # conv2d as heavily-sensitive operators.
     desired_layouts = {
         "nn.conv2d": [desired_layout, "default"],
+        "nn.conv2d_transpose": [desired_layout, "default"],
         "qnn.conv2d": [desired_layout, "default"],
     }
 
@@ -99,8 +100,8 @@ def validate_targets(parse_targets):
     if len(tvm_targets) > 1:
         verbose_tvm_targets = ", ".join(tvm_targets)
         raise TVMCException(
-            f"Only one of the following targets can be used at a time. "
-            "Found: {verbose_tvm_targets}."
+            "Only one of the following targets can be used at a time. "
+            f"Found: {verbose_tvm_targets}."
         )
 
 

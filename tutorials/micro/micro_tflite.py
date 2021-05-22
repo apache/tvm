@@ -276,5 +276,5 @@ with tvm.micro.Session(binary=micro_binary, flasher=flasher) as session:
     graph_mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
     graph_mod.run()
 
-    tvm_output = graph_mod.get_output(0).asnumpy()
+    tvm_output = graph_mod.get_output(0).numpy()
     print("result is: " + str(tvm_output))

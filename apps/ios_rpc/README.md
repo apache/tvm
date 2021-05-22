@@ -52,14 +52,18 @@ Now App can be closed by pressing the home button (or even removed from a device
 ## Workflow
 Due to security restriction of iOS10. We cannot upload dynamic libraries to the App and load it from sandbox.
 Instead, we need to build a list of libraries, pack them into the app bundle, launch the RPC server and
-connect to test the bundled libraries. We use ```xcodebuild test``` to automate this process.
+connect to test the bundled libraries. We use ```xcodebuild test``` to automate this process. There is also
+one more approach to workaround this limitation, for more details please take a look into section
+[Custom DSO loader integration](#custom-dso-loader-plugin).
 
 The test script [tests/ios_rpc_test.py](tests/ios_rpc_test.py) is a good template for the workflow. With this
-script, we don't need to manually operate the iOS App, this script will build the app, run it and collect the results automatically.
+script, we don't need to manually operate the iOS App, this script will build the app, run it and collect the results 
+automatically.
 
  To run the script,  you need to configure the following environment variables
 
 - ```TVM_IOS_CODESIGN``` The signature you use to codesign the app and libraries (e.g. ```iPhone Developer: Name (XXXX)```)
+- ```TVM_IOS_TEAM_ID``` The developer Team ID available at https://developer.apple.com/account/#/membership     
 - ```TVM_IOS_RPC_ROOT``` The root directory of the iOS rpc project
 - ```TVM_IOS_RPC_PROXY_HOST``` The RPC proxy address (see above)
 - ```TVM_IOS_RPC_DESTINATION``` The Xcode target device (e.g. ```platform=iOS,id=xxxx```)
@@ -89,3 +93,40 @@ Then connect to the proxy via the python script.
 
 We can also use the RPC App directly, by typing in the address and press connect to connect to the proxy.
 However, the restriction is we can only load the modules that are bundled to the App.
+
+## Custom DSO loader plugin
+While iOS platform itself doesn't allow us to run an unsigned binary, where is a partial ability to run JIT code
+on real iOS devices. While application is running under debug session, system allows allocating memory with write
+and execute permissions (requirements of debugger). So we can use this feature to load binary on RPC side. For this
+purpose we use custom version of `dlopen` function which doesn't check signature and permissions for module loading.
+This custom `dlopen` mechanic is integrated into TVM RPC as plugin and registered to execution only inside iOS RPC
+application.
+
+The custom implementation of `dlopen` and other functions from `dlfcn.h` header are placed in separate repository,
+and will be downloaded automatically during cmake build for iOS. To run cmake build you may use next flags:
+```shell
+export DEVELOPER_DIR=/Applications/Xcode.app  # iOS SDK is part of Xcode bundle. Have to set it as default Dev Env
+cmake ..
+  -DCMAKE_BUILD_TYPE=Debug
+  -DCMAKE_SYSTEM_NAME=iOS
+  -DCMAKE_SYSTEM_VERSION=14.0
+  -DCMAKE_OSX_SYSROOT=iphoneos
+  -DCMAKE_OSX_ARCHITECTURES=arm64
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+  -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON
+  -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM=XXXXXXXXXX  # insert your Team ID
+  -DUSE_IOS_RPC=ON  # to enable build iOS RPC application from TVM project tree
+cmake --build . --target custom_dso_loader ios_rpc  # Will use custom DSO loader by default
+# Resulting iOS RPC app bundle will be placed in:
+# apps/ios_rpc/ios_rpc/src/ios_rpc-build/Build/Products/[CONFIG]-iphoneos/tvmrpc.app
+```
+
+To enable using of Custom DSO Plugin during xcode build outsde of Cmake you should specify two additional variables.
+You can do it manually inside Xcode IDE or via command line args for `xcodebuild`. Make sure that `custom_dso_loader`
+target from previous step is already built.
+* TVM_BUILD_DIR=path-to-tvm-ios-build-dir
+* USE_CUSTOM_DSO_LOADER=1
+
+iOS RPC application with enabled custom DSO loader is able to process modules passed via regular
+`remote.upload("my_module.dylib")` mechanics. For example take a look inside `test_rpc_module_with_upload` test case
+of file [ios_rpc_test.py](tests/ios_rpc_test.py).

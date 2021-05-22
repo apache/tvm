@@ -23,7 +23,7 @@ Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
 network for mali GPU with the auto-scheduler.
 
-To auto-tune a neural network, we partition the network into small subgraphs and 
+To auto-tune a neural network, we partition the network into small subgraphs and
 tune them independently. Each subgraph is treated as one search task.
 A task scheduler slices the time and dynamically allocates time resources to
 these tasks. The task scheduler predicts the impact of each task on the end-to-end
@@ -180,11 +180,11 @@ for idx, task in enumerate(tasks):
 #   .. code-block:: python
 #
 #     from tvm.auto_scheduler.utils import request_remote
-#     remote = request_remote(device_key, "0.0.0.0", 9190)
+#     remote = request_remote(device_key, "127.0.0.1", 9190)
 #     dev = remote.cl()
 #     max_shared_memory_per_block = dev.max_shared_memory_per_block
 #     # There is no explicit local memory limition
-#     # so we can use INT32_MAX to disalbe the check on local_memory.
+#     # so we can use INT32_MAX to disable the check on local_memory.
 #     max_local_memory_per_block = 2147483647 # INT32_MAX
 #     max_threads_per_block = dev.max_threads_per_block
 #     max_vthread_extent = int(dev.warp_size / 4) if int(dev.warp_size / 4) > 1 else dev.warp_size
@@ -228,7 +228,7 @@ def tune_and_evaluate():
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
         builder=auto_scheduler.LocalBuilder(build_func="ndk" if use_ndk else "default"),
         runner=auto_scheduler.RPCRunner(
-            device_key, host="0.0.0.0", port=9190, repeat=3, timeout=50
+            device_key, host="127.0.0.1", port=9190, repeat=3, timeout=50
         ),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
@@ -247,7 +247,7 @@ def tune_and_evaluate():
     print("=============== Request Remote ===============")
     from tvm.auto_scheduler.utils import request_remote
 
-    remote = request_remote(device_key, "0.0.0.0", 9190)
+    remote = request_remote(device_key, "127.0.0.1", 9190)
     dev = remote.cl()
     from tvm.contrib import utils, ndk
 

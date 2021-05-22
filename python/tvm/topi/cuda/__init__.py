@@ -57,4 +57,5 @@ from . import tensorcore_alter_op
 from .argwhere import *
 from .scan import *
 from .sparse_reshape import *
+from .transform import *
 from .unique import *

@@ -127,14 +127,14 @@ def test_detection_models():
 
         # Bounding boxes
         tvm.testing.assert_allclose(
-            pt_res[0].cpu().numpy(), tvm_res[0].asnumpy(), rtol=1e-5, atol=1e-5
+            pt_res[0].cpu().numpy(), tvm_res[0].numpy(), rtol=1e-5, atol=1e-5
         )
         # Scores
         tvm.testing.assert_allclose(
-            pt_res[1].cpu().numpy(), tvm_res[1].asnumpy(), rtol=1e-5, atol=1e-5
+            pt_res[1].cpu().numpy(), tvm_res[1].numpy(), rtol=1e-5, atol=1e-5
         )
         # Class ids
-        np.testing.assert_equal(pt_res[2].cpu().numpy(), tvm_res[2].asnumpy())
+        np.testing.assert_equal(pt_res[2].cpu().numpy(), tvm_res[2].numpy())
 
         score_threshold = 0.9
         print("Num boxes:", pt_res[0].cpu().numpy().shape[0])
@@ -161,4 +161,4 @@ def test_detection_models():
 
     # Results should be equivalent after rewriting
     for res1, res2 in zip(tvm_res, tvm_res_after_rewrite):
-        tvm.testing.assert_allclose(res1.asnumpy(), res2.asnumpy())
+        tvm.testing.assert_allclose(res1.numpy(), res2.numpy())

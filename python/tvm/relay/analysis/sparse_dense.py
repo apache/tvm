@@ -83,7 +83,7 @@ def process_params(expr, params, block_size, sparsity_threshold):
     weight_names = _search_dense_op_weight(expr)
     for name in weight_names:
         name = str(name)
-        w_np = params[name].asnumpy()
+        w_np = params[name].numpy()
         sparsity = 1.0 - (np.count_nonzero(w_np) / w_np.size)
         if sparsity >= sparsity_threshold:
             sparse_weight = sp.bsr_matrix(w_np, blocksize=block_size)
@@ -99,21 +99,31 @@ def process_params(expr, params, block_size, sparsity_threshold):
             params[name + ".indices"] = tvm.nd.array(sparse_weight.indices)
             params[name + ".indptr"] = tvm.nd.array(sparse_weight.indptr)
 
-            prefix = "sparse_dense_bsr_%d_%d_%d_%d_%.2f_" % (
+            prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%d_" % (
                 w_np.shape[0],
                 w_np.shape[1],
                 block_size[0],
                 block_size[1],
-                1 - sparsity,
+                sparse_weight.indices.shape[0],
+                sparse_weight.indptr.shape[0],
             )
             register_task_input_buffer(
-                "default", prefix + "W_data", tvm.runtime.ndarray.array(sparse_weight.data)
+                "default",
+                prefix + "W_data",
+                tvm.runtime.ndarray.array(sparse_weight.data),
+                overwrite=True,
             )
             register_task_input_buffer(
-                "default", prefix + "W_indices", tvm.runtime.ndarray.array(sparse_weight.indices)
+                "default",
+                prefix + "W_indices",
+                tvm.runtime.ndarray.array(sparse_weight.indices),
+                overwrite=True,
             )
             register_task_input_buffer(
-                "default", prefix + "W_indptr", tvm.runtime.ndarray.array(sparse_weight.indptr)
+                "default",
+                prefix + "W_indptr",
+                tvm.runtime.ndarray.array(sparse_weight.indptr),
+                overwrite=True,
             )
     ret = SparseAnalysisResult(
         weight_name=tvm.runtime.convert(memo.weight_name),

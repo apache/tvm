@@ -60,7 +60,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
         func = tvm.build(s, [A, B], device)
         func(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     for device in ["llvm", "cuda"]:
         check_device(device)

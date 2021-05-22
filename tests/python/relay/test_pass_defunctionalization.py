@@ -105,7 +105,7 @@ def to_list(mod, l):
     ret = []
     while True:
         if val.tag == cons.tag:
-            ret.append(val.fields[0].asnumpy())
+            ret.append(val.fields[0].numpy())
             val = val.fields[1]
         else:
             assert val.tag == nil.tag
@@ -154,7 +154,7 @@ def @main(%l: Tensor[(5, 5), float32]) -> Tensor[(5, 5), float32] {
     out = ex.evaluate()(input)
     defunc_out = defunc_ex.evaluate()(input)
 
-    np.testing.assert_equal(out.asnumpy(), defunc_out.asnumpy())
+    np.testing.assert_equal(out.numpy(), defunc_out.numpy())
 
 
 def test_global_recursion():
@@ -226,7 +226,7 @@ def @main(%l: List[int32]) -> int32 {
     out = ex.evaluate(mod["main"])(to_adt_list(mod, input))
     defunc_out = defunc_ex.evaluate()(to_adt_list(defunc_mod, input))
 
-    tvm.testing.assert_allclose(out.asnumpy(), defunc_out.asnumpy())
+    tvm.testing.assert_allclose(out.numpy(), defunc_out.numpy())
 
 
 if __name__ == "__main__":

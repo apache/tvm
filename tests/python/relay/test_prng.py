@@ -36,11 +36,11 @@ def test_threefry_repeatability(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() == out2.asnumpy()
+        out1.numpy() == out2.numpy()
     ).all(), "Generate on same seed should have the same output random numbers"
 
     assert (
-        out_key1.asnumpy() == out_key2.asnumpy()
+        out_key1.numpy() == out_key2.numpy()
     ).all(), "Generate on same seed should have the same next keys"
 
 
@@ -58,7 +58,7 @@ def test_threefry_split(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.numpy() != out2.numpy()
     ).any(), "Generate after split should not have the same output"
 
 
@@ -75,7 +75,7 @@ def test_threefry_sequential_generate(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.numpy() != out2.numpy()
     ).any(), "Sequential generates should not have the same output"
 
 
@@ -101,6 +101,21 @@ def test_threefry_split_infer():
     f = tvm.relay.Function([], out_keys)
     f = run_infer_type(f)
     assert tvm.ir.structural_equal(f.ret_type, expected_type)
+
+
+def test_uniform_infer():
+    oshape = (12,)
+    odtypes = ["float32", "float64"]
+    for odtype in odtypes:
+        key_type = tvm.relay.TensorType([10], dtype="uint64")
+        gen_type = tvm.relay.TensorType(oshape, dtype=odtype)
+        expected_type = tvm.relay.TupleType([key_type, gen_type])
+
+        key = tvm.relay.random.threefry_key(1)
+        rand1 = tvm.relay.random.uniform(key, oshape, odtype)
+        f = tvm.relay.Function([], rand1)
+        f = run_infer_type(f)
+        assert tvm.ir.structural_equal(f.ret_type, expected_type)
 
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)

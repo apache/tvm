@@ -58,6 +58,20 @@ Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
   return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
 }
 
+IndexExpr calculate_pool_dimension(IndexExpr in_dimension, IndexExpr pad_amount,
+                                   IndexExpr pool_size, IndexExpr dilation, IndexExpr stride_size,
+                                   bool ceil_mode) {
+  IndexExpr numerator = in_dimension + pad_amount - ((pool_size - 1) * dilation + 1);
+  IndexExpr denominator = stride_size;
+
+  // Emulate the behavior of running ceil on numerator / denominator rather than floor
+  if (ceil_mode) {
+    numerator += denominator - 1;
+  }
+
+  return numerator / denominator + 1;
+}
+
 template <typename AttrType>
 bool Pool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
@@ -101,24 +115,16 @@ bool Pool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (dshape[hidx].as<tir::AnyNode>()) {
     oshape[hidx] = dshape[hidx];
   } else {
-    if (param->ceil_mode) {
-      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] + param->strides[0] - 1) /
-                      param->strides[0]) +
-                     1;
-    } else {
-      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
-    }
+    oshape[hidx] =
+        calculate_pool_dimension(dshape[hidx], pad_h, param->pool_size[0], param->dilation[0],
+                                 param->strides[0], param->ceil_mode);
   }
   if (dshape[widx].as<tir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
-    if (param->ceil_mode) {
-      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] + param->strides[1] - 1) /
-                      param->strides[1]) +
-                     1;
-    } else {
-      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1]) / param->strides[1]) + 1;
-    }
+    oshape[widx] =
+        calculate_pool_dimension(dshape[widx], pad_w, param->pool_size[1], param->dilation[1],
+                                 param->strides[1], param->ceil_mode);
   }
 
   // assign output type
@@ -134,6 +140,7 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   ICHECK(param != nullptr);
   auto pool_size = param->pool_size;
   auto strides = param->strides;
+  auto dilation = param->dilation;
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
@@ -160,19 +167,20 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{topi::nn::pool(inputs[0], pool_size, strides, padding, mode, ceil_mode,
-                                            layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<te::Tensor>{
-        topi::nn::pool(inputs[0], pool_size, strides, padding, mode, ceil_mode, layout.name())};
+    return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name())};
   }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d")
     .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, String layout, bool ceil_mode) {
-      return MakeMaxPool<MaxPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-                                         "nn.max_pool2d");
+                       Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode) {
+      return MakeMaxPool<MaxPool2DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                         ceil_mode, "nn.max_pool2d");
     });
 
 RELAY_REGISTER_OP("nn.max_pool2d")
@@ -207,10 +215,10 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 // AvgPool2D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d")
     .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, String layout, bool ceil_mode,
-                       bool count_include_pad) {
-      return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-                                         count_include_pad, "nn.avg_pool2d");
+                       Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode, bool count_include_pad) {
+      return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                         ceil_mode, count_include_pad, "nn.avg_pool2d");
     });
 
 RELAY_REGISTER_OP("nn.avg_pool2d")
@@ -988,13 +996,9 @@ bool Pool1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (dshape[widx].as<tir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
-    if (param->ceil_mode) {
-      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[0] + param->strides[0] - 1) /
-                      param->strides[0]) +
-                     1;
-    } else {
-      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[0]) / param->strides[0]) + 1;
-    }
+    oshape[widx] =
+        calculate_pool_dimension(dshape[widx], pad_w, param->pool_size[0], param->dilation[0],
+                                 param->strides[0], param->ceil_mode);
   }
 
   // assign output type
@@ -1010,6 +1014,7 @@ Array<te::Tensor> Pool1DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   ICHECK(param != nullptr);
   auto pool_size = param->pool_size;
   auto strides = param->strides;
+  auto dilation = param->dilation;
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
@@ -1030,19 +1035,20 @@ Array<te::Tensor> Pool1DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
 
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool1DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{topi::nn::pool1d(inputs[0], pool_size, strides, padding, mode,
-                                              ceil_mode, layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool1d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<te::Tensor>{
-        topi::nn::pool1d(inputs[0], pool_size, strides, padding, mode, ceil_mode, layout.name())};
+    return Array<te::Tensor>{topi::nn::pool1d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name())};
   }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool1d")
     .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, String layout, bool ceil_mode) {
-      return MakeMaxPool<MaxPool1DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-                                         "nn.max_pool1d");
+                       Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode) {
+      return MakeMaxPool<MaxPool1DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                         ceil_mode, "nn.max_pool1d");
     });
 
 RELAY_REGISTER_OP("nn.max_pool1d")
@@ -1075,10 +1081,10 @@ RELAY_REGISTER_OP("nn.max_pool1d")
 // AvgPool1D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool1d")
     .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, String layout, bool ceil_mode,
-                       bool count_include_pad) {
-      return MakeAvgPool<AvgPool1DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-                                         count_include_pad, "nn.avg_pool1d");
+                       Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode, bool count_include_pad) {
+      return MakeAvgPool<AvgPool1DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                         ceil_mode, count_include_pad, "nn.avg_pool1d");
     });
 
 RELAY_REGISTER_OP("nn.avg_pool1d")
@@ -1165,13 +1171,9 @@ bool Pool3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (dshape[ii].as<tir::AnyNode>()) {
       oshape[ii] = dshape[ii];
     } else {
-      if (param->ceil_mode) {
-        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i] + param->strides[i] - 1) /
-                      param->strides[i]) +
-                     1;
-      } else {
-        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i]) / param->strides[i]) + 1;
-      }
+      oshape[ii] =
+          calculate_pool_dimension(dshape[ii], pad[i], param->pool_size[i], param->dilation[i],
+                                   param->strides[i], param->ceil_mode);
     }
   }
 
@@ -1188,6 +1190,7 @@ Array<te::Tensor> Pool3DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   ICHECK(param != nullptr);
   auto pool_size = param->pool_size;
   auto strides = param->strides;
+  auto dilation = param->dilation;
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
@@ -1217,19 +1220,20 @@ Array<te::Tensor> Pool3DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool3DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{topi::nn::pool3d(inputs[0], pool_size, strides, padding, mode,
-                                              ceil_mode, layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool3d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<te::Tensor>{
-        topi::nn::pool3d(inputs[0], pool_size, strides, padding, mode, ceil_mode, layout.name())};
+    return Array<te::Tensor>{topi::nn::pool3d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name())};
   }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool3d")
     .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, String layout, bool ceil_mode) {
-      return MakeMaxPool<MaxPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-                                         "nn.max_pool3d");
+                       Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode) {
+      return MakeMaxPool<MaxPool3DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                         ceil_mode, "nn.max_pool3d");
     });
 
 RELAY_REGISTER_OP("nn.max_pool3d")
@@ -1265,10 +1269,10 @@ RELAY_REGISTER_OP("nn.max_pool3d")
 // AvgPool3D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool3d")
     .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, String layout, bool ceil_mode,
-                       bool count_include_pad) {
-      return MakeAvgPool<AvgPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-                                         count_include_pad, "nn.avg_pool3d");
+                       Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode, bool count_include_pad) {
+      return MakeAvgPool<AvgPool3DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                         ceil_mode, count_include_pad, "nn.avg_pool3d");
     });
 
 RELAY_REGISTER_OP("nn.avg_pool3d")

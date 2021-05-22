@@ -180,7 +180,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Here we use an Pynq-Z1 board as an example.
 
 # Tracker host and port can be set by your environment
-tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -357,7 +357,7 @@ def tune_and_evaluate(tuning_opt):
     )
 
     # filter out non-packed conv2d task
-    tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
+    tasks = list(filter(lambda t: len(t.args[0][1]) > 4 and "conv" in t.name, tasks))
 
     # We should have extracted 10 convolution tasks
     assert len(tasks) == 10

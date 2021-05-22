@@ -238,7 +238,8 @@ RELAY_REGISTER_OP("expand_dims")
     .set_support_level(1)
     .add_type_rel("ExpandDims", ExpandDimsRel)
     .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
-    .set_attr<TOpPattern>("TOpPattern", kBroadcast);
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // relay.concatenate
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
@@ -887,7 +888,8 @@ Example::
     .set_support_level(3)
     .add_type_rel("Reshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 /*!
  * \brief ReshapeLikeRel User defined type constraint function.
@@ -1120,6 +1122,8 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
+  ICHECK(mdim) << "ScatterND needs a static shape for the first axis of indices, got "
+               << indices->shape;
   const size_t kdim = indices->shape.size() - 1;
   const size_t ndim = out_shape.size();
   ICHECK_LE(size_t(mdim->value), ndim)
@@ -1200,15 +1204,24 @@ bool TakeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto ndim_data = static_cast<int>(data->shape.size());
   const auto ndim_indices = static_cast<int>(indices->shape.size());
   int axis = static_cast<int>(param->axis->value);
+  int batch_dims = static_cast<int>(param->batch_dims->value);
   if (axis < 0) axis += ndim_data;
+  if (batch_dims < 0) axis += ndim_indices;
   ICHECK_LE(axis, ndim_data) << "axis should be with in data shape"
                              << ", but got = " << axis;
+  ICHECK_LE(batch_dims, ndim_indices) << "batch_dims should be with in indices shape"
+                                      << ", but got = " << batch_dims;
+  ICHECK_LE(batch_dims, axis) << "batch_dims should be less than or equal to axis"
+                              << ", but got = " << batch_dims;
 
-  oshape.reserve(ndim_data - 1 + ndim_indices);
-  for (int i = 0; i < axis; ++i) {
+  oshape.reserve(ndim_data - 1 + ndim_indices - batch_dims);
+  for (int i = 0; i < batch_dims; ++i) {
     oshape.emplace_back(data->shape[i]);
   }
-  for (int i = 0; i < ndim_indices; ++i) {
+  for (int i = batch_dims; i < axis; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+  for (int i = batch_dims; i < ndim_indices; ++i) {
     oshape.emplace_back(indices->shape[i]);
   }
   for (int i = axis + 1; i < ndim_data; ++i) {
@@ -1224,14 +1237,16 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   const auto* param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->mode)};
+    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->batch_dims, param->mode)};
   } else {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->axis, param->mode)};
+    return Array<te::Tensor>{
+        topi::take(inputs[0], inputs[1], param->batch_dims, param->axis, param->mode)};
   }
 }
 
-Expr MakeTake(Expr data, Expr indices, Integer axis, String mode) {
+Expr MakeTake(Expr data, Expr indices, Integer batch_dims, Integer axis, String mode) {
   auto attrs = make_object<TakeAttrs>();
+  attrs->batch_dims = std::move(batch_dims);
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
   static const Op& op = Op::Get("take");
@@ -2243,7 +2258,8 @@ RELAY_REGISTER_OP("squeeze")
     .add_type_rel("Squeeze", SqueezeRel)
     .set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SqueezeInferCorrectLayout);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SqueezeInferCorrectLayout)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
 bool CollapseSumLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -2554,16 +2570,17 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     if (params->begin && params->end && params->strides) {
       for (Integer i : params->strides.value()) {
         ICHECK(i.defined());
-        strides.push_back(params->slice_mode == "size" ? 1 : i->value);
+        auto slice_val = Integer(IntImm(i->dtype, i->value));
+        strides.push_back(params->slice_mode == "size" ? Integer(IntImm(i->dtype, 1)) : slice_val);
       }
 
       for (Integer i : params->begin.value()) {
         ICHECK(i.defined());
-        begin.push_back(i->value);
+        begin.push_back(IntImm(i->dtype, i->value));
       }
       for (Integer i : params->end.value()) {
         ICHECK(i.defined());
-        end.push_back(i->value);
+        end.push_back(IntImm(i->dtype, i->value));
       }
     }
 
@@ -2603,9 +2620,9 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
             ed = shape[new_index].as<IntImmNode>()->value;
           }
 
-          new_begin.push_back(bg);
-          new_end.push_back(ed);
-          new_strides.push_back(st);
+          new_begin.push_back(IntImm(begin[0]->dtype, bg));
+          new_end.push_back(IntImm(end[0]->dtype, ed));
+          new_strides.push_back(IntImm(strides[0]->dtype, st));
         }
         params->begin = new_begin;
         params->end = new_end;
@@ -2621,8 +2638,8 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         }
         auto factor = new_layout.FactorOf(axis);
         if (factor == -1) {
-          new_begin.push_back(begin[i]);
-          new_end.push_back(end[i]);
+          new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
+          new_end.push_back(IntImm(end[i]->dtype, end[i]));
         } else {
           if (strides.defined() && i < strides.size()) {
             auto stride = strides[i];
@@ -2649,8 +2666,8 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
             // transform to original layout
             return {{Layout::Undef()}, {Layout::Undef()}};
           }
-          new_begin.push_back(tvm::Integer(bg / factor));
-          new_end.push_back(tvm::Integer(ed / factor));
+          new_begin.push_back(IntImm(begin[0]->dtype, (bg / factor)));
+          new_end.push_back(IntImm(end[0]->dtype, (ed / factor)));
         }
       }
 
@@ -3221,7 +3238,8 @@ example below::
     .set_support_level(10)
     .add_type_rel("ReverseReshape", ReverseReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // gather operator
 TVM_REGISTER_NODE_TYPE(GatherAttrs);
@@ -3260,7 +3278,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim_data);
   for (size_t i = 0; i < ndim_data; ++i) {
-    if (i == (size_t)axis) {
+    if (i == static_cast<size_t>(axis)) {
       const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
       ICHECK_GE(*indice_shape_i, 1);
     } else {
@@ -3327,24 +3345,39 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const size_t ndim = data->shape.size();
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
+  ICHECK(mdim) << "GatherND needs a static shape for the first axis of indices, got "
+               << indices->shape;
   const size_t kdim = indices->shape.size() - 1;
   ICHECK(size_t(mdim->value) <= ndim) << "GatherND: indices shape does satisfy.";
 
+  const auto param = attrs.as<GatherNDAttrs>();
+  ICHECK(param != nullptr);
+
+  for (int i = 0; i < param->batch_dims->value; ++i) {
+    ICHECK(reporter->AssertEQ(
+        data->shape[i], indices->shape[i + 1]));  // +1 since the first axis is the index tuple
+  }
+
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
-  for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
+  for (size_t i = mdim->value + param->batch_dims->value; i < ndim; ++i)
+    oshape.push_back(data->shape[i]);
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
 Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  return {topi::gather_nd(inputs[0], inputs[1])};
+  const auto* param = attrs.as<GatherNDAttrs>();
+  ICHECK(param);
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
 }
 
-Expr MakeGatherND(Expr data, Expr indices) {
+Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0) {
   static const Op& op = Op::Get("gather_nd");
-  return Call(op, {data, indices}, {});
+  auto attrs = make_object<GatherNDAttrs>();
+  attrs->batch_dims = batch_dims;
+  return Call(op, {data, indices}, Attrs(attrs));
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.gather_nd").set_body_typed(MakeGatherND);
@@ -3353,10 +3386,19 @@ RELAY_REGISTER_OP("gather_nd")
     .describe(R"code(Gather elements or slices from data and store to
                  a tensor whose shape is defined by indices.
 
-Given data with shape (X_0, X_1, ..., X_{N-1}) and indices with
-shape (M, Y_0, ..., Y_{K-1}), the output will have shape
-(Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), where M <= N. If M == N,
-output shape will simply be (Y_0, ..., Y_{K-1}).
+Optionally, batch_dims, the number of batch dimensions, can be given, whose
+default value is 0.
+
+Let B denote batch_dims, and data, indices shape be (X_0, X_1, ..., X_{N-1}),
+(M, Y_0, ..., Y_{K-1}) respectively.
+
+When B > 0, indexing will start from the B-th axis, and it must be the case that
+X_0, ... X_{B-1} == Y_0, ... Y_{B-1}. The output will have a shape
+(X_0, ..., X_{B-1}, Y_B, ..., Y_{K-1}, X_{M+B}, ..., X_{N-1}), where M + B <= N.
+
+When B == 0 (the default case), the output shape will be (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}).
+
+In both cases, if M + B == N, the output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")

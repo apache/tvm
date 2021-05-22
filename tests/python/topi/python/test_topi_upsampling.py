@@ -93,7 +93,7 @@ def verify_upsampling(
         f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
@@ -237,7 +237,7 @@ def verify_upsampling3d(
         f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)

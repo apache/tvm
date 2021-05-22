@@ -149,8 +149,8 @@
   CFWriteStreamRef writeStream;
   CFStreamCreatePairWithSocketToHost(NULL, (__bridge CFStringRef)self.proxyURL.text,
                                      [self.proxyPort.text intValue], &readStream, &writeStream);
-  inputStream_ = (__bridge_transfer NSInputStream*)readStream;
-  outputStream_ = (__bridge_transfer NSOutputStream*)writeStream;
+  inputStream_ = (NSInputStream*)readStream;
+  outputStream_ = (NSOutputStream*)writeStream;
   [inputStream_ setDelegate:self];
   [outputStream_ setDelegate:self];
   [inputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];

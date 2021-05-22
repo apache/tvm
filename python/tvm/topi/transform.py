@@ -396,7 +396,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None, mode="clip"):
+def take(a, indices, axis=None, batch_dims=0, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -411,6 +411,9 @@ def take(a, indices, axis=None, mode="clip"):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    batch_dims : int
+        The number of batch dimensions. By default is 0.
+
     mode : str, optional
         Specifies how out-of-bound indices will behave.
         clip - clip to the range (default)
@@ -422,8 +425,8 @@ def take(a, indices, axis=None, mode="clip"):
     ret : tvm.te.Tensor
     """
     if axis is None:
-        return cpp.take(a, indices, mode)
-    return cpp.take(a, indices, int(axis), mode)
+        return cpp.take(a, indices, int(batch_dims), mode)
+    return cpp.take(a, indices, int(batch_dims), int(axis), mode)
 
 
 @tvm.target.generic_func

@@ -113,9 +113,9 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
 
         f = tvm.build(s, [data, outs[0], outs[1], outs[2]], target)
         f(tvm_input_data, tvm_out1, tvm_out2, tvm_out3)
-        tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
-        tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
-        tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out1.numpy(), np_out1, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out2.numpy(), np_out2, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out3.numpy(), np_out3, rtol=1e-3)
 
     for target in ["llvm", "cuda", "opencl", "vulkan"]:
         check_device(target)
@@ -195,12 +195,12 @@ def verify_non_max_suppression(
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), dev)
         f = tvm.build(s, [data, valid_count, indices, out], target)
         f(tvm_data, tvm_valid_count, tvm_indices, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
+        tvm.testing.assert_allclose(tvm_out.numpy(), np_result, rtol=1e-4)
 
         tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), dev)
         f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], target)
         f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
-        tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
+        tvm.testing.assert_allclose(tvm_indices_out.numpy(), np_indices_result, rtol=1e-4)
 
     for target in ["llvm", "cuda", "opencl", "nvptx"]:
         check_device(target)
@@ -360,7 +360,7 @@ def verify_multibox_prior(
         tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), dev)
         f = tvm.build(s, [data, out], target)
         f(tvm_input_data, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-3)
 
     for target in ["llvm", "opencl", "cuda"]:
         check_device(target)
@@ -417,7 +417,7 @@ def test_multibox_detection():
         tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), dev)
         f = tvm.build(s, [cls_prob, loc_preds, anchors, out], target)
         f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
+        tvm.testing.assert_allclose(tvm_out.numpy(), expected_np_out, rtol=1e-4)
 
     for target in ["llvm", "opencl", "cuda"]:
         check_device(target)
@@ -472,7 +472,7 @@ def verify_roi_align(
         tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), device=dev)
         f = tvm.build(s, [a, rois, b], target)
         f(tvm_a, tvm_rois, tvm_b)
-        tvm_val = tvm_b.asnumpy()
+        tvm_val = tvm_b.numpy()
         tvm.testing.assert_allclose(tvm_val, b_np, rtol=1e-3, atol=1e-4)
 
     for target in ["llvm", "cuda", "opencl"]:
@@ -530,7 +530,7 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
         tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), device=dev)
         f = tvm.build(s, [a, rois, b], target)
         f(tvm_a, tvm_rois, tvm_b)
-        tvm.testing.assert_allclose(tvm_b.asnumpy(), b_np, rtol=1e-4)
+        tvm.testing.assert_allclose(tvm_b.numpy(), b_np, rtol=1e-4)
 
     for target in ["cuda", "llvm"]:
         check_device(target)
@@ -563,7 +563,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
             tvm_im_info = tvm.nd.array(np_im_info, device=dev)
             tvm_out = tvm.nd.empty(device=dev, shape=out.shape, dtype=out.dtype)
             f(tvm_cls_prob, tvm_bbox_pred, tvm_im_info, tvm_out)
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
+            tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-4)
 
     for target in ["llvm", "cuda"]:
         check_device(target)
@@ -663,7 +663,7 @@ def verify_all_class_non_max_suppression(
         f = tvm.build(s, [boxes, scores, out[0], out[1]], target)
         f(tvm_boxes, tvm_scores, selected_indices, num_detections)
 
-        tvm_res = selected_indices.asnumpy()[: num_detections.asnumpy()[0]]
+        tvm_res = selected_indices.numpy()[: num_detections.numpy()[0]]
         np.testing.assert_equal(tvm_res, expected_indices)
 
     for target in ["llvm", "cuda", "opencl", "vulkan"]:

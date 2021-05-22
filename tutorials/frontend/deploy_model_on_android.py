@@ -289,7 +289,7 @@ lib.export_library(lib_fname, fcompile)
 # With RPC, you can deploy the model remotely from your host machine
 # to the remote android device.
 
-tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 key = "android"
 
@@ -328,7 +328,7 @@ module.run()
 out = module.get_output(0)
 
 # get top1 result
-top1 = np.argmax(out.asnumpy())
+top1 = np.argmax(out.numpy())
 print("TVM prediction top-1: {}".format(synset[top1]))
 
 print("Evaluate inference time cost...")

@@ -90,7 +90,7 @@ def _get_tvm_output(net, data, build_dtype="float32", states=None):
     # get outputs
     tvm_out = []
     for i in range(m.get_num_outputs()):
-        tvm_out.append(m.get_output(i).asnumpy())
+        tvm_out.append(m.get_output(i).numpy())
     return tvm_out
 
 

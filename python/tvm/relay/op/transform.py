@@ -217,7 +217,7 @@ def reshape(data, newshape):
         The reshaped result.
     """
     if isinstance(newshape, Constant):
-        newshape = list(newshape.data.asnumpy())
+        newshape = list(newshape.data.numpy())
     if isinstance(newshape, Expr):
         return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
@@ -388,7 +388,7 @@ def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_e
     return _make.reshape_like(data, shape_like, lhs_begin, lhs_end, rhs_begin, rhs_end)
 
 
-def take(data, indices, axis=None, mode="clip"):
+def take(data, indices, axis=None, batch_dims=0, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -403,6 +403,9 @@ def take(data, indices, axis=None, mode="clip"):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    batch_dims : int
+        The number of batch dimensions. By default is 0.
+
     mode : str, optional
         Specifies how out-of-bound indices will behave [clip, wrap, fast].
         clip: clip to the range (default).
@@ -414,7 +417,7 @@ def take(data, indices, axis=None, mode="clip"):
     ret : relay.Expr
         The computed result.
     """
-    return _make.take(data, indices, axis, mode)
+    return _make.take(data, indices, batch_dims, axis, mode)
 
 
 def full(fill_value, shape=(), dtype=""):
@@ -437,7 +440,7 @@ def full(fill_value, shape=(), dtype=""):
         The resulting tensor.
     """
     if isinstance(shape, Constant):
-        shape = list(shape.data.asnumpy())
+        shape = list(shape.data.numpy())
     if isinstance(shape, Expr):
         return _dyn_make.full(fill_value, shape, dtype)
     if isinstance(shape, int):
@@ -622,7 +625,7 @@ def tile(data, reps):
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
     if isinstance(reps, Constant):
-        reps = list(reps.data.asnumpy())
+        reps = list(reps.data.numpy())
     if isinstance(reps, Expr):
         return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
@@ -763,7 +766,7 @@ def broadcast_to(data, shape):
         The resulting tensor.
     """
     if isinstance(shape, Constant):
-        shape = list(shape.data.asnumpy())
+        shape = list(shape.data.numpy())
     if isinstance(shape, Expr):
         return _dyn_make.broadcast_to(data, shape)
     if isinstance(shape, int):
@@ -896,11 +899,11 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     """
     strides = strides or [1]
     if isinstance(begin, Constant):
-        begin = list(begin.data.asnumpy())
+        begin = list(begin.data.numpy())
     if isinstance(end, Constant):
-        end = list(end.data.asnumpy())
+        end = list(end.data.numpy())
     if isinstance(strides, Constant):
-        strides = list(strides.data.asnumpy())
+        strides = list(strides.data.numpy())
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))
@@ -908,12 +911,11 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
             end = const(list(end))
         if isinstance(strides, (tuple, list)):
             strides = const(list(strides))
-        begin = _make.where(
-            begin < cast_like(const(0), begin), begin + cast_like(shape_of(data), begin), begin
-        )
-        begin = _make.where(
-            begin >= cast_like(shape_of(data), begin), cast_like(shape_of(data), begin), begin
-        )
+
+        ishape = cast_like(shape_of(data), begin)
+        ishape_slice = slice_like(ishape, begin)
+        begin = _make.where(begin < cast_like(const(0), begin), begin + ishape_slice, begin)
+        begin = _make.where(begin >= ishape_slice, ishape_slice, begin)
         return _dyn_make.strided_slice(data, begin, end, strides, slice_mode)
     return _make.strided_slice(data, begin, end, strides, slice_mode)
 
@@ -1070,7 +1072,7 @@ def gather(data, axis, indices):
     return _make.gather(data, axis, indices)
 
 
-def gather_nd(data, indices):
+def gather_nd(data, indices, batch_dims=0):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
 
@@ -1081,6 +1083,9 @@ def gather_nd(data, indices):
 
     indices : relay.Expr
         The shape of output tensor.
+
+    batch_dims : int
+        The number of batch dimensions.
 
     Returns
     -------
@@ -1098,8 +1103,12 @@ def gather_nd(data, indices):
         data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
         indices = [[0, 1], [1, 0]]
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
+
+        data    = [[[0,1],[2,3]],[[4,5],[6,7]]]
+        indices = [[1, 0]]
+        relay.gather_nd(data, indices, batch_dims=1) = [[2,3],[4,5]]
     """
-    return _make.gather_nd(data, indices)
+    return _make.gather_nd(data, indices, batch_dims)
 
 
 def sequence_mask(data, valid_length, mask_value=0, axis=0):
@@ -1191,7 +1200,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 0, 1]]
     """
     if isinstance(depth, Constant):
-        depth = depth.data.asnumpy().item()
+        depth = depth.data.numpy().item()
     if isinstance(depth, Expr):
         return _dyn_make.one_hot(indices, on_value, off_value, depth, axis, dtype)
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)

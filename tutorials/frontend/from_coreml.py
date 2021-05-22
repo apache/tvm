@@ -92,7 +92,7 @@ m.set_input("image", tvm.nd.array(x.astype(dtype)))
 m.run()
 # get outputs
 tvm_output = m.get_output(0)
-top1 = np.argmax(tvm_output.asnumpy()[0])
+top1 = np.argmax(tvm_output.numpy()[0])
 
 #####################################################################
 # Look up synset name

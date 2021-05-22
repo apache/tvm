@@ -118,7 +118,7 @@ def test_compile_and_run():
     out = m.get_output(0, out)
 
     expected = (y_data * y_data) - (x_data + x_data)
-    tvm.testing.assert_allclose(out.asnumpy(), expected, rtol=tol, atol=tol)
+    tvm.testing.assert_allclose(out.numpy(), expected, rtol=tol, atol=tol)
 
 
 @mock.patch("tvm.contrib.coreml_runtime.create")

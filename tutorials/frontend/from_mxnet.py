@@ -106,7 +106,7 @@ with tvm.transform.PassContext(opt_level=3):
 # Now, we would like to reproduce the same forward computation using TVM.
 from tvm.contrib import graph_executor
 
-dev = tvm.gpu(0)
+dev = tvm.cuda(0)
 dtype = "float32"
 m = graph_executor.GraphModule(lib["default"](dev))
 # set inputs
@@ -115,7 +115,7 @@ m.set_input("data", tvm.nd.array(x.astype(dtype)))
 m.run()
 # get outputs
 tvm_output = m.get_output(0)
-top1 = np.argmax(tvm_output.asnumpy()[0])
+top1 = np.argmax(tvm_output.numpy()[0])
 print("TVM prediction top-1:", top1, synset[top1])
 
 ######################################################################

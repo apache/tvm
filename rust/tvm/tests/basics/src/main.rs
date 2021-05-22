@@ -28,7 +28,7 @@ fn main() {
     let (dev, dev_name) = if cfg!(feature = "cpu") {
         (Device::cpu(0), "cpu")
     } else {
-        (Device::gpu(0), "gpu")
+        (Device::cuda(0), "cuda")
     };
 
     let dtype = DataType::from_str("float32").unwrap();
@@ -40,7 +40,7 @@ fn main() {
         return;
     }
 
-    if cfg!(feature = "gpu") {
+    if cfg!(feature = "cuda") {
         fadd.import_module(Module::load(&concat!(env!("OUT_DIR"), "/test_add.ptx")).unwrap());
     }
 

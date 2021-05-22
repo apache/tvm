@@ -222,7 +222,7 @@ def decl_buffer(
         b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     Note
     ----

@@ -106,10 +106,176 @@ def test_simplify_transpose():
         y = relay.transpose(y, axes=[0, 2, 3, 1])
         return relay.Function([x], y)
 
+    # Test a series of transpose and rank changing layout_transform
+    def before4():
+        """
+        Simplify transpose->layout_transform and its inverse.
+
+        Input:
+        NHWC -> NCHW -> NCHW4c -> op -> NCHW4c -> NCHW -> NHWC
+
+        Simplified:
+        NHWC -> NCHW4c -> op -> NCHW4c -> NHWC
+        """
+        x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")
+        y = relay.transpose(x, axes=[0, 3, 1, 2])
+        y = relay.layout_transform(y, "NCHW", "NCHW4c")
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW4c", "NCHW")
+        y = relay.transpose(y, axes=[0, 2, 3, 1])
+        return relay.Function([x], y)
+
+    def expected4():
+        x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")  # NHWC
+        y = relay.layout_transform(x, "NHWC", "NCHW4c")  # To NCHW4c
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW4c", "NHWC")  # To NHWC
+        return relay.Function([x], y)
+
+    def before5():
+        """
+        Simplify layout_transform->layout_transform and its inverse.
+
+        Input:
+        NHWC -> NCHW -> NCHW4c -> op -> NCHW4c -> NCHW -> NHWC
+
+        Simplified:
+        NHWC -> NCHW4c -> op -> NCHW4c -> NHWC
+        """
+        x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")  # NHWC
+        y = relay.layout_transform(x, "NHWC", "NCHW")  # To NCHW
+        y = relay.layout_transform(y, "NCHW", "NCHW4c")  # To NCHW4c
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW4c", "NCHW")  # To NCHW
+        y = relay.layout_transform(y, "NCHW", "NHWC")  # To NHWC
+        return relay.Function([x], y)
+
+    def expected5():
+        x = relay.var("x", shape=(1, 56, 56, 128), dtype="float32")  # NHWC
+        y = relay.layout_transform(x, "NHWC", "NCHW4c")  # To NCHW4c
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW4c", "NHWC")  # To NHWC
+        return relay.Function([x], y)
+
+    def before6():
+        """
+        Remove trivial layout_transform->layout_transform.
+
+        Input:
+        NCHW -> NHWC -> NCHW -> op
+
+        Simplified:
+        NHWC -> op
+        """
+
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.layout_transform(x, "NCHW", "NHWC")
+        y = relay.layout_transform(y, "NHWC", "NCHW")
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
+    def expected6():
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
+    def before7():
+        """
+        Remove trivial layout_transform->layout_transform.
+
+        Input:
+        NCHW4c -> NCHW8c -> NCHW4c -> op
+
+        Simplified:
+        NCHW4c -> op
+        """
+        x = relay.var("x", shape=(1, 32, 56, 56, 4), dtype="float32")
+        y = relay.layout_transform(x, "NCHW4c", "NCHW8c")
+        y = relay.layout_transform(y, "NCHW8c", "NCHW4c")
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
+    def expected7():
+        x = relay.var("x", shape=(1, 32, 56, 56, 4), dtype="float32")
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
+    def before8():
+        """
+        Simplify layout_transform->layout_transform with rank contraction and expansion
+
+        Input:
+        NCHW4c -> NCHW -> NCHW8c -> op
+
+        Simplified:
+        NCHW4c -> NCHW8c -> op
+        """
+        x = relay.var("x", shape=(1, 32, 56, 56, 4), dtype="float32")
+        y = relay.layout_transform(x, "NCHW4c", "NCHW")
+        y = relay.layout_transform(y, "NCHW", "NCHW8c")
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
+    def expected8():
+        x = relay.var("x", shape=(1, 32, 56, 56, 4), dtype="float32")
+        y = relay.layout_transform(x, "NCHW4c", "NCHW8c")
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
+    def before9():
+        """
+        Remove trivial layout_transform->layout_transform.
+
+        Input:
+        NCHW -> NCHW4c -> NCHW -> op
+
+        Simplified:
+        NCHW -> op
+        """
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.layout_transform(x, "NCHW", "NCHW4c")
+        y = relay.layout_transform(y, "NCHW4c", "NCHW")
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
+    def expected9():
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
+    def before10():
+        """
+        Simplify layout_transform->layout_transform without rank change to transpose.
+
+        Input:
+        NCHW -> NHWC -> CHWN -> op
+
+        Simplified:
+        NCHW -> CHWN -> op
+        """
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.layout_transform(x, "NCHW", "NHWC")
+        y = relay.layout_transform(y, "NHWC", "CHWN")
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
+    def expected10():
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.transpose(x, axes=[1, 2, 3, 0])
+        y = relay.nn.relu(y)
+        return relay.Function([x], y)
+
     for before, expected in [
         [before1(), expected1()],
         [before2(), expected2()],
         [before3(), expected3()],
+        [before4(), expected4()],
+        [before5(), expected5()],
+        [before6(), expected6()],
+        [before7(), expected7()],
+        [before8(), expected8()],
+        [before9(), expected9()],
+        [before10(), expected10()],
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())

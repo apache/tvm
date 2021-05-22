@@ -138,10 +138,8 @@ This philosophy of embedded API is very like Lua, except that we don't have a ne
 
 One fun fact about PackedFunc is that we use it for both compiler and deployment stack.
 
-- All compiler pass functions of TVM are exposed to frontend as PackedFunc, see `here`_
+- All compiler pass functions of TVM are exposed to frontend as PackedFunc
 - The compiled module also returns the compiled function as PackedFunc
-
-.. _here: https://github.com/apache/tvm/tree/main/src/api
 
 To keep the runtime minimum, we isolated the IR Object support from the deployment runtime. The resulting runtime takes around 200K - 600K depending on how many runtime driver modules (e.g., CUDA) get included.
 
@@ -279,7 +277,7 @@ Each argument in PackedFunc contains a union value `TVMValue`_
 and a type code. This design allows the dynamically typed language to convert to the corresponding type directly, and statically typed language to
 do runtime type checking during conversion.
 
-.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h#L122
+.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h#L135
 
 The relevant files are
 

@@ -43,7 +43,7 @@ def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data, verify_
         rt_mod.set_input(input_data=in_data)
         rt_mod.set_input(**params)
         rt_mod.run()
-        res = rt_mod.get_output(0).asnumpy()
+        res = rt_mod.get_output(0).numpy()
         np.testing.assert_equal(res, verify_output_data)
         assert res.dtype == out_dtype
 

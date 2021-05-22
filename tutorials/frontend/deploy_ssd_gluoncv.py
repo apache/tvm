@@ -123,9 +123,9 @@ for target in ["llvm", "cuda"]:
 
 ax = utils.viz.plot_bbox(
     img,
-    bounding_boxs.asnumpy()[0],
-    scores.asnumpy()[0],
-    class_IDs.asnumpy()[0],
+    bounding_boxs.numpy()[0],
+    scores.numpy()[0],
+    class_IDs.numpy()[0],
     class_names=block.classes,
 )
 plt.show()

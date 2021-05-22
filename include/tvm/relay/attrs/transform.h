@@ -144,11 +144,22 @@ struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   }
 };
 
+struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
+  Integer batch_dims;
+
+  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherNDAttrs") {
+    TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dimensions.");
+  }
+};
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
+  Integer batch_dims;
   Integer axis;
   std::string mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
+    TVM_ATTR_FIELD(batch_dims)
+        .set_default(0)
+        .describe("The batch_dims over which to select values.");
     TVM_ATTR_FIELD(axis)
         .set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");

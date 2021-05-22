@@ -39,33 +39,34 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
+  using FLowerGeneral = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {
-    std::vector<std::string> patterns_;
-    patterns_.push_back(target + ".FLowerIntrinsic");
-
+    std::vector<std::string> patterns;
+    patterns.push_back(target + ".FLowerIntrinsic");
+    patterns.push_back(target + ".FLegalize");
     bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
     if (is_llvm_aarch64) {
-      patterns_.push_back(target + ".aarch64.FLowerIntrinsic");
+      patterns.push_back(target + ".aarch64.FLowerIntrinsic");
+      patterns.push_back(target + ".aarch64.FLegalize");
     }
+    patterns.push_back("default.FLowerIntrinsic");
+    patterns.push_back("default.FLegalize");
 
-    patterns_.push_back("default.FLowerIntrinsic");
-
-    fma_ = runtime::Registry::Get("tvm.intrin.rule." + target + ".fma");
-    if (target == "stackvm") {
-      support_bitwise_op_ = false;
-    }
-
-    for (const std::string& pattern : patterns_)
-      if (Op::HasAttrMap(pattern))
-        lower_intrin_maps_.push_back(Op::GetAttrMap<FLowerIntrinsic>(pattern));
+    for (const std::string& pattern : patterns)
+      if (Op::HasAttrMap(pattern)) {
+        attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
+        if (fma_ == nullptr) {
+          fma_ = (*attr_maps_.rbegin()).get(Op::Get("tir.fma"), nullptr);
+        }
+      }
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      for (const auto& f_lower_intrin_map : lower_intrin_maps_) {
-        FLowerIntrinsic f = f_lower_intrin_map.get(GetRef<Op>(ptr_op), nullptr);
+      for (const auto& f_attr_map : attr_maps_) {
+        FLowerGeneral f = f_attr_map.get(GetRef<Op>(ptr_op), nullptr);
         if (f != nullptr) {
           PrimExpr e = GetRef<PrimExpr>(op);
           PrimExpr r = f(e);
@@ -269,7 +270,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r = (*fma_)(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
+      PrimExpr r = fma_(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
@@ -280,9 +281,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  // patterns
-  std::vector<OpAttrMap<FLowerIntrinsic>> lower_intrin_maps_;
-  const PackedFunc* fma_{nullptr};
+  // attribute maps, shared only when FLegalize == FLowerIntrinsic
+  std::vector<OpAttrMap<FLowerGeneral>> attr_maps_;
+  FLowerGeneral fma_{nullptr};
   bool support_bitwise_op_{true};
 };
 

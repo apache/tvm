@@ -21,31 +21,28 @@
 """PT: PyTorch frontend."""
 import itertools
 import logging
-import sys
 import math
+import sys
 
 import numpy as np
-
 import tvm
-from tvm.topi.utils import get_const_tuple
 from tvm.ir import IRModule
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from .. import qnn
-from ..ty import TupleType, TensorType, Any
+from .. import qnn, transform
+from ..expr_functor import ExprMutator
 from ..loops import while_loop
-from .. import transform
+from ..prelude import Prelude, StaticTensorArrayOps
+from ..ty import Any, TensorType, TupleType
+from . import qnn_torch
 from .common import AttrCvt, get_relay_op
 from .common import infer_value as _infer_value
-from .common import try_infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from ..prelude import Prelude, StaticTensorArrayOps
-from ..expr_functor import ExprMutator
-
-from . import qnn_torch
+from .common import try_infer_value
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -566,7 +563,7 @@ class PyTorchOpConverter:
             if isinstance(r, int):
                 reps.append(r)
             else:
-                reps.append(int(_infer_value(r, {}).asnumpy()))
+                reps.append(int(_infer_value(r, {}).numpy()))
 
         return _op.transform.tile(data, reps=reps)
 
@@ -606,7 +603,7 @@ class PyTorchOpConverter:
         for dim in data:
             if isinstance(dim, _expr.Expr):
                 if isinstance(dim, _expr.Constant):
-                    dim = int(dim.data.asnumpy())
+                    dim = int(dim.data.numpy())
                     if isinstance(size, list):
                         size.append(dim)
                     new_shape.append(dim)
@@ -871,7 +868,7 @@ class PyTorchOpConverter:
         if isinstance(data, list):
             for i, _ in enumerate(data):
                 if isinstance(data[i], _expr.Expr):
-                    data[i] = int(_infer_value_simulated(data[i], {}).asnumpy())
+                    data[i] = int(_infer_value_simulated(data[i], {}).numpy())
         return data
 
     def maxpool_2d(self, inputs, input_types):
@@ -883,11 +880,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1, 1]:
-            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+        return _op.nn.max_pool2d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCHW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_2d_with_indices(self, inputs, input_types):
         # returns dummy indices too
@@ -902,11 +903,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1]:
-            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
+        return _op.nn.max_pool1d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
@@ -916,12 +921,14 @@ class PyTorchOpConverter:
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
-        if dilation != [1, 1, 1]:
-            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
 
         return _op.nn.max_pool3d(
-            data, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            ceil_mode=ceil_mode,
         )
 
     def hardtanh(self, inputs, input_types):
@@ -970,32 +977,52 @@ class PyTorchOpConverter:
         kernel_size = weight_shape[2:]
         use_bias = isinstance(bias, _expr.Expr)
 
-        if len(kernel_size) == 1:
-            strides = (1,) + strides
-            padding = (0,) + padding
-            dilation = (1,) + dilation
+        # We are trying to invoke various relay operations through a single conv_op variable.
+        # However the function signatures for some operations have additional attributes so we
+        # pass these in along with the standard ones.
+        additional_arguments = dict()
 
         if use_transpose:
             if len(kernel_size) == 3:
                 conv_op = _op.nn.conv3d_transpose
-            else:
+            elif len(kernel_size) == 2:
                 conv_op = _op.nn.conv2d_transpose
+            else:
+                conv_op = _op.nn.conv1d_transpose
+            output_padding = tuple(inputs[7])
+            additional_arguments["output_padding"] = output_padding
+
         else:
             if len(kernel_size) == 3:
                 conv_op = _op.nn.conv3d
-            else:
+            elif len(kernel_size) == 2:
                 conv_op = _op.nn.conv2d
+            else:
+                conv_op = _op.nn.conv1d
 
         if len(kernel_size) == 3:
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
-        else:
+        elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
+        else:
+            data_layout = "NCW"
+            kernel_layout = "OIW"
 
-        if len(kernel_size) == 1:
+        # Conv1d does not currently support grouped convolution so we convert it to conv2d
+        is_grouped_conv1d = False
+        if groups > 1 and len(kernel_size) == 1 and not use_transpose:
+            is_grouped_conv1d = True
+            conv_op = _op.nn.conv2d
+            kernel_size = [1] + kernel_size
+            strides = (1,) + strides
+            padding = (0,) + padding
+            dilation = (1,) + dilation
             data = _op.expand_dims(data, axis=2)
             weight = _op.expand_dims(weight, axis=2)
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
 
         conv_out = conv_op(
             data,
@@ -1005,17 +1032,20 @@ class PyTorchOpConverter:
             dilation=dilation,
             groups=groups,
             channels=channels,
-            kernel_size=[1] + kernel_size if len(kernel_size) == 1 else kernel_size,
+            kernel_size=kernel_size,
             data_layout=data_layout,
             kernel_layout=kernel_layout,
             out_layout="",
             out_dtype="",
+            **additional_arguments,
         )
         if use_bias:
             res = _op.nn.bias_add(conv_out, bias)
         else:
             res = conv_out
-        if len(kernel_size) == 1:
+        if is_grouped_conv1d:
+            # Because we conducted grouped conv1d convolution through conv2d we must
+            # squeeze the output to get the correct result.
             res = _op.squeeze(res, axis=[2])
         return res
 
@@ -1272,7 +1302,7 @@ class PyTorchOpConverter:
         for i, shape in enumerate(shape_inp):
             if isinstance(shape, _expr.Expr):
                 val = _infer_value_simulated(shape, {})
-                new_shape[i] = np.asscalar(val.asnumpy())
+                new_shape[i] = np.asscalar(val.numpy())
 
         return _op.transform.reshape(data, new_shape)
 
@@ -1284,7 +1314,7 @@ class PyTorchOpConverter:
         is_dyn = False
         for s in new_shape:
             if isinstance(s, _expr.Constant):
-                tmp_shape.append(int(s.data.asnumpy()))
+                tmp_shape.append(int(s.data.numpy()))
             elif isinstance(s, _expr.Expr):
                 dim, success = try_infer_value(s, lambda ret: int(ret))
                 tmp_shape.append(dim)
@@ -1370,6 +1400,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1,),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1379,6 +1410,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1, 1),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1388,6 +1420,7 @@ class PyTorchOpConverter:
                         pool_size=pool_size,
                         strides=strides,
                         padding=padding,
+                        dilation=(1, 1, 1),
                         ceil_mode=ceil_mode,
                         count_include_pad=count_include_pad,
                     )
@@ -1651,7 +1684,7 @@ class PyTorchOpConverter:
         for i in range(out_dims):
             if sizes[i] != -1 and shape[i] == 1:
                 if not isinstance(sizes[i], int):
-                    sizes[i] = int(_infer_value(sizes[i], {}).asnumpy())
+                    sizes[i] = int(_infer_value(sizes[i], {}).numpy())
                 out = _op.repeat(out, sizes[i], axis=i)
 
         return out
@@ -1697,7 +1730,7 @@ class PyTorchOpConverter:
                 const_paddings.append([])
                 for p in pad:
                     if not isinstance(p, int):
-                        p = int(_infer_value(p, {}).asnumpy())
+                        p = int(_infer_value(p, {}).numpy())
                     const_paddings[-1].append(p)
 
             if mode == "constant":
@@ -1712,7 +1745,7 @@ class PyTorchOpConverter:
 
         def get_v(v, default_v):
             if isinstance(v, _expr.Constant):
-                return float(v.data.asnumpy())
+                return float(v.data.numpy())
             if isinstance(v, _expr.Expr):
                 infer_v, success = try_infer_value(v, lambda ret: float(ret))
                 if success:
@@ -1757,7 +1790,7 @@ class PyTorchOpConverter:
         if inputs[1] is not None:
             for size in inputs[1]:
                 if not isinstance(size, int):
-                    out_size.append(int(_infer_value(size, {}).asnumpy()))
+                    out_size.append(int(_infer_value(size, {}).numpy()))
                 else:
                     out_size.append(size)
         else:
@@ -2136,7 +2169,7 @@ class PyTorchOpConverter:
         }
         type_key = inputs[1]
         if isinstance(data, _expr.Constant):
-            data = data.data.asnumpy().tolist()
+            data = data.data.numpy().tolist()
         return _expr.const(data, cast_map[type_key])
 
     def interpolate(self, inputs, input_types):
@@ -2490,7 +2523,7 @@ class PyTorchOpConverter:
         self.convert_map.update(custom_map)
 
     def report_missing_conversion(self, op_names):
-        """ Check if all ops in an input graph are supported by TVM """
+        """Check if all ops in an input graph are supported by TVM"""
         known_ops = [
             "prim::Constant",
             "prim::GetAttr",
@@ -2512,13 +2545,13 @@ class PyTorchOpConverter:
             raise NotImplementedError(msg)
 
     def convert_block(self, block, outputs):
-        """ Translate Torch "Block", used for prim::If and prim::Loop """
+        """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(block.nodes())
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
 
     def convert_if(self, if_node, outputs):
-        """ Translate Torch prim::If to Relay If """
+        """Translate Torch prim::If to Relay If"""
         cond = outputs[if_node.inputsAt(0).debugName()]
         blocks = list(if_node.blocks())
         true_branch = self.convert_block(blocks[0], outputs)
@@ -2527,7 +2560,7 @@ class PyTorchOpConverter:
         return _expr.If(cond, true_branch[0], false_branch[0])
 
     def convert_loop(self, loop_node, outputs):
-        """ Translate Torch prim::Loop to Relay while_loop """
+        """Translate Torch prim::Loop to Relay while_loop"""
 
         def get_input(index):
             ivalue = loop_node.inputsAt(index)
@@ -2657,7 +2690,7 @@ class PyTorchOpConverter:
         return [_expr.TupleGetItem(loop_val, i + 1) for i in range(num_loop_var)]
 
     def convert_operators(self, operators, outputs, ret_names):
-        """ Convert each Torch IR operators to Relay equivalent """
+        """Convert each Torch IR operators to Relay equivalent"""
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -2839,7 +2872,7 @@ def _wrap_const(c):
 
 
 def _run_jit_passes(graph):
-    """ The inline pass is necessary to unwrap prim::CallMethod """
+    """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
 
@@ -2945,7 +2978,7 @@ def _get_input_types(op_node, outputs, default_dtype="float32"):
 
 
 def _get_constant(node):
-    """ Retrieve a constant associated with this prim::Constant node """
+    """Retrieve a constant associated with this prim::Constant node"""
     attribute_names = node.attributeNames()
     num_attributes = len(attribute_names)
 
@@ -2979,7 +3012,7 @@ def _get_constant(node):
 
 
 def _get_operator_nodes(nodes):
-    """ Returns torch IR nodes that need conversion to Relay """
+    """Returns torch IR nodes that need conversion to Relay"""
     ops = []
     # Traverse nodes and add to graph
     for node in nodes:
@@ -3193,7 +3226,7 @@ def convert_params(graph, state_dict):
 
 
 def get_all_op_names(graph):
-    """ Return all operator names in the input graph """
+    """Return all operator names in the input graph"""
     nodes = list(graph.nodes())
     prim_with_blocks = ["prim::If", "prim::Loop"]
     for prim in prim_with_blocks:

@@ -38,6 +38,7 @@
 #include <tvm/te/operation.h>
 
 #include <iostream>
+#include <map>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -57,6 +58,7 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
+Pass LabelOps();
 
 Pass MemoryPlan() {
   auto f = tvm::runtime::Registry::Get("relay.transform.MemoryPlan");
@@ -232,7 +234,7 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
 Target CreateDefaultTarget(int device_type) {
   std::string name = runtime::DeviceName(device_type);
   if (name == "cpu") return Target("llvm");
-  if (name == "gpu") return Target("cuda");
+  if (name == "cuda") return Target("cuda");
   return Target(name);
 }
 
@@ -301,6 +303,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     return VMFunction(var->name_hint, params_, instructions_, registers_num_, params_device_type);
   }
+  /*! \brief Attrs objects for each op. */
+  std::map<Index, Map<String, ObjectRef>> op_attrs;
+
+  /*! \brief Attrs objects for each callsite. */
+  std::map<Index, Map<String, ObjectRef>> callsite_attrs;
 
  protected:
   size_t NewRegister() { return registers_num_++; }
@@ -556,6 +563,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         op_index = context_->seen_funcs[pfunc];
       }
     }
+
+    // Extract functions attrs
+    op_attrs[op_index] = func->attrs->dict;
 
     Emit(Instruction::InvokePacked(op_index, argument_registers.size(), output_tuple->fields.size(),
                                    argument_registers));
@@ -931,6 +941,11 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
       size_t func_index = context_.global_map.at(gvar);
       ICHECK(func_index < exec_->functions.size());
       exec_->functions[func_index] = vm_func;
+
+      // update structural hashes for tvm ops
+      for (auto p : func_compiler.op_attrs) {
+        exec_->op_attrs.insert(p);
+      }
     }
   }
 
@@ -963,6 +978,9 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
 
 transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   Array<Pass> pass_seqs;
+  // Remove unused functions
+  Array<runtime::String> entry_functions{"main"};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
   pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 
@@ -1108,6 +1126,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
 
   pass_seqs.push_back(MemoryOpt(target_host, targets));
   pass_seqs.push_back(transform::InferType());
+  pass_seqs.push_back(transform::LabelOps());
 
   transform::Sequential seq(pass_seqs);
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
@@ -1173,8 +1192,9 @@ void VMCompiler::Codegen() {
     // to make sure a DSO module will be also available.
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
-  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_);
+  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
   exec_->SetLib(lib);
+  CompileEngine::Global()->Clear();
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {
