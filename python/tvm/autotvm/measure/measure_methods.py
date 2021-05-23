@@ -252,9 +252,11 @@ class RPCRunner(Runner):
     def ref_input(self, val):
         warnings.warn(
             "You are specifying fixed input for tuning the operator. "
-            "Be sure your input always fits the operator. Some"
-            " operators may conduct layout transformation during tuning,"
-            " thus can lead to unexpected behaviors. ", RuntimeWarning)
+            "Be sure your input always fits the operator. Some "
+            "operators may conduct layout transformation during tuning, "
+            "thus can lead to unexpected behaviors. ",
+            RuntimeWarning,
+        )
         self._ref_input = val
 
     def set_task(self, task):
