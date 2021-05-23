@@ -244,17 +244,18 @@ class RPCRunner(Runner):
 
     @property
     def ref_input(self):
-        '''Fixed input for tuning special operators.'''
-        return self._ref_input if hasattr(self, '_ref_input') else None
-    
+        """Fixed input for tuning special operators."""
+        return self._ref_input if hasattr(self, "_ref_input") else None
+
     @ref_input.setter
     def ref_input(self, val):
         import warnings
+
         warnmsg = (
-            'You are specifying fixed input for tuning the operator. '
-            'Be sure your input always fits into the operator. '
-            'Some operators may conduct layout transformation during tuning, '
-            'thus may lead to unexpected behaviors. '
+            "You are specifying fixed input for tuning the operator. "
+            "Be sure your input always fits into the operator. "
+            "Some operators may conduct layout transformation during tuning, "
+            "thus may lead to unexpected behaviors. "
         )
         warnings.warn(warnmsg, RuntimeWarning)
         self._ref_input = val
@@ -603,7 +604,8 @@ def run_through_rpc(
                     random_fill = remote.get_function("tvm.contrib.random.random_fill")
                 except AttributeError:
                     raise AttributeError(
-                        "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+                        "Please make sure USE_RANDOM is ON in the config.cmake "
+                        "on the remote devices"
                     )
                 args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
                 if "scatter" not in measure_input.task.name:
