@@ -344,7 +344,7 @@ We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
 implemented to fold constants in a Relay function (found in
-`src/relay/pass/fold_constant.cc`_).
+`src/relay/transforms/fold_constant.cc`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
@@ -536,7 +536,7 @@ optimization pipeline and debug Relay and tir passes, please refer to the
 
 .. _src/ir/transform.cc: https://github.com/apache/tvm/blob/main/src/ir/transform.cc
 
-.. _src/relay/pass/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relay/pass/fold_constant.cc
+.. _src/relay/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relay/transforms/fold_constant.cc
 
 .. _python/tvm/relay/transform/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relay/transform/transform.py
 
