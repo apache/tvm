@@ -21,6 +21,79 @@
 namespace tvm {
 namespace tir {
 
+/******** Binding ********/
+
+bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_var_ranges,
+                     arith::Analyzer* analyzer) {
+  if (loop_var_ranges.empty()) {
+    return true;
+  }
+  Array<arith::IterSumExpr> results = arith::DetectIterMap(
+      /*indices=*/realize->iter_values,
+      /*input_iters=*/loop_var_ranges,
+      /*predicate=*/realize->predicate,
+      /*require_bijective=*/false,
+      /*analyzer=*/analyzer);
+  if (results.empty()) {
+    return false;
+  }
+  for (const arith::IterSumExpr& sum_expr : results) {
+    const Array<arith::IterSplitExpr>& args = sum_expr->args;
+    if (!args.empty() && !is_one(args[0]->scale)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
+                                         const Optional<StmtSRef>& high_exclusive,
+                                         const runtime::StorageScope& extra_relax_scope) {
+  Map<Var, Range> result;
+  const StmtSRefNode* p = low_inclusive.get();
+  const StmtSRefNode* limit = static_cast<const StmtSRefNode*>(high_exclusive.get());
+  for (; p != limit; p = p->parent) {
+    const ForNode* loop = p->StmtAs<ForNode>();
+    if (loop == nullptr) {
+      break;
+    }
+    result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+  }
+  if (extra_relax_scope.rank != runtime::StorageRank::kGlobal) {
+    for (; p; p = p->parent) {
+      if (const ForNode* loop = p->StmtAs<ForNode>()) {
+        if (loop->kind == ForKind::kThreadBinding) {
+          runtime::ThreadScope thread_scope =
+              runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+          if (extra_relax_scope.rank == runtime::StorageRank::kWarp) {
+            if (thread_scope.rank == 1 && thread_scope.dim_index == 0) {
+              result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+            }
+          } else if (static_cast<int>(extra_relax_scope.rank) <=
+                     static_cast<int>(thread_scope.rank)) {
+            result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+Map<Var, PrimExpr> GetBindings(const BlockRealize& realize) {
+  const BlockNode* block = realize->block.get();
+  const Array<IterVar>& all_lhs = block->iter_vars;
+  const Array<PrimExpr>& all_rhs = realize->iter_values;
+  ICHECK_EQ(all_lhs.size(), all_rhs.size());
+  Map<Var, PrimExpr> result;
+  for (int i = 0, n = all_lhs.size(); i < n; ++i) {
+    const IterVar& lhs = all_lhs[i];
+    const PrimExpr& rhs = all_rhs[i];
+    result.Set(lhs->var, rhs);
+  }
+  return result;
+}
+
 /******** Block-loop relation ********/
 
 Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name) {
