@@ -32,6 +32,7 @@ import typing
 from random import getrandbits
 from collections import namedtuple
 import tempfile
+import warnings
 
 import tvm._ffi
 import tvm.ir.transform
@@ -249,15 +250,11 @@ class RPCRunner(Runner):
 
     @ref_input.setter
     def ref_input(self, val):
-        import warnings
-
-        warnmsg = (
-            "You are specifying fixed input for tuning the operator. "
-            "Be sure your input always fits into the operator. "
-            "Some operators may conduct layout transformation during tuning, "
-            "thus may lead to unexpected behaviors. "
-        )
-        warnings.warn(warnmsg, RuntimeWarning)
+        warnings.warn(
+            "You are specifying fixed input for tuning the operator. " \
+            "Be sure your input always fits the operator. Some operators " \
+            "may conduct layout transformation during tuning, " \
+            "thus may lead to unexpected behaviors. ", RuntimeWarning)
         self._ref_input = val
 
     def set_task(self, task):
