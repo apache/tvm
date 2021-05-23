@@ -171,7 +171,7 @@ def test_instrument_pass_counts(capsys):
     assert passes_counter.run_after_count == 0
 
 
-def test_enter_pass_ctx_expection(capsys):
+def test_enter_pass_ctx_exception(capsys):
     @pass_instrument
     class PI:
         def __init__(self, id):
@@ -192,11 +192,51 @@ def test_enter_pass_ctx_expection(capsys):
             print(self.id + " enter ctx")
             raise RuntimeError("Just a dummy error")
 
+    pass_ctx = tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")])
     with pytest.raises(tvm.error.TVMError):
-        with tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")]):
+        with pass_ctx:
             pass
 
     assert "%1 enter ctx\n" "%2 enter ctx\n" == capsys.readouterr().out
+
+    # Make sure we get correct PassContext
+    cur_pass_ctx = tvm.transform.PassContext.current()
+    assert pass_ctx != cur_pass_ctx
+    assert cur_pass_ctx.instruments == None
+
+
+def test_exit_pass_ctx_exception(capsys):
+    @pass_instrument
+    class PI:
+        def __init__(self, id):
+            self.id = id
+
+        def exit_pass_ctx(self):
+            print(self.id + " exit ctx")
+
+        def exit_pass_ctx(self):
+            print(self.id + " exit ctx")
+
+    @pass_instrument
+    class PIBroken(PI):
+        def __init__(self, id):
+            super().__init__(id)
+
+        def exit_pass_ctx(self):
+            print(self.id + " exit ctx")
+            raise RuntimeError("Just a dummy error")
+
+    pass_ctx = tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")])
+    with pytest.raises(tvm.error.TVMError):
+        with pass_ctx:
+            pass
+
+    assert "%1 exit ctx\n" "%2 exit ctx\n" == capsys.readouterr().out
+
+    # Make sure we get correct PassContext
+    cur_pass_ctx = tvm.transform.PassContext.current()
+    assert pass_ctx != cur_pass_ctx
+    assert cur_pass_ctx.instruments == None
 
 
 def test_pass_exception(capsys):

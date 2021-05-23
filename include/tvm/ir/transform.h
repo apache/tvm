@@ -186,13 +186,13 @@ class PassContext : public ObjectRef {
    * \brief Call instrument implementations' callbacks when entering PassContex.
    *        In order, if one raises exceptions, remaings will not be called.
    */
-  TVM_DLL void InstrumentEnterPassContext() const;
+  TVM_DLL void InstrumentEnterPassContext();
 
   /*!
    * \brief Call instrument implementations' callback when exiting PassContext.
    *        In order, if one raises exceptions, remaings will not be called.
    */
-  TVM_DLL void InstrumentExitPassContext() const;
+  TVM_DLL void InstrumentExitPassContext();
 
   /*!
    * \brief Call intrument implementations' callbacks before a pass run.

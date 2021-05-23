@@ -57,17 +57,19 @@ struct PassContextThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> RelayPassContextThreadLocalStore;
 
 void PassContext::EnterWithScope() {
+  InstrumentEnterPassContext();
+
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   entry->context_stack.push(*this);
-  InstrumentEnterPassContext();
 }
 
 void PassContext::ExitWithScope() {
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
-  InstrumentExitPassContext();
   entry->context_stack.pop();
+
+  InstrumentExitPassContext();
 }
 
 PassContext PassContext::Current() {
@@ -165,20 +167,31 @@ void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_inde
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
 
-void PassContext::InstrumentEnterPassContext() const {
+void PassContext::InstrumentEnterPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
-    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-      pi->EnterPassContext();
+    try {
+      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+        pi->EnterPassContext();
+      }
+    } catch (const Error& e) {
+      LOG(INFO) << "Pass instrumentation entering pass context failed.";
+      LOG(INFO) << "Disable pass instrumentation.";
+      throw e;
     }
   }
 }
 
-void PassContext::InstrumentExitPassContext() const {
+void PassContext::InstrumentExitPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
-    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-      pi->ExitPassContext();
+    try {
+      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+        pi->ExitPassContext();
+      }
+    } catch (const Error& e) {
+      LOG(INFO) << "Pass instrumentation exiting pass context failed.";
+      throw e;
     }
   }
 }
