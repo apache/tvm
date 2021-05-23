@@ -205,6 +205,18 @@ def test_enter_pass_ctx_exception(capsys):
     assert cur_pass_ctx.instruments == None
 
 
+def test_enter_pass_ctx_exception_global(capsys):
+    @pass_instrument
+    class PIBroken:
+        def enter_pass_ctx(self):
+            raise RuntimeError("Just a dummy error")
+
+    cur_pass_ctx = tvm.transform.PassContext.current()
+    with pytest.raises(tvm.error.TVMError):
+        cur_pass_ctx.override_instruments([PIBroken()])
+    assert not cur_pass_ctx.instruments
+
+
 def test_exit_pass_ctx_exception(capsys):
     @pass_instrument
     class PI:
@@ -236,7 +248,20 @@ def test_exit_pass_ctx_exception(capsys):
     # Make sure we get correct PassContext
     cur_pass_ctx = tvm.transform.PassContext.current()
     assert pass_ctx != cur_pass_ctx
-    assert cur_pass_ctx.instruments == None
+    assert not cur_pass_ctx.instruments
+
+
+def test_exit_pass_ctx_exception_global(capsys):
+    @pass_instrument
+    class PIBroken:
+        def exit_pass_ctx(self):
+            raise RuntimeError("Just a dummy error")
+
+    cur_pass_ctx = tvm.transform.PassContext.current()
+    with pytest.raises(tvm.error.TVMError):
+        cur_pass_ctx.override_instruments([PIBroken()])
+        cur_pass_ctx.override_instruments([PIBroken()])
+    assert not cur_pass_ctx.instruments
 
 
 def test_pass_exception(capsys):

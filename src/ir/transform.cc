@@ -177,6 +177,7 @@ void PassContext::InstrumentEnterPassContext() {
     } catch (const Error& e) {
       LOG(INFO) << "Pass instrumentation entering pass context failed.";
       LOG(INFO) << "Disable pass instrumentation.";
+      pass_ctx_node->instruments.clear();
       throw e;
     }
   }
@@ -191,6 +192,7 @@ void PassContext::InstrumentExitPassContext() {
       }
     } catch (const Error& e) {
       LOG(INFO) << "Pass instrumentation exiting pass context failed.";
+      pass_ctx_node->instruments.clear();
       throw e;
     }
   }
