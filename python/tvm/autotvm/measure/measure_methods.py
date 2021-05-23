@@ -242,6 +242,23 @@ class RPCRunner(Runner):
 
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
+    @property
+    def ref_input(self):
+        '''Fixed input for tuning special operators.'''
+        return self._ref_input if hasattr(self, '_ref_input') else None
+    
+    @ref_input.setter
+    def ref_input(self, val):
+        import warnings
+        warnmsg = (
+            'You are specifying fixed input for tuning the operator. '
+            'Be sure your input always fits into the operator. '
+            'Some operators may conduct layout transformation during tuning, '
+            'thus may lead to unexpected behaviors. '
+        )
+        warnings.warn(warnmsg, RuntimeWarning)
+        self._ref_input = val
+
     def set_task(self, task):
         self.task = task
 
@@ -310,6 +327,7 @@ class RPCRunner(Runner):
                     self.min_repeat_ms,
                     self.cooldown_interval,
                     remote_kwargs,
+                    self.ref_input,
                     self.enable_cpu_cache_flush,
                     module_loader,
                 )
@@ -510,6 +528,7 @@ def run_through_rpc(
     min_repeat_ms,
     cooldown_interval,
     remote_kwargs,
+    ref_input,
     enable_cpu_cache_flush=False,
     module_loader=None,
 ):
@@ -541,6 +560,8 @@ def run_through_rpc(
         The cool down interval between two measurements
     remote_kwargs: dict
         Passed to module_loader(). Ultimately, keyword args to request_remote().
+    ref_input: List of np.ndarray
+        The reference input used for tuning. Empty for randomly filled input.
     enable_cpu_cache_flush: bool
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -575,18 +596,21 @@ def run_through_rpc(
                 f_preproc=f_prepare,
             )
 
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
-            args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
-            if "scatter" not in measure_input.task.name:
-                # the index tensor of scatter op cannot be randomly initialized
-                for arg in args:
-                    random_fill(arg)
-            dev.sync()
+            if ref_input:
+                args = [nd.array(x, device=dev) for x in ref_input]
+            else:
+                try:
+                    random_fill = remote.get_function("tvm.contrib.random.random_fill")
+                except AttributeError:
+                    raise AttributeError(
+                        "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+                    )
+                args = [nd.empty(x[0], x[1], dev) for x in build_result.arg_info]
+                if "scatter" not in measure_input.task.name:
+                    # the index tensor of scatter op cannot be randomly initialized
+                    for arg in args:
+                        random_fill(arg)
+                dev.sync()
 
             costs = time_f(*args).results
 
