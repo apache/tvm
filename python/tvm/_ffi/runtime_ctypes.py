@@ -376,7 +376,7 @@ class Device(ctypes.Structure):
             The version of the SDK
 
         """
-        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+        return self._GetDeviceAttr(self.device_type, self.device_id, 11)
 
     @property
     def driver_version(self):

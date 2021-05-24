@@ -647,39 +647,24 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     return;
   }
   ICHECK_LT(index, context_.size()) << "Invalid device id " << index;
-  const auto& vctx = context(index);
-  VkPhysicalDeviceProperties phy_prop;
-  vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+
+  const auto& target = context(index).target;
 
   switch (kind) {
     case kMaxThreadsPerBlock: {
-      int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
-      *rv = value;
+      *rv = target->GetAttr<Integer>("max_num_threads").value();
       break;
     }
     case kMaxSharedMemoryPerBlock: {
-      int64_t value = phy_prop.limits.maxComputeSharedMemorySize;
-      *rv = value;
+      *rv = target->GetAttr<Integer>("max_shared_memory_per_block");
       break;
     }
     case kWarpSize: {
-      VkPhysicalDeviceSubgroupProperties subgroup_prop;
-      subgroup_prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
-      subgroup_prop.pNext = NULL;
-
-      VkPhysicalDeviceProperties2 phy_prop2;
-      phy_prop2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-      phy_prop2.pNext = &subgroup_prop;
-
-      vkGetPhysicalDeviceProperties2(vctx.phy_device, &phy_prop2);
-      int64_t subgroup_size = subgroup_prop.subgroupSize;
-      ICHECK(subgroup_size >= 1);
-
-      *rv = subgroup_size;
+      *rv = target->GetAttr<Integer>("thread_warp_size").value();
       break;
     }
     case kComputeVersion: {
-      int64_t value = phy_prop.apiVersion;
+      int64_t value = target->GetAttr<Integer>("vulkan_api_version").value();
       std::ostringstream os;
       os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
          << VK_VERSION_PATCH(value);
@@ -687,33 +672,39 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     }
     case kDeviceName:
-      *rv = std::string(phy_prop.deviceName);
+      *rv = target->GetAttr<String>("device_name").value();
       break;
+
     case kMaxClockRate:
       break;
+
     case kMultiProcessorCount:
       break;
+
     case kExist:
       break;
+
     case kMaxThreadDimensions: {
-      int64_t dims[3];
-      dims[0] = phy_prop.limits.maxComputeWorkGroupSize[0];
-      dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
-      dims[2] = phy_prop.limits.maxComputeWorkGroupSize[2];
       std::stringstream ss;  // use json string to return multiple int values;
-      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      ss << "[" << target->GetAttr<Integer>("max_block_size_x").value() << ", "
+         << target->GetAttr<Integer>("max_block_size_y").value() << ", "
+         << target->GetAttr<Integer>("max_block_size_z").value() << "]";
       *rv = ss.str();
       break;
     }
+
     case kMaxRegistersPerBlock:
       break;
+
     case kGcnArch:
       break;
+
     case kApiVersion:
       *rv = VK_HEADER_VERSION;
       break;
+
     case kDriverVersion: {
-      int64_t value = phy_prop.driverVersion;
+      int64_t value = target->GetAttr<Integer>("driver_version").value();
       std::ostringstream os;
       os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
          << VK_VERSION_PATCH(value);
