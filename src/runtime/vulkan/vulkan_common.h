@@ -24,6 +24,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/target/target.h>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -130,8 +131,11 @@ struct VulkanGetBufferMemoryRequirements2Functions {
 struct VulkanContext {
   // physical device
   VkPhysicalDevice phy_device{nullptr};
+
   // Phyiscal device property
   VkPhysicalDeviceProperties phy_device_prop;
+  // Target that best represents this physical device
+  Target target;
   // Memory type index for staging.
   uint32_t staging_mtype_index{0};
   // whether staging is coherent

@@ -19,10 +19,6 @@
 find_vulkan(${USE_VULKAN})
 
 # Extra Vulkan runtime options, exposed for advanced users.
-tvm_option(USE_VULKAN_IMMEDIATE_MODE "Use Vulkan Immediate mode
-(KHR_push_descriptor extension)" ON IF USE_VULKAN)
-tvm_option(USE_VULKAN_DEDICATED_ALLOCATION "Use Vulkan dedicated allocations" ON
-IF USE_VULKAN)
 tvm_option(USE_VULKAN_VALIDATION "Enable Vulkan API validation layers" OFF
   IF USE_VULKAN)
 
@@ -39,14 +35,6 @@ if(USE_VULKAN)
   list(APPEND TVM_LINKER_LIBS ${Vulkan_SPIRV_TOOLS_LIBRARY})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${Vulkan_LIBRARY})
 
-  if(USE_VULKAN_IMMEDIATE_MODE)
-    message(STATUS "Build with Vulkan immediate mode")
-    add_definitions(-DUSE_VULKAN_IMMEDIATE_MODE=1)
-  endif()
-  if(USE_VULKAN_DEDICATED_ALLOCATION)
-    message(STATUS "Build with Vulkan dedicated allocation")
-    add_definitions(-DUSE_VULKAN_DEDICATED_ALLOCATION=1)
-  endif()
   if(USE_VULKAN_VALIDATION)
     message(STATUS "Build with Vulkan API validation")
     add_definitions(-DUSE_VULKAN_VALIDATION=1)

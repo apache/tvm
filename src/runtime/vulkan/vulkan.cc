@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
 
 #include "../file_utils.h"
@@ -576,6 +577,28 @@ Target VulkanDeviceAPI::GetDeviceDescription(VkInstance instance, VkPhysicalDevi
     max_spirv_version = 0x10300;
   }
 
+  // Support is available based on these extensions, but allow it to
+  // be disabled based on an environment variable.
+  bool supports_push_descriptor =
+      has_extension("VK_KHR_push_descriptor") && has_extension("VK_KHR_descriptor_update_template");
+  {
+    const char* disable = std::getenv("TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR");
+    if (disable && *disable) {
+      supports_push_descriptor = false;
+    }
+  }
+
+  // Support is available based on these extensions, but allow it to
+  // be disabled based on an environment variable.
+  bool supports_dedicated_allocation = has_extension("VK_KHR_get_memory_requirements2") &&
+                                       has_extension("VK_KHR_dedicated_allocation");
+  {
+    const char* disable = std::getenv("TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION");
+    if (disable && *disable) {
+      supports_dedicated_allocation = false;
+    }
+  }
+
   Map<String, ObjectRef> config = {
       {"kind", String("vulkan")},
       // Feature support
@@ -590,6 +613,8 @@ Target VulkanDeviceAPI::GetDeviceDescription(VkInstance instance, VkPhysicalDevi
       {"supports_16bit_buffer", Bool(storage_16bit.storageBuffer16BitAccess)},
       {"supports_storage_buffer_storage_class",
        Bool(has_extension("VK_KHR_storage_buffer_storage_class"))},
+      {"supports_push_descriptor", Bool(supports_push_descriptor)},
+      {"supports_dedicated_allocation", Bool(supports_dedicated_allocation)},
       {"supported_subgroup_operations", Integer(supported_subgroup_operations)},
       // Physical device limits
       {"max_num_threads", Integer(properties.properties.limits.maxComputeWorkGroupInvocations)},
@@ -825,6 +850,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
                                      optional_extensions);
     }();
 
+    ctx.target = GetDeviceDescription(instance_, phy_dev, instance_extensions, device_extensions);
+
     // All TVM-generated spirv shaders are marked as requiring int64
     // support, so we need to request it from the device, too.
     VkPhysicalDeviceFeatures enabled_features = {};
@@ -912,26 +939,17 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       }
     }
     ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
-    auto has_extension = [&device_extensions](const char* query) {
-      return std::any_of(device_extensions.begin(), device_extensions.end(),
-                         [&](const char* extension) { return std::strcmp(query, extension) == 0; });
-    };
 
-#ifdef USE_VULKAN_IMMEDIATE_MODE
-    if (has_extension("VK_KHR_push_descriptor") &&
-        has_extension("VK_KHR_descriptor_update_template")) {
+    if (ctx.target->GetAttr<Bool>("supports_push_descriptor").value()) {
       ctx.descriptor_template_khr_functions =
           std::make_unique<VulkanDescriptorTemplateKHRFunctions>(ctx.device);
     }
-#endif
 
-#ifdef USE_VULKAN_DEDICATED_ALLOCATION
-    if (has_extension("VK_KHR_get_memory_requirements2") &&
-        has_extension("VK_KHR_dedicated_allocation")) {
+    if (ctx.target->GetAttr<Bool>("supports_dedicated_allocation").value()) {
       ctx.get_buffer_memory_requirements_2_functions =
           std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(ctx.device);
     }
-#endif
+
     context_.push_back(std::move(ctx));
   }
 
