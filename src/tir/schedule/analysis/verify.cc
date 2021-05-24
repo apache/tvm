@@ -233,7 +233,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
     }
     os << std::endl;
   }
-  LOG(FATAL) << "The schedule failed verification. The IR is:\n"
+  LOG(FATAL) << "Schedule verification failed. The IR is:\n"
              << AsTVMScript(self->mod) << "\nThe errors are:\n"
              << os.str();
   throw;
