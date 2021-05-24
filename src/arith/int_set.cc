@@ -661,37 +661,31 @@ IntSet UnionLowerBound(const Array<IntSet>& sets) {
   Analyzer analyzer;
   bool is_first_interval = true;
   PrimExpr min_inclusive{nullptr};
-  PrimExpr max_exclusive(nullptr);
+  PrimExpr max_inclusive(nullptr);
   for (const IntSet& int_set : sets) {
     if (const auto* interval_set = int_set.as<IntervalSetNode>()) {
       PrimExpr new_min_inclusive = interval_set->min_value;
-      PrimExpr new_max_exclusive = interval_set->max_value;
-      if (!is_pos_inf(new_max_exclusive) && !is_neg_inf(new_max_exclusive)) {
-        new_max_exclusive = new_max_exclusive + 1;
-      }
+      PrimExpr new_max_inclusive = interval_set->max_value;
       if (is_first_interval) {
         is_first_interval = false;
         min_inclusive = std::move(new_min_inclusive);
-        max_exclusive = std::move(new_max_exclusive);
+        max_inclusive = std::move(new_max_inclusive);
         continue;
       }
-      bool bound_1 = is_neg_inf(new_min_inclusive) || is_pos_inf(max_exclusive) ||
-                     analyzer.CanProve(new_min_inclusive <= max_exclusive);
-      bool bound_2 = is_neg_inf(min_inclusive) || is_pos_inf(new_max_exclusive) ||
-                     analyzer.CanProve(min_inclusive <= new_max_exclusive);
+      bool bound_1 = is_neg_inf(new_min_inclusive) || is_pos_inf(max_inclusive) ||
+                     analyzer.CanProve(new_min_inclusive <= max_inclusive + 1);
+      bool bound_2 = is_neg_inf(min_inclusive) || is_pos_inf(new_max_inclusive) ||
+                     analyzer.CanProve(min_inclusive <= new_max_inclusive + 1);
       if (bound_1 && bound_2) {
         min_inclusive = min(min_inclusive, new_min_inclusive);
-        max_exclusive = max(max_exclusive, new_max_exclusive);
+        max_inclusive = max(max_inclusive, new_max_inclusive);
       }
     }
   }
   if (is_first_interval) {
     return IntSet::Nothing();
   }
-  if (!is_neg_inf(max_exclusive) && !is_pos_inf(max_exclusive)) {
-    max_exclusive = max_exclusive - 1;
-  }
-  return IntSet::Interval(min_inclusive, max_exclusive);
+  return IntSet::Interval(min_inclusive, max_inclusive);
 }
 
 Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets) {
@@ -778,7 +772,7 @@ Array<IntSet> EvalSet(const Array<Range>& region, const Map<Var, IntSet>& dom_ma
   Array<IntSet> result;
   result.reserve(region.size());
   for (const Range& r : region) {
-    PrimExpr sum = r->min + r->extent - 1;
+    PrimExpr sum = r->min + (r->extent - 1);
     result.push_back(m.Eval(IntervalSet(r->min, ana.Simplify(sum))));
   }
   return result;

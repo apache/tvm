@@ -63,14 +63,9 @@ Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (loop->kind == ForKind::kThreadBinding) {
-          runtime::ThreadScope thread_scope =
-              runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
-          if (extra_relax_scope.rank == runtime::StorageRank::kWarp) {
-            if (thread_scope.rank == 1 && thread_scope.dim_index == 0) {
-              result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-            }
-          } else if (static_cast<int>(extra_relax_scope.rank) <=
-                     static_cast<int>(thread_scope.rank)) {
+          const String& thread_tag = loop->thread_binding.value()->thread_tag;
+          if (CanRelaxStorageUndereThread(extra_relax_scope,
+                                          runtime::ThreadScope::Create(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
           }
         }

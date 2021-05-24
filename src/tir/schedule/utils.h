@@ -95,6 +95,24 @@ namespace tir {
       << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
       << "`, but gets: " << (From.defined() ? From->GetTypeKey() : "None")
 
+/******** Storage scope ********/
+
+/*!
+ * \brief Determine if iterators of a storage scope should be relaxed
+ * under a specific thread scope
+ * \param storage_scope The storage scope that the iterators are on
+ * \param thread_scope The thread scope to be relaxed
+ * \return A boolean indicating the result
+ */
+inline bool CanRelaxStorageUndereThread(const runtime::StorageScope& storage_scope,
+                                        const runtime::ThreadScope& thread_scope) {
+  if (storage_scope.rank == runtime::StorageRank::kWarp) {
+    // for warp memory, we only relax threadIdx.x
+    return thread_scope.rank == 1 && thread_scope.dim_index == 0;
+  }
+  return static_cast<int>(storage_scope.rank) <= static_cast<int>(thread_scope.rank);
+}
+
 /******** Integer set ********/
 
 /*!
