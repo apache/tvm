@@ -66,8 +66,8 @@ def test_conv2d():
         f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm --host=llvm")
         y_ref = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), dev)
         f_ref(x, w, y_ref)
-        print("Max abs diff:", np.max(np.abs(y.asnumpy() - y_ref.asnumpy())))
-        tvm.testing.assert_allclose(y.asnumpy(), y_ref.asnumpy(), atol=1e-3)
+        print("Max abs diff:", np.max(np.abs(y.numpy() - y_ref.numpy())))
+        tvm.testing.assert_allclose(y.numpy(), y_ref.numpy(), atol=1e-3)
 
     verify()
 

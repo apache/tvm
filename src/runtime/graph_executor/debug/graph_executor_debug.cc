@@ -179,13 +179,6 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
-   * \brief Run each operation and get the output.
-   * \param index The index of op which needs to be returned.
-   * \param eid The Entry id of the op.
-   */
-  NDArray GetOutputByLayer(int index, int eid) { return data_entry_[entry_id(index, eid)]; }
-
-  /*!
    * \brief GetFunction Get the function based on input.
    * \param name The function which needs to be invoked.
    * \param sptr_to_self Packed function pointer.
@@ -208,9 +201,54 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   /*!
+   * \brief Execute index-th node in the network.
+   *
+   * This method will do a partial run of the graph
+   * up to index-th node.
+   *
+   * \param node: The index of the node.
+   */
+  void ExecuteNode(int node) {
+    ICHECK_LT(static_cast<size_t>(node), op_execs_.size());
+
+    int start_ind;
+    int end_ind;
+    if (node < last_executed_node_) {
+      start_ind = 0;
+      end_ind = node;
+    } else if (node > last_executed_node_) {
+      start_ind = last_executed_node_ + 1;
+      end_ind = node;
+    } else {
+      return;
+    }
+
+    for (int i = start_ind; i <= end_ind; i++) {
+      if (op_execs_[i]) op_execs_[i]();
+    }
+    last_executed_node_ = end_ind;
+  }
+
+  /*!
+   * \brief Returns index-th output of node.
+   *
+   * This method will return index-th out_ind output
+   * of index-th node in the network.
+   *
+   * \param node: The index of the node.
+   * \param out_ind: The index of the output.
+   * \return Output array.
+   */
+  NDArray GetNodeOutput(int node, int out_ind) {
+    ICHECK_EQ(node, last_executed_node_);
+    ICHECK_LT(entry_id(node, out_ind), data_entry_.size());
+    return data_entry_[entry_id(node, out_ind)].CopyTo({kDLCPU, 0});
+  }
+
+  /*!
    * \brief Copy index-th node to data_out.
    *
-   * This method will do a partial run of the the graph
+   * This method will do a partial run of the graph
    * from begining upto the index-th node and return output of index-th node.
    * This is costly operation and suggest to use only for debug porpose.
    *
@@ -240,7 +278,7 @@ class GraphExecutorDebug : public GraphExecutor {
    *
    * \returns A table of per-op runtimes and total times.
    */
-  String Profile() {
+  profiling::Report Profile() {
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {
       GraphExecutor::Run();
@@ -262,9 +300,19 @@ class GraphExecutorDebug : public GraphExecutor {
         }
 
         uint32_t eid = entry_id(i, 0);
-        const Device& device = data_entry_[eid]->device;
-        prof.StartCall(nodes_[i].param.func_name, device,
-                       {{"Argument Shapes", profiling::ShapeString(shapes)}});
+        const Device& dev = data_entry_[eid]->device;
+
+        std::unordered_map<std::string, ObjectRef> metrics;
+        for (auto p : nodes_[i].param.attrs) {
+          if (std::string(p.first).find("layout") != std::string::npos) {
+            metrics[p.first] = p.second;
+          }
+        }
+        if (nodes_[i].param.attrs.find("hash") != nodes_[i].param.attrs.end()) {
+          metrics["Hash"] = Downcast<String>(nodes_[i].param.attrs.at("hash"));
+        }
+        metrics["Argument Shapes"] = profiling::ShapeString(shapes);
+        prof.StartCall(nodes_[i].param.func_name, dev, metrics);
         op_execs_[i]();
         prof.StopCall();
       }
@@ -272,6 +320,9 @@ class GraphExecutorDebug : public GraphExecutor {
     prof.Stop();
     return prof.Report();
   }
+
+ private:
+  int last_executed_node_ = -1;
 };
 
 /*!
@@ -282,17 +333,20 @@ class GraphExecutorDebug : public GraphExecutor {
 PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
-  if (name == "get_output_by_layer") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetOutputByLayer(args[0], args[1]);
-    });
-  } else if (name == "debug_get_output") {
+  if (name == "debug_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
         this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
       } else {
         this->DebugGetNodeOutput(args[0], args[1]);
       }
+    });
+  } else if (name == "execute_node") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->ExecuteNode(args[0]); });
+  } else if (name == "get_node_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetNodeOutput(args[0], args[1]);
     });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -305,7 +359,7 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else if (name == "profile") {
-    return TypedPackedFunc<String()>([sptr_to_self, this]() { return this->Profile(); });
+    return TypedPackedFunc<profiling::Report()>([sptr_to_self, this]() { return this->Profile(); });
   } else {
     return GraphExecutor::GetFunction(name, sptr_to_self);
   }

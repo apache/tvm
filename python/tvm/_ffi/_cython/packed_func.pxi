@@ -319,6 +319,7 @@ cdef class PackedFuncBase:
     def __call__(self, *args):
         cdef TVMValue ret_val
         cdef int ret_tcode
+        ret_tcode = kTVMNullptr
         FuncCall(self.chandle, args, &ret_val, &ret_tcode)
         return make_ret(ret_val, ret_tcode)
 

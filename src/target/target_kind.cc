@@ -152,7 +152,7 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
   } else {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
-    if (!DetectDeviceFlag({kDLGPU, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
       arch = 20;
     } else {
@@ -227,9 +227,11 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("runtime")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
+    .add_attr_option<String>("executor")
+    .add_attr_option<Integer>("workspace-byte-alignment")
     .set_default_keys({"cpu"});
 
-TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
+TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
     .add_attr_option<Bool>("system-lib")
@@ -240,7 +242,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)
     .add_attr_option<Integer>("max_threads_per_block")
     .set_default_keys({"cuda", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("nvptx", kDLGPU)
+TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
@@ -261,7 +263,7 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("thread_warp_size")
+    .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"opencl", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
@@ -272,6 +274,7 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
@@ -308,8 +311,7 @@ TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
 TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("composite", kDLCPU)
-    .add_attr_option<Array<Target>>("devices");
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/
 

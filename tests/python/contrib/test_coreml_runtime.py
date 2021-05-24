@@ -23,7 +23,7 @@ from tvm.contrib import utils, xcode, coreml_runtime
 import pytest
 import os
 
-proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "localhost")
+proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "127.0.0.1")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
 destination = os.environ.get("TVM_IOS_RPC_DESTINATION", "")
 key = "iphone"
@@ -76,7 +76,7 @@ def test_coreml_runtime():
         for name in inputs:
             runtime.set_input(name, tvm.nd.array(inputs[name], dev))
         runtime.invoke()
-        tvm_outputs = [runtime.get_output(i).asnumpy() for i in range(runtime.get_num_outputs())]
+        tvm_outputs = [runtime.get_output(i).numpy() for i in range(runtime.get_num_outputs())]
 
         for c_out, t_out in zip(coreml_outputs, tvm_outputs):
             np.testing.assert_almost_equal(c_out, t_out, 3)

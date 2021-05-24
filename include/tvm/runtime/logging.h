@@ -199,6 +199,24 @@ class Error : public ::dmlc::Error {  // for backwards compatibility
 };
 
 /*!
+ * \brief Error message already set in frontend env.
+ *
+ *  This error can be thrown by EnvCheckSignals to indicate
+ *  that there is an error set in the frontend environment(e.g.
+ *  python interpreter). The TVM FFI should catch this error
+ *  and return a proper code tell the frontend caller about
+ *  this fact.
+ */
+class EnvErrorAlreadySet : public ::dmlc::Error {
+ public:
+  /*!
+   * \brief Construct an error.
+   * \param s The message to be displayed with the error.
+   */
+  explicit EnvErrorAlreadySet(const std::string& s) : ::dmlc::Error(s) {}
+};
+
+/*!
  * \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
  * contains a backtrace of where it occurred.
  */
@@ -394,9 +412,8 @@ inline bool DebugLoggingEnabled() {
 constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
     "\n"
     "---------------------------------------------------------------\n"
-    "An internal invariant was violated during the execution of TVM.\n"
-    "Please read TVM's error reporting guidelines.\n"
-    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
+    "An error occurred during the execution of TVM.\n"
+    "For more information, please see: https://tvm.apache.org/docs/errors.html\n"
     "---------------------------------------------------------------\n";
 
 template <typename X, typename Y>

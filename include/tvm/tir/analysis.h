@@ -178,6 +178,25 @@ Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
  */
 TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
+/*!
+ * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the workspace size to be calculated
+ * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
+ * workspace
+ */
+TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
+                                       const Integer& workspace_byte_alignment);
+
+/*!
+ * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
+ *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
+ *        The LCA may be a For loop or a Block.
+ * \param func The PrimFunc to be detected.
+ * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
+ *         return stmt is NullOpt.
+ */
+TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
+
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
 namespace transform {

@@ -684,7 +684,7 @@ class ModelContainer(object):
         return opsets
 
     def make_model(self):
-        """ Creates the onnx model from the graph """
+        """Creates the onnx model from the graph"""
         onnx_graph = onnx.helper.make_graph(
             self._nodes, self._name, self._inputs, self._outputs, self._initializers
         )
@@ -734,7 +734,7 @@ class RelayToONNXConverter(ExprVisitor):
         }
 
     def convert_to_onnx(self, func):
-        """ Traverse Relay graph and generate a ONNX model"""
+        """Traverse Relay graph and generate a ONNX model"""
 
         self.visit(func)
         self._add_output(self._node_dict[self.last_node])
@@ -826,7 +826,7 @@ class RelayToONNXConverter(ExprVisitor):
             param_name in self._params
         ), "The parameter {0} is not present" "in params dict provided.".format(param_name)
         value = self._params[param_name]
-        numpy_array = value.asnumpy()
+        numpy_array = value.numpy()
         tensor = numpy_helper.from_array(numpy_array, param_name)
         self._mc.add_initializers([tensor])
         dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy_array.dtype]

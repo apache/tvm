@@ -16,18 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+DOWNLOAD_DIR=$1
+ZEPHYR_BRANCH=$2
 
-# Script to setup additional python env.
-#
-# Use the following command to install the
-# package to /workspace/.local, these additional
-# packages will have precedence over the system packages.
-#
-# command: python3 -m pip install --user <package>==<version>
-#
-echo "Addtiional setup in" ${CI_IMAGE_NAME}
-
-python3 -m pip install --user tlcpack-sphinx-addon==0.1.4 synr==0.3.0
+west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
+cd ${DOWNLOAD_DIR}
+west update
+west zephyr-export

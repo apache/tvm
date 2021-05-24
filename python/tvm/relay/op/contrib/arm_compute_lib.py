@@ -17,16 +17,15 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm Compute Library supported operators."""
 import tvm
-
 from tvm import relay
 from tvm._ffi import register_func
-from tvm.relay.expr import const
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.expr import const
 
-from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr
-from .register import register_pattern_table
+from ...dataflow_pattern import is_constant, is_expr, is_op, wildcard
 from ..strategy.generic import is_depthwise_conv2d
+from .register import register_pattern_table
 
 
 def is_arm_compute_runtime_enabled():
@@ -140,7 +139,7 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("nn.pad")(wildcard(), wildcard()) | wildcard()
         pattern = is_op("nn.conv2d")(pattern, is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(is_op("nn.relu"))
@@ -154,7 +153,7 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("nn.pad")(wildcard(), wildcard()) | wildcard()
         pattern = is_op("qnn.conv2d")(
             pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
         )

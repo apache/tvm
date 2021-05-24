@@ -43,40 +43,74 @@ logger = logging.getLogger("auto_scheduler")
 
 @tvm._ffi.register_object("auto_scheduler.HardwareParams")
 class HardwareParams(Object):
-    """The parameters of target hardware used to guide the search policy
+    """The parameters of target hardware used to guide the search policy.
+
+    When a parameter isn't provided, it will instead use the
+    current machine's default value if target is specified.
     TODO(jcf94): This is considered to be merged with the new Target specification:
     https://discuss.tvm.apache.org/t/rfc-tvm-target-specification/6844
     Parameters
     ----------
-    num_cores : int
+    num_cores : int, optional
         The number of device cores.
-    vector_unit_bytes : int
+    vector_unit_bytes : int, optional
         The width of vector units in bytes.
-    cache_line_bytes : int
+    cache_line_bytes : int, optional
         The size of cache line in bytes.
-    max_shared_memory_per_block : int
+    max_shared_memory_per_block : int, optional
         The max shared memory per block in bytes.
-    max_local_memory_per_block : int
+    max_local_memory_per_block : int, optional
         The max local memory per block in bytes.
-    max_threads_per_block : int
+    max_threads_per_block : int, optional
         The max number of threads per block.
-    max_vthread_extent : int
+    max_vthread_extent : int, optional
         The max vthread extent.
-    warp_size : int
+    warp_size : int, optional
         The thread numbers of a warp.
+    target : str or Target, optional
+        The compilation target. Used to determine default values if provided.
+    target_host : str or Target, optional
+        The compilation target host. Used to determine default values if provided.
     """
 
     def __init__(
         self,
-        num_cores,
-        vector_unit_bytes,
-        cache_line_bytes,
-        max_shared_memory_per_block,
-        max_local_memory_per_block,
-        max_threads_per_block,
-        max_vthread_extent,
-        warp_size,
+        num_cores=None,
+        vector_unit_bytes=None,
+        cache_line_bytes=None,
+        max_shared_memory_per_block=None,
+        max_local_memory_per_block=None,
+        max_threads_per_block=None,
+        max_vthread_extent=None,
+        warp_size=None,
+        target=None,
+        target_host=None,
     ):
+        # If target is provided, get the default paramters for this machine.
+        if target is not None:
+            if isinstance(target, str):
+                target = tvm.target.Target(target)
+            if isinstance(target_host, str):
+                target_host = tvm.target.Target(target_host)
+            default_params = _ffi_api.GetDefaultHardwareParams(target, target_host)
+
+            if num_cores is None:
+                num_cores = default_params.num_cores
+            if vector_unit_bytes is None:
+                vector_unit_bytes = default_params.vector_unit_bytes
+            if cache_line_bytes is None:
+                cache_line_bytes = default_params.cache_line_bytes
+            if max_shared_memory_per_block is None:
+                max_shared_memory_per_block = default_params.max_shared_memory_per_block
+            if max_local_memory_per_block is None:
+                max_local_memory_per_block = default_params.max_local_memory_per_block
+            if max_threads_per_block is None:
+                max_threads_per_block = default_params.max_threads_per_block
+            if max_vthread_extent is None:
+                max_vthread_extent = default_params.max_vthread_extent
+            if warp_size is None:
+                warp_size = default_params.warp_size
+
         self.__init_handle_by_constructor__(
             _ffi_api.HardwareParams,
             num_cores,
@@ -88,6 +122,21 @@ class HardwareParams(Object):
             max_vthread_extent,
             warp_size,
         )
+
+    def __str__(self):
+        """Pretty printing for hardware parameter configuration."""
+        format_str = (
+            "HardwareParams:\n"
+            f"  num_cores: {self.num_cores}\n"
+            f"  vector_unit_bytes: {self.vector_unit_bytes}\n"
+            f"  cache_line_bytes: {self.cache_line_bytes}\n"
+            f"  max_shared_memory_per_block: {self.max_shared_memory_per_block}\n"
+            f"  max_local_memory_per_block: {self.max_local_memory_per_block}\n"
+            f"  max_threads_per_block: {self.max_threads_per_block}\n"
+            f"  max_vthread_extent: {self.max_vthread_extent}\n"
+            f"  warp_size: {self.warp_size}\n"
+        )
+        return format_str
 
 
 @tvm._ffi.register_object("auto_scheduler.TuningOptions")
@@ -185,7 +234,7 @@ def _save_buffer_to_file(buffer_name, buffer_data):
 
     File name will be: {buffer_name}.{buffer_shape}_{buffer_data_type}.npy
     """
-    np_data = buffer_data.asnumpy()
+    np_data = buffer_data.numpy()
 
     buffer_name += "."
     for i in np_data.shape:
@@ -260,14 +309,11 @@ def register_task_input_buffer(
             tensor_from_file = _try_load_buffer_from_file(input_name)
             if tensor_from_file:
                 input_table[input_name] = tensor_from_file
-
-        if input_name in input_table.keys():
-            logger.warning(
-                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s",
-                input_name,
-                "set overwrite to True or this Tensor will not be registered",
+        elif input_name in input_table.keys():
+            raise RuntimeError(
+                "Tensor %s exists in TASK_INPUT_BUFFER_TABLE, %s"
+                % (input_name, "set overwrite to True or this Tensor will not be registered")
             )
-            return input_table[input_name]
 
     input_table[input_name] = input_data
     if save_to_file:

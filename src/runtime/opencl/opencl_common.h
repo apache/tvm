@@ -40,6 +40,17 @@
  */
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
+/* Newer releases of OpenCL header files (after May 2018) work with
+ * any OpenCL version, with an application's target version
+ * specified. Setting the target version disables APIs from after that
+ * version, and sets appropriate USE_DEPRECATED macros.  The above
+ * macro for CL_USE_DEPRECATED_OPENCL_1_2_APIS is still needed in case
+ * we are compiling against the earlier version-specific OpenCL header
+ * files.  This also allows us to expose the OpenCL version through
+ * tvm.runtime.Device.
+ */
+#define CL_TARGET_OPENCL_VERSION 120
+
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
@@ -315,6 +326,14 @@ class OpenCLModuleNode : public ModuleNode {
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
 
+  /*
+   * \brief Splits the provided serialized source file into separate
+   * source for each kernel primitive.
+   * \param source The serialized program source file (fmt: cl)
+   * \return Mapping from primitive name to kernel source
+   */
+  std::unordered_map<std::string, std::string> SplitKernels(std::string source) const;
+
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
@@ -329,14 +348,14 @@ class OpenCLModuleNode : public ModuleNode {
   std::mutex build_lock_;
   // The OpenCL source.
   std::string source_;
-  // the binary data
-  cl_program program_{nullptr};
-  // build info
-  std::vector<bool> device_built_flag_;
+  // Mapping from primitive name to cl program for each device.
+  std::unordered_map<std::string, std::vector<cl_program>> programs_;
   // kernel id cache
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
+  // parsed kernel data
+  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 
 }  // namespace runtime

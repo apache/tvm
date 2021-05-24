@@ -74,7 +74,7 @@ def verify_fused_batch_norm(shape):
         m.run()
         tvm_out = m.get_output(0)
         tvm.testing.assert_allclose(
-            tvm_out.asnumpy(), tf_out.astype(tvm_out.dtype), atol=1e-3, rtol=1e-3
+            tvm_out.numpy(), tf_out.astype(tvm_out.dtype), atol=1e-3, rtol=1e-3
         )
 
 

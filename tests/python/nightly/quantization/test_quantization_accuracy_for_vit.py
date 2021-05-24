@@ -34,7 +34,7 @@ def calibrate_dataset(model_name, rec_val, batch_size, calibration_samples):
     for i, batch in enumerate(val_data):
         if i * batch_size >= calibration_samples:
             break
-        data = batch.data[0].asnumpy()
+        data = batch.data[0].numpy()
         yield {"data": data}
 
 

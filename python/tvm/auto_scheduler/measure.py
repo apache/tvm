@@ -552,21 +552,18 @@ class LocalRPCMeasureContext:
         if dev.exist:
             cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
-        host = "0.0.0.0"
-        self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
+        self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(
-            host,
             port=self.tracker.port,
             port_end=10000,
             key=device_key,
-            use_popen=True,
             silent=True,
-            tracker_addr=(self.tracker.host, self.tracker.port),
+            tracker_addr=("127.0.0.1", self.tracker.port),
         )
         self.runner = RPCRunner(
             device_key,
-            host,
+            "127.0.0.1",
             self.tracker.port,
             priority,
             n_parallel,
@@ -889,7 +886,7 @@ def _timed_eval_func(
                     random_fill(empty_array)
                     args.append(empty_array)
             if task_inputs_count != len(task_input_names):
-                logger.warning(
+                raise RuntimeError(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
             dev.sync()
@@ -1076,6 +1073,8 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
+            stream = dev.create_raw_stream()
+            dev.set_raw_stream(stream)
             random_fill = remote.get_function("tvm.contrib.random.random_fill")
             assert (
                 random_fill
@@ -1108,14 +1107,21 @@ def _timed_rpc_run(
                     "task_inputs not fully matched, check if there's any unexpected error"
                 )
             dev.sync()
+
+            # First run for check that the kernel is correct
+            func.entry_func(*args)
+            dev.sync()
+
             costs = time_f(*args).results
 
             # clean up remote files
             remote.remove(build_res.filename)
             remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
             remote.remove("")
+            dev.free_raw_stream(stream)
         # pylint: disable=broad-except
         except Exception:
+            dev.free_raw_stream(stream)
             costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_traceback_info()

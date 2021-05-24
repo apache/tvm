@@ -363,7 +363,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   } else {
     auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
     ICHECK_EQ(new_out.size(), 1);
-    rnode->value = Call(new_call->op, transformed_args, new_call->attrs);
+    rnode->value = Call(new_call->op, transformed_args, new_call->attrs, {}, ref_call->span);
     rnode->old_layout = old_out[0];
     rnode->new_layout = new_out[0];
     rnode->memorizer = memorizer;

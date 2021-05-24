@@ -283,23 +283,27 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
 runtime::Module BuildOpenCL(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
-  CodeGenOpenCL cg;
-  cg.Init(output_ssa);
 
+  std::stringstream code;
+  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
+    code << "// Function: " << kv.first->name_hint << std::endl;
+    CodeGenOpenCL cg;
+    cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
+    std::string fsource = cg.Finish();
+    if (fpostproc) {
+      fsource = (*fpostproc)(fsource).operator std::string();
+    }
+    code << fsource;
   }
 
-  std::string code = cg.Finish();
-  if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
-    code = (*f)(code).operator std::string();
-  }
-  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(mod), code);
+  return OpenCLModuleCreate(code.str(), "cl", ExtractFuncInfo(mod), code.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.opencl").set_body_typed(BuildOpenCL);

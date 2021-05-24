@@ -43,7 +43,7 @@ def test_add():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_c()
 
@@ -88,7 +88,7 @@ def test_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_c()
 
@@ -114,7 +114,7 @@ def test_reinterpret():
         a = tvm.nd.array(np.random.randint(-(2 ** 30), 2 ** 30, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fadd(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), (2 + a.asnumpy()).view("float32"))
+        tvm.testing.assert_allclose(b.numpy(), (2 + a.numpy()).view("float32"))
 
     check_c()
 
@@ -138,7 +138,7 @@ def test_ceil():
         a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fceil(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), (np.ceil(a.asnumpy()).view("float32")))
+        tvm.testing.assert_allclose(b.numpy(), (np.ceil(a.numpy()).view("float32")))
 
     check_c()
 
@@ -162,7 +162,7 @@ def test_floor():
         a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         ffloor(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), (np.floor(a.asnumpy()).view("float32")))
+        tvm.testing.assert_allclose(b.numpy(), (np.floor(a.numpy()).view("float32")))
 
     check_c()
 
@@ -186,9 +186,45 @@ def test_round():
         a = tvm.nd.array(np.random.rand(n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fround(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), (np.round(a.asnumpy()).view("float32")))
+        tvm.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
 
     check_c()
+
+
+def test_call_packed():
+    def fake_func(fname="fake.func"):
+        ib = tvm.tir.ir_builder.create()
+        A = ib.pointer("float32", name="A")
+        fake_func1 = tvm.tir.call_packed(fname, A[0])
+
+        ib.emit(fake_func1)
+        body = ib.get()
+        return A, body
+
+    def check_global_packed_func():
+        fname = "fake.func"
+        A, body = fake_func(fname)
+        func1 = tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "func1")
+        B, body = fake_func()
+        func2 = tvm.tir.PrimFunc([B], body).with_attr("global_symbol", "func2")
+        mod = tvm.IRModule({"fake_func1": func1, "fake_func2": func2})
+        fcode = tvm.build(mod, None, "c")
+        src = fcode.get_source()
+
+        # there are two locations calling the packed func
+        assert src.count(fname) == 2
+
+        suffix = "_packed"
+        packed_func_name = fname + suffix
+        # func name will be standardized by GetUniqueName and not exists anymore
+        assert src.find(packed_func_name) == -1
+
+        packed_func_real_name = "_".join(fname.split(".")) + suffix
+        func_declaration = "static void* %s = NULL;" % packed_func_real_name
+        # src only has 1 valid declaration
+        assert src.count(func_declaration) == 1
+
+    check_global_packed_func()
 
 
 if __name__ == "__main__":
@@ -198,3 +234,4 @@ if __name__ == "__main__":
     test_ceil()
     test_floor()
     test_round()
+    test_call_packed()

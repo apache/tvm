@@ -23,6 +23,7 @@
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -497,5 +498,61 @@ struct MapNodeTrait {
 };
 TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> { return MapNode::Empty(); });
+
+struct ReportNodeTrait {
+  static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
+    attrs->Visit("calls", &report->calls);
+    attrs->Visit("device_metrics", &report->device_metrics);
+  }
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+};
+TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::ReportNode, ReportNodeTrait);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<runtime::profiling::ReportNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const runtime::profiling::ReportNode*>(node.get());
+      p->stream << op->AsTable();
+    });
+
+struct CountNodeTrait {
+  static void VisitAttrs(runtime::profiling::CountNode* n, AttrVisitor* attrs) {
+    attrs->Visit("value", &n->value);
+  }
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+};
+TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::CountNode, CountNodeTrait);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const runtime::profiling::CountNode*>(node.get());
+      p->stream << op->GetTypeKey() << "(" << op->value << ")";
+    });
+struct DurationNodeTrait {
+  static void VisitAttrs(runtime::profiling::DurationNode* n, AttrVisitor* attrs) {
+    attrs->Visit("microseconds", &n->microseconds);
+  }
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+};
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const runtime::profiling::DurationNode*>(node.get());
+      p->stream << op->GetTypeKey() << "(" << op->microseconds << ")";
+    });
+TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::DurationNode, DurationNodeTrait);
+struct PercentNodeTrait {
+  static void VisitAttrs(runtime::profiling::PercentNode* n, AttrVisitor* attrs) {
+    attrs->Visit("percent", &n->percent);
+  }
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+};
+TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::PercentNode, PercentNodeTrait);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
+      p->stream << op->GetTypeKey() << "(" << op->percent << ")";
+    });
 
 }  // namespace tvm

@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+import json
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.op import add
@@ -43,8 +44,8 @@ def check_rts(expr, args, expected_result, mod=None):
     graph = relay.create_executor("graph", mod=mod)
     eval_result = intrp.evaluate(expr)(*args)
     rts_result = graph.evaluate(expr)(*args)
-    tvm.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())
-    tvm.testing.assert_allclose(eval_result.asnumpy(), expected_result)
+    tvm.testing.assert_allclose(eval_result.numpy(), rts_result.numpy())
+    tvm.testing.assert_allclose(eval_result.numpy(), expected_result)
 
 
 def test_add_op_scalar():
@@ -106,7 +107,7 @@ def test_with_params():
     mod.set_input(**params)
     mod.set_input(x=x_data)
     mod.run()
-    res = mod.get_output(0).asnumpy()
+    res = mod.get_output(0).numpy()
     ref_res = np.exp(y_data + x_data)
     tvm.testing.assert_allclose(res, ref_res, atol=1e-5, rtol=1e-5)
 
@@ -132,10 +133,12 @@ def test_plan_memory():
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()
+    storage_sizes = {}
     for k, v in smap.items():
-        assert len(v) == 2
+        assert len(v) == 3
         for x in v[0]:
             storage_ids.add(x.value)
+            storage_sizes[x.value] = v[2]
         for x in v[1]:
             device_types.add(x.value)
 
@@ -144,6 +147,60 @@ def test_plan_memory():
     # two alternating temporary space.
     assert len(storage_ids) == 4
     assert len(device_types) == 1
+    assert len(storage_sizes) == 4
+
+    # Check the specific size of each sid
+    assert (
+        storage_sizes[0][0] == 40
+        and storage_sizes[1][0] == 4
+        and storage_sizes[2][0] == 4
+        and storage_sizes[3][0] == 40
+    )
+
+
+def test_reshape_nop():
+    # test that reshape can be turned into nop
+    x = relay.var("x", shape=(10, 4))
+    xx = relay.abs(x)
+    y = relay.expand_dims(xx, axis=1)
+    t0 = relay.reshape(y, (1, 40))
+    t1 = relay.abs(y)
+
+    z0 = relay.reshape(t0, (2, 20))
+    z1 = relay.sqrt(t1)
+    z2 = relay.reshape(t1, (1, 40))
+
+    func = relay.Function([x], relay.Tuple([z0, z1, z2]))
+    x_data = np.random.rand(10, 4).astype("float32")
+    graph = relay.build(tvm.IRModule.from_expr(func), "llvm")
+    graph_json_str = graph.get_graph_json()
+
+    graph_json = json.loads(graph_json_str)
+
+    # reshape must force sharing memory
+    storage_ids = graph_json["attrs"]["storage_id"][1]
+    assert tuple(storage_ids) == (0, 1, 1, 2, 3, 2)
+    assert graph_json["nodes"][2]["attrs"]["func_name"] == "__nop"
+    assert graph_json["nodes"][5]["attrs"]["func_name"] == "__nop"
+
+    gmod = graph_executor.GraphModule(graph["default"](tvm.cpu(0)))
+
+    gmod.set_input(x=x_data)
+    gmod.run()
+    z0_np = x_data.reshape(2, 20)
+    z1_np = np.sqrt(
+        np.abs(
+            x_data.reshape(
+                10,
+                1,
+                4,
+            )
+        )
+    )
+    z2_np = np.abs(x_data).reshape(1, 40)
+    tvm.testing.assert_allclose(gmod.get_output(0).numpy(), z0_np)
+    tvm.testing.assert_allclose(gmod.get_output(1).numpy(), z1_np)
+    tvm.testing.assert_allclose(gmod.get_output(2).numpy(), z2_np)
 
 
 @tvm.testing.uses_gpu
@@ -179,7 +236,7 @@ def test_gru_like():
             m.set_input("y", tvm.nd.array(y.astype(dtype)))
             m.set_input(**params)
             m.run()
-            out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+            out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).numpy()
             ref = unit_numpy(x, y)
             tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
@@ -204,7 +261,7 @@ def test_compile_nested_tuples():
 
     ref = x_data + 1
     for i in range(mod.get_num_outputs()):
-        out = mod.get_output(i).asnumpy()
+        out = mod.get_output(i).numpy()
         tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
         ref = ref + 1
 
@@ -222,15 +279,16 @@ def test_graph_executor_nested_tuples():
     data = [np.random.uniform(size=(2, 3)).astype("float32") for _ in "xyzw"]
     out = f(*data)
     assert len(out) == 2
-    tvm.testing.assert_allclose(out[0].asnumpy(), data[0])
+    tvm.testing.assert_allclose(out[0].numpy(), data[0])
     assert len(out[1]) == 2
-    tvm.testing.assert_allclose(out[1][0].asnumpy(), data[1])
+    tvm.testing.assert_allclose(out[1][0].numpy(), data[1])
     assert len(out[1][1]) == 2
-    tvm.testing.assert_allclose(out[1][1][0].asnumpy(), data[2])
-    tvm.testing.assert_allclose(out[1][1][1].asnumpy(), data[3])
+    tvm.testing.assert_allclose(out[1][1][0].numpy(), data[2])
+    tvm.testing.assert_allclose(out[1][1][1].numpy(), data[3])
 
 
 if __name__ == "__main__":
+    test_reshape_nop()
     test_plan_memory()
     test_with_params()
     test_add_op_scalar()

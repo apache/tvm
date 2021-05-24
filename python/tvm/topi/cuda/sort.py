@@ -23,7 +23,7 @@ from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
 from ..utils import ceil_div, swap
-from ..math import cast
+from ..math import cast, ceil_log2
 
 
 def _schedule_sort(outs):
@@ -238,9 +238,7 @@ def _sort_common(
         return out
 
     # Sort the lower levels of the merge using odd-even sort, it's fast for small inputs
-    lower_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(block_size, "float64"))), "int64"
-    )
+    lower_lim = ceil_log2(block_size)
 
     _odd_even_sort(
         ib,
@@ -254,9 +252,7 @@ def _sort_common(
         values_swap,
     )
 
-    upper_lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
-    )
+    upper_lim = ceil_log2(size)
 
     def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
         first = ib.allocate("int64", (1,), name="first", scope="local")

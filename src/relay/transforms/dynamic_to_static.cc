@@ -118,7 +118,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
                size_prim.push_back(size_int[i]);
              }
              return MakeResize(call_node->args[0], size_prim, param->layout, param->method,
-                               param->coordinate_transformation_mode, param->out_dtype);
+                               param->coordinate_transformation_mode, param->rounding_method,
+                               param->bicubic_alpha, param->bicubic_exclude, param->out_dtype);
            }
            return Expr(nullptr);
          }},
@@ -179,7 +180,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
 
              const PadAttrs* param = call_node->attrs.as<PadAttrs>();
              ICHECK(param);
-             return MakePad(call_node->args[0], ToMatrix(pad_width->data), ToScalar(pad_fill->data),
+
+             Expr pad_value = args[2];
+             return MakePad(call_node->args[0], ToMatrix(pad_width->data), pad_value,
                             param->pad_mode);
            }
            return Expr(nullptr);

@@ -89,6 +89,11 @@ The configuration of TVM can be modified by `config.cmake`.
   - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. Do the same for other backends and libraries
     you want to build for (OpenCL, RCOM, METAL, VULKAN, ...).
   - To help with debugging, ensure the embedded graph executor and debugging functions are enabled with ``set(USE_GRAPH_EXECUTOR ON)`` and ``set(USE_PROFILER ON)``
+  - To debug with IRs, ``set(USE_RELAY_DEBUG ON)`` and set environment variable `TVM_LOG_DEBUG`.
+
+      .. code:: bash
+
+          export TVM_LOG_DEBUG=1
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 

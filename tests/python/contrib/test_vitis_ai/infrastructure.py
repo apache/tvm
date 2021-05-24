@@ -164,4 +164,4 @@ def verify_result(
     for idx, shape in enumerate(out_shapes):
         out = tvm.nd.empty(shape, device=device)
         out = rt_mod.get_output(idx, out)
-        tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=tol, atol=tol)

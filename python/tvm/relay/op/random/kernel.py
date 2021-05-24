@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import sys
 import numpy as np
 
-from ...expr import Constant
+from ...expr import Constant, Expr, const
 from .... import nd
 from . import _make
 
@@ -132,3 +132,55 @@ def threefry_split(key):
         :py:func:`threefry_generate`.
     """
     return _make.threefry_split(key)
+
+
+def uniform(key, shape, dtype="float32", low=0.0, high=1.0):
+    """Draw samples from a uniform distribution.
+
+    Samples are uniformly distributed over the half-open interval [low, high)
+    (includes low, but excludes high). In other words, any value within the
+    given interval is equally likely to be drawn by uniform.
+
+    Example
+    -------
+
+    .. code-block:: python
+
+        key = threefry_key(0)
+        key, random_values = uniform(key, (100,), low=0, high=10)
+
+    Parameters
+    ----------
+    key : relay.Expr
+        key that uniquely determines the random values. Multiple uses with the
+        same generator will generate the same random values. This generator should be
+        treated as an opaque pointer. You can create one from calling
+        :py:func:`threefry_key`, :py:func:`threefry_split`, or
+        :py:func:`threefry_generate`. **Do not use this generator again after calling
+        this function.**
+
+    shape : Sequence[int]
+        Desired outputs shape of random numbers.
+
+    dtype : str
+        Desired outputs type of random numbers.
+
+    low : float or relay.Expr, optional
+        Lower bound of the uniform distribution.
+
+    high : float or relay.Expr, optional
+        Upper bound of the uniform distribution.
+
+    Returns
+    -------
+    new_key : relay.Expr
+        New random key to pass to future uses of random functions.
+
+    random_values : relay.Expr
+        The generated uniform distributed random numbers.
+    """
+    if not isinstance(low, Expr):
+        low = const(low, dtype=dtype)
+    if not isinstance(high, Expr):
+        high = const(high, dtype=dtype)
+    return _make.uniform(key, low, high, shape, dtype)

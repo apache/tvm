@@ -85,9 +85,9 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         func1(a, w, conv_out)
         func2(a, w, b, bias_out)
         func3(a, w, b, relu_out)
-        tvm.testing.assert_allclose(conv_out.asnumpy(), c1_np, rtol=1e-5)
-        tvm.testing.assert_allclose(bias_out.asnumpy(), c2_np, rtol=1e-5)
-        tvm.testing.assert_allclose(relu_out.asnumpy(), c3_np, rtol=1e-5)
+        tvm.testing.assert_allclose(conv_out.numpy(), c1_np, rtol=1e-5)
+        tvm.testing.assert_allclose(bias_out.numpy(), c2_np, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_out.numpy(), c3_np, rtol=1e-5)
 
     for target in ["cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
         check_target(target)
@@ -95,16 +95,25 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 @tvm.testing.requires_gpu
 def test_conv2d_hwcn():
-    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "SAME")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "SAME")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "SAME")
-    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "VALID")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "VALID")
     # dilation = 2
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
+    # Pass stride as tuple
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, (1, 1), "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, (1, 1), "SAME")
+    verify_conv2d_hwcn(4, 128, 16, 128, 5, (2, 2), "SAME")
+    verify_conv2d_hwcn(4, 128, 16, 256, 5, (2, 2), "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, (1, 1), "VALID")
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, (1, 1), "VALID")
+    verify_conv2d_hwcn(4, 128, 16, 128, 5, (2, 2), "VALID")
+    verify_conv2d_hwcn(4, 128, 16, 256, 5, (2, 2), "VALID")
 
 
 if __name__ == "__main__":

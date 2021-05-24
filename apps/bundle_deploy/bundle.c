@@ -23,8 +23,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/graph_executor.h>
-#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/packed_func.h>
+#include <tvm/runtime/crt/page_allocator.h>
 
 #ifdef ENABLE_TVM_ABORT_BACKTRACE
 #include "backtrace.h"
@@ -64,8 +64,8 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   dev.device_id = device_id;
 
   // declare pointers
-  TVM_CCALL(MemoryManagerCreate(&g_memory_manager, g_crt_memory, sizeof(g_crt_memory),
-                                CRT_MEMORY_PAGE_SIZE_LOG2));
+  TVM_CCALL(PageMemoryManagerCreate(&g_memory_manager, g_crt_memory, sizeof(g_crt_memory),
+                                    CRT_MEMORY_PAGE_SIZE_LOG2));
   TVM_CCALL(TVMInitializeRuntime());
   TVMPackedFunc pf;
   TVMArgs args = TVMArgs_Create(NULL, NULL, 0);

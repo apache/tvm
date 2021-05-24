@@ -166,7 +166,7 @@ TEST(BuildModule, Heterogeneous) {
   // Initialize graph executor.
   int cpu_dev_ty = static_cast<int>(kDLCPU);
   int cpu_dev_id = 0;
-  int gpu_dev_ty = static_cast<int>(kDLGPU);
+  int gpu_dev_ty = static_cast<int>(kDLCUDA);
   int gpu_dev_id = 0;
 
   const runtime::PackedFunc* graph_executor =

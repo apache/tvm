@@ -32,13 +32,13 @@ def test_const_dtype():
 
     a = tvm.nd.array(np.random.randint(0, high=255, size=(2, 3), dtype="uint8"))
     a = _op.const(a, dtype="uint8")
-    aa = a.data.asnumpy()
+    aa = a.data.numpy()
     assert aa.dtype == np.dtype(np.uint8)
 
     b = _op.const(1, dtype="int8")
-    bb = b.data.asnumpy()
+    bb = b.data.numpy()
     assert bb.dtype == np.dtype(np.int8)
 
     kshape = (3, 10, 3, 3)
     w = relay.const(np.zeros(kshape, dtype="float32"))
-    assert w.data.asnumpy().dtype == np.dtype(np.float32)
+    assert w.data.numpy().dtype == np.dtype(np.float32)

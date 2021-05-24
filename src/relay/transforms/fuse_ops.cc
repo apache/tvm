@@ -948,15 +948,39 @@ class FuseMutator : private MixedModeMutator {
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
-    // If the function has no call, it is not a primitive function.
-    struct HasCallVisitor : ExprVisitor {
+    // Quickly check special properties of the fused function.
+    // A pass to check if the fused op contains only reshape ops.
+    class CheckReshapeOnly : public ExprVisitor {
+     public:
+      void VisitExpr_(const CallNode* cn) final {
+        this->has_call = true;
+        static auto freshape_op = Op::GetAttrMap<TReshapeOp>("TReshapeOp");
+
+        if (!freshape_op.get(cn->op, false)) {
+          this->reshape_only = false;
+        }
+
+        if (!this->reshape_only) return;
+        ExprVisitor::VisitExpr_(cn);
+      }
+
+      void VisitExpr_(const VarNode* vn) final {
+        if (!vn->type_annotation.defined() || !vn->type_annotation->IsInstance<TensorTypeNode>()) {
+          this->reshape_only = false;
+        }
+      }
+
+      bool reshape_only = true;
       bool has_call = false;
-      void VisitExpr_(const CallNode* op) final { has_call = true; }
     } visitor;
+
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
+    if (visitor.has_call && visitor.reshape_only) {
+      func = WithAttr(std::move(func), attr::kReshapeOnly, tvm::Integer(visitor.reshape_only));
+    }
     return Call(func, ginfo.arguments, Attrs());
   }
 

@@ -40,11 +40,10 @@ class SPIRVTools {
   ~SPIRVTools() { spvContextDestroy(ctx_); }
   std::string BinaryToText(const std::vector<uint32_t>& bin) {
     spv_text text = nullptr;
-    spv_diagnostic diagnostic;
+    spv_diagnostic diagnostic = nullptr;
     spv_const_binary_t spv_bin{bin.data(), bin.size()};
-    spv_result_t res;
 
-    res =
+    spv_result_t res =
         spvBinaryToText(ctx_, spv_bin.code, spv_bin.wordCount,
                         SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES | SPV_BINARY_TO_TEXT_OPTION_INDENT,
                         &text, &diagnostic);
@@ -53,10 +52,23 @@ class SPIRVTools {
                                 << " column=" << diagnostic->position.column
                                 << " index=" << diagnostic->position.index
                                 << " error:" << diagnostic->error;
+    spvDiagnosticDestroy(diagnostic);
 
     std::string ret(text->str);
     spvTextDestroy(text);
     return ret;
+  }
+
+  void ValidateShader(const std::vector<uint32_t>& bin) {
+    spv_const_binary_t spv_bin{bin.data(), bin.size()};
+
+    spv_diagnostic diagnostic = nullptr;
+    spv_result_t res = spvValidate(ctx_, &spv_bin, &diagnostic);
+
+    ICHECK_EQ(res, SPV_SUCCESS) << " index=" << diagnostic->position.index
+                                << " error:" << diagnostic->error;
+
+    spvDiagnosticDestroy(diagnostic);
   }
 
  private:
@@ -75,7 +87,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
 
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 
-  CodeGenSPIRV cg;
+  CodeGenSPIRV cg(target);
 
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
@@ -88,10 +100,11 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
-
-    VulkanShader shader;
     std::string entry = webgpu_restriction ? "main" : f_name;
-    shader.data = cg.BuildFunction(f, entry);
+
+    VulkanShader shader = cg.BuildFunction(f, entry);
+
+    spirv_tools.ValidateShader(shader.data);
 
     if (webgpu_restriction) {
       for (auto param : f->params) {

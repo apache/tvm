@@ -101,10 +101,10 @@ def test_empty_array():
 
 def test_device():
     def test_device_func(dev):
-        assert tvm.gpu(7) == dev
+        assert tvm.cuda(7) == dev
         return tvm.cpu(0)
 
-    x = test_device_func(tvm.gpu(7))
+    x = test_device_func(tvm.cuda(7))
     assert x == tvm.cpu(0)
     x = tvm.opencl(10)
     x = tvm.testing.device_test(x, x.device_type, x.device_id)

@@ -78,7 +78,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
     module(*nd_args)
 
     for nd, np in zip(out_tensors, ref_data):
-        tvm.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(nd.numpy(), np, rtol=1e-5, atol=1e-5)
 
     module_args = [i for i in args if isinstance(i, (te.tensor.Tensor, tvm.tir.Var))]
     module_outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
@@ -413,7 +413,7 @@ def test_math_intrin():
     tvm_b = tvm.nd.array(numpy.zeros((8,), dtype="float32"))
     b = intrin_real(a)
     func(tvm_a, tvm_b)
-    tvm.testing.assert_allclose(b, tvm_b.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(b, tvm_b.numpy(), rtol=1e-5)
 
     @script
     def intrin_int(a):
@@ -431,7 +431,7 @@ def test_math_intrin():
     tvm_b = tvm.nd.array(numpy.array([0]).astype("int32"))
     b = intrin_int(a)
     func(tvm_a, tvm_b)
-    assert tvm_b.asnumpy()[0] == b[0]
+    assert tvm_b.numpy()[0] == b[0]
 
 
 # test non caconical loops
@@ -536,7 +536,7 @@ def test_upstream():
     tvm_d = tvm.nd.array(numpy.zeros((20,)).astype("float32"))
 
     func(tvm_a, tvm_b, tvm_d)
-    tvm.testing.assert_allclose(tvm_d.asnumpy(), ref, 1e-5, 1e-5)
+    tvm.testing.assert_allclose(tvm_d.numpy(), ref, 1e-5, 1e-5)
 
 
 def test_downstream():
@@ -563,7 +563,7 @@ def test_downstream():
     tvm_a = tvm.nd.array(a)
     tvm_c = tvm.nd.array(numpy.zeros((20,)).astype("float32"))
     module(tvm_a, tvm_c)
-    tvm.testing.assert_allclose(tvm_c.asnumpy(), ref, 1e-5, 1e-5)
+    tvm.testing.assert_allclose(tvm_c.numpy(), ref, 1e-5, 1e-5)
 
 
 def test_const_param():
@@ -590,7 +590,7 @@ def test_const_param():
     module(nd_a, nd_c)
     ref = add_something(np_a, 11)
 
-    tvm.testing.assert_allclose(nd_c.asnumpy(), ref, 1e-5, 1e-5)
+    tvm.testing.assert_allclose(nd_c.numpy(), ref, 1e-5, 1e-5)
 
 
 def test_value_index():
@@ -624,7 +624,7 @@ def test_value_index():
 
     res = tvm.nd.array(numpy.zeros((4, 4)).astype("int32"))
     module(tvm.nd.array(np_a), res)
-    tvm.testing.assert_allclose(res.asnumpy(), ref)
+    tvm.testing.assert_allclose(res.numpy(), ref)
 
 
 def test_func_call():
@@ -833,7 +833,7 @@ def test_array_inputs():
         out_ref += arr
     out_nd = tvm.nd.array(numpy.zeros((10,), "float32"))
     mod(*input_nd, out_nd)
-    tvm.testing.assert_allclose(out_nd.asnumpy(), out_ref)
+    tvm.testing.assert_allclose(out_nd.numpy(), out_ref)
 
 
 if __name__ == "__main__":

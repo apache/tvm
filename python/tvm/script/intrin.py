@@ -121,7 +121,7 @@ def floormod(x, y, span):
 
 
 @register
-def load(dtype, var, index, predicate=True, span=None):
+def load(dtype, var, index, predicate=None, span=None):
     return tvm.tir.Load(dtype, var, index, predicate, span)
 
 

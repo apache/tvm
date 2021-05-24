@@ -30,6 +30,9 @@ namespace runtime {
 /*! \brief The current RPC procotol version. */
 constexpr const char* kRPCProtocolVer = "0.8.0";
 
+// When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
+const uint64_t kRPCMaxTransferSizeBytesDefault = UINT64_MAX;
+
 /*! \brief The RPC code */
 enum class RPCCode : int {
   kNone,
@@ -52,6 +55,9 @@ enum class RPCCode : int {
   kDevStreamSync,
   kCopyAmongRemote,
   kDevAllocDataWithScope,
+  kDevCreateStream,
+  kDevFreeStream,
+  kDevSetStream,
 };
 
 /*!
@@ -104,8 +110,14 @@ inline const char* RPCCodeToString(RPCCode code) {
       return "kDevAllocData";
     case RPCCode::kDevFreeData:
       return "kDevFreeData";
+    case RPCCode::kDevCreateStream:
+      return "kDevCreateStream";
+    case RPCCode::kDevFreeStream:
+      return "kDevFreeStream";
     case RPCCode::kDevStreamSync:
       return "kDevStreamSync";
+    case RPCCode::kDevSetStream:
+      return "kDevSetStream";
     case RPCCode::kCopyAmongRemote:
       return "kCopyAmongRemote";
     case RPCCode::kDevAllocDataWithScope:

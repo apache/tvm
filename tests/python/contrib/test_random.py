@@ -39,7 +39,7 @@ def test_randint():
         f = tvm.build(s, [A], target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
-        na = a.asnumpy()
+        na = a.numpy()
         assert abs(np.mean(na)) < 0.3
         assert np.min(na) == -127
         assert np.max(na) == 127
@@ -64,7 +64,7 @@ def test_uniform():
         f = tvm.build(s, [A], target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
-        na = a.asnumpy()
+        na = a.numpy()
         assert abs(np.mean(na) - 0.5) < 1e-1
         assert abs(np.min(na) - 0.0) < 1e-3
         assert abs(np.max(na) - 1.0) < 1e-3
@@ -89,7 +89,7 @@ def test_normal():
         f = tvm.build(s, [A], target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
-        na = a.asnumpy()
+        na = a.numpy()
         assert abs(np.mean(na) - 3) < 1e-1
         assert abs(np.std(na) - 4) < 1e-2
 
@@ -102,15 +102,14 @@ def test_random_fill():
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
             return
-        np_ones = np.ones((512, 512), dtype=dtype)
-        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, dev)
+        value = tvm.nd.empty((512, 512), dtype, dev)
         random_fill = tvm.get_global_func("tvm.contrib.random.random_fill")
         random_fill(value)
 
-        assert np.count_nonzero(value.asnumpy()) == 512 * 512
+        assert np.count_nonzero(value.numpy()) == 512 * 512
 
         # make sure arithmentic doesn't overflow too
-        np_values = value.asnumpy()
+        np_values = value.numpy()
         assert np.isfinite(np_values * np_values + np_values).any()
 
     def test_rpc(dtype):
@@ -119,21 +118,23 @@ def test_random_fill():
             return
         if not tvm.testing.device_enabled("rpc") or not tvm.runtime.enabled("llvm"):
             return
+
         np_ones = np.ones((512, 512), dtype=dtype)
-        server = rpc.Server("localhost")
+        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
-        value = tvm.nd.empty(np_ones.shape, np_ones.dtype, remote.cpu())
+        value = tvm.nd.empty((512, 512), dtype, remote.cpu())
         random_fill = remote.get_function("tvm.contrib.random.random_fill")
         random_fill(value)
 
-        assert np.count_nonzero(value.asnumpy()) == 512 * 512
+        assert np.count_nonzero(value.numpy()) == 512 * 512
 
         # make sure arithmentic doesn't overflow too
-        np_values = value.asnumpy()
+        np_values = value.numpy()
         assert np.isfinite(np_values * np_values + np_values).any()
 
     for dtype in [
         "bool",
+        "int4",
         "int8",
         "uint8",
         "int16",

@@ -58,7 +58,7 @@ def benchmark_execution(
                 % (np.mean(prof_res), np.std(prof_res))
             )
 
-        return out.asnumpy()
+        return out.numpy()
 
     def get_vm_output(mod, data, params, target, dev, dtype="float32", number=2, repeat=20):
         with tvm.transform.PassContext(opt_level=3):
@@ -76,7 +76,7 @@ def benchmark_execution(
                 % (np.mean(prof_res), np.std(prof_res))
             )
 
-        return result.asnumpy().astype(dtype)
+        return result.numpy().astype(dtype)
 
     # random input
     data = np.random.uniform(size=data_shape).astype(dtype)

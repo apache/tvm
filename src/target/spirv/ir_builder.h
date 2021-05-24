@@ -30,12 +30,16 @@
 // clang-format off
 #include <algorithm>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <tuple>
 #include <spirv.hpp>
 // clang-format on
+
+#include "spirv_support.h"
 
 namespace tvm {
 namespace codegen {
@@ -60,7 +64,8 @@ enum ValueKind {
   kStructArrayPtr,
   kPushConstantPtr,
   kFunction,
-  kExtInst
+  kExtInst,
+  kUniformPtr
 };
 
 /*! \brief Represent the SPIRV Value */
@@ -267,6 +272,14 @@ class InstrBuilder {
  */
 class IRBuilder {
  public:
+  /*!
+   * \brief Initialize the codegen based on a specific feature set.
+   *
+   * \param support The features in SPIRV that are supported by the
+   * target device.
+   */
+  explicit IRBuilder(const SPIRVSupport& support);
+
   /*! \brief Initialize header */
   void InitHeader();
   /*! \brief Initialize the predefined contents */
@@ -277,29 +290,21 @@ class IRBuilder {
    * \return The finalized binary instruction.
    */
   Value ExtInstImport(const std::string& name) {
+    auto it = ext_inst_tbl_.find(name);
+    if (it != ext_inst_tbl_.end()) {
+      return it->second;
+    }
     Value val = NewValue(SType(), kExtInst);
-    ib_.Begin(spv::OpExtInstImport).AddSeq(val, name).Commit(&header_);
+    ib_.Begin(spv::OpExtInstImport).AddSeq(val, name).Commit(&extended_instruction_section_);
+    ext_inst_tbl_[name] = val;
     return val;
   }
   /*!
    * \brief Get the final binary built from the builder
    * \return The finalized binary instruction.
    */
-  std::vector<uint32_t> Finalize() {
-    std::vector<uint32_t> data;
-    // set bound
-    const int kBoundLoc = 3;
-    header_[kBoundLoc] = id_counter_;
-    data.insert(data.end(), header_.begin(), header_.end());
-    data.insert(data.end(), entry_.begin(), entry_.end());
-    data.insert(data.end(), exec_mode_.begin(), exec_mode_.end());
-    data.insert(data.end(), debug_.begin(), debug_.end());
-    data.insert(data.end(), decorate_.begin(), decorate_.end());
-    data.insert(data.end(), global_.begin(), global_.end());
-    data.insert(data.end(), func_header_.begin(), func_header_.end());
-    data.insert(data.end(), function_.begin(), function_.end());
-    return data;
-  }
+  std::vector<uint32_t> Finalize();
+
   /*!
    * \brief Create new label
    * \return The created new label
@@ -428,10 +433,12 @@ class IRBuilder {
    * \param value_type the content value type.
    * \param num_elems number of elements in array
    *   num_elems = 0 means runtime array with BufferBlock Decoration
+   * \param interface_block if this array type for interface blocks(input, output, uniform,
+   *   storage buffer).
    *
    * \return The corresponding spirv type.
    */
-  SType GetStructArrayType(const SType& value_type, uint32_t num_elems);
+  SType GetStructArrayType(const SType& value_type, uint32_t num_elems, bool interface_block);
   /*!
    * \brief Get a struct array access with a given index.
    * \param ptr_type The pointer type.
@@ -469,10 +476,11 @@ class IRBuilder {
    *
    * \param arg_type The type of argument.
    * \param descriptor_set The descriptor set we want to use.
-   * \param binding The binding locaiton in descriptor set.
+   * \param binding The binding location in descriptor set.
    * \param The argument type.
    */
   Value BufferArgument(const SType& value_type, uint32_t descriptor_set, uint32_t binding);
+
   /*!
    * \brief Declare POD arguments through push constants.
    *
@@ -488,6 +496,25 @@ class IRBuilder {
    * \return the value of push constant
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
+
+  /*!
+   * \brief Declare POD arguments through uniform buffer.
+   *
+   * \note Only call this function once!
+   * \param value_types The values in the uniform buffer
+   * \param descriptor_set The descriptor set we want to use
+   * \param binding The binding location in descriptor set
+   * \return reference to self.
+   */
+  Value DeclareUniformBuffer(const std::vector<SType>& value_types, uint32_t descriptor_set,
+                             uint32_t binding);
+  /*!
+   * \brief Get i-th uniform constant
+   * \param v_type The value type
+   * \param index The uniform index
+   * \return the value of uniform constant
+   */
+  Value GetUniform(Value ptr_ubo, const SType& v_type, uint32_t index);
   /*!
    * \brief Declare a new function
    * \return The created function ID.
@@ -555,10 +582,42 @@ class IRBuilder {
     val.flag = flag;
     return val;
   }
+
+  /*!
+   * \brief The common function to declare push constants or uniform buffer
+   * \param value_types The values in the push constants or uniform buffer
+   * \param storage_class An enum defined by SPIR-V indicating push constant or uniform
+   * \param kind An enum indicating push constant or uniform
+   * \return The created new label
+   */
+  Value DeclareStorageVariable(const std::vector<SType>& value_types,
+                               spv::StorageClass storage_class, ValueKind kind);
+
+  /*!
+   * \brief The common function to decorate storage buffer or uniform buffer arguments.
+   * \param val The Value to be decorated.
+   * \param descriptor_set The index of the descriptor set containing the buffer's descriptor
+   * \param binding The index of the buffer's descriptor within the descriptor set
+   */
+  void DecorateBufferArgument(Value val, uint32_t descriptor_set, uint32_t binding);
+
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
   // declare type
   SType DeclareType(const DataType& dtype);
+
+  // Declare the appropriate SPIR-V capabilities and extensions to use
+  // this data type.
+  void AddCapabilityFor(const DataType& dtype);
+
+  /*! \brief SPIRV-related capabilities of the target
+   *
+   * This SPIRVSupport object is owned by the same CodeGenSPIRV
+   * object that owns the IRBuilder.  Therefore, safe to use a
+   * reference as the CodeGenSPIRV will live longer.
+   */
+  const SPIRVSupport& spirv_support_;
+
   /*! \brief internal instruction builder  */
   InstrBuilder ib_;
   /*! \brief Current label */
@@ -578,14 +637,27 @@ class IRBuilder {
   /*! \brief map from type code to the type */
   std::unordered_map<uint32_t, SType> pod_type_tbl_;
   /*! \brief map from value to array type */
-  std::map<std::pair<uint32_t, uint32_t>, SType> struct_array_type_tbl_;
+  std::map<std::tuple<uint32_t, uint32_t, bool>, SType> struct_array_type_tbl_;
   /*! \brief map from value to its pointer type */
   std::map<std::pair<uint32_t, spv::StorageClass>, SType> pointer_type_tbl_;
   /*! \brief map from constant int to its value */
   std::map<std::pair<uint32_t, uint64_t>, Value> const_tbl_;
-  /*! \brief Header segment, include import */
+  /*! \brief map from name of a ExtInstImport to its value */
+  std::map<std::string, Value> ext_inst_tbl_;
+
+  /*! \brief Header segment
+   *
+   * 5 words long, described in "First Words of Physical Layout"
+   * section of SPIR-V documentation.
+   */
   std::vector<uint32_t> header_;
-  /*! \brief engtry point segment */
+  /*! \brief SPIR-V capabilities used by this module. */
+  std::set<spv::Capability> capabilities_used_;
+  /*! \brief SPIR-V extensions used by this module. */
+  std::set<std::string> extensions_used_;
+  /*! \brief entry point segment */
+  std::vector<uint32_t> extended_instruction_section_;
+  /*! \brief entry point segment */
   std::vector<uint32_t> entry_;
   /*! \brief Header segment */
   std::vector<uint32_t> exec_mode_;

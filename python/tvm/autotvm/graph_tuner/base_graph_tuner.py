@@ -368,7 +368,7 @@ class BaseGraphTuner(object):
         timeout=10,
         use_rpc=False,
         device_key=None,
-        host="localhost",
+        host="127.0.0.1",
         port=9190,
         n_parallel=1,
         build_func="default",

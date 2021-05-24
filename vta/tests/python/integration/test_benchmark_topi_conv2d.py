@@ -264,7 +264,7 @@ def run_conv2d(env, remote, wl, target, check_correctness=True, print_ir=False, 
     # Check correctness
     correct = False
     if check_correctness:
-        res_orig = res_arr.asnumpy()
+        res_orig = res_arr.numpy()
         if data_pack:
             res_orig = res_orig.transpose((0, 4, 1, 5, 2, 3)).reshape(
                 wl.batch, wl.out_filter, fout_height, fout_width
@@ -292,7 +292,7 @@ def test_conv2d(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target
-            if env.TARGET not in ["sim", "tsim"]:
+            if env.TARGET not in ["sim", "tsim", "intelfocl"]:
                 assert tvm.runtime.enabled("rpc")
                 program_fpga(remote, bitstream=None)
                 reconfig_runtime(remote)

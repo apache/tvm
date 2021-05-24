@@ -71,8 +71,8 @@ def verify_conv1d_transpose_ncw(
         func2 = tvm.build(s2, [A, W, C], target)
         func1(a, w, b)
         func2(a, w, c)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
         check_target(target, dev)
