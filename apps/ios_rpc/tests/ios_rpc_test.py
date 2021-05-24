@@ -96,7 +96,7 @@ def test_rpc_module():
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op" % cost)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     # CPU
     dev = remote.cpu(0)
     f2 = remote.load_module("cpu_lib.dylib")
@@ -106,7 +106,7 @@ def test_rpc_module():
     time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op" % cost)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 
 def test_rpc_module_with_upload():
@@ -142,7 +142,7 @@ def test_rpc_module_with_upload():
     time_f = f.time_evaluator(f.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("%g secs/op" % cost)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 
 if __name__ == "__main__":

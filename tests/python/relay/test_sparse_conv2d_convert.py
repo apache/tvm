@@ -43,7 +43,7 @@ def run_func(func, params, x):
     m.run()
     # get outputs
     tvm_output = m.get_output(0)
-    return tvm_output.asnumpy()
+    return tvm_output.numpy()
 
 
 def test_bsr_sparse_conv2d_nchw():

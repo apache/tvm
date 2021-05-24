@@ -302,7 +302,7 @@ class StorageCoalesce(ExprMutator):
         storage, old_offset, shape = call.args
         region, offset = self.new_region_and_offset(storage)
 
-        assert old_offset.data.asnumpy().item() == 0, "no offsets should yet be allocated"
+        assert old_offset.data.numpy().item() == 0, "no offsets should yet be allocated"
         return (
             lhs,
             expr.Call(call.op, [region.var, offset, shape], call.attrs),

@@ -105,8 +105,8 @@ def _dimension_constraint():
 
 def _get_param(params, input_node):
     if isinstance(input_node, _expr.Constant):
-        return np.atleast_1d(input_node.data.asnumpy())
-    return params[input_node.name_hint].asnumpy()
+        return np.atleast_1d(input_node.data.numpy())
+    return params[input_node.name_hint].numpy()
 
 
 def _get_num_param(params, input_node):
@@ -117,7 +117,7 @@ def _get_list_param(params, input_node, mod):
     try:
         return _get_param(params, input_node).tolist()
     except (IndexError, KeyError, AttributeError):
-        return _infer_value(input_node, params, mod).asnumpy().tolist()
+        return _infer_value(input_node, params, mod).numpy().tolist()
 
 
 def _get_tuple_param(params, input_node):
@@ -155,7 +155,7 @@ def _rsqrt():
 
 
 def _argx(func, func_name):
-    """ A common wrapper for argmin and argmax operations """
+    """A common wrapper for argmin and argmax operations"""
 
     def _impl(inputs, attr, params, mod):
         try:
@@ -723,17 +723,17 @@ def _nms(return_scores=False):
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         try:
-            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
+            max_output_size = int(np.atleast_1d(inputs[2].data.numpy().astype("int64"))[0])
         except Exception:
             try:
                 max_output_size = (
-                    _infer_value(inputs[2], params, mod).asnumpy().astype("int64").tolist()[0]
+                    _infer_value(inputs[2], params, mod).numpy().astype("int64").tolist()[0]
                 )
             except Exception:
                 max_output_size = inputs[2]
-        iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
+        iou_threshold = np.atleast_1d(inputs[3].data.numpy())[0]
         # score_threshold was introduced from V3
-        score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
+        score_threshold = np.atleast_1d(inputs[4].data.numpy())[0] if len(inputs) > 4 else 0.0
         pad_output = "pad_to_max_output_size"
 
         # Generate data with shape (1, num_anchors, 5)
@@ -799,17 +799,17 @@ def _combined_nms():
         boxes = inputs[0]
         scores = inputs[1]
         try:
-            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
+            max_output_size = int(np.atleast_1d(inputs[2].data.numpy().astype("int64"))[0])
         except Exception:
             try:
                 max_output_size = (
-                    _infer_value(inputs[2], params, mod).asnumpy().astype("int64").tolist()[0]
+                    _infer_value(inputs[2], params, mod).numpy().astype("int64").tolist()[0]
                 )
             except Exception:
                 max_output_size = inputs[2]
         max_total_size = inputs[3]
-        iou_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0]
-        score_threshold = np.atleast_1d(inputs[5].data.asnumpy())[0]
+        iou_threshold = np.atleast_1d(inputs[4].data.numpy())[0]
+        score_threshold = np.atleast_1d(inputs[5].data.numpy())[0]
         if attr["pad_per_class"]:
             raise tvm.error.OpAttributeUnImplemented(
                 "pad_per_class for CombinedNonMaxSuppression is not supported"
@@ -968,9 +968,9 @@ def _resize(method):
             # Important that the size is defined. If an axis is not, we need to infer what
             # the shape should be.
             if -1 in size:
-                size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
+                size = _infer_value(inputs[1], params, mod).numpy().reshape([-1]).tolist()
         else:
-            size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
+            size = _infer_value(inputs[1], params, mod).numpy().reshape([-1]).tolist()
 
         attr["size"] = size
         inputs.pop(1)
@@ -1100,9 +1100,9 @@ def _sparse_tensor_dense_matmul():
 
         assert len(inputs) == 4, "There should be 4 input tensors"
 
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+        indices_tensor = _infer_value(inputs[0], params, mod).numpy()
+        values_tensor = _infer_value(inputs[1], params, mod).numpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).numpy()
 
         data = inputs[3]
 
@@ -1230,7 +1230,7 @@ def _sparse_segment_sum_with_num_segments():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        num_segments = int(inputs[3].data.asnumpy().item())
+        num_segments = int(inputs[3].data.numpy().item())
         return _op.segment_sum(data, inputs[2], num_segments)
 
     return _impl
@@ -1287,7 +1287,7 @@ def _sparse_segment_sum_sqrtn_with_num_segments():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        num_segments = int(inputs[3].data.asnumpy().item())
+        num_segments = int(inputs[3].data.numpy().item())
         real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
         real_sqrt_counts = _op.sqrt(_op.cast_like(real_counts, data))
 
@@ -1317,7 +1317,7 @@ def _sparse_segment_mean_with_num_segments():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
         data = _op.take(inputs[0], inputs[1], axis=0)
-        num_segments = int(inputs[3].data.asnumpy().item())
+        num_segments = int(inputs[3].data.numpy().item())
         real_counts = count_all_indices(inputs[2], attr["T"].name, num_segments=num_segments)
 
         # Calculate regular segment sum
@@ -1337,9 +1337,9 @@ def _sparse_tensor_dense_add():
             len(inputs) == 4
         ), "There should be 4 input tensors [sparse_indices, sparse_values, sparse_shape, dense]."
 
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+        indices_tensor = _infer_value(inputs[0], params, mod).numpy()
+        values_tensor = _infer_value(inputs[1], params, mod).numpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).numpy()
 
         data = inputs[3]
 
@@ -1655,7 +1655,7 @@ def _tile():
     def _impl(inputs, attr, params, mod):
         reps_input = inputs.pop()
         if isinstance(reps_input, _expr.Call):
-            np_reps = _infer_value(reps_input, params, mod).asnumpy()
+            np_reps = _infer_value(reps_input, params, mod).numpy()
             reps = [np_reps.flatten()[i] for i in range(np_reps.flatten().shape[0])]
         else:
             reps = _get_list_param(params, reps_input, mod)
@@ -1708,7 +1708,7 @@ def _reshape():
             # try to infer shape by precompute prune if possible.
             try:
                 params_new = _infer_value(pop_node, params, mod)
-                shape_arg = tuple(params_new.asnumpy().astype("int32").flatten())
+                shape_arg = tuple(params_new.numpy().astype("int32").flatten())
             except Exception:
                 # Deal with symbolic shape case.
                 if isinstance(pop_node, _expr.Call) and "shape_of" in str(pop_node.op):
@@ -1775,8 +1775,8 @@ def _broadcast_args():
             s1 = params[inputs[1].name_hint]
         else:
             s1 = _infer_value(inputs[1], params, mod)
-        s0 = list(s0.asnumpy().reshape([-1]))
-        s1 = list(s1.asnumpy().reshape([-1]))
+        s0 = list(s0.numpy().reshape([-1]))
+        s1 = list(s1.numpy().reshape([-1]))
         s0_size, s1_size = len(s0), len(s1)
 
         out = deque([])
@@ -1808,7 +1808,7 @@ def _broadcast_to():
             shape = params[inputs[1].name_hint]
         else:
             shape = _infer_value(inputs[1], params, mod)
-        shape = list(shape.asnumpy().reshape([-1]))
+        shape = list(shape.numpy().reshape([-1]))
         return _op.broadcast_to(inputs[0], shape)
 
     return _impl
@@ -1917,7 +1917,7 @@ def _shape():
 def _fill():
     def _impl(inputs, attr, params, mod):
         try:
-            output_shape = _infer_value(inputs[0], params, mod).asnumpy().tolist()
+            output_shape = _infer_value(inputs[0], params, mod).numpy().tolist()
         except Exception:
             output_shape = inputs[0]
 
@@ -2047,7 +2047,7 @@ def _stridedSlice():
         data_dim = len(data_shape)
         stride_dim = len(stride)
         if data_dim == 0 and isinstance(inputs[0], _expr.Constant):
-            new_data = inputs[0].data.asnumpy().reshape(1)
+            new_data = inputs[0].data.numpy().reshape(1)
             return _expr.const(new_data, inputs[0].data.dtype)
 
         # This is a special routine to handle strided_slice after shape_of.
@@ -2193,7 +2193,7 @@ def _pad(name):
             padlist = _get_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
             try:
-                padlist = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                padlist = _infer_value(inputs[1], params, mod).numpy().tolist()
             except Exception:
                 padlist = inputs[1]
 
@@ -2288,7 +2288,7 @@ def _range():
             start = _get_param(params, inputs[0])[0]
         except (IndexError, KeyError, AttributeError):
             try:
-                start = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                start = _infer_value(inputs[1], params, mod).numpy().tolist()
                 start = start if not isinstance(start, list) else start[0]
             except Exception:
                 # Symbolic start
@@ -2298,11 +2298,11 @@ def _range():
             limit = (
                 _get_param(params, inputs[1])[0]
                 if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant)
-                else params.pop("Rank").asnumpy()[0]
+                else params.pop("Rank").numpy()[0]
             )
         except (IndexError, KeyError, AttributeError):
             try:
-                limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                limit = _infer_value(inputs[1], params, mod).numpy().tolist()
                 limit = limit if not isinstance(limit, list) else limit[0]
             except Exception:
                 limit = inputs[1]
@@ -2311,7 +2311,7 @@ def _range():
             delta = _get_param(params, inputs[2])[0]
         except (IndexError, KeyError, AttributeError):
             try:
-                delta = _infer_value(inputs[2], params, mod).asnumpy().tolist()
+                delta = _infer_value(inputs[2], params, mod).numpy().tolist()
                 delta = delta if not isinstance(delta, list) else delta[0]
             except Exception:
                 # Symbolic delta
@@ -2480,7 +2480,7 @@ def _topk():
             k = int(_get_num_param(params, k_input))
         except (IndexError, KeyError, AttributeError):
             try:
-                k = int(_infer_value(k_input, params, mod).asnumpy().tolist())
+                k = int(_infer_value(k_input, params, mod).numpy().tolist())
             except Exception:
                 k = k_input
         if isinstance(k, int):
@@ -3672,7 +3672,7 @@ class GraphProto(object):
                 if node_name_prefix not in self._while_loop_name_set:
                     try:
                         cond_val = np.all(
-                            _infer_value(branch.cond, self._params, self._mod).asnumpy()
+                            _infer_value(branch.cond, self._params, self._mod).numpy()
                         )
                         if cond_val:
                             op = branch.true_branch

@@ -100,7 +100,7 @@ def test_conv1d_run():
             dev = tvm.device(target, 0)
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv1d
     dshape = (1, 3, 224)
@@ -228,7 +228,7 @@ def test_conv2d_run():
             dev = tvm.device(target, 0)
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4, atol=1e-4)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4, atol=1e-4)
 
     def compile_test_conv2d_arm_cpu(
         dtype, out_dtype, scale, dshape, kshape, padding=(1, 1), groups=1, dilation=(1, 1), **attrs
@@ -408,7 +408,7 @@ def test_conv2d_winograd():
                 module.set_input(**params)
                 module.run()
                 op_res1 = module.get_output(0)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-3, atol=1e-3)
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-3, atol=1e-3)
 
     # normal winograd: stride 1, padding 1, kernel 3x3
     dshape = (1, 80, 73, 73)
@@ -515,7 +515,7 @@ def test_conv3d_run():
 
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv3d
     dshape = (1, 3, 5, 224, 224)
@@ -580,7 +580,7 @@ def test_conv3d_ndhwc_run():
 
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv3d
     dshape = (1, 5, 224, 224, 6)
@@ -671,7 +671,7 @@ def test_conv3d_winograd():
                 module.set_input(**params)
                 module.run()
                 op_res1 = module.get_output(0)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-3, atol=1e-3)
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-3, atol=1e-3)
 
     # normal winograd: stride 1, padding 1, kernel 3x3x3
     dshape = (1, 32, 16, 16, 16)
@@ -763,7 +763,7 @@ def test_conv3d_transpose_ncdhw_run():
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -806,7 +806,7 @@ def test_conv2d_transpose_nchw_run():
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -842,7 +842,7 @@ def test_conv2d_transpose_nhwc_run():
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -864,7 +864,7 @@ def test_conv1d_transpose_ncw_run():
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data, kernel)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -949,7 +949,7 @@ def _test_global_pool2d(opfunc, reffunc):
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -982,7 +982,7 @@ def test_pool2d():
         for target, dev in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     def _test_pool2d_int(opfunc, reffunc, dtype):
         n, c, h, w = te.size_var("n"), 10, 224, 224
@@ -1003,7 +1003,7 @@ def test_pool2d():
             for target, dev in tvm.testing.enabled_targets():
                 intrp1 = relay.create_executor("graph", device=dev, target=target)
                 op_res1 = intrp1.evaluate(func)(data)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool2d(relay.nn.max_pool2d, "max")
     _test_pool2d(relay.nn.max_pool2d, "max", pool_size=2, strides=2, padding=0)
@@ -1041,7 +1041,7 @@ def _test_global_pool1d(opfunc, reffunc):
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1077,7 +1077,7 @@ def test_pool1d():
             for target, dev in tvm.testing.enabled_targets():
                 intrp1 = relay.create_executor("graph", device=dev, target=target)
                 op_res1 = intrp1.evaluate(func)(data)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool1d(relay.nn.max_pool1d, "max")
     _test_pool1d(relay.nn.max_pool1d, "max", dtype="int32")
@@ -1137,7 +1137,7 @@ def test_pool3d():
             for target, dev in tvm.testing.enabled_targets():
                 intrp1 = relay.create_executor("graph", device=dev, target=target)
                 op_res1 = intrp1.evaluate(func)(data)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool3d(relay.nn.max_pool3d, "max")
     _test_pool3d(relay.nn.max_pool3d, "max", dtype="int32")
@@ -1189,7 +1189,7 @@ def test_avg_pool2d_no_count_pad():
     for target, dev in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1225,9 +1225,9 @@ def test_flatten_infer_type():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
         op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1298,7 +1298,7 @@ def test_pad_run():
             for target, dev in tvm.testing.enabled_targets():
                 intrp1 = relay.create_executor("graph", device=dev, target=target)
                 op_res1 = intrp1.evaluate(func)(data)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
     _test_run("int32")
@@ -1322,7 +1322,7 @@ def test_pad_run_dynamic_pad_value():
         for target, dev in tvm.testing.enabled_targets():
             intrp = relay.create_executor(kind="graph", device=dev, target=target)
             result = intrp.evaluate(f)(data_arr, pad_value_arr)
-            tvm.testing.assert_allclose(result.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(result.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
     _test_run("int32")
@@ -1356,9 +1356,9 @@ def test_lrn():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
         op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1386,9 +1386,9 @@ def test_l2_normalize():
         intrp1 = relay.create_executor("graph", device=dev, target=target)
         intrp2 = relay.create_executor("debug", device=dev, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
         op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
 def batch_flatten(data):
@@ -1410,7 +1410,7 @@ def test_batch_flatten():
     for target, dev in tvm.testing.enabled_targets():
         intrp = relay.create_executor("graph", device=dev, target=target)
         op_res = intrp.evaluate(func)(data)
-        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+        np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 def _test_upsampling(layout, method, align_corners=False):
@@ -1458,7 +1458,7 @@ def _test_upsampling(layout, method, align_corners=False):
     for target, dev in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", device=dev, target=target)
         out = executor.evaluate(func)(data)
-        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1530,7 +1530,7 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
     for target, dev in tvm.testing.enabled_targets():
         executor = relay.create_executor("graph", device=dev, target=target)
         out = executor.evaluate(func)(data)
-        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1797,7 +1797,7 @@ def test_correlation():
         for target, dev in tvm.testing.enabled_targets():
             intrp1 = relay.create_executor("graph", device=dev, target=target)
             op_res1 = intrp1.evaluate(func)(data1_np, data2_np)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_correlation(
         (1, 3, 10, 10),

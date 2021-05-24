@@ -1683,7 +1683,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return has_fused_activation
 
     def _get_data_scale_and_zp(_data, _inputs, _data_min_idx, _data_max_idx):
-        """ Finds the Qnn params for the data expr. """
+        """Finds the Qnn params for the data expr."""
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
         assert data_min <= data_max
@@ -1702,7 +1702,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return _data_scale, _data_zero_point
 
     def _get_bn_alpha_coeff(_bn_gamma_idx, _bn_beta_idx, _bn_running_mean_idx, _bn_running_var_idx):
-        """ Extract the BN coeff. These will be use later for BN folding into convolution. """
+        """Extract the BN coeff. These will be use later for BN folding into convolution."""
         # Extract relevant attrs from bn.
         bn_attrs = _get_subgraph_op(subgraphs, "BatchNorm")["attrs"]
         bn_epsilon_param = float(bn_attrs["eps"])
@@ -1730,7 +1730,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return _bn_scale, _bn_shift
 
     def _fold_bn(_bn_scale, _bn_shift, _has_bias, _has_bn):
-        """ Fold BN into kernel and bias. Get new kernel and bias. """
+        """Fold BN into kernel and bias. Get new kernel and bias."""
         _kernel = inputs[1]
         if _bn_scale:
             assert attrs.get_bool("with_bn", False)
@@ -1753,13 +1753,13 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
 
     def _get_quantized_kernel(_kernel, _bias, _data_scale):
         # For quantizing, we need min/max of kernel. So, we have to pre compute this expr.
-        np_kernel = _infer_value(_kernel, params).asnumpy()
+        np_kernel = _infer_value(_kernel, params).numpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1, 2, 3))
         kernel_channel_max = np.amax(np_kernel, axis=(1, 2, 3))
 
         np_bias = None
         if _bias is not None:
-            np_bias = _infer_value(_bias, params).asnumpy()
+            np_bias = _infer_value(_bias, params).numpy()
         return quantize_conv_weights_bias_channel_mkldnn_from_var(
             _kernel, np_bias, kernel_channel_min, kernel_channel_max, _data_scale
         )
@@ -1803,7 +1803,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         )
 
     def _get_sum(_res, _output_scale, out_dtype):
-        """ Handles sum of the second quantized tensor. """
+        """Handles sum of the second quantized tensor."""
         # This is done in following steps
         #   1) rhs is the add's second operand. First rhs will be requantized to output scale with
         #   dtype int32. The int32 dtype is to keep precision high before adding.
@@ -2091,15 +2091,15 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
             )
 
         if isinstance(_kernel, tvm.relay.Call) and _kernel.op.name == "qnn.quantize":
-            _kernel_scale = _kernel.args[1].data.asnumpy()
-            _kernel_zp = _kernel.args[2].data.asnumpy()
+            _kernel_scale = _kernel.args[1].data.numpy()
+            _kernel_zp = _kernel.args[2].data.numpy()
             return _kernel_scale, _kernel_zp
 
         kernel_min_idx, kernel_max_idx = (5, 6) if _has_bias else (4, 5)
         kernel_min_name = _get_name(_inputs[kernel_min_idx])
-        kernel_min = params[kernel_min_name].asnumpy()[0]
+        kernel_min = params[kernel_min_name].numpy()[0]
         kernel_max_name = _get_name(_inputs[kernel_max_idx])
-        kernel_max = params[kernel_max_name].asnumpy()[0]
+        kernel_max = params[kernel_max_name].numpy()[0]
         _kernel_scale = (
             get_mkldnn_uint8_scale(kernel_min, kernel_max)
             if kernel_dtype == "uint8"
@@ -2116,13 +2116,13 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
             )
 
         # Get the FP32 values, calculate min/max and then channel quantize them
-        np_kernel = _infer_value(_kernel, params).asnumpy()
+        np_kernel = _infer_value(_kernel, params).numpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1,))
         kernel_channel_max = np.amax(np_kernel, axis=(1,))
 
         np_bias = None
         if _bias is not None:
-            np_bias = _infer_value(_bias, params).asnumpy()
+            np_bias = _infer_value(_bias, params).numpy()
         return quantize_conv_weights_bias_channel_mkldnn_from_var(
             _kernel, np_bias, kernel_channel_min, kernel_channel_max, _data_scale
         )
@@ -2130,15 +2130,15 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
     def _get_bias_requantize_scale(_inputs, _data_scale, _kernel_scale):
         _bias = _inputs[2]
         if isinstance(_bias, tvm.relay.Call) and _bias.op.name == "qnn.quantize":
-            _bias_scale = _bias.args[1].data.asnumpy()
+            _bias_scale = _bias.args[1].data.numpy()
             _bias_requantize_scale = _bias_scale / (_data_scale * _kernel_scale)
             _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
             return _bias_requantize_scale
 
         bias_min_name = _get_name(_inputs[7])
-        bias_min = params[bias_min_name].asnumpy()[0]
+        bias_min = params[bias_min_name].numpy()[0]
         bias_max_name = _get_name(_inputs[8])
-        bias_max = params[bias_max_name].asnumpy()[0]
+        bias_max = params[bias_max_name].numpy()[0]
         bias_scale = get_mkldnn_int8_scale(bias_min, bias_max)
         _bias_requantize_scale = bias_scale / (_data_scale * _kernel_scale)
         _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")

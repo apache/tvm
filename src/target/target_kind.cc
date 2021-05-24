@@ -263,7 +263,7 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("thread_warp_size")
+    .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"opencl", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
@@ -274,6 +274,7 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)

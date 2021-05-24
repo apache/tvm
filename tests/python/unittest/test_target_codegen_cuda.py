@@ -50,7 +50,7 @@ def test_cuda_vectorize_add():
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
     check_cuda("float32", 64, 2)
     check_cuda("float32", 64, 3)
@@ -106,7 +106,7 @@ def test_cuda_bf16_vectorize_add():
         c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
         c = tvm.nd.empty((n, lanes), "uint16", dev).copyfrom(c)
-        tvm.testing.assert_allclose(c.asnumpy(), np_float2np_bf16(np_a + 1))
+        tvm.testing.assert_allclose(c.numpy(), np_float2np_bf16(np_a + 1))
 
     check_cuda(64, 2)
     check_cuda(64, 4)
@@ -144,7 +144,7 @@ def test_cuda_multiply_add():
         c = tvm.nd.empty((n,), C.dtype, dev).copyfrom(np_c)
         d = tvm.nd.empty((n,), D.dtype, dev)
         fun(a, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), np_d)
+        tvm.testing.assert_allclose(d.numpy(), np_d)
 
     check_cuda("int8", 64, 4)
 
@@ -167,7 +167,7 @@ def test_cuda_vectorize_load():
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_a)
         b = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, b)
-        tvm.testing.assert_allclose(a.asnumpy(), b.asnumpy())
+        tvm.testing.assert_allclose(a.numpy(), b.numpy())
 
     check_cuda("int8", 64, 2)
     check_cuda("int8", 64, 3)
@@ -191,7 +191,7 @@ def test_cuda_make_int8():
         np_a = np.full((n, lanes), value, dtype=dtype)
         a = tvm.nd.empty(np_a.shape, dtype, dev)
         fun(a)
-        np.testing.assert_equal(a.asnumpy(), np_a)
+        np.testing.assert_equal(a.numpy(), np_a)
 
     check_cuda(64, 0xAB, 4)
     check_cuda(64, 0, 4)
@@ -219,7 +219,7 @@ def test_cuda_make_int4():
         np_a = np.full((n, lanes), value, dtype="int8")
         a = tvm.nd.empty((n, lanes), dtype, dev)
         fun(a)
-        np.testing.assert_equal(a.asnumpy(), np_a)
+        np.testing.assert_equal(a.numpy(), np_a)
 
     check_cuda(64, 1, 8)
     check_cuda(64, 7, 8)
@@ -302,7 +302,7 @@ def test_cuda_shuffle():
         ref = a_ + np.array((list(range(4))) * 16, dtype="int32")
         nda, ndb, ndc = [tvm.nd.array(i, tvm.cuda(0)) for i in [a_, b_, c_]]
         module(nda, ndb, ndc)
-        tvm.testing.assert_allclose(ndc.asnumpy(), ref)
+        tvm.testing.assert_allclose(ndc.numpy(), ref)
 
 
 @tvm.testing.parametrize_targets("cuda", "rocm")
@@ -331,7 +331,7 @@ def test_crossthread_reduction1(target, dev):
             a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), dev)
             b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
             func(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), np.sum(a.asnumpy(), axis=1), rtol=1e-3)
+            tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=1), rtol=1e-3)
 
     verify(16)
     verify(32)
@@ -369,7 +369,7 @@ def test_crossthread_reduction2(target, dev):
             a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), dev)
             b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), dev)
             func(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), np.sum(a.asnumpy(), axis=(1, 2)), rtol=1e-3)
+            tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=(1, 2)), rtol=1e-3)
 
     verify(16, 16)
     verify(32, 32)
@@ -446,7 +446,7 @@ def test_cuda_const_float_to_half():
     a = tvm.nd.array(a_np, dev)
     c = tvm.nd.array(c_np, dev)
     func(a, c)
-    np.testing.assert_equal(c.asnumpy(), a_np > b.value)
+    np.testing.assert_equal(c.numpy(), a_np > b.value)
 
 
 @tvm.testing.requires_gpu
@@ -473,7 +473,7 @@ def test_cuda_reduction():
             b_nd = tvm.nd.array(b_np, dev)
             g_nd = tvm.nd.array(np.zeros(g_np.shape, dtype=g_np.dtype), dev)
             func(a_nd, b_nd, g_nd)
-            tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-3)
+            tvm.testing.assert_allclose(g_nd.numpy(), g_np, rtol=1e-3)
 
     check("cuda", "float32")
     check("rocm", "float32")
@@ -504,7 +504,7 @@ def test_cuda_mix_threaded_and_normal_reduction():
             a_nd = tvm.nd.array(a_np, dev)
             b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
             func(a_nd, b_nd)
-            tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
+            tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
     check("cuda", "float32")
     check("rocm", "float32")
@@ -534,7 +534,7 @@ def test_cuda_floordiv_with_vectorization():
         a_nd = tvm.nd.array(a_np, dev)
         b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
         func(a_nd, b_nd)
-        tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
+        tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
 
 @tvm.testing.requires_gpu
@@ -560,7 +560,7 @@ def test_cuda_floormod_with_vectorization():
         a_nd = tvm.nd.array(a_np, dev)
         b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
         func(a_nd, b_nd)
-        tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
+        tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
 
 @tvm.testing.requires_gpu
@@ -594,7 +594,7 @@ def test_vectorized_casts():
         b_nd = tvm.nd.array(b_np, dev)
         c_nd = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np.dtype), dev)
         func(a_nd, b_nd, c_nd)
-        tvm.testing.assert_allclose(c_nd.asnumpy(), c_np, rtol=1e-3)
+        tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-3)
 
     def skip(t0, t1):
         if t0 == t1:
@@ -690,7 +690,7 @@ def test_vectorized_intrin1():
         a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
     for func in test_funcs:
         run_test(*func, "float32")
@@ -716,7 +716,7 @@ def test_vectorized_intrin2(dtype="float32"):
         a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
     for func in test_funcs:
         run_test(*func)
@@ -742,8 +742,8 @@ def test_vectorized_popcount():
         a = tvm.nd.array(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(B.dtype), dev)
         f(a, b)
-        ref = np.vectorize(ref_popcount)(a.asnumpy())
-        tvm.testing.assert_allclose(b.asnumpy(), ref)
+        ref = np.vectorize(ref_popcount)(a.numpy())
+        tvm.testing.assert_allclose(b.numpy(), ref)
 
     run_test("uint32")
     run_test("uint64")
@@ -782,7 +782,7 @@ def test_cuda_vectorize_load_permute_pad():
         ref = np.pad(
             np_a_reshape, ((0, 0), (padding, padding), (0, 0)), mode="constant", constant_values=0
         )
-        tvm.testing.assert_allclose(b.asnumpy(), ref)
+        tvm.testing.assert_allclose(b.numpy(), ref)
 
     check_cuda("int8", 64, 16, 3, 2)
     check_cuda("uint8", 64, 16, 3, 2)
@@ -838,7 +838,7 @@ def vcf_check_common(s, args):
     b = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), dev)
     c = tvm.nd.array(np.zeros((512, 512), dtype="float32"), dev)
     mod(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
 
 @tvm.testing.requires_gpu
@@ -984,7 +984,7 @@ def test_unrolled_vectorization():
     c_tvm = tvm.nd.empty((N, N), device=dev)
     func_tvm = tvm.build(s, [A, B, C], target=target)
     func_tvm(a_tvm, b_tvm, c_tvm)
-    c_np = c_tvm.asnumpy()
+    c_np = c_tvm.numpy()
     tvm.testing.assert_allclose(c_np, N * np.ones((N, N)))
 
 

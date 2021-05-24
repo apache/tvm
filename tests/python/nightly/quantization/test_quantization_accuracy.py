@@ -111,10 +111,10 @@ def eval_acc(
     # Execute
     for i, batch in enumerate(dataset):
         data, label = batch_fn(batch, [mx.cpu(0)])
-        m.run(data=data[0].asnumpy())
+        m.run(data=data[0].numpy())
         out_arr = m.get_output(0)
-        acc_top1.update(label, [mx.nd.array(out_arr.asnumpy())])
-        acc_top5.update(label, [mx.nd.array(out_arr.asnumpy())])
+        acc_top1.update(label, [mx.nd.array(out_arr.numpy())])
+        acc_top5.update(label, [mx.nd.array(out_arr.numpy())])
 
         if not (i + 1) % log_interval:
             _, top1 = acc_top1.get()

@@ -155,7 +155,7 @@ with open(class_path) as f:
 class_id_to_key = [x.strip() for x in class_id_to_key]
 
 # Get top-1 result for TVM
-top1_tvm = np.argmax(tvm_output.asnumpy()[0])
+top1_tvm = np.argmax(tvm_output.numpy()[0])
 tvm_class_key = class_id_to_key[top1_tvm]
 
 # Convert input to PyTorch variable and get PyTorch result for comparison

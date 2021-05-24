@@ -46,7 +46,7 @@ def test_static_tensor():
     c.indices = a.indices
     c.indptr = a.indptr
     f(a.data, c.data)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() * 2.0, rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() * 2.0, rtol=1e-5)
 
 
 def test_dynamic_tensor():
@@ -73,7 +73,7 @@ def test_dynamic_tensor():
     c.indices = a.indices
     c.indptr = a.indptr
     f(a.data.shape[0], a.data, c.data)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() * 2.0, rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() * 2.0, rtol=1e-5)
 
 
 def test_sparse_array_tuple():
@@ -112,7 +112,7 @@ def test_sparse_array_tuple():
     c.indices = a.indices
     c.indptr = a.indptr
     f(a.data.shape[0], a.data, c.data)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() * 2.0, rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() * 2.0, rtol=1e-5)
 
 
 if __name__ == "__main__":

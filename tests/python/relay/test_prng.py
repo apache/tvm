@@ -36,11 +36,11 @@ def test_threefry_repeatability(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() == out2.asnumpy()
+        out1.numpy() == out2.numpy()
     ).all(), "Generate on same seed should have the same output random numbers"
 
     assert (
-        out_key1.asnumpy() == out_key2.asnumpy()
+        out_key1.numpy() == out_key2.numpy()
     ).all(), "Generate on same seed should have the same next keys"
 
 
@@ -58,7 +58,7 @@ def test_threefry_split(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.numpy() != out2.numpy()
     ).any(), "Generate after split should not have the same output"
 
 
@@ -75,7 +75,7 @@ def test_threefry_sequential_generate(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.numpy() != out2.numpy()
     ).any(), "Sequential generates should not have the same output"
 
 

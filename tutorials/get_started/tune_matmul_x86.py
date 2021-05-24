@@ -158,7 +158,7 @@ out_tvm = tvm.nd.empty(out_np.shape, device=dev)
 func(a_tvm, b_tvm, c_tvm, out_tvm)
 
 # Check results
-np.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
+np.testing.assert_allclose(out_np, out_tvm.numpy(), rtol=1e-3)
 
 # Evaluate execution time.
 evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)
