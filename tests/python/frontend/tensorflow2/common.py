@@ -33,7 +33,6 @@ from tensorflow.python.eager.def_function import Function
 
 
 def run_tf_code(func, input_):
-    print(type(func))
     if type(func) is Function:
         out = func(input_)
         if isinstance(out, list):
