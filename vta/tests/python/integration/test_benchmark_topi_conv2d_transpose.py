@@ -259,7 +259,7 @@ def run_conv2d_transpose(
     # Check correctness
     correct = False
     if check_correctness:
-        res_orig = res_arr.asnumpy()
+        res_orig = res_arr.numpy()
         if data_pack:
             res_orig = res_orig.transpose((0, 4, 1, 5, 2, 3)).reshape(
                 wl.batch, wl.out_filter, fout_height, fout_width

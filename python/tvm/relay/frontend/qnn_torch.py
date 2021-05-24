@@ -30,7 +30,7 @@ from .pytorch_utils import is_version_greater_than
 
 
 class QNNParam:
-    """ A placeholder for weight quantization parameters """
+    """A placeholder for weight quantization parameters"""
 
     def __init__(self, weight, bias, scale, zero_point, param_key):
         param_prefix = param_key[: -len("._packed_params")]
@@ -98,7 +98,7 @@ def make_conv_packed_param(param_name, qweight, bias, packed_params):
 
 
 def get_weight_quant_params(script_module):
-    """ Retrive and unpack weight parameters from quantized modules """
+    """Retrive and unpack weight parameters from quantized modules"""
     import torch
 
     param_name = "_packed_params"
@@ -403,7 +403,7 @@ def add_input_quant_params_to_op_inputs(graph):
 
 
 def add_quant_params(params, quant_params):
-    """ Add quant parameters to TVM param map """
+    """Add quant parameters to TVM param map"""
     for qparam in quant_params.values():
         params[qparam.weight_var.name_hint] = tvm.nd.array(qparam.weight)
         if qparam.bias is not None:
@@ -456,7 +456,7 @@ def _dequantize():
 
 
 def _get_numpy(relay_const_scalar):
-    return relay_const_scalar.data.asnumpy()
+    return relay_const_scalar.data.numpy()
 
 
 def _get_scalar(relay_const_scalar):
@@ -466,7 +466,7 @@ def _get_scalar(relay_const_scalar):
 def _do_bias_and_requantize(
     output, bias, input_scale, weight_scale, output_scale, output_zero_point, with_relu
 ):
-    """ Output processing for conv and linear """
+    """Output processing for conv and linear"""
     # this is a vector for per channel case
     requant_input_scale = _expr.const(_get_numpy(input_scale) * _get_numpy(weight_scale))
     # Torch does bias add and requanize scale in fp32

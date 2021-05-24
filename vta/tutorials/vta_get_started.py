@@ -349,7 +349,7 @@ f = remote.load_module("vadd.o")
 # - We first create a remote context (for remote execution on the Pynq).
 # - Then :code:`tvm.nd.array` formats the data accordingly.
 # - :code:`f()` runs the actual computation.
-# - :code:`asnumpy()` copies the result array back in a format that can be
+# - :code:`numpy()` copies the result array back in a format that can be
 #   interpreted.
 #
 
@@ -381,7 +381,7 @@ f(A_nd, B_nd, C_nd)
 # Compute reference result with numpy
 C_ref = (A_orig.astype(env.acc_dtype) + B_orig.astype(env.acc_dtype)).astype(C.dtype)
 C_ref = C_ref.reshape(o, env.BATCH, m, env.BLOCK_OUT).transpose((0, 2, 1, 3))
-np.testing.assert_equal(C_ref, C_nd.asnumpy())
+np.testing.assert_equal(C_ref, C_nd.numpy())
 print("Successful vector add test!")
 
 ######################################################################

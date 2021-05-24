@@ -78,7 +78,7 @@ def verify_bitserial_conv2d_nchw(
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     func = tvm.build(s, [A, W, B], "llvm")
     func(a, w, b)
-    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 def verify_bitserial_conv2d_nhwc(
@@ -132,7 +132,7 @@ def verify_bitserial_conv2d_nhwc(
     func = tvm.build(s, [A, W, B], "llvm")
 
     func(a, w, b)
-    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 def test_bitserial_conv2d():

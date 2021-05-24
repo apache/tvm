@@ -507,8 +507,8 @@ def test_double_splitting_with_indivisible_factors():
         dev,
     )
     func(a, c, d)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy(), rtol=1e-5)
-    tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(d.numpy(), a.numpy(), rtol=1e-5)
 
 
 def test_simple_rfactor():

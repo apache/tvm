@@ -51,7 +51,7 @@ def on_device(data, device):
 
 
 def stop_fusion(data):
-    """Annotate an expression to prevent it being fused with previous expressions.
+    """Annotate an expression to prevent it being fused with following expressions.
 
     Parameters
     ----------

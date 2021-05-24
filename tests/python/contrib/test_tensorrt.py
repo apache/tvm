@@ -35,7 +35,7 @@ from tvm.relay.op.contrib import tensorrt
 
 def skip_codegen_test():
     """Skip test if TensorRT and CUDA codegen are not present"""
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.runtime.enabled("cuda") or not tvm.cuda(0).exist:
         print("Skip because CUDA is not enabled.")
         return True
     if not tvm.get_global_func("relay.ext.tensorrt", True):
@@ -45,7 +45,7 @@ def skip_codegen_test():
 
 
 def skip_runtime_test():
-    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.runtime.enabled("cuda") or not tvm.cuda(0).exist:
         print("Skip because CUDA is not enabled.")
         return True
     if not tensorrt.is_tensorrt_runtime_enabled():
@@ -56,7 +56,7 @@ def skip_runtime_test():
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy()]
+        return [o.numpy()]
     elif isinstance(o, tvm.runtime.container.ADT) or isinstance(o, list):
         return [vmobj_to_list(f) for f in o]
     else:
@@ -143,10 +143,10 @@ def run_and_verify_model(model):
             with tvm.transform.PassContext(
                 opt_level=3, config={"relay.ext.tensorrt.options": config}
             ):
-                exec = relay.create_executor(mode, mod=mod, device=tvm.gpu(0), target="cuda")
+                exec = relay.create_executor(mode, mod=mod, device=tvm.cuda(0), target="cuda")
         else:
             with tvm.transform.PassContext(opt_level=3):
-                exec = relay.create_executor(mode, mod=mod, device=tvm.gpu(0), target="cuda")
+                exec = relay.create_executor(mode, mod=mod, device=tvm.cuda(0), target="cuda")
 
         res = exec.evaluate()(i_data, **params) if not skip_runtime_test() else None
         return res
@@ -199,12 +199,12 @@ def test_tensorrt_simple():
                     opt_level=3, config={"relay.ext.tensorrt.options": config}
                 ):
                     relay_exec = relay.create_executor(
-                        mode, mod=mod, device=tvm.gpu(0), target="cuda"
+                        mode, mod=mod, device=tvm.cuda(0), target="cuda"
                     )
             else:
                 with tvm.transform.PassContext(opt_level=3):
                     relay_exec = relay.create_executor(
-                        mode, mod=mod, device=tvm.gpu(0), target="cuda"
+                        mode, mod=mod, device=tvm.cuda(0), target="cuda"
                     )
             if not skip_runtime_test():
                 result_dict[result_key] = relay_exec.evaluate()(x_data, y_data, z_data)
@@ -247,7 +247,7 @@ def test_tensorrt_not_compatible():
     mod, config = tensorrt.partition_for_tensorrt(mod)
     for mode in ["graph", "vm"]:
         with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
-            exec = relay.create_executor(mode, mod=mod, device=tvm.gpu(0), target="cuda")
+            exec = relay.create_executor(mode, mod=mod, device=tvm.cuda(0), target="cuda")
             if not skip_runtime_test():
                 results = exec.evaluate()(x_data)
 
@@ -273,7 +273,7 @@ def test_tensorrt_serialize_graph_executor():
         return graph, lib, params
 
     def run_graph(graph, lib, params):
-        mod_ = graph_executor.create(graph, lib, device=tvm.gpu(0))
+        mod_ = graph_executor.create(graph, lib, device=tvm.cuda(0))
         mod_.load_params(params)
         mod_.run(data=i_data)
         res = mod_.get_output(0)
@@ -330,7 +330,7 @@ def test_tensorrt_serialize_vm():
 
     def run_vm(code, lib):
         vm_exec = tvm.runtime.vm.Executable.load_exec(code, lib)
-        vm = VirtualMachine(vm_exec, tvm.gpu(0))
+        vm = VirtualMachine(vm_exec, tvm.cuda(0))
         result = vm.invoke("main", data=i_data)
         return result
 
@@ -1370,7 +1370,7 @@ def test_maskrcnn_resnet50() -> None:
     # Descending sort by scores and get the high confidence indices. In this example 9 is chosen,
     # because this image has 9 boxes over 0.9 confidence
     num_high_confidence_boxes = 9
-    tvm_indices = np.argsort(-1 * tvm_res[1].asnumpy())[:num_high_confidence_boxes]
+    tvm_indices = np.argsort(-1 * tvm_res[1].numpy())[:num_high_confidence_boxes]
 
     with torch.no_grad():
         out = traced_module(torch.Tensor(np_sample_input))
@@ -1386,7 +1386,7 @@ def test_maskrcnn_resnet50() -> None:
     # 0.1 pixel difference of a box in a 300X300 image wont make any change.
     for i, tol_val in zip(range(4), tol):
         np.testing.assert_allclose(
-            tvm_res[i].asnumpy()[tvm_indices],
+            tvm_res[i].numpy()[tvm_indices],
             out[i].numpy()[pt_indices],
             rtol=tol_val,
             atol=tol_val,
@@ -1415,7 +1415,7 @@ def test_empty_subgraph():
     x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
     for mode in ["graph", "vm"]:
         with tvm.transform.PassContext(opt_level=3):
-            exec = relay.create_executor(mode, mod=mod, device=tvm.gpu(0), target="cuda")
+            exec = relay.create_executor(mode, mod=mod, device=tvm.cuda(0), target="cuda")
             if not skip_runtime_test():
                 results = exec.evaluate()(x_data)
 

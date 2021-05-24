@@ -130,9 +130,9 @@ def _verify_linked_param(dtype, lib, mod, graph, name):
     arr_data = (_get_ctypes_dtype(dtype) * np.prod(gen_param.shape)).from_address(param_ptr.value)
     arr = np.ndarray(shape=gen_param.shape, dtype=gen_param.dtype, buffer=arr_data, order="C")
     if "int" in gen_param.dtype:
-        np.testing.assert_equal(gen_param.asnumpy(), arr)
+        np.testing.assert_equal(gen_param.numpy(), arr)
     else:
-        np.testing.assert_allclose(gen_param.asnumpy(), arr)
+        np.testing.assert_allclose(gen_param.numpy(), arr)
     return dtype == gen_param.dtype
 
 
@@ -226,9 +226,9 @@ def test_llvm_link_params():
             unlinked_output = _run_unlinked(lib)
 
         if "int" in dtype:
-            np.testing.assert_equal(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
         else:
-            np.testing.assert_allclose(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
 def _get_c_datatype(dtype):
@@ -278,7 +278,7 @@ def test_c_link_params():
             lib.lib.save(temp_dir.relpath("test.c"), "c")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
-            param = lib.params["p0"].asnumpy().reshape(np.prod(KERNEL_SHAPE))
+            param = lib.params["p0"].numpy().reshape(np.prod(KERNEL_SHAPE))
             param_def = f"static const {c_dtype} __tvm_param__p0[{np.prod(param.shape)}] = {{"
             for i, line in enumerate(src_lines):
                 if line == param_def:
@@ -341,9 +341,9 @@ def test_c_link_params():
             unlinked_output = _run_unlinked(lib_mod)
 
         if "int" in dtype:
-            np.testing.assert_equal(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
         else:
-            np.testing.assert_allclose(unlinked_output.asnumpy(), linked_output.asnumpy())
+            np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
 @tvm.testing.requires_micro
@@ -389,7 +389,7 @@ def test_crt_link_params():
                 # NOTE: not setting params here.
                 graph_rt.set_input("rand_input", rand_input)
                 graph_rt.run()
-                linked_output = graph_rt.get_output(0).asnumpy()
+                linked_output = graph_rt.get_output(0).numpy()
 
         with tvm.transform.PassContext(opt_level=3):
             lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
@@ -399,7 +399,7 @@ def test_crt_link_params():
                 graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
-                return graph_rt.get_output(0).asnumpy()
+                return graph_rt.get_output(0).numpy()
 
             unlinked_output = _run_unlinked(lib)
 

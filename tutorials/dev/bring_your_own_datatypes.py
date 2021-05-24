@@ -264,7 +264,7 @@ module, params = get_mobilenet()
 
 ex = tvm.relay.create_executor("graph", mod=module)
 input = get_cat_image()
-result = ex.evaluate()(input, **params).asnumpy()
+result = ex.evaluate()(input, **params).numpy()
 # print first 10 elements
 print(result.flatten()[:10])
 
@@ -402,7 +402,7 @@ tvm.target.datatype.register_min_func(
 # Vectorization is not implemented with custom datatypes.
 with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
     result_myfloat = ex.evaluate(expr)(input, **params)
-    result_myfloat = convert_ndarray(src_dtype, result_myfloat).asnumpy()
+    result_myfloat = convert_ndarray(src_dtype, result_myfloat).numpy()
     # print first 10 elements
     print(result_myfloat.flatten()[:10])
 

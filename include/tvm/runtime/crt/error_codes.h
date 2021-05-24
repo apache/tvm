@@ -79,6 +79,7 @@ typedef enum {
   kTvmErrorPlatformShutdown = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 2),
   kTvmErrorPlatformNoMemory = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 3),
   kTvmErrorPlatformTimerBadState = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 4),
+  kTvmErrorPlatformStackAllocBadFree = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 5),
 
   // Common error codes returned from generated functions.
   kTvmErrorGeneratedInvalidStorageId = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGenerated, 0),

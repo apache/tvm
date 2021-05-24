@@ -143,7 +143,7 @@ def test_function_attrs():
         assert key1.name_hint == key2.name_hint
         p1 = model_params[key1]
         p2 = model_params_after[key2]
-        np.testing.assert_allclose(p1.data.asnumpy(), p2.data.asnumpy())
+        np.testing.assert_allclose(p1.data.numpy(), p2.data.numpy())
 
 
 def test_call():

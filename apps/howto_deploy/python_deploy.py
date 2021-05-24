@@ -33,8 +33,8 @@ def verify(mod, fname):
     y = tvm.nd.array(np.zeros(N, dtype=np.float32))
     # Invoke the function
     f(x, y)
-    np_x = x.asnumpy()
-    np_y = y.asnumpy()
+    np_x = x.numpy()
+    np_y = y.numpy()
     # Verify correctness of function
     assert np.all([xi + 1 == yi for xi, yi in zip(np_x, np_y)])
     print("Finish verification...")

@@ -93,7 +93,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.run()
-        return [m.get_output(i).asnumpy() for i in range(m.get_num_outputs())]
+        return [m.get_output(i).numpy() for i in range(m.get_num_outputs())]
 
     def to_channels_first(arr):
         return arr.transpose([0, -1] + list(range(1, arr.ndim - 1)))

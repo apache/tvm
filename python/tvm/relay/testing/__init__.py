@@ -138,7 +138,7 @@ def check_grad(
 
         # Get analytic gradients.
         _, grads = intrp.evaluate(bwd_func)(*inputs)
-        grads = [grad.asnumpy().astype("float64") for grad in grads]
+        grads = [grad.numpy().astype("float64") for grad in grads]
 
         # Throw out gradients we aren't testing
         if inputs != test_inputs:
@@ -160,9 +160,9 @@ def check_grad(
             for i in np.ndindex(*x.shape):
                 x_i = x[i]
                 x[i] = x_i + eps
-                fwd_plus = intrp.evaluate(fwd_func)(*inputs).asnumpy().astype("float64")
+                fwd_plus = intrp.evaluate(fwd_func)(*inputs).numpy().astype("float64")
                 x[i] = x_i - eps
-                fwd_minus = intrp.evaluate(fwd_func)(*inputs).asnumpy().astype("float64")
+                fwd_minus = intrp.evaluate(fwd_func)(*inputs).numpy().astype("float64")
                 x[i] = x_i
                 approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
             approx_grads.append(approx_grad)

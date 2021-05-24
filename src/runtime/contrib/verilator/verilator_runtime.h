@@ -50,8 +50,9 @@ using namespace tvm::runtime::json;
 typedef VerilatorHandle (*VerilatorAllocFunc)();
 typedef void (*VerilatorDeallocFunc)(VerilatorHandle);
 typedef void (*VerilatorResetFunc)(VerilatorHandle, int);
-typedef void (*VerilatorAddFunc)(VerilatorHandle, int*, int*, int*, int, int);
 typedef int (*VerilatorReadFunc)(VerilatorHandle, int, int);
+typedef void (*VerilatorAddFunc)(VerilatorHandle, int*, int*, int*, int, int);
+typedef void (*VerilatorBiasAddFunc)(VerilatorHandle, int*, int*, int*, int, int, int, int);
 
 class VerilatorLibrary : public Library {
  public:
@@ -122,8 +123,6 @@ class VerilatorRuntime : public JSONRuntimeBase {
   VerilatorProfiler* prof_{nullptr};
   /*! \brief the verilator read function */
   VerilatorReadFunc read_{nullptr};
-  /*! \brief the verilator add op function */
-  VerilatorAddFunc add_op_{nullptr};
   /*! \brief the verilator reset cycles */
   int reset_cycles_{1};
   /*! \brief the verilator profiler status */

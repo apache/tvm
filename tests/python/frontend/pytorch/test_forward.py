@@ -32,6 +32,7 @@ from torch.nn import functional as F
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
+import pytest
 
 sys.setrecursionlimit(10000)
 
@@ -218,7 +219,7 @@ def verify_model(
             relay_model.run()
 
             for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = relay_model.get_output(i).asnumpy()
+                compiled_output = relay_model.get_output(i).numpy()
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
@@ -965,17 +966,63 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
-def test_forward_conv_transpose():
-    torch.set_grad_enabled(False)
-    conv2d_input_shape = [1, 3, 10, 10]
-    conv2d_input_data = torch.rand(conv2d_input_shape).float()
-    verify_model(torch.nn.ConvTranspose2d(3, 6, 7, bias=True), input_data=conv2d_input_data)
-    verify_model(torch.nn.ConvTranspose2d(3, 12, 3, bias=False), input_data=conv2d_input_data)
+@pytest.mark.parametrize("in_channels", [3], ids=lambda x: "in_channels=" + str(x))
+@pytest.mark.parametrize("out_channels", [5], ids=lambda x: "out_channels=" + str(x))
+@pytest.mark.parametrize("kernel_size", [3], ids=lambda x: "kernel_size=" + str(x))
+@pytest.mark.parametrize("output_padding", [0, 1, 2], ids=lambda x: "output_padding=" + str(x))
+@pytest.mark.parametrize("groups", [1], ids=lambda x: "groups=" + str(x))
+@pytest.mark.parametrize("bias", [True, False], ids=lambda x: "bias=" + str(x))
+def test_forward_conv_transpose(
+    in_channels, out_channels, kernel_size, output_padding, bias, groups
+):
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
 
-    conv1d_input_shape = [1, 3, 10]
+    # Output padding must be smaller than either stride or dilation so we
+    # opt to make the stride 1 + output padding
+    stride = output_padding + 1
+
+    # Conv 3D Transpose Tests
+    conv3d_input_shape = [1, in_channels, 16, 16, 16]
+    conv3d_input_data = torch.rand(conv3d_input_shape).float()
+    conv3d_transpose = torch.nn.ConvTranspose3d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv3d_transpose, conv3d_input_data)
+
+    # Conv 2D Transpose Tests
+    conv2d_input_shape = [1, in_channels, 128, 256]
+    conv2d_input_data = torch.rand(conv2d_input_shape).float()
+    conv2d_transpose = torch.nn.ConvTranspose2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv2d_transpose, conv2d_input_data)
+
+    # # Conv 1D Transpose Tests
+    conv1d_input_shape = [1, in_channels, 10]
     conv1d_input_data = torch.rand(conv1d_input_shape).float()
-    verify_model(torch.nn.ConvTranspose1d(3, 6, 7, bias=True), input_data=conv1d_input_data)
-    verify_model(torch.nn.ConvTranspose1d(3, 12, 3, bias=False), input_data=conv1d_input_data)
+    conv1d_transpose = torch.nn.ConvTranspose1d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv1d_transpose, conv1d_input_data)
 
 
 def test_forward_deform_conv():
@@ -1240,7 +1287,7 @@ def test_type_as():
         check_fp16 = False
         try:
             # Only check half precision on supported hardwares.
-            if have_fp16(tvm.gpu(0).compute_version):
+            if have_fp16(tvm.cuda(0).compute_version):
                 check_fp16 = True
         except Exception as e:
             # If GPU is not enabled in TVM, skip the fp16 test.
@@ -1709,7 +1756,7 @@ def test_upsample():
 
 @tvm.testing.uses_gpu
 def test_to():
-    """ test for aten::to(...) """
+    """test for aten::to(...)"""
 
     class ToCPU(Module):
         def forward(self, x):
@@ -2113,7 +2160,7 @@ def verify_trace_model(pt_model, idata, targets):
 
 
 def convert_pt_to_tvm_type(idtype):
-    """ Accepts a pytorch dtype and returns string TVM dtype."""
+    """Accepts a pytorch dtype and returns string TVM dtype."""
     # TVM does not support PyTorch complex dtypes
     if idtype == torch.float64:
         curr_dtype = "float64"
@@ -2189,13 +2236,13 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
         if isinstance(pt_result, tuple):
             # handle multiple outputs
             for i in range(len(pt_result)):
-                tvm_res = vm_res[i].asnumpy()
+                tvm_res = vm_res[i].numpy()
                 tvm.testing.assert_allclose(tvm_res, pt_result[i].numpy(), rtol=1e-5, atol=1e-5)
         elif not isinstance(pt_result, torch.Tensor):
-            tvm_res = vm_res.asnumpy().item()
+            tvm_res = vm_res.numpy().item()
             assert pt_result == tvm_res
         else:
-            tvm.testing.assert_allclose(vm_res.asnumpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(vm_res.numpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -3622,7 +3669,7 @@ def test_forward_pretrained_bert_base_uncased():
     relay_model.set_input(input_1, tokens_tensor)
     relay_model.set_input(input_2, segments_tensors)
     relay_model.run()
-    compiled_output = relay_model.get_output(0).asnumpy()
+    compiled_output = relay_model.get_output(0).numpy()
 
     ######################################################################
     # Validate the outputs

@@ -114,7 +114,7 @@ def test_cpu():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_target("llvm")
 
@@ -167,7 +167,7 @@ def test_gpu():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_target("opencl")
     check_target("cuda")
@@ -223,7 +223,7 @@ def test_while_vectorize():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(a, b, c)
         ref = num_iter * (a_np + b_np)
-        tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), ref, rtol=1e-5, atol=1e-5)
 
     check_target("llvm", test_ir)
 
@@ -287,7 +287,7 @@ def test_while_collatz():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(c)
         ref = np.array([collatz_ref(i) for i in range(n)])
-        tvm.testing.assert_allclose(c.asnumpy(), ref)
+        tvm.testing.assert_allclose(c.numpy(), ref)
 
     check_target("llvm", collatz_ir_cpu)
 
@@ -400,7 +400,7 @@ def test_while_mandel():
         dev = tvm.device(target, 0)
         c = tvm.nd.array(np.zeros(shape, dtype=C.dtype), dev)
         func(c)
-        tvm.testing.assert_allclose(c.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), ref, rtol=1e-5, atol=1e-5)
 
     check_target("llvm", mandel_ir_cpu)
     check_target("npvtx", mandel_ir_gpu)
@@ -489,7 +489,7 @@ def test_while_binary_search():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
         func(a, b, c)
         ref = np.searchsorted(a_np, b_np)
-        tvm.testing.assert_allclose(c.asnumpy(), ref)
+        tvm.testing.assert_allclose(c.numpy(), ref)
 
     check_target("llvm", searchsorted_ir_cpu)
     check_target("cuda", searchsorted_ir_gpu)

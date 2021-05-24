@@ -16,6 +16,7 @@
 # under the License.
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
+import warnings
 import numpy as _np
 from tvm.runtime import ndarray as _nd
 from tvm import te
@@ -81,11 +82,21 @@ class CSRNDArray(object):
         )
 
     def asnumpy(self):
+        """Construct a full matrix and convert it to numpy array. This API will be deprecated
+        in TVM v0.8 release. Please use `numpy` instead."""
+        warnings.warn(
+            "CSRNDArray.asnumpy() will be deprecated in TVM v0.8 release. "
+            "Please use CSRNDArray.numpy() instead.",
+            DeprecationWarning,
+        )
+        return self.numpy()
+
+    def numpy(self):
         """Construct a full matrix and convert it to numpy array."""
         full = _np.zeros(self.shape, self.dtype)
-        ridx = _np.diff(self.indptr.asnumpy())
+        ridx = _np.diff(self.indptr.numpy())
         ridx = _np.hstack((_np.ones((v,), itype) * i for i, v in enumerate(ridx)))
-        full[ridx, self.indices.asnumpy().astype(itype)] = self.data.asnumpy()
+        full[ridx, self.indices.numpy().astype(itype)] = self.data.numpy()
         return full
 
 

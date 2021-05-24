@@ -238,7 +238,7 @@ s[WW].vectorize(fi)  # vectorize memory load
 #
 
 func = tvm.build(s, [A, W, B], "cuda")
-dev = tvm.gpu(0)
+dev = tvm.cuda(0)
 a_np = np.random.uniform(size=(in_size, in_size, in_channel, batch)).astype(A.dtype)
 w_np = np.random.uniform(size=(kernel, kernel, in_channel, out_channel)).astype(W.dtype)
 a = tvm.nd.array(a_np, dev)

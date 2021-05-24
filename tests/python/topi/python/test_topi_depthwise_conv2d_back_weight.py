@@ -107,7 +107,7 @@ def verify_depthwise_conv2d_back_weight(
         # launch the kernel
         timer = f.time_evaluator(f.entry_name, dev, number=1)
         tcost = timer(input_tvm, out_grad_tvm, weight_grad_tvm).mean
-        tvm.testing.assert_allclose(weight_grad_np, weight_grad_tvm.asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(weight_grad_np, weight_grad_tvm.numpy(), rtol=1e-4)
 
     check_device("opencl")
     check_device("cuda")

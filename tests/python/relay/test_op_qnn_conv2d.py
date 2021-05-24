@@ -202,7 +202,7 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            res = mod.get_output(0).asnumpy()
+            res = mod.get_output(0).numpy()
             return res
 
     golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -726,7 +726,7 @@ def test_tflite_large_irregular():
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.full((1, 1001, 1, 1), 0).astype("uint8")
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -771,7 +771,7 @@ def test_tflite_output_multiplier_greater_than_one():
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.array((17, 17, 0, 0, 2, 2, 16, 36, 2, 2, 0, 0)).reshape(2, 3, 1, 2)
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -834,7 +834,7 @@ def test_tflite_anistropic_strides():
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.array((124, -92, 164, -132)).reshape(1, 1, 2, 2)
         np.testing.assert_equal(qnn_output, golden_output)
 

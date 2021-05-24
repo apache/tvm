@@ -249,14 +249,12 @@ def verify(answers, atol, rtol, verify_saturation=False, config=None):
             try:
                 if verify_saturation:
                     assert (
-                        np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size
+                        np.count_nonzero(outs[0].numpy() == 255) < 0.25 * outs[0].numpy().size
                     ), "Output is saturated: {}".format(outs[0])
                     assert (
-                        np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size
+                        np.count_nonzero(outs[0].numpy() == 0) < 0.25 * outs[0].numpy().size
                     ), "Output is saturated: {}".format(outs[0])
-                tvm.testing.assert_allclose(
-                    outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol
-                )
+                tvm.testing.assert_allclose(outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol)
             except AssertionError as e:
                 err_msg = "Results not within the acceptable tolerance.\n"
                 if config:
