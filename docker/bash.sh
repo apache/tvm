@@ -46,6 +46,15 @@ if [[ "$1" == "--net=host" ]]; then
     shift 1
 fi
 
+CI_DOCKER_MOUNT_DIR=( )
+CI_DOCKER_MOUNT_CMD=""
+if [[ "$1" == "--mount" ]]; then
+    shift 1
+    CI_DOCKER_MOUNT_DIR+="$1"
+    shift 1
+    CI_DOCKER_MOUNT_CMD="--mount type=bind,source=${CI_DOCKER_MOUNT_DIR},target=${CI_DOCKER_MOUNT_DIR}"
+fi
+
 if [ "$#" -lt 1 ]; then
     echo "Usage: docker/bash.sh [-i] [--net=host] <CONTAINER_NAME> [COMMAND]"
     exit -1
@@ -98,7 +107,7 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python"
+    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python:/workspace/.local/lib/python3.6/site-packages"
 else
     CI_ADDON_ENV=""
 fi
@@ -167,6 +176,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${CI_ADDON_ENV} \
     ${CUDA_ENV} \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
+    ${CI_DOCKER_MOUNT_CMD} \
     ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
     "${COMMAND[@]}"
