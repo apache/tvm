@@ -185,7 +185,11 @@ struct Tokenizer {
       }
       if (number.size() <= index) {
         value = is_pos ? value : -value;
-        token->data = tvm::Integer(value);
+        if (value > std::numeric_limits<int32_t>::max()) {
+          token->data = tvm::IntImm(DataType::Int(64), value);
+        } else {
+          token->data = tvm::IntImm(DataType::Int(32), value);
+        }
         return token;
       }
     }
