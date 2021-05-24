@@ -626,8 +626,6 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
   VkPhysicalDeviceProperties phy_prop;
   vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
 
-  // TODO: Replace with lookups to previously queried values.
-
   switch (kind) {
     case kMaxThreadsPerBlock: {
       int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
@@ -739,6 +737,20 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     return find_enabled_extensions(inst_extension_prop, required_extensions, optional_extensions);
   }();
 
+  const auto instance_api_version = []() {
+    uint32_t api_version = VK_MAKE_VERSION(1, 0, 0);
+
+    // Result from vkGetInstanceProcAddr is NULL if driver only
+    // supports vulkan 1.0.
+    auto vkEnumerateInstanceVersion =
+        (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceVersion");
+    if (vkEnumerateInstanceVersion) {
+      vkEnumerateInstanceVersion(&api_version);
+    }
+
+    return api_version;
+  }();
+
   {
     VkApplicationInfo app_info;
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -747,7 +759,7 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     app_info.applicationVersion = 0;
     app_info.pEngineName = "";
     app_info.engineVersion = 0;
-    app_info.apiVersion = VK_MAKE_VERSION(1, 0, 0);
+    app_info.apiVersion = instance_api_version;
 
     VkInstanceCreateInfo inst_info;
     inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -817,10 +829,6 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     // support, so we need to request it from the device, too.
     VkPhysicalDeviceFeatures enabled_features = {};
     enabled_features.shaderInt64 = VK_TRUE;
-
-    // TODO: Pass the VkPhysicalDeviceFeatures2 as the pNext chain if
-    // supported, otherwise pass VkPhysicalDeviceFeatures as
-    // pEnabledFeatures.
 
     VkDeviceCreateInfo device_create_info;
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
