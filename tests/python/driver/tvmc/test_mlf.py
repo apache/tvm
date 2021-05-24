@@ -83,6 +83,8 @@ def test_tvmc_export_package_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
 
 
 def test_tvmc_import_package_mlf(tflite_compiled_model_mlf):
+    pytest.importorskip("tflite")
+
     # Compile and export a model to a MLF archive so it can be imported.
     exported_tvmc_package = tflite_compiled_model_mlf
     archive_path = exported_tvmc_package.package_path
