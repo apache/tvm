@@ -2301,7 +2301,9 @@ class PyTorchOpConverter:
             counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
             return (unique_sliced, inverse_indices, counts_sliced)
         else:
-            [unique, indices, inverse_indices, num_uniq] = _op.unique(data, is_sorted=is_sorted, return_counts=False)
+            [unique, indices, inverse_indices, num_uniq] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=False
+            )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             return (unique_sliced, inverse_indices)
 

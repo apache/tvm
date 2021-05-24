@@ -2711,7 +2711,9 @@ def _unique(return_counts=True):
                 _expr.Tuple([unique_sliced, inverse_indices, counts_sliced]),
                 3,
             )
-        [unique, indices, inverse_indices, num_uniq] = _op.unique(data, is_sorted=False, return_counts=False)
+        [unique, indices, inverse_indices, num_uniq] = _op.unique(
+            data, is_sorted=False, return_counts=False
+        )
         unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
         return _expr.TupleWrapper(
             _expr.Tuple([unique_sliced, inverse_indices]),
