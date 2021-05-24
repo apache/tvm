@@ -129,8 +129,7 @@ transform::Pass Filter(FCond fcond) {
 }
 
 IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  bool simple_mode = false;  // TODO(@electriclilies): add as argument to IRModule Lower
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   auto pass_ctx = transform::PassContext::Current();
 
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
@@ -172,7 +171,7 @@ IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& n
 }
 
 IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   // Convert te schedule to IRModule
   Array<ObjectRef> out_arg_list;
   auto pass_ctx = transform::PassContext::Current();
@@ -197,12 +196,12 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
-  return lower(mod, args, name, binds);
+  return lower(mod, args, name, binds, simple_mode);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower")
     .set_body_typed([](ObjectRef obj, const Array<te::Tensor>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds) {
+                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
       if (binds.get() != NULL) {
@@ -213,12 +212,13 @@ TVM_REGISTER_GLOBAL("driver.lower")
 
       if (const auto* p_mod = obj.as<IRModuleNode>()) {
         IRModule mod = GetRef<IRModule>(p_mod);
-        return lower(mod, args, name, c_binds);
+        return lower(mod, args, name, c_binds, simple_mode);
       } else if (const auto* p_sch = obj.as<te::ScheduleNode>()) {
         te::Schedule sch = GetRef<te::Schedule>(p_sch);
-        return lower(sch, args, name, c_binds);
+        return lower(sch, args, name, c_binds, simple_mode);
       } else {
         ICHECK(false) << "driver.lower expected the first argument to be a te::Schedule or IRModule";
+        throw;
       }
     });
 

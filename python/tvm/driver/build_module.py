@@ -88,7 +88,7 @@ def get_binds(args, compact=False, binds=None):
 
 
 def lower(sch, args= None, name="main", binds=None, simple_mode=False):
-    return ffi.lower(sch, args, name, binds)
+    return ffi.lower(sch, args, name, binds, simple_mode)
 
 
 def _build_for_device(input_mod, target, target_host):
