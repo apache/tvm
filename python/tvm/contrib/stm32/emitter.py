@@ -889,6 +889,7 @@ class CodeEmitter(object):
 
         out_c.write(f'#include "dlpack/dlpack.h" \n')
         out_c.write(f'#include "tvm/runtime/c_runtime_api.h" \n')
+        # out_c.write(f'#include "tvm/runtime/c_backend_api.h" \n')
         out_c.write(f'#include "{name}.h" \n')
         out_c.write(f'#include "{name}_data.h" \n')
         out_c.write(f"\n")

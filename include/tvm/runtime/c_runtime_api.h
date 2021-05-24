@@ -185,6 +185,7 @@ TVM_DLL void TVMAPISetLastError(const char* msg);
  *  \return error info
  */
 TVM_DLL const char* TVMGetLastError(void);
+
 /*!
  * \brief Load module from file.
  * \param file_name The file name to load the module from.

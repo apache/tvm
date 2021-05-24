@@ -31,11 +31,13 @@
 #include <string.h>
 #include <malloc.h>
 
+#define _USE_TVM_BACKEND_API_
+
 #ifdef _USE_TVM_BACKEND_API_
-#include "tvm/runtime/c_runtime_api.h"
-#else
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/crt/error_codes.h>
+#else
+#include "tvm/runtime/c_runtime_api.h"
 #endif
 
 static char * g_last_error = NULL;
@@ -60,6 +62,26 @@ tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void**
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   free(ptr);
   return kTvmErrorNoError;
+}
+
+// ====================================================
+//   TVMFuncRegisterGlobal
+// ====================================================
+int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
+  return 0;
+}
+
+// ====================================================
+//   TVMPlatformAbort
+// ====================================================
+void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code) {
+}
+
+// ====================================================
+//   TVMLogf
+// ====================================================
+void TVMLogf(const char* msg, ...) {
+  return;
 }
 
 #else
@@ -95,7 +117,6 @@ TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   free(ptr);
   return 0;
 }
-
 #endif  // _USE_TVM_BACKEND_API_
 
 // ====================================================
