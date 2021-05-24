@@ -2013,11 +2013,6 @@ def test_unique():
                 )  # unique, indices, inverse_indices, num_unique, counts
                 num_unique = np_res[3][0]
 
-                print("Data: ", x_data)
-                print("Numpy unique: ", np_res[0])
-                print("Unique: ", tvm_res[0].numpy())
-                print("Indices: ", tvm_res[1].numpy())
-                print("Numpy indices: ", np_res[1])
                 # num_unique
                 assert num_unique == tvm_res[3].numpy()[0]
                 # unique
