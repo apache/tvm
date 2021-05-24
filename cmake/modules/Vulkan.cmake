@@ -18,10 +18,6 @@
 # Be compatible with older version of CMake
 find_vulkan(${USE_VULKAN})
 
-# Extra Vulkan runtime options, exposed for advanced users.
-tvm_option(USE_VULKAN_VALIDATION "Enable Vulkan API validation layers" OFF
-  IF USE_VULKAN)
-
 if(USE_VULKAN)
   if(NOT Vulkan_FOUND)
     message(FATAL_ERROR "Cannot find Vulkan, USE_VULKAN=" ${USE_VULKAN})
@@ -34,9 +30,4 @@ if(USE_VULKAN)
   list(APPEND COMPILER_SRCS ${COMPILER_VULKAN_SRCS})
   list(APPEND TVM_LINKER_LIBS ${Vulkan_SPIRV_TOOLS_LIBRARY})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${Vulkan_LIBRARY})
-
-  if(USE_VULKAN_VALIDATION)
-    message(STATUS "Build with Vulkan API validation")
-    add_definitions(-DUSE_VULKAN_VALIDATION=1)
-  endif()
 endif(USE_VULKAN)

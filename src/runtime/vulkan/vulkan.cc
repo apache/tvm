@@ -730,20 +730,21 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     std::vector<VkLayerProperties> inst_layer_prop(inst_layer_prop_count);
     VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, inst_layer_prop.data()));
     std::vector<const char*> l;
-    for (const auto& lp : inst_layer_prop) {
-      // TODO(tulloch): add CMAKE options.
-      (void)lp;  // suppress unused variable warning.
-#ifdef USE_VULKAN_VALIDATION
-      if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_standard_validation") == 0) {
-        l.push_back("VK_LAYER_LUNARG_standard_validation");
+
+    const char* enable = std::getenv("TVM_VULKAN_ENABLE_VALIDATION_LAYERS");
+    bool validation_enabled = enable && *enable;
+    if (validation_enabled) {
+      for (const auto& lp : inst_layer_prop) {
+        if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_standard_validation") == 0) {
+          l.push_back("VK_LAYER_LUNARG_standard_validation");
+        }
+        if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_parameter_validation") == 0) {
+          l.push_back("VK_LAYER_LUNARG_parameter_validation");
+        }
+        if (std::strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
+          l.push_back("VK_LAYER_KHRONOS_validation");
+        }
       }
-      if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_parameter_validation") == 0) {
-        l.push_back("VK_LAYER_LUNARG_parameter_validation");
-      }
-      if (std::strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
-        l.push_back("VK_LAYER_KHRONOS_validation");
-      }
-#endif
     }
     return l;
   }();
