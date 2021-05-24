@@ -128,36 +128,15 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
-IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-  // bool simple_mode = false;  // TODO(@electriclilies): add as argument to IRModule Lower
-  Array<ObjectRef> out_arg_list;
+IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  bool simple_mode = false;  // TODO(@electriclilies): add as argument to IRModule Lower
   auto pass_ctx = transform::PassContext::Current();
 
-  sch = sch.normalize();
-
-  // Before TIR transformation.
-  auto bounds = te::InferBound(sch);
-  auto stmt = te::ScheduleOps(sch, bounds, false);
-  bool compact = te::VerifyCompactBuffer(stmt);
-
-  Map<te::Tensor, tir::Buffer> out_binds;
-  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
-
-  // build the function
-  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
-
-  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
   bool instrument_bound_checkers =
       pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
 
-  if (noalias) {
-    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
-  }
-
-  auto mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
   auto pass_list = Array<tvm::transform::Pass>();
 
   // Phase 0
@@ -192,8 +171,37 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return mod;
 }
 
+IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  // Convert te schedule to IRModule
+  Array<ObjectRef> out_arg_list;
+  auto pass_ctx = transform::PassContext::Current();
+
+  sch = sch.normalize();
+
+  // Before TIR transformation.
+  auto bounds = te::InferBound(sch);
+  auto stmt = te::ScheduleOps(sch, bounds, false);
+  bool compact = te::VerifyCompactBuffer(stmt);
+
+  Map<te::Tensor, tir::Buffer> out_binds;
+  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
+
+  // build the function
+  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
+  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+
+  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+
+  if (noalias) {
+    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+  }
+  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+  return lower(mod, args, name, binds);
+}
+
 TVM_REGISTER_GLOBAL("driver.lower")
-    .set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name,
+    .set_body_typed([](ObjectRef obj, const Array<te::Tensor>& args, const String& name,
                        const Map<te::Tensor, tir::Buffer>& binds) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
@@ -202,8 +210,18 @@ TVM_REGISTER_GLOBAL("driver.lower")
           c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
         }
       }
-      return lower(sch, args, name, c_binds);
+
+      if (const auto* p_mod = obj.as<IRModuleNode>()) {
+        IRModule mod = GetRef<IRModule>(p_mod);
+        return lower(mod, args, name, c_binds);
+      } else if (const auto* p_sch = obj.as<te::ScheduleNode>()) {
+        te::Schedule sch = GetRef<te::Schedule>(p_sch);
+        return lower(sch, args, name, c_binds);
+      } else {
+        ICHECK(false) << "driver.lower expected the first argument to be a te::Schedule or IRModule";
+      }
     });
+
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,
