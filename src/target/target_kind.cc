@@ -273,8 +273,35 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
+    // Feature support
+    .add_attr_option<Bool>("supports_float16")
+    .add_attr_option<Bool>("supports_float32", Bool(true))
+    .add_attr_option<Bool>("supports_float64")
+    .add_attr_option<Bool>("supports_int8")
+    .add_attr_option<Bool>("supports_int16")
+    .add_attr_option<Bool>("supports_int32", Bool(true))
+    .add_attr_option<Bool>("supports_int64")
+    .add_attr_option<Bool>("supports_8bit_buffer")
+    .add_attr_option<Bool>("supports_16bit_buffer")
+    .add_attr_option<Bool>("supports_storage_buffer_storage_class")
+    .add_attr_option<Integer>("supported_subgroup_operations")
+    // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
+    .add_attr_option<Integer>("max_block_size_x")
+    .add_attr_option<Integer>("max_block_size_y")
+    .add_attr_option<Integer>("max_block_size_z")
+    .add_attr_option<Integer>("max_push_constants_size")
+    .add_attr_option<Integer>("max_uniform_buffer_range")
+    .add_attr_option<Integer>("max_storage_buffer_range")
+    .add_attr_option<Integer>("max_per_stage_descriptor_storage_buffer")
+    .add_attr_option<Integer>("max_shared_memory_per_block")
+    // Other device properties
+    .add_attr_option<String>("device_name")
+    .add_attr_option<Integer>("driver_version")
+    .add_attr_option<Integer>("vulkan_api_version")
+    .add_attr_option<Integer>("max_spirv_version")
+    // Tags
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)

@@ -128,7 +128,7 @@ struct VulkanGetBufferMemoryRequirements2Functions {
 };
 
 struct VulkanContext {
-  // phyiscal device
+  // physical device
   VkPhysicalDevice phy_device{nullptr};
   // Phyiscal device property
   VkPhysicalDeviceProperties phy_device_prop;
@@ -153,7 +153,7 @@ struct VulkanContext {
   // Queue family index.
   VkQueueFamilyProperties queue_prop;
 
-  bool UseImmediate() const { return descriptor_template_khr_functions.get() != nullptr; }
+  bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
 };
 
 }  // namespace vulkan

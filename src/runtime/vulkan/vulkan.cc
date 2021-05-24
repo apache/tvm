@@ -21,6 +21,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
@@ -262,6 +263,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
     delete pbuf;
   }
 
+  Target GetDeviceDescription(VkInstance instance, VkPhysicalDevice dev,
+                              const std::vector<const char*>& instance_extensions,
+                              const std::vector<const char*>& device_extensions);
+
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       Device dev_from, Device dev_to, DLDataType type_hint,
@@ -459,6 +464,157 @@ class VulkanDeviceAPI final : public DeviceAPI {
   std::vector<VulkanContext> context_;
 };
 
+Target VulkanDeviceAPI::GetDeviceDescription(VkInstance instance, VkPhysicalDevice dev,
+                                             const std::vector<const char*>& instance_extensions,
+                                             const std::vector<const char*>& device_extensions) {
+  auto has_extension = [&](const char* query) {
+    return std::any_of(device_extensions.begin(), device_extensions.end(),
+                       [&](const char* extension) { return std::strcmp(query, extension) == 0; }) ||
+           std::any_of(instance_extensions.begin(), instance_extensions.end(),
+                       [&](const char* extension) { return std::strcmp(query, extension) == 0; });
+  };
+
+  // Declare output locations for properties
+  VkPhysicalDeviceProperties2 properties = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  VkPhysicalDeviceDriverProperties driver = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+  VkPhysicalDeviceSubgroupProperties subgroup = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES};
+
+  // Need to do initial query in order to check the apiVersion.
+  vkGetPhysicalDeviceProperties(dev, &properties.properties);
+
+  // Set up linked list for property query
+  {
+    void** pp_next = &properties.pNext;
+    if (has_extension("VK_KHR_driver_properties")) {
+      *pp_next = &driver;
+      pp_next = &driver.pNext;
+    }
+    if (properties.properties.apiVersion >= VK_API_VERSION_1_1) {
+      *pp_next = &subgroup;
+      pp_next = &subgroup.pNext;
+    }
+  }
+
+  // Declare output locations for features
+  VkPhysicalDeviceFeatures2 features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+  VkPhysicalDevice8BitStorageFeatures storage_8bit = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES};
+  VkPhysicalDevice16BitStorageFeatures storage_16bit = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES};
+  VkPhysicalDeviceShaderFloat16Int8Features float16_int8 = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES};
+
+  // Set up linked list for feature query
+  {
+    void** pp_next = &features.pNext;
+    if (has_extension("VK_KHR_8bit_storage")) {
+      *pp_next = &storage_8bit;
+      pp_next = &storage_8bit.pNext;
+    }
+    if (has_extension("VK_KHR_16bit_storage")) {
+      *pp_next = &storage_16bit;
+      pp_next = &storage_16bit.pNext;
+    }
+    if (has_extension("VK_KHR_shader_float16_int8")) {
+      *pp_next = &float16_int8;
+      pp_next = &float16_int8.pNext;
+    }
+  }
+
+  if (has_extension("VK_KHR_get_physical_device_properties2")) {
+    // Preferred method, call to get all properties that can be queried.
+    auto vkGetPhysicalDeviceProperties2KHR = (PFN_vkGetPhysicalDeviceProperties2KHR)ICHECK_NOTNULL(
+        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+    vkGetPhysicalDeviceProperties2KHR(dev, &properties);
+
+    auto vkGetPhysicalDeviceFeatures2KHR = (PFN_vkGetPhysicalDeviceFeatures2KHR)ICHECK_NOTNULL(
+        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
+    vkGetPhysicalDeviceFeatures2KHR(dev, &features);
+  } else {
+    // Fallback, get as many features as we can from the Vulkan1.0
+    // API.  Corresponding vkGetPhysicalDeviceProperties was already done earlier.
+    vkGetPhysicalDeviceFeatures(dev, &features.features);
+  }
+
+  //// Now, extracting all the information from the vulkan query.
+
+  // Not technically needed, because VK_SHADER_STAGE_COMPUTE_BIT will
+  // be set so long at least one queue has VK_QUEUE_COMPUTE_BIT, but
+  // preferring the explicit check.
+  uint32_t supported_subgroup_operations =
+      (subgroup.supportedStages & VK_SHADER_STAGE_COMPUTE_BIT) ? subgroup.supportedOperations : 0;
+
+  // Even if we can't query it, warp size must be at least 1.  Must
+  // also be defined, as `transpose` operation requires it.
+  uint32_t thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+
+  // By default, use the maximum API version that the driver allows,
+  // so that any supported features can be used by TVM shaders.
+  // However, if we can query the conformance version, then limit to
+  // only using the api version that passes the vulkan conformance
+  // tests.
+  uint32_t vulkan_api_version = properties.properties.apiVersion;
+  if (has_extension("VK_KHR_driver_properties")) {
+    auto api_major = VK_VERSION_MAJOR(vulkan_api_version);
+    auto api_minor = VK_VERSION_MINOR(vulkan_api_version);
+    if ((api_major > driver.conformanceVersion.major) ||
+        ((api_major == driver.conformanceVersion.major) &&
+         (api_minor > driver.conformanceVersion.minor))) {
+      vulkan_api_version =
+          VK_MAKE_VERSION(driver.conformanceVersion.major, driver.conformanceVersion.minor, 0);
+    }
+  }
+
+  // From "Versions and Formats" section of Vulkan spec.
+  uint32_t max_spirv_version = 0x10000;
+  if (vulkan_api_version >= VK_API_VERSION_1_2) {
+    max_spirv_version = 0x10500;
+  } else if (has_extension("VK_KHR_spirv_1_4")) {
+    max_spirv_version = 0x10400;
+  } else if (vulkan_api_version >= VK_API_VERSION_1_1) {
+    max_spirv_version = 0x10300;
+  }
+
+  Map<String, ObjectRef> config = {
+      {"kind", String("vulkan")},
+      // Feature support
+      {"supports_float16", Bool(float16_int8.shaderFloat16)},
+      {"supports_float32", Bool(true)},
+      {"supports_float64", Bool(features.features.shaderFloat64)},
+      {"supports_int8", Bool(float16_int8.shaderInt8)},
+      {"supports_int16", Bool(features.features.shaderInt16)},
+      {"supports_int32", Bool(true)},
+      {"supports_int64", Bool(features.features.shaderInt64)},
+      {"supports_8bit_buffer", Bool(storage_8bit.storageBuffer8BitAccess)},
+      {"supports_16bit_buffer", Bool(storage_16bit.storageBuffer16BitAccess)},
+      {"supports_storage_buffer_storage_class",
+       Bool(has_extension("VK_KHR_storage_buffer_storage_class"))},
+      {"supported_subgroup_operations", Integer(supported_subgroup_operations)},
+      // Physical device limits
+      {"max_num_threads", Integer(properties.properties.limits.maxComputeWorkGroupInvocations)},
+      {"thread_warp_size", Integer(thread_warp_size)},
+      {"max_block_size_x", Integer(properties.properties.limits.maxComputeWorkGroupSize[0])},
+      {"max_block_size_y", Integer(properties.properties.limits.maxComputeWorkGroupSize[1])},
+      {"max_block_size_z", Integer(properties.properties.limits.maxComputeWorkGroupSize[2])},
+      {"max_push_constants_size", Integer(properties.properties.limits.maxPushConstantsSize)},
+      {"max_uniform_buffer_range", Integer(properties.properties.limits.maxUniformBufferRange)},
+      {"max_storage_buffer_range",
+       Integer(IntImm(DataType::UInt(32), properties.properties.limits.maxStorageBufferRange))},
+      {"max_per_stage_descriptor_storage_buffer",
+       Integer(properties.properties.limits.maxPerStageDescriptorStorageBuffers)},
+      {"max_shared_memory_per_block",
+       Integer(properties.properties.limits.maxComputeSharedMemorySize)},
+      // Other device properties
+      {"device_name", String(properties.properties.deviceName)},
+      {"driver_version", Integer(properties.properties.driverVersion)},
+      {"vulkan_api_version", Integer(vulkan_api_version)},
+      {"max_spirv_version", Integer(max_spirv_version)},
+  };
+
+  return Target(config);
+}
+
 void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
@@ -469,6 +625,8 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
   const auto& vctx = context(index);
   VkPhysicalDeviceProperties phy_prop;
   vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+
+  // TODO: Replace with lookups to previously queried values.
 
   switch (kind) {
     case kMaxThreadsPerBlock: {
@@ -568,8 +726,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
   }();
 
   const auto instance_extensions = [this]() {
-    std::vector<const char*> required_extensions{"VK_KHR_get_physical_device_properties2"};
-    std::vector<const char*> optional_extensions{};
+    std::vector<const char*> required_extensions{};
+    std::vector<const char*> optional_extensions{"VK_KHR_get_physical_device_properties2"};
 
     uint32_t inst_extension_prop_count;
     VULKAN_CALL(
@@ -659,6 +817,10 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     // support, so we need to request it from the device, too.
     VkPhysicalDeviceFeatures enabled_features = {};
     enabled_features.shaderInt64 = VK_TRUE;
+
+    // TODO: Pass the VkPhysicalDeviceFeatures2 as the pNext chain if
+    // supported, otherwise pass VkPhysicalDeviceFeatures as
+    // pEnabledFeatures.
 
     VkDeviceCreateInfo device_create_info;
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
