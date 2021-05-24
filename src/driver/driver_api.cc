@@ -217,11 +217,11 @@ TVM_REGISTER_GLOBAL("driver.lower")
         te::Schedule sch = GetRef<te::Schedule>(p_sch);
         return lower(sch, args, name, c_binds, simple_mode);
       } else {
-        ICHECK(false) << "driver.lower expected the first argument to be a te::Schedule or IRModule";
+        ICHECK(false) << "driver.lower expects the first argument to be a te::Schedule or "
+                      << "IRModule";
         throw;
       }
     });
-
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,
