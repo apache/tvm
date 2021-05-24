@@ -82,8 +82,8 @@ def test_threefry_sequential_generate(target, dev):
 @tvm.testing.parametrize_targets
 def test_threefry_sequential_generate_remaining(target, dev):
     key = tvm.relay.random.threefry_key(1)
-    key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (3,)), 2)
-    _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (3,)), 2)
+    key, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (7,)), 2)
+    _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(key, (7,)), 2)
     out1, out2 = tvm.relay.create_executor(
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
@@ -92,7 +92,7 @@ def test_threefry_sequential_generate_remaining(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy() != out2.asnumpy()
+        out1.asnumpy()[-3:] != out2.asnumpy()[-3:]
     ).any(), "Sequential generates should not have the same output"
 
 

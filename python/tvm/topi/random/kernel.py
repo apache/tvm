@@ -311,7 +311,10 @@ def threefry_generate(gen, out_shape):
         out_gen[5] = tmp[5]
         out_gen[6] = tir.const(0, dtype=gen.dtype)  # unused, leave it as 0
         if out_len.value % 4 != 0:
-            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, 4)  # increment counter for the remaining
+            # increment counter for the remaining
+            # as we will generate 4 random numbers for the remaining, increase 4 here.
+            # the main increment was done before the second _threefry.
+            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, 4)
         else:
             out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
         out_gen[8] = tmp[8]  # path unchanged, so no update here
@@ -497,7 +500,7 @@ def uniform(gen, low, high, out_shape, out_dtype):
         less than high.
 
     out_shape : Sequence[int]
-        Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
+        Output shape of the random numbers.
 
     out_dtype : str
         The output dtype.
