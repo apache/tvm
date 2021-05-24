@@ -129,8 +129,8 @@ transform::Pass Filter(FCond fcond) {
 }
 
 IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  bool simple_mode = false;  // TODO(@electriclilies): add as argument to IRModule Lower
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  // bool simple_mode = false;  // TODO(@electriclilies): add as argument to IRModule Lower
   Array<ObjectRef> out_arg_list;
   auto pass_ctx = transform::PassContext::Current();
 
