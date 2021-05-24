@@ -48,6 +48,7 @@ namespace tvm {
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
+ * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
 TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
@@ -56,10 +57,11 @@ TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const st
 
 /*!
  * \brief Build an IRModule given a module, args and binds
- * \param sch The module to lower
+ * \param mod The IRmodule to lower
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
+ * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
 TVM_DLL IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
