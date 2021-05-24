@@ -763,6 +763,11 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     return find_enabled_extensions(inst_extension_prop, required_extensions, optional_extensions);
   }();
 
+  auto has_instance_extension = [&instance_extensions](const char* query) {
+    return std::any_of(instance_extensions.begin(), instance_extensions.end(),
+                       [&](const char* extension) { return std::strcmp(query, extension) == 0; });
+  };
+
   const auto instance_api_version = []() {
     uint32_t api_version = VK_MAKE_VERSION(1, 0, 0);
 
@@ -852,24 +857,76 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     }();
 
     ctx.target = GetDeviceDescription(instance_, phy_dev, instance_extensions, device_extensions);
+    std::cout << "Target: " << ctx.target << std::endl;
 
-    // All TVM-generated spirv shaders are marked as requiring int64
-    // support, so we need to request it from the device, too.
-    VkPhysicalDeviceFeatures enabled_features = {};
-    enabled_features.shaderInt64 = VK_TRUE;
+    {
+      // Enable all features we may use that a device supports.
+      VkPhysicalDeviceFeatures2 enabled_features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+      VkPhysicalDevice8BitStorageFeatures storage_8bit = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES};
+      VkPhysicalDevice16BitStorageFeatures storage_16bit = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES};
+      VkPhysicalDeviceShaderFloat16Int8Features float16_int8 = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES};
 
-    VkDeviceCreateInfo device_create_info;
-    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.pNext = nullptr;
-    device_create_info.flags = 0;
-    device_create_info.queueCreateInfoCount = 1;
-    device_create_info.pQueueCreateInfos = &queue_create_info;
-    device_create_info.enabledLayerCount = 0;
-    device_create_info.ppEnabledLayerNames = nullptr;
-    device_create_info.enabledExtensionCount = device_extensions.size();
-    device_create_info.ppEnabledExtensionNames = device_extensions.data();
-    device_create_info.pEnabledFeatures = &enabled_features;
-    VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(ctx.device)));
+      void** pp_next = &enabled_features.pNext;
+      bool needs_float16_int8 = false;
+
+      auto has_support = [&](const char* name) { return ctx.target->GetAttr<Bool>(name).value(); };
+      if (has_support("supports_float16")) {
+        float16_int8.shaderFloat16 = true;
+        needs_float16_int8 = true;
+      }
+      if (has_support("supports_float64")) {
+        enabled_features.features.shaderFloat64 = true;
+      }
+      if (has_support("supports_int8")) {
+        float16_int8.shaderInt8 = true;
+        needs_float16_int8 = true;
+      }
+      if (has_support("supports_int16")) {
+        enabled_features.features.shaderInt16 = true;
+      }
+      if (has_support("supports_int64")) {
+        enabled_features.features.shaderInt64 = true;
+      }
+      if (has_support("supports_8bit_buffer")) {
+        storage_8bit.storageBuffer8BitAccess = true;
+        *pp_next = &storage_8bit;
+        pp_next = &storage_8bit.pNext;
+      }
+      if (has_support("supports_16bit_buffer")) {
+        storage_16bit.storageBuffer16BitAccess = true;
+        *pp_next = &storage_16bit;
+        pp_next = &storage_16bit.pNext;
+      }
+
+      if (needs_float16_int8) {
+        *pp_next = &float16_int8;
+        pp_next = &float16_int8.pNext;
+      }
+
+      VkDeviceCreateInfo device_create_info;
+      device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+      device_create_info.pNext = nullptr;
+      device_create_info.flags = 0;
+      device_create_info.queueCreateInfoCount = 1;
+      device_create_info.pQueueCreateInfos = &queue_create_info;
+      device_create_info.enabledLayerCount = 0;
+      device_create_info.ppEnabledLayerNames = nullptr;
+      device_create_info.enabledExtensionCount = device_extensions.size();
+      device_create_info.ppEnabledExtensionNames = device_extensions.data();
+
+      if (has_instance_extension("VK_KHR_get_physical_device_properties2")) {
+        device_create_info.pEnabledFeatures = nullptr;
+        device_create_info.pNext = &enabled_features;
+      } else {
+        device_create_info.pNext = nullptr;
+        device_create_info.pEnabledFeatures = &enabled_features.features;
+      }
+      VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(ctx.device)));
+    }
+
     ctx.queue_mutex.reset(new std::mutex());
     vkGetDeviceQueue(ctx.device, queue_family_index, 0, &(ctx.queue));
     ctx.queue_family_index = queue_family_index;
