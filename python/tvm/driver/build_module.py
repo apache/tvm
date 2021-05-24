@@ -87,7 +87,7 @@ def get_binds(args, compact=False, binds=None):
     return binds, arg_list
 
 
-def lower(sch, args, name="main", binds=None, simple_mode=False):
+def lower(sch, args, name="main", binds=None):
     return ffi.lower(sch, args, name, binds)
 
 
