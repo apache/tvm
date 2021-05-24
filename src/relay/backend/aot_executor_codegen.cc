@@ -650,7 +650,7 @@ class AOTExecutorCodegen : public ExprVisitor {
   /*! \brief mod */
   runtime::Module* mod_;
   /*! \brief list of input expressions (i.e., variable passed by the user) */
-  std::vector<Expr> input_vars_;
+  std::vector<Var> input_vars_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
@@ -782,8 +782,9 @@ class AOTExecutorCodegen : public ExprVisitor {
       ret.lowered_funcs.Set(target_host_str, mod_run);
     }
     ret.function_metadata = std::move(function_metadata_);
-    ret.metadata = runtime::Metadata(input_vars_.size(), return_sid_.size(),
-                                     runtime::kTvmExecutorAot, mod_name);
+
+    ret.metadata =
+        runtime::Metadata(input_vars_, return_sid_.size(), runtime::kTvmExecutorAot, mod_name);
     return ret;
   }
 };

@@ -232,6 +232,8 @@ constexpr const char* tvm_param_prefix = "__tvm_param__";
 constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
 /*! \brief The main AOT executor function */
 constexpr const char* tvm_run_func_suffix = "run_model";
+/*! \brief The models entrypoint function which calls the executor */
+constexpr const char* tvm_entrypoint_suffix = "run";
 }  // namespace symbol
 
 // implementations of inline functions.
