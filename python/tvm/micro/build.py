@@ -106,16 +106,16 @@ def get_standalone_crt_lib(name: str) -> str:
     return os.path.join(get_standalone_crt_dir(), "src", "runtime", "crt", name)
 
 
-def get_runtime_libs(runtime: str) -> str:
+def get_runtime_libs(executor: str) -> str:
     """Return abspath to all CRT directories in link order which contain
     source (i.e. not header) files.
     """
-    if runtime == "host-driven":
+    if executor == "host-driven":
         crt_runtime_lib_names = ["utvm_rpc_server", "utvm_rpc_common", "common"]
-    elif runtime == "zephyr-aot":
+    elif executor == "aot":
         crt_runtime_lib_names = ["aot_executor", "common"]
     else:
-        raise ValueError(f"Incorrect runtime: {runtime}")
+        raise ValueError(f"Incorrect executor: {executor}")
     return [get_standalone_crt_lib(n) for n in crt_runtime_lib_names]
 
 
@@ -192,7 +192,7 @@ def build_static_runtime(
     compiler,
     module,
     compiler_options,
-    runtime,
+    executor=None,
     extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
@@ -211,9 +211,9 @@ def build_static_runtime(
         used. This dict contains the `options` parameter passed to Compiler.library() and
         Compiler.binary() at various stages in the compilation process.
 
-    runtime : str
-        Runtime mode which determines whether this is a standalone runtime or dependent to host.
-        Here are the options: [host-driven, zephyr-aot].
+    executor : Optional[str]
+        Executor used for runtime. Based on this we determine the libraries that need to be
+        linked with runtime.
 
     extra_libs : Optional[List[MicroLibrary|str]]
         If specified, extra libraries to be compiled into the binary. If a MicroLibrary, it is
@@ -230,8 +230,11 @@ def build_static_runtime(
     os.makedirs(mod_build_dir)
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
 
+    if not executor:
+        executor = "host-driven"
+
     libs = []
-    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs(runtime):
+    for mod_or_src_dir in (extra_libs or []) + get_runtime_libs(executor):
         if isinstance(mod_or_src_dir, MicroLibrary):
             libs.append(mod_or_src_dir)
             continue

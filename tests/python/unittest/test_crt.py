@@ -60,7 +60,6 @@ def _make_session(workspace, mod):
         compiler,
         mod,
         opts,
-        runtime="host-driven",
         extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
     )
 

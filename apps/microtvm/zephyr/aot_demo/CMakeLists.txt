@@ -11,6 +11,7 @@ project(microtvm_zephyr_runtime)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
+target_sources(app PRIVATE src/zephyr_uart.c)
 target_sources(app PRIVATE src/main.c)
 
 foreach(tvm_lib ${TVM_LIBS})

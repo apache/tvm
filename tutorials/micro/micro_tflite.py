@@ -230,7 +230,7 @@ opts = tvm.micro.default_options(
 #     from tvm.micro.contrib import zephyr
 #
 #     repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
-#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "host_driven_demo")
+#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "host_driven")
 #     compiler = zephyr.ZephyrCompiler(
 #         project_dir=project_dir,
 #         board=BOARD,
@@ -249,7 +249,6 @@ micro_binary = tvm.micro.build_static_runtime(
     compiler,
     c_mod,
     opts,
-    runtime="host-driven",
     # Use the microTVM memory manager. If, in your main.cc, you change TVMPlatformMemoryAllocate and
     # TVMPlatformMemoryFree to use e.g. malloc() and free(), you can omit this extra library.
     extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],

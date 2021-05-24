@@ -20,65 +20,31 @@
 #ifndef TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_
 #define TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_
 
-#include <drivers/uart.h>
-#include <sys/ring_buffer.h>
-
-static const struct device* g_utvm_uart;
-#define RING_BUF_SIZE_BYTES (TVM_CRT_MAX_PACKET_SIZE_BYTES + 100)
-
-// Ring buffer used to store data read from the UART on rx interrupt.
-RING_BUF_DECLARE(uart_rx_rbuf, RING_BUF_SIZE_BYTES);
-
-size_t write_serial(const char* data, size_t size) {
-  for (size_t i = 0; i < size; i++) {
-    uart_poll_out(g_utvm_uart, data[i]);
-  }
-  return size;
-}
-
-static uint8_t uart_data[8];
-// UART interrupt callback.
-void uart_irq_cb(const struct device* dev, void* user_data) {
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-    struct ring_buf* rbuf = (struct ring_buf*)user_data;
-    if (uart_irq_rx_ready(dev) != 0) {
-      for (;;) {
-        // Read a small chunk of data from the UART.
-        int bytes_read = uart_fifo_read(dev, uart_data, sizeof(uart_data));
-        if (bytes_read < 0) {
-          TVMPlatformAbort((tvm_crt_error_t)(0xbeef1));
-        } else if (bytes_read == 0) {
-          break;
-        }
-        // Write it into the ring buffer.
-        int bytes_written = ring_buf_put(rbuf, uart_data, bytes_read);
-        if (bytes_read != bytes_written) {
-          TVMPlatformAbort((tvm_crt_error_t)(0xbeef2));
-        }
-      }
-    }
-  }
-}
-
-// Used to initialize the UART receiver.
-void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
-  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
-  uart_irq_rx_enable(dev);
-}
+#include <stdint.h>
 
 // Used to read data from the UART.
-int uart_rx_buf_read(uint8_t* data, size_t data_size_bytes) {
-  unsigned int key = irq_lock();
-  int bytes_read = ring_buf_get(&uart_rx_rbuf, data, data_size_bytes);
-  irq_unlock(key);
-  return bytes_read;
-}
 
-// Initialize UART
-void TVMPlatformUARTInit() {
-  // Claim console device.
-  g_utvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
-  uart_rx_init(&uart_rx_rbuf, g_utvm_uart);
-}
+/*!
+ * \brief Read Uart Rx buffer.
+ * \param data Pointer to read data.
+ * \param data_size_bytes Read request size in bytes.
+ *
+ * \return Number of data read in bytes.
+ */
+uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes);
+
+/*!
+ * \brief Write data in serial.
+ * \param data Pointer to data to write.
+ * \param size Size of data in bytes.
+ *
+ * \return Number of write in bytes.
+ */
+uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
+
+/*!
+ * \brief Initialize Uart.
+ */
+void TVMPlatformUARTInit();
 
 #endif /* TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_ */

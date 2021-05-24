@@ -371,7 +371,6 @@ def test_crt_link_params():
                 compiler,
                 lib,
                 compiler_options=opts,
-                runtime="host-driven",
                 extra_libs=[
                     tvm.micro.get_standalone_crt_lib(m)
                     for m in ("memory", "graph_executor_module", "graph_executor")

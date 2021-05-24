@@ -15,21 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import contextlib
-import copy
 import datetime
-import glob
 from hashlib import new
 import logging
 import os
-import subprocess
 import sys
 import logging
 import pathlib
 
 import pytest
 import numpy as np
-from PIL import Image
 
 import tvm
 import tvm.rpc
@@ -38,8 +33,7 @@ import tvm.relay as relay
 
 from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
-from tvm.relay.expr_functor import ExprMutator
-from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.contrib.download import download_testdata
 
 import conftest
 
@@ -96,7 +90,7 @@ def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path):
             compiler,
             mod,
             opts,
-            runtime="zephyr-aot",
+            executor="aot",
             extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
         )
         if os.path.exists(prev_build):
@@ -147,6 +141,7 @@ def _read_line(fd):
         if new_line:
             break
         new_data = fd.read(1, timeout_sec=10)
+        logging.debug(f"read data: {new_data}")
         for item in new_data:
             new_c = chr(item)
             data = data + new_c
@@ -156,10 +151,11 @@ def _read_line(fd):
     return data
 
 
-def _get_result_line(fd):
+def _get_message(fd, expr: str):
     while True:
         data = _read_line(fd)
-        if "result" in data:
+        logging.debug(f"new line: {data}")
+        if expr in data:
             return data
 
 
@@ -172,7 +168,8 @@ def test_tflite(platform, west_cmd):
     this_dir = os.path.dirname(__file__)
     tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
     runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "aot_demo")
-    model_path = os.path.join(this_dir, "testdata", "ic_fp32.tflite")
+    model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
+    model_path = download_testdata(model_url, "ic01_fp32.tflite", module="data")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()
@@ -207,9 +204,12 @@ def test_tflite(platform, west_cmd):
     transport.open()
     transport.write(b"start\n", timeout_sec=5)
 
-    result_line = _get_result_line(transport)
-    result_line.strip("\n")
-    result = int(result_line.split(":")[1])
+    result_line = _get_message(transport, "#result")
+    result_line = result_line.strip("\n")
+    result_line = result_line.split(":")
+    result = int(result_line[1])
+    time = int(result_line[2])
+    logging.info(f"Result: {result}\ttime: {time} ms")
     assert result == 8
 
 

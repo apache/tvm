@@ -22,6 +22,7 @@
 #include <kernel.h>
 #include <power/reboot.h>
 #include <stdio.h>
+#include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/internal/aot_executor/aot_executor.h>
 #include <tvm/runtime/crt/logging.h>
@@ -43,6 +44,7 @@ static uint8_t g_aot_memory[WORKSPACE_SIZE];
 extern tvm_model_t network;
 tvm_workspace_t app_workspace;
 
+// Wakeup sequence used to wake up QEMU on the host.
 const unsigned char g_wakeup_sequence[12] = {0xfe, 0xff, 0xfd, 0x03, 0x00, 0x00,
                                              0x00, 0x00, 0x00, 0x02, 0x66, 0x77};
 const char g_start_cmd[] = "start\n";
@@ -59,7 +61,7 @@ void TVMLogf(const char* msg, ...) {
   va_start(args, msg);
   size = vsprintf(buffer, msg, args);
   va_end(args);
-  write_serial(buffer, (size_t)size);
+  TVMPlatformWriteSerial(buffer, (uint32_t)size);
 }
 
 void TVMPlatformAbort(tvm_crt_error_t error) {
@@ -124,7 +126,6 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   k_timer_stop(&g_utvm_timer);
   // check *after* stopping to prevent extra expiries on the happy path
   if (time_remaining_ms < 0) {
-    TVMLogf("negative time remaining");
     return kTvmErrorSystemErrorMask | 3;
   }
   uint32_t num_expiries = k_timer_status_get(&g_utvm_timer);
@@ -173,11 +174,11 @@ void main(void) {
   TVMPlatformUARTInit();
   k_timer_init(&g_utvm_timer, NULL, NULL);
   // Wake up host side.
-  write_serial(g_wakeup_sequence, 12);
+  TVMPlatformWriteSerial(g_wakeup_sequence, sizeof(g_wakeup_sequence));
 
   // Wait for start command
   while (true) {
-    int bytes_read = uart_rx_buf_read(main_rx_buf, sizeof(main_rx_buf));
+    int bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
       memcpy((char*)cmd_buf + g_cmd_buf_ind, main_rx_buf, bytes_read);
       g_cmd_buf_ind += bytes_read;
@@ -220,7 +221,7 @@ void main(void) {
       max_val = output_data[i];
     }
   }
-  TVMLogf("result:%d\n", max_ind);
+  TVMLogf("#result:%d:%d\n", max_ind, (uint32_t)(elapsed_time * 1000));
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);
 #endif
