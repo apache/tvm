@@ -26,7 +26,6 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/op_attr_types.h>
 
 #include <memory>
@@ -122,8 +121,6 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
           // call customized relation functions
           // *fcopy's signature: function (args: List[Type], attrs: Attrs) -> Type
           Type ret_type = (*fcopy)(input_types, attrs);
-          // handle exceptions from python side
-          tvm::runtime::EnvCheckSignals();
           // when defined ret_type, inference of output type is ok, do type assign
           // otherwise, inference failure happens
           if (ret_type.defined()) {

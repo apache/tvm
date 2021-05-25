@@ -445,7 +445,7 @@ def test_custom_op_infer():
 def test_custom_add_broadcast_op():
     """ Tests infer type for broadcast custom_op """
     op_name = "custom_broadcast_add"
-     _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
     _op.get(op_name).set_num_inputs(2)
     _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
     _op.get(op_name).add_argument("data_1", "Tensor", "The input data tensor.")
@@ -501,6 +501,40 @@ def test_custom_op_rel_infer():
     f = relay.Function([x], sb.get())
     fchecked = infer_expr(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
+
+
+def test_custom_op_rel_infer_exception():
+    """" Tests infer type for custom_op """
+
+    def custom_log1_rel(arg_types, attrs):
+        assert len(arg_types) == 2, "type relation arg number mismatch!"
+        return None
+
+    op_name = "custom_log2"
+    _op.register(op_name, r"code(cal log of a tensor.)code")
+    _op.get(op_name).set_num_inputs(1)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).set_attrs_type_key("DictAttrs")
+    # call customized relation functions
+    _op.get(op_name).add_type_rel("custom_log2", custom_log1_rel)
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
+
+    def clog(x):
+        return relay.Call(_op.get(op_name), [x])
+
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", clog(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    try:
+        fchecked = infer_expr(f)
+    except tvm.TVMError as e:
+        pass
 
 
 if __name__ == "__main__":
