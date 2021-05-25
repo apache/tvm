@@ -82,6 +82,7 @@ def test_lower_build_te_schedule():
 
 def test_lower_build_tir_func():
     # check lowering
+    print("Type of matmul: ", type(matmul))
     ir_mod = tvm.lower(matmul)
     tvm.ir.assert_structural_equal(ir_mod, LoweredModule())
     # check building

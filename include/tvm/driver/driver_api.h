@@ -34,6 +34,7 @@
 #include <tvm/support/with.h>
 #include <tvm/target/target.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -67,6 +68,19 @@ TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const st
 TVM_DLL IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        bool simple_mode = false);
+
+/*!
+ * \brief Build an IRModule given a module, args and binds
+ * \param func The PrimFunc to lower
+ * \param args The arguments to the function.
+ * \param name The name of the lowered function.
+ * \param binds Buffer assignments.
+ * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
+ * \return The result module.
+ */
+TVM_DLL IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+               bool simple_mode = false);
 
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.

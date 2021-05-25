@@ -128,6 +128,11 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
+Array<tvm::transform::Pass> LegacyTEPassList() {
+  auto pass_list = Array<tvm::transform::Pass>();
+
+}
+
 IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   auto pass_ctx = transform::PassContext::Current();
@@ -199,6 +204,21 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return lower(mod, args, name, binds, simple_mode);
 }
 
+IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  auto pass_ctx = transform::PassContext::Current();
+  auto f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
+  
+  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+
+  if (noalias) {
+    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+  }
+  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+  return lower(mod, args, name, binds, simple_mode);
+  
+}
+
 TVM_REGISTER_GLOBAL("driver.lower")
     .set_body_typed([](ObjectRef obj, const Array<te::Tensor>& args, const String& name,
                        const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
@@ -216,9 +236,12 @@ TVM_REGISTER_GLOBAL("driver.lower")
       } else if (const auto* p_sch = obj.as<te::ScheduleNode>()) {
         te::Schedule sch = GetRef<te::Schedule>(p_sch);
         return lower(sch, args, name, c_binds, simple_mode);
+      } else if (const auto* p_func = obj.as<tvm::tir::PrimFuncNode>()) {
+        tvm::tir::PrimFunc func = GetRef<tvm::tir::PrimFunc>(p_func);
+        return lower(func, args, name, c_binds, simple_mode);
       } else {
-        ICHECK(false) << "driver.lower expects the first argument to be a te::Schedule or "
-                      << "IRModule";
+        ICHECK(false) << "driver.lower expects the first argument to be a te::Schedule, "
+                      << "PrimFunc, or IRModule";
         throw;
       }
     });

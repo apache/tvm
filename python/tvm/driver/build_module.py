@@ -86,9 +86,42 @@ def get_binds(args, compact=False, binds=None):
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
 
+def lower(
+    inputs: Union[schedule.Schedule, PrimFunc, IRModule],
+    args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
+    name: str = "main",
+    binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
+    simple_mode: bool = False,
+) -> IRModule:
+    """Lowering step before build into target.
 
-def lower(sch, args=None, name="main", binds=None, simple_mode=False):
-    return ffi.lower(sch, args, name, binds, simple_mode)
+    Parameters
+    ----------
+    input : Union[schedule.Schedule, PrimFunc, IRModule]
+        The TE schedule or TensorIR PrimFunc/IRModule to be built
+
+    args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
+        The argument lists to the function for TE schedule.
+        It should be None if we want to lower TensorIR.
+
+    name : str
+        The name of result function.
+
+    binds : Optional[Mapping[tensor.Tensor, Buffer]]
+        Dictionary that maps the Tensor to Buffer which specified the data layout
+        requirement of the function. By default, a new compact buffer is created
+        for each tensor in the argument.
+
+    simple_mode : bool
+        Whether only output simple and compact statement, this will skip
+        LoopPartition, api wrapper generation and Unrolling.
+
+    Returns
+    -------
+    m : IRModule
+       The result IRModule
+    """
+    return ffi.lower(inputs, args, name, binds, simple_mode)
 
 
 def _build_for_device(input_mod, target, target_host):
