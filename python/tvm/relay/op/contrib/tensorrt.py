@@ -723,8 +723,12 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     if attrs.pad_mode != "constant":
         logger.info("nn.pad: pad mode is %s but must be constant.", attrs.pad_mode)
         return False
-    if float(attrs.pad_value) != 0.0:
-        logger.info("nn.pad: pad value is %f but must be 0.0.", float(attrs.pad_value))
+    if (
+        isinstance(args[1], relay.Constant)
+        and len(args[1].checked_type.shape) == 0
+        and args[1].data.numpy().item() != 0.0
+    ):
+        logger.info("nn.pad: pad value is %s but must be 0.0.", args[1])
         return False
     if len(attrs.pad_width) not in [4, 5]:
         logger.info("nn.pad: can only pad 4D or 5D inputs")
