@@ -200,8 +200,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     prototype_ = StorageAllocaInit(&arena_).GetInitTokenMap(func);
     this->Run(func);
 
-    // The value of smap contains two integer arrays where the first array
-    // contains the planned storage ids and the second holds the device types.
+    // The value of smap contains four integer arrays:
+    // The planned storage ids, device types, storage sizes and offsets within the storages.
     Map<Expr, Array<IntegerArray> > smap;
     int num_annotated_nodes = 0;
     int num_nodes = 0;
@@ -210,6 +210,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
       std::vector<Integer> storage_ids;
       std::vector<Integer> device_types;
       std::vector<Integer> sid_sizes_byte;
+      std::vector<Integer> offsets;
       for (StorageToken* tok : kv.second) {
         if (tok->device_type) {
           num_annotated_nodes++;
@@ -218,9 +219,10 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         storage_ids.push_back(tok->storage_id);
         device_types.push_back(tok->device_type);
         sid_sizes_byte.push_back(GetMemorySize(tok));
+        offsets.push_back(0);  // Not yet implemented.
       }
       smap.Set(GetRef<Expr>(kv.first),
-               Array<IntegerArray>({storage_ids, device_types, sid_sizes_byte}));
+               Array<IntegerArray>({storage_ids, device_types, sid_sizes_byte, offsets}));
     }
     // Either all or none of the nodes should be annotated.
     if (num_annotated_nodes != 0 && num_annotated_nodes != num_nodes) {

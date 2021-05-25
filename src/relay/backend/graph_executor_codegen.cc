@@ -333,7 +333,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     size_t count = storage_device_map_.count(expr);
     ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
     auto storage_device_info = storage_device_map_[expr];
-    ICHECK_EQ(storage_device_info.size(), 3);
+    ICHECK_EQ(storage_device_info.size(), 4);
     // storage
     std::vector<int64_t> storage_info;
     for (auto& v : storage_device_info[0]) {
@@ -353,6 +353,11 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     }
     if (num_unknown_devices == 0) {
       node->attrs_["device_index"] = device_types;
+    }
+    // offset
+    std::vector<int64_t> offset_info;
+    for (auto& v : storage_device_info[3]) {
+      offset_info.push_back(v->value);
     }
     auto node_id = nodes_.size();
     nodes_.push_back(node);
@@ -374,6 +379,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       auto op_nd = std::dynamic_pointer_cast<GraphOpNode>(node);
       op_nd->attrs_["shape"] = shape;
       op_nd->attrs_["dtype"] = dtype;
+      op_nd->attrs_["offset"] = offset_info;
       op_nd->num_outputs_ = tuple_type->fields.size();
       return ret;
     }
@@ -385,6 +391,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       dtype.emplace_back(DType2String(tensor_type->dtype));
       node->attrs_["shape"] = shape;
       node->attrs_["dtype"] = dtype;
+      node->attrs_["offset"] = offset_info;
     } else {
       LOG(FATAL) << "type " << checked_type->GetTypeKey() << " not supported";
     }
@@ -649,11 +656,13 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     std::vector<size_t> storage_ids;
     std::vector<size_t> device_types;
     std::vector<std::string> dltypes;
+    std::vector<size_t> offsets;
     std::vector<size_t> node_row_ptr{0};
     for (auto node : nodes_) {
       const auto& shape_vec = dmlc::get<ShapeVector>(node->attrs_["shape"]);
       const auto& storage_id = dmlc::get<std::vector<int64_t>>(node->attrs_["storage_id"]);
       const auto& dtype_vec = dmlc::get<std::vector<std::string>>(node->attrs_["dtype"]);
+      const auto& offset_vec = dmlc::get<std::vector<int64_t>>(node->attrs_["offset"]);
 
       ICHECK_EQ(node->num_outputs_, shape_vec.size());
       num_entry += node->num_outputs_;
@@ -661,6 +670,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       shapes.insert(shapes.end(), shape_vec.begin(), shape_vec.end());
       dltypes.insert(dltypes.end(), dtype_vec.begin(), dtype_vec.end());
       storage_ids.insert(storage_ids.end(), storage_id.begin(), storage_id.end());
+      offsets.insert(offsets.end(), offset_vec.begin(), offset_vec.end());
       if (node->attrs_.count("device_index")) {
         const auto& dev_types = dmlc::get<std::vector<int64_t>>(node->attrs_["device_index"]);
         device_types.insert(device_types.end(), dev_types.begin(), dev_types.end());
@@ -682,6 +692,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     }
     attrs["dltype"].emplace_back(std::string("list_str"));
     attrs["dltype"].emplace_back(dltypes);
+    attrs["offset"].emplace_back(std::string("list_int"));
+    attrs["offset"].emplace_back(offsets);
     writer->WriteObjectKeyValue("attrs", attrs);
     writer->WriteObjectKeyValue("node_row_ptr", node_row_ptr);
     writer->EndObject();

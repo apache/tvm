@@ -47,6 +47,7 @@ typedef struct TVMGraphExecutorGraphAttr {
   uint32_t storage_num_not_alloctaed;
   uint32_t* storage_id;
   uint32_t* device_index;
+  uint32_t* offset;
   char* dltype;  // "int8", "int16", "float32"
   uint32_t dltype_count;
   int64_t* shape;

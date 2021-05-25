@@ -233,6 +233,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
   uint32_t dltype_count = 0;
   uint32_t shape_count = 0;
   uint32_t device_index_count = 0;
+  uint32_t offset_count = 0;
   reader->BeginObject(reader);
   while (reader->NextObjectItem(reader, key, sizeof(key))) {
     if (!strcmp(key, "dltype")) {
@@ -345,6 +346,57 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         break;
       }
       bitmask |= 2;
+    } else if (!strcmp(key, "offset")) {
+      reader->BeginArray(reader);
+      if (!(reader->NextArrayItem(reader))) {
+        fprintf(stderr, "Invalid json format\n");
+        status = -1;
+        break;
+      }
+      status = reader->ReadString(reader, type, sizeof(type));
+      if (status != 0) {
+        fprintf(stderr, "error reading offset array item");
+      }
+      if (strcmp(type, "list_int")) {
+        fprintf(stderr, "Invalid json format ~~~TYPE~~\n");
+        status = -1;
+        break;
+      }
+      if (!(reader->NextArrayItem(reader))) {
+        fprintf(stderr, "Invalid json format\n");
+        status = -1;
+        break;
+      }
+      reader->BeginArray(reader);
+      size_t num_items = 0;
+      if (reader->ArrayLength(reader, &num_items) != 0) {
+        fprintf(stderr, "error determining list_int length\n");
+        status = -1;
+        break;
+      }
+      DLDevice dev = {kDLCPU, 0};
+      tvm_crt_error_t err =
+          TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, dev, (void**)&attr->offset);
+      if (err != kTvmErrorNoError) {
+        fprintf(stderr, "memory allocate error: %08x", err);
+        return -1;
+      }
+      offset_count = 0;
+      while (reader->NextArrayItem(reader)) {
+        if (offset_count == num_items) {
+          fprintf(stderr, "array too big\n");
+          status = -1;
+          return status;
+        }
+        reader->ReadUnsignedInteger(reader, &(attr->offset[offset_count]));
+        offset_count++;
+      }
+      if (reader->NextArrayItem(reader)) {
+        fprintf(stderr, "Invalid json format\n");
+        status = -1;
+        break;
+      }
+      bitmask |= 8;
     } else if (!strcmp(key, "shape")) {
       reader->BeginArray(reader);
       if (!(reader->NextArrayItem(reader))) {
@@ -513,7 +565,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
       }
     }
   }
-  if (bitmask != (1 | 2 | 4)) {
+  if (bitmask != (1 | 2 | 4 | 8)) {
     fprintf(stderr, "invalid format\n");
     status = -1;
   }
@@ -959,13 +1011,14 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
     DLDataType t = vtype[idx];
     uint32_t bits = t.bits * t.lanes;
     size_t bytes = ((bits + 7U) / 8U) * size;
+    size_t bytesInStorage = bytes + attrs->offset[idx];
 
     uint32_t sid = storage_id;
     if (sid >= pool_entry_count) {
       pool_entry_count = sid + 1;
     }
     pool_entry[sid].entry_id = idx;
-    pool_entry[sid].size = MAX(pool_entry[sid].size, bytes);
+    pool_entry[sid].size = MAX(pool_entry[sid].size, bytesInStorage);
     pool_entry[sid].device_type = device_type;
   }
 
@@ -1023,9 +1076,12 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
   for (idx = 0; idx < executor->data_entry_count; ++idx) {
     uint32_t storage_id = attrs->storage_id[idx];
     CHECK(storage_id < executor->storage_pool_count);
+    TVMNDArray* data_entry = &executor->data_entry[idx];
     int status = TVMNDArray_CreateView(&(executor->storage_pool[storage_id].array),
                                        attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx],
-                                       vtype[idx], &executor->data_entry[idx]);
+                                       vtype[idx], data_entry);
+    uint32_t offset = attrs->offset[idx];
+    data_entry->dl_tensor.data = (void*)((uintptr_t)data_entry->dl_tensor.data + offset);
     CHECK_EQ(status, 0, "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
   }
 

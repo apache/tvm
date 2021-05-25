@@ -276,6 +276,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
     size_t storage_num_not_alloctaed{0};
     std::vector<int> storage_id;
     std::vector<int> device_index;
+    std::vector<int> offset;
     std::vector<std::string> dltype;
     std::vector<std::vector<int64_t>> shape;
     // The graph attribute fields.
@@ -318,6 +319,14 @@ class TVM_DLL GraphExecutor : public ModuleNode {
           ICHECK_EQ(type, "list_int");
           ICHECK(reader->NextArrayItem());
           reader->Read(&device_index);
+          ICHECK(!reader->NextArrayItem());
+        } else if (key == "offset") {
+          reader->BeginArray();
+          ICHECK(reader->NextArrayItem());
+          reader->Read(&type);
+          ICHECK_EQ(type, "list_int");
+          ICHECK(reader->NextArrayItem());
+          reader->Read(&offset);
           ICHECK(!reader->NextArrayItem());
         } else {
           reader->BeginArray();
