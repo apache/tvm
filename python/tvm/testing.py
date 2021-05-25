@@ -763,8 +763,13 @@ def _auto_parametrize_target(metafunc):
 
     """
     if "target" in metafunc.fixturenames:
-        mark = metafunc.definition.get_closest_marker("parametrize")
-        if not mark or "target" not in mark.args[0]:
+        parametrized_args = [
+            arg.strip()
+            for mark in metafunc.definition.iter_markers("parametrize")
+            for arg in mark.args[0].split(",")
+        ]
+
+        if "target" not in parametrized_args:
             # Check if the function is marked with either excluded or
             # known failing targets.
             excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
