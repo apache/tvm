@@ -24,6 +24,16 @@
 namespace tvm {
 namespace tir {
 
+/*! \brief The level of detailed error message rendering */
+enum class ScheduleErrorRenderLevel : int32_t {
+  /*! \brief Render a detailed error message */
+  kDetail = 0,
+  /*! \brief Render the error in fast mode */
+  kFast = 1,
+  /*! \brief No error message at all */
+  kNone = 2,
+};
+
 /**************** Random variable: BlockRV ****************/
 
 /*! \brief A random variable that evaluates to a TensorIR block */
@@ -209,13 +219,15 @@ class Schedule : public runtime::ObjectRef {
    * \param mod The IRModule to be scheduled
    * \param debug_mode Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
+   * \param error_render_level The level of error rendering
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
    * \note The checks performed includes:
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode);
+  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode,
+                                   ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

@@ -37,6 +37,8 @@ class ConcreteScheduleNode : public ScheduleNode {
  protected:
   /*! \brief The internal state of scheduling */
   ScheduleState state_;
+  /*! \brief The level of error rendering */
+  ScheduleErrorRenderLevel error_render_level_;
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
@@ -44,6 +46,7 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
+    // `error_render_level_` is not visited
     // `state_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visitied
