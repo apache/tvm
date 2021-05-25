@@ -30,6 +30,8 @@
 #include <memory>
 #include <string>
 
+#include "edgetpu.h"
+
 #include "../tflite/tflite_runtime.h"
 
 namespace tvm {
