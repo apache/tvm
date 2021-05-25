@@ -793,17 +793,19 @@ def test_float_const():
 
 
 def test_pad():
-    def get_graph(x_shape, pad_width):
+    def get_graph(x_shape, pad_width, pad_value=0.0):
         x = relay.var("x", shape=(x_shape), dtype="float32")
-        out = relay.nn.pad(x, pad_width=pad_width)
+        out = relay.nn.pad(x, pad_width=pad_width, pad_value=pad_value)
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
     run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0]]))
     run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [1, 1], [1, 1]]))
+    run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [1, 1], [1, 1]], pad_value=-1.0e30))
     run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 1], [2, 0]]))
+    run_and_verify_func(get_graph((1, 8, 16, 16), [[0, 0], [0, 0], [0, 1], [2, 0]], pad_value=-1.0e30))
     run_and_verify_func(get_graph((1, 8, 3, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]))
-
+    run_and_verify_func(get_graph((1, 8, 3, 16, 16), [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]], pad_value=-1.0e30))
 
 def test_softmax():
     def get_graph(x_shape, axis):
