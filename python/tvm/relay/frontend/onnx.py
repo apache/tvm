@@ -3376,11 +3376,11 @@ class GraphProto:
                 len(node_output), outputs_num, op_name
             )
 
-        if outputs_num == 1:
-            self._nodes[node_output[0]] = op
-        else:
-            for k, i in zip(list(node_output), range(len(node_output))):
-                self._nodes[k] = op[i]
+            if outputs_num == 1:
+                self._nodes[node_output[0]] = op
+            else:
+                for k, i in zip(list(node_output), range(len(node_output))):
+                    self._nodes[k] = op[i]
 
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
