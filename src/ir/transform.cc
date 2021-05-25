@@ -207,7 +207,7 @@ bool PassContext::InstrumentBeforePass(const IRModule& ir_module, const PassInfo
   bool should_run = true;
   if (!pass_required) {
     for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-        should_run &= pi->ShouldRun(ir_module, pass_info);
+      should_run &= pi->ShouldRun(ir_module, pass_info);
     }
   }
 
