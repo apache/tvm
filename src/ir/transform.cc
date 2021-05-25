@@ -28,7 +28,6 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
-#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <stack>
@@ -207,9 +206,9 @@ bool PassContext::InstrumentBeforePass(const IRModule& ir_module, const PassInfo
   const bool pass_required = PassArrayContains(pass_ctx_node->required_pass, pass_info->name);
   bool should_run = true;
   if (!pass_required) {
-    const Array<instrument::PassInstrument>& instruments = pass_ctx_node->instruments;
-    should_run &= std::all_of(instruments.begin(), instruments.end(),
-                              [&](auto pi) { return pi->ShouldRun(ir_module, pass_info); });
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+        should_run &= pi->ShouldRun(ir_module, pass_info);
+    }
   }
 
   if (should_run) {

@@ -59,36 +59,43 @@ def test_pass_timing_instrument():
     assert profiles == ""
 
 
-def test_custom_instrument(capsys):
+def test_custom_instrument():
     @pass_instrument
     class MyTest:
+        def __init__(self):
+            self.events = []
+
         def enter_pass_ctx(self):
-            print("enter ctx")
+            self.events.append("enter ctx")
 
         def exit_pass_ctx(self):
-            print("exit ctx")
+            self.events.append("exit ctx")
 
         def run_before_pass(self, mod, info):
-            print("run before " + info.name)
+            self.events.append("run before " + info.name)
 
         def run_after_pass(self, mod, info):
-            print("run after " + info.name)
+            self.events.append("run after " + info.name)
 
     mod = get_test_model()
-    with tvm.transform.PassContext(instruments=[MyTest()]):
+    my_test = MyTest()
+    with tvm.transform.PassContext(instruments=[my_test]):
         mod = tvm.relay.transform.InferType()(mod)
 
     assert (
-        "enter ctx\n"
-        "run before InferType\n"
-        "run after InferType\n"
-        "exit ctx\n" == capsys.readouterr().out
+        "enter ctx"
+        "run before InferType"
+        "run after InferType"
+        "exit ctx" == "".join(my_test.events)
     )
 
 
-def test_disable_pass(capsys):
+def test_disable_pass():
     @pass_instrument
     class CustomPI:
+        def __init__(self):
+            self.events = []
+
         def should_run(self, mod, info):
             # Only run pass name contains "InferType"
             if "InferType" not in info.name:
@@ -96,18 +103,19 @@ def test_disable_pass(capsys):
             return True
 
         def run_before_pass(self, mod, info):
-            print(info.name)
+            self.events.append(info.name)
 
     mod = get_test_model()
-    with tvm.transform.PassContext(instruments=[CustomPI()]):
+    custom_pi = CustomPI()
+    with tvm.transform.PassContext(instruments=[custom_pi]):
         mod = tvm.relay.transform.AnnotateSpans()(mod)
         mod = tvm.relay.transform.ToANormalForm()(mod)
         mod = tvm.relay.transform.InferType()(mod)
 
-    assert capsys.readouterr().out == "InferType\n"
+    assert "InferType" == "".join(custom_pi.events)
 
 
-def test_multiple_instrument(capsys):
+def test_multiple_instrument():
     @pass_instrument
     class SkipPass:
         def __init__(self, skip_pass_name):
@@ -123,8 +131,11 @@ def test_multiple_instrument(capsys):
 
     @pass_instrument
     class PrintPassName:
+        def __init__(self):
+            self.events = []
+
         def run_before_pass(self, mod, info):
-            print(info.name)
+            self.events.append(info.name)
 
     mod = get_test_model()
     print_pass_name = PrintPassName()
@@ -133,10 +144,10 @@ def test_multiple_instrument(capsys):
         mod = tvm.relay.transform.ToANormalForm()(mod)
         mod = tvm.relay.transform.InferType()(mod)
 
-    assert capsys.readouterr().out == "InferType\n"
+    assert "InferType" == "".join(print_pass_name.events)
 
 
-def test_instrument_pass_counts(capsys):
+def test_instrument_pass_counts():
     @pass_instrument
     class PassesCounter:
         def __init__(self):
@@ -171,17 +182,19 @@ def test_instrument_pass_counts(capsys):
     assert passes_counter.run_after_count == 0
 
 
-def test_enter_pass_ctx_exception(capsys):
+def test_enter_pass_ctx_exception():
+    events = []
+
     @pass_instrument
     class PI:
         def __init__(self, id):
             self.id = id
 
         def enter_pass_ctx(self):
-            print(self.id + " enter ctx")
+            events.append(self.id + " enter ctx")
 
         def exit_pass_ctx(self):
-            print(self.id + " exit ctx")
+            events.append(self.id + " exit ctx")
 
     @pass_instrument
     class PIBroken(PI):
@@ -189,15 +202,16 @@ def test_enter_pass_ctx_exception(capsys):
             super().__init__(id)
 
         def enter_pass_ctx(self):
-            print(self.id + " enter ctx")
+            events.append(self.id + " enter ctx")
             raise RuntimeError("Just a dummy error")
 
     pass_ctx = tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")])
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         with pass_ctx:
             pass
+        assert "Just a dummy error" in str(cm.execption)
 
-    assert "%1 enter ctx\n" "%2 enter ctx\n" == capsys.readouterr().out
+    assert "%1 enter ctx" "%2 enter ctx" == "".join(events)
 
     # Make sure we get correct PassContext
     cur_pass_ctx = tvm.transform.PassContext.current()
@@ -205,29 +219,32 @@ def test_enter_pass_ctx_exception(capsys):
     assert cur_pass_ctx.instruments == None
 
 
-def test_enter_pass_ctx_exception_global(capsys):
+def test_enter_pass_ctx_exception_global():
     @pass_instrument
     class PIBroken:
         def enter_pass_ctx(self):
             raise RuntimeError("Just a dummy error")
 
     cur_pass_ctx = tvm.transform.PassContext.current()
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         cur_pass_ctx.override_instruments([PIBroken()])
+        assert "Just a dummy error" in str(cm.exception)
     assert not cur_pass_ctx.instruments
 
 
-def test_exit_pass_ctx_exception(capsys):
+def test_exit_pass_ctx_exception():
+    events = []
+
     @pass_instrument
     class PI:
         def __init__(self, id):
             self.id = id
 
         def exit_pass_ctx(self):
-            print(self.id + " exit ctx")
+            events.append(self.id + " exit ctx")
 
         def exit_pass_ctx(self):
-            print(self.id + " exit ctx")
+            events.append(self.id + " exit ctx")
 
     @pass_instrument
     class PIBroken(PI):
@@ -235,15 +252,16 @@ def test_exit_pass_ctx_exception(capsys):
             super().__init__(id)
 
         def exit_pass_ctx(self):
-            print(self.id + " exit ctx")
+            events.append(self.id + " exit ctx")
             raise RuntimeError("Just a dummy error")
 
     pass_ctx = tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")])
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         with pass_ctx:
             pass
+        assert "Just a dummy error" in str(cm.exception)
 
-    assert "%1 exit ctx\n" "%2 exit ctx\n" == capsys.readouterr().out
+    assert "%1 exit ctx" "%2 exit ctx" == "".join(events)
 
     # Make sure we get correct PassContext
     cur_pass_ctx = tvm.transform.PassContext.current()
@@ -251,223 +269,238 @@ def test_exit_pass_ctx_exception(capsys):
     assert not cur_pass_ctx.instruments
 
 
-def test_exit_pass_ctx_exception_global(capsys):
+def test_exit_pass_ctx_exception_global():
     @pass_instrument
     class PIBroken:
         def exit_pass_ctx(self):
             raise RuntimeError("Just a dummy error")
 
     cur_pass_ctx = tvm.transform.PassContext.current()
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         cur_pass_ctx.override_instruments([PIBroken()])
         cur_pass_ctx.override_instruments([PIBroken()])
+        assert "Just a dummy error" in str(cm.exception)
     assert not cur_pass_ctx.instruments
 
 
-def test_pass_exception(capsys):
+def test_pass_exception():
+    events = []
+
     @pass_instrument
     class PI:
         def enter_pass_ctx(self):
-            print("enter_pass_ctx")
+            events.append("enter_pass_ctx")
 
         def exit_pass_ctx(self):
-            print("exit_pass_ctx")
+            events.append("exit_pass_ctx")
 
         def should_run(self, mod, info):
-            print("should_run")
+            events.append("should_run")
             return True
 
         def run_before_pass(self, mod, info):
-            print("run_before_pass")
+            events.append("run_before_pass")
 
         def run_after_pass(self, mod, info):
-            print("run_after_pass")
+            events.append("run_after_pass")
 
     @tvm.transform.module_pass(opt_level=2)
     def transform(mod, ctx):
-        print("transform pass")
+        events.append("transform pass")
         raise RuntimeError("Just a dummy error")
         return mod
 
     mod = get_test_model()
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         with tvm.transform.PassContext(instruments=[PI()]):
             mod = transform(mod)
+        assert "Just a dummy error" in str(cm.exception)
 
     assert (
-        "enter_pass_ctx\n"
-        "should_run\n"
-        "run_before_pass\n"
-        "transform pass\n"
-        "exit_pass_ctx\n" == capsys.readouterr().out
+        "enter_pass_ctx"
+        "should_run"
+        "run_before_pass"
+        "transform pass"
+        "exit_pass_ctx" == "".join(events)
     )
 
 
-def test_should_run_exception(capsys):
+def test_should_run_exception():
+    events = []
+
     @pass_instrument
     class PI:
         def __init__(self, id):
             self.id = id
 
         def enter_pass_ctx(self):
-            print(self.id + " enter_pass_ctx")
+            events.append(self.id + " enter_pass_ctx")
 
         def exit_pass_ctx(self):
-            print(self.id + " exit_pass_ctx")
+            events.append(self.id + " exit_pass_ctx")
 
         def should_run(self, mod, info):
-            print(self.id + " should_run")
+            events.append(self.id + " should_run")
             raise RuntimeError("Just a dummy error")
             return True
 
         def run_before_pass(self, mod, info):
-            print(self.id + " run_before_pass")
+            events.append(self.id + " run_before_pass")
 
         def run_after_pass(self, mod, info):
-            print(self.id + " run_after_pass")
+            events.append(self.id + " run_after_pass")
 
     @tvm.transform.module_pass(opt_level=2)
     def transform(mod, ctx):
-        print("transform pass")
+        events.append("transform pass")
         return mod
 
     mod = get_test_model()
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         with tvm.transform.PassContext(instruments=[PI("%1"), PI("%2")]):
             mod = transform(mod)
+        assert "Just a dummy error" in str(cm.exception)
 
     assert (
-        "%1 enter_pass_ctx\n"
-        "%2 enter_pass_ctx\n"
-        "%1 should_run\n"
-        "%1 exit_pass_ctx\n"
-        "%2 exit_pass_ctx\n" == capsys.readouterr().out
+        "%1 enter_pass_ctx"
+        "%2 enter_pass_ctx"
+        "%1 should_run"
+        "%1 exit_pass_ctx"
+        "%2 exit_pass_ctx" == "".join(events)
     )
 
 
-def test_run_before_exception(capsys):
+def test_run_before_exception():
+    events = []
+
     @pass_instrument
     class PI:
         def __init__(self, id):
             self.id = id
 
         def enter_pass_ctx(self):
-            print(self.id + " enter_pass_ctx")
+            events.append(self.id + " enter_pass_ctx")
 
         def exit_pass_ctx(self):
-            print(self.id + " exit_pass_ctx")
+            events.append(self.id + " exit_pass_ctx")
 
         def should_run(self, mod, info):
-            print(self.id + " should_run")
+            events.append(self.id + " should_run")
             return True
 
         def run_before_pass(self, mod, info):
-            print(self.id + " run_before_pass")
+            events.append(self.id + " run_before_pass")
             raise RuntimeError("Just a dummy error")
 
         def run_after_pass(self, mod, info):
-            print(self.id + " run_after_pass")
+            events.append(self.id + " run_after_pass")
 
     @tvm.transform.module_pass(opt_level=2)
     def transform(mod, ctx):
-        print("transform pass")
+        events.append("transform pass")
         return mod
 
     mod = get_test_model()
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         with tvm.transform.PassContext(instruments=[PI("%1"), PI("%2")]):
             mod = transform(mod)
+        assert "Just a dummy error" in str(cm.exception)
 
     assert (
-        "%1 enter_pass_ctx\n"
-        "%2 enter_pass_ctx\n"
-        "%1 should_run\n"
-        "%2 should_run\n"
-        "%1 run_before_pass\n"
-        "%1 exit_pass_ctx\n"
-        "%2 exit_pass_ctx\n" == capsys.readouterr().out
+        "%1 enter_pass_ctx"
+        "%2 enter_pass_ctx"
+        "%1 should_run"
+        "%2 should_run"
+        "%1 run_before_pass"
+        "%1 exit_pass_ctx"
+        "%2 exit_pass_ctx" == "".join(events)
     )
 
 
-def test_run_after_exception(capsys):
+def test_run_after_exception():
+    events = []
+
     @pass_instrument
     class PI:
         def __init__(self, id):
             self.id = id
 
         def enter_pass_ctx(self):
-            print(self.id + " enter_pass_ctx")
+            events.append(self.id + " enter_pass_ctx")
 
         def exit_pass_ctx(self):
-            print(self.id + " exit_pass_ctx")
+            events.append(self.id + " exit_pass_ctx")
 
         def should_run(self, mod, info):
-            print(self.id + " should_run")
+            events.append(self.id + " should_run")
             return True
 
         def run_before_pass(self, mod, info):
-            print(self.id + " run_before_pass")
+            events.append(self.id + " run_before_pass")
 
         def run_after_pass(self, mod, info):
-            print(self.id + " run_after_pass")
+            events.append(self.id + " run_after_pass")
             raise RuntimeError("Just a dummy error")
 
     @tvm.transform.module_pass(opt_level=2)
     def transform(mod, ctx):
-        print("transform pass")
+        events.append("transform pass")
         return mod
 
     x, y = [tvm.relay.var(c, shape=(3, 4), dtype="float32") for c in "xy"]
     mod = tvm.IRModule.from_expr(tvm.relay.add(x, y))
 
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(tvm.error.TVMError) as cm:
         with tvm.transform.PassContext(instruments=[PI("%1"), PI("%2")]):
             mod = transform(mod)
+        assert "Just a dummy error" in str(cm.exception)
 
     assert (
-        "%1 enter_pass_ctx\n"
-        "%2 enter_pass_ctx\n"
-        "%1 should_run\n"
-        "%2 should_run\n"
-        "%1 run_before_pass\n"
-        "%2 run_before_pass\n"
-        "transform pass\n"
-        "%1 run_after_pass\n"
-        "%1 exit_pass_ctx\n"
-        "%2 exit_pass_ctx\n" == capsys.readouterr().out
+        "%1 enter_pass_ctx"
+        "%2 enter_pass_ctx"
+        "%1 should_run"
+        "%2 should_run"
+        "%1 run_before_pass"
+        "%2 run_before_pass"
+        "transform pass"
+        "%1 run_after_pass"
+        "%1 exit_pass_ctx"
+        "%2 exit_pass_ctx" == "".join(events)
     )
 
 
-def test_instrument_call_sequence(capsys):
+def test_instrument_call_sequence():
+    events = []
+
     @pass_instrument
     class PI:
         def __init__(self, id):
             self.id = id
 
         def enter_pass_ctx(self):
-            print(self.id + " enter_pass_ctx")
+            events.append(self.id + " enter_pass_ctx")
 
         def exit_pass_ctx(self):
-            print(self.id + " exit_pass_ctx")
+            events.append(self.id + " exit_pass_ctx")
 
         def should_run(self, mod, info):
-            print("  " + self.id + " should_run")
+            events.append("  " + self.id + " should_run")
             return True
 
         def run_before_pass(self, mod, info):
-            print("  " + self.id + " run_before_pass")
+            events.append("  " + self.id + " run_before_pass")
 
         def run_after_pass(self, mod, info):
-            print("  " + self.id + " run_after_pass")
+            events.append("  " + self.id + " run_after_pass")
 
     @tvm.transform.module_pass(opt_level=2)
     def transform1(mod, ctx):
-        print("    transform1 pass")
+        events.append("    transform1 pass")
         return mod
 
     @tvm.transform.module_pass(opt_level=2)
     def transform2(mod, ctx):
-        print("    transform2 pass")
+        events.append("    transform2 pass")
         return mod
 
     mod = get_test_model()
@@ -476,22 +509,22 @@ def test_instrument_call_sequence(capsys):
         mod = transform2(mod)
 
     assert (
-        "%1 enter_pass_ctx\n"
-        "%2 enter_pass_ctx\n"
-        "  %1 should_run\n"
-        "  %2 should_run\n"
-        "  %1 run_before_pass\n"
-        "  %2 run_before_pass\n"
-        "    transform1 pass\n"
-        "  %1 run_after_pass\n"
-        "  %2 run_after_pass\n"
-        "  %1 should_run\n"
-        "  %2 should_run\n"
-        "  %1 run_before_pass\n"
-        "  %2 run_before_pass\n"
-        "    transform2 pass\n"
-        "  %1 run_after_pass\n"
-        "  %2 run_after_pass\n"
-        "%1 exit_pass_ctx\n"
-        "%2 exit_pass_ctx\n" == capsys.readouterr().out
+        "%1 enter_pass_ctx"
+        "%2 enter_pass_ctx"
+        "  %1 should_run"
+        "  %2 should_run"
+        "  %1 run_before_pass"
+        "  %2 run_before_pass"
+        "    transform1 pass"
+        "  %1 run_after_pass"
+        "  %2 run_after_pass"
+        "  %1 should_run"
+        "  %2 should_run"
+        "  %1 run_before_pass"
+        "  %2 run_before_pass"
+        "    transform2 pass"
+        "  %1 run_after_pass"
+        "  %2 run_after_pass"
+        "%1 exit_pass_ctx"
+        "%2 exit_pass_ctx" == "".join(events)
     )
