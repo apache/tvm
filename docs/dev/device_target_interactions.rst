@@ -200,11 +200,11 @@ queried from device properties.
 
 This argument definition defines a parser that can unpack a string
 description of a target.  This is done in the ``Target::Target(const
-String&)`` constructor in C++, and is typically called using the
-:py:class:`tvm.target.Target` python object.  For example,
-``tvm.target.Target('cuda -max_num_threads=2048')`` will create a
-``cuda`` target, while overriding the default maximum number of
-threads.
+String&)`` constructor in C++, which accepts a JSON-formatted string
+and is typically called using the :py:class:`tvm.target.Target` python
+object.  For example, ``tvm.target.Target('{"kind": "cuda",
+"max_num_threads": 1024}')`` will create a ``cuda`` target, while
+overriding the default maximum number of threads.
 
 In a code generator, the target properties can be accessed using
 ``target->GetAttr<T>(param_name)`` in C++, or with the
