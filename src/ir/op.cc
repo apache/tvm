@@ -119,7 +119,10 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
                      const TypeReporter& reporter) -> bool {
           Array<Type> input_types(args.begin(), args.end() - 1);
           // call customized relation functions
+          // *fcopy's signature: function (args: List[Type], attrs: Attrs) -> Type
           Type ret_type = (*fcopy)(input_types, attrs);
+          // when defined ret_type, inference of output type is ok, do type assign
+          // otherwise, inference failure happens
           if (ret_type.defined()) {
             // the last argument is output
             reporter->Assign(args[args.size() - 1], ret_type);
@@ -127,7 +130,7 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
           }
           return false;
         };
-        // adjust function call to relay type system with TypeReporter
+        // adjust function call to call conventions of relay type system with TypeReporter
         auto type_rel = runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&,
                                                       const TypeReporter&)>(f);
         reg.add_type_rel(rel_name, type_rel);
