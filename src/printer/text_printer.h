@@ -359,6 +359,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBody(const Stmt& body, bool indent = true);
 };
 
+String AsTVMScript(const ObjectRef& mod, bool show_meta = false);
+
 }  // namespace tir
 }  // namespace tvm
 

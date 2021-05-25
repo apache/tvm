@@ -55,7 +55,7 @@ def run_relay(func, data_tuple):
     result = []
     relay_res = relay_res if isinstance(relay_res, list) else [relay_res]
     for res in relay_res:
-        result.append(res.asnumpy())
+        result.append(res.numpy())
 
     return result
 

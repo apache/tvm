@@ -37,9 +37,9 @@ class BlockRV(Object):
     """A random variable that refers to a block"""
 
 
-IntRV = PrimExpr  #  A random variable that evaluates to an integer
+ExprRV = PrimExpr  #  A random variable that evaluates to an integer
 
-RAND_VAR_TYPE = Union[IntRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 
 
 @_register_object("tir.Schedule")
@@ -76,9 +76,7 @@ class Schedule(Object):
         ----------
         The checks performed includes:
         1) VerifySRefTree
-        2) VerifyAffineBinding
-        3) VerifyRegionCover
-        4) VerifyStagePipeline
+        2) VerifyCachedFlags
         """
         if isinstance(debug_mode, bool):
             if debug_mode:
@@ -132,7 +130,7 @@ class Schedule(Object):
         """Returns a string representation of the value that the random variable evaluates to
         Parameters
         ----------
-        rand_var : Union[IntRV, BlockRV, LoopRV]
+        rand_var : Union[ExprRV, BlockRV, LoopRV]
             The random variable to be evaluated
         Returns
         ----------
@@ -150,12 +148,12 @@ class Schedule(Object):
         """Returns:
         - the corresponding Block that a BlockRV evaluates to;
         - the corresponding For that a LoopRV evaluates to;
-        - the corresponding integer that a IntRV evaluates to;
+        - the corresponding integer that a ExprRV evaluates to;
         - the corresponding Block that a block sref points to;
         - the corresponding For that a loop sref points to;
         Parameters
         ----------
-        rand_var_or_sref : Union[IntRV, BlockRV, LoopRV, StmtSRef]
+        rand_var_or_sref : Union[ExprRV, BlockRV, LoopRV, StmtSRef]
             The random variable / sref to be evaluated
         Returns
         ----------
@@ -192,7 +190,7 @@ class Schedule(Object):
         """Remove a random variable from the symbol table
         Parameters
         ----------
-        rand_var : Union[BlockRV, LoopRV, IntRV]
+        rand_var : Union[BlockRV, LoopRV, ExprRV]
             The random variable to be removed
         """
         return _ffi_api_schedule.ScheduleRemoveRV(self, rand_var)  # pylint: disable=no-member

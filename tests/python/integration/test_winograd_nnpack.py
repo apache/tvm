@@ -108,7 +108,7 @@ def verify_conv2d_nchw(
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4)
 
     for device in devices:
         check_device(device)

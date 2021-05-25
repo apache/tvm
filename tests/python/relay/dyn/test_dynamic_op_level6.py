@@ -58,12 +58,12 @@ def test_dynamic_topk():
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
                 op_res = intrp.evaluate()(np_data, np.array([k]).astype("float32"))
                 if ret_type == "both":
-                    tvm.testing.assert_allclose(op_res[0].asnumpy(), np_values)
-                    tvm.testing.assert_allclose(op_res[1].asnumpy(), np_indices)
+                    tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
+                    tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
                 elif ret_type == "values":
-                    tvm.testing.assert_allclose(op_res.asnumpy(), np_values)
+                    tvm.testing.assert_allclose(op_res.numpy(), np_values)
                 else:
-                    tvm.testing.assert_allclose(op_res.asnumpy(), np_indices)
+                    tvm.testing.assert_allclose(op_res.numpy(), np_indices)
 
     np.random.seed(0)
     for k in [0, 1, 5]:

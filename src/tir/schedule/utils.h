@@ -20,12 +20,20 @@
 #define TVM_TIR_SCHEDULE_UTILS_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/arith/int_set.h>
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <unordered_map>
+#include <utility>
+
+#include "../../printer/text_printer.h"
+#include "../../runtime/thread_storage_scope.h"
 #include "./analysis.h"
 
 namespace tvm {
@@ -86,6 +94,58 @@ namespace tir {
   TVM_TYPE_AS_OR_ERR(Result, From, Type)                                          \
       << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
       << "`, but gets: " << (From.defined() ? From->GetTypeKey() : "None")
+
+/******** Storage scope ********/
+
+/*!
+ * \brief Determine if iterators of a storage scope should be relaxed
+ * under a specific thread scope
+ * \param storage_scope The storage scope that the iterators are on
+ * \param thread_scope The thread scope to be relaxed
+ * \return A boolean indicating the result
+ */
+inline bool CanRelaxStorageUndereThread(const runtime::StorageScope& storage_scope,
+                                        const runtime::ThreadScope& thread_scope) {
+  if (storage_scope.rank == runtime::StorageRank::kWarp) {
+    // for warp memory, we only relax threadIdx.x
+    return thread_scope.rank == 1 && thread_scope.dim_index == 0;
+  }
+  return static_cast<int>(storage_scope.rank) <= static_cast<int>(thread_scope.rank);
+}
+
+/******** Integer set ********/
+
+/*!
+ * \brief Converts the Ranges to IntSets
+ * \param var_dom The ranges of variables
+ * \return The integer sets of the variables
+ */
+inline Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
+  std::unordered_map<Var, arith::IntSet, ObjectPtrHash, ObjectPtrEqual> result;
+  result.reserve(var_dom.size());
+  for (auto kv : var_dom) {
+    Var& var = kv.first;
+    Range& range = kv.second;
+    result.emplace(std::move(var), arith::IntSet::FromRange(std::move(range)));
+  }
+  return {result.begin(), result.end()};
+}
+
+/*!
+ * \brief Converts an N-dimensional integer set to N-dimensional region
+ * \param nd_int_set The integer set
+ * \return The region as the result of conversion
+ */
+inline Array<Range> AsRegion(const Array<arith::IntSet>& nd_int_set, arith::Analyzer* analyzer) {
+  Array<Range> result;
+  result.reserve(nd_int_set.size());
+  for (const arith::IntSet& int_set : nd_int_set) {
+    PrimExpr min = analyzer->Simplify(int_set.min());
+    PrimExpr extent = analyzer->Simplify(int_set.max() - int_set.min() + 1);
+    result.push_back(Range::FromMinExtent(std::move(min), std::move(extent)));
+  }
+  return result;
+}
 
 }  // namespace tir
 }  // namespace tvm

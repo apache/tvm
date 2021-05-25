@@ -123,7 +123,7 @@ def verify_depthwise_conv2d_back_input(
         # launch the kernel
         timer = f.time_evaluator(f.entry_name, dev, number=1)
         tcost = timer(filter_tvm, out_grad_tvm, in_grad_tvm).mean
-        tvm.testing.assert_allclose(in_grad_np, in_grad_tvm.asnumpy(), rtol=1e-5)
+        tvm.testing.assert_allclose(in_grad_np, in_grad_tvm.numpy(), rtol=1e-5)
 
     check_device("opencl")
     check_device("cuda")

@@ -234,7 +234,7 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
 Target CreateDefaultTarget(int device_type) {
   std::string name = runtime::DeviceName(device_type);
   if (name == "cpu") return Target("llvm");
-  if (name == "gpu") return Target("cuda");
+  if (name == "cuda") return Target("cuda");
   return Target(name);
 }
 
@@ -978,6 +978,9 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
 
 transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   Array<Pass> pass_seqs;
+  // Remove unused functions
+  Array<runtime::String> entry_functions{"main"};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
   pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
 

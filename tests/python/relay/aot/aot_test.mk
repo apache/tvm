@@ -52,23 +52,23 @@ lib_objs =$(source_libs:.c=.o)
 
 $(build_dir)/aot_test_runner: $(build_dir)/test.c  $(build_dir)/aot_executor.o  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
+	$(QUIET)$(CC) $(CFLAGS) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
 $(build_dir)/%.o: $(build_dir)/../codegen/host/src/%.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
 $(build_dir)/aot_executor.o: $(TVM_ROOT)/src/runtime/crt/aot_executor/aot_executor.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
 $(build_dir)/stack_allocator.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_allocator.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
 $(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_api.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
 clean:
 	$(QUIET)rm -rf $(build_dir)/crt

@@ -108,6 +108,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
+- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Wuwei Lin](https://github.com/vinx13): @vinx13

@@ -140,7 +140,7 @@ def verify_conv2d_nchw(
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4)
 
     for target, dev in tvm.testing.enabled_targets():
         with autotvm.tophub.context(target):  # load tophub pre-tuned parameters

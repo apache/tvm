@@ -77,7 +77,7 @@ def test_bigendian_rpc():
         remote.upload(path_dso)
         f = remote.load_module("dev_lib.o")
         f(a, b)
-        tvm.testing.assert_allclose(a.asnumpy() + 1, b.asnumpy())
+        tvm.testing.assert_allclose(a.numpy() + 1, b.numpy())
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)
@@ -119,7 +119,7 @@ def test_rpc_array():
     remote = rpc.connect("127.0.0.1", server.port)
     r_cpu = tvm.nd.array(x, remote.cpu(0))
     assert str(r_cpu.device).startswith("remote")
-    np.testing.assert_equal(r_cpu.asnumpy(), x)
+    np.testing.assert_equal(r_cpu.numpy(), x)
     fremote = remote.get_function("rpc.test.remote_array_func")
     fremote(r_cpu)
 
@@ -134,8 +134,8 @@ def test_rpc_large_array():
     b_np = np.ones((720, 192)).astype("float32")
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(b_np, dev)
-    np.testing.assert_equal(a.asnumpy(), a_np)
-    np.testing.assert_equal(b.asnumpy(), b_np)
+    np.testing.assert_equal(a.numpy(), a_np)
+    np.testing.assert_equal(b.numpy(), b_np)
 
 
 @tvm.testing.requires_rpc
@@ -224,7 +224,7 @@ def test_rpc_remote_module():
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
         print("%g secs/op" % cost)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # Download the file from the remote
         path_tar = temp.relpath("dev_lib.tar")
@@ -237,7 +237,7 @@ def test_rpc_remote_module():
         a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), tvm.cpu(0))
         b = tvm.nd.array(np.zeros(102, dtype=A.dtype), tvm.cpu(0))
         fupdated(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     def check_minrpc():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
@@ -260,7 +260,7 @@ def test_rpc_remote_module():
         b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
         cost = time_f(a, b).mean
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # change to not executable
         os.chmod(path_minrpc, stat.S_IRUSR)
@@ -301,7 +301,7 @@ def test_rpc_remote_module():
         a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         fhost(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         # Option 2: export library as a tar ball then handled by remote compiler
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
@@ -310,7 +310,7 @@ def test_rpc_remote_module():
         a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         fhost(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     check_remote(rpc.LocalSession())
     check_remote(client)
@@ -348,7 +348,7 @@ def test_rpc_session_constructor_args():
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
         nd = tvm.nd.array([1, 2, 3], device=client.cpu(0))
-        assert nd.asnumpy()[1] == 2
+        assert nd.numpy()[1] == 2
 
     def check_error_handling():
         with pytest.raises(tvm.error.RPCError):

@@ -43,7 +43,7 @@ def test_dilate():
         output_tvm = tvm.nd.array(np.zeros(shape=output_size).astype(Output.dtype), device=dev)
         f = tvm.build(schedule, [Input, Output], target)
         f(input_tvm, output_tvm)
-        tvm.testing.assert_allclose(output_tvm.asnumpy(), output_np, rtol=1e-5)
+        tvm.testing.assert_allclose(output_tvm.numpy(), output_np, rtol=1e-5)
 
     _test_dilate((32,), (2,))
     _test_dilate((32, 32), (2, 2))

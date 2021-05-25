@@ -65,8 +65,8 @@ use thiserror::Error;
 #[repr(i64)]
 pub enum DeviceType {
     CPU = 1,
-    GPU,
-    CPUPinned,
+    CUDA,
+    CUDAHost,
     OpenCL,
     Vulkan,
     Metal,
@@ -101,8 +101,8 @@ impl Display for DeviceType {
             "{}",
             match self {
                 DeviceType::CPU => "cpu",
-                DeviceType::GPU => "gpu",
-                DeviceType::CPUPinned => "cpu_pinned",
+                DeviceType::CUDA => "cuda",
+                DeviceType::CUDAHost => "cuda_host",
                 DeviceType::OpenCL => "opencl",
                 DeviceType::Vulkan => "vulkan",
                 DeviceType::Metal => "metal",
@@ -121,9 +121,8 @@ impl<'a> From<&'a str> for DeviceType {
             "cpu" => DeviceType::CPU,
             "llvm" => DeviceType::CPU,
             "stackvm" => DeviceType::CPU,
-            "gpu" => DeviceType::GPU,
-            "cuda" => DeviceType::GPU,
-            "nvptx" => DeviceType::GPU,
+            "cuda" => DeviceType::CUDA,
+            "nvptx" => DeviceType::CUDA,
             "cl" => DeviceType::OpenCL,
             "opencl" => DeviceType::OpenCL,
             "metal" => DeviceType::Metal,
@@ -179,7 +178,7 @@ pub struct UnsupportedDeviceError(String);
 
 macro_rules! impl_tvm_device {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
-        /// Creates a Device from a string (e.g., "cpu", "gpu", "ext_dev")
+        /// Creates a Device from a string (e.g., "cpu", "cuda", "ext_dev")
         impl FromStr for Device {
             type Err = UnsupportedDeviceError;
             fn from_str(type_str: &str) -> Result<Self, Self::Err> {
@@ -210,7 +209,7 @@ macro_rules! impl_tvm_device {
 
 impl_tvm_device!(
     DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
-    DLDeviceType_kDLGPU: [gpu, cuda, nvptx],
+    DLDeviceType_kDLCUDA: [cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],
     DLDeviceType_kDLMetal: [metal],
     DLDeviceType_kDLVPI: [vpi],
@@ -287,9 +286,9 @@ mod tests {
         println!("device: {}", dev);
         let default_dev = Device::new(DeviceType::CPU, 0);
         assert_eq!(dev.clone(), default_dev);
-        assert_ne!(dev, Device::gpu(0));
+        assert_ne!(dev, Device::cuda(0));
 
-        let str_dev = Device::new(DeviceType::GPU, 0);
+        let str_dev = Device::new(DeviceType::CUDA, 0);
         assert_eq!(str_dev.clone(), str_dev);
         assert_ne!(str_dev, Device::new(DeviceType::CPU, 0));
     }

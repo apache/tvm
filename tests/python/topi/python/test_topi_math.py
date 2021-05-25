@@ -66,7 +66,7 @@ def test_ewise():
             a = tvm.nd.array(a_np, dev)
             b = tvm.nd.array(np.zeros_like(b_np), dev)
             foo(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
@@ -102,7 +102,7 @@ def test_ewise():
             a = tvm.nd.array(a_np, dev)
             b = tvm.nd.array(np.zeros_like(b_np), dev)
             foo(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
@@ -132,7 +132,7 @@ def test_ewise():
                 a = tvm.nd.array(a_np, dev)
                 b = tvm.nd.array(np.zeros_like(b_np), dev)
                 foo(a, b)
-                tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
             for target, dev in tvm.testing.enabled_targets():
                 check_target(target, dev)
@@ -185,7 +185,7 @@ def test_cast():
             a = tvm.nd.array(a_np, dev)
             b = tvm.nd.empty(shape=shape, dtype=to_dtype, device=dev)
             foo(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np)
+            tvm.testing.assert_allclose(b.numpy(), b_np)
 
     verify("int32", "float32")
     verify("int32", "float64")
@@ -216,7 +216,7 @@ def test_fastmath():
             a = tvm.nd.array(a_np, dev)
             b = tvm.nd.array(np.zeros_like(b_np), dev)
             func(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
         check_target("llvm")
         check_target("llvm -device=arm-cpu")

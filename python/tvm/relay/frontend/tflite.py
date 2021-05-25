@@ -422,9 +422,9 @@ class OperatorConverter(object):
         rhs_zero_point = rhs_tensor.qnn_params["zero_point"]
         # 0.1 + 0.2 != 0.3
         return np.allclose(
-            lhs_scale.data.asnumpy(), rhs_scale.data.asnumpy(), rtol=1e-5, atol=1e-5
+            lhs_scale.data.numpy(), rhs_scale.data.numpy(), rtol=1e-5, atol=1e-5
         ) and np.allclose(
-            lhs_zero_point.data.asnumpy(), rhs_zero_point.data.asnumpy(), rtol=1e-5, atol=1e-5
+            lhs_zero_point.data.numpy(), rhs_zero_point.data.numpy(), rtol=1e-5, atol=1e-5
         )
 
     def is_quantized(self, op):
@@ -434,7 +434,7 @@ class OperatorConverter(object):
         return first_tensor.qnn_params is not None
 
     def quantize(self, expr, tensor_to_quantize):
-        """ Helper function to quantize a tensor with Relay """
+        """Helper function to quantize a tensor with Relay"""
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
         quantized = _qnn.op.quantize(
@@ -446,7 +446,7 @@ class OperatorConverter(object):
         return quantized
 
     def dequantize(self, expr, tensor):
-        """ Helper function to dequantize a tensor with Relay """
+        """Helper function to dequantize a tensor with Relay"""
         dequantized = _qnn.op.dequantize(
             data=expr,
             input_scale=tensor.qnn_params["scale"],
@@ -640,7 +640,7 @@ class OperatorConverter(object):
         return self._convert_resize("nearest_neighbor", op)
 
     def convert_l2_normalization(self, op):
-        """Convert TFLite L2_NORMALIZATION """
+        """Convert TFLite L2_NORMALIZATION"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.L2NormOptions import L2NormOptions
@@ -683,7 +683,7 @@ class OperatorConverter(object):
         return out
 
     def convert_lrn(self, op):
-        """Convert TFLite LOCAL_RESPONSE_NORMALIZATION """
+        """Convert TFLite LOCAL_RESPONSE_NORMALIZATION"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
@@ -769,11 +769,18 @@ class OperatorConverter(object):
         """Convert TFLite TANH"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
-
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = _op.tanh(in_expr)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = _op.tanh(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_range(self, op):
@@ -2382,7 +2389,7 @@ class OperatorConverter(object):
         return out
 
     def convert_topk_v2(self, op):
-        """ Convert TFLite TOPK_v2 """
+        """Convert TFLite TOPK_v2"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
         input_tensor = input_tensors[0]
@@ -2532,7 +2539,7 @@ class OperatorConverter(object):
             ), "TFLite PADV2 requires input and output scale and zero points to be equal"
 
             # The pad value for quantized pad is the input zero point by default.
-            pad_value = float(input_tensor.qnn_params["zero_point"].data.asnumpy())
+            pad_value = float(input_tensor.qnn_params["zero_point"].data.numpy())
 
         if len(input_tensors) == 3:
             pad_value = self.get_tensor_value(input_tensors[2])
@@ -3148,7 +3155,7 @@ class OperatorConverter(object):
         input_expr = self.get_tensor_expr(input_tensors[0])
         axis = self.get_tensor_value(input_tensors[1])
         if isinstance(axis, np.ndarray):
-            assert len(axis) == 1, "only one value is expected."
+            assert axis.size == 1, "only one value is expected."
             axis = int(axis)
 
         ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
@@ -3321,7 +3328,7 @@ class OperatorConverter(object):
         return self.prefetched_nodes[get_tensor_name(self.subgraph, input_tensor_idx)]
 
     def get_tensor_expr(self, tensor, is_sparse=False):
-        """ Return the Relay expr for tensor. """
+        """Return the Relay expr for tensor."""
         if self.has_expr(tensor.tensor_idx):
             expr = self.get_expr(tensor.tensor_idx)
         else:
@@ -3330,7 +3337,7 @@ class OperatorConverter(object):
         return expr
 
     def get_tensor_shape(self, tensor_wrapper):
-        """ Returns tensor shape. Infers shape if the shape is empty. """
+        """Returns tensor shape. Infers shape if the shape is empty."""
         assert isinstance(tensor_wrapper, TensorWrapper), "Expecting TensorWrapper here"
         return (
             tensor_wrapper.tensor.ShapeAsNumpy()
@@ -3341,7 +3348,7 @@ class OperatorConverter(object):
 
 # pylint: disable=no-else-return
 def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_tensor_type):
-    """ Prepare sparse indices and dense matrix from TFLite sparse parameters. """
+    """Prepare sparse indices and dense matrix from TFLite sparse parameters."""
     # The function is implemented based on TFLite sparse parameter specifications
     # Please refer
     # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/schema/schema.fbs#L89
@@ -3481,11 +3488,11 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
 
 
 def get_scalar_from_constant(expr):
-    """ Returns scalar value from Relay constant scalar. """
+    """Returns scalar value from Relay constant scalar."""
     assert (
         isinstance(expr, _expr.Constant) and not expr.data.shape
     ), "Expr is not a constant scalar."
-    value = expr.data.asnumpy()
+    value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"
@@ -3493,9 +3500,9 @@ def get_scalar_from_constant(expr):
 
 
 def get_tensor_from_constant(expr):
-    """ Returns tensor of values from Relay constant node. """
+    """Returns tensor of values from Relay constant node."""
     assert isinstance(expr, _expr.Constant)
-    value = expr.data.asnumpy()
+    value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"

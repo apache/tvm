@@ -107,4 +107,4 @@ def compare_numpy_tvm(inputs, output, target, device, compute, schedule):
         func = tvm.build(s, te_inputs + [out])
         arys = [tvm.nd.array(x, device=device) for x in inputs]
         func(*(arys + [te_out]))
-        assert_allclose(te_out.asnumpy(), output, atol=1e-4, rtol=1e-4)
+        assert_allclose(te_out.numpy(), output, atol=1e-4, rtol=1e-4)

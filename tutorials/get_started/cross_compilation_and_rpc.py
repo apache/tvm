@@ -185,7 +185,7 @@ a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
 b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
 # the function will run on the remote device
 func(a, b)
-np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 ######################################################################
 # When you want to evaluate the performance of the kernel on the remote
@@ -249,7 +249,7 @@ def run_opencl():
     a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
     func(a, b)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     print("OpenCL test passed!")
 
 

@@ -60,9 +60,9 @@ def check_result(
             ex = relay.create_executor(kind, mod=mod, device=dev, target=tgt)
             result = ex.evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
-                result = [r.asnumpy() for r in result]
+                result = [r.numpy() for r in result]
             else:
-                result = [result.asnumpy()]
+                result = [result.numpy()]
 
             for r, e in zip(result, expected):
                 if assert_shape:
@@ -508,7 +508,7 @@ def verify_any_conv2d(
 
     targets = None
     if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
-        targets = [("cuda -libs=cudnn", tvm.gpu(0))]
+        targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 
@@ -764,9 +764,9 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
         ex = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data_np)
         for ret, ref_ret in zip(result, ref_out_shape):
-            assert ret.asnumpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
+            assert ret.numpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
                 str(ref_ret),
-                str(ret.asnumpy().shape),
+                str(ret.numpy().shape),
             )
 
 
@@ -811,7 +811,7 @@ def verify_any_dense(
 
     targets = None
     if use_cublas and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
-        targets = [("cuda -libs=cublas", tvm.gpu(0))]
+        targets = [("cuda -libs=cublas", tvm.cuda(0))]
 
     check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 

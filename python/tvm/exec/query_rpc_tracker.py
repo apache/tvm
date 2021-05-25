@@ -24,7 +24,7 @@ from .. import rpc
 
 
 def main():
-    """Main funciton"""
+    """Main function"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="", help="the hostname of the tracker")
     parser.add_argument("--port", type=int, default=None, help="The port of the RPC")

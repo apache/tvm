@@ -201,8 +201,8 @@ class RPCSession(object):
         """Construct CPU device."""
         return self.device(1, dev_id)
 
-    def gpu(self, dev_id=0):
-        """Construct GPU device."""
+    def cuda(self, dev_id=0):
+        """Construct CUDA GPU device."""
         return self.device(2, dev_id)
 
     def cl(self, dev_id=0):

@@ -54,9 +54,9 @@ def test_reduce_prims():
             x = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), dev)
             y = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
             freduce(x, y)
-            npy = y.asnumpy()
+            npy = y.numpy()
             npy[:2] = 0
-            res = np_reducer(x.asnumpy(), axis=1)
+            res = np_reducer(x.numpy(), axis=1)
             res[:2] = 0
             tvm.testing.assert_allclose(npy, res, rtol=1e-4)
 
@@ -90,8 +90,8 @@ def test_init_imm():
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
-        res = 10.0 + np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = 10.0 + np.sum(a.numpy(), axis=0)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -121,8 +121,8 @@ def test_init():
         ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), dev)
         b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), dev)
         mmult(a, c, ii, b)
-        res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = ii.numpy() + np.matmul(a.numpy(), c.numpy())
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -149,8 +149,8 @@ def test_rfactor():
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = np.sum(a.numpy(), axis=0)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -183,8 +183,8 @@ def test_rfactor_init():
         ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), dev)
         b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), dev)
         mmult(a, c, ii, b)
-        res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = ii.numpy() + np.matmul(a.numpy(), c.numpy())
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -211,8 +211,8 @@ def test_rfactor_factor_axis():
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = np.sum(a.numpy(), axis=0)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -255,9 +255,9 @@ def test_rfactor_threads():
         a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=1)
+        res = np.sum(a.numpy(), axis=1)
         res[:2] = 0
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target("vulkan")
     check_target("cuda")
@@ -306,8 +306,8 @@ def test_rfactor_elemwise_threads():
         a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=1) + 2
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = np.sum(a.numpy(), axis=1) + 2
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target("vulkan")
     check_target("cuda")
@@ -354,7 +354,7 @@ def test_argmax():
         nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), dev)
         nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), dev)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.numpy())
 
     check_target()
 
@@ -411,7 +411,7 @@ def test_rfactor_argmax():
         nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), dev)
         nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), dev)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.numpy())
 
     check_target("cuda")
     check_target("vulkan")
@@ -456,7 +456,7 @@ def test_warp_reduction1():
         b = tvm.nd.array(b_np, dev)
         b_np = np.max(a_np, axis=1)
         func(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
     check_target("cuda", m=32, n=256)
     check_target("cuda", m=10, n=20)
@@ -517,8 +517,8 @@ def test_warp_reduction2():
         func(a0, a1, t0, t1)
         t0_np = np.sum(a0_np, axis=1)
         t1_np = np.product(a1_np, axis=1)
-        tvm.testing.assert_allclose(t0.asnumpy(), t0_np, rtol=1e-3, atol=1e-3)
-        tvm.testing.assert_allclose(t1.asnumpy(), t1_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(t0.numpy(), t0_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(t1.numpy(), t1_np, rtol=1e-3, atol=1e-3)
 
     check_target("cuda")
     check_target("rocm")

@@ -35,14 +35,14 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
         intrp = create_executor(mod=mod, device=dev, target=target)
         result = intrp.evaluate(expr)(*args)
         # use tvm.testing which also set atol
-        tvm.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
+        tvm.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
 def test_tuple_value():
     tv = container.tuple_object([relay.const(1), relay.const(2), relay.const(3)])
-    np.testing.assert_allclose(tv[0].data.asnumpy(), 1)
-    np.testing.assert_allclose(tv[1].data.asnumpy(), 2)
-    np.testing.assert_allclose(tv[2].data.asnumpy(), 3)
+    np.testing.assert_allclose(tv[0].data.numpy(), 1)
+    np.testing.assert_allclose(tv[1].data.numpy(), 2)
+    np.testing.assert_allclose(tv[2].data.numpy(), 3)
 
 
 def test_tuple_getitem():
@@ -148,7 +148,7 @@ def test_binds():
     y = relay.add(x, x)
     intrp = create_executor("debug")
     xx = np.ones((10, 20))
-    res = intrp.evaluate(y, binds={x: xx}).asnumpy()
+    res = intrp.evaluate(y, binds={x: xx}).numpy()
     tvm.testing.assert_allclose(xx + xx, res)
 
 
@@ -163,7 +163,7 @@ def test_kwargs_params():
     params = {"y": y_data, "z": z_data}
     intrp = create_executor("debug")
     res = intrp.evaluate(f)(x_data, **params)
-    tvm.testing.assert_allclose(res.asnumpy(), x_data + y_data + z_data)
+    tvm.testing.assert_allclose(res.numpy(), x_data + y_data + z_data)
 
 
 def test_function_taking_adt_ref_tuple():
@@ -193,17 +193,17 @@ def test_function_taking_adt_ref_tuple():
     res_cons = id_func(cons_value)
     assert res_cons.tag == cons_value.tag
     assert len(res_cons.fields) == len(cons_value.fields)
-    tvm.testing.assert_allclose(res_cons.fields[0].asnumpy(), cons_value.fields[0].asnumpy())
+    tvm.testing.assert_allclose(res_cons.fields[0].numpy(), cons_value.fields[0].numpy())
     assert isinstance(res_cons.fields[1], ConstructorValue)
     assert res_cons.fields[1].tag == nil.tag
     assert len(res_cons.fields[1].fields) == 0
 
     res_ref = id_func(ref_value)
-    tvm.testing.assert_allclose(res_ref.value.asnumpy(), ref_value.value.asnumpy())
+    tvm.testing.assert_allclose(res_ref.value.numpy(), ref_value.value.numpy())
 
     res_tuple = id_func(tuple_value)
     for i in range(10):
-        tvm.testing.assert_allclose(res_tuple[i].asnumpy(), tuple_value[i].asnumpy())
+        tvm.testing.assert_allclose(res_tuple[i].numpy(), tuple_value[i].numpy())
 
 
 def test_tuple_passing():
@@ -226,11 +226,11 @@ def test_tuple_passing():
     f = exec.evaluate(gv)
     # First use a Python tuple.
     out = f((10, 8))
-    tvm.testing.assert_allclose(out.asnumpy(), np.array(10))
+    tvm.testing.assert_allclose(out.numpy(), np.array(10))
     # Second use a tuple value.
     value_tuple = container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
     out = f(value_tuple)
-    tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
+    tvm.testing.assert_allclose(out.numpy(), np.array(11))
 
 
 if __name__ == "__main__":

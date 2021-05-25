@@ -61,7 +61,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", de
         exe = runtime.vm.Executable.load_exec(code, lib)
         vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
 
     def check_graph_executor_result():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
@@ -75,7 +75,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", de
         out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
 
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
 
     check_vm_result()
     check_graph_executor_result()
@@ -293,7 +293,7 @@ def test_extern_dnnl():
     ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
     check_result(
-        mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
+        mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
 
 
@@ -331,7 +331,7 @@ def test_extern_dnnl_const():
 
     ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data)
-    check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+    check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5)
 
 
 def test_load_params_with_constants_in_ext_codegen():

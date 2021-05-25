@@ -26,19 +26,19 @@ from tvm.relay.analysis import context_analysis
 
 
 def test_device_copy():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     mod = tvm.IRModule()
     x = relay.var("x", shape=(2, 3))
-    copy = relay.op.device_copy(x, tvm.cpu(), tvm.gpu())
+    copy = relay.op.device_copy(x, tvm.cpu(), tvm.cuda())
     out = copy + relay.const(np.random.rand(2, 3))
     glb_var = relay.GlobalVar("main")
     mod[glb_var] = relay.Function([x], out)
     ca = context_analysis(mod, tvm.cpu())
 
     cpu_dev = tvm.cpu().device_type
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     for expr, dev in ca.items():
         if isinstance(expr, _expr.Call):
             assert dev[0].value == gpu_dev
@@ -49,7 +49,7 @@ def test_device_copy():
 
 
 def test_shape_func():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -65,11 +65,11 @@ def test_shape_func():
     is_inputs = [False]
     shape_func = relay.op.vm.shape_func(fn, ins, outs, is_inputs)
     mod["main"] = relay.Function([x, out], shape_func)
-    ca = context_analysis(mod, tvm.gpu())
+    ca = context_analysis(mod, tvm.cuda())
     main = mod["main"]
 
     cpu_dev = tvm.cpu().device_type
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     assert main.params[0] in ca and ca[main.params[0]][0].value == gpu_dev
     # The output of shape func should be on cpu.
     assert main.params[1] in ca and ca[main.params[1]][0].value == cpu_dev
@@ -78,7 +78,7 @@ def test_shape_func():
 
 
 def test_vm_shape_of():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -86,17 +86,17 @@ def test_vm_shape_of():
     x = relay.var("x", shape=data_shape)
     y = relay.op.vm.shape_of(x)
     mod["main"] = relay.Function([x], y)
-    ca = context_analysis(mod, tvm.gpu())
+    ca = context_analysis(mod, tvm.cuda())
     main = mod["main"]
 
     cpu_dev = tvm.cpu().device_type
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     assert main.params[0] in ca and ca[main.params[0]][0].value == gpu_dev
     assert main.body in ca and ca[main.body][0].value == cpu_dev
 
 
 def test_alloc_storage():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -104,14 +104,14 @@ def test_alloc_storage():
     size = relay.Var("size", relay.scalar_type("int64"))
     alignment = relay.Var("alignment", relay.scalar_type("int64"))
     # allocate a chunk on of memory on gpu.
-    sto = relay.op.memory.alloc_storage(size, alignment, tvm.gpu())
+    sto = relay.op.memory.alloc_storage(size, alignment, tvm.cuda())
     mod["main"] = relay.Function([size, alignment], sto)
-    ca = context_analysis(mod, tvm.gpu())
+    ca = context_analysis(mod, tvm.cuda())
     main = mod["main"]
     body = main.body
 
     cpu_dev = tvm.cpu().device_type
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     # Inputs are unified with alloc storage inputs which are on cpu
     assert main.params[0] in ca and ca[main.params[0]][0].value == cpu_dev
     assert main.params[1] in ca and ca[main.params[1]][0].value == cpu_dev
@@ -126,7 +126,7 @@ def test_alloc_storage():
 
 
 def test_alloc_tensor():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -136,12 +136,12 @@ def test_alloc_tensor():
     sh = relay.const(np.array([3, 2]), dtype="int64")
     at = relay.op.memory.alloc_tensor(sto, relay.const(0, dtype="int64"), sh)
     mod["main"] = relay.Function([sto], at)
-    ca = context_analysis(mod, tvm.gpu())
+    ca = context_analysis(mod, tvm.cuda())
     main = mod["main"]
     body = main.body
 
     cpu_dev = tvm.cpu().device_type
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     # Input of the function falls back to the default device gpu
     assert main.params[0] in ca and ca[main.params[0]][0].value == gpu_dev
 
@@ -155,7 +155,7 @@ def test_alloc_tensor():
 
 
 def test_vm_reshape_tensor():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     x = relay.var("x", shape=(2, 8), dtype="float32")
@@ -163,12 +163,12 @@ def test_vm_reshape_tensor():
     y = relay.op.vm.reshape_tensor(x, shape, [2, 4, 2])
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y)
-    ca = context_analysis(mod, tvm.gpu())
+    ca = context_analysis(mod, tvm.cuda())
     main = mod["main"]
     body = main.body
 
     cpu_dev = tvm.cpu().device_type
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     # Input of the function falls back to the default device gpu
     assert main.params[0] in ca and ca[main.params[0]][0].value == gpu_dev
 
@@ -181,7 +181,7 @@ def test_vm_reshape_tensor():
 
 
 def test_dynamic_input():
-    if not tvm.testing.device_enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.testing.device_enabled("cuda") or not tvm.cuda(0).exist:
         return
 
     mod = tvm.IRModule()
@@ -195,7 +195,7 @@ def test_dynamic_input():
     ca = context_analysis(mod, tvm.cpu())
     main = mod["main"]
 
-    gpu_dev = tvm.gpu().device_type
+    gpu_dev = tvm.cuda().device_type
     assert main.params[0] in ca and ca[main.params[0]][0].value == gpu_dev
     assert main.params[1] in ca and ca[main.params[1]][0].value == gpu_dev
     assert main.body in ca and ca[main.body][0].value == gpu_dev

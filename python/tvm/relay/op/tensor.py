@@ -961,7 +961,7 @@ def zeros(shape, dtype):
         The resulting tensor.
     """
     if isinstance(shape, Constant):
-        shape = list(shape.data.asnumpy())
+        shape = list(shape.data.numpy())
     if isinstance(shape, Expr):
         return _dyn_make.zeros(shape, dtype)
     if isinstance(shape, int):
@@ -1004,7 +1004,7 @@ def ones(shape, dtype):
         The resulting tensor.
     """
     if isinstance(shape, Constant):
-        shape = list(shape.data.asnumpy())
+        shape = list(shape.data.numpy())
     if isinstance(shape, Expr):
         return _dyn_make.ones(shape, dtype)
     if isinstance(shape, int):
