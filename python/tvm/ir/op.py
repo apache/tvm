@@ -97,12 +97,12 @@ class Op(RelayExpr):
             The backing relation function which can solve an arbitrary relation on variables.
             Differences with type_rel_func in C++:
             1, when type_rel_func is not None:
-               1) OpAddTypeRel on C++ side will adjust type_rel_func with TypeReporter to 
+               1) OpAddTypeRel on C++ side will adjust type_rel_func with TypeReporter to
                   calling convention of relay type system.
-               2) type_rel_func returns output argument's type, return None means can't 
+               2) type_rel_func returns output argument's type, return None means can't
                   infer output's type.
                3) only support single output operators for now, the last argument is output tensor.
-            2, when type_rel_func is None, will call predefined type_rel_funcs in relay 
+            2, when type_rel_func is None, will call predefined type_rel_funcs in relay
                accorrding to `tvm.relay.type_relation.` + rel_name.
         """
         _ffi_api.OpAddTypeRel(self, rel_name, type_rel_func)
