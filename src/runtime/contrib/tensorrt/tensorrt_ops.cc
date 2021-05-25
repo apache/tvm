@@ -1057,7 +1057,7 @@ class ReshapeOpConverter : public TensorRTOpConverter {
 
 class PadOpConverter : public TensorRTOpConverter {
  public:
-  PadOpConverter() : TensorRTOpConverter({kTensor}) {}
+  PadOpConverter() : TensorRTOpConverter({kTensor, kWeight}) {}
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
