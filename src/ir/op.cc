@@ -26,8 +26,8 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/tir/op_attr_types.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include <memory>
 
