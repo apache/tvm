@@ -325,27 +325,30 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
 runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
-  CodeGenMetal cg;
-  cg.Init(output_ssa);
 
+  std::stringstream code;
+  std::stringstream source;
+  std::string fmt = "metal";
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
+    code << "// Function: " << kv.first->name_hint << std::endl;
+    CodeGenMetal cg;
+    cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
+    std::string fsource = cg.Finish();
+    if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
+      source << fsource;
+      fsource = (*f)(fsource).operator std::string();
+      fmt = "metallib";
+    }
+    code << fsource;
   }
 
-  std::string code = cg.Finish();
-  std::string fmt = "metal";
-  std::string source = "";
-  if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
-    source = code;
-    code = (*f)(code).operator std::string();
-    fmt = "metallib";
-  }
-  return MetalModuleCreate(code, fmt, ExtractFuncInfo(mod), source);
+  return MetalModuleCreate(code.str(), fmt, ExtractFuncInfo(mod), source.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);

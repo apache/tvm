@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../source_utils.h"
 #include "opencl_common.h"
 
 namespace tvm {
@@ -188,6 +189,11 @@ void OpenCLModuleNode::Init() {
 
   // split into source artifacts for each kernel
   parsed_kernels_ = SplitKernels(GetSource("cl"));
+  ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
+                                   << "source from code generation, but no kernel "
+                                   << "delimiter was found.";
+  ICHECK_EQ(workspace_->num_registered_kernels, parsed_kernels_.size())
+      << "The number of registered kernels does not match number of parsed kernel sources";
   // zero initialize cl_program pointers for each device kernel
   for (auto& kv : parsed_kernels_) {
     programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
@@ -240,39 +246,6 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   t->kernel_table[e.kernel_id].version = e.version;
   kernels_.push_back(kernel);
   return kernel;
-}
-
-std::unordered_map<std::string, std::string> OpenCLModuleNode::SplitKernels(
-    std::string source) const {
-  std::unordered_map<std::string, std::string> split_kernels;
-  if (source.size()) {
-    std::string del{"// Function: "};
-    size_t end;
-    size_t begin = source.find(del);
-    ICHECK(begin != std::string::npos) << "The OpenCL module expects a kernel delimited "
-                                       << "source from code generation, but no kernel "
-                                       << "delimiter was found.";
-    for (size_t num_kernels = 0; num_kernels < workspace_->num_registered_kernels; num_kernels++) {
-      begin += del.size();
-      end = source.find('\n', begin);
-      std::string func_name = source.substr(begin, end - begin);
-      begin = ++end;
-      // std::string::substr returns either start of next kernel
-      // or std::string::npos, in the latter case substr returns
-      // all characters until the end of the source string.
-      end = source.find(del, begin);
-      std::string func_source =
-          source.substr(begin, (end == std::string::npos) ? end : end - begin);
-      split_kernels.insert({func_name, func_source});
-      begin = end;
-      if (end == std::string::npos) {
-        break;
-      }
-    }
-  }
-  ICHECK_EQ(workspace_->num_registered_kernels, split_kernels.size())
-      << "The number of registered kernels does not match number of parsed kernel sources";
-  return split_kernels;
 }
 
 Module OpenCLModuleCreate(std::string data, std::string fmt,

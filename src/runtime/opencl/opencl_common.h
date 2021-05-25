@@ -326,14 +326,6 @@ class OpenCLModuleNode : public ModuleNode {
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e);
 
-  /*
-   * \brief Splits the provided serialized source file into separate
-   * source for each kernel primitive.
-   * \param source The serialized program source file (fmt: cl)
-   * \return Mapping from primitive name to kernel source
-   */
-  std::unordered_map<std::string, std::string> SplitKernels(std::string source) const;
-
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
