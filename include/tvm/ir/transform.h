@@ -183,20 +183,23 @@ class PassContext : public ObjectRef {
   TVM_DLL static PassContext Current();
 
   /*!
-   * \brief Call instrument implementations' callbacks when entering PassContex.
-   *        In order, if one raises exceptions, remaings will not be called.
+   * \brief Call instrument implementations' callbacks when entering PassContext.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
    */
   TVM_DLL void InstrumentEnterPassContext();
 
   /*!
-   * \brief Call instrument implementations' callback when exiting PassContext.
-   *        In order, if one raises exceptions, remaings will not be called.
+   * \brief Call instrument implementations' callbacks when exiting PassContext.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
    */
   TVM_DLL void InstrumentExitPassContext();
 
   /*!
-   * \brief Call intrument implementations' callbacks before a pass run.
-   *        In order, if one raises exceptions, remaings will not be called.
+   * \brief Call instrument implementations' callbacks before a pass run.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
    *
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
@@ -207,7 +210,8 @@ class PassContext : public ObjectRef {
 
   /*!
    * \brief Call instrument implementations callbacks after a pass run.
-   *        In order, if one raises exceptions, remaings will not be called.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
    *
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
