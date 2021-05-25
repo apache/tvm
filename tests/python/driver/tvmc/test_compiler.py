@@ -330,6 +330,20 @@ def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v
     assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
 
+def test_compile_tflite_module_with_external_codegen_tensorrt(tflite_mobilenet_v1_0_25_128):
+    pytest.importorskip("tflite")
+
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_0_25_128)
+    tvmc_package = tvmc.compiler.compile_model(
+        tvmc_model, target="tensorrt, llvm", dump_code="relay")
+    dumps_path = tvmc_package.package_path + ".relay"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
 
 @mock.patch("tvm.relay.build")
 @mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
