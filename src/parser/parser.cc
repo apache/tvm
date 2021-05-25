@@ -528,8 +528,7 @@ class Parser {
       auto data = NDArray::Empty({}, dtype, dev);
       auto array = reinterpret_cast<int64_t*>(data->data);
       // revisit this, literal node issue.
-      int64_t value = Downcast<tvm::Integer>(token->data);
-      array[0] = (int64_t)value;
+      array[0] = Downcast<tvm::Integer>(token->data);
       return data;
     } else if (token->token_type == TokenType::kFloat) {
       DLDevice dev = {DLDeviceType::kDLCPU, 0};
