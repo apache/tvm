@@ -579,14 +579,29 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
 @conv2d_winograd_nhwc.register(["mali"])
 def conv2d_winograd_nhwc_mali(
-    data, weight, strides, padding, dilation, out_dtype, pre_computed=False
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for mali.
     """
     tile_size = _pick_tile_size(data, weight, layout="NHWC")
     return _conv2d_winograd_nhwc_impl(
-        data, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size,
+        pre_computed,
+        auto_scheduler_rewritten_layout,
     )
 
 
