@@ -1,5 +1,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -22,8 +23,7 @@ using OpStringSet = std::unordered_set<std::string>;
 
 // Default lists inspired from TF's classifications:
 // github.com/tensorflow/tensorflow/blob/v2.5.0/tensorflow/core/grappler/optimizers/auto_mixed_precision_lists.h
-// They might have a bias toward NVidia's Tensor Cores so be aware and modify lists per your
-// hardware choice.
+// They have a bias toward Nvidia Tensor Cores so modify lists per your hardware choice.
 OpStringSet DEFAULT_GREEN_LIST({
     "nn.conv1d",
     "nn.conv2d",
@@ -38,8 +38,13 @@ OpStringSet DEFAULT_GRAY_LIST({
     "nn.pad",
     "nn.batch_flatten",
     "concatenate",
+    "zeros",
+    "split",
     // Simple arithmetic
     "add",
+    "subtract",
+    "multiply",
+    "divide",
     "nn.bias_add",
     "nn.batch_norm",
     // Simple activations
@@ -47,6 +52,9 @@ OpStringSet DEFAULT_GRAY_LIST({
     "nn.leaky_relu",
     "nn.prelu",
     "nn.dropout",
+    // Complicated activations which saturate in a narrow range
+    "sigmoid",
+    "tanh",
     // Pooling operations
     "nn.max_pool1d",
     "nn.max_pool2d",
@@ -54,12 +62,12 @@ OpStringSet DEFAULT_GRAY_LIST({
     "nn.avg_pool1d",
     "nn.avg_pool2d",
     "nn.avg_pool3d",
-    // "nn.global_max_pool1d", // does not exist
+    // "nn.global_max_pool1d", // does not exist yet
     "nn.global_max_pool2d",
-    // "nn.global_max_pool3d", // does not exist
-    // "nn.global_avg_pool1d", // does not exist
+    // "nn.global_max_pool3d", // does not exist yet
+    // "nn.global_avg_pool1d", // does not exist yet
     "nn.global_avg_pool2d",
-    // "nn.global_avg_pool3d", // does not exist
+    // "nn.global_avg_pool3d", // does not exist yet
     "nn.adaptive_max_pool1d",
     "nn.adaptive_max_pool2d",
     "nn.adaptive_max_pool3d",
@@ -68,11 +76,11 @@ OpStringSet DEFAULT_GRAY_LIST({
     "nn.adaptive_avg_pool3d",
 });
 OpStringSet DEFAULT_RED_LIST({
-    // Activations with exponents or division
+    // In general if |f(x)| >> |x| for some expected inputs to the op then put it here.
+    // Activations with exponents or dividing by small numbers
     "nn.cross_entropy",
     "nn.cross_entropy_with_logits",
     "nn.softmax",
-    // Other
     "nn.l2_normalize",
 });
 
@@ -96,24 +104,28 @@ class DefaultFP16Colorer {
     }
   }
 
-  FP16ConversionCategory operator()(const CallNode* call, bool ignore_missing = false) {
-    auto* op_node = (call->op).as<tvm::OpNode>();
-    if (op_node == nullptr) {
-      throw std::invalid_argument("FP16 conversion only supports call nodes with op calls.");
-    }
+  FP16ConversionCategory operator()(const CallNode* call, bool ignore_missing = true) {
+    if (auto* op_node = (call->op).as<tvm::OpNode>()) {
+      std::string op_name = op_node->name;
+      auto color = op_to_initial_color.find(op_name);
 
-    std::string op_name = op_node->name;
-    auto color = op_to_initial_color.find(op_name);
-
-    if (color == op_to_initial_color.end()) {
-      if (ignore_missing) {
-        return RED;
-      } else {
-        throw std::invalid_argument("Op name " + op_name + " not in included lists!.");
+      if (color == op_to_initial_color.end()) {
+        if (ignore_missing) {
+          LOG(WARNING) << "Op name " + op_name + " not in included in fp16 conversion lists!.";
+          return RED;
+        } else {
+          LOG(FATAL) << "Op name " + op_name + " not in included in fp16 lists!.";
+        }
       }
-    }
 
-    return color->second;
+      return color->second;
+    } else if (auto* func_node = (call->op).as<FunctionNode>()) {
+      // Make RED to avoid messing with function types which are complicated, fold in other pass
+      return RED;
+    } else {
+      LOG(FATAL) << "FP16 conversion only supports call nodes with op calls got " << call->op;
+      return RED;
+    }
   }
 };
 
