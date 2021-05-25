@@ -19,12 +19,18 @@
 from typing import List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
+from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object
 from tvm.tir import Block, For, IntImm, PrimFunc, Var
 
 from . import _ffi_api_schedule
 from .state import ScheduleState, StmtSRef
+
+
+@register_error
+class ScheduleError(TVMError):
+    """Error that happens during TensorIR scheduling."""
 
 
 @_register_object("tir.LoopRV")
@@ -57,10 +63,14 @@ class Schedule(Object):
     Link to tutorial: https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html
     """
 
+    ERROR_RENDER_LEVEL = {"detail": 0, "fast": 1, "none": 2}
+
     def __init__(
         self,
         func_or_mod: Union[PrimFunc, IRModule],
+        *,
         debug_mode: Union[bool, int] = False,
+        error_render_level: str = "detail",
     ):
         """Construct a concrete TensorIR schedule from an IRModule or a PrimFunc
 
@@ -71,6 +81,11 @@ class Schedule(Object):
         debug_mode : Union[bool, int]
             Do extra correctness checking after the class creation and each time
             scheduling primitive
+        error_render_level : str = "detail"
+            The level of error rendering. Choices: "detail", "fast", "none".
+            "detail": Render a detailed error message, with the TIR and error locations printed
+            "fast: Show a simple error message without rendering or string manipulation
+            "none": Do not show any error message.
 
         Note
         ----------
@@ -85,10 +100,17 @@ class Schedule(Object):
                 debug_mode = 0
         if not isinstance(debug_mode, int):
             raise TypeError(f"`debug_mode` should be integer or boolean, but gets: {debug_mode}")
+        if error_render_level not in Schedule.ERROR_RENDER_LEVEL:
+            raise ValueError(
+                'error_render_level can be "detail", "fast", or "none", but got: '
+                + f"{error_render_level}"
+            )
+        error_render_level = Schedule.ERROR_RENDER_LEVEL.get(error_render_level)
         self.__init_handle_by_constructor__(
             _ffi_api_schedule.ConcreteSchedule,  # pylint: disable=no-member
             func_or_mod,
             debug_mode,
+            error_render_level,
         )
 
     ########## Utilities ##########
