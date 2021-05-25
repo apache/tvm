@@ -315,8 +315,6 @@ bool ReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-TVM_REGISTER_GLOBAL("tvm.relay.type_relation.ReduceRel").set_body_typed(ReduceRel);
-
 Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, String op_name) {
   auto attrs = make_object<ReduceAttrs>();
   attrs->axis = std::move(axis);

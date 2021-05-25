@@ -244,15 +244,15 @@ class OpRegEntry {
       runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>
           type_rel_func);
   /*!
-   * \brief Set the the attrs type key and index to be AttrsType.
+   * \brief Set the attrs type key and index to be AttrsType.
    * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
    */
   template <typename AttrsType>
   inline OpRegEntry& set_attrs_type();
   /*!
-   * \brief Set the the attrs type key and index to be AttrsType.
-   * \tparam key the attribute type key to be set.
+   * \brief Set the attrs type key and index to be AttrsType.
+   * \tparam key The attribute type key to be set.
    * \return reference to self.
    */
   inline OpRegEntry& set_attrs_type_key(const String& key);

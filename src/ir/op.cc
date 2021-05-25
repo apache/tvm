@@ -103,7 +103,9 @@ TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name)
 });
 
 TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+  const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
+  ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
+  OpRegistry::Global()->RegisterOrGet(op_name).set_name();
   reg.describe(descr);
 });
 

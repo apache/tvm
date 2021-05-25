@@ -93,8 +93,14 @@ class Op(RelayExpr):
         rel_name : str
             The type relation name to register.
 
-        type_rel_func: function (args: List[Type], num_inputs:int, attrs: Attrs) -> Type
+        type_rel_func: function (args: List[Type], attrs: Attrs) -> Type
             The backing relation function which can solve an arbitrary relation on variables.
+            Differences with type_rel_func in C++:
+            1, when type_rel_func is not None:
+               1) OpAddTypeRel on C++ side will adjust type_rel_func with TypeReporter to calling convention of relay type system.
+               2) type_rel_func returns output argument's type, return None means can't infer output's type.
+               3) only support single output operators for now, the last argument is output tensor.
+            2, when type_rel_func is None, will call predefined type_rel_funcs in relay accorrding to `tvm.relay.type_relation.` + rel_name.
         """
         _ffi_api.OpAddTypeRel(self, rel_name, type_rel_func)
 
@@ -144,7 +150,9 @@ class Op(RelayExpr):
 
 
 def register_op(op_name, describe=""):
-    """Register an operator by name
+    """Register an operator by name.
+    when the op_name is not registered, create a new empty op with the given name.
+    when the op_name has been registered, abort with an error message.
 
     Parameters
     ----------
@@ -154,7 +162,7 @@ def register_op(op_name, describe=""):
         The detail describe of new operator
     """
 
-    return _ffi_api.RegisterOp(op_name, describe)
+    _ffi_api.RegisterOp(op_name, describe)
 
 
 def register_op_attr(op_name, attr_key, value=None, level=10):

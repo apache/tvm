@@ -41,7 +41,9 @@ def get(op_name):
 
 
 def register(op_name, describe=""):
-    """Get the Op for a given name
+    """Get the Op for a given name.
+    when the op_name is not registered, create a new empty op with the given name.
+    when the op_name has been registered, abort with an error message.
 
     Parameters
     ----------
@@ -50,13 +52,9 @@ def register(op_name, describe=""):
 
     describe : str
         The operator description
-
-    Returns
-    -------
-    op : Op
-        The op of the corresponding name
     """
-    return tvm.ir.register_op(op_name, describe)
+
+    tvm.ir.register_op(op_name, describe)
 
 
 def register_stateful(op_name, stateful, level=10):

@@ -109,7 +109,7 @@ def test_op_register():
     _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
     _op.get(op_name).add_argument("data_1", "Tensor", "The input data tensor.")
     # call default relation functions
-    _op.get(op_name).add_type_rel("IdentityRel")
+    _op.get(op_name).add_type_rel("Identity")
     _op.get(op_name).set_support_level(1)
     _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
     _op.register_stateful(op_name, False)
