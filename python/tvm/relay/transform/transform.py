@@ -1174,6 +1174,7 @@ def AnnotateSpans():
 
 
 def QuantizeFakeQuantization():
+    # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
 
