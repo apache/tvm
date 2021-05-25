@@ -44,6 +44,14 @@ namespace runtime {
 class EdgeTPURuntime : public TFLiteRuntime {
  public:
   /*!
+   * \brief Destructor of EdgeTPURuntime.
+   * 
+   * NOTE: tflite::Interpreter member should be destruct before the EdgeTpuContext member destruction.
+   * If the order is reverse, occurs SEGV in the destructor of tflite::Interpreter.
+   */
+  ~EdgeTPURuntime() { interpreter_.reset(); }
+
+  /*!
    * \return The type key of the executor.
    */
   const char* type_key() const final { return "EdgeTPURuntime"; }
