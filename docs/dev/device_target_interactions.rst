@@ -21,7 +21,7 @@ Device/Target Interactions
 --------------------------
 
 This documented is intended for developers interested in understanding
-how the TVM framework interacts with specific API interacts, or who
+how the TVM framework interacts with specific device APIs, or who
 may want to implement support for a new API or new hardware.
 
 There are three main aspects that must be implemented for any new
@@ -36,8 +36,8 @@ runtime environment.
 
 * The :ref:`Target <tvm-target-specific-target>` class contains a
   description of the device on which a function will run.  It is
-  exposed both to the target code generators and to the earlier
-  optimization passes.
+  exposed both to the target code generators and to the optimization
+  passes.
 
 * The :ref:`target code generators <tvm-target-specific-codegen>`
   construct a :ref:`Module <tvm-runtime-system-module>` consisting of
@@ -49,9 +49,14 @@ runtime environment.
 DeviceAPI
 ---------
 
-The ``DeviceAPI`` represents a handle to a specific device.  In
-Python, these can be constructed using the
-:py:func:`tvm.runtime.device` function.
+The ``DeviceAPI`` represents a handle to a specific hardware device
+API.  (e.g. ``CUDADeviceAPI`` handles all interactions through the
+CUDA framework.)  Most ``DeviceAPI`` methods accept a ``device_id``
+parameter to specify which device should be accessed.  In Python,
+these are typically accessed using the :py:func:`tvm.runtime.device`
+function, which returns a handle to a specific device, accessed
+through a specific API.  (e.g. ``tvm.runtime.device('cuda',0)`` gives
+access to physical device ``0``, accessed through the CUDA API.)
 
 .. _device_api.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/device_api.h
 
@@ -73,17 +78,23 @@ Python, these can be constructed using the
   on the device.
 
   * Allocate data space - ``AllocDataSpace`` and ``FreeDataSpace``
-    allocate and free space on the device.  It must be possible to
+    allocate and free space on the device.  These allocations can be
+    provided as inputs and outputs to an operator and make up the
+    primary data flow of the operator graph.  It must be possible to
     transfer data from the host to/from a data space.  The return
-    value is an opaque ``void*``, and will be passed unmodified into
-    other target-specific functions.
+    value is an opaque ``void*``.  While some implementations return a
+    memory address, this is not required, and the ``void*`` may be an
+    opaque handle that is interpretable only by the device backend
+    that generated it.  The ``void*`` is used as an argument to other
+    backend-specific functions, such as ``CopyDataFromTo``.
 
   * Allocate work space - ``AllocWorkspace`` and ``FreeWorkspace``
     allocate and free space on the device.  Unlike data space, these
-    are used for storage of intermediate values, and are not required
-    to be transferable to/from the host device.  If a ``DeviceAPI``
-    subclass does not implement these methods, they will default to
-    calling the corresponding ``DataSpace`` functions.
+    are used for storage of intermediate values within an operator
+    definition, and are not required to be transferable to/from the
+    host device.  If a ``DeviceAPI`` subclass does not implement these
+    methods, they will default to calling the corresponding
+    ``DataSpace`` functions.
 
   * Copy data - ``CopyDataFromTo`` should copy data from one location
     to another.  The type of copy is determined by the ``dev_from``
@@ -143,7 +154,7 @@ then be registered with the following steps.
 
      TVM_REGISTER_GLOBAL("device_api.foo").set_body_typed(FooDeviceAPI::Global);
 
-.. _device_api.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_device_api.h
+.. _c_runtime_api.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h
 
 #. Add an entry for the new DeviceAPI to the ``TVMDeviceExtType`` enum
    in `c_runtime_api.h`_.  The value should be an unused value greater
