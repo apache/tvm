@@ -452,6 +452,33 @@ def test_forward_Deconvolution():
             bias_filler=dict(type="xavier"),
         ),
     )
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=16,
+            bias_term=False,
+            pad=0,
+            kernel_size=2,
+            stride=2,
+            dilation=1,
+            group=16,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
+    data = np.random.rand(1, 100, 32, 32).astype(np.float32)
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=100,
+            bias_term=False,
+            pad=0,
+            kernel_size=2,
+            stride=2,
+            dilation=1,
+            group=100,
+        ),
+    )
 
 
 #######################################################################
