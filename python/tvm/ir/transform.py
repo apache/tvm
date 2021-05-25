@@ -105,6 +105,14 @@ class PassContext(tvm.runtime.Object):
         _ffi_transform_api.ExitPassContext(self)
 
     def override_instruments(self, instruments):
+        """Override instruments within this PassContext.
+
+        If there are existing instruments, their exit_pass_ctx callbacks are called.
+        Then switching to new instruments and calling new enter_pass_ctx callbacks.
+
+        instruments : Sequence[PassInstrument]
+            The list of pass instrument implementations.
+        """
         _ffi_transform_api.OverrideInstruments(self, instruments)
 
     @staticmethod
