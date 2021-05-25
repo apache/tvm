@@ -35,6 +35,7 @@
 #include "../../printer/text_printer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "./analysis.h"
+#include "./error.h"
 
 namespace tvm {
 namespace tir {
