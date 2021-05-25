@@ -213,9 +213,7 @@ class Schedule : public runtime::ObjectRef {
    * \sa ScheduleDebugMask
    * \note The checks performed includes:
    * 1) VerifySRefTree
-   * 2) VerifyAffineBinding
-   * 3) VerifyRegionCover
-   * 4) VerifyStagePipeline
+   * 2) VerifyCachedFlags
    */
   TVM_DLL static Schedule Concrete(IRModule mod, int debug_mode);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);

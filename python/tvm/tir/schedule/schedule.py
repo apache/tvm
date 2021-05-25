@@ -76,9 +76,7 @@ class Schedule(Object):
         ----------
         The checks performed includes:
         1) VerifySRefTree
-        2) VerifyAffineBinding
-        3) VerifyRegionCover
-        4) VerifyStagePipeline
+        2) VerifyCachedFlags
         """
         if isinstance(debug_mode, bool):
             if debug_mode:

@@ -19,9 +19,6 @@
 #ifndef TVM_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 #define TVM_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/tir/schedule/schedule.h>
-
 #include <memory>
 #include <utility>
 
@@ -208,7 +205,7 @@ template <class T>
 inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
   T rv;
   this->symbol_table_.Set(rv, sref);
-  return rv;
+  return std::move(rv);
 }
 
 inline ExprRV ConcreteScheduleNode::CreateRV(const PrimExpr& expr) {
