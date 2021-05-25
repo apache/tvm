@@ -209,6 +209,45 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
   return attrs;
 }
 
+/*!
+ * \brief Update the attributes in the Vulkan target.
+ * \param attrs The original attributes
+ * \return The updated attributes
+ */
+Map<String, ObjectRef> UpdateVulkanAttrs(Map<String, ObjectRef> attrs) {
+  if (attrs.count("from_device")) {
+    int device_id = Downcast<Integer>(attrs.at("from_device"));
+    const PackedFunc* generate_target = runtime::Registry::Get("device_api.vulkan.generate_target");
+    ICHECK(generate_target)
+        << "Requested to read Vulkan parameters from device, but no Vulkan runtime available";
+    Target target = (*generate_target)(device_id).AsObjectRef<Target>();
+    for (auto& kv : target->Export()) {
+      if (!attrs.count(kv.first)) {
+        attrs.Set(kv.first, kv.second);
+      }
+    }
+
+    attrs.erase("from_device");
+  }
+
+  // Set defaults here, rather than in the .add_attr_option() calls.
+  // The priority should be user-specified > device-query > default,
+  // but defaults defined in .add_attr_option() are already applied by
+  // this point.  Longer-term, would be good to add a
+  // `DeviceAPI::GenerateTarget` function and extend "from_device" to
+  // work for all runtimes.
+  std::unordered_map<String, ObjectRef> defaults = {{"supports_float32", Bool(true)},
+                                                    {"supports_int32", Bool(true)},
+                                                    {"max_num_threads", Integer(256)},
+                                                    {"thread_warp_size", Integer(1)}};
+  for (const auto& kv : defaults) {
+    if (!attrs.count(kv.first)) {
+      attrs.Set(kv.first, kv.second);
+    }
+  }
+  return attrs;
+}
+
 /**********  Register Target kinds and attributes  **********/
 
 TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
@@ -273,13 +312,14 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Bool>("from_device")
     // Feature support
     .add_attr_option<Bool>("supports_float16")
-    .add_attr_option<Bool>("supports_float32", Bool(true))
+    .add_attr_option<Bool>("supports_float32")
     .add_attr_option<Bool>("supports_float64")
     .add_attr_option<Bool>("supports_int8")
     .add_attr_option<Bool>("supports_int16")
-    .add_attr_option<Bool>("supports_int32", Bool(true))
+    .add_attr_option<Bool>("supports_int32")
     .add_attr_option<Bool>("supports_int64")
     .add_attr_option<Bool>("supports_8bit_buffer")
     .add_attr_option<Bool>("supports_16bit_buffer")
@@ -288,8 +328,8 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("supports_dedicated_allocation")
     .add_attr_option<Integer>("supported_subgroup_operations")
     // Physical device limits
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("thread_warp_size", Integer(1))
+    .add_attr_option<Integer>("max_num_threads")
+    .add_attr_option<Integer>("thread_warp_size")
     .add_attr_option<Integer>("max_block_size_x")
     .add_attr_option<Integer>("max_block_size_y")
     .add_attr_option<Integer>("max_block_size_z")
@@ -304,7 +344,8 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Integer>("vulkan_api_version")
     .add_attr_option<Integer>("max_spirv_version")
     // Tags
-    .set_default_keys({"vulkan", "gpu"});
+    .set_default_keys({"vulkan", "gpu"})
+    .set_attrs_preprocessor(UpdateVulkanAttrs);
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<Bool>("system-lib")

@@ -432,6 +432,8 @@ class VulkanDeviceAPI final : public DeviceAPI {
     return context_[device_id];
   }
 
+  Target GenerateTarget(size_t device_id) const { return context(device_id).target; }
+
  private:
   std::vector<const char*> find_enabled_extensions(
       const std::vector<VkExtensionProperties>& ext_prop,
@@ -848,7 +850,6 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     }();
 
     ctx.target = GetDeviceDescription(instance_, phy_dev, instance_extensions, device_extensions);
-    std::cout << "Target: " << ctx.target << std::endl;
 
     {
       // Enable all features we may use that a device supports.
@@ -1578,6 +1579,10 @@ TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(VulkanMod
 TVM_REGISTER_GLOBAL("device_api.vulkan").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = VulkanDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
+});
+
+TVM_REGISTER_GLOBAL("device_api.vulkan.generate_target").set_body_typed([](int device_id) {
+  return VulkanDeviceAPI::Global()->GenerateTarget(device_id);
 });
 
 }  // namespace vulkan
