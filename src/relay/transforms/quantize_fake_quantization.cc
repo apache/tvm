@@ -18,8 +18,9 @@
  */
 
 /*!
- * \file src/relay/transforms/simplify_expr.cc
- * \brief A pass for simplifying the Relay expression.
+ * \file src/relay/transforms/quantize_fake_quantization.cc
+ * \brief A pass for taking fake quantized graphs and converting them
+ * to actual integer operations.
  */
 
 #include <tvm/relay/expr.h>
@@ -52,7 +53,7 @@
  * quantize for subtraphs bounded by dequantize operations. This pass extracts the affine
  * types of the inputs for later processing
  *
- * The third pass is an ExprMutator the recursively rewrites the subgraphs using packed funcs
+ * The third pass is an ExprMutator that recursively rewrites the subgraphs using packed funcs
  * registered with the FTVMQuantizeFakeQuantization attribute. These packed funcs rewrite
  * the ops based on the affine types of their inputs and then return the affine types of the
  * new rewriten ops to pass that information down the stack during rewrite.
