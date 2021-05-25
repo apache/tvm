@@ -27,6 +27,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op_attr_types.h>
+#include <tvm/runtime/registry.h>
 
 #include <memory>
 
@@ -105,8 +106,8 @@ TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name)
 TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
   ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
-  OpRegistry::Global()->RegisterOrGet(op_name).set_name();
-  reg.describe(descr);
+  auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+  op.describe(descr);
 });
 
 TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
@@ -121,6 +122,8 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
           // call customized relation functions
           // *fcopy's signature: function (args: List[Type], attrs: Attrs) -> Type
           Type ret_type = (*fcopy)(input_types, attrs);
+          // handle exceptions from python side
+          tvm::runtime::EnvCheckSignals();
           // when defined ret_type, inference of output type is ok, do type assign
           // otherwise, inference failure happens
           if (ret_type.defined()) {

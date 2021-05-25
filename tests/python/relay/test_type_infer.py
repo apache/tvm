@@ -420,7 +420,7 @@ def test_dynamic_function():
 def test_custom_op_infer():
     """" Tests infer type for custom_op """
     op_name = "custom_log"
-    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.register(op_name, r"code(cal log of a tensor.)code")
     _op.get(op_name).set_num_inputs(1)
     _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
     # call default relation functions
@@ -442,6 +442,31 @@ def test_custom_op_infer():
     fchecked = infer_expr(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
 
+def test_custom_add_broadcast_op():
+    """ Tests infer type for broadcast custom_op """
+    op_name = "custom_broadcast_add"
+     _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.get(op_name).set_num_inputs(2)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).add_argument("data_1", "Tensor", "The input data tensor.")
+    # call default relation functions
+    _op.get(op_name).add_type_rel("Broadcast")
+    _op.get(op_name).set_support_level(1)
+    _op.register_stateful(op_name, False)
+
+    def broadcast_add(x, y):
+        return relay.Call(_op.get(op_name), [x, y])
+
+    x = relay.var("x", shape=(10, 4))
+    y = relay.var("y", shape=(5, 10, 1))
+    z = broadcast_add(x, y)
+    func = relay.Function([x, y], z)
+    t1 = relay.TensorType((10, 4), "float32")
+    t2 = relay.TensorType((5, 10, 1), "float32")
+    t3 = relay.TensorType((5, 10, 4), "float32")
+    expected_ty = relay.FuncType([t1, t2], t3)
+    assert_has_type(func, expected_ty)
+
 
 def test_custom_op_rel_infer():
     """" Tests infer type for custom_op """
@@ -454,7 +479,7 @@ def test_custom_op_rel_infer():
         return relay.TensorType(inputa_type.shape, inputa_type.dtype)
 
     op_name = "custom_log1"
-    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.register(op_name, r"code(cal log of a tensor.)code")
     _op.get(op_name).set_num_inputs(1)
     _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
     _op.get(op_name).set_attrs_type_key("DictAttrs")
