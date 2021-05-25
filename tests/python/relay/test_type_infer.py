@@ -442,6 +442,7 @@ def test_custom_op_infer():
     fchecked = infer_expr(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
 
+
 def test_custom_add_broadcast_op():
     """ Tests infer type for broadcast custom_op """
     op_name = "custom_broadcast_add"
