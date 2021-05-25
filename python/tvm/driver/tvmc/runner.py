@@ -359,6 +359,14 @@ def run_module(
             "Try calling tvmc.compile on the model before running it."
         )
 
+    # Currently only two package formats are supported: "classic" and
+    # "mlf". The later can only be used for micro targets, i.e. with µTVM.
+    if tvmc_package.type == "mlf":
+        raise TVMCException(
+            "You're trying to run a model saved using the Model Library Format (MLF)."
+            "MLF can only be used to run micro targets (µTVM)."
+        )
+
     if hostname:
         if isinstance(port, str):
             port = int(port)
