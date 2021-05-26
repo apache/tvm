@@ -193,7 +193,9 @@ def test_tflite(platform, west_cmd):
 
     # Load sample and generate input/output header files
     sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/testdata_image_classification_fp32_8.npy"
-    sample_path = download_testdata(sample_url, "testdata_image_classification_fp32_8.npy", module="data")
+    sample_path = download_testdata(
+        sample_url, "testdata_image_classification_fp32_8.npy", module="data"
+    )
     sample = np.load(sample_path)
     model_files_path = os.path.join(runtime_path, "include")
     _create_header_file((f"input_data"), sample, model_files_path)
