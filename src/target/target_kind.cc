@@ -258,7 +258,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
     .add_attr_option<Bool>("link-params", Bool(false))
-    .add_attr_option<Bool>("typed-operators")
+    .add_attr_option<Bool>("unpacked-api", Bool(false))
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
@@ -269,7 +269,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
-    .add_attr_option<Bool>("typed-operators")
+    .add_attr_option<Bool>("unpacked-api", Bool(false))
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)

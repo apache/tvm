@@ -44,7 +44,7 @@ from aot_test_utils import *
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_conv_with_params(use_calculated_workspaces, target_options):
     RELAY_MODEL = """
 #[version = "0.0.5"]
@@ -78,7 +78,7 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_add_with_params(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
@@ -99,7 +99,7 @@ def test_add_with_params(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_conv2d(use_calculated_workspaces, target_options):
     """Test a subgraph with a single conv2d operator."""
 
@@ -146,7 +146,7 @@ def test_conv2d(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_concatenate(use_calculated_workspaces, target_options):
     dtype = "float32"
     x = relay.var("x", shape=(10, 5), dtype=dtype)
@@ -167,7 +167,7 @@ def test_concatenate(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_nested_tuples(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(10,))
     x1 = x + relay.const(1.0)
@@ -185,7 +185,7 @@ def test_nested_tuples(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_tuple_getitem(use_calculated_workspaces, target_options):
     func = relay.Function([], relay.TupleGetItem(relay.Tuple([relay.const(1), relay.const(2)]), 0))
     output_list = generate_ref_data(func, {})
@@ -194,7 +194,7 @@ def test_tuple_getitem(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_id(use_calculated_workspaces, target_options):
     x = relay.var("x", "float32")
     ident = relay.Function([x], x)
@@ -206,7 +206,7 @@ def test_id(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_add_const(use_calculated_workspaces, target_options):
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
@@ -216,7 +216,7 @@ def test_add_const(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_mul_param(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
@@ -230,7 +230,7 @@ def test_mul_param(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_subtract(use_calculated_workspaces, target_options):
     i = relay.var("i", shape=[], dtype="int32")
     sub = relay.subtract(i, relay.const(1, dtype="int32"))
@@ -243,7 +243,7 @@ def test_subtract(use_calculated_workspaces, target_options):
 
 
 @pytest.mark.parametrize("use_calculated_workspaces", [True, False])
-@pytest.mark.parametrize("target_options", ["", "--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["", "--unpacked-api"])
 def test_tuple_output(use_calculated_workspaces, target_options):
     x = relay.var("x", shape=(6, 9))
     y = relay.split(x, 3).astuple()
@@ -262,7 +262,7 @@ def test_tuple_output(use_calculated_workspaces, target_options):
 @pytest.mark.parametrize(
     "use_calculated_workspaces_and_alignment", [(True, 1), (True, 16), (False, 1)]
 )
-@pytest.mark.parametrize("target_options", ["--typed-operators=0"])
+@pytest.mark.parametrize("target_options", ["--unpacked-api"])
 def test_mobilenet(use_calculated_workspaces_and_alignment, target_options):
     use_calculated_workspaces = use_calculated_workspaces_and_alignment[0]
     workspace_byte_alignment = use_calculated_workspaces_and_alignment[1]

@@ -192,7 +192,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << "}\n";
   }
 
-  void GenerateUntypedEntrypoint() {
+  void GenerateEntrypointForUnpackedAPI() {
     code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix << "(";
     int total_args = (metadata_->num_inputs + metadata_->num_outputs);
     for (int i = 0; i < total_args; ++i) {
@@ -202,7 +202,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
     }
     code_ << ");\n";
-    code_ << "static int32_t _tvm_entrypoint";
+    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_entrypoint_name;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
     code_ << "return " << ::tvm::runtime::symbol::tvm_run_func_prefix << "(";
@@ -220,11 +220,11 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "}\n";
   }
 
-  void GenerateTypedEntrypoint() {
+  void GenerateEntrypointForPackedAPI() {
     code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle);\n";
-    code_ << "static int32_t _tvm_entrypoint";
+    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_entrypoint_name;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
     code_ << "return " << ::tvm::runtime::symbol::tvm_run_func_prefix;
@@ -238,13 +238,13 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\"\n";
     code_ << "#endif\n";
-    if (target_->GetAttr<Bool>("typed-operators").value_or(Bool(true))) {
-      GenerateTypedEntrypoint();
+    if (target_->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+      GenerateEntrypointForUnpackedAPI();
     } else {
-      GenerateUntypedEntrypoint();
+      GenerateEntrypointForPackedAPI();
     }
     code_ << "const tvm_model_t network = {\n"
-          << "    .run_func = &_tvm_entrypoint,\n"
+          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_entrypoint_name << ",\n"
           << "    .num_input_tensors = " << metadata_->num_inputs << ",\n"
           << "    .num_output_tensors = " << metadata_->num_outputs << ", \n"
           << "};\n";

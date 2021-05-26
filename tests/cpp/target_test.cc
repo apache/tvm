@@ -147,9 +147,10 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->keys.size(), 2U);
   ICHECK_EQ(target->keys[0], "cpu");
   ICHECK_EQ(target->keys[1], "arm_cpu");
-  ICHECK_EQ(target->attrs.size(), 2U);
+  ICHECK_EQ(target->attrs.size(), 3U);
   ICHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
   ICHECK_EQ(target->GetAttr<Bool>("link-params"), false);
+  ICHECK_EQ(target->GetAttr<Bool>("unpacked-api"), false);
 }
 
 TEST(TargetKindRegistryListTargetKinds, Basic) {

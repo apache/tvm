@@ -138,7 +138,7 @@ class AOTExecutorCodegen : public ExprVisitor {
       auto sid_array = te::Var(MakeString("sid_", sid, "_value"), DataType::Handle());
       auto sid_value = sids_table_[sid];
 
-      if (use_typed_operators_) {
+      if (!use_unpacked_api_) {
         tvm::PrimExpr set_tensor =
             tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                            {sid_array, 0, tir::builtin::kArrData, sid_value});
@@ -168,7 +168,7 @@ class AOTExecutorCodegen : public ExprVisitor {
     auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                        {tir::StringImm(params_by_expr_[expr])});
 
-    if (use_typed_operators_) {
+    if (!use_unpacked_api_) {
       tvm::PrimExpr set_param_array =
           tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                          {param_array, 0, tir::builtin::kArrData, param_handle});
@@ -220,7 +220,7 @@ class AOTExecutorCodegen : public ExprVisitor {
 
     // Use tvm_call_packed to execute the function unless we're calling directly
     auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
-    if (!use_typed_operators_) {
+    if (use_unpacked_api_) {
       calling_pattern = tvm::tir::builtin::call_extern();
     }
 
@@ -248,7 +248,7 @@ class AOTExecutorCodegen : public ExprVisitor {
                                          {in, 0, tir::builtin::kArrData});
     PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
                                       {out, 0, tir::builtin::kArrData});
-    if (!use_typed_operators_) {
+    if (use_unpacked_api_) {
       retval_get = in;
       tostore = out;
     }
@@ -552,7 +552,7 @@ class AOTExecutorCodegen : public ExprVisitor {
   /*! \brief target host */
   Target target_host_;
   /*! \brief untyped operators flag */
-  Bool use_typed_operators_;
+  Bool use_unpacked_api_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -582,11 +582,11 @@ class AOTExecutorCodegen : public ExprVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
-      : mod_(mod), use_typed_operators_(true) {
+      : mod_(mod), use_unpacked_api_(false) {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
     target_host_ = target_host;
-    use_typed_operators_ = target_host->GetAttr<Bool>("typed-operators").value_or(Bool(true));
+    use_unpacked_api_ = target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
   }
 
   LoweredOutput Codegen(relay::Function func) {
