@@ -78,9 +78,10 @@ TVM_DLL IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::s
  * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
-TVM_DLL IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-               bool simple_mode = false);
+TVM_DLL IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args,
+                       const std::string& name,
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       bool simple_mode = false);
 
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.

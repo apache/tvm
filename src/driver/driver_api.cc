@@ -128,29 +128,75 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
-Array<tvm::transform::Pass> LegacyTEPassList() {
-  auto pass_list = Array<tvm::transform::Pass>();
-
-}
-
-IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+Array<tvm::transform::Pass> CreatePassList(bool simple_mode, bool legacy_te_pass) {
   auto pass_ctx = transform::PassContext::Current();
 
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
   bool instrument_bound_checkers =
       pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
 
-  auto pass_list = Array<tvm::transform::Pass>();
+  // Get any user-added passes
+  auto add_lower_pass =
+      pass_ctx->GetConfig<Array<Array<ObjectRef>>>("tir.add_lower_pass", Array<Array<ObjectRef>>())
+          .value();
 
-  // Phase 0
-  pass_list.push_back(tir::transform::InjectPrefetch());
-  pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
-  // Phase 1
+  auto user_lower_phase0 = Array<tvm::transform::Pass>();
+  auto user_lower_phase1 = Array<tvm::transform::Pass>();
+  auto user_lower_phase2 = Array<tvm::transform::Pass>();
+  auto user_lower_phase3 = Array<tvm::transform::Pass>();
+
+  // phase pasees is of the form
+  // [[phase_number, pass], [phase_number, pass]... ]
+  for (auto phase_pass : add_lower_pass) {
+    auto phase_num = phase_pass[0].as<IntImmNode>();
+    ICHECK(phase_num)
+        << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer";
+    int phase_num_val = phase_num->value;
+
+    CHECK_GT(phase_num_val, 0);
+
+    // TODO(electriclilies): is there a cleaner way to do this?
+    auto pass_node = phase_pass[1].as<tvm::transform::PassNode>();
+    auto pass = GetRef<tvm::transform::Pass>(pass_node);
+    // Copy the pass into the correct phase
+    if (phase_num_val == 0) {
+      user_lower_phase0.push_back(pass);
+    } else if (phase_num_val == 1) {
+      user_lower_phase1.push_back(pass);
+    } else if (phase_num_val == 2) {
+      user_lower_phase2.push_back(pass);
+    } else if (phase_num_val >= 3) {
+      user_lower_phase3.push_back(pass);
+    }
+  }
+
+  // Construct the pass list, inserting the user provided passes at the end of the phase
+  // TODO(electriclilies): I'm not sure if they should go at the beginning or the end of the phase.
+  // The code is inconsistent with what passes are in which phase as well. For now I have coped the
+  // python behavior exactly.
+
+  // PHASE 0
+  auto pass_list = user_lower_phase0;
+
+  // PHASE 1
+  if (legacy_te_pass) {
+    pass_list.push_back(tir::transform::InjectPrefetch());
+    pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
+  } else {
+    pass_list.push_back(tir::transform::LowerInitBlock());
+    pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+    pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
+    pass_list.push_back(tir::transform::CompactBufferAllocation());
+    pass_list.push_back(tir::transform::FlattenBuffer());
+  }
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
 
+  // Add user-defined phase-1 passes
+  pass_list.insert(pass_list.end(), user_lower_phase1.begin(), user_lower_phase1.end());
+
+  // PHASE 2
   if (!simple_mode) {
     pass_list.push_back(tir::transform::LoopPartition());
   }
@@ -160,19 +206,36 @@ IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& n
   pass_list.push_back(tir::transform::InjectDoubleBuffer());
   pass_list.push_back(tir::transform::StorageRewrite());
   pass_list.push_back(tir::transform::UnrollLoop());
-  // Phase 2
+
+  // Add user-defined phase-2 passes
+  pass_list.insert(pass_list.end(), user_lower_phase2.begin(), user_lower_phase2.end());
+
+  // PHASE 3
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
   // HoistIfThenElse
   pass_list.push_back(tir::transform::HoistIfThenElse());
+
+  // Add user-defined phase-3 passes
+  pass_list.insert(pass_list.end(), user_lower_phase3.begin(), user_lower_phase3.end());
+
   if (instrument_bound_checkers) {
     pass_list.push_back(tir::transform::InstrumentBoundCheckers());
   }
-  // run
+  return pass_list;
+}
+
+IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) {
   auto optimize = transform::Sequential(pass_list);
   mod = optimize(std::move(mod));
   return mod;
+}
+
+IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  auto pass_list = CreatePassList(simple_mode, false);
+  return LowerWithPassList(mod, pass_list);
 }
 
 IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
@@ -201,22 +264,27 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
-  return lower(mod, args, name, binds, simple_mode);
+
+  // Get the legacy TE pass list
+  auto pass_list = CreatePassList(simple_mode, true);
+  return LowerWithPassList(mod, pass_list);
 }
 
 IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   auto pass_ctx = transform::PassContext::Current();
   auto f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
-  
+
   bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
 
   if (noalias) {
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
-  return lower(mod, args, name, binds, simple_mode);
-  
+
+  // Get the pass list
+  auto pass_list = CreatePassList(simple_mode, false);
+  return LowerWithPassList(mod, pass_list);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower")
