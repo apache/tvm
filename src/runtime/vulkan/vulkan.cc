@@ -21,11 +21,13 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
 
 #include "../file_utils.h"
@@ -262,6 +264,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
     delete pbuf;
   }
 
+  Target GetDeviceDescription(VkInstance instance, VkPhysicalDevice dev,
+                              const std::vector<const char*>& instance_extensions,
+                              const std::vector<const char*>& device_extensions);
+
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       Device dev_from, Device dev_to, DLDataType type_hint,
@@ -426,11 +432,215 @@ class VulkanDeviceAPI final : public DeviceAPI {
     return context_[device_id];
   }
 
+  Target GenerateTarget(size_t device_id) const { return context(device_id).target; }
+
  private:
+  std::vector<const char*> find_enabled_extensions(
+      const std::vector<VkExtensionProperties>& ext_prop,
+      const std::vector<const char*>& required_extensions,
+      const std::vector<const char*>& optional_extensions) {
+    std::set<std::string> available_extensions;
+    for (const auto& prop : ext_prop) {
+      if (prop.specVersion > 0) {
+        available_extensions.insert(prop.extensionName);
+      }
+    }
+
+    std::vector<const char*> enabled_extensions;
+    for (const auto& ext : required_extensions) {
+      ICHECK(available_extensions.count(ext))
+          << "Required vulkan extension \"" << ext << "\" not supported by driver";
+      enabled_extensions.push_back(ext);
+    }
+
+    for (const auto& ext : optional_extensions) {
+      if (available_extensions.count(ext)) {
+        enabled_extensions.push_back(ext);
+      }
+    }
+
+    return enabled_extensions;
+  }
+
   VkInstance instance_{nullptr};
   // The physical devices, have 1 to 1 mapping to devices
   std::vector<VulkanContext> context_;
 };
+
+Target VulkanDeviceAPI::GetDeviceDescription(VkInstance instance, VkPhysicalDevice dev,
+                                             const std::vector<const char*>& instance_extensions,
+                                             const std::vector<const char*>& device_extensions) {
+  auto has_extension = [&](const char* query) {
+    return std::any_of(device_extensions.begin(), device_extensions.end(),
+                       [&](const char* extension) { return std::strcmp(query, extension) == 0; }) ||
+           std::any_of(instance_extensions.begin(), instance_extensions.end(),
+                       [&](const char* extension) { return std::strcmp(query, extension) == 0; });
+  };
+
+  // Declare output locations for properties
+  VkPhysicalDeviceProperties2 properties = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  VkPhysicalDeviceDriverProperties driver = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+  VkPhysicalDeviceSubgroupProperties subgroup = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES};
+
+  // Need to do initial query in order to check the apiVersion.
+  vkGetPhysicalDeviceProperties(dev, &properties.properties);
+
+  // Set up linked list for property query
+  {
+    void** pp_next = &properties.pNext;
+    if (has_extension("VK_KHR_driver_properties")) {
+      *pp_next = &driver;
+      pp_next = &driver.pNext;
+    }
+    if (properties.properties.apiVersion >= VK_API_VERSION_1_1) {
+      *pp_next = &subgroup;
+      pp_next = &subgroup.pNext;
+    }
+  }
+
+  // Declare output locations for features
+  VkPhysicalDeviceFeatures2 features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+  VkPhysicalDevice8BitStorageFeatures storage_8bit = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES};
+  VkPhysicalDevice16BitStorageFeatures storage_16bit = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES};
+  VkPhysicalDeviceShaderFloat16Int8Features float16_int8 = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES};
+
+  // Set up linked list for feature query
+  {
+    void** pp_next = &features.pNext;
+    if (has_extension("VK_KHR_8bit_storage")) {
+      *pp_next = &storage_8bit;
+      pp_next = &storage_8bit.pNext;
+    }
+    if (has_extension("VK_KHR_16bit_storage")) {
+      *pp_next = &storage_16bit;
+      pp_next = &storage_16bit.pNext;
+    }
+    if (has_extension("VK_KHR_shader_float16_int8")) {
+      *pp_next = &float16_int8;
+      pp_next = &float16_int8.pNext;
+    }
+  }
+
+  if (has_extension("VK_KHR_get_physical_device_properties2")) {
+    // Preferred method, call to get all properties that can be queried.
+    auto vkGetPhysicalDeviceProperties2KHR = (PFN_vkGetPhysicalDeviceProperties2KHR)ICHECK_NOTNULL(
+        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+    vkGetPhysicalDeviceProperties2KHR(dev, &properties);
+
+    auto vkGetPhysicalDeviceFeatures2KHR = (PFN_vkGetPhysicalDeviceFeatures2KHR)ICHECK_NOTNULL(
+        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
+    vkGetPhysicalDeviceFeatures2KHR(dev, &features);
+  } else {
+    // Fallback, get as many features as we can from the Vulkan1.0
+    // API.  Corresponding vkGetPhysicalDeviceProperties was already done earlier.
+    vkGetPhysicalDeviceFeatures(dev, &features.features);
+  }
+
+  //// Now, extracting all the information from the vulkan query.
+
+  // Not technically needed, because VK_SHADER_STAGE_COMPUTE_BIT will
+  // be set so long at least one queue has VK_QUEUE_COMPUTE_BIT, but
+  // preferring the explicit check.
+  uint32_t supported_subgroup_operations =
+      (subgroup.supportedStages & VK_SHADER_STAGE_COMPUTE_BIT) ? subgroup.supportedOperations : 0;
+
+  // Even if we can't query it, warp size must be at least 1.  Must
+  // also be defined, as `transpose` operation requires it.
+  uint32_t thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+
+  // By default, use the maximum API version that the driver allows,
+  // so that any supported features can be used by TVM shaders.
+  // However, if we can query the conformance version, then limit to
+  // only using the api version that passes the vulkan conformance
+  // tests.
+  uint32_t vulkan_api_version = properties.properties.apiVersion;
+  if (has_extension("VK_KHR_driver_properties")) {
+    auto api_major = VK_VERSION_MAJOR(vulkan_api_version);
+    auto api_minor = VK_VERSION_MINOR(vulkan_api_version);
+    if ((api_major > driver.conformanceVersion.major) ||
+        ((api_major == driver.conformanceVersion.major) &&
+         (api_minor > driver.conformanceVersion.minor))) {
+      vulkan_api_version =
+          VK_MAKE_VERSION(driver.conformanceVersion.major, driver.conformanceVersion.minor, 0);
+    }
+  }
+
+  // From "Versions and Formats" section of Vulkan spec.
+  uint32_t max_spirv_version = 0x10000;
+  if (vulkan_api_version >= VK_API_VERSION_1_2) {
+    max_spirv_version = 0x10500;
+  } else if (has_extension("VK_KHR_spirv_1_4")) {
+    max_spirv_version = 0x10400;
+  } else if (vulkan_api_version >= VK_API_VERSION_1_1) {
+    max_spirv_version = 0x10300;
+  }
+
+  // Support is available based on these extensions, but allow it to
+  // be disabled based on an environment variable.
+  bool supports_push_descriptor =
+      has_extension("VK_KHR_push_descriptor") && has_extension("VK_KHR_descriptor_update_template");
+  {
+    const char* disable = std::getenv("TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR");
+    if (disable && *disable) {
+      supports_push_descriptor = false;
+    }
+  }
+
+  // Support is available based on these extensions, but allow it to
+  // be disabled based on an environment variable.
+  bool supports_dedicated_allocation = has_extension("VK_KHR_get_memory_requirements2") &&
+                                       has_extension("VK_KHR_dedicated_allocation");
+  {
+    const char* disable = std::getenv("TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION");
+    if (disable && *disable) {
+      supports_dedicated_allocation = false;
+    }
+  }
+
+  Map<String, ObjectRef> config = {
+      {"kind", String("vulkan")},
+      // Feature support
+      {"supports_float16", Bool(float16_int8.shaderFloat16)},
+      {"supports_float32", Bool(true)},
+      {"supports_float64", Bool(features.features.shaderFloat64)},
+      {"supports_int8", Bool(float16_int8.shaderInt8)},
+      {"supports_int16", Bool(features.features.shaderInt16)},
+      {"supports_int32", Bool(true)},
+      {"supports_int64", Bool(features.features.shaderInt64)},
+      {"supports_8bit_buffer", Bool(storage_8bit.storageBuffer8BitAccess)},
+      {"supports_16bit_buffer", Bool(storage_16bit.storageBuffer16BitAccess)},
+      {"supports_storage_buffer_storage_class",
+       Bool(has_extension("VK_KHR_storage_buffer_storage_class"))},
+      {"supports_push_descriptor", Bool(supports_push_descriptor)},
+      {"supports_dedicated_allocation", Bool(supports_dedicated_allocation)},
+      {"supported_subgroup_operations", Integer(supported_subgroup_operations)},
+      // Physical device limits
+      {"max_num_threads", Integer(properties.properties.limits.maxComputeWorkGroupInvocations)},
+      {"thread_warp_size", Integer(thread_warp_size)},
+      {"max_block_size_x", Integer(properties.properties.limits.maxComputeWorkGroupSize[0])},
+      {"max_block_size_y", Integer(properties.properties.limits.maxComputeWorkGroupSize[1])},
+      {"max_block_size_z", Integer(properties.properties.limits.maxComputeWorkGroupSize[2])},
+      {"max_push_constants_size", Integer(properties.properties.limits.maxPushConstantsSize)},
+      {"max_uniform_buffer_range", Integer(properties.properties.limits.maxUniformBufferRange)},
+      {"max_storage_buffer_range",
+       Integer(IntImm(DataType::UInt(32), properties.properties.limits.maxStorageBufferRange))},
+      {"max_per_stage_descriptor_storage_buffer",
+       Integer(properties.properties.limits.maxPerStageDescriptorStorageBuffers)},
+      {"max_shared_memory_per_block",
+       Integer(properties.properties.limits.maxComputeSharedMemorySize)},
+      // Other device properties
+      {"device_name", String(properties.properties.deviceName)},
+      {"driver_version", Integer(properties.properties.driverVersion)},
+      {"vulkan_api_version", Integer(vulkan_api_version)},
+      {"max_spirv_version", Integer(max_spirv_version)},
+  };
+
+  return Target(config);
+}
 
 void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
@@ -439,39 +649,24 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
     return;
   }
   ICHECK_LT(index, context_.size()) << "Invalid device id " << index;
-  const auto& vctx = context(index);
-  VkPhysicalDeviceProperties phy_prop;
-  vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+
+  const auto& target = context(index).target;
 
   switch (kind) {
     case kMaxThreadsPerBlock: {
-      int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
-      *rv = value;
+      *rv = target->GetAttr<Integer>("max_num_threads").value();
       break;
     }
     case kMaxSharedMemoryPerBlock: {
-      int64_t value = phy_prop.limits.maxComputeSharedMemorySize;
-      *rv = value;
+      *rv = target->GetAttr<Integer>("max_shared_memory_per_block");
       break;
     }
     case kWarpSize: {
-      VkPhysicalDeviceSubgroupProperties subgroup_prop;
-      subgroup_prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
-      subgroup_prop.pNext = NULL;
-
-      VkPhysicalDeviceProperties2 phy_prop2;
-      phy_prop2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-      phy_prop2.pNext = &subgroup_prop;
-
-      vkGetPhysicalDeviceProperties2(vctx.phy_device, &phy_prop2);
-      int64_t subgroup_size = subgroup_prop.subgroupSize;
-      ICHECK(subgroup_size >= 1);
-
-      *rv = subgroup_size;
+      *rv = target->GetAttr<Integer>("thread_warp_size").value();
       break;
     }
     case kComputeVersion: {
-      int64_t value = phy_prop.apiVersion;
+      int64_t value = target->GetAttr<Integer>("vulkan_api_version").value();
       std::ostringstream os;
       os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
          << VK_VERSION_PATCH(value);
@@ -479,33 +674,39 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     }
     case kDeviceName:
-      *rv = std::string(phy_prop.deviceName);
+      *rv = target->GetAttr<String>("device_name").value();
       break;
+
     case kMaxClockRate:
       break;
+
     case kMultiProcessorCount:
       break;
+
     case kExist:
       break;
+
     case kMaxThreadDimensions: {
-      int64_t dims[3];
-      dims[0] = phy_prop.limits.maxComputeWorkGroupSize[0];
-      dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
-      dims[2] = phy_prop.limits.maxComputeWorkGroupSize[2];
       std::stringstream ss;  // use json string to return multiple int values;
-      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      ss << "[" << target->GetAttr<Integer>("max_block_size_x").value() << ", "
+         << target->GetAttr<Integer>("max_block_size_y").value() << ", "
+         << target->GetAttr<Integer>("max_block_size_z").value() << "]";
       *rv = ss.str();
       break;
     }
+
     case kMaxRegistersPerBlock:
       break;
+
     case kGcnArch:
       break;
+
     case kApiVersion:
       *rv = VK_HEADER_VERSION;
       break;
+
     case kDriverVersion: {
-      int64_t value = phy_prop.driverVersion;
+      int64_t value = target->GetAttr<Integer>("driver_version").value();
       std::ostringstream os;
       os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
          << VK_VERSION_PATCH(value);
@@ -516,67 +717,86 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 }
 
 VulkanDeviceAPI::VulkanDeviceAPI() {
-  VkApplicationInfo app_info;
-  app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.pNext = nullptr;
-  app_info.pApplicationName = "TVM";
-  app_info.applicationVersion = 0;
-  app_info.pEngineName = "";
-  app_info.engineVersion = 0;
-  app_info.apiVersion = VK_MAKE_VERSION(1, 0, 0);
-
-  VkInstanceCreateInfo inst_info;
-  inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  inst_info.pNext = nullptr;
-  inst_info.flags = 0;
-
   const auto layers = []() -> std::vector<const char*> {
     uint32_t inst_layer_prop_count;
     VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, nullptr));
     std::vector<VkLayerProperties> inst_layer_prop(inst_layer_prop_count);
     VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, inst_layer_prop.data()));
     std::vector<const char*> l;
-    for (const auto& lp : inst_layer_prop) {
-      // TODO(tulloch): add CMAKE options.
-      (void)lp;  // suppress unused variable warning.
-#ifdef USE_VULKAN_VALIDATION
-      if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_standard_validation") == 0) {
-        l.push_back("VK_LAYER_LUNARG_standard_validation");
+
+    const char* enable = std::getenv("TVM_VULKAN_ENABLE_VALIDATION_LAYERS");
+    bool validation_enabled = enable && *enable;
+    if (validation_enabled) {
+      for (const auto& lp : inst_layer_prop) {
+        if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_standard_validation") == 0) {
+          l.push_back("VK_LAYER_LUNARG_standard_validation");
+        }
+        if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_parameter_validation") == 0) {
+          l.push_back("VK_LAYER_LUNARG_parameter_validation");
+        }
+        if (std::strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
+          l.push_back("VK_LAYER_KHRONOS_validation");
+        }
       }
-      if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_parameter_validation") == 0) {
-        l.push_back("VK_LAYER_LUNARG_parameter_validation");
-      }
-      if (std::strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
-        l.push_back("VK_LAYER_KHRONOS_validation");
-      }
-#endif
     }
     return l;
   }();
 
-  const auto instance_extensions = []() -> std::vector<const char*> {
+  const auto instance_extensions = [this]() {
+    std::vector<const char*> required_extensions{};
+    std::vector<const char*> optional_extensions{"VK_KHR_get_physical_device_properties2"};
+
     uint32_t inst_extension_prop_count;
     VULKAN_CALL(
         vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count, nullptr));
     std::vector<VkExtensionProperties> inst_extension_prop(inst_extension_prop_count);
     VULKAN_CALL(vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count,
                                                        inst_extension_prop.data()));
-    std::vector<const char*> extensions;
-    for (const auto& ip : inst_extension_prop) {
-      if (std::strcmp(ip.extensionName, "VK_KHR_get_physical_device_properties2") == 0) {
-        extensions.push_back("VK_KHR_get_physical_device_properties2");
-      }
-    }
-    return extensions;
+
+    return find_enabled_extensions(inst_extension_prop, required_extensions, optional_extensions);
   }();
 
-  inst_info.pApplicationInfo = &app_info;
-  inst_info.enabledLayerCount = layers.size();
-  inst_info.ppEnabledLayerNames = layers.data();
-  inst_info.enabledExtensionCount = instance_extensions.size();
-  inst_info.ppEnabledExtensionNames = instance_extensions.data();
+  auto has_instance_extension = [&instance_extensions](const char* query) {
+    return std::any_of(instance_extensions.begin(), instance_extensions.end(),
+                       [&](const char* extension) { return std::strcmp(query, extension) == 0; });
+  };
 
-  VULKAN_CALL(vkCreateInstance(&inst_info, nullptr, &instance_));
+  const auto instance_api_version = []() {
+    uint32_t api_version = VK_MAKE_VERSION(1, 0, 0);
+
+    // Result from vkGetInstanceProcAddr is NULL if driver only
+    // supports vulkan 1.0.
+    auto vkEnumerateInstanceVersion =
+        (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceVersion");
+    if (vkEnumerateInstanceVersion) {
+      vkEnumerateInstanceVersion(&api_version);
+    }
+
+    return api_version;
+  }();
+
+  {
+    VkApplicationInfo app_info;
+    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pNext = nullptr;
+    app_info.pApplicationName = "TVM";
+    app_info.applicationVersion = 0;
+    app_info.pEngineName = "";
+    app_info.engineVersion = 0;
+    app_info.apiVersion = instance_api_version;
+
+    VkInstanceCreateInfo inst_info;
+    inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    inst_info.pNext = nullptr;
+    inst_info.flags = 0;
+    inst_info.pApplicationInfo = &app_info;
+    inst_info.enabledLayerCount = layers.size();
+    inst_info.ppEnabledLayerNames = layers.data();
+    inst_info.enabledExtensionCount = instance_extensions.size();
+    inst_info.ppEnabledExtensionNames = instance_extensions.data();
+
+    VULKAN_CALL(vkCreateInstance(&inst_info, nullptr, &instance_));
+  }
 
   uint32_t phy_dev_count = 0;
   VULKAN_CALL(vkEnumeratePhysicalDevices(instance_, &phy_dev_count, nullptr));
@@ -603,51 +823,102 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     ctx.phy_device = phy_dev;
     vkGetPhysicalDeviceProperties(ctx.phy_device, &(ctx.phy_device_prop));
 
-    const auto extensions = [&]() {
+    const auto device_extensions = [&]() {
+      std::vector<const char*> required_extensions{};
+      std::vector<const char*> optional_extensions{
+          "VK_KHR_driver_properties",
+          "VK_KHR_storage_buffer_storage_class",
+          "VK_KHR_8bit_storage",
+          "VK_KHR_16bit_storage",
+          "VK_KHR_shader_float16_int8",
+          "VK_KHR_push_descriptor",
+          "VK_KHR_descriptor_update_template",
+          "VK_KHR_get_memory_requirements2",
+          "VK_KHR_dedicated_allocation",
+          "VK_KHR_spirv_1_4",
+      };
+
       uint32_t device_extension_prop_count;
       VULKAN_CALL(vkEnumerateDeviceExtensionProperties(ctx.phy_device, nullptr,
                                                        &device_extension_prop_count, nullptr));
       std::vector<VkExtensionProperties> device_extension_prop(device_extension_prop_count);
       VULKAN_CALL(vkEnumerateDeviceExtensionProperties(
           ctx.phy_device, nullptr, &device_extension_prop_count, device_extension_prop.data()));
-      std::vector<const char*> extensions;
-      for (const auto& dp : device_extension_prop) {
-        if ((std::strcmp(dp.extensionName, "VK_KHR_push_descriptor") == 0) && dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_push_descriptor");
-        }
-        if ((std::strcmp(dp.extensionName, "VK_KHR_descriptor_update_template") == 0) &&
-            dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_descriptor_update_template");
-        }
-        if ((std::strcmp(dp.extensionName, "VK_KHR_get_memory_requirements2") == 0) &&
-            dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_get_memory_requirements2");
-        }
-        if ((std::strcmp(dp.extensionName, "VK_KHR_dedicated_allocation") == 0) &&
-            dp.specVersion > 0) {
-          extensions.push_back("VK_KHR_dedicated_allocation");
-        }
-      }
-      return extensions;
+
+      return find_enabled_extensions(device_extension_prop, required_extensions,
+                                     optional_extensions);
     }();
 
-    // All TVM-generated spirv shaders are marked as requiring int64
-    // support, so we need to request it from the device, too.
-    VkPhysicalDeviceFeatures enabled_features = {};
-    enabled_features.shaderInt64 = VK_TRUE;
+    ctx.target = GetDeviceDescription(instance_, phy_dev, instance_extensions, device_extensions);
 
-    VkDeviceCreateInfo device_create_info;
-    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.pNext = nullptr;
-    device_create_info.flags = 0;
-    device_create_info.queueCreateInfoCount = 1;
-    device_create_info.pQueueCreateInfos = &queue_create_info;
-    device_create_info.enabledLayerCount = 0;
-    device_create_info.ppEnabledLayerNames = nullptr;
-    device_create_info.enabledExtensionCount = extensions.size();
-    device_create_info.ppEnabledExtensionNames = extensions.data();
-    device_create_info.pEnabledFeatures = &enabled_features;
-    VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(ctx.device)));
+    {
+      // Enable all features we may use that a device supports.
+      VkPhysicalDeviceFeatures2 enabled_features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+      VkPhysicalDevice8BitStorageFeatures storage_8bit = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES};
+      VkPhysicalDevice16BitStorageFeatures storage_16bit = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES};
+      VkPhysicalDeviceShaderFloat16Int8Features float16_int8 = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES};
+
+      void** pp_next = &enabled_features.pNext;
+      bool needs_float16_int8 = false;
+
+      auto has_support = [&](const char* name) { return ctx.target->GetAttr<Bool>(name).value(); };
+      if (has_support("supports_float16")) {
+        float16_int8.shaderFloat16 = true;
+        needs_float16_int8 = true;
+      }
+      if (has_support("supports_float64")) {
+        enabled_features.features.shaderFloat64 = true;
+      }
+      if (has_support("supports_int8")) {
+        float16_int8.shaderInt8 = true;
+        needs_float16_int8 = true;
+      }
+      if (has_support("supports_int16")) {
+        enabled_features.features.shaderInt16 = true;
+      }
+      if (has_support("supports_int64")) {
+        enabled_features.features.shaderInt64 = true;
+      }
+      if (has_support("supports_8bit_buffer")) {
+        storage_8bit.storageBuffer8BitAccess = true;
+        *pp_next = &storage_8bit;
+        pp_next = &storage_8bit.pNext;
+      }
+      if (has_support("supports_16bit_buffer")) {
+        storage_16bit.storageBuffer16BitAccess = true;
+        *pp_next = &storage_16bit;
+        pp_next = &storage_16bit.pNext;
+      }
+
+      if (needs_float16_int8) {
+        *pp_next = &float16_int8;
+        pp_next = &float16_int8.pNext;
+      }
+
+      VkDeviceCreateInfo device_create_info;
+      device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+      device_create_info.pNext = nullptr;
+      device_create_info.flags = 0;
+      device_create_info.queueCreateInfoCount = 1;
+      device_create_info.pQueueCreateInfos = &queue_create_info;
+      device_create_info.enabledLayerCount = 0;
+      device_create_info.ppEnabledLayerNames = nullptr;
+      device_create_info.enabledExtensionCount = device_extensions.size();
+      device_create_info.ppEnabledExtensionNames = device_extensions.data();
+
+      if (has_instance_extension("VK_KHR_get_physical_device_properties2")) {
+        device_create_info.pEnabledFeatures = nullptr;
+        device_create_info.pNext = &enabled_features;
+      } else {
+        device_create_info.pNext = nullptr;
+        device_create_info.pEnabledFeatures = &enabled_features.features;
+      }
+      VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(ctx.device)));
+    }
+
     ctx.queue_mutex.reset(new std::mutex());
     vkGetDeviceQueue(ctx.device, queue_family_index, 0, &(ctx.queue));
     ctx.queue_family_index = queue_family_index;
@@ -718,42 +989,17 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       }
     }
     ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
-    auto has_extension = [&extensions](const char* query) {
-      return std::any_of(extensions.begin(), extensions.end(),
-                         [&](const char* extension) { return std::strcmp(query, extension) == 0; });
-    };
 
-#ifdef USE_VULKAN_IMMEDIATE_MODE
-    if (has_extension("VK_KHR_push_descriptor") &&
-        has_extension("VK_KHR_descriptor_update_template")) {
-      ctx.descriptor_template_khr_functions = std::unique_ptr<VulkanDescriptorTemplateKHRFunctions>(
-          new VulkanDescriptorTemplateKHRFunctions());
-      ctx.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR =
-          CHECK_NOTNULL((PFN_vkCreateDescriptorUpdateTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkCreateDescriptorUpdateTemplateKHR"));
-      ctx.descriptor_template_khr_functions->vkDestroyDescriptorUpdateTemplateKHR =
-          CHECK_NOTNULL((PFN_vkDestroyDescriptorUpdateTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkDestroyDescriptorUpdateTemplateKHR"));
-      ctx.descriptor_template_khr_functions->vkUpdateDescriptorSetWithTemplateKHR =
-          CHECK_NOTNULL((PFN_vkUpdateDescriptorSetWithTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkUpdateDescriptorSetWithTemplateKHR"));
-      ctx.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR =
-          CHECK_NOTNULL((PFN_vkCmdPushDescriptorSetWithTemplateKHR)vkGetDeviceProcAddr(
-              ctx.device, "vkCmdPushDescriptorSetWithTemplateKHR"));
+    if (ctx.target->GetAttr<Bool>("supports_push_descriptor").value()) {
+      ctx.descriptor_template_khr_functions =
+          std::make_unique<VulkanDescriptorTemplateKHRFunctions>(ctx.device);
     }
-#endif
 
-#ifdef USE_VULKAN_DEDICATED_ALLOCATION
-    if (has_extension("VK_KHR_get_memory_requirements2") &&
-        has_extension("VK_KHR_dedicated_allocation")) {
+    if (ctx.target->GetAttr<Bool>("supports_dedicated_allocation").value()) {
       ctx.get_buffer_memory_requirements_2_functions =
-          std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>(
-              new VulkanGetBufferMemoryRequirements2Functions());
-      ctx.get_buffer_memory_requirements_2_functions->vkGetBufferMemoryRequirements2KHR =
-          CHECK_NOTNULL((PFN_vkGetBufferMemoryRequirements2KHR)vkGetDeviceProcAddr(
-              ctx.device, "vkGetBufferMemoryRequirements2KHR"));
+          std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(ctx.device);
     }
-#endif
+
     context_.push_back(std::move(ctx));
   }
 
@@ -1333,6 +1579,10 @@ TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(VulkanMod
 TVM_REGISTER_GLOBAL("device_api.vulkan").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = VulkanDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
+});
+
+TVM_REGISTER_GLOBAL("device_api.vulkan.generate_target").set_body_typed([](int device_id) {
+  return VulkanDeviceAPI::Global()->GenerateTarget(device_id);
 });
 
 }  // namespace vulkan
