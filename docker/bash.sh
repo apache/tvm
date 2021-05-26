@@ -20,7 +20,7 @@
 #
 # Start a bash, mount /workspace to be current directory.
 #
-# Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] <CONTAINER_NAME>  <COMMAND>
+# Usage: bash.sh <CONTAINER_TYPE> [-i] [--net=host] [--mount path] <CONTAINER_NAME>  <COMMAND>
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
 #     Starts an interactive session
@@ -46,6 +46,7 @@ if [[ "$1" == "--net=host" ]]; then
     shift 1
 fi
 
+# Mount external directory to the docker
 CI_DOCKER_MOUNT_DIR=( )
 CI_DOCKER_MOUNT_CMD=""
 if [[ "$1" == "--mount" ]]; then
