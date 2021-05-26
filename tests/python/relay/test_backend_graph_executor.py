@@ -134,11 +134,13 @@ def test_plan_memory():
     storage_ids = set()
     device_types = set()
     storage_sizes = {}
+    offsets = {}
     for k, v in smap.items():
-        assert len(v) == 3
+        assert len(v) == 4
         for x in v[0]:
             storage_ids.add(x.value)
             storage_sizes[x.value] = v[2]
+            offsets[x.value] = v[3]
         for x in v[1]:
             device_types.add(x.value)
 
@@ -148,6 +150,7 @@ def test_plan_memory():
     assert len(storage_ids) == 4
     assert len(device_types) == 1
     assert len(storage_sizes) == 4
+    assert len(offsets) == 4
 
     # Check the specific size of each sid
     assert (
@@ -156,6 +159,10 @@ def test_plan_memory():
         and storage_sizes[2][0] == 4
         and storage_sizes[3][0] == 40
     )
+
+    # Currently, the offsets are fixed to zero.
+    for offset in offsets.values():
+        assert offset == 0
 
 
 def test_reshape_nop():

@@ -265,16 +265,20 @@ def test_conv_network():
         smap = relay.backend._backend.GraphPlanMemory(func)
         storage_ids = []
         device_types = []
+        offsets = []
         for _, storage_dev_type in smap.items():
-            assert len(storage_dev_type) == 3
+            assert len(storage_dev_type) == 4
             for sid in storage_dev_type[0]:
                 storage_ids.append(sid.value)
             for did in storage_dev_type[1]:
                 device_types.append(did.value)
+            for offset in storage_dev_type[3]:
+                offsets.append(offset)
         assert len(storage_ids) == 10
         assert len(set(storage_ids)) == 8
         assert len(set(device_types)) == 2
         assert set(device_types) == {1, 2}
+        assert len(offsets) = 10
 
     def test_manual_annotation():
         annotated_func = annotated()
