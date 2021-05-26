@@ -49,13 +49,13 @@ def _model_graph(TestClass):
     return gdef, input_, output
 
 
+def run_func_graph(TestClass, runtime="vm"):
+    compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
+
+def run_model_graph(TestClass):
+    compare_tf_tvm(*_model_graph(TestClass), runtime="vm")
+
 def run_all(TestClass):
-    def run_func_graph(TestClass, runtime="vm"):
-        compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
-
-    def run_model_graph(TestClass):
-        compare_tf_tvm(*_model_graph(TestClass), runtime="vm")
-
     run_model_graph(TestClass)
     for runtime_ in ["vm", "graph"]:
         run_func_graph(TestClass, runtime=runtime_)
@@ -357,7 +357,7 @@ def test_concat_v2():
     run_all(ConcatV2)
 
 
-def test_if()
+def test_if():
     class If(tf.Module):
         def get_input(self):
             return np.ones((2,2), dtype='float32')
