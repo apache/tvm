@@ -24,6 +24,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/target/target.h>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -87,10 +88,10 @@ inline const char* VKGetErrorString(VkResult error) {
  * \brief Protected Vulkan call
  * \param func Expression to call.
  */
-#define VULKAN_CHECK_ERROR(__e)                                      \
-  {                                                                  \
-    ICHECK(__e == VK_SUCCESS) << "Vulan Error, code=" << __e << ": " \
-                              << vulkan::VKGetErrorString(__e);      \
+#define VULKAN_CHECK_ERROR(__e)                                       \
+  {                                                                   \
+    ICHECK(__e == VK_SUCCESS) << "Vulkan Error, code=" << __e << ": " \
+                              << vulkan::VKGetErrorString(__e);       \
   }
 
 #define VULKAN_CALL(func)    \
@@ -100,6 +101,18 @@ inline const char* VKGetErrorString(VkResult error) {
   }
 
 struct VulkanDescriptorTemplateKHRFunctions {
+  explicit VulkanDescriptorTemplateKHRFunctions(VkDevice device) {
+    vkCreateDescriptorUpdateTemplateKHR = (PFN_vkCreateDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkCreateDescriptorUpdateTemplateKHR"));
+    vkDestroyDescriptorUpdateTemplateKHR = (PFN_vkDestroyDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkDestroyDescriptorUpdateTemplateKHR"));
+    vkUpdateDescriptorSetWithTemplateKHR = (PFN_vkUpdateDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkUpdateDescriptorSetWithTemplateKHR"));
+    vkCmdPushDescriptorSetWithTemplateKHR =
+        (PFN_vkCmdPushDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
+            vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplateKHR"));
+  }
+
   PFN_vkCreateDescriptorUpdateTemplateKHR vkCreateDescriptorUpdateTemplateKHR{nullptr};
   PFN_vkDestroyDescriptorUpdateTemplateKHR vkDestroyDescriptorUpdateTemplateKHR{nullptr};
   PFN_vkUpdateDescriptorSetWithTemplateKHR vkUpdateDescriptorSetWithTemplateKHR{nullptr};
@@ -107,14 +120,22 @@ struct VulkanDescriptorTemplateKHRFunctions {
 };
 
 struct VulkanGetBufferMemoryRequirements2Functions {
+  explicit VulkanGetBufferMemoryRequirements2Functions(VkDevice device) {
+    vkGetBufferMemoryRequirements2KHR = (PFN_vkGetBufferMemoryRequirements2KHR)ICHECK_NOTNULL(
+        vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements2KHR"));
+  }
+
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
 };
 
 struct VulkanContext {
-  // phyiscal device
+  // physical device
   VkPhysicalDevice phy_device{nullptr};
+
   // Phyiscal device property
   VkPhysicalDeviceProperties phy_device_prop;
+  // Target that best represents this physical device
+  Target target;
   // Memory type index for staging.
   uint32_t staging_mtype_index{0};
   // whether staging is coherent
@@ -136,7 +157,7 @@ struct VulkanContext {
   // Queue family index.
   VkQueueFamilyProperties queue_prop;
 
-  bool UseImmediate() const { return descriptor_template_khr_functions.get() != nullptr; }
+  bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
 };
 
 }  // namespace vulkan
