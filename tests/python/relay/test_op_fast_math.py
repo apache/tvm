@@ -27,7 +27,7 @@ from tvm.contrib import graph_executor
 
 def test_fastmath():
     def test_apply(relay_op, name, f_numpy, low, high, step, dtype="float32"):
-        a_np = np.arange(low, high, step).astype(dtype)
+        a_np = np.arange(low, high, step).astype(dtype).reshape((1, -1))
         b_np = f_numpy(a_np)
 
         x = relay.var("x", shape=a_np.shape, dtype="float32")
@@ -56,6 +56,14 @@ def test_fastmath():
     test_apply(relay.exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(relay.erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)
     test_apply(relay.tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
+    test_apply(
+        relay.nn.fast_softmax,
+        "nn_fast_softmax",
+        tvm.topi.testing.softmax_python,
+        low=-10,
+        high=10,
+        step=0.01,
+    )
 
 
 if __name__ == "__main__":
