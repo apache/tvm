@@ -357,5 +357,76 @@ def test_concat_v2():
     run_all(ConcatV2)
 
 
+def test_if()
+    class If(tf.Module):
+        def get_input(self):
+            return np.ones((2,2), dtype='float32')
+
+        def expected_ops(self):
+            return ['Placeholder', 'If', 'Identity', 'Const']
+
+        def expected_lib_ops(self):
+            return ['If', 'Identity', 'Const', 'Mul']
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+        def func(self, x):
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+            def double(x):
+                return 2*x
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+            def triple(x):
+                return 3*x
+
+            cond = True
+            output = tf.raw_ops.If(cond=cond, input=[x], Tout=[tf.float32], output_shapes=[(2,2)],
+                then_branch=double.get_concrete_function(), else_branch=triple.get_concrete_function())
+            return output[0]
+
+    run_model_graph(If)
+    run_func_graph(If, use_vm=True)
+
+
+def test_stateless_while():
+    class StatelessWhile(tf.Module):
+        def get_input(self):
+            return np.array([6], dtype='float32')
+
+        def expected_ops(self):
+            return ['Identity', 'StatelessWhile', 'Const', 'Placeholder']
+
+        def expected_lib_ops(self):
+            return ['StatelessWhile', 'Squeeze', 'Const', 'Less', 'Add', 'AddV2', 'Identity']
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
+        def func(self, x):
+            i = tf.constant(3.)
+            cond = lambda i: tf.less(i, x)
+            body = lambda i: (tf.add(i, 2),)
+            r = tf.while_loop(cond, body, [i])
+            return r[0]
+
+    run_model_graph(StatelessWhile)
+
+
+
+def test_stateless_while_2var():
+    class StatelessWhile2Var(StatelessWhile):
+        def get_input(self):
+            return np.array([20], dtype='float32')
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
+        def func(self, x):
+            i = tf.constant(3.)
+            j = tf.constant(5.)
+            cond = lambda i,j: tf.less(i+j, x)
+            body = lambda i,j: (tf.add(i, 2), tf.add(j, 3))
+            r = tf.while_loop(cond, body, [i, j])
+            return r
+
+    run_model_graph(StatelessWhile2Var)
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
