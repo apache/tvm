@@ -211,7 +211,7 @@ def test_enter_pass_ctx_exception():
             pass
         assert "Just a dummy error" in str(cm.execption)
 
-    assert "%1 enter ctx" "%2 enter ctx" == "".join(events)
+    assert "%1 enter ctx" "%2 enter ctx" "%1 exit ctx" == "".join(events)
 
     # Make sure we get correct PassContext
     cur_pass_ctx = tvm.transform.PassContext.current()

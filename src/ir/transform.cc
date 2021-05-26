@@ -169,14 +169,24 @@ PassContext PassContext::Create() { return PassContext(make_object<PassContextNo
 void PassContext::InstrumentEnterPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
+    Array<instrument::PassInstrument> enter_successes;
     try {
       for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
         pi->EnterPassContext();
+        enter_successes.push_back(pi);
       }
     } catch (const Error& e) {
       LOG(INFO) << "Pass instrumentation entering pass context failed.";
       LOG(INFO) << "Disable pass instrumentation.";
       pass_ctx_node->instruments.clear();
+
+      for (instrument::PassInstrument pi : enter_successes) {
+        LOG(INFO) << pi->name << " exiting PassContext ...";
+        pi->ExitPassContext();
+        LOG(INFO) << pi->name << " exited PassContext.";
+      }
+      enter_successes.clear();
+
       throw e;
     }
   }
