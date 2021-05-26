@@ -29,6 +29,7 @@
 #include <tvm/runtime/object.h>
 
 #include <fstream>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
