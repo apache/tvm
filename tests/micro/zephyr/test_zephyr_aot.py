@@ -169,7 +169,7 @@ def test_tflite(platform, west_cmd):
     tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
     runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "aot_demo")
     model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
-    model_path = download_testdata(model_url, "ic01_fp32.tflite", module="data")
+    model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()
@@ -192,7 +192,9 @@ def test_tflite(platform, west_cmd):
         lowered = relay.build(relay_mod, target, params=params)
 
     # Load sample and generate input/output header files
-    sample = np.load(os.path.join(this_dir, "testdata", "ic_sample_fp32_8.npy"))
+    sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/testdata_image_classification_fp32_8.npy"
+    sample_path = download_testdata(sample_url, "testdata_image_classification_fp32_8.npy", module="data")
+    sample = np.load(sample_path)
     model_files_path = os.path.join(runtime_path, "include")
     _create_header_file((f"input_data"), sample, model_files_path)
     _create_header_file(
