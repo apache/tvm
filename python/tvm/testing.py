@@ -68,6 +68,7 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 from tvm.contrib import nvcc
+from tvm.error import TVMError
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -392,12 +393,19 @@ def _get_targets(target_str=None):
         )
 
     if all(not t["is_runnable"] for t in targets):
-        logging.warning(
+        if tvm.runtime.enabled("llvm"):
+            logging.warning(
+                "None of the following targets are supported by this build of TVM: %s."
+                " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
+                target_str,
+            )
+            return _get_targets("llvm")
+
+        raise TVMError(
             "None of the following targets are supported by this build of TVM: %s."
-            " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
-            target_str,
+            " Try setting TVM_TEST_TARGETS to a supported target."
+            " Cannot default to llvm, as it is not enabled." % target_str
         )
-        return _get_targets("llvm")
 
     return targets
 
@@ -782,14 +790,24 @@ def _auto_parametrize_target(metafunc):
 
 
 def parametrize_targets(*args):
-    """Parametrize a test over all enabled targets.
+    """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
-    variety of targets and devices (including cpu and gpu devices).
+    specific set of targets and devices.  It is intended for use where
+    a test is applicable only to a specific target, and is
+    inapplicable to any others (e.g. verifying target-specific
+    assembly code matches known assembly code).  In most
+    circumstances, :py:func:`tvm.testing.exclude_targets` or
+    :py:func:`tvm.testing.known_failing_targets` should be used
+    instead.
 
-    Alternatively, a test that accepts the "target" and "dev" will
-    automatically be parametrized over all targets in
-    :py:func:`tvm.testing.enabled_targets`.
+    If used as a decorator without arguments, the test will be
+    parametrized over all targets in
+    :py:func:`tvm.testing.enabled_targets`.  This behavior is
+    automatically enabled for any target that accepts arguments of
+    ``target`` or ``dev``, so the explicit use of the bare decorator
+    is no longer needed, and is maintained for backwards
+    compatibility.
 
     Parameters
     ----------
@@ -802,13 +820,13 @@ def parametrize_targets(*args):
 
     Example
     -------
-    >>> @tvm.testing.parametrize_targets
+    >>> @tvm.testing.parametrize_targets("llvm", "cuda")
     >>> def test_mytest(target, dev):
     >>>     ...  # do something
 
     Or
 
-    >>> @tvm.testing.parametrize_targets("llvm", "cuda")
+    >>> @tvm.testing.parametrize_targets
     >>> def test_mytest(target, dev):
     >>>     ...  # do something
 
