@@ -108,7 +108,7 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python:/workspace/.local/lib/python3.6/site-packages"
+    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python"
 else
     CI_ADDON_ENV=""
 fi
