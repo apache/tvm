@@ -68,7 +68,6 @@ def call_all_topi_funcs(mod, params, target):
             # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
             # source module is fixed. Until then, create a clone.
             mod_clone = deepcopy(mod)
-            params_clone = deepcopy(params)
             opt_mod, _ = relay.optimize(mod_clone, target, params)
             grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(opt_mod["main"])
@@ -78,10 +77,9 @@ def call_all_topi_funcs(mod, params, target):
                 "Fallback to VMCompiler."
             )
             mod_clone = deepcopy(mod)
-            params_clone = deepcopy(params)
             compiler = relay.vm.VMCompiler()
             if params:
-                compiler.set_params(params_clone)
+                compiler.set_params(params)
             mod_clone = (
                 tvm.IRModule.from_expr(mod_clone)
                 if isinstance(mod_clone, relay.Function)

@@ -57,8 +57,7 @@ def _lower(mod, target, params):
         # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
         # source module is fixed. Until then, create a clone.
         mod_clone = deepcopy(mod)
-        params_clone = deepcopy(params)
-        opt_mod, _ = relay.optimize(mod_clone, target, params_clone)
+        opt_mod, _ = relay.optimize(mod_clone, target, params)
         grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
         grc.codegen(opt_mod["main"])
     except tvm.TVMError as e:
@@ -67,10 +66,9 @@ def _lower(mod, target, params):
             "Fallback to VMCompiler. Error details:\n%s" % str(e)
         )
         mod_clone = deepcopy(mod)
-        params_clone = deepcopy(params)
         compiler = relay.vm.VMCompiler()
         if params:
-            compiler.set_params(params_clone)
+            compiler.set_params(params)
         compiler.lower(mod_clone, target=target)
 
 
