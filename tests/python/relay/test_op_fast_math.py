@@ -65,5 +65,6 @@ def test_fastmath():
         step=0.01,
     )
 
+
 if __name__ == "__main__":
     test_fastmath()
