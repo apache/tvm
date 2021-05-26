@@ -1048,7 +1048,7 @@ def _parametrize_correlated_parameters(metafunc):
             metafunc.parametrize(names, value_sets, indirect=True)
 
 
-def fixture(func=None, *, cache=False):
+def fixture(func=None, *, cache_return_value=False):
     """Convenience function to define pytest fixtures.
 
     This should be used as a decorator to mark functions that set up
@@ -1061,13 +1061,13 @@ def fixture(func=None, *, cache=False):
 
     By default, the setup will be performed once for each unit test
     that uses a fixture, to ensure that unit tests are independent.
-    If the setup is expensive to perform, then the cache=True argument
-    can be passed to cache the setup.  The fixture function will be
-    run only once (or once per parameter, if used with
-    tvm.testing.parameter), and the same return value will be passed
-    to all tests that use it.  If the environment variable
-    TVM_TEST_DISABLE_CACHE is set to a non-zero value, it will disable
-    this feature and no caching will be performed.
+    If the setup is expensive to perform, then the
+    cache_return_value=True argument can be passed to cache the setup.
+    The fixture function will be run only once (or once per parameter,
+    if used with tvm.testing.parameter), and the same return value
+    will be passed to all tests that use it.  If the environment
+    variable TVM_TEST_DISABLE_CACHE is set to a non-zero value, it
+    will disable this feature and no caching will be performed.
 
     Example
     -------
@@ -1091,7 +1091,7 @@ def fixture(func=None, *, cache=False):
 
     Or
 
-    >>> @tvm.testing.fixture(cache=True)
+    >>> @tvm.testing.fixture(cache_return_value=True)
     >>> def expensive_setup():
     >>>     time.sleep(10) # Setup code here
     >>>     return 5
@@ -1102,7 +1102,7 @@ def fixture(func=None, *, cache=False):
     """
 
     force_disable_cache = bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0")))
-    cache = cache and not force_disable_cache
+    cache_return_value = cache_return_value and not force_disable_cache
 
     # Deliberately at function scope, so that caching can track how
     # many times the fixture has been used.  If used, the cache gets
@@ -1110,7 +1110,7 @@ def fixture(func=None, *, cache=False):
     scope = "function"
 
     def wraps(func):
-        if cache:
+        if cache_return_value:
             func = _fixture_cache(func)
         func = pytest.fixture(func, scope=scope)
         return func
