@@ -243,18 +243,18 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 and nvcc.have_tensorcore(target=target)
                 and kernel.dtype in tensorcore_dtypes
                 and (
-                        (
-                            data.dtype in ["int4", "uint4"]
-                            and N % 8 == 0
-                            and in_channels % 32 == 0
-                            and out_channels % 8 == 0
-                        )
-                        or (
-                            data.dtype in ["int8", "uint8"]
-                            and N % 8 == 0
-                            and in_channels % 16 == 0
-                            and out_channels % 32 == 0
-                        )
+                    (
+                        data.dtype in ["int4", "uint4"]
+                        and N % 8 == 0
+                        and in_channels % 32 == 0
+                        and out_channels % 8 == 0
+                    )
+                    or (
+                        data.dtype in ["int8", "uint8"]
+                        and N % 8 == 0
+                        and in_channels % 16 == 0
+                        and out_channels % 32 == 0
+                    )
                 )
             ):
                 strategy.add_implementation(
