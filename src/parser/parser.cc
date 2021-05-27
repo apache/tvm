@@ -525,7 +525,7 @@ class Parser {
     if (token->token_type == TokenType::kInteger) {
       DLDevice dev = {DLDeviceType::kDLCPU, 0};
       int64_t i = Downcast<tvm::Integer>(token->data);
-      if(i > std::numeric_limits<int32_t>::max()) {
+      if (i > std::numeric_limits<int32_t>::max()) {
         auto dtype = String2DLDataType("int64");
         auto data = NDArray::Empty({}, dtype, dev);
         auto array = reinterpret_cast<int64_t*>(data->data);
