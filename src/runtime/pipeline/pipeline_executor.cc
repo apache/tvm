@@ -18,9 +18,10 @@
  */
 
 /*!
- * \file pipeline_runtime.cc
+ * \file pipeline_executor.cc
  */
 #include "pipeline_executor.h"
+
 #include <tvm/runtime/registry.h>
 
 namespace tvm {

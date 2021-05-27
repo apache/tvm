@@ -36,6 +36,7 @@
 #include <vector>
 #define SLOT slot_t<>
 #define SUB_Q_SIZE 1024
+
 using namespace tvm::runtime;
 using namespace std;
 typedef unordered_map<int, unordered_map<int, int>> RUNTIME_PIPELINE_OUTPUT_CONF;
@@ -379,8 +380,7 @@ class RuntimeFunction {
      */
   void CopyFromTo(DLTensor* from, DLTensor* to) {
     if (!(from->device.device_type == to->device.device_type ||
-          from->device.device_type == kDLCPU || to->device.device_type == kDLCPU ||
-          from->device.device_type == kDLCPUPinned || to->device.device_type == kDLCPUPinned)) {
+          from->device.device_type == kDLCPU || to->device.device_type == kDLCPU)) {
       if (dlLocal == nullptr) {
         dlLocal = CreateFromDLTensor(from);
       }

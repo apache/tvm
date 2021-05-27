@@ -18,9 +18,8 @@
  */
 
 /*!
- * \brief Tiny graph runtime that can run graph
- *        containing only tvm PackedFunc.
- * \file graph_runtime.h
+ * \brief pipeline executor
+ * \file pipeline_executor.h
  */
 #ifndef TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 #define TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
@@ -31,6 +30,7 @@
 
 #include "../file_utils.h"
 #include "pipeline_function.h"
+
 using namespace std;
 namespace tvm {
 namespace runtime {
