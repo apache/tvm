@@ -490,6 +490,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       argument_registers.push_back(reg->second);
     }
 
+    // Extract functions attrs
+    op_attrs[op_index] = func->attrs->dict;
+
     Emit(Instruction::InvokePacked(op_index, argument_registers.size(), outputs.size(),
                                    argument_registers));
   }
