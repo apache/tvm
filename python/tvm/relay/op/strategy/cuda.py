@@ -239,7 +239,8 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 _, _, out_channels, _ = get_const_tuple(kernel.shape)
 
             tensorcore_dtypes = ["int4", "uint4", "int8", "uint8"]
-            if (target.kind.name == "cuda"
+            if (
+                target.kind.name == "cuda"
                 and nvcc.have_tensorcore(target=target)
                 and kernel.dtype in tensorcore_dtypes
                 and (
