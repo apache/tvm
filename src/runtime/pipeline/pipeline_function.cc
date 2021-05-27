@@ -38,8 +38,9 @@ void pipeline_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
 
     curRunItem->Run();
 
-    auto output = curRunItem->GetOutput();
-    pipeline_queue_push(nextQueue, output);
+    vector<shared_ptr<OutputData>> outputs;
+    curRunItem->GetOutput2(&outputs);
+    pipeline_queue_push(nextQueue, &outputs);
     curRunItem->notifyDataReadyToNext();
   }
   curRunItem->notifyNextExit();
@@ -52,16 +53,20 @@ thread* pipeline_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
   return NULL;
 }
 
-void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
+void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes,
+                   PIPELINE_CONF* pipeline_conf) {
   int len = graphRuntimes.size();
   for (int i = 0; i < len; i++) {
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
-    auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue);
+    /* runtimeIndx start from 1.
+     */
+    int runtimeIndx = i + 1;
+    auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue,
+                                            &((*pipeline_conf)[runtimeIndx]), runtimeIndx);
     runtimes->push_back(runItem);
-    /*
-       set prev and next for RuntimeItem, runtime need these information to
-       poll data from prev and do notification for next.
-       */
+    /*set prev and next for RuntimeItem, runtime need these information to
+     * poll data from prev and do notification for next.
+     */
     if (i > 0) {
       (*runtimes)[i - 1]->next = (*runtimes)[i];
     }
@@ -73,8 +78,8 @@ void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
   return;
 }
 
-inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays) {
-  q_push<SLOT, Array<NDArray>>(queue, arrays);
+inline void pipeline_queue_push(QUEUE* queue, vector<shared_ptr<OutputData>>* outputs) {
+  q_push<SLOT, vector<shared_ptr<OutputData>>*>(queue, outputs);
   return;
 }
 
@@ -85,7 +90,10 @@ bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
 void pipeline_run(const SHARED_RUNTIME_VEC& runtimes) {
   shared_ptr<RuntimeItem> runtime = runtimes.front();
   runtime->Run();
-  pipeline_queue_push(runtime->next->queue, runtime->GetOutput());
+
+  vector<shared_ptr<OutputData>> outputs;
+  runtime->GetOutput2(&outputs);
+  pipeline_queue_push(runtime->next->queue, &outputs);
   runtime->notifyDataReadyToNext();
   return;
 }
@@ -108,4 +116,8 @@ bool pipeline_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, 
   return suc;
 }
 
-void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes) { runtimes.front()->notifyNextExit(); }
+void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes) {
+  if (!runtimes.empty()) {
+    runtimes.front()->notifyNextExit();
+  }
+}

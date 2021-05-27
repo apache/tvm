@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Minimum pipeline executor that executes pipeline containing TVM PackedFunc."""
+import json
 import tvm._ffi
 from tvm import relay
 from tvm.contrib import graph_executor
 
 
-def build_pipeline(ir_mods, config):
+def build_pipeline(config):
     """build module list that can use for pipeline execution.
     Parameters:
     ir_mods:
@@ -38,8 +39,10 @@ def build_pipeline(ir_mods, config):
         list of IRModule
     """
     mods = {}
-    for ir_mod in ir_mods:
+    string_config = [{}] * len(config)
+    for ir_mod in config:
         mod_config = config[ir_mod]
+        string_config[mod_config["pipeline"]["mod_indx"] - 1] = mod_config["pipeline"]
         build_func = relay.build
         # if there is a self defined build function then use it.
         if mod_config["build"]:
@@ -55,7 +58,7 @@ def build_pipeline(ir_mods, config):
 
         mods[mod] = {"dev": mod_config["dev"]}
 
-    return mods
+    return mods, string_config
 
 
 def create(mods, mod_config):
@@ -72,7 +75,7 @@ def create(mods, mod_config):
     submodule : PipelineModule
         Runtime pipeline module.
     """
-    pipeline_mods = build_pipeline(mods, config=mod_config)
+    pipeline_mods, string_config = build_pipeline(mod_config)
 
     mods = []
     for pipeline_mod in pipeline_mods:
@@ -82,7 +85,7 @@ def create(mods, mod_config):
 
         mods.append(mod)
 
-    submodule = PipelineModule(mods)
+    submodule = PipelineModule(mods, json.dumps(string_config))
     return submodule
 
 
@@ -105,13 +108,13 @@ class PipelineModule(object):
 
     """
 
-    def __init__(self, graph_modules):
+    def __init__(self, graph_modules, pipeline_config):
         mods = []
         for module in graph_modules:
             mods.append(module.module)
 
         pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
-        module = pipelinecreate(mods)
+        module = pipelinecreate(mods, pipeline_config)
 
         self.graph_modules_ = graph_modules
 

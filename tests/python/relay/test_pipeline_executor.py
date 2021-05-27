@@ -23,46 +23,84 @@ from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
 
 
-def run_modules(mods, dev, target, dname, data):
-    for mod in mods:
+def run_modules(mod_configs, dev, target, dname, data):
+    mod_input = {}
+    final_output = {}
+    indx = 1
+    for mod in mod_configs:
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target)
 
         m = graph_executor.GraphModule(lib["default"](dev))
-        m.set_input(dname, data)
+        # Get input information
+        mod_key = indx
+        if mod_key in mod_input:
+            for input in mod_input[mod_key]:
+                input = mod_input[mod_key][input]
+                m.set_input(input["index"] - 1, input["data"])
+        else:
+            m.set_input(dname, data)
         m.run()
         n = m.get_num_outputs()
-        output = m.get_output(0).asnumpy()
-        data = output
+        # parse mod_config and set current output as next mod input data
+        mconfig = mod_configs[mod]
+        for output in mconfig["pipeline"]["output"]:
+            output_data = m.get_output(output["output_indx"] - 1).asnumpy()
+            for dep in output["dependent"]:
+                # currnet output use as dependent input,
+                # input_indx indicate the input index number.
+                input_indx = dep["input_indx"]
+                mod_indx = dep["mod_indx"]
+                if mod_indx == 0:
+                    final_output[input_indx] = output_data
+                else:
+                    if mod_indx in mod_input:
+                        mod_input[mod_indx][input_indx] = {"index": input_indx, "data": output_data}
+                    else:
+                        mod_input[mod_indx] = {
+                            input_indx: {"index": input_indx, "data": output_data}
+                        }
+        indx = indx + 1
 
-    return output
+    return final_output
 
 
 def get_mannual_mod():
     mods = []
     dshape = (3, 3)
     data = relay.var("data", relay.TensorType(dshape, "float32"))
-    mvalue1 = np.full((1), 5).astype("float32")
+    data_net1_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
+    data_net1_output_2 = relay.var("data_1", relay.TensorType(dshape, "float32"))
+    data_net2_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
+    mvalue1 = np.full((1), 1).astype("float32")
     mvalue2 = np.full((1), 2).astype("float32")
     mvalue3 = np.full((1), 3).astype("float32")
-    mvalue4 = np.full((1), 4).astype("float32")
     mv1 = relay.Constant(tvm.nd.array(mvalue1))
     mv2 = relay.Constant(tvm.nd.array(mvalue2))
     mv3 = relay.Constant(tvm.nd.array(mvalue3))
-    mv4 = relay.Constant(tvm.nd.array(mvalue4))
-    net1 = relay.multiply(data, mv1)
 
-    net2 = relay.add(data, mv2)
+    # net1 have three output, output3 is final output
+    net_output1 = relay.add(data, mv1)
+    net_output2 = relay.subtract(data, mv2)
+    net_output3 = relay.multiply(data, mv3)
+
+    # net2 use net1 output1 as input
+    net2 = relay.add(data_net1_output_1, mv2)
     net2 = relay.add(net2, mv3)
 
-    net3 = relay.multiply(data, mv4)
+    # net3 use net2 output1 and net1 outpu2 as input
+    net3 = relay.multiply(data_net2_output_1, mv3)
+    net3 = relay.add(net3, data_net1_output_2)
 
-    net4 = relay.subtract(data, mv1)
-
-    mods.append(tvm.IRModule.from_expr(relay.Function([data], net1)))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data], net2)))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data], net3)))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data], net4)))
+    mods.append(
+        tvm.IRModule.from_expr(
+            relay.Function([data], relay.Tuple([net_output1, net_output2, net_output3]))
+        )
+    )
+    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1], net2)))
+    mods.append(
+        tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1], net3))
+    )
 
     return mods, dshape
 
@@ -79,27 +117,53 @@ def run_pipeline(target):
     for i in range(len(mods) + 1):
         datas.append(np.full(dshape, 3 + i).astype("float32"))
 
+    # set configure
+    indx = 0
+    mod_config = {}
+    mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
+    mconfig1 = mconfig.copy()
+    mconfig1["target"] = target[0]
+    mconfig1["dev"] = target[1]
+    # third output is final output, second output for mod2, third for  mod3
+    # input
+    mconfig1["pipeline"] = {
+        "mod_indx": 1,
+        "output": [
+            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_indx": 1}]},
+            {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_indx": 1}]},
+            {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_indx": 1}]},
+        ],
+    }
+    mod_config[mods[0]] = mconfig1
+
+    mconfig2 = mconfig.copy()
+    mconfig2["target"] = "llvm"
+    mconfig2["dev"] = tvm.cpu(0)
+    mconfig2["pipeline"] = {
+        "mod_indx": 2,
+        "output": [
+            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_indx": 2}]},
+        ],
+    }
+    mod_config[mods[1]] = mconfig2
+
+    mconfig3 = mconfig.copy()
+    mconfig3["target"] = "llvm"
+    mconfig3["dev"] = tvm.cpu(0)
+
+    mconfig3["pipeline"] = {
+        "mod_indx": 3,
+        "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_indx": 2}]}],
+    }
+    mod_config[mods[2]] = mconfig3
+
     """
     #Run with graph executor for verification purpose
     """
-    outs = [run_modules(mods, tvm.cpu(), "llvm", "data", data) for data in datas]
-
-    mod_config = {}
-    indx = 0
-    for mod in mods:
-        mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
-        # first two module use target that could be "cuda", "nvptx" etc.
-        if indx < 2:
-            mconfig["target"] = target[0]
-            mconfig["dev"] = target[1]
-        else:
-            mconfig["target"] = "llvm"
-            mconfig["dev"] = tvm.cpu()
-
-        mod_config[mod] = mconfig
-        indx = indx + 1
-
+    outs = [run_modules(mod_config, tvm.cpu(), "llvm", "data", data) for data in datas]
     """
+
+
     #build and create pipeline module
     """
     with relay.build_config(opt_level=3):
@@ -117,7 +181,8 @@ def run_pipeline(target):
     """
     pipeline_outputs = []
     for i in range(len(datas)):
-        pipeline_outputs.append(pipeline_module.get_output()[0].asnumpy())
+        curOutputs = [output.asnumpy() for output in pipeline_module.get_output()]
+        pipeline_outputs.append(curOutputs)
 
     """
     #Stop pipeline execution.
@@ -128,7 +193,8 @@ def run_pipeline(target):
     #Verify result
     """
     for ref_out, out in zip(outs, pipeline_outputs):
-        tvm.testing.assert_allclose(ref_out, out)
+        for ref in ref_out:
+            tvm.testing.assert_allclose(ref_out[ref], out[ref - 1])
 
 
 def test_pipeline():

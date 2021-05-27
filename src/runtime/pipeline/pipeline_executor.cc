@@ -21,7 +21,6 @@
  * \file pipeline_runtime.cc
  */
 #include "pipeline_executor.h"
-
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -36,27 +35,13 @@ void SubGraphRuntime::Stop() { pipeline_stop(runtimes); }
  */
 void SubGraphRuntime::Run() { pipeline_run(runtimes); }
 
-void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules) {
-  pipeline_init(modules, &runtimes);
-  SetupStorage();
+void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
+                           const std::string& pipeline_json) {
+  std::istringstream is(pipeline_json);
+  dmlc::JSONReader reader(&is);
+  this->Load(&reader);
+  pipeline_init(modules, &runtimes, &pipeline_conf);
   return;
-}
-
-void SubGraphRuntime::SetupStorage(void) {
-  auto lastGraphRuntime = runtimes.back();
-  int outputNum = lastGraphRuntime->runtimePtr->NumOutputs();
-  for (int i = 0; i < outputNum; i++) {
-    NDArray array = lastGraphRuntime->runtimePtr->GetOutput(i);
-    auto dltensor = const_cast<DLTensor*>(array.operator->());
-    vector<int64_t> shape;
-    for (int i = 0; i < dltensor->ndim; i++) {
-      shape.push_back(dltensor->shape[i]);
-    }
-
-    auto ndarray = NDArray::Empty(shape, dltensor->dtype, dltensor->device);
-    ndarray.CreateView(shape, dltensor->dtype);
-    output_entry_.push_back(ndarray);
-  }
 }
 
 /*!
@@ -169,14 +154,15 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
   }
 }
 
-Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m) {
+Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m,
+                             const std::string& pipeline_json) {
   auto exec = make_object<SubGraphRuntime>();
-  exec->Init(m);
+  exec->Init(m, pipeline_json);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.pipeline_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = PipelineRuntimeCreate(args[0]);
+  *rv = PipelineRuntimeCreate(args[0], args[1]);
 });
 }  // namespace runtime
 }  // namespace tvm
