@@ -36,6 +36,7 @@ import tvm.rpc
 import tvm.micro
 import tvm.testing
 import tvm.relay as relay
+from tvm.relay.testing import byoc
 
 from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
@@ -215,13 +216,13 @@ def test_relay(platform, west_cmd, skip_build, tvm_debug):
 
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        graph, mod, params = tvm.relay.build(func, target=target)
+        mod = tvm.relay.build(func, target=target)
 
     with _make_session(model, target, zephyr_board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
-            graph, session.get_system_lib(), session.device
+            mod.get_graph_json(), session.get_system_lib(), session.device
         )
-        graph_mod.set_input(**params)
+        graph_mod.set_input(**mod.get_params())
         x_in = np.random.randint(10, size=shape[0], dtype=dtype)
         graph_mod.run(x=x_in)
         result = graph_mod.get_output(0).numpy()
@@ -260,7 +261,7 @@ def test_onnx(platform, west_cmd, skip_build, tvm_debug):
         lowered = relay.build(relay_mod, target, params=params)
         graph = lowered.get_graph_json()
 
-    with _make_session(model, target, zephyr_board, west_cmd, lowered.lib, build_config) as session:
+    with _make_session(model, target, zephyr_board, west_cmd, lowered, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
             graph, session.get_system_lib(), session.device
         )
@@ -285,16 +286,16 @@ def check_result(
     TOL = 1e-5
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        graph, mod, params = tvm.relay.build(relay_mod, target=target)
+        mod = tvm.relay.build(relay_mod, target=target)
 
     with _make_session(model, target, zephyr_board, west_cmd, mod, build_config) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
-            graph, session.get_system_lib(), session.device
+            mod.get_graph_json(), session.get_system_lib(), session.device
         )
-        rt_mod.set_input(**params)
+        rt_mod.set_input(**mod.get_params())
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
-        rt_mod.set_input(**params)
+        rt_mod.set_input(**mod.get_params())
         rt_mod.run()
 
         out_shapes = out_shape if isinstance(out_shape, list) else [out_shape]
@@ -337,7 +338,7 @@ def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
     r = relay.concatenate((q0, q1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
     mod = tvm.IRModule()
-    ann = tvm.testing.CcompilerAnnotator()
+    ann = byoc.CcompilerAnnotator()
     mod["main"] = ann.visit(f)
     mod = tvm.relay.transform.PartitionGraph()(mod)
     mod = tvm.relay.transform.InferType()(mod)

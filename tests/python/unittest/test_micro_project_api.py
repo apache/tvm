@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import collections
 import io
 import json
 import sys
@@ -23,6 +24,7 @@ from unittest import mock
 
 import pytest
 
+import tvm
 from tvm.micro import project_api
 
 
@@ -38,15 +40,8 @@ class BaseTestHandler(project_api.server.ProjectAPIHandler):
         ],
     )
 
-    # Overridable by test case.
-    TEST_SERVER_INFO = None
-
-    def server_info_query(self):
-        return (
-            self.TEST_SERVER_INFO
-            if self.TEST_SERVER_INFO is not None
-            else self.DEFAULT_TEST_SERVER_INFO
-        )
+    def server_info_query(self, tvm_version):
+        return self.DEFAULT_TEST_SERVER_INFO
 
     def generate_project(self, model_library_format_path, crt_path, project_path, options):
         assert False, "generate_project is not implemented for this test"
@@ -124,7 +119,7 @@ def test_server_info_query():
     fixture = ClientServerFixture(BaseTestHandler())
 
     # Examine reply explicitly because these are the defaults for all derivative test cases.
-    reply = fixture.client.server_info_query()
+    reply = fixture.client.server_info_query(tvm.__version__)
     assert reply["protocol_version"] == 1
     assert reply["platform_name"] == "platform_name"
     assert reply["is_template"] == True
@@ -134,15 +129,35 @@ def test_server_info_query():
         {"name": "bar", "choices": ["qux"], "help": "Option bar"},
     ]
 
-    fixture.handler.TEST_SERVER_INFO = project_api.server.ServerInfo(
-        platform_name="foo_bar",
-        is_template=False,
-        model_library_format_path=None,
-        project_options=[])
-    reply = fixture.client.server_info_query()
-    expected_reply = dict(fixture.handler.TEST_SERVER_INFO._asdict())
-    expected_reply["protocol_version"] = 1
-    assert reply == expected_reply
+
+def test_server_info_query_wrong_tvm_version():
+    def server_info_query(tvm_version):
+        raise project_api.server.UnsupportedTVMVersionError()
+
+    with mock.patch.object(BaseTestHandler, "server_info_query", side_effect=server_info_query):
+        fixture = ClientServerFixture(BaseTestHandler())
+        with pytest.raises(project_api.server.UnsupportedTVMVersionError) as exc_info:
+            fixture.client.server_info_query(tvm.__version__)
+
+        assert "UnsupportedTVMVersionError" in str(exc_info.value)
+
+
+def test_server_info_query_wrong_protocol_version():
+    ServerInfoProtocol = collections.namedtuple(
+        "ServerInfoProtocol", list(project_api.server.ServerInfo._fields) + ["protocol_version"]
+    )
+
+    def server_info_query(tvm_version):
+        return ServerInfoProtocol(
+            protocol_version=0, **BaseTestHandler.DEFAULT_TEST_SERVER_INFO._asdict()
+        )
+
+    with mock.patch.object(BaseTestHandler, "server_info_query", side_effect=server_info_query):
+        fixture = ClientServerFixture(BaseTestHandler())
+        with pytest.raises(project_api.client.UnsupportedProtocolVersionError) as exc_info:
+            fixture.client.server_info_query(tvm.__version__)
+
+        assert "microTVM API Server supports protocol version 0; want 1" in str(exc_info.value)
 
 
 def test_base_test_handler():

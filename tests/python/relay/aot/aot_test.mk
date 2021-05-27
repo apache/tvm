@@ -16,26 +16,19 @@
 # under the License.
 # Setup build environment
 #
-AOT_ROOT ?= $(TVM_ROOT)/src/runtime/crt/aot
+AOT_ROOT ?= $(CRT_ROOT)/aot
 
 ENABLE_TVM_PLATFORM_ABORT_BACKTRACE = 0
 DMLC_CORE=$(TVM_ROOT)/3rdparty/dmlc-core
-PKG_COMPILE_OPTS = -g 
+PKG_COMPILE_OPTS = -g
 CC = gcc
 AR = ar
 RANLIB = ranlib
 CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
 
-
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
-	-I$(TVM_ROOT)/src/runtime/crt/include \
-	-I$(TVM_ROOT)/src/runtime/crt/host \
-	-I$(TVM_ROOT)/include \
-	-I$(DMLC_CORE)/include \
-	-I$(TVM_ROOT)/3rdparty/dlpack/include \
-	-I$(AOT_ROOT)\
-	-I$(build_dir) \
-	-I$(CODEGEN_ROOT)/host/include
+	-I$(build_dir)/../include \
+	-isystem$(STANDALONE_CRT_DIR)/include
 
 $(ifeq VERBOSE,1)
 QUIET ?=
@@ -43,12 +36,10 @@ $(else)
 QUIET ?= @
 $(endif)
 
-CRT_SRCS = $(shell find $(CRT_ROOT))
-
 aot_test_runner: $(build_dir)/aot_test_runner
 
 source_libs= $(wildcard $(build_dir)/../codegen/host/src/*.c)
-lib_objs =$(source_libs:.c=.o) 
+lib_objs =$(source_libs:.c=.o)
 
 $(build_dir)/aot_test_runner: $(build_dir)/test.c  $(build_dir)/aot_executor.o  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
@@ -58,15 +49,15 @@ $(build_dir)/%.o: $(build_dir)/../codegen/host/src/%.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/aot_executor.o: $(TVM_ROOT)/src/runtime/crt/aot_executor/aot_executor.c
+$(build_dir)/aot_executor.o: $(STANDALONE_CRT_DIR)/src/runtime/crt/aot_executor/aot_executor.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/stack_allocator.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_allocator.c
+$(build_dir)/stack_allocator.o: $(STANDALONE_CRT_DIR)/src/runtime/crt/memory/stack_allocator.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
-$(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_api.c
+$(build_dir)/crt_backend_api.o: $(STANDALONE_CRT_DIR)/src/runtime/crt/common/crt_backend_api.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 

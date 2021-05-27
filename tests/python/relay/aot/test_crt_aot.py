@@ -16,6 +16,15 @@
 # under the License.
 
 from collections import OrderedDict
+import os
+import io
+import pathlib
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import tarfile
 
 import numpy as np
 import pytest
@@ -573,4 +582,4 @@ def test_transpose(interface_api, use_unpacked_api, use_calculated_workspaces):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
