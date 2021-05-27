@@ -823,13 +823,6 @@ def parametrize_targets(*args):
     >>> @tvm.testing.parametrize_targets("llvm", "cuda")
     >>> def test_mytest(target, dev):
     >>>     ...  # do something
-
-    Or
-
-    >>> @tvm.testing.parametrize_targets
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-
     """
 
     def wrap(targets):
