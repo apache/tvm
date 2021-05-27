@@ -19,7 +19,9 @@ import contextlib
 import copy
 import glob
 import os
+import pathlib
 import pytest
+import shutil
 
 pytest.importorskip("pty")
 import sys
@@ -131,7 +133,10 @@ def test_graph_executor():
     """Test use of the graph executor with microTVM."""
     import tvm.micro
 
-    workspace = tvm.micro.Workspace(debug=True)
+    ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace")
+    if ws_root.exists():
+        shutil.rmtree(ws_root)
+    workspace = tvm.micro.Workspace(debug=True, root=ws_root.resolve())
     relay_mod = tvm.parser.fromtext(
         """
       #[version = "0.0.5"]
@@ -214,5 +219,4 @@ def test_platform_timer():
 
 
 if __name__ == "__main__":
-    test_graph_executor()
-#     sys.exit(pytest.main([__file__] + sys.argv[1:]))
+     sys.exit(pytest.main([__file__] + sys.argv[1:]))

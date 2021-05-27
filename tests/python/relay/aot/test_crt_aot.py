@@ -17,13 +17,15 @@
 
 import os
 import io
-import struct
 import numpy as np
 import pathlib
 import shutil
+import struct
 import subprocess
+import sys
 import tempfile
 import tarfile
+
 import pytest
 
 import tvm
@@ -461,4 +463,4 @@ def test_transpose(target_options):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

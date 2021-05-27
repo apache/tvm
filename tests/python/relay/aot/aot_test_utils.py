@@ -120,13 +120,13 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return StackMemoryManager_Free(&app_workspace,ptr);
 }
 
-void  TVMPlatformAbort(tvm_crt_error_t code) { }
+void TVMPlatformAbort(tvm_crt_error_t code) { }
 
 void TVMLogf(const char* msg, ...) { }
 
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
 int main(){\n
-     
+
         """
     )
 
@@ -296,17 +296,27 @@ def compile_and_run(
     else:
         workspace_bytes = 16384 * 1024
 
+    include_path = os.path.join(base_path, "include")
+    os.mkdir(include_path)
+    crt_root = tvm.micro.get_standalone_crt_dir()
+    shutil.copy2(os.path.join(crt_root, "template", "crt_config-template.h"),
+                 os.path.join(include_path, "crt_config.h"))
+
     for i in range(len(input_list)):
-        create_header_file((f'{mangle_name(mod_name, "input_data")}{i}'), input_list[i], build_path)
+        create_header_file(f'{mangle_name(mod_name, "input_data")}{i}',
+                           input_list[i],
+                           os.path.join(base_path, "include"))
 
     for i in range(len(output_list)):
         create_header_file(
-            (f'{mangle_name(mod_name,"output_data")}{i}'),
+            f'{mangle_name(mod_name,"output_data")}{i}',
             np.zeros(output_list[i].shape, output_list[i].dtype),
-            build_path,
+            os.path.join(base_path, "include")
         )
         create_header_file(
-            (f'{mangle_name(mod_name, "expected_output_data")}{i}'), output_list[i], build_path
+            f'{mangle_name(mod_name, "expected_output_data")}{i}',
+            output_list[i],
+            os.path.join(base_path, "include")
         )
 
     create_main(
@@ -320,6 +330,7 @@ def compile_and_run(
         f"make CFLAGS='{cflags}' -f {makefile} build_dir="
         + build_path
         + f" TVM_ROOT={file_dir}/../../../.."
+        + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
     )
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
@@ -345,6 +356,13 @@ def compile_and_run_multiple_models(
     base_path = os.path.join(tmp_dir, "test")
     build_path = os.path.join(base_path, "build")
     os.makedirs(build_path, exist_ok=True)
+
+    include_path = os.path.join(base_path, "include")
+    os.mkdir(include_path)
+    crt_root = tvm.micro.get_standalone_crt_dir()
+    shutil.copy2(os.path.join(crt_root, "template", "crt_config-template.h"),
+                 os.path.join(include_path, "crt_config.h"))
+
     for mod_name, mod in mod_map.items():
 
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
@@ -380,7 +398,11 @@ def compile_and_run_multiple_models(
     # Verify that compiles fine
     file_dir = os.path.dirname(os.path.abspath(__file__))
     makefile = os.path.join(file_dir, "aot_test.mk")
-    make_cmd = f"make -f {makefile} build_dir=" + build_path + f" TVM_ROOT={file_dir}/../../../.."
+    make_cmd = (
+        f"make -f {makefile} build_dir="
+        + build_path
+        + f" TVM_ROOT={file_dir}/../../../.."
+        + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}")
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
     ret = subprocess_with_stdout_and_log(make_cmd, ".", compile_log_path, False)
