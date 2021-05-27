@@ -86,6 +86,49 @@ def get_binds(args, compact=False, binds=None):
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
 
+
+def schedule_to_module(
+    sch: schedule.Schedule,
+    args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
+    name: str = "main",
+    binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
+) -> IRModule:
+    """According to the given schedule, form a function.
+    Parameters
+    ----------
+    sch : tvm.te.schedule.Schedule
+        The given scheduler to form the raw body
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+    name : str
+        The name of result function.
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        The binds information
+    Returns
+    -------
+    The body formed according to the given schedule
+    """
+    # normalize schedule first
+    """
+    pass_ctx = PassContext.current()
+    sch = sch.normalize()
+    bounds = schedule.InferBound(sch)
+    stmt = schedule.ScheduleOps(sch, bounds)
+
+    compact = schedule.VerifyCompactBuffer(stmt)
+    binds, arg_list = get_binds(args, compact, binds)
+
+    stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
+    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
+
+    func = func.with_attr("global_symbol", name)
+
+    if pass_ctx.config.get("tir.noalias", True):
+        func = func.with_attr("tir.noalias", True)
+    return tvm.IRModule({name: func})
+    """
+    return ffi.schedule_to_module(sch, args, name, binds)
+
 def lower(
     inputs: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
@@ -121,6 +164,9 @@ def lower(
     m : IRModule
        The result IRModule
     """
+    if isinstance(inputs, schedule.Schedule):
+        mod = schedule_to_module(inputs, args, name, binds)
+        return ffi.legacy_lower(mod, None, name, None, simple_mode)
     return ffi.lower(inputs, args, name, binds, simple_mode)
 
 

@@ -93,6 +93,8 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
                      offset_factor, buffer_type);
 }
 
+
+// comment to try to remove this
 void GetBinds(const Array<te::Tensor>& args, bool compact,
               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
               Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
@@ -105,6 +107,30 @@ void GetBinds(const Array<te::Tensor>& args, bool compact,
       out_arg_list->push_back(buf);
     } else {
       out_arg_list->push_back((*out_binds)[x]);
+    }
+  }
+}
+
+
+void GetBinds(const Array<ObjectRef>& args, bool compact,
+              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
+  *out_binds = binds;
+
+  for (const ObjectRef& x : args) {
+    if (const auto* tensor_node = x.as<te::TensorNode>()) {
+      auto x_ref = GetRef<te::Tensor>(tensor_node);
+      if (out_binds->find(x_ref) == out_binds->end()) {
+        auto buf = BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, compact);
+        out_binds->Set(x_ref, buf);
+        out_arg_list->push_back(buf);
+      } else {
+        out_arg_list->push_back((*out_binds)[x_ref]);
+      }
+    } else if (x.as<te::BufferNode>() || x.as<tir::VarNode>()) {
+       out_arg_list->push_back(x);
+    } else {
+      ICHECK(false) << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var";
     }
   }
 }
@@ -232,14 +258,8 @@ IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) 
   return mod;
 }
 
-IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-  auto pass_list = CreatePassList(simple_mode, false);
-  return LowerWithPassList(mod, pass_list);
-}
-
-IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
   // Convert te schedule to IRModule
   Array<ObjectRef> out_arg_list;
   auto pass_ctx = transform::PassContext::Current();
@@ -255,6 +275,9 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   GetBinds(args, compact, binds, &out_binds, &out_arg_list);
 
   // build the function
+  // At this point binds is only te::Tensors
+  
+  stmt = te::SchedulePostProcRewriteForTensorCore(stmt, sch, binds); // TODO(electriclilies): Should this be in here? Was in python but not C++ version.
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
@@ -263,8 +286,47 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   if (noalias) {
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
-  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+  return IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+}
 
+TVM_REGISTER_GLOBAL("driver.schedule_to_module")
+    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != NULL) {
+        for (auto kv : binds) {
+          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+        }
+      }
+    IRModule mod = ScheduleToModule(sch, args, name, c_binds);
+    return mod;
+    });
+
+
+IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  auto pass_list = CreatePassList(simple_mode, false);
+  return LowerWithPassList(mod, pass_list);
+}
+
+IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+
+  Array<ObjectRef> ref_arr;
+  for (auto x : args) {
+    ref_arr.push_back(x);
+  }
+  IRModule mod = ScheduleToModule(sch, ref_arr, name, binds);
+  // Get the legacy TE pass list
+  auto pass_list = CreatePassList(simple_mode, true);
+  return LowerWithPassList(mod, pass_list);
+}
+
+
+
+IRModule legacyLower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   // Get the legacy TE pass list
   auto pass_list = CreatePassList(simple_mode, true);
   return LowerWithPassList(mod, pass_list);
@@ -297,13 +359,9 @@ TVM_REGISTER_GLOBAL("driver.lower")
           c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
         }
       }
-
       if (const auto* p_mod = obj.as<IRModuleNode>()) {
         IRModule mod = GetRef<IRModule>(p_mod);
         return lower(mod, args, name, c_binds, simple_mode);
-      } else if (const auto* p_sch = obj.as<te::ScheduleNode>()) {
-        te::Schedule sch = GetRef<te::Schedule>(p_sch);
-        return lower(sch, args, name, c_binds, simple_mode);
       } else if (const auto* p_func = obj.as<tvm::tir::PrimFuncNode>()) {
         tvm::tir::PrimFunc func = GetRef<tvm::tir::PrimFunc>(p_func);
         return lower(func, args, name, c_binds, simple_mode);
@@ -312,6 +370,19 @@ TVM_REGISTER_GLOBAL("driver.lower")
                       << "PrimFunc, or IRModule";
         throw;
       }
+    });
+
+TVM_REGISTER_GLOBAL("driver.legacy_lower")
+      .set_body_typed([](IRModule mod, const Array<te::Tensor>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != NULL) {
+        for (auto kv : binds) {
+          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+        }
+      }
+      return legacyLower(mod, args, name, c_binds, simple_mode);
     });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
