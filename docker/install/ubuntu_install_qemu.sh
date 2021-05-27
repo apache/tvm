@@ -16,6 +16,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+if [[ "${CI_NUM_CORE}" ]]; then
+  NUM_CORE=${CI_NUM_CORE}
+else
+  NUM_CORE=2
+fi
+
 set -e
 set -u
 set -o pipefail
@@ -45,7 +51,7 @@ gpg --verify qemu-5.1.0.tar.xz.sig
 tar -xf qemu-5.1.0.tar.xz
 cd qemu-5.1.0
 ./configure --target-list=aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu
-make -j2
+make -j${NUM_CORE}
 sudo make install
 
 # For debugging with qemu
