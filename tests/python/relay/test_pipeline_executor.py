@@ -124,7 +124,7 @@ def run_pipeline(target):
     mconfig1 = mconfig.copy()
     mconfig1["target"] = target[0]
     mconfig1["dev"] = target[1]
-    # third output is final output, second output for mod2, third for  mod3
+    # third output is final output, second output for mod3, first for mod2
     # input
     mconfig1["pipeline"] = {
         "mod_indx": 1,
