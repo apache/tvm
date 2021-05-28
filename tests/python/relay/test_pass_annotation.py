@@ -23,12 +23,19 @@ from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
+from tvm.ir.instrument import pass_instrument
 import tvm.testing
 
 
-def _trace(module, metadata, _):
-    if metadata.name == "ManifestAlloc":
-        pass  # import pdb; pdb.set_trace()
+@tvm.instrument.pass_instrument
+class Trace:
+    def run_before_pass(self, module, pass_info):
+        if pass_info.name == "ManifestAlloc":
+            pass  # import pdb; pdb.set_trace()
+
+    def run_after_pass(self, module, pass_info):
+        if pass_info.name == "ManifestAlloc":
+            pass  # import pdb; pdb.set_trace()
 
 
 def check_graph_executor(
@@ -49,7 +56,7 @@ def check_graph_executor(
 
 
 def check_vm_runtime(target, ref_res, device, func, params, config, opt_level, expected_index=None):
-    with tvm.transform.PassContext(opt_level=opt_level, trace=_trace, config=config):
+    with tvm.transform.PassContext(opt_level=opt_level, instruments=[Trace()], config=config):
         mod = tvm.IRModule()
         mod["main"] = func
         exe = relay.vm.compile(mod, target)

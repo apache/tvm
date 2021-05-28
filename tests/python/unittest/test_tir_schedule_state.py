@@ -189,7 +189,8 @@ def test_replace_partial_copy0():
     sref = s.get_sref(s.mod["main"].body.block.body[0].body)
     other_part_hash = s.mod["main"].body.block.body[1].__hash__()
     s.replace(sref, target)
-    # The stmt is held by `hold_sref`, so it will be coped in copy-on-write because the ref count is not unique
+    # The stmt is held by `hold_sref`, so it will be coped in copy-on-write
+    # because the ref count is not unique
     assert ref_old_hash != s.mod["main"].body.block.body[0].__hash__()
     assert not tvm.ir.structural_equal(hold_ref.body, target)
     # The function and the other part stmt can be directly written
