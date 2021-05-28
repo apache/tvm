@@ -304,32 +304,18 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
     });
 
 
-IRModule lower_module(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+IRModule LowerModule(IRModule mod, bool simple_mode) {
   auto pass_list = CreatePassList(simple_mode, false);
   return LowerWithPassList(mod, pass_list);
 }
 
-IRModule lower_schedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+TVM_REGISTER_GLOBAL("driver.lower_module")
+    .set_body_typed([](IRModule mod, bool simple_mode) {
+      return LowerModule(mod, simple_mode);
+    });
 
-  Array<ObjectRef> ref_args;
-  for (auto x : args) {
-    ref_args.push_back(x);
-  }
-  return lower_schedule(sch, ref_args, name, binds);
-}
 
-IRModule lower_schedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-  // Get the legacy TE pass list
-  IRModule mod = ScheduleToModule(sch, args, name, binds);
-  auto pass_list = CreatePassList(simple_mode, true);
-  return LowerWithPassList(mod, pass_list);
-}
-
-IRModule lower_primfunc(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name, bool simple_mode) {
   auto pass_ctx = transform::PassContext::Current();
   auto f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
 
@@ -345,6 +331,30 @@ IRModule lower_primfunc(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, 
   return LowerWithPassList(mod, pass_list);
 }
 
+TVM_REGISTER_GLOBAL("driver.lower_primfunc")
+    .set_body_typed([](te::PrimFunc func, const String& name, bool simple_mode) {
+      return LowerPrimFunc(func, name, simple_mode);
+    });
+
+
+IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+
+  Array<ObjectRef> ref_args;
+  for (auto x : args) {
+    ref_args.push_back(x);
+  }
+  return LowerSchedule(sch, ref_args, name, binds);
+}
+
+IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+  // Get the legacy TE pass list
+  IRModule mod = ScheduleToModule(sch, args, name, binds);
+  auto pass_list = CreatePassList(simple_mode, true);
+  return LowerWithPassList(mod, pass_list);
+}
+
 TVM_REGISTER_GLOBAL("driver.lower_schedule")
     .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
                        const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
@@ -355,21 +365,7 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
           c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
         }
       }
-      return lower_schedule(sch, args, name, c_binds, simple_mode);
-    });
-
-TVM_REGISTER_GLOBAL("driver.lower_module")
-    .set_body_typed([](IRModule mod, const Array<te::Tensor>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-      return lower_module(mod, args, name, c_binds, simple_mode);
-    });
-
-TVM_REGISTER_GLOBAL("driver.lower_primfunc")
-    .set_body_typed([](te::PrimFunc func, const Array<te::Tensor>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-      return lower_primfunc(func, args, name, c_binds, simple_mode);
+      return LowerSchedule(sch, args, name, c_binds, simple_mode);
     });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
