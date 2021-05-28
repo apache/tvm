@@ -40,6 +40,7 @@ from . import error
 # tvm.ir
 from .ir import IRModule
 from .ir import transform
+from .ir import instrument
 from .ir import container
 from . import ir
 
@@ -66,7 +67,6 @@ from . import support
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
-
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using
