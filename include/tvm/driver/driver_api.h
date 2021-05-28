@@ -52,12 +52,12 @@ namespace tvm {
  * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
-TVM_DLL IRModule legacyLower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+
+TVM_DLL IRModule lower_schedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        bool simple_mode = false);
 
-
-TVM_DLL IRModule lower_schedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+TVM_DLL IRModule lower_schedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        bool simple_mode = false);
 /*!

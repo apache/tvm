@@ -313,19 +313,17 @@ IRModule lower_module(IRModule mod, const Array<te::Tensor>& args, const std::st
 IRModule lower_schedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
 
-  Array<ObjectRef> ref_arr;
+  Array<ObjectRef> ref_args;
   for (auto x : args) {
-    ref_arr.push_back(x);
+    ref_args.push_back(x);
   }
-  IRModule mod = ScheduleToModule(sch, ref_arr, name, binds);
-  // Get the legacy TE pass list
-  auto pass_list = CreatePassList(simple_mode, true);
-  return LowerWithPassList(mod, pass_list);
+  return lower_schedule(sch, ref_args, name, binds);
 }
 
-IRModule legacyLower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+IRModule lower_schedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   // Get the legacy TE pass list
+  IRModule mod = ScheduleToModule(sch, args, name, binds);
   auto pass_list = CreatePassList(simple_mode, true);
   return LowerWithPassList(mod, pass_list);
 }
@@ -348,7 +346,7 @@ IRModule lower_primfunc(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, 
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_schedule")
-    .set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name,
+    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
                        const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
@@ -372,19 +370,6 @@ TVM_REGISTER_GLOBAL("driver.lower_primfunc")
                        const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       return lower_primfunc(func, args, name, c_binds, simple_mode);
-    });
-
-TVM_REGISTER_GLOBAL("driver.legacy_lower")
-      .set_body_typed([](IRModule mod, const Array<te::Tensor>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-      // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != NULL) {
-        for (auto kv : binds) {
-          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
-        }
-      }
-      return legacyLower(mod, args, name, c_binds, simple_mode);
     });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,

@@ -169,10 +169,7 @@ def lower(
     if isinstance(inputs, PrimFunc):
         return ffi.lower_primfunc(inputs)
     if isinstance(inputs, schedule.Schedule):
-        mod = schedule_to_module(inputs, args, name, binds)
-        return ffi.legacy_lower(mod, None, name, None, simple_mode)
-    
-    return ffi.lower(inputs, args, name, binds, simple_mode)
+        return ffi.lower_schedule(inputs, args, name, binds, simple_mode)
 
 
 def _build_for_device(input_mod, target, target_host):
