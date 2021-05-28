@@ -30,6 +30,7 @@ def test_unique(dev, target):
         num_uniq = np.array([len(uniq)]).astype("int32")
         if not is_sorted:
             order = np.argsort(index)
+            index = np.sort(index)
             reverse_order = np.argsort(order)
             uniq = uniq[order].astype(data.dtype)
             inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
@@ -98,7 +99,7 @@ def test_unique(dev, target):
         )
 
         np.testing.assert_allclose(
-            tvm_inverse_indices.numpy()[:num_unique], np_inverse_indices, atol=1e-5, rtol=1e-5
+            tvm_inverse_indices.numpy(), np_inverse_indices, atol=1e-5, rtol=1e-5
         )
 
         if with_counts:
