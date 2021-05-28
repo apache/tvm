@@ -66,10 +66,12 @@ def _make_sess_from_op(model, zephyr_board, west_cmd, op_name, sched, arg_bufs):
 
 
 def _make_session(model, target, zephyr_board, west_cmd, mod):
-    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}_{zephyr_board}"
-    prev_build = f"{test_name}-last-build.micro-binary"
-    workspace_root = (
-        f'{test_name}_workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
+    parent_dir = os.path.dirname(__file__)
+    filename = os.path.splitext(os.path.basename(__file__))[0]
+    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
+    workspace_root = os.path.join(
+        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
+        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
     )
     workspace_parent = os.path.dirname(workspace_root)
     if not os.path.exists(workspace_parent):
@@ -78,7 +80,7 @@ def _make_session(model, target, zephyr_board, west_cmd, mod):
 
     test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     tvm_source_dir = os.path.join(test_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "demo_runtime")
+    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "host_driven")
     compiler = zephyr.ZephyrCompiler(
         project_dir=runtime_path,
         board=zephyr_board,
@@ -229,7 +231,7 @@ def test_onnx(platform, west_cmd):
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
     # We add the -link-params=1 option to ensure the model parameters are compiled in.
-    # There is currently a bug preventing the demo_runtime environment from receiving
+    # There is currently a bug preventing the host_driven environment from receiving
     # the model weights when set using graph_mod.set_input().
     # See: https://github.com/apache/tvm/issues/7567
     target = tvm.target.target.micro(model, options=["-link-params=1"])
@@ -395,4 +397,4 @@ def test_byoc_utvm(platform, west_cmd):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
