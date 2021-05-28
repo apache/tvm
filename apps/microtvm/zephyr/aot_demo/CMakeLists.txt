@@ -10,8 +10,9 @@ find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
 project(microtvm_zephyr_runtime)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
-file(GLOB TVM_SOURCES ${CMAKE_SOURCE_DIR}/__tvm*.c)
-target_sources(app PRIVATE src/main.c ${TVM_SOURCES})
+
+target_sources(app PRIVATE src/zephyr_uart.c)
+target_sources(app PRIVATE src/main.c)
 
 foreach(tvm_lib ${TVM_LIBS})
   string(LENGTH ${tvm_lib} tvm_lib_length)
