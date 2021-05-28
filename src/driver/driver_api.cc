@@ -154,7 +154,7 @@ transform::Pass Filter(FCond fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
-Array<tvm::transform::Pass> CreatePassList(bool enable_loop_partition, bool for_te_schedule) {
+Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for_te_schedule) {
   auto pass_ctx = transform::PassContext::Current();
 
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
@@ -222,7 +222,7 @@ Array<tvm::transform::Pass> CreatePassList(bool enable_loop_partition, bool for_
   pass_list.insert(pass_list.end(), user_lower_phase1.begin(), user_lower_phase1.end());
 
   // PHASE 2
-  if (enable_loop_partition) {
+  if (!disable_loop_partition) {
     pass_list.push_back(tir::transform::LoopPartition());
   }
 
@@ -303,18 +303,18 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
       return mod;
     });
 
-IRModule LowerModule(IRModule mod, bool enable_loop_partition) {
-  auto pass_list = CreatePassList(enable_loop_partition, false);
+IRModule LowerModule(IRModule mod, bool simple_mode) {
+  auto pass_list = CreatePassList(simple_mode, false);
   return LowerWithPassList(mod, pass_list);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_module")
-    .set_body_typed([](IRModule mod, bool enable_loop_partition) {
-      return LowerModule(mod, enable_loop_partition);
+    .set_body_typed([](IRModule mod, bool simple_mode) {
+      return LowerModule(mod, simple_mode);
     });
 
 IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
-                       bool enable_loop_partition) {
+                       bool simple_mode) {
   auto pass_ctx = transform::PassContext::Current();
   auto f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
 
@@ -326,18 +326,18 @@ IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
 
   // Get the pass list
-  auto pass_list = CreatePassList(enable_loop_partition, false);
+  auto pass_list = CreatePassList(simple_mode, false);
   return LowerWithPassList(mod, pass_list);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_primfunc")
-    .set_body_typed([](te::PrimFunc func, const String& name, bool enable_loop_partition) {
-      return LowerPrimFunc(func, name, enable_loop_partition);
+    .set_body_typed([](te::PrimFunc func, const String& name, bool simple_mode) {
+      return LowerPrimFunc(func, name, simple_mode);
     });
 
 IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       bool enable_loop_partition) {
+                       bool simple_mode) {
   Array<ObjectRef> ref_args;
   for (auto x : args) {
     ref_args.push_back(x);
@@ -347,16 +347,16 @@ IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const st
 
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       bool enable_loop_partition) {
+                       bool simple_mode) {
   // Get the legacy TE pass list
   IRModule mod = ScheduleToModule(sch, args, name, binds);
-  auto pass_list = CreatePassList(enable_loop_partition, true);
+  auto pass_list = CreatePassList(simple_mode, true);
   return LowerWithPassList(mod, pass_list);
 }
 
 TVM_REGISTER_GLOBAL("driver.lower_schedule")
     .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds, bool enable_loop_partition) {
+                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
       if (binds.get() != NULL) {
@@ -364,7 +364,7 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
           c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
         }
       }
-      return LowerSchedule(sch, args, name, c_binds, enable_loop_partition);
+      return LowerSchedule(sch, args, name, c_binds, simple_mode);
     });
 
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,

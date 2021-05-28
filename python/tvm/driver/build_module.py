@@ -69,7 +69,7 @@ def lower(
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
-    enable_loop_partition: bool = True,
+    simple_mode: bool = False,
 ) -> IRModule:
     """Lowering step before build into target.
 
@@ -104,7 +104,7 @@ def lower(
     if isinstance(inputs, PrimFunc):
         return ffi.lower_primfunc(inputs)
     if isinstance(inputs, schedule.Schedule):
-        return ffi.lower_schedule(inputs, args, name, binds, enable_loop_partition)
+        return ffi.lower_schedule(inputs, args, name, binds, simple_modes)
     raise ValueError(
         "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
     )

@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
                 if args.ir:
                     with inp.target:
-                        print(lower(s, arg_bufs, enable_loop_partition=False))
+                        print(lower(s, arg_bufs, simple_mode=True))
 
                 if args.code:
                     with inp.target:
