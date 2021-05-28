@@ -65,7 +65,7 @@ def schedule_to_module(
 
 
 def lower(
-    input: Union[schedule.Schedule, PrimFunc, IRModule],
+    inputs: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
@@ -75,7 +75,7 @@ def lower(
 
     Parameters
     ----------
-    input : Union[schedule.Schedule, PrimFunc, IRModule]
+    inputs : Union[schedule.Schedule, PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
 
     args : Optional[List[Union[Buffer, tensor.Tensor, Var]]]
@@ -99,12 +99,12 @@ def lower(
     m : IRModule
        The result IRModule
     """
-    if isinstance(input, IRModule):
-        return ffi.lower_module(input)
-    if isinstance(input, PrimFunc):
-        return ffi.lower_primfunc(input)
-    if isinstance(input, schedule.Schedule):
-        return ffi.lower_schedule(input, args, name, binds, enable_loop_partition)
+    if isinstance(inputs, IRModule):
+        return ffi.lower_module(inputs)
+    if isinstance(inputs, PrimFunc):
+        return ffi.lower_primfunc(inputs)
+    if isinstance(inputs, schedule.Schedule):
+        return ffi.lower_schedule(inputs, args, name, binds, enable_loop_partition)
     raise ValueError(
         "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
     )
