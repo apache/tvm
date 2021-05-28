@@ -39,54 +39,6 @@ from tvm.tir.expr import Var
 
 from . import _ffi_api as ffi
 
-
-def get_binds(args, compact=False, binds=None):
-    """Internal function to get binds and arg_list given arguments.
-
-    Parameters
-    ----------
-    args : list of Buffer or Tensor or Var
-        The argument lists to the function.
-
-    compact : bool
-        If the statement has already bound to a compact buffer.
-
-    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
-        Dictionary that maps the Tensor to Buffer which specified the data layout
-        requirement of the function. By default, a new compact buffer is created
-        for each tensor in the argument.
-
-    Returns
-    -------
-    binds: dict
-        The bind specification
-
-    arg_list: list
-        The list of symbolic buffers of arguments.
-    """
-    binds = {} if binds is None else binds.copy()
-    arg_list = []
-    for x in args:
-        if isinstance(x, tensor.Tensor):
-            any_dim = any(isinstance(i, tvm.tir.Var) for i in x.shape)
-            buffer_type = "auto_broadcast" if any_dim and not compact else ""
-            if x not in binds:
-                buf = tvm.tir.decl_buffer(
-                    x.shape, dtype=x.dtype, name=x.name, buffer_type=buffer_type
-                )
-                binds[x] = buf
-                arg_list.append(buf)
-            else:
-                arg_list.append(binds[x])
-        elif isinstance(x, schedule.Buffer):
-            arg_list.append(x)
-        elif isinstance(x, tvm.tir.Var):
-            arg_list.append(x)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
-    return binds, arg_list
-
-
 def schedule_to_module(
     sch: schedule.Schedule,
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
@@ -107,25 +59,6 @@ def schedule_to_module(
     Returns
     -------
     The body formed according to the given schedule
-    """
-    # normalize schedule first
-    """
-    pass_ctx = PassContext.current()
-    sch = sch.normalize()
-    bounds = schedule.InferBound(sch)
-    stmt = schedule.ScheduleOps(sch, bounds)
-
-    compact = schedule.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, binds)
-
-    stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
-    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
-
-    func = func.with_attr("global_symbol", name)
-
-    if pass_ctx.config.get("tir.noalias", True):
-        func = func.with_attr("tir.noalias", True)
-    return tvm.IRModule({name: func})
     """
     return ffi.schedule_to_module(sch, args, name, binds)
 
