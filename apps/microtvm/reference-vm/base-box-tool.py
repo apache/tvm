@@ -202,7 +202,7 @@ def generate_packer_config(file_path, providers):
 
 def build_command(args):
     generate_packer_config(
-        os.path.join(THIS_DIR, args.platform, "base-box", "packer.json"),
+        os.path.join(THIS_DIR, args.platform, "base-box", "packer.pkr.json"),
         args.provider or ALL_PROVIDERS,
     )
     env = copy.copy(os.environ)
@@ -212,7 +212,7 @@ def build_command(args):
     if args.debug_packer:
         packer_args += ["-debug"]
 
-    packer_args += ["packer.json"]
+    packer_args += ["packer.pkr.json"]
     subprocess.check_call(
         packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
@@ -407,7 +407,6 @@ def parse_args():
         "--provider",
         choices=ALL_PROVIDERS,
         action="append",
-        default=list(ALL_PROVIDERS),
         help="Name of the provider or providers to act on; if not specified, act on all.",
     )
 
