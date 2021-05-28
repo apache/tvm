@@ -16,16 +16,46 @@
 # specific language governing permissions and limitations
 # under the License.
 
+#
+# Install QEMU on Ubuntu.
+#
+# Usage: ubuntu_install_qemu.sh [--target-list target0,target1,...]
+#   --target-list is list of target for QEMU comma seperated. e.g. aarch64-softmmu,arm-softmmu,...
+#
+
 set -e
-set -u
 set -o pipefail
 
-sudo sed -i '/deb-src/s/^# //' /etc/apt/sources.list
-apt update
-apt-get -y build-dep qemu
+QEMU_DIR=qemu-5.1.0
 
-gpg --keyserver keys.gnupg.net --recv-keys 0x3353C9CEF108B584
-cat <<EOF | gpg --dearmor >qemu-5.1.0.tar.xz.sig
+# Get number of cores for build
+if [[ "${CI_NUM_CORE}" ]]; then
+  num_cores=${CI_NUM_CORE}
+else
+  num_cores=2
+fi
+
+# Set target list for QEMU
+if [ "$1" == "--target-list" ]; then
+    shift
+    target_list=$1
+else
+    target_list="aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu"
+fi
+
+# Check if QEMU already built
+rebuild=0
+if [ -d ${QEMU_DIR} ]; then
+    rebuild=1
+fi
+
+if [ $rebuild -eq 0 ]; then
+    sudo sed -i '/deb-src/s/^# //' /etc/apt/sources.list
+    apt update
+    apt-get -y build-dep qemu
+
+    gpg --keyserver keys.gnupg.net --recv-keys 0x3353C9CEF108B584
+    cat <<EOF | gpg --dearmor >qemu-5.1.0.tar.xz.sig
 -----BEGIN PGP ARMORED FILE-----
 Comment: Use "gpg --dearmor" for unpacking
 
@@ -39,14 +69,16 @@ p5ez/+2k4VAIwIQoP5DoO06waLBffvLIAdPPKYsx71K67OoGG2svc7duC/+5qf1x
 =hCS7
 -----END PGP ARMORED FILE-----
 EOF
-curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
-gpg --verify qemu-5.1.0.tar.xz.sig
+    curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
+    gpg --verify qemu-5.1.0.tar.xz.sig
 
-tar -xf qemu-5.1.0.tar.xz
+    tar -xf qemu-5.1.0.tar.xz
+fi
+
 cd qemu-5.1.0
-./configure --target-list=aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu
-make -j2
+./configure --target-list=${target_list}
+make -j${num_cores}
 sudo make install
 
-# For debugging with qemu
+# # For debugging with qemu
 apt-get -y install libpython3.8
