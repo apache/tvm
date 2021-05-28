@@ -44,7 +44,7 @@ def schedule_softmax(outs):
         max_elem = s[exp].op.input_tensors[1]
         delta = None
         axis = int(softmax.op.attrs["axis"])
-    if op_tag == "fast_softmax_output":
+    elif op_tag == "fast_softmax_output":
         exp = softmax.op.input_tensors[0]
         expsum = softmax.op.input_tensors[1]
         delta = s[exp].op.input_tensors[0]
