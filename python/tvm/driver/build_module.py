@@ -69,7 +69,7 @@ def lower(
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
-    simple_mode: bool = False,
+    enable_loop_partition: bool = True,
 ) -> IRModule:
     """Lowering step before build into target.
 
@@ -104,7 +104,7 @@ def lower(
     if isinstance(input, PrimFunc):
         return ffi.lower_primfunc(input)
     if isinstance(input, schedule.Schedule):
-        return ffi.lower_schedule(input, args, name, binds, simple_mode)
+        return ffi.lower_schedule(input, args, name, binds, enable_loop_partition)
     raise ValueError(
         "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
     )
@@ -345,7 +345,7 @@ def build(
         target_host = Target(target_host)
     if (
         target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
-        and target_host.attrs.get("system-lib", 0).value == 1
+        and target_host.attrs.get("system-lib", 0) == 1
     ):
         if target_host.kind.name == "c":
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
