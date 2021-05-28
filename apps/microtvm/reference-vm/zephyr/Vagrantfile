@@ -18,14 +18,14 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "tlcpack/microtvm-zephyr-2.5"
 
-  if ENV.has_key?("RVM_NUM_CORES")
-    num_cores = ENV["RVM_NUM_CORES"]
+  if ENV.has_key?("TVM_RVM_NUM_CORES")
+    num_cores = ENV["TVM_RVM_NUM_CORES"]
   else
     num_cores = 2
   end
 
-  if ENV.has_key?("RVM_RAM_BYTES")
-    ram_bytes = ENV["RVM_RAM_BYTES"]
+  if ENV.has_key?("TVM_RVM_RAM_BYTES")
+    ram_bytes = ENV["TVM_RVM_RAM_BYTES"]
   else
     ram_bytes = 2048
   end
