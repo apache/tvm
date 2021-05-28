@@ -104,7 +104,7 @@ def lower(
     if isinstance(inputs, PrimFunc):
         return ffi.lower_primfunc(inputs)
     if isinstance(inputs, schedule.Schedule):
-        return ffi.lower_schedule(inputs, args, name, binds, simple_modes)
+        return ffi.lower_schedule(inputs, args, name, binds, simple_mode)
     raise ValueError(
         "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
     )
