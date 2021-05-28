@@ -39,6 +39,7 @@ from tvm.tir.expr import Var
 
 from . import _ffi_api as ffi
 
+
 def schedule_to_module(
     sch: schedule.Schedule,
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
@@ -62,8 +63,9 @@ def schedule_to_module(
     """
     return ffi.schedule_to_module(sch, args, name, binds)
 
+
 def lower(
-    inputs: Union[schedule.Schedule, PrimFunc, IRModule],
+    input: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
@@ -97,12 +99,15 @@ def lower(
     m : IRModule
        The result IRModule
     """
-    if isinstance(inputs, IRModule):
-        return ffi.lower_module(inputs)
-    if isinstance(inputs, PrimFunc):
-        return ffi.lower_primfunc(inputs)
-    if isinstance(inputs, schedule.Schedule):
-        return ffi.lower_schedule(inputs, args, name, binds, simple_mode)
+    if isinstance(input, IRModule):
+        return ffi.lower_module(input)
+    if isinstance(input, PrimFunc):
+        return ffi.lower_primfunc(input)
+    if isinstance(input, schedule.Schedule):
+        return ffi.lower_schedule(input, args, name, binds, simple_mode)
+    raise ValueError(
+        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inputs)
+    )
 
 
 def _build_for_device(input_mod, target, target_host):

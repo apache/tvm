@@ -43,49 +43,53 @@
 #include <vector>
 
 namespace tvm {
+
+/*!
+ * \brief Build an IRModule given a module, args and binds
+ * \param mod The IRmodule to lower
+ * \param enable_loop_partition Enables the loop partition pass. Defaults to true.
+ * \return The result module.
+ */
+TVM_DLL IRModule LowerModule(IRModule mod, bool enable_loop_partition = true);
+
+/*!
+ * \brief Build an IRModule given a module, args and binds
+ * \param func The PrimFunc to lower
+ * \param name The name of the lowered function.
+ * \param enable_loop_partition Enables the loop partition pass. Defaults to true.
+ * \return The result module.
+ */
+TVM_DLL IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
+                               bool enable_loop_partition = true);
+
 /*!
  * \brief Build an IRModule given a schedule, args and binds
  * \param sch The schedule to lower.
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
- * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
+ * \param enable_loop_partition Enables the loop partition pass. Defaults to true.
  * \return The result module.
  */
 
-TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       bool simple_mode = false);
-
-TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       bool simple_mode = false);
-/*!
- * \brief Build an IRModule given a module, args and binds
- * \param mod The IRmodule to lower
- * \param args The arguments to the function.
- * \param name The name of the lowered function.
- * \param binds Buffer assignments.
- * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
- * \return The result module.
- */
-TVM_DLL IRModule LowerModule(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       bool simple_mode = false);
+TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args,
+                               const std::string& name,
+                               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                               bool enable_loop_partition = true);
 
 /*!
- * \brief Build an IRModule given a module, args and binds
- * \param func The PrimFunc to lower
- * \param args The arguments to the function.
+ * \brief Build an IRModule given a schedule, args and binds
+ * \param sch The schedule to lower.
+ * \param args The arguments to the function (Array of Union of Tensor, Buffer and Vars)
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
- * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
+ * \param enable_loop_partition Enables the loop partition pass. Defaults to true.
  * \return The result module.
  */
-TVM_DLL IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const Array<te::Tensor>& args,
-                       const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       bool simple_mode = false);
+TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args,
+                               const std::string& name,
+                               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                               bool enable_loop_partition = true);
 
 /*!
  * \brief Create an IRModule out of a Schedule
@@ -93,11 +97,10 @@ TVM_DLL IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const Array<te::Tensor>&
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
- * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds);
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds);
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.
  * \param funcs The functions to be built.

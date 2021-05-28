@@ -93,7 +93,6 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
                      offset_factor, buffer_type);
 }
 
-
 // comment to try to remove this
 void GetBinds(const Array<te::Tensor>& args, bool compact,
               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
@@ -120,21 +119,21 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
     if (const auto* tensor_node = x.as<te::TensorNode>()) {
       auto x_ref = GetRef<te::Tensor>(tensor_node);
       if (out_binds->find(x_ref) == out_binds->end()) {
-        auto buf = BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, compact);
+        auto buf =
+            BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, compact);
         out_binds->Set(x_ref, buf);
         out_arg_list->push_back(buf);
       } else {
         out_arg_list->push_back((*out_binds)[x_ref]);
       }
     } else if (x.as<te::BufferNode>() || x.as<tir::VarNode>()) {
-       out_arg_list->push_back(x);
+      out_arg_list->push_back(x);
     } else {
-      ICHECK(false) << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var";
+      ICHECK(false)
+          << "Expected type of the elements of args to be te::Tensor, te::Buffer or tir::Var";
     }
   }
 }
-
-
 
 transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
@@ -223,7 +222,7 @@ Array<tvm::transform::Pass> CreatePassList(bool enable_loop_partition, bool for_
   pass_list.insert(pass_list.end(), user_lower_phase1.begin(), user_lower_phase1.end());
 
   // PHASE 2
-  if (!enable_loop_partition) {
+  if (enable_loop_partition) {
     pass_list.push_back(tir::transform::LoopPartition());
   }
 
@@ -259,7 +258,7 @@ IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) 
 }
 
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
   // Convert te schedule to IRModule
   Array<ObjectRef> out_arg_list;
   auto pass_ctx = transform::PassContext::Current();
@@ -274,10 +273,11 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
   Map<te::Tensor, tir::Buffer> out_binds;
   GetBinds(args, compact, binds, &out_binds, &out_arg_list);
 
-  // build the function
+  // Build the function
   // At this point binds is only te::Tensors
-  
-  stmt = te::SchedulePostProcRewriteForTensorCore(stmt, sch, binds); // TODO(electriclilies): Should this be in here? Was in python but not C++ version.
+  stmt = te::SchedulePostProcRewriteForTensorCore(
+      stmt, sch,
+      binds);  // TODO(electriclilies): Should this be in here? Was in python but not C++ version.
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
@@ -299,10 +299,9 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
           c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
         }
       }
-    IRModule mod = ScheduleToModule(sch, args, name, c_binds);
-    return mod;
+      IRModule mod = ScheduleToModule(sch, args, name, c_binds);
+      return mod;
     });
-
 
 IRModule LowerModule(IRModule mod, bool enable_loop_partition) {
   auto pass_list = CreatePassList(enable_loop_partition, false);
@@ -314,8 +313,8 @@ TVM_REGISTER_GLOBAL("driver.lower_module")
       return LowerModule(mod, enable_loop_partition);
     });
 
-
-IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name, bool enable_loop_partition) {
+IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
+                       bool enable_loop_partition) {
   auto pass_ctx = transform::PassContext::Current();
   auto f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
 
@@ -336,10 +335,9 @@ TVM_REGISTER_GLOBAL("driver.lower_primfunc")
       return LowerPrimFunc(func, name, enable_loop_partition);
     });
 
-
 IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool enable_loop_partition) {
-
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       bool enable_loop_partition) {
   Array<ObjectRef> ref_args;
   for (auto x : args) {
     ref_args.push_back(x);
@@ -348,7 +346,8 @@ IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const st
 }
 
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool enable_loop_partition) {
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       bool enable_loop_partition) {
   // Get the legacy TE pass list
   IRModule mod = ScheduleToModule(sch, args, name, binds);
   auto pass_list = CreatePassList(enable_loop_partition, true);
