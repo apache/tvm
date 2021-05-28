@@ -80,7 +80,7 @@ def softmax_strategy_cpu(attrs, inputs, out_type, target):
 
 
 @fast_softmax_strategy.register("cpu")
-def softmax_strategy_cpu(attrs, inputs, out_type, target):
+def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
     """fast_softmax x86 strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
