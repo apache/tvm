@@ -304,13 +304,13 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
     });
 
 
-IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+IRModule lower_module(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   auto pass_list = CreatePassList(simple_mode, false);
   return LowerWithPassList(mod, pass_list);
 }
 
-IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+IRModule lower_schedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
 
   Array<ObjectRef> ref_arr;
@@ -323,8 +323,6 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   return LowerWithPassList(mod, pass_list);
 }
 
-
-
 IRModule legacyLower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   // Get the legacy TE pass list
@@ -332,7 +330,7 @@ IRModule legacyLower(IRModule mod, const Array<te::Tensor>& args, const std::str
   return LowerWithPassList(mod, pass_list);
 }
 
-IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
+IRModule lower_primfunc(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std::string& name,
                const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   auto pass_ctx = transform::PassContext::Current();
   auto f = WithAttr(std::move(func), "global_symbol", runtime::String(name));
@@ -349,8 +347,8 @@ IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args, const std
   return LowerWithPassList(mod, pass_list);
 }
 
-TVM_REGISTER_GLOBAL("driver.lower")
-    .set_body_typed([](ObjectRef obj, const Array<te::Tensor>& args, const String& name,
+TVM_REGISTER_GLOBAL("driver.lower_schedule")
+    .set_body_typed([](te::Schedule sch, const Array<te::Tensor>& args, const String& name,
                        const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
@@ -359,17 +357,21 @@ TVM_REGISTER_GLOBAL("driver.lower")
           c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
         }
       }
-      if (const auto* p_mod = obj.as<IRModuleNode>()) {
-        IRModule mod = GetRef<IRModule>(p_mod);
-        return lower(mod, args, name, c_binds, simple_mode);
-      } else if (const auto* p_func = obj.as<tvm::tir::PrimFuncNode>()) {
-        tvm::tir::PrimFunc func = GetRef<tvm::tir::PrimFunc>(p_func);
-        return lower(func, args, name, c_binds, simple_mode);
-      } else {
-        ICHECK(false) << "driver.lower expects the first argument to be a te::Schedule, "
-                      << "PrimFunc, or IRModule";
-        throw;
-      }
+      return lower_schedule(sch, args, name, c_binds, simple_mode);
+    });
+
+TVM_REGISTER_GLOBAL("driver.lower_module")
+    .set_body_typed([](IRModule mod, const Array<te::Tensor>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      return lower_module(mod, args, name, c_binds, simple_mode);
+    });
+
+TVM_REGISTER_GLOBAL("driver.lower_primfunc")
+    .set_body_typed([](te::PrimFunc func, const Array<te::Tensor>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      return lower_primfunc(func, args, name, c_binds, simple_mode);
     });
 
 TVM_REGISTER_GLOBAL("driver.legacy_lower")

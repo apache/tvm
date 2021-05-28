@@ -57,7 +57,7 @@ TVM_DLL IRModule legacyLower(IRModule mod, const Array<te::Tensor>& args, const 
                        bool simple_mode = false);
 
 
-TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
+TVM_DLL IRModule lower_schedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        bool simple_mode = false);
 /*!
@@ -69,7 +69,7 @@ TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const st
  * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
-TVM_DLL IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
+TVM_DLL IRModule lower_module(IRModule mod, const Array<te::Tensor>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        bool simple_mode = false);
 
@@ -82,7 +82,7 @@ TVM_DLL IRModule lower(IRModule mod, const Array<te::Tensor>& args, const std::s
  * \param simple_mode Skips the LoopPartition pass if true. Defaults to false.
  * \return The result module.
  */
-TVM_DLL IRModule lower(tvm::tir::PrimFunc func, const Array<te::Tensor>& args,
+TVM_DLL IRModule lower_primfunc(tvm::tir::PrimFunc func, const Array<te::Tensor>& args,
                        const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                        bool simple_mode = false);
