@@ -205,7 +205,7 @@ Array<tvm::transform::Pass> CreatePassList(bool enable_loop_partition, bool for_
   auto pass_list = user_lower_phase0;
 
   // PHASE 1
-  if (legacy_te_pass) {
+  if (for_te_schedule) {
     pass_list.push_back(tir::transform::InjectPrefetch());
     pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
   } else {
