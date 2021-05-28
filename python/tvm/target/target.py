@@ -296,9 +296,12 @@ def micro(model="unknown", options=None):
     if model not in MICRO_SUPPORTED_MODELS:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
+        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", f"-model={model}"],
         options,
     )
+
+    if (not options) or (options and "--executor=aot" not in options):
+        opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.
