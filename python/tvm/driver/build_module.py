@@ -100,9 +100,9 @@ def lower(
        The result IRModule
     """
     if isinstance(inputs, IRModule):
-        return ffi.lower_module(inputs)
+        return ffi.lower_module(inputs, simple_mode)
     if isinstance(inputs, PrimFunc):
-        return ffi.lower_primfunc(inputs)
+        return ffi.lower_primfunc(inputs, simple_mode)
     if isinstance(inputs, schedule.Schedule):
         return ffi.lower_schedule(inputs, args, name, binds, simple_mode)
     raise ValueError(
