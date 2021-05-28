@@ -1102,10 +1102,6 @@ def gather_nd_shape_func(attrs, inputs, _):
     batch_dims = get_const_int(attrs.batch_dims)
     index_rank = get_const_int(attrs.index_rank)
 
-    assert (
-        index_rank > 0
-    ), "index_rank needs to be specified for dynamic gather_nd"
+    assert index_rank > 0, "index_rank needs to be specified for dynamic gather_nd"
 
-    return [
-        _gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(index_rank))
-    ]
+    return [_gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(index_rank))]

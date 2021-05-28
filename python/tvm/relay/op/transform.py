@@ -1072,7 +1072,7 @@ def gather(data, axis, indices):
     return _make.gather(data, axis, indices)
 
 
-def gather_nd(data, indices, batch_dims=0, index_rank=-1):
+def gather_nd(data, indices, batch_dims=0, index_rank=None):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
 
@@ -1087,7 +1087,7 @@ def gather_nd(data, indices, batch_dims=0, index_rank=-1):
     batch_dims : int
         The number of batch dimensions.
 
-    index_rank : int
+    index_rank : int, optional
         The size of an indexing tuple, which is a fixed value and the same as indices.shape[0]
         Only needed when other dimensions of indices are dynamic.
 
