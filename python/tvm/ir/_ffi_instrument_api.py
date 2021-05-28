@@ -14,28 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.relay
-from tvm.relay import op
+"""FFI APIs for tvm.instrument"""
+import tvm._ffi
 
-
-def test_pass_profiler():
-    x, y, z = [tvm.relay.var(c, shape=(3, 4), dtype="float32") for c in "xyz"]
-    e1 = op.add(x, y)
-    e2 = op.subtract(x, z)
-    e3 = op.multiply(e1, e1 / e2)
-    mod = tvm.IRModule.from_expr(e3 + e2)
-
-    tvm.transform.enable_pass_profiling()
-
-    mod = tvm.relay.transform.AnnotateSpans()(mod)
-    mod = tvm.relay.transform.ToANormalForm()(mod)
-    mod = tvm.relay.transform.InferType()(mod)
-
-    profiles = tvm.transform.render_pass_profiles()
-    assert "AnnotateSpans" in profiles
-    assert "ToANormalForm" in profiles
-    assert "InferType" in profiles
-
-    tvm.transform.clear_pass_profiles()
-    tvm.transform.disable_pass_profiling()
+tvm._ffi._init_api("instrument", __name__)
