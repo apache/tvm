@@ -14,20 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI APIs for tvm.instrument"""
+import tvm._ffi
 
-# Be compatible with older version of CMake
-find_vulkan(${USE_VULKAN})
-
-if(USE_VULKAN)
-  if(NOT Vulkan_FOUND)
-    message(FATAL_ERROR "Cannot find Vulkan, USE_VULKAN=" ${USE_VULKAN})
-  endif()
-  include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
-  message(STATUS "Build with Vulkan support")
-  file(GLOB RUNTIME_VULKAN_SRCS src/runtime/vulkan/*.cc)
-  file(GLOB COMPILER_VULKAN_SRCS src/target/spirv/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_VULKAN_SRCS})
-  list(APPEND COMPILER_SRCS ${COMPILER_VULKAN_SRCS})
-  list(APPEND TVM_LINKER_LIBS ${Vulkan_SPIRV_TOOLS_LIBRARY})
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${Vulkan_LIBRARY})
-endif(USE_VULKAN)
+tvm._ffi._init_api("instrument", __name__)

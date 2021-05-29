@@ -24,9 +24,15 @@ This page is organized as follows:
 
 - The `Example Compilation Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
   To get started, please read this section first.
+
 - The `Logical Architecture Components`_ section describes the logical components.
   The sections after are specific guides focused on each logical component, organized
   by the component's name.
+
+- The `Device/Target Interactions`_ section describes how TVM
+  interacts with each supported physical device and code-generation
+  target.
+
 - Feel free to also check out the :ref:`dev-how-to` for useful development tips.
 
 This guide provides a few complementary views of the architecture.
