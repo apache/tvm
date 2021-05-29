@@ -114,6 +114,10 @@ ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
 ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LD_LIBRARY_PATH}
 
+# Ensure the local libcuda have higher priority than the /usr/local/cuda/compact
+# since the compact libcuda does not work on non-Tesla gpus
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:${LD_LIBRARY_PATH}
+
 ENV LD_LIBRARY_PATH=/opt/rocm/lib:${LD_LIBRARY_PATH}
 ENV PATH=/node_modules/.bin:${PATH}
 ENV VULKAN_SDK=/usr
