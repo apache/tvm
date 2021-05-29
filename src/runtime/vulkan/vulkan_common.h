@@ -36,6 +36,12 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
+/*! \brief Maximum number of GPU supported in VulkanModule. */
+static constexpr const int kVulkanMaxNumDevice = 8;
+
+/*! \brief TVM Vulkan binary pack magic number */
+static constexpr const int kVulkanModuleMagic = 0x02700027;
+
 const int kMaxPushConstantsBytes = 128;
 
 /*! \brief A mask used when we attach additional information to shaders */
@@ -99,66 +105,6 @@ inline const char* VKGetErrorString(VkResult error) {
     VkResult __e = (func);   \
     VULKAN_CHECK_ERROR(__e); \
   }
-
-struct VulkanDescriptorTemplateKHRFunctions {
-  explicit VulkanDescriptorTemplateKHRFunctions(VkDevice device) {
-    vkCreateDescriptorUpdateTemplateKHR = (PFN_vkCreateDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
-        vkGetDeviceProcAddr(device, "vkCreateDescriptorUpdateTemplateKHR"));
-    vkDestroyDescriptorUpdateTemplateKHR = (PFN_vkDestroyDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
-        vkGetDeviceProcAddr(device, "vkDestroyDescriptorUpdateTemplateKHR"));
-    vkUpdateDescriptorSetWithTemplateKHR = (PFN_vkUpdateDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
-        vkGetDeviceProcAddr(device, "vkUpdateDescriptorSetWithTemplateKHR"));
-    vkCmdPushDescriptorSetWithTemplateKHR =
-        (PFN_vkCmdPushDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
-            vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplateKHR"));
-  }
-
-  PFN_vkCreateDescriptorUpdateTemplateKHR vkCreateDescriptorUpdateTemplateKHR{nullptr};
-  PFN_vkDestroyDescriptorUpdateTemplateKHR vkDestroyDescriptorUpdateTemplateKHR{nullptr};
-  PFN_vkUpdateDescriptorSetWithTemplateKHR vkUpdateDescriptorSetWithTemplateKHR{nullptr};
-  PFN_vkCmdPushDescriptorSetWithTemplateKHR vkCmdPushDescriptorSetWithTemplateKHR{nullptr};
-};
-
-struct VulkanGetBufferMemoryRequirements2Functions {
-  explicit VulkanGetBufferMemoryRequirements2Functions(VkDevice device) {
-    vkGetBufferMemoryRequirements2KHR = (PFN_vkGetBufferMemoryRequirements2KHR)ICHECK_NOTNULL(
-        vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements2KHR"));
-  }
-
-  PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
-};
-
-struct VulkanContext {
-  // physical device
-  VkPhysicalDevice phy_device{nullptr};
-
-  // Phyiscal device property
-  VkPhysicalDeviceProperties phy_device_prop;
-  // Target that best represents this physical device
-  Target target;
-  // Memory type index for staging.
-  uint32_t staging_mtype_index{0};
-  // whether staging is coherent
-  bool coherent_staging{false};
-
-  std::unique_ptr<VulkanDescriptorTemplateKHRFunctions> descriptor_template_khr_functions{nullptr};
-  std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>
-      get_buffer_memory_requirements_2_functions{nullptr};
-  // Memory type index for compute
-  uint32_t compute_mtype_index{0};
-  // The logical device
-  VkDevice device{nullptr};
-  // command queue
-
-  std::unique_ptr<std::mutex> queue_mutex;
-  VkQueue queue{nullptr};
-  // queue family_index;
-  uint32_t queue_family_index{0};
-  // Queue family index.
-  VkQueueFamilyProperties queue_prop;
-
-  bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
-};
 
 }  // namespace vulkan
 }  // namespace runtime
