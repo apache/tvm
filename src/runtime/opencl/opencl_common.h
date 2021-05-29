@@ -323,9 +323,16 @@ class OpenCLThreadEntry {
 /*! \brief OpenCL runtime buffer structure with tracked memory layout */
 struct BufferDescriptor {
   enum class MemoryLayout {
-    BUFFER_1D,
-    IMAGE_2D_ACTIVATION,
-    IMAGE_2D_WEIGHT,
+    /*! \brief One dimensional buffer in row-major layout*/
+    kBuffer1D,
+    /*! \brief Two dimensional texture w/ width = axis[-1]
+     *          e.g. image2d[height=NCH, width=W]
+     */
+    kImage2DActivation,
+    /*! \brief Two dimensional texture w/ height = axis[0]
+     *         e.g. image2d[height=O, width=IHW]
+     */
+    kImage2DWeight,
   };
   BufferDescriptor() = default;
   explicit BufferDescriptor(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
@@ -333,9 +340,7 @@ struct BufferDescriptor {
   static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
 
   cl_mem buffer{nullptr};
-  MemoryLayout layout{MemoryLayout::BUFFER_1D};
-  std::vector<int64_t> shape;
-  DLDataType dtype;
+  MemoryLayout layout{MemoryLayout::kBuffer1D};
 };
 }  // namespace cl
 

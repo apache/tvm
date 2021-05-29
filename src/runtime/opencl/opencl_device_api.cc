@@ -32,21 +32,21 @@ namespace cl {
 std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name);
 std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name);
 
-struct clImageInfo {
+struct ImageInfo {
   size_t origin[3] = {};
   size_t region[3] = {};
   size_t row_pitch = 0;
   size_t slice_pitch = 0;
 };
 
-clImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tensor) {
-  ICHECK_EQ(desc->shape.size(), 3)
-      << "The OpenCL Device API currently only supports image2d_t textures; "
-      << "the buffer descriptor provided describes a tensor of rank " << desc->shape.size()
-      << " != 3 for image2d_t";
-
-  size_t depth = 1;
-  clImageInfo info{};
+/*!
+ * \brief Utility to apply a memory layout specific lowering convention
+ * to infer the physical shape from the provided DLTensor's logical shape.
+ * \param desc Descriptor which contains the buffer and layout tag.
+ * \param The DLTensor used to infer the tensors physical shape.
+ */
+ImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tensor) {
+  ImageInfo info{};
   ICHECK(tensor->dtype.lanes == 1) << "Image dtype has lanes: " << tensor->dtype.lanes;
 
   info.origin[0] = info.origin[1] = info.origin[2] = 0;
@@ -58,30 +58,30 @@ clImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tenso
   auto texture_shape = ApplyTexture2DFlattening<int64_t>(tensor->shape, tensor->ndim, axis);
   info.region[0] = texture_shape.width;
   info.region[1] = texture_shape.height;
-  info.region[2] = depth;
+  info.region[2] = 1;
   return info;
 }
 
 cl::BufferDescriptor::MemoryLayout cl::BufferDescriptor::MemoryLayoutFromScope(
     Optional<String> mem_scope) {
   if (!mem_scope.defined()) {
-    return cl::BufferDescriptor::MemoryLayout::BUFFER_1D;
+    return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   } else if (mem_scope.value() == "global.texture") {
-    return cl::BufferDescriptor::MemoryLayout::IMAGE_2D_ACTIVATION;
+    return cl::BufferDescriptor::MemoryLayout::kImage2DActivation;
   } else if (mem_scope.value() == "global.texture-weight") {
-    return cl::BufferDescriptor::MemoryLayout::IMAGE_2D_WEIGHT;
+    return cl::BufferDescriptor::MemoryLayout::kImage2DWeight;
   }
   LOG(FATAL) << "No memory layout defined for memory of scope: " << mem_scope.value();
-  return cl::BufferDescriptor::MemoryLayout::BUFFER_1D;
+  return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
 }
 
 String cl::BufferDescriptor::ScopeFromMemoryLayout(cl::BufferDescriptor::MemoryLayout layout) {
   switch (layout) {
-    case cl::BufferDescriptor::MemoryLayout::BUFFER_1D:
+    case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
       return "global";
-    case cl::BufferDescriptor::MemoryLayout::IMAGE_2D_ACTIVATION:
+    case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
       return "global.texture";
-    case cl::BufferDescriptor::MemoryLayout::IMAGE_2D_WEIGHT:
+    case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
       return "global.texture-weight";
   }
   LOG(FATAL) << "No scope corresponding to the provided memory layout: "
@@ -197,9 +197,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   cl_int err_code;
   cl::BufferDescriptor* desc = new cl::BufferDescriptor;
   desc->buffer = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
-  desc->layout = cl::BufferDescriptor::MemoryLayout::BUFFER_1D;
-  desc->shape.push_back(size);
-  desc->dtype = type_hint;
+  desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   OPENCL_CHECK_ERROR(err_code);
   return desc;
 }
@@ -220,8 +218,6 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
   auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
   desc->buffer = AllocTexture(dev, texture.width, texture.height, dtype);
-  desc->shape.insert(desc->shape.end(), &shape[0], &shape[ndim]);
-  desc->dtype = dtype;
   return desc;
 }
 
@@ -266,7 +262,7 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
 
   if (IsOpenCLDevice(from->device) && IsOpenCLDevice(to->device)) {
     const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
-    ICHECK(from_desc->layout == cl::BufferDescriptor::MemoryLayout::BUFFER_1D)
+    ICHECK(from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D)
         << "Device to device copying is currently only implemented for OpenCL buffer storage";
     auto* to_desc = static_cast<cl::BufferDescriptor*>(to->data);
     OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_desc->buffer, to_desc->buffer,
@@ -275,13 +271,13 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
   } else if (IsOpenCLDevice(from->device) && to->device.device_type == kDLCPU) {
     const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
     switch (from_desc->layout) {
-      case cl::BufferDescriptor::MemoryLayout::BUFFER_1D:
+      case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
         OPENCL_CALL(clEnqueueReadBuffer(
             this->GetQueue(from->device), from_desc->buffer, CL_FALSE, from->byte_offset, nbytes,
             static_cast<char*>(to->data) + to->byte_offset, 0, nullptr, nullptr));
         break;
-      case cl::BufferDescriptor::MemoryLayout::IMAGE_2D_ACTIVATION:
-      case cl::BufferDescriptor::MemoryLayout::IMAGE_2D_WEIGHT:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
         auto image_info = GetImageInfo(from_desc, from);
         // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
         // Note that when utilizing texture pools for memory reuse, the allocated image
@@ -296,13 +292,13 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
   } else if (from->device.device_type == kDLCPU && IsOpenCLDevice(to->device)) {
     auto* to_desc = static_cast<cl::BufferDescriptor*>(to->data);
     switch (to_desc->layout) {
-      case cl::BufferDescriptor::MemoryLayout::BUFFER_1D:
+      case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
         OPENCL_CALL(clEnqueueWriteBuffer(
             this->GetQueue(to->device), to_desc->buffer, CL_FALSE, to->byte_offset, nbytes,
             static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
         break;
-      case cl::BufferDescriptor::MemoryLayout::IMAGE_2D_ACTIVATION:
-      case cl::BufferDescriptor::MemoryLayout::IMAGE_2D_WEIGHT:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
         auto image_info = GetImageInfo(to_desc, to);
         OPENCL_CALL(clEnqueueWriteImage(
             this->GetQueue(to->device), to_desc->buffer, CL_FALSE, image_info.origin,
