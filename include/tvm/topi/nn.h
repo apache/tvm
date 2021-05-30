@@ -655,7 +655,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
  *
- * \return A Tensor whose op member is the batch_to_space_nd operation
+ * \return The negative log likelihood loss of the predictions and targets.
  */
 inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const Tensor& weights,
                        std::string reduction = "mean", int ignore_index = -100,

@@ -2532,6 +2532,7 @@ class PyTorchOpConverter:
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
+            "aten::nll_loss2d": self.nll_loss,
         }
 
     def update_convert_map(self, custom_map):

@@ -1104,22 +1104,42 @@ bool NLLLossRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* weights = types[2].as<TensorTypeNode>();
   const NLLLossAttrs* param = attrs.as<NLLLossAttrs>();
   if (predictions == nullptr || targets == nullptr || weights == nullptr) return false;
-  ICHECK(predictions->shape.size() - targets->shape.size() == 1)
-      << "NLLLossRel: predictions should be one dimension larger than targets, "
-      << "predictions shape = " << predictions->shape << ", "
-      << "targets shape = " << targets->shape;
-  ICHECK(weights->shape.size() == 1)
-      << "NLLLossRel: weights should be a one dimension Tensor with its length "
-      << "the number of classes, but Tensor of dimension " << weights->shape.size()
-      << " were provided.";
-  ICHECK(reporter->AssertEQ(predictions->shape[1], weights->shape[0]))
-      << "NLLLossRel: the second dimension of predictions should be the number of classes, "
-      << "which is the length of weights, "
-      << "predictions shape = " << predictions->shape << ", "
-      << "weights shape = " << weights->shape;
-  ICHECK(predictions->dtype == weights->dtype && predictions->dtype.is_float())
-      << "NLLLossRel: predictions and weights should be of the same floating type.";
-  ICHECK(targets->dtype.is_int()) << "NLLLossRel: targets should be of int type.";
+  if (!(predictions->shape.size() - targets->shape.size() == 1)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: predictions should be one"
+                                     << " dimension larger than targets,"
+                                     << "predictions shape = " << predictions->shape
+                                     << ", targets shape = " << targets->shape);
+    return false;
+  }
+  if (!(weights->shape.size() == 1)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: weights should be a one dimension"
+                                     << " Tensor with its length the number of classes,"
+                                     << " but Tensor of dimension " << weights->shape.size()
+                                     << " were provided.");
+    return false;
+  }
+  if (!reporter->AssertEQ(predictions->shape[1], weights->shape[0])) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: the second dimension of predictions"
+                                     << " should be the number of classes, "
+                                     << "which is the length of weights, "
+                                     << "predictions shape = " << predictions->shape
+                                     << ", weights shape = " << weights->shape);
+    return false;
+  }
+  if (!(predictions->dtype == weights->dtype && predictions->dtype.is_float())) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: predictions and weights should"
+                                     << " be of the same floating type.");
+    return false;
+  }
+  if (!targets->dtype.is_int()) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: targets should be of int type.");
+    return false;
+  }
   // assign output type
   if (param->reduction == "none") {
     reporter->Assign(types[3], TensorType(targets->shape, predictions->dtype));
