@@ -152,7 +152,13 @@ def non_max_suppression(
 
 
 def all_class_non_max_suppression(
-    boxes, scores, max_output_boxes_per_class=-1, iou_threshold=-1.0, score_threshold=-1.0
+    boxes,
+    scores,
+    max_output_boxes_per_class=-1,
+    iou_threshold=-1.0,
+    score_threshold=-1.0,
+    max_total_size=None,
+    output_format="onnx",
 ):
     """Non-maximum suppression operator for object detection, corresponding to ONNX
     NonMaxSuppression and TensorFlow combined_non_max_suppression.
@@ -185,6 +191,7 @@ def all_class_non_max_suppression(
         in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
         `batch_size * num_class* num_boxes` rows of indices,  only the first `num_total_detection`
         rows are valid.
+        TODO(trvmorr): explain tf mode
     """
     if not isinstance(max_output_boxes_per_class, expr.Expr):
         max_output_boxes_per_class = expr.const(max_output_boxes_per_class, "int32")
@@ -194,6 +201,16 @@ def all_class_non_max_suppression(
         score_threshold = expr.const(score_threshold, "float32")
 
     out = _make.all_class_non_max_suppression(
-        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold
+        boxes,
+        scores,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        max_total_size,
+        output_format,
     )
-    return expr.TupleWrapper(out, 2)
+
+    if output_format == "onnx":
+        return expr.TupleWrapper(out, 2)
+
+    return expr.TupleWrapper(out, 3)
