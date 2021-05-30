@@ -371,8 +371,9 @@ TVM_DLL Pass ConvertBlocksToOpaque();
 /*!
  * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
  *        i.e. narrowing the buffer shape and adjust the access region if necessary.
- * \example
- *  Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ *
+ * Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ *
  *  \code
  *
  *  for i in range(0, 16):
