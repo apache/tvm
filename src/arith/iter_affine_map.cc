@@ -242,9 +242,9 @@ class IterMapRewriter : public ExprMutator {
    *    either 1) follow inclusion relation or 2) have no intersection
    *
    *    For Example, x = i0*30 + i1*15 + i2*3 + i3,
-   *    1) [i0*2 + i1 < 3, i2*3 + i3 < 5] is valid, since {i0, i1} \intersect {i2, i3} = empty set.
+   *    1) [i0*2 + i1 < 3, i2*3 + i3 < 5] is valid, since {i0, i1} \\intersect {i2, i3} = empty set.
    *    2) [i0*2 + i1 < 3, i1*5 + i2 < 5] is not valid,
-   *       since {i0, i1} \intersect {i1, i2} = {i1}, i0 \in {i0, i1}, i0 \notin {i1, i2}
+   *       since {i0, i1} \\intersect {i1, i2} = {i1}, i0 \\in {i0, i1}, i0 \\notin {i1, i2}
    * \return whether the predicates are valid;
    */
   bool CheckConstraints() const {
