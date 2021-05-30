@@ -483,9 +483,8 @@ def test_dyn_strided_slice():
     verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 4], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
-    # TODO(mbrookhart): fix static strided_slice with dynamic input and negative begin
-    # verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
-    # verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
     verify(
         (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
     )
@@ -534,6 +533,7 @@ def test_strided_set():
 
 if __name__ == "__main__":
     test_strided_slice()
+    test_dyn_strided_slice()
     test_strided_set()
     test_binary_op()
     test_cmp_type()
