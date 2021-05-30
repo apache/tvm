@@ -1416,8 +1416,10 @@ class GatherND(OnnxOpConverter):
     @classmethod
     def _impl_common(cls, data, indices, batch_dims=0):
         indices_dims = len(infer_shape(indices))
+        indices_shape = infer_shape(indices)
         indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
-        return _op.gather_nd(data, indices, batch_dims)
+        index_rank = indices_shape[-1]
+        return _op.gather_nd(data, indices, batch_dims, index_rank)
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):

@@ -26,6 +26,7 @@ from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
+from utils import ref_funcs
 
 
 def test_zeros_ones():
@@ -1266,26 +1267,7 @@ def test_gather_nd():
         else:
             y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
 
-        def gather_nd_batch_dims_1_ref(data, indices):
-            res = []
-            for i, row in enumerate(data):
-                indices_tuple = tuple(indices[:, i])  # the indices for the i-th batch
-                res.append(row[indices_tuple])
-            # stack on the batch dim
-            return np.stack(res, 0)
-
-        if batch_dims > 1:
-            x_data_reshape = np.reshape(x_data, (-1,) + xshape[batch_dims:])
-            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dims + 1) :])
-
-            ref_res = gather_nd_batch_dims_1_ref(x_data_reshape, y_data_reshape)
-
-            out_shape = yshape[1 : (batch_dims + 1)] + ref_res.shape[1:]
-            ref_res = np.reshape(ref_res, out_shape)
-        elif batch_dims == 1:
-            ref_res = gather_nd_batch_dims_1_ref(x_data, y_data)
-        else:
-            ref_res = x_data[tuple(y_data)]
+        ref_res = ref_funcs.gather_nd(x_data, y_data, batch_dims)
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
