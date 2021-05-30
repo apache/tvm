@@ -62,14 +62,14 @@ ExternalProject_Add(ios_rpc
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
         BUILD_COMMAND xcodebuild
-            -scheme tvmrpc
+            -target tvmrpc
             -configuration ${CMAKE_BUILD_TYPE}
             -project <SOURCE_DIR>/tvmrpc.xcodeproj
-            -derivedDataPath <BINARY_DIR>
             -sdk ${CMAKE_OSX_SYSROOT}
             -arch ${CMAKE_OSX_ARCHITECTURES}
             -hideShellScriptEnvironment
             build
+                SYMROOT=<BINARY_DIR>
                 IPHONEOS_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
                 DEVELOPMENT_TEAM=${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM}
                 TVM_BUILD_DIR=${CMAKE_BINARY_DIR}

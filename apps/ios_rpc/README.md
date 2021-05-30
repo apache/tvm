@@ -118,7 +118,7 @@ cmake ..
   -DUSE_IOS_RPC=ON  # to enable build iOS RPC application from TVM project tree
 cmake --build . --target custom_dso_loader ios_rpc  # Will use custom DSO loader by default
 # Resulting iOS RPC app bundle will be placed in:
-# apps/ios_rpc/ios_rpc/src/ios_rpc-build/Build/Products/[CONFIG]-iphoneos/tvmrpc.app
+# apps/ios_rpc/ios_rpc/src/ios_rpc-build/[CONFIG]-iphoneos/tvmrpc.app
 ```
 
 To enable using of Custom DSO Plugin during xcode build outsde of Cmake you should specify two additional variables.
