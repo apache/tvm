@@ -646,6 +646,7 @@ inline Array<PrimExpr> StridedSliceOutputShape(
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param axes TODO
  * \param slice_mode Specifies the slice mode
  * \param name The name of the operation
  * \param tag The tag to mark the operation
