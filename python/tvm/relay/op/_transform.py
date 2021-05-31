@@ -1074,3 +1074,34 @@ def unique_shape_func(attrs, inputs, _):
         return _unique_with_counts_shape(inputs[0])
     else:
         return _unique_shape(inputs[0])
+
+
+@script
+def _gather_nd_shape(data_shape, indices_shape, batch_dims, index_rank):
+    ndim = data_shape.shape[0]
+    # using mdim = indices_shape[0] wouldn't work because a rank cannot
+    # depend on a runtime shape dimension of indices tensor, even if the
+    # dimension is always a known, fixed value. As a workaround, we assume that
+    # the fixed gather dimension (the size of an indexing tuple) is recorded
+    # in gather_nd op attributes.
+    mdim = index_rank
+    kdim = indices_shape.shape[0] - 1
+    out_shape = output_tensor((kdim + ndim - (mdim + batch_dims),), "int64")
+    for i in range(1, kdim + 1):
+        out_shape[i - 1] = indices_shape[i]
+    for i in range(mdim + batch_dims, ndim):
+        out_shape[kdim + i - (mdim + batch_dims)] = data_shape[i]
+    return out_shape
+
+
+@_reg.register_shape_func("gather_nd", False)
+def gather_nd_shape_func(attrs, inputs, _):
+    """
+    Shape func for gather_nd operator.
+    """
+    batch_dims = get_const_int(attrs.batch_dims)
+    index_rank = get_const_int(attrs.index_rank)
+
+    assert index_rank > 0, "index_rank needs to be specified for dynamic gather_nd"
+
+    return [_gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(index_rank))]

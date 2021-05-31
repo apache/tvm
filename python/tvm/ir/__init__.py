@@ -31,4 +31,5 @@ from .attrs import Attrs, DictAttrs, make_node
 from .container import Array, Map
 
 from . import transform
+from . import instrument
 from . import diagnostics

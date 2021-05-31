@@ -3373,10 +3373,12 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
   return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
 }
 
-Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0) {
+Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0,
+                  Optional<Integer> index_rank = NullValue<Integer>()) {
   static const Op& op = Op::Get("gather_nd");
   auto attrs = make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
+  attrs->index_rank = index_rank;
   return Call(op, {data, indices}, Attrs(attrs));
 }
 
