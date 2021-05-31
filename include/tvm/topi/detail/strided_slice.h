@@ -26,7 +26,10 @@
 
 #include <tvm/tir/expr.h>
 
+#include <algorithm>
 #include <limits>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include "constant_utils.h"
