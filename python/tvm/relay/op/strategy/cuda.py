@@ -91,7 +91,7 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
 
 @fast_softmax_strategy.register(["cuda", "gpu"])
 def fast_softmax_strategy_cuda(attrs, inputs, out_type, target):
-    """fast softmax cuda strategy"""
+    """fast_softmax cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.fast_softmax),
