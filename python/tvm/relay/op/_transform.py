@@ -304,9 +304,9 @@ def strided_slice_shape_func(attrs, inputs, _):
             )
         ]
     return [
-            _strided_slice_shape_func_with_axes(
-                inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode, attrs.axes
-            )
+        _strided_slice_shape_func_with_axes(
+            inputs[0], attrs.begin, attrs.end, attrs.strides, slice_mode, attrs.axes
+        )
     ]
 
 

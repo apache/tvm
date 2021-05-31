@@ -735,7 +735,7 @@ def test_scalar_convert_layout():
 
 
 def test_conv_bn_convert_layout():
-    """ Check that layout transforms are propagated through bn. """
+    """Check that layout transforms are propagated through bn."""
 
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1097,7 +1097,7 @@ def test_qnn_conv_nhwc_convert_layout():
 
 
 def test_conv_convert_kernel_layout():
-    """ Check that convolution kernel layout is correctly transformed. """
+    """Check that convolution kernel layout is correctly transformed."""
 
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1332,7 +1332,7 @@ def test_conv_roi_pool_convert_layout():
 
 
 def test_default_keyword():
-    """ Check that the default keyword selects correct TVM default layout. """
+    """Check that the default keyword selects correct TVM default layout."""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
