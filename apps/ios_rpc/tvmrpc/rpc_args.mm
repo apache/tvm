@@ -21,50 +21,50 @@
 
 #import <Foundation/Foundation.h>
 
-#import "../../../src/support/utils.h"
 #import "../../../src/support/socket.h"
+#import "../../../src/support/utils.h"
 
 #import <string>
 
 using std::string;
 
-const char* kUsage = "\n"
-"iOS tvmrpc application supported flags:\n"
-"--host_url  - The tracker/proxy address, Default=0.0.0.0\n"
-"--host_port - The tracker/proxy port, Default=9190\n"
-"--port         - The port of the RPC, Default=9090\n"
-"--port_end     - The end search port of the RPC, Default=9099\n"
-"--key          - The key used to identify the device type in tracker. Default=\"\"\n"
-"--custom_addr  - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
-"--immediate_connect - No UI interconnection, connect to tracker immediately. Default=False\n"
-"--server_mode  - Server mode. Can be \"pure_server\", \"proxy\" or \"tracker\". Default=pure_server \n"
-"\n";
+const char* kUsage =
+    "\n"
+    "iOS tvmrpc application supported flags:\n"
+    "--host_url  - The tracker/proxy address, Default=0.0.0.0\n"
+    "--host_port - The tracker/proxy port, Default=9190\n"
+    "--port         - The port of the RPC, Default=9090\n"
+    "--port_end     - The end search port of the RPC, Default=9099\n"
+    "--key          - The key used to identify the device type in tracker. Default=\"\"\n"
+    "--custom_addr  - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
+    "--immediate_connect - No UI interconnection, connect to tracker immediately. Default=False\n"
+    "--server_mode  - Server mode. Can be \"pure_server\", \"proxy\" or \"tracker\". "
+    "Default=pure_server \n"
+    "\n";
 
 struct RPCArgs_cpp {
   string host_url = "0.0.0.0";
   int host_port = 9190;
-  
+
   string key;
   string custom_addr = "";
   int port = 9090;
   int port_end = 9099;
-  
+
   bool immediate_connect = false;
   char server_mode = 0;
-  
+
   operator RPCArgs() const {
-    return RPCArgs {
-      .host_url = host_url.c_str(),
-      .host_port = host_port,
-      .key = key.c_str(),
-      .custom_addr = custom_addr.c_str(),
-      .port = port,
-      .port_end = port_end,
-      .immediate_connect = immediate_connect,
-      .server_mode = server_mode
-    };
+    return RPCArgs{.host_url = host_url.c_str(),
+                   .host_port = host_port,
+                   .key = key.c_str(),
+                   .custom_addr = custom_addr.c_str(),
+                   .port = port,
+                   .port_end = port_end,
+                   .immediate_connect = immediate_connect,
+                   .server_mode = server_mode};
   };
-  
+
   RPCArgs_cpp& operator=(const RPCArgs& args) {
     host_url = args.host_url;
     host_port = args.host_port;
@@ -81,28 +81,29 @@ struct RPCArgs_cpp {
 struct RPCArgs_cpp g_rpc_args;
 
 static void restore_from_cache() {
-  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  
-  auto get_string_from_cache = [defaults] (const char* key) {
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+
+  auto get_string_from_cache = [defaults](const char* key) {
     NSString* ns_key = [NSString stringWithUTF8String:key];
     NSString* ns_val = [defaults stringForKey:ns_key];
     return std::string(ns_val != nil ? [ns_val UTF8String] : "");
   };
-  
-  auto get_int_from_cache = [defaults] (const char* key) {
+
+  auto get_int_from_cache = [defaults](const char* key) {
     NSString* ns_key = [NSString stringWithUTF8String:key];
     return static_cast<int>([defaults integerForKey:ns_key]);
   };
-  
+
   g_rpc_args.host_url = get_string_from_cache("tmvrpc_url");
   g_rpc_args.host_port = get_int_from_cache("tmvrpc_port");
   g_rpc_args.key = get_string_from_cache("tmvrpc_key");
 }
 
 static void update_in_cache() {
-  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  
-  [defaults setObject:[NSString stringWithUTF8String:g_rpc_args.host_url.c_str()] forKey:@"tmvrpc_url"];
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+
+  [defaults setObject:[NSString stringWithUTF8String:g_rpc_args.host_url.c_str()]
+               forKey:@"tmvrpc_url"];
   [defaults setInteger:g_rpc_args.host_port forKey:@"tmvrpc_port"];
   [defaults setObject:[NSString stringWithUTF8String:g_rpc_args.key.c_str()] forKey:@"tmvrpc_key"];
 }
@@ -127,12 +128,12 @@ string GetCmdOption(int argc, char* argv[], string option, bool key = false) {
 
 void update_rpc_args(int argc, char* argv[]) {
   restore_from_cache();
-  RPCArgs_cpp &args = g_rpc_args;
-  
+  RPCArgs_cpp& args = g_rpc_args;
+
   using tvm::support::IsNumber;
   using tvm::support::ValidateIP;
   constexpr int MAX_PORT_NUM = 65535;
-  
+
   const string immediate_connect = GetCmdOption(argc, argv, "--immediate_connect", true);
   if (!immediate_connect.empty()) {
     args.immediate_connect = true;
@@ -207,13 +208,11 @@ void update_rpc_args(int argc, char* argv[]) {
     }
     args.custom_addr = '"' + custom_addr + '"';
   }
-  
+
   update_in_cache();
 }
 
-RPCArgs get_current_rpc_args(void) {
-  return g_rpc_args;
-}
+RPCArgs get_current_rpc_args(void) { return g_rpc_args; }
 
 void set_current_rpc_args(RPCArgs args) {
   g_rpc_args = args;

@@ -29,17 +29,17 @@ extern "C" {
  */
 typedef struct RPCArgs_t {
   const char* host_url;  /// Tracker or Proxy address (actually ip)
-  int host_port;  /// Tracker or Proxy port
-  
-  const char* key;  /// device key to report
-  const char* custom_addr;  /// custom adress to report into Tracker. Ignored for other server modes.
-  int port;  /// begin of port range to try to bind RPC port
-  int port_end;  /// end of port range to try to bind RPC port
-  
-  char immediate_connect;  ///  0 - UI interaction, 1 - automatically connect on launch
-  char server_mode;  /// 0 - connect to Tracker, 1 - connect to Proxy,  2 - pure RPC server
-} RPCArgs;
+  int host_port;         /// Tracker or Proxy port
 
+  const char* key;  /// device key to report
+  const char*
+      custom_addr;  /// custom adress to report into Tracker. Ignored for other server modes.
+  int port;         /// begin of port range to try to bind RPC port
+  int port_end;     /// end of port range to try to bind RPC port
+
+  char immediate_connect;  ///  0 - UI interaction, 1 - automatically connect on launch
+  char server_mode;        /// 0 - connect to Tracker, 1 - connect to Proxy,  2 - pure RPC server
+} RPCArgs;
 
 /*!
  * \brief Get current global RPC args
@@ -55,10 +55,10 @@ void set_current_rpc_args(RPCArgs args);
  * \brief Pars command line args and update current global RPC args
  * Also update values in app cache
  */
-void update_rpc_args(int argc, char * argv[]);
+void update_rpc_args(int argc, char* argv[]);
 
 #ifdef __cplusplus
-} // extern "C"
+}  // extern "C"
 #endif
 
-#endif // TVM_APPS_IOS_RPC_ARGS_H_
+#endif  // TVM_APPS_IOS_RPC_ARGS_H_

@@ -36,9 +36,9 @@
   self.proxyURL.text = @(args.host_url);
   self.proxyPort.text = @(args.host_port).stringValue;
   self.proxyKey.text = @(args.key);
-  
+
   self.ModeSelector.selectedSegmentIndex = args.server_mode;
-  
+
   // Connect to tracker immediately
   if (args.immediate_connect) {
     [self disableUIInteraction];
@@ -74,7 +74,7 @@
   [server_ startWithHost:self.proxyURL.text
                     port:self.proxyPort.text.intValue
                      key:self.proxyKey.text];
-  
+
   NSLog(@"Connecting to the proxy server...");
   self.infoText.text = @"";
   self.statusLabel.text = @"Connecting...";
@@ -101,15 +101,14 @@
   [self close];
 }
 
-
 #pragma mark - UITextFieldDelegate
 
-- (BOOL)textFieldShouldReturn:(UITextField *)textField {
+- (BOOL)textFieldShouldReturn:(UITextField*)textField {
   [[self view] endEditing:YES];  // to hide keyboard on ret key
   return FALSE;
 }
 
-- (void)textFieldDidEndEditing:(UITextField *)textField {
+- (void)textFieldDidEndEditing:(UITextField*)textField {
   // Update values in app arg cache
   RPCArgs args = get_current_rpc_args();
   args.host_url = [self.proxyURL.text UTF8String];
@@ -118,16 +117,15 @@
   set_current_rpc_args(args);
 }
 
-
 #pragma mark - RPCServerEvenlListener
 
-- (void)onError:(NSString*) msg {
+- (void)onError:(NSString*)msg {
   dispatch_sync(dispatch_get_main_queue(), ^{
     self.infoText.text = [NSString stringWithFormat:@"Error: %@", msg];
   });
 }
 
-- (void)onStatusChanged:(RPCServerStatus) status {
+- (void)onStatusChanged:(RPCServerStatus)status {
   dispatch_sync(dispatch_get_main_queue(), ^{
     switch (status) {
       case RPCServerStatus_Connected:

@@ -28,10 +28,10 @@
  * Used to report state to listener
  */
 typedef enum {
-  RPCServerStatus_Launched,  // Worker thread is launched
-  RPCServerStatus_Stopped,  // Worker thread stopped
-  RPCServerStatus_Connected,  // Connected to Proxy/Tracker
-  RPCServerStatus_Disconnected,  // Disconnected from Proxy/Tracker
+  RPCServerStatus_Launched,           // Worker thread is launched
+  RPCServerStatus_Stopped,            // Worker thread stopped
+  RPCServerStatus_Connected,          // Connected to Proxy/Tracker
+  RPCServerStatus_Disconnected,       // Disconnected from Proxy/Tracker
   RPCServerStatus_RPCSessionStarted,  // RPC session is started
   RPCServerStatus_RPCSessionFinished  // RPC session is finished
 } RPCServerStatus;
@@ -53,11 +53,10 @@ typedef enum {
  */
 @protocol RPCServerEventListener <NSObject>
 /// Callback to notifying about new status
-- (void)onError:(NSString*) msg;
+- (void)onError:(NSString*)msg;
 /// Callback to notifying about error
-- (void)onStatusChanged:(RPCServerStatus) status;
+- (void)onStatusChanged:(RPCServerStatus)status;
 @end
-
 
 /*!
  * \brief RPC Server instance
@@ -69,13 +68,13 @@ typedef enum {
  * \brief Create server with specified sevicing mode
  * \param mode Mode of server
  */
-+ (instancetype)serverWithMode:(RPCServerMode) mode;
++ (instancetype)serverWithMode:(RPCServerMode)mode;
 
 /*!
  * \brief Set listener delegate
  * \param delegate Event listener delegate to set
  */
-- (void)setDelegate:(id<RPCServerEventListener>) delegate;
+- (void)setDelegate:(id<RPCServerEventListener>)delegate;
 
 /*!
  * \brief Start RPC server with options. Non blocking method
@@ -83,7 +82,7 @@ typedef enum {
  * \param port Port of Tracker/Proxy to connect. Skipped for PureServer mode
  * \param key device key to use in RPC server
  */
-- (void)startWithHost:(NSString*) host port:(int) port key:(NSString*) key;
+- (void)startWithHost:(NSString*)host port:(int)port key:(NSString*)key;
 
 /*!
  * \brief Stop RPC server. Non blocking method
