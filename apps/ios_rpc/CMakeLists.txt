@@ -39,7 +39,7 @@ endif()
 # It is required to load unsigned shared modules on real iOS devices
 ExternalProject_Add(custom_dso_loader
         GIT_REPOSITORY https://github.com/octoml/macho-dyld.git
-        GIT_TAG 48d1e8b5c40c7f5b744cb089634af17dd86125b2
+        GIT_TAG 0742b8129de7df1130be355b74faa8c036265bfc
         PREFIX custom_dso_loader
         LOG_DOWNLOAD TRUE
         LOG_CONFIGURE TRUE
