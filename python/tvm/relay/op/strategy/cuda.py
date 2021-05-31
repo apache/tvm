@@ -89,6 +89,18 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@fast_softmax_strategy.register(["cuda", "gpu"])
+def fast_softmax_strategy_cuda(attrs, inputs, out_type, target):
+    """fast_softmax cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="fast_softmax.cuda",
+    )
+    return strategy
+
+
 @schedule_log_softmax.register(["cuda", "gpu"])
 def schedule_log_softmax_cuda(attrs, outs, target):
     """scheudle log_softmax for cuda"""
