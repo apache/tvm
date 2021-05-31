@@ -42,9 +42,37 @@
 
 #include "../workspace_pool.h"
 
+#define AUTORELEASEPOOL tvm::runtime::metal::AutoReleasePoolWrapper::GetInstance() << [&]()
+
 namespace tvm {
 namespace runtime {
 namespace metal {
+class AutoReleasePoolWrapper {
+ public:
+  static AutoReleasePoolWrapper& GetInstance() {
+    static AutoReleasePoolWrapper instance;
+    return instance;
+  }
+  template <typename T>
+  void operator<<(const T& f) {
+    std::exception_ptr eptr;
+    @autoreleasepool {
+      try {
+        f();
+      } catch (...) {
+        eptr = std::current_exception();
+      }
+    }
+    if (eptr) std::rethrow_exception(eptr);
+  }
+
+ private:
+  AutoReleasePoolWrapper() = default;
+  ~AutoReleasePoolWrapper() = default;
+  AutoReleasePoolWrapper(const AutoReleasePoolWrapper&) = delete;
+  AutoReleasePoolWrapper& operator=(const AutoReleasePoolWrapper&) = delete;
+};
+
 /*!
  * \brief Structure for error handling in queues
  */
