@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# pylint: disable=no-value-for-parameter
 """The template for cuda group_conv2d_nchw"""
 import tvm
 from tvm import te
@@ -30,7 +31,7 @@ from .. import nn
 
 
 def group_conv2d_nchw_int8(data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
-    """Compute conv2d internally using conv2d_nchwc layout for int8 dtype"""
+    """Compute group_conv2d internally using group_conv2d_nchwc layout for int8 dtype"""
     assert data.dtype in ("int8", "uint8")
     assert kernel.dtype in ("int8", "uint8")
     assert data.dtype == kernel.dtype
