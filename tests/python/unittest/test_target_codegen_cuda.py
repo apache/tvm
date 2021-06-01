@@ -215,14 +215,21 @@ def test_cuda_make_int4():
         y, x = s[A].op.axis
         s[A].vectorize(x)
         s[A].bind(y, bx)
-        fun = tvm.build(s, [A], "cuda", name="make_int4x8")
+        kernel_name = "make_int4x" + str(lanes)
+        fun = tvm.build(s, [A], "cuda", name=kernel_name)
         np_a = np.full((n, lanes), value, dtype="int8")
         a = tvm.nd.empty((n, lanes), dtype, dev)
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
+    check_cuda(64, 1, 4)
+    check_cuda(64, 7, 4)
     check_cuda(64, 1, 8)
     check_cuda(64, 7, 8)
+    check_cuda(64, 1, 16)
+    check_cuda(64, 7, 16)
+    check_cuda(64, 1, 32)
+    check_cuda(64, 7, 32)
 
 
 @tvm.testing.requires_gpu

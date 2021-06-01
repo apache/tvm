@@ -212,13 +212,18 @@ std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr i
       PrintType(t.element_of(), os);
       os << "*)";
     }
-    os << vid << " + (";
-    PrintExpr(index, os);
-    os << ")";
     if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
-      os << " / " << (32 / t.bits());
+      os << vid << ") + (";
+      PrintExpr(index, os);
+      os << ")";
+      os << " / " << t.lanes();
+      os << ")[0]";
+    } else {
+      os << vid << " + (";
+      PrintExpr(index, os);
+      os << ")";
+      os << "))[0]";
     }
-    os << "))[0]";
   }
   return os.str();
 }

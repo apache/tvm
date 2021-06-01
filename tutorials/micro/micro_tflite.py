@@ -230,7 +230,7 @@ opts = tvm.micro.default_options(
 #     from tvm.micro.contrib import zephyr
 #
 #     repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
-#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "demo_runtime")
+#     project_dir = os.path.join(repo_root, "apps", "microtvm", "zephyr", "host_driven")
 #     compiler = zephyr.ZephyrCompiler(
 #         project_dir=project_dir,
 #         board=BOARD,

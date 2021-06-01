@@ -579,20 +579,35 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
 @conv2d_winograd_nhwc.register(["mali"])
 def conv2d_winograd_nhwc_mali(
-    data, weight, strides, padding, dilation, out_dtype, pre_computed=False
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for mali.
     """
     tile_size = _pick_tile_size(data, weight, layout="NHWC")
     return _conv2d_winograd_nhwc_impl(
-        data, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size,
+        pre_computed,
+        auto_scheduler_rewritten_layout,
     )
 
 
 ##### SCHECULE UTILITIES #####
 def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
-    """ tile and bind to GPU threads """
+    """tile and bind to GPU threads"""
     x_factor = x_factor or y_factor
     yo, xo, yi, xi = s[tensor].tile(y, x, y_factor, x_factor)
     s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
@@ -603,7 +618,7 @@ def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
 
 
 def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None):
-    """ tile and bind 3d """
+    """tile and bind 3d"""
     y_factor = y_factor or z_factor
     x_factor = x_factor or y_factor
     zo, zi = s[tensor].split(z, z_factor)
