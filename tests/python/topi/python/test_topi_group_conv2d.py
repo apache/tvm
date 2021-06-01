@@ -196,7 +196,10 @@ def verify_group_conv2d_NCHWc_int8(
     in_height = in_width = in_size
 
     A = te.placeholder((batch, in_channel // ic_block_factor, in_height, in_width, ic_block_factor), name="A", dtype="int8")
-    W = te.placeholder((num_filter // oc_block_factor, (in_channel // groups) // ic_block_factor, kernel, kernel, oc_block_factor, ic_block_factor), name="W", dtype="int8")
+    W = te.placeholder(
+        (num_filter // oc_block_factor, (in_channel // groups) // ic_block_factor, kernel, kernel, oc_block_factor, ic_block_factor),
+        name="W", dtype="int8"
+    )
     bias = te.placeholder(
         (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype="int8"
     )

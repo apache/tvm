@@ -341,6 +341,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             ic_chunk = in_channels // 4
 
             if (data.dtype in ["int8", "uint8"]
+                and kernel.dtype in ["int8", "uint8"]
                 and channels % groups == 0
                 and out_channels % groups == 0
                 and channels % 4 == 0
