@@ -3373,10 +3373,12 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
   return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
 }
 
-Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0) {
+Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0,
+                  Optional<Integer> index_rank = NullValue<Integer>()) {
   static const Op& op = Op::Get("gather_nd");
   auto attrs = make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
+  attrs->index_rank = index_rank;
   return Call(op, {data, indices}, Attrs(attrs));
 }
 
@@ -3974,10 +3976,11 @@ bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const int ndim = static_cast<int>(data->shape.size());
   ICHECK_EQ(ndim, 1) << "Unique: input must be 1-D tensor";
-  ICHECK_EQ(data->dtype.is_int(), true) << "Unique: input must have int32 or int64 dtype";
+
   std::vector<Type> fields;
   fields.push_back(TensorType(data->shape, data->dtype));               // unique
   fields.push_back(TensorType(data->shape, DataType::Int(32)));         // indices
+  fields.push_back(TensorType(data->shape, DataType::Int(32)));         // inverse_indices
   fields.push_back(TensorType(Array<PrimExpr>{1}, DataType::Int(32)));  // num_unique
   const auto* param = attrs.as<UniqueAttrs>();
   if (param->return_counts) {

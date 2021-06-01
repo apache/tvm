@@ -464,7 +464,7 @@ print("unoptimized: %s" % (unoptimized))
 # Final Remarks
 # -------------
 #
-# In this tutorial, we we gave a short example of how to use the TVM Python API
+# In this tutorial, we gave a short example of how to use the TVM Python API
 # to compile, run, and tune a model. We also discussed the need for pre and
 # post-processing of inputs and outputs. After the tuning process, we
 # demonstrated how to compare the performance of the unoptimized and optimize

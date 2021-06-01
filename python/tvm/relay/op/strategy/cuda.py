@@ -89,6 +89,18 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@fast_softmax_strategy.register(["cuda", "gpu"])
+def fast_softmax_strategy_cuda(attrs, inputs, out_type, target):
+    """fast_softmax cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="fast_softmax.cuda",
+    )
+    return strategy
+
+
 @schedule_log_softmax.register(["cuda", "gpu"])
 def schedule_log_softmax_cuda(attrs, outs, target):
     """scheudle log_softmax for cuda"""
@@ -240,10 +252,23 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
 
             tensorcore_dtypes = ["int4", "uint4", "int8", "uint8"]
             if (
-                (N % 16 == 0 and in_channels % 16 == 0 and out_channels % 16 == 0)
-                or (N % 8 == 0 and in_channels % 16 == 0 and out_channels % 32 == 0)
-                or (N % 32 == 0 and in_channels % 16 == 0 and out_channels % 8 == 0)
-                and (data.dtype in tensorcore_dtypes and kernel.dtype in tensorcore_dtypes)
+                target.kind.name == "cuda"
+                and nvcc.have_tensorcore(target=target)
+                and kernel.dtype in tensorcore_dtypes
+                and (
+                    (
+                        data.dtype in ["int4", "uint4"]
+                        and N % 8 == 0
+                        and in_channels % 32 == 0
+                        and out_channels % 8 == 0
+                    )
+                    or (
+                        data.dtype in ["int8", "uint8"]
+                        and N % 8 == 0
+                        and in_channels % 16 == 0
+                        and out_channels % 32 == 0
+                    )
+                )
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_hwnc_tensorcore),
