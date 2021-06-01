@@ -46,6 +46,7 @@ ALL_PROVIDERS = (
 ALL_MICROTVM_PLATFORMS = (
     "stm32f746xx",
     "nrf5340dk",
+    "mps2_an521",
 )
 
 
@@ -294,12 +295,15 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
         os.path.join(release_test_dir, ".vagrant", "machines", "default", provider_name, "id")
     ) as f:
         machine_uuid = f.read()
-    ATTACH_USB_DEVICE[provider_name](
-        machine_uuid,
-        vid_hex=test_config["vid_hex"],
-        pid_hex=test_config["pid_hex"],
-        serial=test_device_serial,
-    )
+
+    # Check if target is not QEMU
+    if test_config["vid_hex"] >= 0 and test_config["pid_hex"] >= 0:
+        ATTACH_USB_DEVICE[provider_name](
+            machine_uuid,
+            vid_hex=test_config["vid_hex"],
+            pid_hex=test_config["pid_hex"],
+            serial=test_device_serial,
+        )
     tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
 
     def _quote_cmd(cmd):

@@ -8,5 +8,10 @@
         "vid_hex": "1366",
         "pid_hex": "1055",
         "test_cmd": ["pytest", "tests/micro/zephyr/test_zephyr.py", "--microtvm-platforms=nrf5340dk"]
+        },
+    "mps2_an521": {
+        "vid_hex": "-1",
+        "pid_hex": "-1",
+        "test_cmd": ["pytest", "tests/micro/zephyr/test_zephyr.py", "--microtvm-platforms=mps2_an521"]
         }
 }
