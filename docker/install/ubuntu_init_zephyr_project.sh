@@ -16,10 +16,32 @@
 # specific language governing permissions and limitations
 # under the License.
 
+#
+# Initialize Zephyr Project.
+#
+# Usage: ubuntu_init_zephyr_project.sh path branch [--commit hash]
+#   path is the installation path for the repository.
+#   branch is the zephyr branch.
+#   --commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
+#
+
 DOWNLOAD_DIR=$1
-ZEPHYR_BRANCH=$2
+shift
+ZEPHYR_BRANCH=$1
+shift
+
+commit="0"
+if [ "$1" == "--commit" ]; then
+    commit=$1
+fi
 
 west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
-cd ${DOWNLOAD_DIR}
+
+if [ "$commit" != "0"]; then
+    cd ${DOWNLOAD_DIR}/zephyr
+    git checkout ${commit}
+fi
+
+cd ${DOWNLOAD_DIR}/zephyr
 west update
 west zephyr-export
