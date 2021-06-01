@@ -29,8 +29,8 @@ set -o pipefail
 QEMU_DIR=qemu-5.1.0
 
 # Get number of cores for build
-if [[ "${CI_NUM_CORE}" ]]; then
-  num_cores=${CI_NUM_CORE}
+if [[ "${TVM_CI_NUM_CORES}" ]]; then
+  num_cores=${TVM_CI_NUM_CORES}
 else
   num_cores=2
 fi
@@ -40,6 +40,7 @@ if [ "$1" == "--target-list" ]; then
     shift
     target_list=$1
 else
+    # Build these by defualt for microtvm reference virtual machine and ci_qemu.
     target_list="aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu"
 fi
 
@@ -80,5 +81,5 @@ cd qemu-5.1.0
 make -j${num_cores}
 sudo make install
 
-# # For debugging with qemu
+# For debugging with qemu
 apt-get -y install libpython3.8
