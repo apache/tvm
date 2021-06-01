@@ -2294,16 +2294,18 @@ class PyTorchOpConverter:
             logging.warning("TVM always assumes sorted=True for torch.unique")
             is_sorted = True
         if return_counts:
-            [unique, indices, num_uniq, counts] = _op.unique(
+            [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
                 data, is_sorted=is_sorted, return_counts=True
             )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
-            return (unique_sliced, indices, counts_sliced)
+            return (unique_sliced, inverse_indices, counts_sliced)
         else:
-            [unique, indices, num_uniq] = _op.unique(data, is_sorted=is_sorted, return_counts=False)
+            [unique, indices, inverse_indices, num_uniq] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=False
+            )
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
-            return (unique_sliced, indices)
+            return (unique_sliced, inverse_indices)
 
     # Operator mappings
     def create_convert_map(self):

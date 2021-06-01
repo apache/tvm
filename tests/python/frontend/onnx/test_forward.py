@@ -4277,11 +4277,9 @@ unsupported_onnx_tests = [
     "test_tfidfvectorizer_tf_onlybigrams_levelempty/",
     "test_tfidfvectorizer_tf_onlybigrams_skip5/",
     "test_tfidfvectorizer_tf_uniandbigrams_skip5/",
-    "test_unique_not_sorted_without_axis/",
     "test_unique_sorted_with_axis/",
     "test_unique_sorted_with_axis_3d/",
     "test_unique_sorted_with_negative_axis/",
-    "test_unique_sorted_without_axis/",
     "test_upsample_nearest/",
 ]
 
