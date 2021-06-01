@@ -1265,10 +1265,14 @@ def test_tensorrt_dynamic_batch_conv():
         if not skip_runtime_test():
             for target in ["llvm", "cuda"]:
                 with relay.build_config(opt_level=3):
-                    relay_exec = relay.create_executor("vm", mod=mod, device=tvm.cpu(0), target="llvm")
+                    relay_exec = relay.create_executor(
+                        "vm", mod=mod, device=tvm.cpu(0), target="llvm"
+                    )
 
                 for i, batch_size in enumerate(batches_to_test):
-                    result_arr[i][target][use_trt] = relay_exec.evaluate()(x_data[:batch_size, ...], **params)
+                    result_arr[i][target][use_trt] = relay_exec.evaluate()(
+                        x_data[:batch_size, ...], **params
+                    )
 
     if not skip_runtime_test():
         for i in range(len(batches_to_test)):
