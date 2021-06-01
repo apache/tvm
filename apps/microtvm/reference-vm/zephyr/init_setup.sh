@@ -22,10 +22,10 @@ set -ex
 # NOTE: TVM is presumed to be mounted already by Vagrantfile.
 cd "${TVM_HOME}"
 
-apps/microtvm/reference-vm/zephyr/rebuild-tvm.sh
+# apps/microtvm/reference-vm/zephyr/rebuild-tvm.sh
 
 # Install QEMU
-sudo docker/install/ubuntu_install_qemu.sh --target-list arm-softmmu
+# sudo docker/install/ubuntu_install_qemu.sh --target-list arm-softmmu
 
 # Build poetry
 cd apps/microtvm/reference-vm/zephyr

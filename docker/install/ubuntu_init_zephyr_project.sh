@@ -25,6 +25,8 @@
 #   --commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
 #
 
+set -x
+
 DOWNLOAD_DIR=$1
 shift
 ZEPHYR_BRANCH=$1
@@ -32,6 +34,7 @@ shift
 
 commit="0"
 if [ "$1" == "--commit" ]; then
+    shift
     commit=$1
 fi
 

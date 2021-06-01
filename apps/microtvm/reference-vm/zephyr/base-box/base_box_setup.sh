@@ -17,6 +17,7 @@
 # under the License.
 
 set -e
+set -x
 
 skip_zeroing_disk=0
 if [ -e "$HOME/skip_zeroing_disk" ]; then
