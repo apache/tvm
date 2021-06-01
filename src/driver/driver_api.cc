@@ -93,7 +93,6 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
                      offset_factor, buffer_type);
 }
 
-// comment to try to remove this
 void GetBinds(const Array<te::Tensor>& args, bool compact,
               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
               Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
@@ -149,7 +148,8 @@ TVM_REGISTER_GLOBAL("driver.get_binds")
       Array<ObjectRef> out_arg_list;
       GetBinds(args, compact, c_binds, &out_binds, &out_arg_list);
 
-      // TODO(electriclilies): is there a way to return a pair?
+      // TVM object system doesn't have a pair object, so we'll put both ret values in an array
+      // and return that.
       Array<ObjectRef> out_arr;
       out_arr.push_back(out_binds);
       out_arr.push_back(out_arg_list);
@@ -217,9 +217,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for
   }
 
   // Construct the pass list, inserting the user provided passes at the end of the phase
-  // TODO(electriclilies): I'm not sure if they should go at the beginning or the end of the phase.
-  // The code is inconsistent with what passes are in which phase as well. For now I have coped the
-  // python behavior exactly.
 
   // PHASE 0
   auto pass_list = user_lower_phase0;
