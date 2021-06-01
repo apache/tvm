@@ -21,8 +21,8 @@ import tvm.ir
 from tvm.driver import lower, build
 from tvm.target import get_native_generic_func, GenericFunc
 from tvm.runtime import Object
-from . import _make
 import tvm.ir._ffi_api
+from . import _make
 
 
 def get(op_name):
