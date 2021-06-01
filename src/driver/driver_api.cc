@@ -296,8 +296,6 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
 
   // Build the function
   // At this point binds is only te::Tensors
-  // TODO(electriclilies): Should this be in here? Was in python but not C++ version.
-  // stmt = te::SchedulePostProcRewriteForTensorCore(stmt, sch,binds);
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
