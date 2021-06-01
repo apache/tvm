@@ -194,7 +194,7 @@ def verify_group_conv2d_NCHWc_int8(
     in_height = in_width = in_size
 
     A = te.placeholder(
-        (batch, in_channel // ic_block_factor, in_height, in_width, ic_block_factor), 
+        (batch, in_channel // ic_block_factor, in_height, in_width, ic_block_factor),
         name="A",
         dtype="int8",
     )
