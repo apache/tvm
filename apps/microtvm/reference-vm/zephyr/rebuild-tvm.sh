@@ -19,8 +19,8 @@
 set -e
 
 # Get number of cores for build
-if [[ "${CI_NUM_CORE}" ]]; then
-  num_cores=${CI_NUM_CORE}
+if [[ "${TVM_CI_NUM_CORES}" ]]; then
+  num_cores=${TVM_CI_NUM_CORES}
 else
   num_cores=2
 fi

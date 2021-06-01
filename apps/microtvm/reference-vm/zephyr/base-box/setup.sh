@@ -82,7 +82,7 @@ echo 'export PATH=$HOME/.local/bin:"$PATH"' >> ~/.profile
 source ~/.profile
 echo PATH=$PATH
 REPO_ROOT=$(git rev-parse --show-toplevel)
-${REPO_ROOT}/docker/install/ubuntu_init_zephyr_project.sh ~/zephyr v2.5.0
+${REPO_ROOT}/docker/install/ubuntu_init_zephyr_project.sh ~/zephyr v2.5-branch dabf23758417fd041fec2a2a821d8f526afac29d
 
 cd ~
 echo "Downloading zephyr SDK..."
