@@ -205,7 +205,7 @@ def verify_group_conv2d_NCHWc_int8(
             kernel,
             kernel,
             oc_block_factor,
-            ic_block_factor
+            ic_block_factor,
         ),
         name="W",
         dtype="int8",
@@ -593,7 +593,9 @@ def test_group_conv2d_NCHWc_int8():
         # bias, relu
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True)
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
-        verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True)
+        verify_group_conv2d_NCHWc_int8(
+            1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True
+        )
         # dilation
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 2, 32)
 
@@ -617,9 +619,7 @@ def test_group_conv2d_nchw_int8():
         # bias, relu
         verify_group_conv2d_nchw_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True)
         verify_group_conv2d_nchw_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
-        verify_group_conv2d_nchw_int8(
-            1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True
-        )
+        verify_group_conv2d_nchw_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True)
         # dilation
         verify_group_conv2d_nchw_int8(1, 128, 56, 128, 3, 1, 1, 2, 32)
 
