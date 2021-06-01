@@ -210,7 +210,14 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
     // Parsing integer
     int v;
     if (!(is >> v)) {
-      throw Error(": Cannot parse into type \"Integer\" from string: " + str);
+      // Bool is a subclass of IntImm, so allow textual boolean values.
+      if (str == "True" || str == "true") {
+        v = 1;
+      } else if (str == "False" || str == "false") {
+        v = 0;
+      } else {
+        throw Error(": Cannot parse into type \"Integer\" from string: " + str);
+      }
     }
     return Integer(v);
   } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
