@@ -582,12 +582,11 @@ class AOTExecutorCodegen : public ExprVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const TargetsMap& targets, Target target_host)
-      : mod_(mod), use_unpacked_api_(false) {
-    compile_engine_ = CompileEngine::Global();
-    targets_ = targets;
-    target_host_ = target_host;
-    use_unpacked_api_ = target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
-  }
+      : mod_(mod),
+        targets_(targets),
+        target_host_(target_host),
+        use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))),
+        compile_engine_(CompileEngine::Global()) {}
 
   LoweredOutput Codegen(relay::Function func) {
     // Get the module, storage map and token sizes
