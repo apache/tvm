@@ -93,7 +93,7 @@ class Op(RelayExpr):
         rel_name : str
             The type relation name to register.
 
-        type_rel_func: function (args: List[Type], attrs: Attrs) -> Type
+        type_rel_func : Optional[function (args: List[Type], attrs: Attrs) -> Type]
             The backing relation function which can solve an arbitrary relation on variables.
             Differences with type_rel_func in C++:
             1, when type_rel_func is not None:
@@ -150,22 +150,6 @@ class Op(RelayExpr):
             The type key.
         """
         _ffi_api.OpSetAttrsTypeKey(self, key)
-
-
-def register_op(op_name, describe=""):
-    """Register an operator by name.
-    when the op_name is not registered, create a new empty op with the given name.
-    when the op_name has been registered, abort with an error message.
-
-    Parameters
-    ----------
-    op_name : str
-        The name of new operator
-    describe : str
-        The detail describe of new operator
-    """
-
-    _ffi_api.RegisterOp(op_name, describe)
 
 
 def register_op_attr(op_name, attr_key, value=None, level=10):

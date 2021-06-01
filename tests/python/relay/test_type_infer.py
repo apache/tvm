@@ -532,11 +532,16 @@ def test_custom_op_rel_infer_exception():
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
-    try:
-        fchecked = infer_expr(f)
-    except tvm.TVMError as e:
-        pass
+    with pytest.raises(tvm.error.TVMError) as cm:
+       fchecked = infer_type(f)
+       assert "type relation arg number mismatch!" in str(cm.execption)
 
+def test_repeat_register():
+    op_name = "custom_log3"
+    _op.register(op_name, r"code(cal log of a tensor.)code")
+    with pytest.raises(tvm.error.TVMError) as cm:
+        _op.register(op_name)
+        assert "Operator custom_log3 is registered before" in str(cm.execption)
 
 if __name__ == "__main__":
     import sys

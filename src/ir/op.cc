@@ -109,6 +109,10 @@ TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String de
   op.describe(descr);
 });
 
+// This is exposed FFI api for prototyping using in python.
+// Note: it is not full of the C++ type relation,
+// since in python side we don't have access to the type reporter,
+// and cannot propagate constraints to the inputs, only to the output.
 TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
     .set_body_typed([](Op op, String rel_name, runtime::TVMArgValue value) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
@@ -125,7 +129,8 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
           // otherwise, inference failure happens
           if (ret_type.defined()) {
             // the last argument is output
-            reporter->Assign(args[args.size() - 1], ret_type);
+            // TODO: support multiple outputs
+            reporter->Assign(args.back(), ret_type);
             return true;
           }
           return false;
@@ -138,7 +143,7 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
         // Call relation functions of relay
         auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
         auto* f = runtime::Registry::Get(func_name);
-        CHECK(f != nullptr) << "AddTypeRel error: no type_relation registered.";
+        ICHECK(f != nullptr) << "AddTypeRel error: no type_relation registered.";
         reg.add_type_rel(rel_name, *f);
       }
     });

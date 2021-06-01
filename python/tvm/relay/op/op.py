@@ -22,6 +22,7 @@ from tvm.driver import lower, build
 from tvm.target import get_native_generic_func, GenericFunc
 from tvm.runtime import Object
 from . import _make
+import tvm.ir._ffi_api
 
 
 def get(op_name):
@@ -50,11 +51,11 @@ def register(op_name, describe=""):
     op_name : str
         The operator name
 
-    describe : str
+    describe : Optional[str]
         The operator description
     """
 
-    tvm.ir.register_op(op_name, describe)
+    tvm.ir._ffi_api.RegisterOp(op_name, describe)
 
 
 def register_stateful(op_name, stateful, level=10):
@@ -71,7 +72,7 @@ def register_stateful(op_name, stateful, level=10):
     level : int
         The priority level
     """
-    return tvm.ir.register_op_attr(op_name, "TOpIsStateful", stateful, level)
+    tvm.ir.register_op_attr(op_name, "TOpIsStateful", stateful, level)
 
 
 class OpPattern(object):
