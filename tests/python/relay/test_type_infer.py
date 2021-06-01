@@ -418,7 +418,7 @@ def test_dynamic_function():
 
 
 def test_custom_op_infer():
-    """" Tests infer type for custom_op """
+    """Tests infer type for custom_op"""
     op_name = "custom_log"
     _op.register(op_name, r"code(cal log of a tensor.)code")
     _op.get(op_name).set_num_inputs(1)
@@ -444,7 +444,7 @@ def test_custom_op_infer():
 
 
 def test_custom_add_broadcast_op():
-    """ Tests infer type for broadcast custom_op """
+    """Tests infer type for broadcast custom_op"""
     op_name = "custom_broadcast_add"
     _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
     _op.get(op_name).set_num_inputs(2)
@@ -470,7 +470,7 @@ def test_custom_add_broadcast_op():
 
 
 def test_custom_op_rel_infer():
-    """" Tests infer type for custom_op """
+    """Tests infer type for custom_op"""
 
     def custom_log1_rel(arg_types, attrs):
         assert len(arg_types) == 1, "type relation arg number mismatch!"
@@ -505,7 +505,7 @@ def test_custom_op_rel_infer():
 
 
 def test_custom_op_rel_infer_exception():
-    """" Tests infer type for custom_op """
+    """Tests infer type for custom_op"""
 
     def custom_log1_rel(arg_types, attrs):
         assert len(arg_types) == 2, "type relation arg number mismatch!"
@@ -533,8 +533,8 @@ def test_custom_op_rel_infer_exception():
     sb.ret(t2)
     f = relay.Function([x], sb.get())
     with pytest.raises(tvm.error.TVMError) as cm:
-       fchecked = infer_type(f)
-       assert "type relation arg number mismatch!" in str(cm.execption)
+        fchecked = infer_type(f)
+        assert "type relation arg number mismatch!" in str(cm.execption)
 
 def test_repeat_register():
     op_name = "custom_log3"
@@ -542,6 +542,7 @@ def test_repeat_register():
     with pytest.raises(tvm.error.TVMError) as cm:
         _op.register(op_name)
         assert "Operator custom_log3 is registered before" in str(cm.execption)
+
 
 if __name__ == "__main__":
     import sys
