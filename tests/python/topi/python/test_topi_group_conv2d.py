@@ -41,9 +41,7 @@ def _transform_data(data, bn):
 def _transform_kernel(kernel, ic_bn, oc_bn):
     # OIHW -> OIHW[x]o[x]i
     out_channel, in_channel, kh, kw = kernel.shape
-    kernel = np.reshape(
-        kernel, (out_channel // oc_bn, oc_bn, in_channel // ic_bn, ic_bn, kh, kw)
-    )
+    kernel = np.reshape(kernel, (out_channel // oc_bn, oc_bn, in_channel // ic_bn, ic_bn, kh, kw))
     kernel = np.transpose(kernel, (0, 2, 4, 5, 1, 3))
     return kernel
 
@@ -195,10 +193,22 @@ def verify_group_conv2d_NCHWc_int8(
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel // ic_block_factor, in_height, in_width, ic_block_factor), name="A", dtype="int8")
+    A = te.placeholder(
+        (batch, in_channel // ic_block_factor, in_height, in_width, ic_block_factor), 
+        name="A",
+        dtype="int8",
+    )
     W = te.placeholder(
-        (num_filter // oc_block_factor, (in_channel // groups) // ic_block_factor, kernel, kernel, oc_block_factor, ic_block_factor),
-        name="W", dtype="int8"
+        (
+            num_filter // oc_block_factor,
+            (in_channel // groups) // ic_block_factor,
+            kernel,
+            kernel,
+            oc_block_factor,
+            ic_block_factor
+        ),
+        name="W",
+        dtype="int8",
     )
     bias = te.placeholder(
         (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype="int8"
@@ -209,8 +219,12 @@ def verify_group_conv2d_NCHWc_int8(
 
     @memoize("topi.tests.test_topi_group_conv2d.verify_group_conv2d_NCHWc_int8")
     def get_ref_data():
-        a_np = np.random.randint(low=-128, high=127, size=(batch, in_channel, in_height, in_width)).astype(dtype)
-        w_np = np.random.randint(low=-128, high=128, size=(num_filter, in_channel // groups, kernel, kernel)).astype(dtype)
+        a_np = np.random.randint(
+            low=-128, high=127, size=(batch, in_channel, in_height, in_width)
+        ).astype(dtype)
+        w_np = np.random.randint(
+            low=-128, high=128, size=(num_filter, in_channel // groups, kernel, kernel)
+        ).astype(dtype)
         b_np = np.random.uniform(size=bias_shape).astype(dtype)
         dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
         c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding, groups).astype(
@@ -233,7 +247,7 @@ def verify_group_conv2d_NCHWc_int8(
             _transform_data(a_np, ic_block_factor),
             _transform_kernel(w_np, ic_block_factor, oc_block_factor),
             b_np,
-            c_np
+            c_np,
         )
 
     a_np, w_np, b_np, c_np = get_ref_data()
@@ -579,9 +593,7 @@ def test_group_conv2d_NCHWc_int8():
         # bias, relu
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True)
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
-        verify_group_conv2d_NCHWc_int8(
-            1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True
-        )
+        verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True)
         # dilation
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 2, 32)
 

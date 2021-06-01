@@ -340,14 +340,16 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             oc_chunk = out_channels // 4
             ic_chunk = in_channels // 4
 
-            if (data.dtype in ["int8", "uint8"]
+            if (
+                data.dtype in ["int8", "uint8"]
                 and kernel.dtype in ["int8", "uint8"]
                 and channels % groups == 0
                 and out_channels % groups == 0
                 and channels % 4 == 0
                 and out_channels % 4 == 0
                 and groups <= oc_chunk
-                and groups <= ic_chunk):
+                and groups <= ic_chunk
+            ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.group_conv2d_nchw_int8, has_groups=True),
                     wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw_int8),
