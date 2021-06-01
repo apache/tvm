@@ -273,7 +273,7 @@ class OperatorConverter(object):
         return out
 
     def convert_reshape(self, op):
-        """ Convert Reshape layer """
+        """Convert Reshape layer"""
         inputs = op.bottom
         input_name = inputs[0]
 
