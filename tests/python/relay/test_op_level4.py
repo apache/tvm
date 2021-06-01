@@ -379,7 +379,17 @@ def test_mean_var_std():
 
 @tvm.testing.uses_gpu
 def test_strided_slice():
-    def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
+    def verify(
+        dshape,
+        begin,
+        end,
+        strides,
+        output,
+        axis=None,
+        slice_mode="end",
+        test_ref=True,
+        dtype="int32",
+    ):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
         begin = begin if begin else [0] * ndim
@@ -436,11 +446,23 @@ def test_strided_slice():
         (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
     )
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
+    verify((3, 4, 3), [1], [4], None, None, axis=[1])
 
 
 @tvm.testing.uses_gpu
 def test_dyn_strided_slice():
-    def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
+    def verify(
+        dshape,
+        begin,
+        end,
+        strides,
+        output,
+        axes=None,
+        ishape=None,
+        slice_mode="end",
+        test_ref=True,
+        dtype="int32",
+    ):
         ndim = len(dshape)
         begin = begin if begin else [0] * ndim
         end = end if end else list(dshape)
@@ -449,7 +471,10 @@ def test_dyn_strided_slice():
         x_data = np.random.uniform(size=dshape).astype("float32")
         ref_res = tvm.topi.testing.strided_slice_python(x_data, begin, end, strides, slice_mode)
 
-        x = relay.var("x", relay.TensorType((relay.Any(),) * ndim, "float32"))
+        if ishape is None:
+            ishape = (relay.Any(),) * ndim
+
+        x = relay.var("x", relay.TensorType(ishape, "float32"))
         if strides:
             z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
         else:
@@ -489,6 +514,15 @@ def test_dyn_strided_slice():
         (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
     )
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
+    verify(
+        (3, 4, 3, 2),
+        [1, 0],
+        [3, 1],
+        None,
+        None,
+        axes=[1, 3],
+        ishape=(relay.Any(), 4, relay.Any(), 2),
+    )
 
 
 @tvm.testing.uses_gpu

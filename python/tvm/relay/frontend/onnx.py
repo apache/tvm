@@ -1352,7 +1352,6 @@ class Slice(OnnxOpConverter):
                 and (steps is None or isinstance(steps, _expr.Constant))
             )
 
-        # Update the starts and ends according to axes if required.
         if axes is not None and has_static_axes():
             axes_np = axes.data.asnumpy().astype("int64")
             begin_np = starts.data.asnumpy().astype("int64")
