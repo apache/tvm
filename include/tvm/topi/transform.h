@@ -41,7 +41,6 @@
 #include <unordered_set>
 #include <vector>
 
-
 namespace tvm {
 namespace topi {
 
@@ -555,7 +554,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
                                     const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
                                     std::string name = "T_dynamic_strided_slice",
                                     std::string tag = kInjective) {
-  const size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
+  const size_t src_tensor_dim = x->shape.size();
   ICHECK_LE(begin.size(), src_tensor_dim);
   ICHECK_LE(end.size(), src_tensor_dim);
   ICHECK_LE(strides.size(), src_tensor_dim);
@@ -583,11 +582,11 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
       out_shape,
       [&](const Array<tvm::tir::Var>& indices) {
         Array<PrimExpr> real_indices;
-        for (int32_t i = 0; i < num_slice_axes; ++i) {
+        for (size_t i = 0; i < num_slice_axes; ++i) {
           real_indices.push_back(indices[i] * strides[i] + tvm::min(begin[i], x->shape[i] - 1));
         }
         // keep input dim
-        for (int32_t i = num_slice_axes; i < src_tensor_dim; ++i) {
+        for (size_t i = num_slice_axes; i < src_tensor_dim; ++i) {
           real_indices.push_back(indices[i]);
         }
         return x(real_indices);
