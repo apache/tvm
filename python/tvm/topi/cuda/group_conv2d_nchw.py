@@ -33,7 +33,9 @@ def group_conv2d_nchw_int8(data, kernel, strides, padding, dilation, groups, out
     assert data.dtype in ("int8", "uint8")
     assert kernel.dtype in ("int8", "uint8")
     assert data.dtype == kernel.dtype
-    packed_out = group_conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, groups, out_dtype)
+    packed_out = group_conv2d_NCHWc_int8(
+        data, kernel, strides, padding, dilation, groups, out_dtype
+    )
     return unpack_NCHWc_to_nchw(packed_out, out_dtype)
 
 
