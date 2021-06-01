@@ -27,6 +27,7 @@
 
 #include "vulkan/vulkan_core.h"
 #include "vulkan_context.h"
+#include "vulkan_instance.h"
 #include "vulkan_thread_entry.h"
 
 namespace tvm {
@@ -85,12 +86,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
  private:
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
 
-  std::vector<const char*> FindEnabledExtensions(
-      const std::vector<VkExtensionProperties>& ext_prop,
-      const std::vector<const char*>& required_extensions,
-      const std::vector<const char*>& optional_extensions);
-
-  VkInstance instance_{nullptr};
+  VulkanInstance instance_;
   // The physical devices, have 1 to 1 mapping to devices
   std::vector<VulkanContext> context_;
 };

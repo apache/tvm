@@ -25,6 +25,7 @@
 #include <string>
 #include <utility>
 
+#include "vulkan_common.h"
 #include "vulkan_thread_entry.h"
 
 namespace tvm {
@@ -42,92 +43,8 @@ VulkanDeviceAPI* VulkanDeviceAPI::Global() {
 }
 
 VulkanDeviceAPI::VulkanDeviceAPI() {
-  const auto layers = []() -> std::vector<const char*> {
-    uint32_t inst_layer_prop_count;
-    VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, nullptr));
-    std::vector<VkLayerProperties> inst_layer_prop(inst_layer_prop_count);
-    VULKAN_CALL(vkEnumerateInstanceLayerProperties(&inst_layer_prop_count, inst_layer_prop.data()));
-    std::vector<const char*> l;
-
-    const char* enable = std::getenv("TVM_VULKAN_ENABLE_VALIDATION_LAYERS");
-    bool validation_enabled = enable && *enable;
-    if (validation_enabled) {
-      for (const auto& lp : inst_layer_prop) {
-        if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_standard_validation") == 0) {
-          l.push_back("VK_LAYER_LUNARG_standard_validation");
-        }
-        if (std::strcmp(lp.layerName, "VK_LAYER_LUNARG_parameter_validation") == 0) {
-          l.push_back("VK_LAYER_LUNARG_parameter_validation");
-        }
-        if (std::strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
-          l.push_back("VK_LAYER_KHRONOS_validation");
-        }
-      }
-    }
-    return l;
-  }();
-
-  const auto instance_extensions = [this]() {
-    std::vector<const char*> required_extensions{};
-    std::vector<const char*> optional_extensions{"VK_KHR_get_physical_device_properties2"};
-
-    uint32_t inst_extension_prop_count;
-    VULKAN_CALL(
-        vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count, nullptr));
-    std::vector<VkExtensionProperties> inst_extension_prop(inst_extension_prop_count);
-    VULKAN_CALL(vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count,
-                                                       inst_extension_prop.data()));
-
-    return FindEnabledExtensions(inst_extension_prop, required_extensions, optional_extensions);
-  }();
-
-  auto has_instance_extension = [&instance_extensions](const char* query) {
-    return std::any_of(instance_extensions.begin(), instance_extensions.end(),
-                       [&](const char* extension) { return std::strcmp(query, extension) == 0; });
-  };
-
-  const auto instance_api_version = []() {
-    uint32_t api_version = VK_MAKE_VERSION(1, 0, 0);
-
-    // Result from vkGetInstanceProcAddr is NULL if driver only
-    // supports vulkan 1.0.
-    auto vkEnumerateInstanceVersion =
-        (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceVersion");
-    if (vkEnumerateInstanceVersion) {
-      vkEnumerateInstanceVersion(&api_version);
-    }
-
-    return api_version;
-  }();
-
-  {
-    VkApplicationInfo app_info;
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pNext = nullptr;
-    app_info.pApplicationName = "TVM";
-    app_info.applicationVersion = 0;
-    app_info.pEngineName = "";
-    app_info.engineVersion = 0;
-    app_info.apiVersion = instance_api_version;
-
-    VkInstanceCreateInfo inst_info;
-    inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    inst_info.pNext = nullptr;
-    inst_info.flags = 0;
-    inst_info.pApplicationInfo = &app_info;
-    inst_info.enabledLayerCount = layers.size();
-    inst_info.ppEnabledLayerNames = layers.data();
-    inst_info.enabledExtensionCount = instance_extensions.size();
-    inst_info.ppEnabledExtensionNames = instance_extensions.data();
-
-    VULKAN_CALL(vkCreateInstance(&inst_info, nullptr, &instance_));
-  }
-
-  uint32_t phy_dev_count = 0;
-  VULKAN_CALL(vkEnumeratePhysicalDevices(instance_, &phy_dev_count, nullptr));
-  std::vector<VkPhysicalDevice> all_phy_devs(phy_dev_count);
-  VULKAN_CALL(vkEnumeratePhysicalDevices(instance_, &phy_dev_count, dmlc::BeginPtr(all_phy_devs)));
-  for (VkPhysicalDevice phy_dev : all_phy_devs) {
+  std::vector<VkPhysicalDevice> vulkan_physical_devices = instance_.GetPhysicalDevices();
+  for (VkPhysicalDevice phy_dev : vulkan_physical_devices) {
     // Get a list of queue families supporting compute, in order of preference. We currently only
     // make use of the most preferred one family.
     std::vector<uint32_t> queue_family_indexes = GetComputeQueueFamilies(phy_dev);
@@ -173,8 +90,7 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       return FindEnabledExtensions(device_extension_prop, required_extensions, optional_extensions);
     }();
 
-    ctx.device_properties =
-        VulkanDeviceProperties(instance_, phy_dev, instance_extensions, device_extensions);
+    ctx.device_properties = VulkanDeviceProperties(instance_, phy_dev, device_extensions);
 
     {
       // Enable all features we may use that a device supports.
@@ -233,7 +149,7 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       device_create_info.enabledExtensionCount = device_extensions.size();
       device_create_info.ppEnabledExtensionNames = device_extensions.data();
 
-      if (has_instance_extension("VK_KHR_get_physical_device_properties2")) {
+      if (instance_.HasExtension("VK_KHR_get_physical_device_properties2")) {
         device_create_info.pEnabledFeatures = nullptr;
         device_create_info.pNext = &enabled_features;
       } else {
@@ -338,9 +254,6 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
 VulkanDeviceAPI::~VulkanDeviceAPI() {
   for (auto& vctx : context_) {
     vkDestroyDevice(vctx.device, nullptr);
-  }
-  if (instance_) {
-    vkDestroyInstance(instance_, nullptr);
   }
 }
 
@@ -665,33 +578,6 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
     LOG(FATAL) << "Expect copy from/to Vulkan or between Vulkan"
                << ", from=" << from_dev_type << ", to=" << to_dev_type;
   }
-}
-
-std::vector<const char*> VulkanDeviceAPI::FindEnabledExtensions(
-    const std::vector<VkExtensionProperties>& ext_prop,
-    const std::vector<const char*>& required_extensions,
-    const std::vector<const char*>& optional_extensions) {
-  std::set<std::string> available_extensions;
-  for (const auto& prop : ext_prop) {
-    if (prop.specVersion > 0) {
-      available_extensions.insert(prop.extensionName);
-    }
-  }
-
-  std::vector<const char*> enabled_extensions;
-  for (const auto& ext : required_extensions) {
-    ICHECK(available_extensions.count(ext))
-        << "Required vulkan extension \"" << ext << "\" not supported by driver";
-    enabled_extensions.push_back(ext);
-  }
-
-  for (const auto& ext : optional_extensions) {
-    if (available_extensions.count(ext)) {
-      enabled_extensions.push_back(ext);
-    }
-  }
-
-  return enabled_extensions;
 }
 
 const VulkanContext& VulkanDeviceAPI::context(size_t device_id) const {

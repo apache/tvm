@@ -34,6 +34,8 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
+class VulkanInstance;
+
 struct VulkanDescriptorTemplateKHRFunctions {
   explicit VulkanDescriptorTemplateKHRFunctions(VkDevice device);
 
@@ -59,8 +61,7 @@ struct VulkanGetBufferMemoryRequirements2Functions {
  */
 struct VulkanDeviceProperties {
   VulkanDeviceProperties() {}
-  VulkanDeviceProperties(VkInstance instance, VkPhysicalDevice phy_device,
-                         const std::vector<const char*> instance_extensions,
+  VulkanDeviceProperties(const VulkanInstance& instance, VkPhysicalDevice phy_dev,
                          const std::vector<const char*> device_extensions);
 
   bool supports_float16{false};

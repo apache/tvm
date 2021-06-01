@@ -24,20 +24,16 @@
 
 #include "vulkan_common.h"
 #include "vulkan_device_api.h"
+#include "vulkan_instance.h"
 #include "vulkan_thread_entry.h"
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-VulkanDeviceProperties::VulkanDeviceProperties(VkInstance instance, VkPhysicalDevice phy_dev,
-                                               const std::vector<const char*> instance_extensions,
+VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
+                                               VkPhysicalDevice phy_dev,
                                                const std::vector<const char*> device_extensions) {
-  auto has_instance_extension = [&](const char* query) {
-    return std::any_of(instance_extensions.begin(), instance_extensions.end(),
-                       [&](const char* extension) { return std::strcmp(query, extension) == 0; });
-  };
-
   auto has_device_extension = [&](const char* query) {
     return std::any_of(device_extensions.begin(), device_extensions.end(),
                        [&](const char* extension) { return std::strcmp(query, extension) == 0; });
@@ -95,7 +91,7 @@ VulkanDeviceProperties::VulkanDeviceProperties(VkInstance instance, VkPhysicalDe
     }
   }
 
-  if (has_instance_extension("VK_KHR_get_physical_device_properties2")) {
+  if (instance.HasExtension("VK_KHR_get_physical_device_properties2")) {
     // Preferred method, call to get all properties that can be queried.
     auto vkGetPhysicalDeviceProperties2KHR = (PFN_vkGetPhysicalDeviceProperties2KHR)ICHECK_NOTNULL(
         vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
