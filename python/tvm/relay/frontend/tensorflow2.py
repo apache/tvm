@@ -43,15 +43,17 @@ from tensorflow.python.framework import tensor_util
 from tensorflow.python.framework import dtypes
 
 from .tensorflow import _convert_map as _convert_map_tf1
-from .tensorflow import _need_prelude_for_shape_inference 
+from .tensorflow import _need_prelude_for_shape_inference
 
 from ..ty import Any, TensorType
 
 __all__ = ["from_tensorflow"]
 
+
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
     return body.checked_type
+
 
 def set_span(sym, node_name):
     span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
@@ -68,15 +70,13 @@ def set_span(sym, node_name):
 
 
 def convert_const_node(node, shape):
-    """convert tf const node into relay const or var
-    """
+    """convert tf const node into relay const or var"""
 
     # get the value of the constant
     tensor_value = node.attr["value"].tensor
     np_array = tensor_util.MakeNdarray(tensor_value)
 
     if np_array.dtype == np.dtype(object):
-        # assert False # not tested, maybe tf string type?
         if shape and node.name in shape:
             var_shape = shape[node.name]
         else:
@@ -90,9 +90,7 @@ def convert_const_node(node, shape):
         sym = [tvm.relay.const(np_array, np_array.dtype)]
     else:
         param = tvm.nd.array(np_array)
-        sym = [
-            _expr.var(node.name, shape=param.shape, dtype=param.dtype)
-        ]
+        sym = [_expr.var(node.name, shape=param.shape, dtype=param.dtype)]
 
     return sym, param
 
@@ -110,7 +108,7 @@ def get_attr(buf):
                 TensorShapeProto shape = 7;  // "shape"
                 TensorProto tensor = 8;      // "tensor"
                 ListValue list = 1;          // any "list(...)"            }
-        }        
+        }
     Parameters
     ----------
     buf: attrvalue protobuf.  <class 'tensorflow.core.framework.attr_value_pb2.AttrValue'>
@@ -125,7 +123,7 @@ def get_attr(buf):
     ret = []
 
     if not x.WhichOneof("value"):
-        assert False # not yet tested; why would there be empty attribute value in a node def?
+        return ret
 
     if x.HasField("list"):
         for f in fields:
@@ -142,7 +140,8 @@ def get_attr(buf):
                 else:
                     ret = getattr(x, f)
     return ret
-    
+
+
 def parse_attr(attr_proto):
     """Convert node attributes (a serialized map of key-value pairs) in a node to a dict
     Parameters
@@ -182,50 +181,42 @@ def parse_attr(attr_proto):
 
     return attrs
 
+
 def convert_place_holder(shape, node, in_type=None):
-    """ convert tf place holder into relay var. 
-    
+    """convert tf place holder into relay var.
+
     Examples
-    --------    
+    --------
     a tf place holder with name "x" is converted to [Var(x, ty=TensorType([], float32))]
     """
 
     if shape and node.name in shape:
         input_shape = list(shape[node.name])
     else:
-        input_shape = tensor_util.TensorShapeProtoToList(
-            node.attr["shape"].shape
-        )
+        input_shape = tensor_util.TensorShapeProtoToList(node.attr["shape"].shape)
         for idx, dim in enumerate(input_shape):
             if dim < 0:
                 input_shape[idx] = Any()
     attr = parse_attr(node.attr)
     if in_type is not None:
-        sym = [
-            _expr.var(
-                node.name, type_annotation=in_type
-            )
-        ]
+        sym = [_expr.var(node.name, type_annotation=in_type)]
     else:
-        sym = [
-            _expr.var(
-                node.name, shape=input_shape, dtype=attr["dtype"].name
-            )
-        ]
+        sym = [_expr.var(node.name, shape=input_shape, dtype=attr["dtype"].name)]
     return input_shape, sym
 
 
 class RelayModule:
-    """ states related to the entire relay module (multiple functions) after converted from tf graphdef
-    """
+    """states related to the entire relay module (multiple functions) after converted from tf graphdef"""
+
     def __init__(self):
-        self.mod = IRModule({}) # relay function and type definitions. defined in tvm/ir/module.py
-        self.params = {}        # for constants (weights) in the entire relay module
+        self.mod = IRModule({})  # relay function and type definitions. defined in tvm/ir/module.py
+        self.params = {}  # for constants (weights) in the entire relay module
         self.prelude = Prelude(self.mod)  # relay.prelude needed for tensorlist ops
 
+
 class GraphProto:
-    """Capturing states when converting a tf graph to a single relay function. 
-    """
+    """Capturing states when converting a tf graph to a single relay function."""
+
     def __init__(self, module):
         self._module: RelayModule = module
         self._prelude = self._module.prelude
@@ -236,11 +227,15 @@ class GraphProto:
         self._tf_node_map = {}
         self._gdef_lib = {}
 
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None, input_types={}, gdef_lib={}):
+    def from_tensorflow(
+        self, graph, layout="NHWC", shape=None, outputs=None, input_types={}, gdef_lib={}
+    ):
         self._gdef_lib = gdef_lib
-        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs, input_types=input_types)
+        func = self._get_relay_func(
+            graph, layout=layout, shape=shape, outputs=outputs, input_types=input_types
+        )
         return func, self._params
-    
+
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None, input_types={}):
         self._layout = layout
         for node in graph.node:
@@ -250,7 +245,9 @@ class GraphProto:
                 in_type = None
                 if node.name in input_types:
                     in_type = input_types[node.name]
-                self._input_shapes[name], self._nodes[name] = convert_place_holder(shape, node, in_type)
+                self._input_shapes[name], self._nodes[name] = convert_place_holder(
+                    shape, node, in_type
+                )
             elif node.op == "Const":
                 sym, param = convert_const_node(node, shape)
                 self._nodes[node.name] = sym
@@ -259,14 +256,14 @@ class GraphProto:
         for node in graph.node:
             self._backtrack_construct(graph, node.name, outputs=outputs)
         return self._func(graph, outputs)
-        
+
     def _func(self, graph, outputs):
         out = []
         if outputs is None:
             last_node = graph.node[-1]
             op = self._nodes[last_node.name.split(":")[0]]
             if last_node.op == "Exit":
-                assert False # not yet tested
+                out = [op[0].tuple_value]
             else:
                 out = op
         else:
@@ -283,7 +280,7 @@ class GraphProto:
             out = out.astuple()
         else:
             out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        
+
         fvars = analysis.free_vars(out)
         func = _function.Function(fvars, out)
         final_params = {}
@@ -314,12 +311,30 @@ class GraphProto:
         """
 
         if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
-            sym = _partition_call_operator(self._module, graph, inputs, attrs, self._prelude, gdef_lib=self._gdef_lib, outputs=outputs)
+            sym = _partition_call_operator(
+                self._module,
+                graph,
+                inputs,
+                attrs,
+                self._prelude,
+                gdef_lib=self._gdef_lib,
+                outputs=outputs,
+            )
         elif op_name in ["StatelessIf", "If"]:
-            sym = _convert_if(self._module, graph, inputs, attrs, self._prelude, gdef_lib=self._gdef_lib)
+            sym = _convert_if(
+                self._module, graph, inputs, attrs, self._prelude, gdef_lib=self._gdef_lib
+            )
         elif op_name in ["StatelessWhile", "While"]:
-            sym = _convert_loop(self._module, graph, inputs, attrs, node_name, self._tf_node_map, 
-                                    self._prelude, gdef_lib=self._gdef_lib)
+            sym = _convert_loop(
+                self._module,
+                graph,
+                inputs,
+                attrs,
+                node_name,
+                self._tf_node_map,
+                self._prelude,
+                gdef_lib=self._gdef_lib,
+            )
         elif op_name in _convert_map_tf1:
             if _need_prelude_for_shape_inference(op_name):
                 sym = _convert_map_tf1[op_name](inputs, attrs, self._params, self._prelude)
@@ -339,27 +354,27 @@ class GraphProto:
 
         This is required when parsing control flow nodes, since the parsing
         order may not follow the original graph def.
-        
-        to discover input node, current tf node's input is iterated: 
+
+        to discover input node, current tf node's input is iterated:
 
         tensorflow/core/framework/node_def.proto
             message NodeDef {
                 repeated string input = 3;
             }
 
-        a node has many inputs (other nodes). each input has the following format: 
-            data input is "node:src_output".  node is the string name. 
-            control input is "^node". 
+        a node has many inputs (other nodes). each input has the following format:
+            data input is "node:src_output".  node is the string name.
+            control input is "^node".
 
         Parameters
         ----------
         node_name : str
-            node name 
+            node name
 
         Returns
         -------
         op : relay.Expr
-            Converted relay expression. 
+            Converted relay expression.
 
         Examples
         --------
@@ -378,8 +393,7 @@ class GraphProto:
             attr = parse_attr(node.attr)
             if "_output_shapes" in attr:
                 self._output_shapes[node.name] = [
-                    tensor_util.TensorShapeProtoToList(tshape)
-                    for tshape in attr["_output_shapes"]
+                    tensor_util.TensorShapeProtoToList(tshape) for tshape in attr["_output_shapes"]
                 ]
             else:
                 self._output_shapes[node.name] = [None]
@@ -387,7 +401,9 @@ class GraphProto:
             attr["_output_shapes"] = self._output_shapes[input_op_name]
             attr["_node_name"] = node.name
             attr["_target_layout"] = self._layout
-            inputs = [self._backtrack_construct(graph, iname, outputs=outputs) for iname in node.input]
+            inputs = [
+                self._backtrack_construct(graph, iname, outputs=outputs) for iname in node.input
+            ]
             op = self._convert_operator(graph, node.op, node.name, inputs, attr, outputs=outputs)
 
             if isinstance(op, np.ndarray):
@@ -399,7 +415,7 @@ class GraphProto:
                         dtype=self._params[node.name].dtype,
                     )
                 ]
-            elif isinstance(op, (_expr.Expr, _expr.TupleGetItem)):                
+            elif isinstance(op, (_expr.Expr, _expr.TupleGetItem)):
                 op = [op]
             self._nodes[input_op_name] = op
 
@@ -411,30 +427,36 @@ class GraphProto:
 
         return out[0]
 
+
 def _partition_call_operator(module, graph, inputs, attr, prelude, gdef_lib, outputs=None):
-    """ convert tf PartitionedCall node to a relay function call """
+    """convert tf PartitionedCall node to a relay function call"""
     node_func_name = attr.get("f").name
-    return _convert_function(module, graph, inputs, attr, node_func_name, prelude, gdef_lib=gdef_lib, outputs=outputs)
+    return _convert_function(
+        module, graph, inputs, attr, node_func_name, prelude, gdef_lib=gdef_lib, outputs=outputs
+    )
+
 
 def _convert_if(module, graph, inputs, attr, prelude, gdef_lib):
-    """ Convert tf If/StatelessIf to Relay If """
+    """Convert tf If/StatelessIf to Relay If"""
     cond_expr = inputs[0]
     branch_names = [attr.get(x).name for x in ["then_branch", "else_branch"]]
     then_fn, else_fn = [
-        _convert_function(module, graph, inputs[1:], attr, name, prelude, gdef_lib=gdef_lib) for name in branch_names
+        _convert_function(module, graph, inputs[1:], attr, name, prelude, gdef_lib=gdef_lib)
+        for name in branch_names
     ]
     out = _expr.If(cond_expr, then_fn, else_fn)
     return out
 
+
 def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_lib):
-    """ convert tf while_loop to Relay loop """
+    """convert tf while_loop to Relay loop"""
     input_size = len(inputs)
     cond_fn_name, body_fn_name = [attr.get(x).name for x in ["cond", "body"]]
 
     def convert_vars(loop_inputs, input_signature):
-        """ convert inputs to relay vars to be used as loop variables
-            Loop inputs are packed as:
-                [iteration_number, max_iterations, loop_variables...]
+        """convert inputs to relay vars to be used as loop variables
+        Loop inputs are packed as:
+            [iteration_number, max_iterations, loop_variables...]
         """
         new_vars = []
         for i, v in enumerate(loop_inputs):
@@ -454,15 +476,19 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
     # in_shapes = nodes[node_name].attr["output_shapes"].list.shape
 
     def cond_fn(*loop_inputs):
-        return _convert_function(module, graph, loop_inputs, attr, cond_fn_name, prelude, gdef_lib=gdef_lib)
+        return _convert_function(
+            module, graph, loop_inputs, attr, cond_fn_name, prelude, gdef_lib=gdef_lib
+        )
 
     # Define the loop body, in this function we need to unpack loop inputs,
     # convert the loop subgraph, and pack outputs for the next iteration.
     def body_fn(*loop_inputs):
         # Increment loop iteration counter
-        loop_count = loop_inputs[0] + _expr.const(1, dtype='int32')
+        loop_count = loop_inputs[0] + _expr.const(1, dtype="int32")
         max_count = loop_inputs[1]
-        fn = _convert_function(module, graph, loop_inputs, attr, body_fn_name, prelude, gdef_lib=gdef_lib)
+        fn = _convert_function(
+            module, graph, loop_inputs, attr, body_fn_name, prelude, gdef_lib=gdef_lib
+        )
 
         # Repack loop variables
         out = [loop_count, max_count] + [_expr.TupleGetItem(fn, i) for i in range(2, input_size)]
@@ -471,26 +497,23 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
     loop = _while_loop(cond_fn, loop_inputs, body_fn)
     outputs = loop(*inputs)
     outputs = _expr.TupleWrapper(
-        _expr.Tuple(
-            [
-                _expr.TupleGetItem(outputs, i)
-                for i in range(input_size)
-            ]
-        ),
-        input_size
+        _expr.Tuple([_expr.TupleGetItem(outputs, i) for i in range(input_size)]), input_size
     )
     return outputs
 
-def _convert_function(module, graph, inputs, attr, node_func_name, prelude, gdef_lib, in_shapes=None, outputs=None):
-    """ Convert given tf node to a relay function call
+
+def _convert_function(
+    module, graph, inputs, attr, node_func_name, prelude, gdef_lib, in_shapes=None, outputs=None
+):
+    """Convert given tf node to a relay function call
 
     Parameters
     ----------
-    module : IRModule 
+    module : IRModule
         where converted function is stored
 
-    graph: <class 'tensorflow.core.framework.graph_pb2.GraphDef'> 
-        top level tf graphdef 
+    graph: <class 'tensorflow.core.framework.graph_pb2.GraphDef'>
+        top level tf graphdef
 
     inputs : List[tvm.relay.Expr]
         List of input symbols. Parameters for the function.
@@ -503,33 +526,37 @@ def _convert_function(module, graph, inputs, attr, node_func_name, prelude, gdef
 
     Returns
     -------
-    op : tvm.relay.Expr 
+    op : tvm.relay.Expr
         <class 'tvm.relay.expr.Call'>
 
     Examples
     --------
-    a tf function "x+1", is implemented as a subgraph in the libary section of the graph. this subgraph is converted 
+    a tf function "x+1", is implemented as a subgraph in the libary section of the graph. this subgraph is converted
     to a relay function such as
-        fn (%x: float32) {                                                                                      
-        add(%x, 1f) /* Identity */ 
-        }              
+        fn (%x: float32) {
+        add(%x, 1f) /* Identity */
+        }
 
-    the subgraph has a function name such as __inference_add_95        
+    the subgraph has a function name such as __inference_add_95
     the tf function call operator is returned as relay expression, such as:
         free_var %x: float32;
         @func___inference_add_95(%x)
-    
+
     """
     func = next(
         (f for f in graph.library.function if f.signature.name == node_func_name),
         None,
     )
     if func is None:
-        raise Exception("Function not found - {}".format(node_func_name))        
+        raise Exception("Function not found - {}".format(node_func_name))
     devices = set(node.device for node in func.node_def)
     if len(devices) > 1:
-        raise Exception("node_def in function {} contains > 1 types of devices {}".format(node_func_name, devices))
-    
+        raise Exception(
+            "node_def in function {} contains > 1 types of devices {}".format(
+                node_func_name, devices
+            )
+        )
+
     subgraph = gdef_lib[node_func_name]
     # preserve library functions in subgraphs to make them available to nested functions
     for fn in graph.library.function:
@@ -550,10 +577,14 @@ def _convert_function(module, graph, inputs, attr, node_func_name, prelude, gdef
     except ValueError:
         # Construct relay nodes from the subgraph
         g1 = GraphProto(module)
-        output_sig = [func.ret[f.name] for f in func.signature.output_arg] if outputs is None else outputs
+        output_sig = (
+            [func.ret[f.name] for f in func.signature.output_arg] if outputs is None else outputs
+        )
 
         # TODO: unify prelude and main IRModules
-        sub_func, sub_params = g1.from_tensorflow(subgraph, outputs=output_sig, input_types=input_types, gdef_lib=gdef_lib)
+        sub_func, sub_params = g1.from_tensorflow(
+            subgraph, outputs=output_sig, input_types=input_types, gdef_lib=gdef_lib
+        )
         module.params.update(sub_params)
         func_expr = _function.Function(sub_func.params, sub_func.body)
         global_func = tvm.relay.GlobalVar(func_name)
@@ -578,12 +609,13 @@ def _convert_function(module, graph, inputs, attr, node_func_name, prelude, gdef
     ret = sb.get()
     return ret
 
+
 def from_tensorflow(graph_def, layout="NHWC", shape=None, outputs=None):
     """convert tensorflow2.x graph into relay function.
 
     Parameters
     ----------
-    graph_def : must be frozen graph (no variables allowed). 
+    graph_def : must be frozen graph (no variables allowed).
         Placeholders are assumed to be inputs to the graph.
 
         tensorflow/core/framework/graph.proto
@@ -600,7 +632,7 @@ def from_tensorflow(graph_def, layout="NHWC", shape=None, outputs=None):
         The layout for the model.
 
     shape : List[str, List[int]]
-        Input to the model. It is a key and shape vector mapping. Applies to placeholders. 
+        Input to the model. It is a key and shape vector mapping. Applies to placeholders.
 
     outputs : List[str]
         The list of output nodes. The last node is treated as the output if not
@@ -612,7 +644,7 @@ def from_tensorflow(graph_def, layout="NHWC", shape=None, outputs=None):
         The module that optimizations will be performed on.
 
     params : dict of str to tvm.nd.NDArray
-        Dict of converted parameters stored in tvm.nd.NDArray format. 
+        Dict of converted parameters stored in tvm.nd.NDArray format.
 
     Examples
     --------
@@ -636,7 +668,9 @@ def from_tensorflow(graph_def, layout="NHWC", shape=None, outputs=None):
     graph_def_library = {}
     for func in graph_def.library.function:
         inshape = func.attr["_input_shapes"].list.shape
-        graph_def_library[func.signature.name], _ = function_def_to_graph.function_def_to_graph_def(func, inshape)
+        graph_def_library[func.signature.name], _ = function_def_to_graph.function_def_to_graph_def(
+            func, inshape
+        )
     module = RelayModule()
     g = GraphProto(module)
     func, params = g.from_tensorflow(graph_def, layout, shape, outputs, gdef_lib=graph_def_library)
