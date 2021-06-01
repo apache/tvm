@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,35 +16,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-#
-# Initialize Zephyr Project.
-#
-# Usage: ubuntu_init_zephyr_project.sh path branch [--commit hash]
-#   path is the installation path for the repository.
-#   branch is the zephyr branch.
-#   --commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
-#
-
+set -e
 set -x
 
-DOWNLOAD_DIR=$1
-shift
-ZEPHYR_BRANCH=$1
-shift
+source ~/.profile
 
-commit_hash="0"
-if [ "$1" == "--commit" ]; then
-    shift
-    commit_hash=$1
-fi
+# Init Zephyr
+cd ~
+~/ubuntu_init_zephyr_project.sh ~/zephyrproject v2.5-branch --commit dabf23758417fd041fec2a2a821d8f526afac29d
 
-west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
+# Build QEMU
+cd ~
+sudo ~/ubuntu_install_qemu.sh --target-list arm-softmmu
 
-if [ "$commit_hash" != "0" ]; then
-    cd ${DOWNLOAD_DIR}/zephyr
-    git checkout ${commit_hash}
-fi
-
-cd ${DOWNLOAD_DIR}/zephyr
-west update
-west zephyr-export
+# Cleanup
+cd ~
+rm -f *.sh

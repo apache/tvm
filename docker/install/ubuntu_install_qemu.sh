@@ -26,7 +26,12 @@
 set -e
 set -o pipefail
 
-QEMU_DIR=qemu-5.1.0
+QEMU_NAME=qemu-5.1.0
+QEMU_SIG_FILE=${QEMU_NAME}.tar.xz.sig
+QEMU_TAR_FILE=${QEMU_NAME}.tar.xz
+
+# Clean previous build
+rm -rf ${QEMU_NAME} ${QEMU_SIG_FILE} ${QEMU_TAR_FILE}
 
 # Get number of cores for build
 if [[ "${TVM_CI_NUM_CORES}" ]]; then
@@ -44,19 +49,12 @@ else
     target_list="aarch64-softmmu,arm-softmmu,i386-softmmu,riscv32-softmmu,riscv64-softmmu,x86_64-softmmu"
 fi
 
-# Check if QEMU already built
-rebuild=0
-if [ -d ${QEMU_DIR} ]; then
-    rebuild=1
-fi
+sudo sed -i '/deb-src/s/^# //' /etc/apt/sources.list
+apt update
+apt-get -y build-dep qemu
 
-if [ $rebuild -eq 0 ]; then
-    sudo sed -i '/deb-src/s/^# //' /etc/apt/sources.list
-    apt update
-    apt-get -y build-dep qemu
-
-    gpg --keyserver keys.gnupg.net --recv-keys 0x3353C9CEF108B584
-    cat <<EOF | gpg --dearmor >qemu-5.1.0.tar.xz.sig
+gpg --keyserver keys.gnupg.net --recv-keys 0x3353C9CEF108B584
+cat <<EOF | gpg --dearmor >qemu-5.1.0.tar.xz.sig
 -----BEGIN PGP ARMORED FILE-----
 Comment: Use "gpg --dearmor" for unpacking
 
@@ -70,13 +68,12 @@ p5ez/+2k4VAIwIQoP5DoO06waLBffvLIAdPPKYsx71K67OoGG2svc7duC/+5qf1x
 =hCS7
 -----END PGP ARMORED FILE-----
 EOF
-    curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
-    gpg --verify qemu-5.1.0.tar.xz.sig
+curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
+gpg --verify ${QEMU_SIG_FILE}
 
-    tar -xf qemu-5.1.0.tar.xz
-fi
+tar -xf ${QEMU_TAR_FILE}
 
-cd qemu-5.1.0
+cd ${QEMU_NAME}
 ./configure --target-list=${target_list}
 make -j${num_cores}
 sudo make install

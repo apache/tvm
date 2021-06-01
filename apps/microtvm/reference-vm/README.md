@@ -49,10 +49,10 @@ Reference VMs are organized as follows:
 
 ## Creating Releases
 
-1. Build the base box for the given platform: `$ ./base-box-tool.py build <platform>`
+1. Build the base box for the given platform: `$ ./base-box-tool.py <--provider=> build <platform>`
 2. Run release tests for each platform:
     1. Connect any needed hardware to the VM host machine.
-    2. Run tests: `$ ./base-box-tool.py test <platform> [--test-device-serial=<serial>]`. This
+    2. Run tests: `$ ./base-box-tool.py <--provider=> test <--microtvm-platform=> <platform> [--test-device-serial=<serial>]`. This
        command does the following for each provider:
         1. Copies all files inside `./<platform>` except `.vagrant` and `base-box` to
            `./release-test`. This is done to avoid reusing any VM the developer may have started.
@@ -63,5 +63,5 @@ Reference VMs are organized as follows:
         4. SSHs to the VM, `cd` to the TVM root directory, and runs `test_cmd` from
            `test-config.json`. Nonzero status means failure.
 3. If release tests fail, fix them and restart from step 1.
-4. If release tests pass: `$ ./base-box-tool.py release <platform> <version>`. Be sure you've logged
+4. If release tests pass: `$ ./base-box-tool.py <--provider=> release <--release-version=> <--platform-version=> <platform>`. Be sure you've logged
    in to Vagrant Cloud using the `vagrant` tool.

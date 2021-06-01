@@ -17,6 +17,7 @@
 # under the License.
 
 set -e
+set -x
 
 skip_zeroing_disk=0
 if [ -e "$HOME/skip_zeroing_disk" ]; then
@@ -81,8 +82,6 @@ pip3 install --user -U west
 echo 'export PATH=$HOME/.local/bin:"$PATH"' >> ~/.profile
 source ~/.profile
 echo PATH=$PATH
-REPO_ROOT=$(git rev-parse --show-toplevel)
-${REPO_ROOT}/docker/install/ubuntu_init_zephyr_project.sh ~/zephyr v2.5-branch dabf23758417fd041fec2a2a821d8f526afac29d
 
 cd ~
 echo "Downloading zephyr SDK..."
@@ -104,7 +103,7 @@ sudo udevadm control --reload
 # Poetry
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
 sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
-sed -i "/^# If not running interactively,/ i export ZEPHYR_BASE=$HOME/zephyr/zephyr" ~/.bashrc
+sed -i "/^# If not running interactively,/ i export ZEPHYR_BASE=$HOME/zephyrproject/zephyr" ~/.bashrc
 sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
 
 # Clean box for packaging as a base box
