@@ -218,7 +218,7 @@ class GraphProto:
     """Capturing states when converting a tf graph to a single relay function."""
 
     def __init__(self, module):
-        self._module: RelayModule = module
+        self._module = module
         self._prelude = self._module.prelude
         self._params = {}
         self._nodes = {}
@@ -255,6 +255,7 @@ class GraphProto:
                     self._params[node.name] = param
         for node in graph.node:
             self._backtrack_construct(graph, node.name, outputs=outputs)
+
         return self._func(graph, outputs)
 
     def _func(self, graph, outputs):
@@ -288,6 +289,7 @@ class GraphProto:
             if fv.name_hint in self._params:
                 final_params[fv.name_hint] = self._params[fv.name_hint]
         self._params = final_params
+
         return func
 
     def _convert_operator(self, graph, op_name, node_name, inputs, attrs, outputs=None):
@@ -309,7 +311,6 @@ class GraphProto:
         sym : relay.op
             Converted relay operator
         """
-
         if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
             sym = _partition_call_operator(
                 self._module,
@@ -578,7 +579,7 @@ def _convert_function(
         # Construct relay nodes from the subgraph
         g1 = GraphProto(module)
         output_sig = (
-            [func.ret[f.name] for f in func.signature.output_arg] if outputs is None else outputs
+            ([func.ret[f.name] for f in func.signature.output_arg]) if outputs is None else outputs
         )
 
         # TODO: unify prelude and main IRModules

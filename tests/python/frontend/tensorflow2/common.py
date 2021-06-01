@@ -92,7 +92,6 @@ def compare_tf_tvm(gdef, input_, output_, runtime="vm", output_tensors=None):
     output_tensors : List of output tensor names (Optional)
             if not specified then the last node is assumed as graph output.
     """
-
     mod, params = from_tensorflow(gdef, outputs=output_tensors)
     if runtime == "vm":
         exec_ = compile_vm(mod, params)

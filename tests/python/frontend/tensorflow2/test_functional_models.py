@@ -49,12 +49,12 @@ def _model_graph(TestClass):
     return gdef, input_, output
 
 
-def run_func_graph(TestClass, runtime="vm"):
-    compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
+def run_func_graph(TestClass, runtime="vm", outputs=None):
+    compare_tf_tvm(*_function_graph(TestClass), runtime=runtime, output_tensors=outputs)
 
 
-def run_model_graph(TestClass):
-    compare_tf_tvm(*_model_graph(TestClass), runtime="vm")
+def run_model_graph(TestClass, outputs=None):
+    compare_tf_tvm(*_model_graph(TestClass), runtime="vm", output_tensors=outputs)
 
 
 def run_all(TestClass):
@@ -369,6 +369,7 @@ def test_multi_output():
             y = 2 * x
             return x, y
 
+    run_func_graph(MultiOutput, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"])
     run_model_graph(MultiOutput)
 
 
@@ -433,6 +434,9 @@ def test_stateless_while_2var():
             r = tf.while_loop(cond, body, [i, j])
             return r
 
+    run_func_graph(
+        StatelessWhile2Var, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"]
+    )
     run_model_graph(StatelessWhile2Var)
 
 
