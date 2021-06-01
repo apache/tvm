@@ -536,6 +536,7 @@ def test_custom_op_rel_infer_exception():
         fchecked = infer_type(f)
         assert "type relation arg number mismatch!" in str(cm.execption)
 
+
 def test_repeat_register():
     op_name = "custom_log3"
     _op.register(op_name, r"code(cal log of a tensor.)code")
