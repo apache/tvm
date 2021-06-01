@@ -28,6 +28,7 @@ from ..nn.utils import get_pad_tuple
 from ..utils import traverse_inline, get_const_tuple, get_const_int
 from .. import nn
 
+
 def group_conv2d_nchw_int8(data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
     """Compute conv2d internally using conv2d_nchwc layout for int8 dtype"""
     assert data.dtype in ("int8", "uint8")
@@ -42,6 +43,7 @@ def group_conv2d_nchw_int8(data, kernel, strides, padding, dilation, groups, out
 def schedule_group_conv2d_nchw_int8(outs):
     """Create schedule for tensors"""
     return schedule_group_conv2d_NCHWc_int8(outs)
+
 
 @autotvm.register_topi_compute("group_conv2d_nchw.cuda")
 def group_conv2d_nchw(_, data, kernel, stride, padding, dilation, groups, out_dtype="float32"):
