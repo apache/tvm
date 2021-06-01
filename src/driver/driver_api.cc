@@ -135,6 +135,27 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
   }
 }
 
+TVM_REGISTER_GLOBAL("driver.get_binds")
+    .set_body_typed([](const Array<ObjectRef>& args, bool compact,
+                       const Map<te::Tensor, tir::Buffer>& binds) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.get() != NULL) {
+        for (auto kv : binds) {
+          c_binds.insert(std::pair<te::Tensor, tir::Buffer>(kv.first, kv.second));
+        }
+      }
+      Map<te::Tensor, tir::Buffer> out_binds;
+      Array<ObjectRef> out_arg_list;
+      GetBinds(args, compact, c_binds, &out_binds, &out_arg_list);
+
+      // TODO(electriclilies): is there a way to return a pair?
+      Array<ObjectRef> out_arr;
+      out_arr.push_back(out_binds);
+      out_arr.push_back(out_arg_list);
+      return out_arr;
+    });
+
 transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tvm::attr::kTarget, target);
@@ -344,8 +365,8 @@ IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const st
 
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-  // Get the legacy TE pass list
   IRModule mod = ScheduleToModule(sch, args, name, binds);
+  // Get the legacy TE pass list
   auto pass_list = CreatePassList(simple_mode, true);
   return LowerWithPassList(mod, pass_list);
 }

@@ -40,6 +40,29 @@ from tvm.tir.expr import Var
 from . import _ffi_api as ffi
 
 
+def get_binds(args, compact=False, binds=None):
+    """Internal function to get binds and arg_list given arguments.
+    Parameters
+    ----------
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+    compact : bool
+        If the statement has already bound to a compact buffer.
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        Dictionary that maps the Tensor to Buffer which specified the data layout
+        requirement of the function. By default, a new compact buffer is created
+        for each tensor in the argument.
+    Returns
+    -------
+    binds: dict
+        The bind specification
+    arg_list: list
+        The list of symbolic buffers of arguments.
+    """
+    out_arr = ffi.get_binds(args, compact, binds)
+    return out_arr[0], out_arr[1]
+
+
 def schedule_to_module(
     sch: schedule.Schedule,
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
