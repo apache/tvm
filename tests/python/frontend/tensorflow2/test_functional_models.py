@@ -34,7 +34,6 @@ def _function_graph(TestClass):
     output = run_tf_code(f, input_)
     return gdef, input_, output
 
-
 def _model_graph(TestClass):
     model = TestClass()
     with tempfile.TemporaryDirectory() as model_path:
@@ -47,7 +46,6 @@ def _model_graph(TestClass):
     input_ = model.get_input()
     output = run_tf_code(f, input_)
     return gdef, input_, output
-
 
 def run_func_graph(TestClass, runtime="vm"):
     compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
@@ -357,16 +355,23 @@ def test_concat_v2():
     run_all(ConcatV2)
 
 
+def test_multi_output():
+
+    class MultiOutput(tf.Module):
+        def get_input(self):
+            return np.ones((2,2), dtype='float32')
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+        def func(self, x):
+            y = 2*x
+            return x, y
+
+    run_model_graph(MultiOutput)
+
 def test_if():
     class If(tf.Module):
         def get_input(self):
             return np.ones((2,2), dtype='float32')
-
-        def expected_ops(self):
-            return ['Placeholder', 'If', 'Identity', 'Const']
-
-        def expected_lib_ops(self):
-            return ['If', 'Identity', 'Const', 'Mul']
 
         @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
         def func(self, x):
@@ -383,20 +388,15 @@ def test_if():
                 then_branch=double.get_concrete_function(), else_branch=triple.get_concrete_function())
             return output[0]
 
+    run_func_graph(If, runtime="vm")
     run_model_graph(If)
-    run_func_graph(If, use_vm=True)
+
 
 
 def test_stateless_while():
     class StatelessWhile(tf.Module):
         def get_input(self):
             return np.array([6], dtype='float32')
-
-        def expected_ops(self):
-            return ['Identity', 'StatelessWhile', 'Const', 'Placeholder']
-
-        def expected_lib_ops(self):
-            return ['StatelessWhile', 'Squeeze', 'Const', 'Less', 'Add', 'AddV2', 'Identity']
 
         @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
         def func(self, x):
@@ -406,12 +406,13 @@ def test_stateless_while():
             r = tf.while_loop(cond, body, [i])
             return r[0]
 
+    run_func_graph(StatelessWhile, runtime="vm")
     run_model_graph(StatelessWhile)
 
 
 
 def test_stateless_while_2var():
-    class StatelessWhile2Var(StatelessWhile):
+    class StatelessWhile2Var(tf.Module):
         def get_input(self):
             return np.array([20], dtype='float32')
 
