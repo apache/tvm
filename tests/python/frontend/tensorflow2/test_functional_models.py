@@ -34,6 +34,7 @@ def _function_graph(TestClass):
     output = run_tf_code(f, input_)
     return gdef, input_, output
 
+
 def _model_graph(TestClass):
     model = TestClass()
     with tempfile.TemporaryDirectory() as model_path:
@@ -47,11 +48,14 @@ def _model_graph(TestClass):
     output = run_tf_code(f, input_)
     return gdef, input_, output
 
+
 def run_func_graph(TestClass, runtime="vm"):
     compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
 
+
 def run_model_graph(TestClass):
     compare_tf_tvm(*_model_graph(TestClass), runtime="vm")
+
 
 def run_all(TestClass):
     run_model_graph(TestClass)
@@ -61,7 +65,7 @@ def run_all(TestClass):
 
 def test_add_one():
     class AddOne(tf.Module):
-        """ simple function to test x=x+1; scalar as input"""
+        """simple function to test x=x+1; scalar as input"""
 
         def get_input(self):
             return np.array(1.0, dtype="float32")
@@ -356,51 +360,56 @@ def test_concat_v2():
 
 
 def test_multi_output():
-
     class MultiOutput(tf.Module):
         def get_input(self):
-            return np.ones((2,2), dtype='float32')
+            return np.ones((2, 2), dtype="float32")
 
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
         def func(self, x):
-            y = 2*x
+            y = 2 * x
             return x, y
 
     run_model_graph(MultiOutput)
 
+
 def test_if():
     class If(tf.Module):
         def get_input(self):
-            return np.ones((2,2), dtype='float32')
+            return np.ones((2, 2), dtype="float32")
 
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
         def func(self, x):
-            @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
             def double(x):
-                return 2*x
+                return 2 * x
 
-            @tf.function(input_signature=[tf.TensorSpec(shape=(2,2), dtype=tf.float32)])
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
             def triple(x):
-                return 3*x
+                return 3 * x
 
             cond = True
-            output = tf.raw_ops.If(cond=cond, input=[x], Tout=[tf.float32], output_shapes=[(2,2)],
-                then_branch=double.get_concrete_function(), else_branch=triple.get_concrete_function())
+            output = tf.raw_ops.If(
+                cond=cond,
+                input=[x],
+                Tout=[tf.float32],
+                output_shapes=[(2, 2)],
+                then_branch=double.get_concrete_function(),
+                else_branch=triple.get_concrete_function(),
+            )
             return output[0]
 
     run_func_graph(If, runtime="vm")
     run_model_graph(If)
 
 
-
 def test_stateless_while():
     class StatelessWhile(tf.Module):
         def get_input(self):
-            return np.array([6], dtype='float32')
+            return np.array([6], dtype="float32")
 
         @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
         def func(self, x):
-            i = tf.constant(3.)
+            i = tf.constant(3.0)
             cond = lambda i: tf.less(i, x)
             body = lambda i: (tf.add(i, 2),)
             r = tf.while_loop(cond, body, [i])
@@ -410,23 +419,21 @@ def test_stateless_while():
     run_model_graph(StatelessWhile)
 
 
-
 def test_stateless_while_2var():
     class StatelessWhile2Var(tf.Module):
         def get_input(self):
-            return np.array([20], dtype='float32')
+            return np.array([20], dtype="float32")
 
         @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
         def func(self, x):
-            i = tf.constant(3.)
-            j = tf.constant(5.)
-            cond = lambda i,j: tf.less(i+j, x)
-            body = lambda i,j: (tf.add(i, 2), tf.add(j, 3))
+            i = tf.constant(3.0)
+            j = tf.constant(5.0)
+            cond = lambda i, j: tf.less(i + j, x)
+            body = lambda i, j: (tf.add(i, 2), tf.add(j, 3))
             r = tf.while_loop(cond, body, [i, j])
             return r
 
     run_model_graph(StatelessWhile2Var)
-
 
 
 if __name__ == "__main__":
