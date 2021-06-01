@@ -60,10 +60,9 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     queue_create_info.queueCount = 1;
     queue_create_info.pQueuePriorities = &priority;
 
-    VulkanContext ctx;
-    // setup context
-    ctx.phy_device = phy_dev;
-    vkGetPhysicalDeviceProperties(ctx.phy_device, &(ctx.phy_device_prop));
+    VulkanDevice device;
+    device.phy_device = phy_dev;
+    vkGetPhysicalDeviceProperties(device.phy_device, &(device.phy_device_prop));
 
     const auto device_extensions = [&]() {
       std::vector<const char*> required_extensions{};
@@ -81,16 +80,16 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       };
 
       uint32_t device_extension_prop_count;
-      VULKAN_CALL(vkEnumerateDeviceExtensionProperties(ctx.phy_device, nullptr,
+      VULKAN_CALL(vkEnumerateDeviceExtensionProperties(device.phy_device, nullptr,
                                                        &device_extension_prop_count, nullptr));
       std::vector<VkExtensionProperties> device_extension_prop(device_extension_prop_count);
       VULKAN_CALL(vkEnumerateDeviceExtensionProperties(
-          ctx.phy_device, nullptr, &device_extension_prop_count, device_extension_prop.data()));
+          device.phy_device, nullptr, &device_extension_prop_count, device_extension_prop.data()));
 
       return FindEnabledExtensions(device_extension_prop, required_extensions, optional_extensions);
     }();
 
-    ctx.device_properties = VulkanDeviceProperties(instance_, phy_dev, device_extensions);
+    device.device_properties = VulkanDeviceProperties(instance_, phy_dev, device_extensions);
 
     {
       // Enable all features we may use that a device supports.
@@ -105,29 +104,29 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       void** pp_next = &enabled_features.pNext;
       bool needs_float16_int8 = false;
 
-      if (ctx.device_properties.supports_float16) {
+      if (device.device_properties.supports_float16) {
         float16_int8.shaderFloat16 = true;
         needs_float16_int8 = true;
       }
-      if (ctx.device_properties.supports_float64) {
+      if (device.device_properties.supports_float64) {
         enabled_features.features.shaderFloat64 = true;
       }
-      if (ctx.device_properties.supports_int8) {
+      if (device.device_properties.supports_int8) {
         float16_int8.shaderInt8 = true;
         needs_float16_int8 = true;
       }
-      if (ctx.device_properties.supports_int16) {
+      if (device.device_properties.supports_int16) {
         enabled_features.features.shaderInt16 = true;
       }
-      if (ctx.device_properties.supports_int64) {
+      if (device.device_properties.supports_int64) {
         enabled_features.features.shaderInt64 = true;
       }
-      if (ctx.device_properties.supports_8bit_buffer) {
+      if (device.device_properties.supports_8bit_buffer) {
         storage_8bit.storageBuffer8BitAccess = true;
         *pp_next = &storage_8bit;
         pp_next = &storage_8bit.pNext;
       }
-      if (ctx.device_properties.supports_16bit_buffer) {
+      if (device.device_properties.supports_16bit_buffer) {
         storage_16bit.storageBuffer16BitAccess = true;
         *pp_next = &storage_16bit;
         pp_next = &storage_16bit.pNext;
@@ -156,12 +155,12 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
         device_create_info.pNext = nullptr;
         device_create_info.pEnabledFeatures = &enabled_features.features;
       }
-      VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(ctx.device)));
+      VULKAN_CALL(vkCreateDevice(phy_dev, &device_create_info, nullptr, &(device.device)));
     }
 
-    ctx.queue_mutex.reset(new std::mutex());
-    vkGetDeviceQueue(ctx.device, queue_family_index, 0, &(ctx.queue));
-    ctx.queue_family_index = queue_family_index;
+    device.queue_mutex.reset(new std::mutex());
+    vkGetDeviceQueue(device.device, queue_family_index, 0, &(device.queue));
+    device.queue_family_index = queue_family_index;
     // Find suitable memory type for staging and compute
     // Find suitable compute index.
     VkBuffer buffer;
@@ -172,26 +171,26 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     info.flags = 0;
     info.size = 1024;
     info.queueFamilyIndexCount = 1;
-    info.pQueueFamilyIndices = &(ctx.queue_family_index);
+    info.pQueueFamilyIndices = &(device.queue_family_index);
     info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // get staging requirement
     info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    VULKAN_CALL(vkCreateBuffer(ctx.device, &info, nullptr, &buffer));
-    vkGetBufferMemoryRequirements(ctx.device, buffer, &req_staging);
-    vkDestroyBuffer(ctx.device, buffer, nullptr);
+    VULKAN_CALL(vkCreateBuffer(device.device, &info, nullptr, &buffer));
+    vkGetBufferMemoryRequirements(device.device, buffer, &req_staging);
+    vkDestroyBuffer(device.device, buffer, nullptr);
     // get compute requirement
     info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    VULKAN_CALL(vkCreateBuffer(ctx.device, &info, nullptr, &buffer));
-    vkGetBufferMemoryRequirements(ctx.device, buffer, &req_compute);
-    vkDestroyBuffer(ctx.device, buffer, nullptr);
+    VULKAN_CALL(vkCreateBuffer(device.device, &info, nullptr, &buffer));
+    vkGetBufferMemoryRequirements(device.device, buffer, &req_compute);
+    vkDestroyBuffer(device.device, buffer, nullptr);
 
     // Query phyiscal device property
     // find a memory that is host visible, no need to be consistent
     int win_rank = -1;
     VkPhysicalDeviceMemoryProperties prop;
-    vkGetPhysicalDeviceMemoryProperties(ctx.phy_device, &prop);
+    vkGetPhysicalDeviceMemoryProperties(device.phy_device, &prop);
 
     for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
       VkMemoryType ty = prop.memoryTypes[k];
@@ -205,8 +204,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       rank += ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
       if (rank > win_rank) {
         win_rank = rank;
-        ctx.staging_mtype_index = k;
-        ctx.coherent_staging = ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        device.staging_mtype_index = k;
+        device.coherent_staging = ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
       }
     }
     ICHECK_GE(win_rank, 0) << "Cannot find suitable staging memory on device.";
@@ -225,35 +224,35 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
       rank += !(ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
       if (rank > win_rank) {
         win_rank = rank;
-        ctx.compute_mtype_index = k;
+        device.compute_mtype_index = k;
       }
     }
     ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
 
-    if (ctx.device_properties.supports_push_descriptor) {
-      ctx.descriptor_template_khr_functions =
-          std::make_unique<VulkanDescriptorTemplateKHRFunctions>(ctx.device);
+    if (device.device_properties.supports_push_descriptor) {
+      device.descriptor_template_khr_functions =
+          std::make_unique<VulkanDescriptorTemplateKHRFunctions>(device.device);
     }
 
-    if (ctx.device_properties.supports_dedicated_allocation) {
-      ctx.get_buffer_memory_requirements_2_functions =
-          std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(ctx.device);
+    if (device.device_properties.supports_dedicated_allocation) {
+      device.get_buffer_memory_requirements_2_functions =
+          std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(device.device);
     }
 
-    context_.push_back(std::move(ctx));
+    devices_.push_back(std::move(device));
   }
 
-  LOG(INFO) << "Initialize Vulkan with " << context_.size() << " devices..";
-  for (size_t i = 0; i < context_.size(); ++i) {
-    LOG(INFO) << "vulkan(" << i << ")=\'" << context_[i].phy_device_prop.deviceName
-              << "\' phy_dev_id=" << context_[i].phy_device
-              << " use_immediate=" << context_[i].UseImmediate();
+  LOG(INFO) << "Initialize Vulkan with " << devices_.size() << " devices..";
+  for (size_t i = 0; i < devices_.size(); ++i) {
+    LOG(INFO) << "vulkan(" << i << ")=\'" << devices_[i].phy_device_prop.deviceName
+              << "\' phy_dev_id=" << devices_[i].phy_device
+              << " use_immediate=" << devices_[i].UseImmediate();
   }
 }
 
 VulkanDeviceAPI::~VulkanDeviceAPI() {
-  for (auto& vctx : context_) {
-    vkDestroyDevice(vctx.device, nullptr);
+  for (auto& device : devices_) {
+    vkDestroyDevice(device.device, nullptr);
   }
 }
 
@@ -262,11 +261,11 @@ void VulkanDeviceAPI::SetDevice(Device dev) { VulkanThreadEntry::ThreadLocal()->
 void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
-    *rv = static_cast<int>(index < context_.size());
+    *rv = static_cast<int>(index < devices_.size());
     return;
   }
 
-  const auto& prop = context(index).device_properties;
+  const auto& prop = device(index).device_properties;
 
   switch (kind) {
     case kMaxThreadsPerBlock: {
@@ -333,7 +332,7 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 
 void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
-  const auto& prop = context(index).device_properties;
+  const auto& prop = device(index).device_properties;
 
   if (property == "supports_float16") {
     *rv = prop.supports_float16;
@@ -424,10 +423,10 @@ void* VulkanDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignmen
     // Vulkan seems to have issues if we return nullptr on zero size alloc
     nbytes = 1;
   }
-  const auto& vctx = context(dev.device_id);
+  const auto& device = this->device(dev.device_id);
   auto usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-  return CreateBuffer(vctx, nbytes, usage, vctx.compute_mtype_index);
+  return CreateBuffer(device, nbytes, usage, device.compute_mtype_index);
 }
 
 void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
@@ -435,10 +434,10 @@ void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   // finish all the vulkan commands that reference the buffer.
   StreamSync(dev, nullptr);
 
-  const auto& vctx = context(dev.device_id);
+  const auto& device = this->device(dev.device_id);
   auto* pbuf = static_cast<VulkanBuffer*>(ptr);
-  vkDestroyBuffer(vctx.device, pbuf->buffer, nullptr);
-  vkFreeMemory(vctx.device, pbuf->memory, nullptr);
+  vkDestroyBuffer(device.device, pbuf->buffer, nullptr);
+  vkFreeMemory(device.device, pbuf->memory, nullptr);
   delete pbuf;
 }
 
@@ -511,7 +510,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
 
   } else if (from_dev_type == kDLVulkan && to_dev_type == kDLCPU) {
     const auto* from_buf = static_cast<const VulkanBuffer*>(from);
-    const auto& vctx = context(dev_from.device_id);
+    const auto& device = this->device(dev_from.device_id);
     auto* temp = VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_from.device_id, size);
     VulkanThreadEntry::ThreadLocal()
         ->Stream(dev_from.device_id)
@@ -524,32 +523,32 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
                           &copy_info);
         });
     VulkanThreadEntry::ThreadLocal()->Stream(dev_from.device_id)->Synchronize();
-    if (!vctx.coherent_staging) {
+    if (!device.coherent_staging) {
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
       mrange.pNext = nullptr;
       mrange.memory = temp->vk_buf->memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
-      VULKAN_CALL(vkInvalidateMappedMemoryRanges(vctx.device, 1, &mrange));
+      VULKAN_CALL(vkInvalidateMappedMemoryRanges(device.device, 1, &mrange));
     }
     memcpy(static_cast<char*>(to) + to_offset, static_cast<char*>(temp->host_addr), size);
   } else if (from_dev_type == kDLCPU && to_dev_type == kDLVulkan) {
-    const auto& vctx = context(dev_to.device_id);
+    const auto& device = this->device(dev_to.device_id);
     const auto* to_buf = static_cast<const VulkanBuffer*>(to);
     VulkanStagingBuffer* temp =
         VulkanThreadEntry::ThreadLocal()->StagingBuffer(dev_to.device_id, size);
     memcpy(temp->host_addr, static_cast<const char*>(from) + from_offset, size);
     // host side flush if access is not coherent.
     // so writes from CPU is visible to GPU
-    if (!vctx.coherent_staging) {
+    if (!device.coherent_staging) {
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
       mrange.pNext = nullptr;
       mrange.memory = temp->vk_buf->memory;
       mrange.offset = 0;
       mrange.size = VK_WHOLE_SIZE;  // size;
-      VULKAN_CALL(vkFlushMappedMemoryRanges(vctx.device, 1, &mrange));
+      VULKAN_CALL(vkFlushMappedMemoryRanges(device.device, 1, &mrange));
     }
 
     VulkanThreadEntry::ThreadLocal()
@@ -580,10 +579,10 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
   }
 }
 
-const VulkanContext& VulkanDeviceAPI::context(size_t device_id) const {
-  ICHECK_LT(device_id, context_.size()) << "Requested Vulkan device_id=" << device_id
-                                        << ", but only " << context_.size() << " devices present";
-  return context_[device_id];
+const VulkanDevice& VulkanDeviceAPI::device(size_t device_id) const {
+  ICHECK_LT(device_id, devices_.size()) << "Requested Vulkan device_id=" << device_id
+                                        << ", but only " << devices_.size() << " devices present";
+  return devices_[device_id];
 }
 
 std::vector<uint32_t> VulkanDeviceAPI::GetComputeQueueFamilies(VkPhysicalDevice phy_dev) {

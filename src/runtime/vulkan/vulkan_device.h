@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_VULKAN_CONTEXT_H_
-#define TVM_RUNTIME_VULKAN_VULKAN_CONTEXT_H_
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
@@ -93,7 +93,7 @@ struct VulkanDeviceProperties {
   uint32_t max_spirv_version{0x10000};
 };
 
-struct VulkanContext {
+struct VulkanDevice {
   // physical device
   VkPhysicalDevice phy_device{nullptr};
 
@@ -126,17 +126,17 @@ struct VulkanContext {
   bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
 };
 
-uint32_t FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
+uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop);
 
-VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes,
+VkBufferCreateInfo MakeBufferCreateInfo(const VulkanDevice& device, size_t nbytes,
                                         VkBufferUsageFlags usage);
 
-VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
+VulkanBuffer* CreateBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
                            uint32_t mem_type_index);
 
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VULKAN_VULKAN_CONTEXT_H_
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_

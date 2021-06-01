@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "vulkan/vulkan_core.h"
-#include "vulkan_context.h"
+#include "vulkan_device.h"
 #include "vulkan_instance.h"
 #include "vulkan_thread_entry.h"
 
@@ -69,12 +69,12 @@ class VulkanDeviceAPI final : public DeviceAPI {
   // End of required methods for the DeviceAPI interface
 
  public:
-  /*! \brief Return the context associated with a specific device.
+  /*! \brief Return the VulkanDevice associated with a specific device_id
    *
    * These are constructed during VulkanDeviceAPI initialization, so
    * this function returns immediately.
    */
-  const VulkanContext& context(size_t device_id) const;
+  const VulkanDevice& device(size_t device_id) const;
 
   /*! \brief Returns a property to be stored in a target.
    *
@@ -88,7 +88,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
 
   VulkanInstance instance_;
   // The physical devices, have 1 to 1 mapping to devices
-  std::vector<VulkanContext> context_;
+  std::vector<VulkanDevice> devices_;
 };
 
 }  // namespace vulkan

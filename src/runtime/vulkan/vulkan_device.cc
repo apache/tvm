@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "vulkan_context.h"
+#include "vulkan_device.h"
 
 #include <algorithm>
 #include <unordered_map>
@@ -213,16 +213,16 @@ VulkanGetBufferMemoryRequirements2Functions::VulkanGetBufferMemoryRequirements2F
       vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements2KHR"));
 }
 
-uint32_t FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
+uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
                         VkMemoryPropertyFlags req_prop) {
   VkBuffer buffer;
-  VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
+  VULKAN_CALL(vkCreateBuffer(device.device, &info, nullptr, &buffer));
 
   VkMemoryRequirements mem_reqs;
-  vkGetBufferMemoryRequirements(vctx.device, buffer, &mem_reqs);
+  vkGetBufferMemoryRequirements(device.device, buffer, &mem_reqs);
   uint32_t type_bits = mem_reqs.memoryTypeBits;
   VkPhysicalDeviceMemoryProperties phy_mem_prop;
-  vkGetPhysicalDeviceMemoryProperties(vctx.phy_device, &phy_mem_prop);
+  vkGetPhysicalDeviceMemoryProperties(device.phy_device, &phy_mem_prop);
   for (uint32_t i = 0; i < phy_mem_prop.memoryTypeCount; i++) {
     if ((type_bits & 1) == 1 &&
         (phy_mem_prop.memoryTypes[i].propertyFlags & req_prop) == req_prop) {
@@ -234,7 +234,7 @@ uint32_t FindMemoryType(const VulkanContext& vctx, VkBufferCreateInfo info,
   return 0;
 }
 
-VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes,
+VkBufferCreateInfo MakeBufferCreateInfo(const VulkanDevice& device, size_t nbytes,
                                         VkBufferUsageFlags usage) {
   VkBufferCreateInfo info;
   info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -242,24 +242,24 @@ VkBufferCreateInfo MakeBufferCreateInfo(const VulkanContext& vctx, size_t nbytes
   info.flags = 0;
   info.size = nbytes;
   info.queueFamilyIndexCount = 1;
-  info.pQueueFamilyIndices = &(vctx.queue_family_index);
+  info.pQueueFamilyIndices = &(device.queue_family_index);
   info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   info.usage = usage;
   return info;
 }
 
-VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsageFlags usage,
+VulkanBuffer* CreateBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
                            uint32_t mem_type_index) {
-  auto info = MakeBufferCreateInfo(vctx, nbytes, usage);
+  auto info = MakeBufferCreateInfo(device, nbytes, usage);
   // create buffer
   VkBuffer buffer;
-  VULKAN_CALL(vkCreateBuffer(vctx.device, &info, nullptr, &buffer));
+  VULKAN_CALL(vkCreateBuffer(device.device, &info, nullptr, &buffer));
 
   // bind to memory
   bool dedicated_allocation = false;
   VkMemoryRequirements2KHR req2;
 
-  if (vctx.get_buffer_memory_requirements_2_functions) {
+  if (device.get_buffer_memory_requirements_2_functions) {
     VkBufferMemoryRequirementsInfo2KHR req_info2;
     req_info2.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2_KHR;
     req_info2.pNext = 0;
@@ -273,8 +273,8 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     dedicated_req.pNext = 0;
     req2.pNext = &dedicated_req;
 
-    vctx.get_buffer_memory_requirements_2_functions->vkGetBufferMemoryRequirements2KHR(
-        vctx.device, &req_info2, &req2);
+    device.get_buffer_memory_requirements_2_functions->vkGetBufferMemoryRequirements2KHR(
+        device.device, &req_info2, &req2);
     dedicated_allocation =
         dedicated_req.requiresDedicatedAllocation || dedicated_req.prefersDedicatedAllocation;
   }
@@ -286,7 +286,7 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     minfo.pNext = nullptr;
     minfo.allocationSize = info.size;
     minfo.memoryTypeIndex = mem_type_index;
-    VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
+    VULKAN_CALL(vkAllocateMemory(device.device, &minfo, nullptr, &memory));
   } else {
     VkMemoryAllocateInfo minfo;
     minfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -300,9 +300,9 @@ VulkanBuffer* CreateBuffer(const VulkanContext& vctx, size_t nbytes, VkBufferUsa
     mdinfo.image = 0;
     mdinfo.buffer = buffer;
     minfo.pNext = &mdinfo;
-    VULKAN_CALL(vkAllocateMemory(vctx.device, &minfo, nullptr, &memory));
+    VULKAN_CALL(vkAllocateMemory(device.device, &minfo, nullptr, &memory));
   }
-  VULKAN_CALL(vkBindBufferMemory(vctx.device, buffer, memory, 0));
+  VULKAN_CALL(vkBindBufferMemory(device.device, buffer, memory, 0));
   VulkanBuffer* pbuf = new VulkanBuffer();
   pbuf->memory = memory;
   pbuf->buffer = buffer;
@@ -332,14 +332,15 @@ VulkanHostVisibleBuffer* GetOrAllocate(
     DeleteHostVisibleBuffer(&buf);
   }
 
-  const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
+  const auto& vulkan_device = VulkanDeviceAPI::Global()->device(device_id);
 
   if (buf.device == nullptr) {
-    buf.device = vctx.device;
+    buf.device = vulkan_device.device;
   }
   if (buf.host_addr == nullptr) {
-    buf.vk_buf = CreateBuffer(vctx, size, usage, mem_type_index);
-    VULKAN_CALL(vkMapMemory(vctx.device, buf.vk_buf->memory, 0, size, 0, &(buf.host_addr)));
+    buf.vk_buf = CreateBuffer(vulkan_device, size, usage, mem_type_index);
+    VULKAN_CALL(
+        vkMapMemory(vulkan_device.device, buf.vk_buf->memory, 0, size, 0, &(buf.host_addr)));
     buf.size = size;
   }
   return &buf;

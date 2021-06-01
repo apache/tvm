@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "vulkan_common.h"
-#include "vulkan_context.h"
+#include "vulkan_device.h"
 
 namespace tvm {
 namespace runtime {
@@ -62,13 +62,13 @@ struct VulkanStreamToken {
  */
 class VulkanStream {
  public:
-  explicit VulkanStream(const VulkanContext* vctx);
+  explicit VulkanStream(const VulkanDevice* device);
 
   ~VulkanStream();
 
   /*! \brief Push the kernel onto the stream's command buffer.
    *
-   * If context.UseImmediate() is true, the kernel is executed
+   * If device.UseImmediate() is true, the kernel is executed
    * immediately to update the command buffer.  Otherwise, it is added
    * to the list of deferred updates to be pushed onto the command
    * buffer.
@@ -80,7 +80,7 @@ class VulkanStream {
 
   /*! \brief Push the kernel onto the stream's command buffer.
    *
-   * Can only be called if context.UseImmediate() is false.  The
+   * Can only be called if device.UseImmediate() is false.  The
    * kernel is delayed, and isn't pushed to the command buffer until
    * all kernels are collected.
    *
@@ -102,7 +102,7 @@ class VulkanStream {
   void Synchronize();
 
  private:
-  const VulkanContext* vctx_;
+  const VulkanDevice* device_;
   std::unique_ptr<VulkanStreamState> state_;
   // An index of deferred tokens, allowing us to efficiently detect duplicated
   // deferred_initializer blocks.
