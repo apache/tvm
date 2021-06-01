@@ -892,8 +892,10 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end", axes=None):
         the size of a slice starting at the location specified by begin. If end[i]
         is -1, all remaining elements in that dimension are included in the slice.
 
-    axes : List[int]
-        TODO
+    axes : Tuple[int] or List[int], optional
+        Axes along which slicing is applied. When it is specified, the length of begin, end,
+        strides, and axes must be equal. Moreover, begin, end, strides, and axes must be
+        static (cannot be relay.Expr).
 
     Returns
     -------

@@ -550,6 +550,19 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
   return result;
 }
 
+/*!
+ * \brief strided_slice of a tensor where begin/end/stride can be mixed static and dynamic
+ *
+ * \param x The input tensor
+ * \param begin The indices to begin with in the slicing
+ * \param end Indicies indicating end of the slice
+ * \param strides Specifies the stride values, it can be negative
+ * in that case, the input tensor will be reversed in that particular axis
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the split operation
+ */
 inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
                                     const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
                                     std::string name = "T_dynamic_strided_slice",
@@ -625,6 +638,20 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
   return dynamic_strided_slice(x, begin_expr, end_expr, strides_expr, name, tag);
 }
 
+/*!
+ * \brief Calcluate the output shape of strided_slice, the entry point for Relay type relation
+ *
+ * \param ishape The input tensor shape
+ * \param begin The indices to begin with in the slicing
+ * \param end Indicies indicating end of the slice
+ * \param strides Specifies the stride values, it can be negative
+ * in that case, the input tensor will be reversed in that particular axis
+ * \param axes Axes along which slicing is applied. When it is specified, the length of begin, end,
+ * strides, and axes argument must be equal
+ * \param slice_mode Specifies the slice mode
+ *
+ * \return The output shape of strided_slice using the arguments above
+ */
 inline Array<PrimExpr> StridedSliceOutputShape(
     const Array<PrimExpr>& ishape, const Array<Integer>& begin, const Array<Integer>& end,
     const Array<Integer>& strides, const Array<Integer>& axes, const std::string& slice_mode) {
@@ -645,7 +672,8 @@ inline Array<PrimExpr> StridedSliceOutputShape(
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
- * \param axes TODO
+ * \param axes Axes along which slicing is applied. When it is specified, the length of begin, end,
+ * strides, and axes argument must be equal
  * \param slice_mode Specifies the slice mode
  * \param name The name of the operation
  * \param tag The tag to mark the operation
