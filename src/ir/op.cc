@@ -129,7 +129,7 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
           // otherwise, inference failure happens
           if (ret_type.defined()) {
             // the last argument is output
-            // TODO: support multiple outputs
+            // TODO(xqdan): support multiple outputs
             reporter->Assign(args.back(), ret_type);
             return true;
           }
