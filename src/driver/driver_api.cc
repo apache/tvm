@@ -150,9 +150,7 @@ TVM_REGISTER_GLOBAL("driver.get_binds")
 
       // TVM object system doesn't have a pair object, so we'll put both ret values in an array
       // and return that.
-      Array<ObjectRef> out_arr;
-      out_arr.push_back(out_binds);
-      out_arr.push_back(out_arg_list);
+      Array<ObjectRef> out_arr = {out_binds, out_arg_list};
       return out_arr;
     });
 
