@@ -195,9 +195,9 @@ def generate_packer_config(file_path, providers):
 
     provisioners.append(
         {
-            "type": "shell-local",
+            "type": "shell",
             "script": "../../../../../docker/install/ubuntu_init_zephyr_project.sh",
-            "execute_command": f"sh '{{.Path}}' ~/zephyrproject {ZEPHYR_BRANCH} --commit {ZEPHYR_COMMIT}"
+            "execute_command": f"chmod +x {{{{ .Path }}}}; source ~/.profile; {{{{ .Vars }}}} {{{{ .Path }}}} ~/zephyrproject {ZEPHYR_BRANCH} --commit {ZEPHYR_COMMIT}",
         }
     )
 
