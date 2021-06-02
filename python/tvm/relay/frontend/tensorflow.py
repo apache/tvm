@@ -817,11 +817,7 @@ def convert_combined_nms_with_all_class_nms(
     box_range = _op.arange(
         _op.const(0, dtype="int64"), _op.const(max_total_size, dtype="int64"), dtype="int64"
     )
-    tile_batch_reps = (
-        _op.concatenate([batch_size, 1], axis=0)
-        if isinstance(batch_size, tvm.tir.Any)
-        else _op.const([batch_size, 1])
-    )
+    tile_batch_reps = _op.const([batch_size, 1])
     box_range_2d = _op.tile(box_range, tile_batch_reps)
     valid_mask = _op.cast(
         _op.less(box_range_2d, _op.expand_dims(num_detections, axis=1)), "float32"
