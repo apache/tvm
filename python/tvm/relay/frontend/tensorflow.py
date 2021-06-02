@@ -907,7 +907,11 @@ def _combined_nms():
         q = boxes_shape[2]
         num_classes = scores_shape[2]
 
-        if q == 1 and isinstance(num_anchors, int):
+        assert isinstance(batch_size, int) and isinstance(
+            num_anchors, int
+        ), "Dynamic inputs not supported yet"
+
+        if q == 1:
             boxes = _op.squeeze(boxes, axis=[2])
             scores_trans = _op.transpose(scores, [0, 2, 1])
             max_output_boxes_per_batch = num_anchors * num_classes
