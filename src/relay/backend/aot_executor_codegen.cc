@@ -551,7 +551,14 @@ class AOTExecutorCodegen : public ExprVisitor {
   TargetsMap targets_;
   /*! \brief target host */
   Target target_host_;
-  /*! \brief untyped operators flag */
+  /*!
+   * \brief unpacked api toggle
+   * When set to true the code generated will use unpacked calls to functions:
+   * func(void* arg0, void* arg1)
+   * Rather than packed calls:
+   * func(void* args)
+   * Defaults to using the packed calling convention
+   */
   Bool use_unpacked_api_;
 
   /*!

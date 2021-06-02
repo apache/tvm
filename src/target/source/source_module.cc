@@ -202,7 +202,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
     }
     code_ << ");\n";
-    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_entrypoint_name;
+    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_module_main;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
     code_ << "return " << ::tvm::runtime::symbol::tvm_run_func_prefix << "(";
@@ -224,7 +224,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle);\n";
-    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_entrypoint_name;
+    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_module_main;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
     code_ << "return " << ::tvm::runtime::symbol::tvm_run_func_prefix;
@@ -244,7 +244,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       GenerateEntrypointForPackedAPI();
     }
     code_ << "const tvm_model_t network = {\n"
-          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_entrypoint_name << ",\n"
+          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_module_main << ",\n"
           << "    .num_input_tensors = " << metadata_->num_inputs << ",\n"
           << "    .num_output_tensors = " << metadata_->num_outputs << ", \n"
           << "};\n";

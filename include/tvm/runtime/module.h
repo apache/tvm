@@ -232,8 +232,6 @@ constexpr const char* tvm_param_prefix = "__tvm_param__";
 constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
 /*! \brief The main AOT executor function */
 constexpr const char* tvm_run_func_prefix = "tvm__run_func";
-/*! \brief The entrypoint function to the generated network */
-constexpr const char* tvm_entrypoint_name = "tvm_entrypoint";
 }  // namespace symbol
 
 // implementations of inline functions.
