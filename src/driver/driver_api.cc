@@ -198,7 +198,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition, bool for
         << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer";
     int phase_num_val = phase_num->value;
 
-    CHECK_GT(phase_num_val, 0);
+    CHECK_GE(phase_num_val, 0);
 
     auto pass_node = phase_pass[1].as<tvm::transform::PassNode>();
     auto pass = GetRef<tvm::transform::Pass>(pass_node);
