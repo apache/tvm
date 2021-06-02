@@ -217,13 +217,53 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
 Map<String, ObjectRef> UpdateVulkanAttrs(Map<String, ObjectRef> attrs) {
   if (attrs.count("from_device")) {
     int device_id = Downcast<Integer>(attrs.at("from_device"));
-    const PackedFunc* generate_target = runtime::Registry::Get("device_api.vulkan.generate_target");
-    ICHECK(generate_target)
+    Device device{kDLVulkan, device_id};
+    const PackedFunc* get_target_property =
+        runtime::Registry::Get("device_api.vulkan.get_target_property");
+    ICHECK(get_target_property)
         << "Requested to read Vulkan parameters from device, but no Vulkan runtime available";
-    Target target = (*generate_target)(device_id).AsObjectRef<Target>();
-    for (auto& kv : target->Export()) {
-      if (!attrs.count(kv.first)) {
-        attrs.Set(kv.first, kv.second);
+
+    // Current vulkan implementation is partially a proof-of-concept,
+    // with long-term goal to move the -from_device functionality to
+    // TargetInternal::FromConfig, and to be usable by all targets.
+    // The duplicate list of parameters is needed until then, since
+    // TargetKind::Get("vulkan")->key2vtype_ is private.
+    std::vector<const char*> bool_opts = {
+        "supports_float16",         "supports_float32",
+        "supports_float64",         "supports_int8",
+        "supports_int16",           "supports_int32",
+        "supports_int64",           "supports_8bit_buffer",
+        "supports_16bit_buffer",    "supports_storage_buffer_storage_class",
+        "supports_push_descriptor", "supports_dedicated_allocation"};
+    std::vector<const char*> int_opts = {"supported_subgroup_operations",
+                                         "max_num_threads",
+                                         "thread_warp_size",
+                                         "max_block_size_x",
+                                         "max_block_size_y",
+                                         "max_block_size_z",
+                                         "max_push_constants_size",
+                                         "max_uniform_buffer_range",
+                                         "max_storage_buffer_range",
+                                         "max_per_stage_descriptor_storage_buffer",
+                                         "max_shared_memory_per_block",
+                                         "driver_version",
+                                         "vulkan_api_version",
+                                         "max_spirv_version"};
+    std::vector<const char*> str_opts = {"device_name"};
+
+    for (auto& key : bool_opts) {
+      if (!attrs.count(key)) {
+        attrs.Set(key, Bool(static_cast<bool>((*get_target_property)(device, key))));
+      }
+    }
+    for (auto& key : int_opts) {
+      if (!attrs.count(key)) {
+        attrs.Set(key, Integer(static_cast<int64_t>((*get_target_property)(device, key))));
+      }
+    }
+    for (auto& key : str_opts) {
+      if (!attrs.count(key)) {
+        attrs.Set(key, (*get_target_property)(device, key));
       }
     }
 
@@ -234,8 +274,8 @@ Map<String, ObjectRef> UpdateVulkanAttrs(Map<String, ObjectRef> attrs) {
   // The priority should be user-specified > device-query > default,
   // but defaults defined in .add_attr_option() are already applied by
   // this point.  Longer-term, would be good to add a
-  // `DeviceAPI::GenerateTarget` function and extend "from_device" to
-  // work for all runtimes.
+  // `DeviceAPI::GetTargetProperty` function and extend "from_device"
+  // to work for all runtimes.
   std::unordered_map<String, ObjectRef> defaults = {{"supports_float32", Bool(true)},
                                                     {"supports_int32", Bool(true)},
                                                     {"max_num_threads", Integer(256)},
