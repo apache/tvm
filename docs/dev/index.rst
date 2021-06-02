@@ -245,7 +245,7 @@ for learning-based optimizations.
 
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    runtime
    debugger

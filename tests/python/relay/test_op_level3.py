@@ -1959,7 +1959,14 @@ def test_unique():
             uniq = uniq[order].astype(data.dtype)
             inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
             counts = counts[order].astype("int32")
-        return [uniq.astype(data.dtype), inverse.astype("int32"), counts, num_uniq]
+            index = np.sort(index)  # In unsorted case, need to sort the index of first occurence
+        return [
+            uniq.astype(data.dtype),
+            index.astype("int32"),
+            inverse.astype("int32"),
+            num_uniq,
+            counts,
+        ]
 
     def verify_unique(n, dtype, is_dyn=False, is_sorted=False, return_counts=False):
         if is_dyn:
@@ -1980,18 +1987,26 @@ def test_unique():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                tvm_res = intrp.evaluate()(x_data)
-                np_res = calc_numpy_unique(x_data, is_sorted)
+                tvm_res = intrp.evaluate()(
+                    x_data
+                )  # unique, indices, inverse_indices, num_unique, (counts)
+                np_res = calc_numpy_unique(
+                    x_data, is_sorted
+                )  # unique, indices, inverse_indices, num_unique, counts
                 num_unique = np_res[3][0]
-                assert num_unique == tvm_res[2].numpy()[0]
+
+                # num_unique
+                assert num_unique == tvm_res[3].numpy()[0]
                 # unique
                 tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
+                # indices
+                tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
                 # inverse_indices
-                tvm.testing.assert_allclose(tvm_res[1].numpy(), np_res[1], rtol=1e-5)
+                tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
                 # counts
                 if return_counts:
                     tvm.testing.assert_allclose(
-                        tvm_res[3].numpy()[:num_unique], np_res[2], rtol=1e-5
+                        tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5
                     )
 
     for dtype in ["int32", "int64"]:

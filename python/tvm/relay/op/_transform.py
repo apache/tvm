@@ -1045,24 +1045,28 @@ def where_shape_func(attrs, inputs, _):
 def _unique_shape(data_shape):
     unique_shape = output_tensor((1,), "int64")
     indices_shape = output_tensor((1,), "int64")
+    inverse_indices_shape = output_tensor((1,), "int64")
     num_unique_shape = output_tensor((1,), "int64")
     unique_shape[0] = data_shape[0]
     indices_shape[0] = data_shape[0]
+    inverse_indices_shape[0] = data_shape[0]
     num_unique_shape[0] = int64(1)
-    return (unique_shape, indices_shape, num_unique_shape)
+    return (unique_shape, indices_shape, inverse_indices_shape, num_unique_shape)
 
 
 @script
 def _unique_with_counts_shape(data_shape):
     unique_shape = output_tensor((1,), "int64")
     indices_shape = output_tensor((1,), "int64")
+    inverse_indices_shape = output_tensor((1,), "int64")
     num_unique_shape = output_tensor((1,), "int64")
     counts_shape = output_tensor((1,), "int64")
     unique_shape[0] = data_shape[0]
     indices_shape[0] = data_shape[0]
+    inverse_indices_shape[0] = data_shape[0]
     num_unique_shape[0] = int64(1)
     counts_shape[0] = data_shape[0]
-    return (unique_shape, indices_shape, num_unique_shape, counts_shape)
+    return (unique_shape, indices_shape, inverse_indices_shape, num_unique_shape, counts_shape)
 
 
 @_reg.register_shape_func("unique", False)
