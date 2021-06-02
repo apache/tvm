@@ -119,6 +119,38 @@ def collect_selected_indices(num_class, selected_indices, num_detections, row_of
 def collect_selected_indices_and_scores(
     selected_indices, selected_scores, num_detections, row_offsets, num_total_detections, ir
 ):
+    """Collect selected indices and scores from the core NMS loop into one linear output
+
+    Parameters
+    ----------
+    num_class : int
+
+    selected_indices: tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes), representing the indices
+        of selected boxes by the core NMS loop.
+
+    selected_indices: tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes), representing the scores
+        of selected boxes by the core NMS loop.
+
+    num_detections tvm.te.Tensor
+        2-D tensor with shape (batch_size, num_classes), representing
+        the number of boxes selected by the core NMS loop, per batch and class
+
+    row_offsets tvm.te.Tensor
+        2-D tensor with shape (batch_size, num_classes), this should be the exclusive scan
+        of num_detections along axis 1
+
+    ir : function
+        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py
+
+    Returns
+    -------
+    out : [tvm.te.Tensor, tvm.te.Tensor]
+        The output is two tensors. The first is indices of size
+        (batch_size, num_class* num_boxes, 2), and the second is scores of size
+        (batch_size, num_class* num_boxes).
+    """
     batch_size, num_class = row_offsets.shape
     num_boxes = selected_indices.shape[1]
     return te.extern(
@@ -241,13 +273,17 @@ def run_all_class_nms(
     nms_loop : function
         A core NMS loop, see its usage in vision/nms.py and cuda/nms.py
 
+    return_scores : bool, optional
+        Whether or not to return selected scores, needed by the tensorflow output format.
+
     Returns
     -------
-    out : [tvm.te.Tensor, tvm.te.Tensor]
-        The output is two tensors, the first is indices of size
-        (batch_size * num_class, num_boxes) and the second is a tensor
+    out : a list of tvm.te.Tensor
+        The output is three tensors, the first and second are indices and scores of size
+        (batch_size * num_class, num_boxes), and the third is a tensor
         num_selected_boxes of shape (batch_size * num_class,) representing the total number of
-        selected boxes per batch and class.
+        selected boxes per batch and class. If return_scores is False, the second output is
+        None.
     """
     batch, num_boxes, _ = boxes.shape
     batch_class = sorted_scores.shape[0]

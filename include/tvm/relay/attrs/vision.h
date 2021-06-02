@@ -124,7 +124,7 @@ struct AllClassNonMaximumSuppressionAttrs
     TVM_ATTR_FIELD(output_format)
         .set_default("onnx")
         .describe(
-            "Output format, onnx or tensorflow. Returns outputs so that they can be easily "
+            "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
             "consumed by each frontend.");
   }
 };

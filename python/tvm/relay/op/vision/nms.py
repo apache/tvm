@@ -187,7 +187,7 @@ def all_class_non_max_suppression(
     Returns
     -------
     out : relay.Tuple
-        If `output_format` is 'onnx', the output is a relay.Tuple of two tensors, the first is
+        If `output_format` is "onnx", the output is a relay.Tuple of two tensors, the first is
         `indices` of size `(batch_size * num_class* num_boxes , 3)` and the second is a scalar
         tensor `num_total_detection` of shape `(1,)` representing the total number of selected
         boxes. The three values in `indices` encode batch, class, and box indices.
@@ -196,7 +196,7 @@ def all_class_non_max_suppression(
         `batch_size * num_class* num_boxes` rows of indices,  only the first `num_total_detection`
         rows are valid.
 
-        If `output_format` is 'tensorflow', the output is a relay.Tuple of three tensors, the first
+        If `output_format` is "tensorflow", the output is a relay.Tuple of three tensors, the first
         is `indices` of size `(batch_size, num_class * num_boxes , 2)`, the second is `scores` of
         size `(batch_size, num_class * num_boxes)`, and the third is `num_total_detection` of size
         `(batch_size,)` representing the total number of selected boxes per batch. The two values
