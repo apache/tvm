@@ -299,6 +299,15 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
     assert return_code in (0, 1), f'{" ".join(remove_args)} returned exit code {return_code}'
     subprocess.check_call(["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir)
 
+    # Build QEMU
+    tvm_home = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
+    ).strip()
+    qemu_cmd = (
+        f"cd {tvm_home} && sudo docker/install/ubuntu_install_qemu.sh --target-list arm-softmmu"
+    )
+    subprocess.check_call(["vagrant", "ssh", "-c", qemu_cmd], cwd=release_test_dir)
+
     return True
 
 
@@ -309,7 +318,7 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
         machine_uuid = f.read()
 
     # Check if target is not QEMU
-    if test_config["vid_hex"] >= 0 and test_config["pid_hex"] >= 0:
+    if test_config["vid_hex"] and test_config["pid_hex"]:
         ATTACH_USB_DEVICE[provider_name](
             machine_uuid,
             vid_hex=test_config["vid_hex"],
