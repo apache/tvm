@@ -1032,7 +1032,7 @@ def verify_any_strided_slice(
     mod = tvm.IRModule()
     data = relay.var("data", shape=data_shape, dtype="float32")
     if const_attrs:
-        data = relay.var("data", shape=data_np_shape, dtype="float32")
+        data = relay.var("data", shape=data_shape, dtype="float32")
         begin = relay.const(np_begin)
         end = relay.const(np_end)
         strides = relay.const(np_strides)
