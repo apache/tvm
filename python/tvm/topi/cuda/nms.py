@@ -24,7 +24,6 @@ from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
 from tvm.ir import register_intrin_lowering
 from tvm.tir import if_then_else
 from .sort import argsort, argsort_thrust
-from ..broadcast import minimum
 from .scan import exclusive_scan
 from ..utils import ceil_div
 from ..math import cast

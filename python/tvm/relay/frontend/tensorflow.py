@@ -805,6 +805,7 @@ def convert_combined_nms_with_all_class(
     max_total_size,
     clip_boxes,
 ):
+    """Converts TF combined_nms using Relay all_class_max_suppression op"""
     (selected_indices, selected_scores, num_detections,) = _op.vision.all_class_non_max_suppression(
         boxes,
         scores,
@@ -817,7 +818,7 @@ def convert_combined_nms_with_all_class(
         _op.const(0, dtype="int64"), _op.const(max_total_size, dtype="int64"), dtype="int64"
     )
     tile_batch_reps = (
-        _op.concatenate([batch_size, 1])
+        _op.concatenate([batch_size, 1], axis=0)
         if isinstance(batch_size, tvm.tir.Any)
         else _op.const([batch_size, 1])
     )
@@ -844,9 +845,10 @@ def convert_combined_nms_with_all_class(
         def false_branch():
             if isinstance(max_output_boxes_per_class, int):
                 # Do topk on smaller input if possible
-                slice_mx = _op.const([max_output_boxes_per_class * num_class], dtype="int64")
+                # TODO(masahi): use axes argument in strided slice when it becomes available
+                slice_mx = _op.const([-1, max_output_boxes_per_class * num_class], dtype="int64")
                 selected_scores_slice = _op.strided_slice(
-                    selected_scores, begin=_op.const([0], dtype="int64"), end=slice_mx, axes=[1]
+                    selected_scores, begin=_op.const([0, 0], dtype="int64"), end=slice_mx
                 )
             else:
                 selected_scores_slice = selected_scores

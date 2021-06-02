@@ -25,7 +25,6 @@ from tvm.tir import if_then_else
 from ..sort import argsort
 from ..math import cast
 from ..transform import reshape, gather
-from ..broadcast import minimum
 from .. import reduction
 from ..scan import cumsum
 from .nms_util import (
