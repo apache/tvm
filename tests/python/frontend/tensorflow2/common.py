@@ -42,7 +42,6 @@ def run_tf_code(func, input_):
         f_out = func(tf.constant(input_))
         if type(f_out) is dict:
             np_out = [f_out[k].numpy() for k in sorted(f_out.keys())]
-
         elif type(f_out) is list:
             np_out = [x.numpy() for x in f_out]
         else:
@@ -72,7 +71,7 @@ def run_graph_executor(lib, input_, ctx=tvm.cpu(0)):
     mod = runtime.GraphModule(lib["default"](ctx))
     mod.set_input(0, input_)
     mod.run()
-    return [mod.get_output(0).asnumpy()]
+    return [mod.get_output(i).asnumpy() for i in range(mod.get_num_outputs())]
 
 
 def compare_tf_tvm(gdef, input_, output_, runtime="vm", output_tensors=None):

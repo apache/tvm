@@ -261,6 +261,7 @@ class GraphProto:
     def _func(self, graph, outputs):
         out = []
         if outputs is None:
+
             last_node = graph.node[-1]
             op = self._nodes[last_node.name.split(":")[0]]
             if last_node.op == "Exit":
@@ -289,7 +290,6 @@ class GraphProto:
             if fv.name_hint in self._params:
                 final_params[fv.name_hint] = self._params[fv.name_hint]
         self._params = final_params
-
         return func
 
     def _convert_operator(self, graph, op_name, node_name, inputs, attrs, outputs=None):
@@ -581,7 +581,6 @@ def _convert_function(
         output_sig = (
             ([func.ret[f.name] for f in func.signature.output_arg]) if outputs is None else outputs
         )
-
         # TODO: unify prelude and main IRModules
         sub_func, sub_params = g1.from_tensorflow(
             subgraph, outputs=output_sig, input_types=input_types, gdef_lib=gdef_lib

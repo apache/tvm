@@ -370,6 +370,9 @@ def test_multi_output():
             return x, y
 
     run_func_graph(MultiOutput, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"])
+    run_func_graph(
+        MultiOutput, runtime="graph", outputs=["Identity:output:0", "Identity_1:output:0"]
+    )
     run_model_graph(MultiOutput)
 
 
