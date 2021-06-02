@@ -449,24 +449,42 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // Declare appropriate capabilities for int/float types
   if (dtype.is_int() || dtype.is_uint()) {
     if (dtype.bits() == 8) {
-      ICHECK(spirv_support_.supports_int8) << "Vulkan target does not support Int8 capability";
+      ICHECK(spirv_support_.supports_int8)
+          << "Vulkan target does not support Int8 capability.  "
+          << "If your device supports 8-bit int operations, "
+          << "please either add -supports_int8=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt8);
     } else if (dtype.bits() == 16) {
-      ICHECK(spirv_support_.supports_int16) << "Vulkan target does not support Int16 capability";
+      ICHECK(spirv_support_.supports_int16)
+          << "Vulkan target does not support Int16 capability.  "
+          << "If your device supports 16-bit int operations, "
+          << "please either add -supports_int16=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt16);
     } else if (dtype.bits() == 64) {
-      ICHECK(spirv_support_.supports_int64) << "Vulkan target does not support Int64 capability";
+      ICHECK(spirv_support_.supports_int64)
+          << "Vulkan target does not support Int64 capability.  "
+          << "If your device supports 64-bit int operations, "
+          << "please either add -supports_float64=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt64);
     }
 
   } else if (dtype.is_float()) {
     if (dtype.bits() == 16) {
       ICHECK(spirv_support_.supports_float16)
-          << "Vulkan target does not support Float16 capability";
+          << "Vulkan target does not support Float16 capability.  "
+          << "If your device supports 16-bit float operations, "
+          << "please either add -supports_float16=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityFloat16);
     } else if (dtype.bits() == 64) {
       ICHECK(spirv_support_.supports_float64)
-          << "Vulkan target does not support Float64 capability";
+          << "Vulkan target does not support Float64 capability.  "
+          << "If your device supports 16-bit float operations, "
+          << "please either add -supports_float16=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityFloat64);
     }
   }
@@ -478,17 +496,25 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // supports Int8 but doesn't support 8-bit buffer access.
   if (dtype.bits() == 8) {
     ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
-        << "Vulkan target does not support StorageBuffer8BitAccess";
+        << "Vulkan target does not support StorageBuffer8BitAccess.  "
+        << "If your device supports 8-bit buffer access, "
+        << "please either add -supports_8bit_buffer=1 to the target, "
+        << "or query all device parameters by adding -from_device=0.";
     capabilities_used_.insert(spv::CapabilityStorageBuffer8BitAccess);
     extensions_used_.insert("SPV_KHR_8bit_storage");
 
     ICHECK(spirv_support_.supports_storage_buffer_storage_class)
         << "Illegal Vulkan target description.  "
         << "Vulkan spec requires extension VK_KHR_storage_buffer_storage_class "
-        << "if VK_KHR_8bit_storage is supported";
+        << "if VK_KHR_8bit_storage is supported.  "
+        << "Please either add -supports_storage_buffer_storage_class=1 to the target, "
+        << "or query all device parameters by adding -from_device=0.";
   } else if (dtype.bits() == 16) {
-    ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
-        << "Vulkan target does not support StorageBuffer16BitAccess";
+    ICHECK(spirv_support_.supports_storage_buffer_16bit_access)
+        << "Vulkan target does not support StorageBuffer16BitAccess.  "
+        << "If your device supports 16-bit buffer access, "
+        << "please either add -supports_16bit_buffer=1 to the target, "
+        << "or query all device parameters by adding -from_device=0.";
 
     extensions_used_.insert("SPV_KHR_16bit_storage");
     if (spirv_support_.supports_storage_buffer_storage_class) {
