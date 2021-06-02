@@ -109,5 +109,48 @@ def test_maxpool_batchnorm_model():
     run_sequential_model(maxpool_batchnorm_model, input_shape=(1, 32, 32, 3))
 
 
+def test_tensorlist_stack_model():
+    class TensorArrayStackLayer(tf.keras.layers.Layer):
+        def __init__(self):
+            super().__init__()
+
+        def call(self, inputs):
+            inputs = tf.squeeze(inputs)
+            outputs = tf.TensorArray(
+                tf.float32, size=inputs.shape[0], infer_shape=False, element_shape=inputs.shape[1:]
+            )
+            outputs = outputs.unstack(inputs)
+
+            return outputs.stack()
+
+    shape = (3, 32)
+    model = tf.keras.Sequential(
+        [tf.keras.layers.Input(shape=shape, batch_size=1), TensorArrayStackLayer()]
+    )
+    return model
+
+
+def test_tensorlist_read_model():
+    class TensorArrayReadLayer(tf.keras.layers.Layer):
+        def __init__(self):
+            super().__init__()
+
+        def call(self, inputs):
+            inputs = tf.squeeze(inputs)
+            outputs = tf.TensorArray(
+                tf.float32, size=inputs.shape[0], infer_shape=False, element_shape=inputs.shape[1:]
+            )
+            for i in range(inputs.shape[0]):
+                outputs = outputs.write(i, inputs[i, :])
+
+            return outputs.read(0)
+
+    shape = (3, 32)
+    model = tf.keras.Sequential(
+        [tf.keras.layers.Input(shape=shape, batch_size=1), TensorArrayReadLayer()]
+    )
+    return model
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -38,7 +38,8 @@ from ..loops import while_loop as _while_loop
 from .common import infer_type as _infer_type
 
 from .tensorflow_ops import _convert_map as _convert_map_common
-from .tensorflow_ops import _need_prelude_for_shape_inference
+from .tensorflow2_ops import _convert_map as _convert_map_tf2
+from .tensorflow2_ops import _need_prelude_for_shape_inference
 
 from ..ty import Any
 
@@ -325,6 +326,11 @@ class GraphProto:
                 sym = _convert_map_common[op_name](inputs, attrs, self._params, self._prelude)
             else:
                 sym = _convert_map_common[op_name](inputs, attrs, self._params, self._module.mod)
+        elif op_name in _convert_map_tf2:
+            if _need_prelude_for_shape_inference(op_name):
+                sym = _convert_map_tf2[op_name](inputs, attrs, self._params, self._prelude)
+            else:
+                sym = _convert_map_tf2[op_name](inputs, attrs, self._params, self._module.mod)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
 
