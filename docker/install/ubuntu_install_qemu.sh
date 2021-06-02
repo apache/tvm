@@ -65,7 +65,6 @@ curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
 gpg --verify qemu-5.1.0.tar.xz.sig
 
 tar -xf qemu-5.1.0.tar.xz
-
 cd qemu-5.1.0
 ./configure --target-list=${target_list}
 make -j${num_cores}
