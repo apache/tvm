@@ -793,7 +793,7 @@ def _nms(return_scores=False):
     return _impl
 
 
-def convert_combined_nms_with_all_class(
+def convert_combined_nms_with_all_class_nms(
     batch_size,
     max_output_boxes_per_batch,
     num_class,
@@ -911,7 +911,7 @@ def _combined_nms():
             boxes = _op.squeeze(boxes, axis=[2])
             scores_trans = _op.transpose(scores, [0, 2, 1])
             max_output_boxes_per_batch = num_anchors * num_classes
-            return convert_combined_nms_with_all_class(
+            return convert_combined_nms_with_all_class_nms(
                 batch_size,
                 max_output_boxes_per_batch,
                 num_classes,
