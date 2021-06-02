@@ -170,7 +170,7 @@ def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
     return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
 
 
-def strided_slice(a, begin, end, strides=None, slice_mode="end"):
+def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
     """Slice of an array.
 
     Parameters
@@ -189,6 +189,10 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         in that case, the input tensor will be reversed
         in that particular axis.
 
+    axes : list of int, optional
+        Axes along which slicing is applied. When it is specified, begin, end
+        strides, and axes need to a list of integers of the same length.
+
     slice_mode : str, optional
         The slice mode [end, size].
         end - The ending indices for the slice [default].
@@ -205,6 +209,7 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         or isinstance(end, tvm.te.Tensor)
         or isinstance(strides, tvm.te.Tensor)
     ):
+        assert axes is None, "axes argument is not supported by dynamic strided slice yet."
         if not isinstance(begin, tvm.te.Tensor):
             begin = const_vector(begin)
         if not isinstance(end, tvm.te.Tensor):
@@ -216,7 +221,9 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         return cpp.dynamic_strided_slice(a, begin, end, strides)
     if strides is None:
         strides = []
-    return cpp.strided_slice(a, begin, end, strides, slice_mode)
+    if axes is None:
+        axes = []
+    return cpp.strided_slice(a, begin, end, strides, axes, slice_mode)
 
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",strided_set")

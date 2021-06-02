@@ -1341,7 +1341,30 @@ class Slice(OnnxOpConverter):
         axes = inputs[3]
         steps = inputs[4]
 
-        data_rank = len(infer_shape(inputs[0]))
+        ishape = infer_shape(inputs[0])
+        data_rank = len(ishape)
+
+        def has_static_axes():
+            return (
+                isinstance(axes, _expr.Constant)
+                and isinstance(starts, _expr.Constant)
+                and isinstance(ends, _expr.Constant)
+                and (steps is None or isinstance(steps, _expr.Constant))
+            )
+
+        if axes is not None and has_static_axes():
+            axes_np = axes.data.asnumpy().astype("int64")
+            begin_np = starts.data.asnumpy().astype("int64")
+            end_np = ends.data.asnumpy().astype("int64")
+            if steps is None:
+                strides_np = np.ones_like(begin_np).astype("int64")
+            else:
+                strides_np = steps.data.asnumpy().astype("int64")
+
+            if all([isinstance(ishape[i], int) for i in axes_np]):
+                return _op.strided_slice(
+                    inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
+                )
 
         # Update the starts and ends according to axes if required.
         if axes is not None:
@@ -1416,8 +1439,10 @@ class GatherND(OnnxOpConverter):
     @classmethod
     def _impl_common(cls, data, indices, batch_dims=0):
         indices_dims = len(infer_shape(indices))
+        indices_shape = infer_shape(indices)
         indices = _op.transpose(indices, axes=[-1] + list(range(indices_dims - 1)))
-        return _op.gather_nd(data, indices, batch_dims)
+        index_rank = indices_shape[-1]
+        return _op.gather_nd(data, indices, batch_dims, index_rank)
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -2953,6 +2978,39 @@ class BitShift(OnnxOpConverter):
         return out
 
 
+class Unique(OnnxOpConverter):
+    """Operator converter for unique"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        if len(inputs) != 1:
+            raise ValueError("Unique expects 1 input")
+
+        data = inputs[0]
+        axis = attr.get("axis", None)
+        if axis is None:  # If axis is None, flatten the input before calling unique
+            data = _op.reshape(data, _op.const([-1]))
+        else:
+            data_shape = infer_shape(data)
+            if len(data_shape) != 1:
+                raise ValueError("TVM only supports 1D Unique operator.")
+        is_sorted = attr.get("sorted", 1)  # sorted is 0 or 1, 1 by default
+
+        # ONNX documentation lists return_counts as optional but there is no input to specify
+        # whether it is returned. Therefore we'll just always return it.
+        unique = _op.unique(data, is_sorted=(is_sorted == 1), return_counts=True)
+        num_unique = unique[3]
+
+        trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
+
+        unique_vals = trim_unique_lambda(unique[0])
+        indices = trim_unique_lambda(unique[1])
+        inverse_indices = unique[2]
+        counts = trim_unique_lambda(unique[4])
+        # ONNX unique returns unique, indices, inverse_indices, (optional) counts
+        return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -3116,6 +3174,7 @@ def _get_convert_map(opset):
         "NonZero": NonZero.get_converter(opset),
         "Range": Range.get_converter(opset),
         "CumSum": CumSum.get_converter(opset),
+        "Unique": Unique.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
@@ -3304,6 +3363,12 @@ class GraphProto:
                 outputs_num = 1
             else:
                 outputs_num = len(op)
+
+            if outputs_num == 1:
+                op = fold_constant(op)
+            else:
+                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
+
             if outputs_num > 1:
                 # ONNX supports optional outputs for some nodes.
                 # This block searches for missing outputs in the ONNX graph
@@ -3325,8 +3390,8 @@ class GraphProto:
                     # Create the new op with valid outputs
                     if len(outputs) == 1:
                         op = outputs[0]
-                    else:
-                        op = _expr.TupleWrapper(outputs, len(outputs))
+                    elif len(outputs) != outputs_num:
+                        op = _expr.TupleWrapper(_expr.Tuple(outputs), len(outputs))
                     # Drop invalid outputs for the onnx node
                     outputs_num = len(outputs)
                     node_output = [output for output in node_output if output != ""]
@@ -3335,10 +3400,10 @@ class GraphProto:
             ), "Number of output mismatch {} vs {} in {}.".format(
                 len(node_output), outputs_num, op_name
             )
+
             if outputs_num == 1:
-                self._nodes[node_output[0]] = fold_constant(op)
+                self._nodes[node_output[0]] = op
             else:
-                op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]
 

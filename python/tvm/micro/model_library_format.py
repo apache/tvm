@@ -216,6 +216,11 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
         The return value of tvm.relay.build, which will be exported into Model Library Format.
     file_name : str
         Path to the .tar archive to generate.
+
+    Returns
+    -------
+    file_name : str
+        The path to the generated .tar archive.
     """
     tempdir = utils.tempdir()
     is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
@@ -260,3 +265,5 @@ def export_model_library_format(mod: executor_factory.ExecutorFactoryModule, fil
             return tarinfo
 
         tar_f.add(tempdir.temp_dir, arcname=".", filter=reset)
+
+    return file_name

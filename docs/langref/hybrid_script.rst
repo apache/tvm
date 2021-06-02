@@ -149,8 +149,8 @@ It regards the first store of a variable as its declaration.
    for i in range(5):
        s = 0 # declaration, this s will be a 1-array in lowered IR
        for j in range(5):
-     	  s += a[i, j] # do something with sum
-       b[i] = sum # you can still use sum in this level
+         s += a[i, j] # do something with s
+       b[i] = s # you can still use s in this level
    a[0] = s # you CANNOT use s here, even though it is allowed in conventional Python
 
 

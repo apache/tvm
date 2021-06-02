@@ -25,6 +25,7 @@ from tvm.relay import ExprFunctor
 from tvm.relay import Function, Call
 from tvm.relay import analysis
 from tvm.relay import transform as _transform
+from tvm.ir import instrument as _instrument
 from tvm.relay.testing import run_infer_type
 import tvm.testing
 
@@ -533,17 +534,26 @@ def test_print_ir(capfd):
     assert "multiply" in out
 
 
-__TRACE_COUNTER__ = 0
+@tvm.instrument.pass_instrument
+class PassCounter:
+    def __init__(self):
+        # Just setting a garbage value to test set_up callback
+        self.counts = 1234
 
+    def enter_pass_ctx(self):
+        self.counts = 0
 
-def _tracer(module, info, is_before):
-    global __TRACE_COUNTER__
-    if bool(is_before):
-        __TRACE_COUNTER__ += 1
+    def exit_pass_ctx(self):
+        self.counts = 0
+
+    def run_before_pass(self, module, info):
+        self.counts += 1
+
+    def get_counts(self):
+        return self.counts
 
 
 def test_print_debug_callback():
-    global __TRACE_COUNTER__
     shape = (1, 2, 3)
     tp = relay.TensorType(shape, "float32")
     x = relay.var("x", tp)
@@ -559,15 +569,20 @@ def test_print_debug_callback():
         ]
     )
 
-    assert __TRACE_COUNTER__ == 0
     mod = tvm.IRModule({"main": func})
 
-    with tvm.transform.PassContext(opt_level=3, trace=_tracer):
+    pass_counter = PassCounter()
+    with tvm.transform.PassContext(opt_level=3, instruments=[pass_counter]):
+        # Should be reseted when entering pass context
+        assert pass_counter.get_counts() == 0
         mod = seq(mod)
 
-    # TODO(@jroesch): when we remove new fn pass behavior we need to remove
-    # change this back to 3
-    assert __TRACE_COUNTER__ == 5
+        # TODO(@jroesch): when we remove new fn pass behavior we need to remove
+        # change this back to match correct behavior
+        assert pass_counter.get_counts() == 6
+
+    # Should be cleanned up after exiting pass context
+    assert pass_counter.get_counts() == 0
 
 
 if __name__ == "__main__":

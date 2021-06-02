@@ -26,6 +26,7 @@ from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
+from utils import ref_funcs
 
 
 def test_zeros_ones():
@@ -1266,26 +1267,7 @@ def test_gather_nd():
         else:
             y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
 
-        def gather_nd_batch_dims_1_ref(data, indices):
-            res = []
-            for i, row in enumerate(data):
-                indices_tuple = tuple(indices[:, i])  # the indices for the i-th batch
-                res.append(row[indices_tuple])
-            # stack on the batch dim
-            return np.stack(res, 0)
-
-        if batch_dims > 1:
-            x_data_reshape = np.reshape(x_data, (-1,) + xshape[batch_dims:])
-            y_data_reshape = np.reshape(y_data, (yshape[0], -1) + yshape[(batch_dims + 1) :])
-
-            ref_res = gather_nd_batch_dims_1_ref(x_data_reshape, y_data_reshape)
-
-            out_shape = yshape[1 : (batch_dims + 1)] + ref_res.shape[1:]
-            ref_res = np.reshape(ref_res, out_shape)
-        elif batch_dims == 1:
-            ref_res = gather_nd_batch_dims_1_ref(x_data, y_data)
-        else:
-            ref_res = x_data[tuple(y_data)]
+        ref_res = ref_funcs.gather_nd(x_data, y_data, batch_dims)
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1977,7 +1959,14 @@ def test_unique():
             uniq = uniq[order].astype(data.dtype)
             inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
             counts = counts[order].astype("int32")
-        return [uniq.astype(data.dtype), inverse.astype("int32"), counts, num_uniq]
+            index = np.sort(index)  # In unsorted case, need to sort the index of first occurence
+        return [
+            uniq.astype(data.dtype),
+            index.astype("int32"),
+            inverse.astype("int32"),
+            num_uniq,
+            counts,
+        ]
 
     def verify_unique(n, dtype, is_dyn=False, is_sorted=False, return_counts=False):
         if is_dyn:
@@ -1998,18 +1987,26 @@ def test_unique():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                tvm_res = intrp.evaluate()(x_data)
-                np_res = calc_numpy_unique(x_data, is_sorted)
+                tvm_res = intrp.evaluate()(
+                    x_data
+                )  # unique, indices, inverse_indices, num_unique, (counts)
+                np_res = calc_numpy_unique(
+                    x_data, is_sorted
+                )  # unique, indices, inverse_indices, num_unique, counts
                 num_unique = np_res[3][0]
-                assert num_unique == tvm_res[2].numpy()[0]
+
+                # num_unique
+                assert num_unique == tvm_res[3].numpy()[0]
                 # unique
                 tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
+                # indices
+                tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
                 # inverse_indices
-                tvm.testing.assert_allclose(tvm_res[1].numpy(), np_res[1], rtol=1e-5)
+                tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
                 # counts
                 if return_counts:
                     tvm.testing.assert_allclose(
-                        tvm_res[3].numpy()[:num_unique], np_res[2], rtol=1e-5
+                        tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5
                     )
 
     for dtype in ["int32", "int64"]:
