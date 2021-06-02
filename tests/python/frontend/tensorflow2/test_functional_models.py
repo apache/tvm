@@ -373,7 +373,7 @@ def test_multi_output():
     run_func_graph(
         MultiOutput, runtime="graph", outputs=["Identity:output:0", "Identity_1:output:0"]
     )
-    run_model_graph(MultiOutput)
+    run_model_graph(MultiOutput, outputs=["Identity:output:0"])
 
 
 def test_if():
@@ -440,7 +440,7 @@ def test_stateless_while_2var():
     run_func_graph(
         StatelessWhile2Var, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"]
     )
-    run_model_graph(StatelessWhile2Var)
+    run_model_graph(StatelessWhile2Var, outputs=["Identity:output:0"])
 
 
 if __name__ == "__main__":

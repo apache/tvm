@@ -267,14 +267,13 @@ class GraphProto:
                 if param:
                     self._params[node.name] = param
         for node in graph.node:
-            self._backtrack_construct(graph, node.name, outputs=outputs)
+            self._backtrack_construct(graph, node.name)
 
         return self._func(graph, outputs)
 
     def _func(self, graph, outputs):
         out = []
         if outputs is None:
-
             last_node = graph.node[-1]
             op = self._nodes[last_node.name.split(":")[0]]
             if last_node.op == "Exit":
@@ -305,7 +304,7 @@ class GraphProto:
         self._params = final_params
         return func
 
-    def _convert_operator(self, graph, op_name, node_name, inputs, attrs, outputs=None):
+    def _convert_operator(self, graph, op_name, node_name, inputs, attrs):
         """Convert from Tensorflow operator to relay operator.
         The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
@@ -332,7 +331,6 @@ class GraphProto:
                 attrs,
                 self._prelude,
                 gdef_lib=self._gdef_lib,
-                outputs=outputs,
             )
         elif op_name in ["StatelessIf", "If"]:
             sym = _convert_if(
@@ -360,7 +358,7 @@ class GraphProto:
         sym = set_span(sym, node_name)
         return sym
 
-    def _backtrack_construct(self, graph, node_name, outputs=None):
+    def _backtrack_construct(self, graph, node_name):
         """Convert a specific tensorflow node to relay expression.
 
         If any of its ancestor node is not converted yet, backtrack as
@@ -388,9 +386,6 @@ class GraphProto:
         node_name : str
             node name
 
-        outputs : List[str]
-            List of output nodes
-
         Returns
         -------
         op : relay.Expr
@@ -417,10 +412,8 @@ class GraphProto:
             attr["_output_shapes"] = self._output_shapes[input_op_name]
             attr["_node_name"] = node.name
             attr["_target_layout"] = self._layout
-            inputs = [
-                self._backtrack_construct(graph, iname, outputs=outputs) for iname in node.input
-            ]
-            op = self._convert_operator(graph, node.op, node.name, inputs, attr, outputs=outputs)
+            inputs = [self._backtrack_construct(graph, iname) for iname in node.input]
+            op = self._convert_operator(graph, node.op, node.name, inputs, attr)
 
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)
@@ -444,11 +437,11 @@ class GraphProto:
         return out[0]
 
 
-def _partition_call_operator(module, graph, inputs, attr, prelude, gdef_lib, outputs=None):
+def _partition_call_operator(module, graph, inputs, attr, prelude, gdef_lib):
     """convert tf PartitionedCall node to a relay function call"""
     node_func_name = attr.get("f").name
     return _convert_function(
-        module, graph, inputs, attr, node_func_name, prelude, gdef_lib=gdef_lib, outputs=outputs
+        module, graph, inputs, attr, node_func_name, prelude, gdef_lib=gdef_lib
     )
 
 
@@ -519,7 +512,7 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
 
 
 def _convert_function(
-    module, graph, inputs, attr, node_func_name, prelude, gdef_lib, in_shapes=None, outputs=None
+    module, graph, inputs, attr, node_func_name, prelude, gdef_lib, in_shapes=None
 ):
     """Convert given tf node to a relay function call
 
@@ -539,9 +532,6 @@ def _convert_function(
 
     node_func_name : str
         Name of tf2 node to be converted
-
-    outputs : List[str]
-        The list of output nodes.
 
     Returns
     -------
@@ -596,9 +586,7 @@ def _convert_function(
     except ValueError:
         # Construct relay nodes from the subgraph
         g1 = GraphProto(module)
-        output_sig = (
-            ([func.ret[f.name] for f in func.signature.output_arg]) if outputs is None else outputs
-        )
+        output_sig = [func.ret[f.name] for f in func.signature.output_arg]
         # TODO: unify prelude and main IRModules
         sub_func, sub_params = g1.from_tensorflow(
             subgraph, outputs=output_sig, input_types=input_types, gdef_lib=gdef_lib
