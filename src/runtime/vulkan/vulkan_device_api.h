@@ -22,6 +22,7 @@
 
 #include <tvm/runtime/device_api.h>
 
+#include <string>
 #include <vector>
 
 #include "vulkan/vulkan_core.h"
@@ -74,19 +75,15 @@ class VulkanDeviceAPI final : public DeviceAPI {
    */
   const VulkanContext& context(size_t device_id) const;
 
-  /*! \brief Get a Target that best describes a particular device.
+  /*! \brief Returns a property to be stored in a target.
    *
    * Returns the results of feature/property queries done during the
    * device initialization.
    */
-  Target GenerateTarget(size_t device_id) const;
+  void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv);
 
  private:
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);
-
-  Target GetDeviceDescription(VkInstance instance, VkPhysicalDevice dev,
-                              const std::vector<const char*>& instance_extensions,
-                              const std::vector<const char*>& device_extensions);
 
   std::vector<const char*> FindEnabledExtensions(
       const std::vector<VkExtensionProperties>& ext_prop,
