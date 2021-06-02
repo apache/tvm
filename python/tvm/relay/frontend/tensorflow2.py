@@ -25,9 +25,12 @@ Otherwise use the tf1.x converter:
 """
 
 import numpy as np
+from tensorflow.python.framework import function_def_to_graph
+from tensorflow.python.framework import tensor_util
+from tensorflow.python.framework import dtypes
+
 
 import tvm
-from tvm import relay
 from tvm.relay.transform import InferType
 from tvm.relay.prelude import Prelude
 from tvm.ir import IRModule
@@ -35,17 +38,12 @@ from .. import expr as _expr
 from .. import analysis
 from .. import function as _function
 from ..loops import while_loop as _while_loop
-from .common import infer_shape as _infer_shape
 from .common import infer_type as _infer_type
-
-from tensorflow.python.framework import function_def_to_graph
-from tensorflow.python.framework import tensor_util
-from tensorflow.python.framework import dtypes
 
 from .tensorflow import _convert_map as _convert_map_tf1
 from .tensorflow import _need_prelude_for_shape_inference
 
-from ..ty import Any, TensorType
+from ..ty import Any
 
 __all__ = ["from_tensorflow"]
 
@@ -206,7 +204,8 @@ def convert_place_holder(shape, node, in_type=None):
 
 
 class RelayModule:
-    """states related to the entire relay module (multiple functions) after converted from tf graphdef"""
+    """states related to the entire relay module (multiple functions)
+    after converted from tf graphdef"""
 
     def __init__(self):
         self.mod = IRModule({})  # relay function and type definitions. defined in tvm/ir/module.py
@@ -389,10 +388,6 @@ class GraphProto:
             CallNode(Op(add), [Var(x, ty=TensorType([], float32)), Constant(1.0)], (nullptr), [])
 
         """
-        try:
-            from tensorflow.python.framework import tensor_util
-        except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
 
         input_op_name = node_name.split(":")[0].split("^")[-1]
         if input_op_name not in self._nodes:
@@ -541,8 +536,8 @@ def _convert_function(
 
     Examples
     --------
-    a tf function "x+1", is implemented as a subgraph in the libary section of the graph. this subgraph is converted
-    to a relay function such as
+    a tf function "x+1", is implemented as a subgraph in the libary section of the graph.
+    this subgraph is converted to a relay function such as
         fn (%x: float32) {
         add(%x, 1f) /* Identity */
         }
@@ -660,7 +655,8 @@ def from_tensorflow(graph_def, layout="NHWC", shape=None, outputs=None):
     "x+1" tf module where x has a shape of (2,2) is converted as follows:
 
     mod : tvm.IRModule
-        def @func___inference_add_95(%x: Tensor[(2, 2), float32], %add/y: Tensor[(2, 2), float32]) -> Tensor[(2, 2), float32] {
+        def @func___inference_add_95(%x: Tensor[(2, 2), float32], %add/y: Tensor[(2, 2), float32])
+        -> Tensor[(2, 2), float32] {
         add(%x, %add/y) /* Identity */ /* ty=Tensor[(2, 2), float32] */
         }
 
